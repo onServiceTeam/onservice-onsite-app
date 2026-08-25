@@ -83,7 +83,7 @@ export default function ConfigureScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Back from service customization">
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Customize Your Service</Text>
@@ -94,7 +94,12 @@ export default function ConfigureScreen(): React.ReactElement {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.formContent, !isPhone && styles.formContentWide]}>
+        <View
+          style={[styles.formContent, !isPhone && styles.formContentWide]}
+          accessibilityLabel={isPhone ? 'Service customization form' : 'Wide service customization workspace'}
+        >
+        <View style={[styles.configureWorkspace, !isPhone && styles.configureWorkspaceWide]}>
+        <View style={[styles.configureColumn, !isPhone && styles.configurePrimaryWide]}>
         <View style={[styles.serviceInfo, { backgroundColor: tint.bg }]}>
           <Text style={[styles.serviceName, { color: tint.fg }]}>{draft.subcategoryName ?? 'Service'}</Text>
           <Text style={[styles.servicePrice, { color: tint.fg }]}>{formatPHP(draft.basePrice)}</Text>
@@ -119,6 +124,9 @@ export default function ConfigureScreen(): React.ReactElement {
                 style={styles.stepBtn}
                 onPress={() => setEstimatedHours(Math.max(1, draft.estimatedHours - 0.5))}
                 disabled={draft.estimatedHours <= 1}
+                accessibilityRole="button"
+                accessibilityLabel="Decrease estimated hours"
+                accessibilityState={{ disabled: draft.estimatedHours <= 1 }}
               >
                 <Text style={styles.stepBtnText}>−</Text>
               </TouchableOpacity>
@@ -126,6 +134,8 @@ export default function ConfigureScreen(): React.ReactElement {
               <TouchableOpacity
                 style={styles.stepBtn}
                 onPress={() => setEstimatedHours(draft.estimatedHours + 0.5)}
+                accessibilityRole="button"
+                accessibilityLabel="Increase estimated hours"
               >
                 <Text style={styles.stepBtnText}>+</Text>
               </TouchableOpacity>
@@ -169,6 +179,9 @@ export default function ConfigureScreen(): React.ReactElement {
                   style={[styles.addonCard, isSelected && styles.addonCardActive]}
                   onPress={() => toggleAddon(addon)}
                   activeOpacity={0.7}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: isSelected }}
+                  accessibilityLabel={`${addon.name}, add ${formatPHP(addon.price)}`}
                 >
                   <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
                     {isSelected && <Check size={16} color={colors.primary} />}
@@ -189,8 +202,9 @@ export default function ConfigureScreen(): React.ReactElement {
             })}
           </View>
         )}
+        </View>
 
-        {selectedAddons.length > 0 && (
+        <View style={[styles.configureColumn, !isPhone && styles.configureSummaryWide]} accessibilityLabel="Service price summary">
           <Card style={styles.breakdown}>
             <Text style={styles.breakdownTitle}>Price Summary</Text>
             <View style={styles.breakdownRow}>
@@ -213,7 +227,11 @@ export default function ConfigureScreen(): React.ReactElement {
               <Text style={styles.totalValue}>{formatPHP(subtotal + localFee)}</Text>
             </View>
           </Card>
-        )}
+          <Text style={styles.summaryHint}>
+            The final checkout shows the service, add-ons, fee, schedule, and payment method before you submit.
+          </Text>
+        </View>
+        </View>
         </View>
       </ScrollView>
 
@@ -259,7 +277,12 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 120 },
   formContent: { width: '100%' },
-  formContentWide: { maxWidth: 880, alignSelf: 'center' },
+  formContentWide: { maxWidth: 1180, alignSelf: 'center' },
+  configureWorkspace: { width: '100%' },
+  configureWorkspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl },
+  configureColumn: { width: '100%' },
+  configurePrimaryWide: { flex: 1, minWidth: 0 },
+  configureSummaryWide: { width: 360 },
 
   serviceInfo: {
     flexDirection: 'row',
@@ -311,6 +334,7 @@ const styles = StyleSheet.create({
   addonPriceActive: { color: colors.primary },
 
   breakdown: {},
+  summaryHint: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: spacing.md },
   breakdownTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
   breakdownRow: {
     flexDirection: 'row',

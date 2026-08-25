@@ -25,7 +25,7 @@ import useDebouncedValue from '@/hooks/useDebouncedValue';
 import { getServiceScopeCopy } from '@/utils/serviceScope';
 import { useResponsive } from '@/hooks/useResponsive';
 
-import { Routes } from '@/config/navigation';
+import { buildRoute, Routes } from '@/config/navigation';
 interface ProviderResult {
   id: string;
   userId: string;
@@ -148,7 +148,7 @@ export default function SearchScreen(): React.ReactElement {
     // NOT the users.id). Tapping a search-result provider always 404'd.
     // home.tsx Suki Pros card uses `provider.providerId` correctly;
     // search.tsx now matches that pattern by using `provider.id`.
-    router.push(`/customer/provider/${provider.id}`);
+    router.push(buildRoute(Routes.CUSTOMER.PROVIDER_PROFILE, { id: provider.id }));
   };
 
   const renderItem = ({ item }: { item: SearchItem }): React.ReactElement => {
@@ -158,6 +158,8 @@ export default function SearchScreen(): React.ReactElement {
       return (
         <TouchableOpacity
           style={styles.resultCard}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${svc.name} service`}
           onPress={() => handleSelectService(svc)}
           activeOpacity={0.7}
         >
@@ -200,6 +202,8 @@ export default function SearchScreen(): React.ReactElement {
     return (
       <TouchableOpacity
         style={styles.providerCard}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${prov.businessName} provider profile`}
         onPress={() => handleSelectProvider(prov)}
         activeOpacity={0.7}
       >
@@ -252,8 +256,9 @@ export default function SearchScreen(): React.ReactElement {
         </TouchableOpacity>
         {/* BUG-PHASE166-01 fix — pre-fix this had no maxLength.
             Server caps at 100 (Phase 166-01). Match the cap. */}
-        <TextInput
-          style={styles.searchInput}
+          <TextInput
+            accessibilityLabel="Search services and providers"
+            style={styles.searchInput}
           value={query}
           onChangeText={setQuery}
           onSubmitEditing={handleSearch}
@@ -314,7 +319,7 @@ export default function SearchScreen(): React.ReactElement {
               <TouchableOpacity
                 key={c.slug}
                 style={styles.suggestChip}
-                onPress={() => router.push(`/customer/category/${c.slug}`)}
+                onPress={() => router.push(buildRoute(Routes.CUSTOMER.CATEGORY, { id: c.slug }))}
                 accessibilityRole="button"
                 accessibilityLabel={`Browse ${c.name}`}
               >

@@ -20,7 +20,7 @@ it('Bug UX-055 — payment failure opens a prefilled support case linked to the 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><PaymentFailedScreen /></QueryClientProvider>);
 
-  fireEvent.click(screen.getByRole('button', { name: 'Contact Support' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Contact support about payment failure' }));
 
   expect(mockPush).toHaveBeenCalledWith({
     pathname: '/support/new',

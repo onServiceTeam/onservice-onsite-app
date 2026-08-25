@@ -32,7 +32,7 @@ import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
 import type { ComponentType } from 'react';
-import { Routes } from '@/config/navigation';
+import { buildRoute, Routes } from '@/config/navigation';
 import {
   Sparkles,
   Wrench,
@@ -116,7 +116,7 @@ export default function HomeScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   // Category grid widens to more columns on tablet/desktop (cards are flex:1).
-  const { breakpoint } = useResponsive();
+  const { breakpoint, isPhone } = useResponsive();
   const categoryColumns = byBreakpoint(breakpoint, { phone: 2, tablet: 3, desktop: 4 });
   const setCategory = useBookingStore((s) => s.setCategory);
 
@@ -189,7 +189,7 @@ export default function HomeScreen(): React.ReactElement {
 
   const handleCategoryPress = (cat: Category): void => {
     setCategory(cat.id, cat.name, cat.slug);
-    router.push(`/customer/category/${cat.slug}`);
+    router.push(buildRoute(Routes.CUSTOMER.CATEGORY, { id: cat.slug }));
   };
 
   const activeBookings = activeBookingsQuery.data ?? [];
@@ -206,6 +206,8 @@ export default function HomeScreen(): React.ReactElement {
         <TouchableOpacity
           style={styles.avatarContainer}
           onPress={() => router.push(Routes.TABS.PROFILE)}
+          accessibilityRole="button"
+          accessibilityLabel="Open customer profile"
         >
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
@@ -222,6 +224,7 @@ export default function HomeScreen(): React.ReactElement {
               ? `Current location: ${headerAddress.label} in ${headerAddress.city}. Tap to change.`
               : 'No location selected. Tap to add an address.'
           }
+          accessibilityRole="button"
         >
           <Text style={styles.locationLabel}>Current Location</Text>
           <View style={styles.locationValueRow}>
@@ -252,6 +255,11 @@ export default function HomeScreen(): React.ReactElement {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.welcomeBlock} accessibilityLabel="Customer home introduction">
+        <Text style={styles.welcomeTitle}>Welcome back{user?.firstName ? `, ${user.firstName}` : ''}</Text>
+        <Text style={styles.welcomeText}>What can we help you get done?</Text>
+      </View>
+
       {/* Active Booking Card */}
       {activeBookingsError && (
         <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginHorizontal: 16, marginBottom: 8 }}>
@@ -272,7 +280,7 @@ export default function HomeScreen(): React.ReactElement {
               {activeBookings.length === 1 ? 'Active Booking' : 'Active Bookings'}
             </Text>
             {activeBookings.length > 3 && (
-              <TouchableOpacity onPress={() => router.push(Routes.TABS.BOOKINGS)}>
+              <TouchableOpacity onPress={() => router.push(Routes.TABS.BOOKINGS)} accessibilityRole="button" accessibilityLabel="See all active bookings">
                 <Text style={styles.seeAllLink}>See all &gt;</Text>
               </TouchableOpacity>
             )}
@@ -281,8 +289,10 @@ export default function HomeScreen(): React.ReactElement {
             <TouchableOpacity
               key={booking.id}
               style={styles.activeCard}
-              onPress={() => router.push(`/customer/booking/${booking.id}`)}
+              onPress={() => router.push(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: booking.id }))}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Track ${booking.serviceName ?? booking.categoryName ?? 'service'} booking`}
             >
               <View style={styles.activeCardTop}>
                 <StatusBadge status={booking.status} />
@@ -314,6 +324,8 @@ export default function HomeScreen(): React.ReactElement {
       <Pressable
         style={styles.searchBar}
         onPress={() => router.push(Routes.CUSTOMER.SEARCH)}
+        accessibilityRole="button"
+        accessibilityLabel="Search services or providers"
       >
         <View style={styles.searchIconWrap}><Search size={16} color={colors.textTertiary} /></View>
         <Text style={styles.searchPlaceholder}>Search services or providers...</Text>
@@ -359,6 +371,9 @@ export default function HomeScreen(): React.ReactElement {
                   // Anything else (mailto:, tel:, malformed) is ignored.
                 }}
                 activeOpacity={0.85}
+                disabled={!item.ctaLink}
+                accessibilityRole={item.ctaLink ? 'button' : undefined}
+                accessibilityLabel={item.ctaLink ? `${item.ctaText ?? 'Open'}: ${item.title}` : undefined}
               >
                 {item.badge && (
                   <View style={styles.promoBadge}>
@@ -395,6 +410,8 @@ export default function HomeScreen(): React.ReactElement {
         style={[styles.categoryCard, { backgroundColor: tint.bg }]}
         onPress={() => handleCategoryPress(item)}
         activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={`Browse ${item.name} services`}
       >
         <View style={styles.categoryChip}>
           <Icon size={22} color={tint.fg} />
@@ -413,7 +430,7 @@ export default function HomeScreen(): React.ReactElement {
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Your Suki Pros</Text>
-            <TouchableOpacity onPress={() => router.push(Routes.CUSTOMER.SUKI_PROS)}>
+            <TouchableOpacity onPress={() => router.push(Routes.CUSTOMER.SUKI_PROS)} accessibilityRole="button" accessibilityLabel="See all Suki providers">
               <Text style={styles.seeAllLink}>See all &gt;</Text>
             </TouchableOpacity>
           </View>
@@ -426,8 +443,10 @@ export default function HomeScreen(): React.ReactElement {
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.sukiCard}
-                onPress={() => router.push(`/customer/provider/${item.providerId}`)}
+                onPress={() => router.push(buildRoute(Routes.CUSTOMER.PROVIDER_PROFILE, { id: item.providerId }))}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${item.providerName} provider profile`}
               >
                 <View style={styles.sukiAvatar}>
                   <Text style={styles.sukiAvatarText}>
@@ -439,12 +458,9 @@ export default function HomeScreen(): React.ReactElement {
                 {item.discount > 0 && (
                   <Text style={styles.sukiDiscount}>{item.discount}% off</Text>
                 )}
-                <TouchableOpacity
-                  style={styles.sukiBookBtn}
-                  onPress={() => router.push(`/customer/provider/${item.providerId}`)}
-                >
+                <View style={styles.sukiBookBtn}>
                   <Text style={styles.sukiBookText}>Book</Text>
-                </TouchableOpacity>
+                </View>
               </TouchableOpacity>
             )}
           />
@@ -483,12 +499,14 @@ export default function HomeScreen(): React.ReactElement {
                   const cat = categories.find((c) => c.id === item.categoryId);
                   if (cat) {
                     setCategory(cat.id, cat.name, cat.slug);
-                    router.push(`/customer/category/${cat.slug}`);
+                    router.push(buildRoute(Routes.CUSTOMER.CATEGORY, { id: cat.slug }));
                   } else {
-                    router.push(`/customer/booking/${item.id}`);
+                    router.push(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: item.id }));
                   }
                 }}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Book ${item.serviceName ?? 'service'} again`}
               >
                 <Text style={styles.rebookService}>
                   {item.serviceName ?? 'Service'}
@@ -509,7 +527,7 @@ export default function HomeScreen(): React.ReactElement {
       {/* trust claims only. No tap target, no peso amounts, no insurance copy. */}
       <View style={styles.howItWorksSection} testID="how-it-works-section">
         <Text style={styles.howItWorksTitle}>How onService works</Text>
-        <View style={styles.howItWorksGrid}>
+        <View style={[styles.howItWorksGrid, !isPhone && styles.howItWorksGridWide]}>
           <View style={styles.howItWorksTile}>
             <View style={styles.howItWorksIconWrap}><Search size={28} color={colors.primary} /></View>
             <View style={styles.howItWorksTextWrap}>
@@ -576,6 +594,10 @@ export default function HomeScreen(): React.ReactElement {
   }
 
   return (
+    <View
+      style={styles.container}
+      accessibilityLabel={isPhone ? 'Customer home' : 'Wide customer home workspace'}
+    >
     <FlatList
       data={categories}
       renderItem={renderCategoryItem}
@@ -585,7 +607,7 @@ export default function HomeScreen(): React.ReactElement {
       ListHeaderComponent={renderHeader}
       ListFooterComponent={renderFooter}
       columnWrapperStyle={styles.categoryRow}
-      style={styles.container}
+      style={styles.list}
       contentContainerStyle={styles.listContent}
       showsVerticalScrollIndicator={false}
       refreshControl={
@@ -596,12 +618,14 @@ export default function HomeScreen(): React.ReactElement {
         />
       }
     />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
-  listContent: { paddingBottom: 20 },
+  list: { flex: 1 },
+  listContent: { paddingBottom: 20, width: '100%', maxWidth: 1280, alignSelf: 'center' },
 
   headerBar: {
     flexDirection: 'row',
@@ -610,6 +634,9 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.base,
     backgroundColor: colors.surfaceMuted,
   },
+  welcomeBlock: { paddingHorizontal: spacing.base, paddingBottom: spacing.base },
+  welcomeTitle: { ...typography.h1, color: colors.text, marginBottom: spacing.xs },
+  welcomeText: { ...typography.body, color: colors.textSecondary },
   trustStrip: { marginHorizontal: spacing.base, marginBottom: spacing.base },
   avatarContainer: { marginRight: spacing.md },
   avatar: {
@@ -661,6 +688,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
+    marginBottom: spacing.sm,
   },
   activeCardTop: {
     flexDirection: 'row',
@@ -668,7 +696,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  activeCardTime: { ...typography.caption, color: 'rgba(255,255,255,0.7)' },
+  activeCardTime: { ...typography.caption, color: colors.white },
   activeCardService: {
     ...typography.h3,
     color: colors.white,
@@ -676,7 +704,7 @@ const styles = StyleSheet.create({
   },
   activeCardProvider: {
     ...typography.bodySmall,
-    color: 'rgba(255,255,255,0.8)',
+    color: colors.white,
     marginBottom: spacing.md,
   },
   activeCardCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
@@ -688,7 +716,7 @@ const styles = StyleSheet.create({
   activeProgressTrack: {
     height: 5,
     borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: colors.primaryLight,
     overflow: 'hidden',
     marginTop: spacing.xs,
     marginBottom: spacing.md,
@@ -734,7 +762,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: borderRadius.md,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -847,7 +875,7 @@ const styles = StyleSheet.create({
   },
   promoCard: {
     width: 280,
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.primary,
     borderRadius: borderRadius.lg,
     padding: spacing.base,
     minHeight: 120,
@@ -859,14 +887,14 @@ const styles = StyleSheet.create({
     position: 'absolute' as const,
     top: spacing.sm,
     left: spacing.sm,
-    backgroundColor: colors.warning,
+    backgroundColor: colors.secondary,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: borderRadius.sm,
   },
   promoBadgeText: {
     ...typography.caption,
-    color: colors.white,
+    color: colors.text,
     fontWeight: '700' as const,
     fontSize: 10,
     textTransform: 'uppercase' as const,
@@ -879,7 +907,7 @@ const styles = StyleSheet.create({
   },
   promoSubtitle: {
     ...typography.bodySmall,
-    color: 'rgba(255,255,255,0.85)',
+    color: colors.white,
     marginBottom: spacing.sm,
   },
   promoCta: {
@@ -891,7 +919,7 @@ const styles = StyleSheet.create({
   },
   promoCtaText: {
     ...typography.caption,
-    color: colors.secondary,
+    color: colors.primary,
     fontWeight: '700' as const,
   },
 
@@ -930,6 +958,7 @@ const styles = StyleSheet.create({
   howItWorksGrid: {
     gap: spacing.sm,
   },
+  howItWorksGridWide: { flexDirection: 'row' },
   howItWorksTile: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -938,6 +967,7 @@ const styles = StyleSheet.create({
     padding: spacing.base,
     borderWidth: 1,
     borderColor: colors.border,
+    flex: 1,
   },
   howItWorksIconWrap: { marginRight: spacing.md, width: 32, alignItems: 'center' as const },
   howItWorksTextWrap: { flex: 1 },

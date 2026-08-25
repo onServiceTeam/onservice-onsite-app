@@ -12,6 +12,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import PhoneInput from '@/components/PhoneInput';
 import { useCaptchaOtp } from '@/hooks/useCaptchaOtp';
 import { useResponsive } from '@/hooks/useResponsive';
+import AuthBrandPanel from '@/components/AuthBrandPanel';
 
 export default function RegisterScreen(): React.ReactElement {
   const router = useRouter();
@@ -74,6 +75,14 @@ export default function RegisterScreen(): React.ReactElement {
         showsVerticalScrollIndicator={false}
         accessibilityLabel={!isPhone ? 'Desktop registration workspace' : undefined}
       >
+        {!isPhone ? (
+          <AuthBrandPanel
+            eyebrow="CREATE YOUR ACCOUNT"
+            title="Start with a clear service record."
+            description="One account can book providers, manage project planning, follow work evidence, and keep every support handoff connected."
+          />
+        ) : null}
+        <View style={[styles.formColumn, !isPhone && styles.formColumnWide]}>
         <View style={styles.header}>
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>
@@ -155,6 +164,7 @@ export default function RegisterScreen(): React.ReactElement {
           </Text>
           .
         </Text>
+        </View>
       </ScrollView>
       {captchaModal}
     </KeyboardAvoidingView>
@@ -164,7 +174,22 @@ export default function RegisterScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
-  contentWide: { width: '100%', maxWidth: 640, alignSelf: 'center' },
+  contentWide: {
+    width: '100%',
+    maxWidth: 1120,
+    minHeight: 780,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    paddingHorizontal: 0,
+    paddingBottom: 0,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+  },
+  formColumn: { width: '100%' },
+  formColumnWide: { width: 'auto', flex: 1, justifyContent: 'center', paddingHorizontal: 64, paddingVertical: spacing.xl },
   header: { marginBottom: spacing.xl },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary },

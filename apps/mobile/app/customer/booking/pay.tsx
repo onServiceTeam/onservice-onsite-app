@@ -14,7 +14,7 @@
 // so a customer cannot enter the known-invalid authorization flow.
 
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -31,6 +31,7 @@ import { Smartphone, CreditCard, Wallet, ScanLine, Lock, ChevronLeft } from '@/c
 import { SkeletonCard, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { useResponsive } from '@/hooks/useResponsive';
+import { buildRoute, Routes } from '@/config/navigation';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -97,10 +98,10 @@ export default function PayExistingBookingScreen(): React.ReactElement {
     setLoading(true);
     try {
       await createPaymentIntent(bookingId, selectedMethod);
-      router.replace({ pathname: '/customer/booking/confirm', params: { bookingId } });
+      router.replace({ pathname: Routes.CUSTOMER.BOOKING_CONFIRM, params: { bookingId } });
     } catch (err: unknown) {
       const msg = getErrorMessage(err, 'Could not start payment. Please try again.');
-      Alert.alert('Payment Failed', msg);
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -137,7 +138,7 @@ export default function PayExistingBookingScreen(): React.ReactElement {
         <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 16, textAlign: 'center' }}>
           Current status: {booking.status}
         </Text>
-        <Button title="Back to Booking" onPress={() => router.replace(`/customer/booking/${bookingId}`)} />
+        <Button title="Back to Booking" onPress={() => router.replace(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: bookingId! }))} />
       </View>
     );
   }
@@ -145,7 +146,7 @@ export default function PayExistingBookingScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from payment" onPress={() => router.back()} style={styles.backButton}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Complete Payment</Text>
@@ -204,9 +205,11 @@ export default function PayExistingBookingScreen(): React.ReactElement {
           const MIcon = m.icon;
           const isSelected = selectedMethod === m.id;
           return (
-            <TouchableOpacity
-              key={m.id}
-              style={[styles.methodCard, isSelected && styles.methodSelected, !m.available && styles.methodUnavailable]}
+              <TouchableOpacity
+                key={m.id}
+                accessibilityRole="radio"
+                accessibilityLabel={`${m.label}, ${m.available ? 'available' : 'unavailable'}`}
+                style={[styles.methodCard, isSelected && styles.methodSelected, !m.available && styles.methodUnavailable]}
               onPress={() => setSelectedMethod(m.id)}
               disabled={!m.available}
               accessibilityState={{ disabled: !m.available, selected: isSelected }}

@@ -15,6 +15,7 @@ import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import { Home, Lock, Star } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -62,18 +63,19 @@ const slides: Slide[] = [
 export default function OnboardingScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
   const [activeIndex, setActiveIndex] = useState(0);
-  // Width of the pager's own container, not the OS window. On the web build the
-  // app runs inside a centered phone-width column (see WebAppFrame), so the
-  // window width (e.g. 1440) is wider than the actual pager. Measuring the
-  // container keeps each slide exactly one page wide and paging accurate at any
-  // size. Initialise to the window width so the first frame is sensible.
+  // Measure the pager surface instead of assuming the OS window matches the app
+  // frame. This keeps each slide exact on phone, tablet, and bounded desktop.
   const [pageWidth, setPageWidth] = useState<number>(Dimensions.get('window').width);
+  const [pageHeight, setPageHeight] = useState<number>(Dimensions.get('window').height);
   const flatListRef = useRef<FlatList>(null);
 
   const onContainerLayout = (e: LayoutChangeEvent): void => {
     const w = e.nativeEvent.layout.width;
+    const h = e.nativeEvent.layout.height;
     if (w > 0 && w !== pageWidth) setPageWidth(w);
+    if (h > 0 && h !== pageHeight) setPageHeight(h);
   };
 
   const onViewableItemsChanged = useRef(
@@ -100,10 +102,22 @@ export default function OnboardingScreen(): React.ReactElement {
   const renderSlide = ({ item }: { item: Slide }): React.ReactElement => {
     const SlideIcon = item.icon;
     return (
-      <View style={[styles.slide, { width: pageWidth, backgroundColor: item.bgColor }]}>
-        <View style={styles.slideIconWrap}><SlideIcon size={96} color={colors.white} /></View>
-        <Text style={styles.slideTitle}>{item.title}</Text>
-        <Text style={styles.slideDescription}>{item.description}</Text>
+      <View
+        style={[
+          styles.slide,
+          !isPhone && styles.slideWide,
+          { width: pageWidth, height: pageHeight, backgroundColor: isPhone ? item.bgColor : colors.surface },
+        ]}
+      >
+        <View style={[styles.visualPanel, !isPhone && styles.visualPanelWide, { backgroundColor: item.bgColor }]}>
+          <View style={styles.slideIconWrap}><SlideIcon size={isPhone ? 96 : 128} color={colors.white} /></View>
+          {!isPhone ? <Text style={styles.visualBrand}>onService PH</Text> : null}
+        </View>
+        <View style={[styles.copyPanel, !isPhone && styles.copyPanelWide]}>
+          {!isPhone ? <Text style={styles.eyebrow}>CLEAR, ON-APP SERVICE RECORDS</Text> : null}
+          <Text style={[styles.slideTitle, !isPhone && styles.slideTitleWide]}>{item.title}</Text>
+          <Text style={[styles.slideDescription, !isPhone && styles.slideDescriptionWide]}>{item.description}</Text>
+        </View>
       </View>
     );
   };
@@ -112,6 +126,8 @@ export default function OnboardingScreen(): React.ReactElement {
     <View
       style={[styles.container, { paddingBottom: insets.bottom + spacing.base }]}
       onLayout={onContainerLayout}
+      accessibilityLabel={isPhone ? 'Customer onboarding' : 'Tablet and desktop customer onboarding'}
+      testID="customer-onboarding"
     >
       <FlatList
         ref={flatListRef}
@@ -126,12 +142,17 @@ export default function OnboardingScreen(): React.ReactElement {
         getItemLayout={(_, index) => ({ length: pageWidth, offset: pageWidth * index, index })}
       />
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, !isPhone && styles.footerWide]}>
         <View style={styles.dots}>
           {slides.map((_, idx) => (
             <View
               key={idx}
-              style={[styles.dot, idx === activeIndex && styles.dotActive]}
+              style={[
+                styles.dot,
+                !isPhone && styles.dotWide,
+                idx === activeIndex && styles.dotActive,
+                !isPhone && idx === activeIndex && styles.dotActiveWide,
+              ]}
             />
           ))}
         </View>
@@ -143,7 +164,7 @@ export default function OnboardingScreen(): React.ReactElement {
               onPress={completeOnboarding}
               variant="ghost"
               fullWidth={false}
-              textStyle={styles.skipText}
+              textStyle={StyleSheet.flatten([styles.skipText, !isPhone && styles.skipTextWide])}
             />
           )}
           <Button
@@ -151,8 +172,8 @@ export default function OnboardingScreen(): React.ReactElement {
             onPress={handleNext}
             variant="primary"
             fullWidth={false}
-            style={styles.nextButton}
-            textStyle={styles.nextButtonText}
+            style={StyleSheet.flatten([styles.nextButton, !isPhone && styles.nextButtonWide])}
+            textStyle={StyleSheet.flatten([styles.nextButtonText, !isPhone && styles.nextButtonTextWide])}
           />
         </View>
       </View>
@@ -161,13 +182,20 @@ export default function OnboardingScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.primary },
+  container: { flex: 1, backgroundColor: colors.surface },
   slide: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
   },
+  slideWide: { flexDirection: 'row', paddingHorizontal: 0, alignItems: 'stretch' },
+  visualPanel: { alignItems: 'center', justifyContent: 'center' },
+  visualPanelWide: { width: '38%', paddingHorizontal: spacing.xl },
+  visualBrand: { ...typography.h3, color: colors.white, marginTop: spacing.lg },
+  copyPanel: { alignItems: 'center' },
+  copyPanelWide: { flex: 1, alignItems: 'flex-start', justifyContent: 'center', paddingHorizontal: 64, paddingBottom: 90 },
+  eyebrow: { ...typography.caption, color: colors.primary, fontWeight: '800', letterSpacing: 1.2, marginBottom: spacing.md },
   slideIcon: { fontSize: 80, marginBottom: spacing.xl },
   slideIconWrap: { marginBottom: spacing.xl, alignItems: 'center' as const },
   slideTitle: {
@@ -176,12 +204,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing.base,
   },
+  slideTitleWide: { color: colors.text, textAlign: 'left', fontSize: 42, lineHeight: 48, maxWidth: 560 },
   slideDescription: {
     ...typography.body,
     color: 'rgba(255,255,255,0.85)',
     textAlign: 'center',
     lineHeight: 24,
   },
+  slideDescriptionWide: { color: colors.textSecondary, textAlign: 'left', fontSize: 18, lineHeight: 28, maxWidth: 580 },
   footer: {
     position: 'absolute',
     bottom: 0,
@@ -189,6 +219,14 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
+  },
+  footerWide: {
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
+    paddingTop: spacing.md,
   },
   dots: {
     flexDirection: 'row',
@@ -203,12 +241,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.4)',
   },
   dotActive: { backgroundColor: colors.white, width: 24 },
+  dotWide: { backgroundColor: colors.border },
+  dotActiveWide: { backgroundColor: colors.primary },
   actions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   skipText: { color: 'rgba(255,255,255,0.7)' },
+  skipTextWide: { color: colors.primary },
   nextButton: {
     backgroundColor: colors.white,
     paddingHorizontal: spacing.xl,
@@ -217,4 +258,6 @@ const styles = StyleSheet.create({
   nextButtonText: {
     color: colors.primary,
   },
+  nextButtonWide: { backgroundColor: colors.primary },
+  nextButtonTextWide: { color: colors.white },
 });

@@ -7,6 +7,8 @@ import { getWalletBalance } from '@/services/payment.service';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft, Lock } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
+import { Routes } from '@/config/navigation';
 
 /**
  * E14 containment: the former screen collected an amount and payment method,
@@ -16,6 +18,7 @@ import { ChevronLeft, Lock } from '@/components/icons';
  */
 export default function WalletTopUpScreen(): React.ReactElement {
   const router = useRouter();
+  const { isPhone } = useResponsive();
   const walletQuery = useQuery({
     queryKey: ['wallet'],
     queryFn: getWalletBalance,
@@ -38,8 +41,11 @@ export default function WalletTopUpScreen(): React.ReactElement {
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-        <View style={styles.contentColumn}>
-          <View style={styles.balanceCard}>
+        <View
+          style={[styles.contentColumn, !isPhone && styles.contentColumnWide]}
+          accessibilityLabel={isPhone ? 'Wallet top-up availability' : 'Wide wallet top-up availability workspace'}
+        >
+          <View style={[styles.balanceCard, !isPhone && styles.balanceCardWide]} accessibilityLabel="Current wallet balance">
             <Text style={styles.balanceLabel}>Current Balance</Text>
             <Text style={styles.balanceAmount}>
               {walletQuery.data ? formatPHP(walletQuery.data.availableBalance) : '---'}
@@ -49,6 +55,7 @@ export default function WalletTopUpScreen(): React.ReactElement {
             ) : null}
           </View>
 
+          <View style={[styles.recoveryColumn, !isPhone && styles.recoveryColumnWide]}>
           <View style={styles.holdCard} accessibilityRole="alert">
             <View style={styles.holdIcon}>
               <Lock size={22} color={colors.warning} />
@@ -65,12 +72,30 @@ export default function WalletTopUpScreen(): React.ReactElement {
           </View>
 
           <TouchableOpacity
+            style={styles.supportAction}
+            onPress={() => router.push({
+              pathname: Routes.SUPPORT.NEW,
+              params: {
+                type: 'payment_issue',
+                subject: 'Wallet top-up still pending',
+                description: 'I need help checking a previous wallet top-up that still appears pending.',
+              },
+            })}
+            accessibilityRole="button"
+            accessibilityLabel="Contact support about a pending wallet top-up"
+          >
+            <Text style={styles.supportActionText}>Contact Payment Support</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.backAction}
             onPress={() => router.back()}
             accessibilityRole="button"
+            accessibilityLabel="Back to wallet"
           >
             <Text style={styles.backActionText}>Back to Wallet</Text>
           </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -95,6 +120,7 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: spacing.xxl },
   contentColumn: { width: '100%', maxWidth: 720, alignSelf: 'center' },
+  contentColumnWide: { maxWidth: 1040, flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl },
   balanceCard: {
     backgroundColor: colors.primary,
     borderRadius: borderRadius.xl,
@@ -102,7 +128,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
-  balanceLabel: { ...typography.bodySmall, color: 'rgba(255,255,255,0.75)', marginBottom: spacing.xs },
+  balanceCardWide: { width: 300, alignItems: 'flex-start' },
+  balanceLabel: { ...typography.bodySmall, color: colors.white, marginBottom: spacing.xs },
   balanceAmount: { fontSize: 28, fontWeight: '800', color: colors.white },
   balanceError: { ...typography.caption, color: colors.white, marginTop: spacing.sm, textAlign: 'center' },
   holdCard: {
@@ -113,6 +140,8 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     padding: spacing.base,
   },
+  recoveryColumn: { width: '100%' },
+  recoveryColumnWide: { flex: 1, minWidth: 0 },
   holdIcon: { marginRight: spacing.md, paddingTop: 2 },
   holdCopy: { flex: 1 },
   holdTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
@@ -128,4 +157,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   backActionText: { ...typography.body, color: colors.white, fontWeight: '700' },
+  supportAction: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
+  supportActionText: { ...typography.body, color: colors.primary, fontWeight: '700' },
 });

@@ -123,7 +123,12 @@ export default function AccountManagementScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Go back from account and data"
+          onPress={() => router.back()}
+          style={styles.backBtn}
+        >
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Account & Data</Text>
@@ -167,6 +172,9 @@ export default function AccountManagementScreen(): React.ReactElement {
           </Text>
           <View style={styles.exportBtns}>
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Request JSON data export"
+              accessibilityState={{ disabled: exportMutation.isPending }}
               style={[styles.exportBtn, exportMutation.isPending && styles.btnDisabled]}
               onPress={() => exportMutation.mutate('json')}
               disabled={exportMutation.isPending}
@@ -174,6 +182,9 @@ export default function AccountManagementScreen(): React.ReactElement {
               <Text style={styles.exportBtnText}>Export as JSON</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Request CSV data export"
+              accessibilityState={{ disabled: exportMutation.isPending }}
               style={[styles.exportBtn, exportMutation.isPending && styles.btnDisabled]}
               onPress={() => exportMutation.mutate('csv')}
               disabled={exportMutation.isPending}
@@ -226,9 +237,12 @@ export default function AccountManagementScreen(): React.ReactElement {
                       <Text style={styles.exportStatus}> {exp.format.toUpperCase()}</Text>
                       {isDownloadable && (
                         <TouchableOpacity
+                          accessibilityRole="button"
                           onPress={() => { void handleDownloadExport(exp.id); }}
                           disabled={downloadingExportId === exp.id}
                           accessibilityLabel="Download exported data file"
+                          accessibilityState={{ disabled: downloadingExportId === exp.id }}
+                          style={styles.exportDownloadButton}
                           testID={`export-download-${exp.id}`}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
@@ -285,6 +299,9 @@ export default function AccountManagementScreen(): React.ReactElement {
                 <Text style={styles.reasonText}>Reason: {activeDeletion!.reason}</Text>
               )}
               <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Cancel account deactivation and keep account"
+                accessibilityState={{ disabled: cancelMutation.isPending }}
                 style={styles.cancelDeleteBtn}
                 onPress={handleCancelDeletion}
                 disabled={cancelMutation.isPending}
@@ -316,6 +333,7 @@ export default function AccountManagementScreen(): React.ReactElement {
                       maxLength. Server caps at 1000 (Phase 156-01).
                       Same fix shape as Phase 145-150. */}
                   <TextInput
+                    accessibilityLabel="Reason for account deactivation"
                     style={styles.reasonInput}
                     placeholder="Tell us why you're leaving..."
                     placeholderTextColor={colors.textTertiary}
@@ -327,6 +345,9 @@ export default function AccountManagementScreen(): React.ReactElement {
                     textAlignVertical="top"
                   />
                   <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Continue to confirm account deactivation"
+                    accessibilityState={{ disabled: deleteMutation.isPending }}
                     style={[styles.confirmDeleteBtn, deleteMutation.isPending && styles.btnDisabled]}
                     onPress={handleConfirmDelete}
                     disabled={deleteMutation.isPending}
@@ -338,6 +359,8 @@ export default function AccountManagementScreen(): React.ReactElement {
                     )}
                   </TouchableOpacity>
                   <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel account deactivation form"
                     style={styles.cancelFormBtn}
                     onPress={() => { setShowDeleteForm(false); setReason(''); }}
                   >
@@ -346,6 +369,8 @@ export default function AccountManagementScreen(): React.ReactElement {
                 </View>
               ) : (
                 <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="Request account deactivation"
                   style={styles.startDeleteBtn}
                   onPress={() => setShowDeleteForm(true)}
                 >
@@ -453,6 +478,11 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     marginLeft: spacing.sm,
     textDecorationLine: 'underline' as const,
+  },
+  exportDownloadButton: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: 'center' as const,
   },
   exportExpires: {
     ...typography.caption,

@@ -5,7 +5,6 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   StyleSheet,
   Image,
@@ -30,6 +29,7 @@ import { ChevronLeft, Wallet, Check, ClipboardList, X } from '@/components/icons
 import { SkeletonCard, EmptyState, ErrorState, TrustStrip } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { useResponsive } from '@/hooks/useResponsive';
+import ConfirmModal from '@/components/ConfirmModal';
 
 const PAYMENT_METHOD = { id: 'wallet', label: 'Wallet Balance' } as const;
 
@@ -39,6 +39,7 @@ export default function ChangeOrderScreen(): React.ReactElement {
   const queryClient = useQueryClient();
   const { isPhone } = useResponsive();
   const [pendingPayment, setPendingPayment] = useState<ChangeOrderResponse | null>(null);
+  const [pendingDecision, setPendingDecision] = useState<{ order: ChangeOrder; approved: boolean } | null>(null);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const {
     data: orders,
@@ -107,22 +108,13 @@ export default function ChangeOrderScreen(): React.ReactElement {
   });
 
   const handleRespond = (order: ChangeOrder, approved: boolean): void => {
-    const msg = approved
-      ? `Approve additional charge of ${formatPHP(order.additionalAmount)}? You will be prompted to pay the additional amount.`
-      : 'Decline this change order? The provider will proceed with the original scope.';
-    Alert.alert(approved ? 'Approve Change Order' : 'Decline Change Order', msg, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: approved ? 'Approve' : 'Decline',
-        onPress: () => respondMutation.mutate({ orderId: order.id, approved }),
-      },
-    ]);
+    setPendingDecision({ order, approved });
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from change orders" onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Change Orders</Text>
@@ -202,6 +194,7 @@ export default function ChangeOrderScreen(): React.ReactElement {
                   <TouchableOpacity
                     onPress={() => void walletQuery.refetch()}
                     accessibilityRole="button"
+                    accessibilityLabel="Retry wallet balance"
                   >
                     <Text style={styles.walletRetry}>Retry balance</Text>
                   </TouchableOpacity>
@@ -231,6 +224,9 @@ export default function ChangeOrderScreen(): React.ReactElement {
                 ) : (
                   <>
                     <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel="Pay approved change order from wallet"
+                      accessibilityState={{ disabled: walletUnavailable || (pendingPayment.additionalTotal != null && walletBalance != null && pendingPayment.additionalTotal > walletBalance) }}
                       style={[
                         styles.payNowBtn,
                         (walletUnavailable ||
@@ -253,6 +249,8 @@ export default function ChangeOrderScreen(): React.ReactElement {
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel="Return to change orders and pay later"
                       style={styles.payLaterBtn}
                       onPress={() => setPendingPayment(null)}
                     >
@@ -424,6 +422,8 @@ export default function ChangeOrderScreen(): React.ReactElement {
                           style={styles.declineBtn}
                           onPress={() => handleRespond(order, false)}
                           disabled={respondMutation.isPending}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Decline change order for ${formatPHP(order.additionalAmount)}`}
                         >
                           <Text style={styles.declineText}>Decline</Text>
                         </TouchableOpacity>
@@ -431,6 +431,8 @@ export default function ChangeOrderScreen(): React.ReactElement {
                           style={styles.approveBtn}
                           onPress={() => handleRespond(order, true)}
                           disabled={respondMutation.isPending}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Approve change order for ${formatPHP(order.additionalAmount)}`}
                         >
                           {respondMutation.isPending ? (
                             <ActivityIndicator size="small" color={colors.backgroundSecondary} />
@@ -442,8 +444,10 @@ export default function ChangeOrderScreen(): React.ReactElement {
                     )}
 
                     {order.status === 'approved' && (
-                      <TouchableOpacity
-                        style={styles.payPendingBtn}
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={`Pay approved change order ${formatPHP(order.additionalTotal ?? order.additionalAmount)}`}
+                    style={styles.payPendingBtn}
                         onPress={() =>
                           setPendingPayment({
                             id: order.id,
@@ -490,6 +494,25 @@ export default function ChangeOrderScreen(): React.ReactElement {
           ) : null}
         </View>
       </Modal>
+      <ConfirmModal
+        visible={pendingDecision !== null}
+        title={pendingDecision?.approved ? 'Approve Change Order' : 'Decline Change Order'}
+        message={pendingDecision
+          ? pendingDecision.approved
+            ? `Approve additional charge of ${formatPHP(pendingDecision.order.additionalAmount)}? Approval records your decision; the added amount must still be paid before extra work proceeds.`
+            : 'Decline this change order? The provider will proceed with the original recorded scope.'
+          : undefined}
+        confirmLabel={pendingDecision?.approved ? 'Approve Change Order' : 'Decline Change Order'}
+        cancelLabel="Keep Reviewing"
+        destructive={pendingDecision?.approved === false}
+        loading={respondMutation.isPending}
+        onCancel={() => setPendingDecision(null)}
+        onConfirm={() => {
+          if (!pendingDecision) return;
+          respondMutation.mutate({ orderId: pendingDecision.order.id, approved: pendingDecision.approved });
+          setPendingDecision(null);
+        }}
+      />
     </SafeAreaView>
   );
 }

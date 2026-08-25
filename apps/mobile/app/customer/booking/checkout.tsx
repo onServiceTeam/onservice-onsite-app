@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, Linking } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBookingStore, type BookingDraft } from '@/stores/booking.store';
@@ -87,11 +87,7 @@ export default function CheckoutScreen(): React.ReactElement {
       return;
     }
     if (selectedMethod === 'wallet' && walletBalance < total) {
-      Alert.alert(
-        'Payment unavailable',
-        'Your wallet balance is lower than the total, and external payments and wallet top-ups are temporarily unavailable. No booking or payment was created.',
-        [{ text: 'OK' }],
-      );
+      showToast('Your wallet balance is lower than the total, and external payments and wallet top-ups are temporarily unavailable. No booking or payment was created.', 'warning');
       return;
     }
 
@@ -144,7 +140,7 @@ export default function CheckoutScreen(): React.ReactElement {
       if (selectedMethod === 'wallet') {
         reset();
         createdBookingIdRef.current = null;
-        router.replace({ pathname: '/customer/booking/confirm', params: { bookingId } });
+        router.replace({ pathname: Routes.CUSTOMER.BOOKING_CONFIRM, params: { bookingId } });
         return;
       }
 
@@ -156,7 +152,7 @@ export default function CheckoutScreen(): React.ReactElement {
       if (intent.checkoutUrl && (await Linking.canOpenURL(intent.checkoutUrl))) {
         reset();
         createdBookingIdRef.current = null;
-        router.replace({ pathname: '/customer/booking/confirm', params: { bookingId } });
+        router.replace({ pathname: Routes.CUSTOMER.BOOKING_CONFIRM, params: { bookingId } });
         await Linking.openURL(intent.checkoutUrl);
         return;
       }
@@ -164,7 +160,7 @@ export default function CheckoutScreen(): React.ReactElement {
       reset();
       createdBookingIdRef.current = null;
       router.replace({
-        pathname: '/customer/booking/payment-failed',
+        pathname: Routes.CUSTOMER.BOOKING_PAYMENT_FAILED,
         params: { bookingId, reason: 'We could not open the payment page. Your booking is saved — please retry payment.' },
       });
     } catch (err: unknown) {
@@ -172,7 +168,7 @@ export default function CheckoutScreen(): React.ReactElement {
       // Note: createdBookingIdRef is intentionally NOT cleared here, so a
       // retry re-uses the already-created booking instead of duplicating it.
       const msg = getErrorMessage(err, 'Something went wrong. Please try again.');
-      Alert.alert('Payment Failed', msg);
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -241,9 +237,11 @@ export default function CheckoutScreen(): React.ReactElement {
         {PAYMENT_METHODS.map((method) => {
           const MIcon = method.icon;
           return (
-            <TouchableOpacity
-              key={method.id}
-              style={[
+              <TouchableOpacity
+                key={method.id}
+                accessibilityRole="radio"
+                accessibilityLabel={`${method.label}, ${method.available ? 'available' : 'unavailable'}`}
+                style={[
                 styles.methodCard,
                 selectedMethod === method.id && styles.methodSelected,
                 !method.available && styles.methodUnavailable,
@@ -272,11 +270,13 @@ export default function CheckoutScreen(): React.ReactElement {
         {/* verifiable on its own. Tap-to-safety affordance preserved as a */}
         {/* link to /customer/safety-and-support for users curious about */}
         {/* what "escrow" means in practice. */}
-        <TouchableOpacity
-          style={styles.escrowBanner}
-          onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
-          activeOpacity={0.7}
-        >
+          <TouchableOpacity
+            style={styles.escrowBanner}
+            onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Open payment safety and support information"
+          >
           <View style={styles.escrowIconWrap}><Lock size={22} color={colors.primary} /></View>
           <Text style={styles.escrowText}>
             After a wallet payment succeeds, your booking shows its paid and escrow status. Release follows customer confirmation or the platform completion timer. Tap for details.
@@ -337,7 +337,7 @@ export default function CheckoutScreen(): React.ReactElement {
           By proceeding, you agree to our{' '}
           <Text
             style={styles.legalLink}
-            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'terms' } })}
+            onPress={() => router.push({ pathname: Routes.CUSTOMER.TERMS, params: { tab: 'terms' } })}
             testID="checkout-terms-link"
           >
             Terms of Service
@@ -345,7 +345,7 @@ export default function CheckoutScreen(): React.ReactElement {
           {' '}and{' '}
           <Text
             style={styles.legalLink}
-            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'privacy' } })}
+            onPress={() => router.push({ pathname: Routes.CUSTOMER.TERMS, params: { tab: 'privacy' } })}
             testID="checkout-privacy-link"
           >
             Privacy Policy

@@ -244,6 +244,7 @@ export default function BookingPhotosScreen(): React.ReactElement {
               {tabs.map((tab) => (
                 <TouchableOpacity
                   key={tab.id}
+                  accessibilityLabel={`${tab.label} evidence, ${tab.count} items`}
                   style={[styles.tab, activeTab === tab.id && styles.tabActive]}
                   onPress={() => setActiveTab(tab.id)}
                   accessibilityRole="tab"
@@ -285,6 +286,7 @@ export default function BookingPhotosScreen(): React.ReactElement {
                     <TouchableOpacity
                       onPress={() => void photosQuery.refetch()}
                       accessibilityRole="button"
+                      accessibilityLabel="Retry canonical job evidence"
                     >
                       <Text style={styles.warningAction}>Retry</Text>
                     </TouchableOpacity>
@@ -306,7 +308,7 @@ export default function BookingPhotosScreen(): React.ReactElement {
                           Compare with {evidence.after.length} after photo
                           {evidence.after.length === 1 ? '' : 's'}
                         </Text>
-                        <TouchableOpacity onPress={() => setActiveTab('after')}>
+                        <TouchableOpacity accessibilityRole="button" accessibilityLabel="View after evidence" onPress={() => setActiveTab('after')}>
                           <Text style={styles.comparisonLink}>View After</Text>
                         </TouchableOpacity>
                       </View>
@@ -318,7 +320,7 @@ export default function BookingPhotosScreen(): React.ReactElement {
                           Compare with {evidence.before.length} before photo
                           {evidence.before.length === 1 ? '' : 's'}
                         </Text>
-                        <TouchableOpacity onPress={() => setActiveTab('before')}>
+                        <TouchableOpacity accessibilityRole="button" accessibilityLabel="View before evidence" onPress={() => setActiveTab('before')}>
                           <Text style={styles.comparisonLink}>View Before</Text>
                         </TouchableOpacity>
                       </View>

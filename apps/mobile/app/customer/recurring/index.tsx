@@ -14,7 +14,7 @@ import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
 import { MapPin, ChevronRight, Repeat } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
-import { Routes } from '@/config/navigation';
+import { buildRoute, Routes } from '@/config/navigation';
 
 interface RecurringBooking {
   id: string;
@@ -72,7 +72,7 @@ export default function RecurringListScreen(): React.ReactElement {
     return (
       <TouchableOpacity
         style={[styles.card, numColumns > 1 && styles.cardGrid]}
-        onPress={() => router.push(`/customer/recurring/${item.id}`)}
+        onPress={() => router.push(buildRoute(Routes.CUSTOMER.RECURRING_DETAIL, { id: item.id }))}
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={`Open ${item.subcategoryName ?? item.categoryName} recurring booking`}
@@ -123,7 +123,7 @@ export default function RecurringListScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from recurring services" onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Recurring Bookings</Text>

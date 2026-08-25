@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, RefreshControl, TextInput, type DimensionValue,
+  RefreshControl, TextInput, type DimensionValue,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,8 @@ import { ChevronLeft } from '@/components/icons';
 import { SkeletonCard, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { useResponsive } from '@/hooks/useResponsive';
+import { buildRoute, Routes } from '@/config/navigation';
+import ConfirmModal from '@/components/ConfirmModal';
 
 interface RecurringDetail {
   id: string;
@@ -63,6 +65,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
   const queryClient = useQueryClient();
   const { isPhone } = useResponsive();
   const [showInstances, setShowInstances] = useState(false);
+  const [pendingScheduleAction, setPendingScheduleAction] = useState<'pause' | 'skip' | null>(null);
   // BUG-PHASE58-01 fix — pre-fix the cancel handler hardcoded
   // 'Cancelled by customer' as the reason. The reason gets recorded
   // in the audit trail and is used by ops to spot churn signals;
@@ -138,11 +141,8 @@ export default function RecurringDetailScreen(): React.ReactElement {
   });
 
   const handlePause = useCallback(() => {
-    Alert.alert('Pause Recurring?', 'No new bookings will be created until you resume.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Pause', style: 'destructive', onPress: () => pauseMutation.mutate() },
-    ]);
-  }, [pauseMutation]);
+    setPendingScheduleAction('pause');
+  }, []);
 
   const handleResume = useCallback(() => {
     resumeMutation.mutate();
@@ -163,11 +163,8 @@ export default function RecurringDetailScreen(): React.ReactElement {
 
   const handleSkipNext = useCallback(() => {
     if (!recurring?.nextScheduledDate) return;
-    Alert.alert('Skip Next Instance?', `Skip the booking on ${new Date(recurring.nextScheduledDate).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' })}?`, [
-      { text: 'No', style: 'cancel' },
-      { text: 'Skip', onPress: () => skipMutation.mutate(recurring.nextScheduledDate!) },
-    ]);
-  }, [recurring, skipMutation]);
+    setPendingScheduleAction('skip');
+  }, [recurring]);
 
   if (isLoading || !recurring) {
     if (isError) {
@@ -201,7 +198,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back from recurring booking">
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Recurring Booking</Text>
@@ -257,21 +254,21 @@ export default function RecurringDetailScreen(): React.ReactElement {
           {(isActive || isPaused) && (
             <View style={styles.actions}>
               {isActive && recurring.nextScheduledDate && (
-                <TouchableOpacity style={styles.actionBtn} onPress={handleSkipNext}>
+                <TouchableOpacity style={styles.actionBtn} onPress={handleSkipNext} accessibilityRole="button" accessibilityLabel="Skip next recurring visit">
                   <Text style={styles.actionBtnText}>Skip Next</Text>
                 </TouchableOpacity>
               )}
               {isActive && (
-                <TouchableOpacity style={[styles.actionBtn, styles.actionBtnWarning]} onPress={handlePause}>
+                <TouchableOpacity style={[styles.actionBtn, styles.actionBtnWarning]} onPress={handlePause} accessibilityRole="button" accessibilityLabel="Pause recurring booking">
                   <Text style={[styles.actionBtnText, styles.actionBtnWarningText]}>Pause</Text>
                 </TouchableOpacity>
               )}
               {isPaused && (
-                <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSuccess]} onPress={handleResume}>
+                <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSuccess]} onPress={handleResume} accessibilityRole="button" accessibilityLabel="Resume recurring booking">
                   <Text style={[styles.actionBtnText, styles.actionBtnSuccessText]}>Resume</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={handleCancel}>
+              <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={handleCancel} accessibilityRole="button" accessibilityLabel="Cancel recurring booking">
                 <Text style={[styles.actionBtnText, styles.actionBtnDangerText]}>Cancel</Text>
               </TouchableOpacity>
             </View>
@@ -294,12 +291,15 @@ export default function RecurringDetailScreen(): React.ReactElement {
                 textAlignVertical="top"
                 maxLength={500}
                 style={styles.cancelInput}
+                accessibilityLabel="Recurring cancellation reason"
               />
               <View style={styles.cancelActions}>
                 <TouchableOpacity
                   style={styles.actionBtn}
                   onPress={() => { setShowCancelForm(false); setCancelReason(''); }}
                   disabled={cancelMutation.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel="Keep recurring booking"
                 >
                   <Text style={styles.actionBtnText}>Keep It</Text>
                 </TouchableOpacity>
@@ -307,6 +307,8 @@ export default function RecurringDetailScreen(): React.ReactElement {
                   style={[styles.actionBtn, styles.actionBtnDanger]}
                   onPress={handleCancelConfirm}
                   disabled={cancelMutation.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel="Confirm recurring cancellation"
                 >
                   <Text style={[styles.actionBtnText, styles.actionBtnDangerText]}>
                     {cancelMutation.isPending ? 'Cancelling…' : 'Confirm Cancel'}
@@ -320,6 +322,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
             style={styles.toggleInstances}
             onPress={() => setShowInstances(!showInstances)}
             accessibilityRole="button"
+            accessibilityLabel={showInstances ? 'Hide recurring booking history' : 'View recurring booking history'}
           >
             <Text style={styles.toggleText}>
               {showInstances ? 'Hide History' : 'View History'}
@@ -330,7 +333,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
             <View style={styles.instancesSection}>
               {instancesLoading && <Text style={styles.noInstances}>Loading booking history…</Text>}
               {instancesError && (
-                <TouchableOpacity onPress={() => void refetchInstances()} accessibilityRole="button">
+              <TouchableOpacity accessibilityLabel="Retry recurring booking history" onPress={() => void refetchInstances()} accessibilityRole="button">
                   <Text style={styles.historyError}>History could not be loaded. Tap to retry.</Text>
                 </TouchableOpacity>
               )}
@@ -347,7 +350,7 @@ export default function RecurringDetailScreen(): React.ReactElement {
                   key={inst.id}
                   style={styles.instanceRow}
                   disabled={!inst.bookingId}
-                  onPress={() => inst.bookingId && router.push(`/customer/booking/${inst.bookingId}`)}
+                  onPress={() => inst.bookingId && router.push(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: inst.bookingId }))}
                   accessibilityRole={inst.bookingId ? 'button' : undefined}
                   accessibilityLabel={inst.bookingId ? `Open booking from ${inst.scheduledDate}` : undefined}
                 >
@@ -376,6 +379,29 @@ export default function RecurringDetailScreen(): React.ReactElement {
           )}
         </View>
       </View>
+
+      <ConfirmModal
+        visible={pendingScheduleAction !== null}
+        title={pendingScheduleAction === 'pause' ? 'Pause Recurring Booking?' : 'Skip Next Visit?'}
+        message={pendingScheduleAction === 'pause'
+          ? 'No new bookings will be created until you resume this recurring schedule.'
+          : recurring.nextScheduledDate
+            ? `Skip only the visit on ${new Date(recurring.nextScheduledDate).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' })}? Later visits stay scheduled.`
+            : undefined}
+        confirmLabel={pendingScheduleAction === 'pause' ? 'Pause Schedule' : 'Skip This Visit'}
+        cancelLabel="Keep Schedule"
+        destructive={pendingScheduleAction === 'pause'}
+        loading={pauseMutation.isPending || skipMutation.isPending}
+        onCancel={() => setPendingScheduleAction(null)}
+        onConfirm={() => {
+          if (pendingScheduleAction === 'pause') {
+            pauseMutation.mutate();
+          } else if (pendingScheduleAction === 'skip' && recurring.nextScheduledDate) {
+            skipMutation.mutate(recurring.nextScheduledDate);
+          }
+          setPendingScheduleAction(null);
+        }}
+      />
 
       <View style={styles.bottomSpacer} />
     </ScrollView>

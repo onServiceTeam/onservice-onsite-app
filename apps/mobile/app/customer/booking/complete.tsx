@@ -13,6 +13,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import { CheckCircle2, Lock, Clock } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
+import { Routes } from '@/config/navigation';
 
 export default function JobCompletionScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
@@ -29,7 +30,7 @@ export default function JobCompletionScreen(): React.ReactElement {
       void queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
       void queryClient.invalidateQueries({ queryKey: ['bookings'] });
       void queryClient.invalidateQueries({ queryKey: ['activeBookings'] });
-      router.replace({ pathname: '/customer/booking/review', params: { bookingId: bookingId! } });
+      router.replace({ pathname: Routes.CUSTOMER.BOOKING_REVIEW, params: { bookingId: bookingId! } });
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
@@ -38,7 +39,7 @@ export default function JobCompletionScreen(): React.ReactElement {
   });
 
   const handleDispute = (): void => {
-    router.push({ pathname: '/customer/booking/dispute', params: { bookingId: bookingId! } });
+    router.push({ pathname: Routes.CUSTOMER.BOOKING_DISPUTE, params: { bookingId: bookingId! } });
   };
 
   if (!bookingId) {

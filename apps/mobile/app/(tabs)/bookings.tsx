@@ -26,7 +26,7 @@ import FilterChips from '@/components/FilterChips';
 import FilterModal from '@/components/FilterModal';
 import PaginationLoader from '@/components/PaginationLoader';
 
-import { Routes } from '@/config/navigation';
+import { buildRoute, Routes } from '@/config/navigation';
 type StatusFilter = 'all' | 'active' | 'completed' | 'cancelled';
 
 const FILTERS: { label: string; value: StatusFilter }[] = [
@@ -107,14 +107,16 @@ export default function BookingsScreen(): React.ReactElement {
 
   const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
 
-  const { breakpoint } = useResponsive();
+  const { breakpoint, isPhone } = useResponsive();
   const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 2 });
 
   const renderItem = ({ item }: { item: Booking }): React.ReactElement => (
     <TouchableOpacity
       style={[styles.card, numColumns > 1 && styles.cardGrid]}
-      onPress={() => router.push(`/customer/booking/${item.id}`)}
+      onPress={() => router.push(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: item.id }))}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${item.serviceName ?? item.categoryName ?? 'service'} booking`}
     >
       <View style={styles.cardTop}>
         {/* Phase 14 Remediation #5 — Bug 895/901 status pill via StatusBadge */}
@@ -132,9 +134,10 @@ export default function BookingsScreen(): React.ReactElement {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
-      <View style={styles.titleRow}>
+      <View style={styles.workspaceHeader}>
+      <View style={[styles.titleRow, isPhone && styles.titleRowPhone]}>
         <Text style={styles.title}>Bookings</Text>
-        <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+        <View style={[styles.quickActions, isPhone && styles.quickActionsPhone]} accessibilityLabel="Booking shortcuts">
           {/* BUG-PHASE53-01 fix — pre-fix the FilterModal below was
                rendered but had no button to open it. Same dead-wire
                pattern as customer search (BUG-PHASE52-01). Now: real
@@ -142,6 +145,7 @@ export default function BookingsScreen(): React.ReactElement {
           <TouchableOpacity
             style={styles.recurringLink}
             onPress={() => setAdvancedFiltersVisible(true)}
+            accessibilityRole="button"
             accessibilityLabel="Open booking filters"
           >
             <Filter size={18} color={colors.primary} />
@@ -154,6 +158,8 @@ export default function BookingsScreen(): React.ReactElement {
           <TouchableOpacity
             style={styles.recurringLink}
             onPress={() => router.push(Routes.CUSTOMER.RECURRING_BOOKINGS)}
+            accessibilityRole="button"
+            accessibilityLabel="Open recurring bookings"
           >
             <Repeat size={16} color={colors.primary} />
             <Text style={styles.recurringLinkText}> Recurring</Text>
@@ -162,6 +168,7 @@ export default function BookingsScreen(): React.ReactElement {
           <TouchableOpacity
             style={styles.recurringLink}
             onPress={() => router.push(Routes.CUSTOMER.PROJECTS)}
+            accessibilityRole="button"
             accessibilityLabel="Open projects"
           >
             <Hammer size={16} color={colors.primary} />
@@ -171,14 +178,17 @@ export default function BookingsScreen(): React.ReactElement {
       </View>
 
       {/* Phase 14 Remediation #5 — Bug 911/912/913 filter chips via FilterChips */}
+      <View accessibilityLabel="Booking status filters">
       <FilterChips
         options={FILTERS.map((f) => ({ value: f.value, label: f.label }))}
         selected={filter}
         onSelect={(v) => setFilter(v as StatusFilter)}
       />
+      </View>
+      </View>
 
       {isLoading ? (
-        <View style={styles.list}>
+        <View style={[styles.list, styles.listFrame]}>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -196,6 +206,7 @@ export default function BookingsScreen(): React.ReactElement {
           keyExtractor={(item) => item.id}
           key={`bk-${numColumns}`}
           numColumns={numColumns}
+          style={styles.listFrame}
           columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
@@ -269,8 +280,12 @@ export default function BookingsScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
+  workspaceHeader: { width: '100%', maxWidth: 1280, alignSelf: 'center' },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md, gap: spacing.md },
+  titleRowPhone: { alignItems: 'flex-start', flexDirection: 'column', gap: spacing.xs },
   title: { ...typography.h1, color: colors.text },
+  quickActions: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap', justifyContent: 'flex-end' },
+  quickActionsPhone: { width: '100%', justifyContent: 'flex-start' },
   recurringLink: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
   recurringLinkText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
 
@@ -285,6 +300,7 @@ const styles = StyleSheet.create({
   filterLabel: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '500' },
   filterLabelActive: { color: colors.white },
 
+  listFrame: { width: '100%', maxWidth: 1280, alignSelf: 'center' },
   list: { paddingBottom: 100 },
   gridRow: { gap: spacing.md },
   cardGrid: { flex: 1 },

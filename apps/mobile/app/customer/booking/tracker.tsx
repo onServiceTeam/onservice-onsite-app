@@ -15,6 +15,8 @@ import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MessageSquare, ChevronLeft } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useServiceAreaDefaults } from '@/hooks/useServiceAreaDefaults';
+import { buildRoute, Routes } from '@/config/navigation';
 
 const STATUS_LABELS: Record<string, string> = {
   matched: 'Waiting for provider',
@@ -34,6 +36,7 @@ export default function BookingTrackerScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
+  const { defaultRegion } = useServiceAreaDefaults();
   const mapRef = useRef<MapView>(null);
   const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
@@ -104,7 +107,7 @@ export default function BookingTrackerScreen(): React.ReactElement {
   return (
     <View style={styles.container}>
       <View style={[styles.header, !isPhone && styles.headerWide, { paddingTop: insets.top + spacing.sm }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from live job tracker" onPress={() => router.back()} style={styles.backButton}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Track Booking</Text>
@@ -114,19 +117,11 @@ export default function BookingTrackerScreen(): React.ReactElement {
         style={[styles.trackerWorkspace, !isPhone && styles.trackerWorkspaceWide]}
         accessibilityLabel={isPhone ? 'Booking tracker' : 'Booking tracking workspace'}
       >
-      {/* Phase 200 (Cebu launch) — fallback map center is central Cebu City
-           (the launch market), used only when a booking is missing
-           coordinates. Once we expand beyond Cebu, this can become the
-           user's saved default address center via useDefaultLocation(). */}
       <MapView
         ref={mapRef}
         style={styles.map}
-        initialRegion={bookingRegion ?? {
-          latitude: 10.3157,
-          longitude: 123.8854,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
+        initialRegion={bookingRegion ?? defaultRegion}
+        accessibilityLabel="Service location map"
       >
         {bookingRegion && (
           <Marker
@@ -189,7 +184,7 @@ export default function BookingTrackerScreen(): React.ReactElement {
                 </View>
                 <TouchableOpacity
                   style={styles.chatButton}
-                  onPress={() => router.push(`/customer/chat/${booking.id}`)}
+                  onPress={() => router.push(buildRoute(Routes.CUSTOMER.CHAT, { id: booking.id }))}
                   accessibilityRole="button"
                   accessibilityLabel="Chat with provider"
                 >
@@ -201,7 +196,10 @@ export default function BookingTrackerScreen(): React.ReactElement {
             {booking.status === 'completed_by_provider' && (
               <Button
                 title="Confirm Job Complete"
-                onPress={() => router.push(`/customer/booking/complete?bookingId=${bookingId}`)}
+                onPress={() => router.push({
+                  pathname: Routes.CUSTOMER.BOOKING_COMPLETE,
+                  params: { bookingId },
+                })}
               />
             )}
           </>
@@ -246,11 +244,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     padding: spacing.base,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   summaryPanelWide: {
     width: 360,
@@ -258,8 +253,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 0,
     borderLeftWidth: 1,
     borderLeftColor: colors.border,
-    shadowOpacity: 0,
-    elevation: 0,
     justifyContent: 'center',
     padding: spacing.xl,
   },

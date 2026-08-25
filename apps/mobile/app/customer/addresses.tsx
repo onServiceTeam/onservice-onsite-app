@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator, TextInput, ScrollView,
+  ActivityIndicator, TextInput, ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -109,11 +109,11 @@ export default function AddressesScreen(): React.ReactElement {
   const handleSave = (): void => {
     if (isSaving) return;
     if (!fullAddress.trim() || !barangay.trim() || !city.trim() || !province.trim()) {
-      Alert.alert('Required', 'Please fill in all required fields.');
+      showToast('Please fill in all required fields.', 'warning');
       return;
     }
     if (fullAddress.trim().length < 5) {
-      Alert.alert('Too Short', 'Full address must be at least 5 characters.');
+      showToast('Full address must be at least 5 characters.', 'warning');
       return;
     }
     const payload = {
@@ -194,7 +194,7 @@ export default function AddressesScreen(): React.ReactElement {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from addresses" onPress={() => router.back()} style={styles.backBtn}>
             <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.title}>My Addresses</Text>
@@ -235,14 +235,14 @@ export default function AddressesScreen(): React.ReactElement {
         </View>
         <View style={styles.addressActions}>
           {!item.isDefault && (
-            <TouchableOpacity style={styles.actionBtn} onPress={() => handleSetDefault(item)}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Set ${item.label} as default address`} style={styles.actionBtn} onPress={() => handleSetDefault(item)}>
               <Text style={styles.actionBtnText}>Set Default</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.actionBtn} onPress={() => handleEdit(item)}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Edit ${item.label} address`} style={styles.actionBtn} onPress={() => handleEdit(item)}>
             <Text style={styles.actionBtnText}>Edit</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={() => handleDelete(item)}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Delete ${item.label} address`} style={[styles.actionBtn, styles.actionBtnDanger]} onPress={() => handleDelete(item)}>
             <Text style={styles.actionBtnTextDanger}>Delete</Text>
           </TouchableOpacity>
         </View>
@@ -254,7 +254,7 @@ export default function AddressesScreen(): React.ReactElement {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={resetForm} style={styles.backBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Cancel address form" onPress={resetForm} style={styles.backBtn}>
             <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.title}>{editingId ? 'Edit Address' : 'Add Address'}</Text>
@@ -272,6 +272,9 @@ export default function AddressesScreen(): React.ReactElement {
               return (
               <TouchableOpacity
                 key={opt.value}
+                accessibilityRole="button"
+                accessibilityLabel={`Use ${opt.value} address label`}
+                accessibilityState={{ selected: label === opt.value }}
                 style={[styles.labelChip, label === opt.value && styles.labelChipActive]}
                 onPress={() => setLabel(opt.value)}
               >
@@ -315,7 +318,7 @@ export default function AddressesScreen(): React.ReactElement {
           <Text style={styles.formLabel}>City / Municipality *</Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g. Makati"
+            placeholder="e.g. Cebu City"
             placeholderTextColor={colors.textTertiary}
             value={city}
             onChangeText={setCity}
@@ -326,7 +329,7 @@ export default function AddressesScreen(): React.ReactElement {
           <Text style={styles.formLabel}>Province *</Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g. Metro Manila"
+            placeholder="e.g. Cebu"
             placeholderTextColor={colors.textTertiary}
             value={province}
             onChangeText={setProvince}
@@ -371,6 +374,9 @@ export default function AddressesScreen(): React.ReactElement {
           />
 
           <TouchableOpacity
+            accessibilityRole="checkbox"
+            accessibilityLabel="Set as default address"
+            accessibilityState={{ checked: isDefault }}
             style={styles.defaultToggle}
             onPress={() => setIsDefault((v) => !v)}
           >
@@ -395,7 +401,7 @@ export default function AddressesScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from addresses" onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>My Addresses</Text>
@@ -527,6 +533,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   actionBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.md,
@@ -607,6 +615,7 @@ const styles = StyleSheet.create({
   },
   locationButtonText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
   defaultToggle: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: spacing.base,

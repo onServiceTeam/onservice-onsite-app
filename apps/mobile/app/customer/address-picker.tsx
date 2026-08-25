@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker } from 'react-native-maps';
@@ -16,6 +16,8 @@ import { checkCoverage } from '@/services/service-area.service';
 import { findNearestConfiguredArea, matchConfiguredAreasForQuery } from '@/utils/ph-regions';
 import type { ComponentType } from 'react';
 import { Home as HomeIcon, Building2, Pin, MapPin } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
+import { showToast } from '@/lib/toast';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -42,6 +44,7 @@ export default function AddressPickerScreen(): React.ReactElement {
   const mapRef = useRef<MapView>(null);
   const { isAvailable: gpsAvailable, isLoading: gpsLoading, getCurrentLocation } = useLocation();
   const { areas, defaultRegion, isLoading: areasLoading } = useServiceAreaDefaults();
+  const { isPhone } = useResponsive();
   const recenteredOnDefault = useRef(false);
 
   const [pin, setPin] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -108,7 +111,7 @@ export default function AddressPickerScreen(): React.ReactElement {
     if (!coords) return;
 
     if (coords.latitude < 4.5 || coords.latitude > 21.5 || coords.longitude < 116 || coords.longitude > 127.5) {
-      Alert.alert('Location Error', 'Your current location appears to be outside the Philippines.');
+      showToast('Your current location appears to be outside the Philippines.', 'error');
       return;
     }
 
@@ -135,7 +138,7 @@ export default function AddressPickerScreen(): React.ReactElement {
   const handleMapPress = useCallback((e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
     const { latitude, longitude } = e.nativeEvent.coordinate;
     if (latitude < 4.5 || latitude > 21.5 || longitude < 116 || longitude > 127.5) {
-      Alert.alert('Invalid Location', 'Please select a location within the Philippines.');
+      showToast('Please select a location within the Philippines.', 'warning');
       return;
     }
     setPin({ latitude, longitude });
@@ -201,22 +204,19 @@ export default function AddressPickerScreen(): React.ReactElement {
 
   const handleConfirm = async (): Promise<void> => {
     if (!selectedAddress) {
-      Alert.alert('Select Address', 'Please tap on the map or search for your address.');
+      showToast('Please tap on the map or search for your address.', 'warning');
       return;
     }
     if (!selectedAddress.city) {
-      Alert.alert(
-        'Location Not Recognized',
-        'We could not determine the city for this pin. Please use the search bar to find your address.',
-      );
+      showToast('We could not determine the city for this pin. Please use the search bar to find your address.', 'warning');
       return;
     }
     if (!hasExactCoordinates) {
-      Alert.alert('Exact Location Required', 'Use your current location or set the map pin at the service address before confirming.');
+      showToast('Use your current location or set the map pin at the service address before confirming.', 'warning');
       return;
     }
     if (!barangayText.trim()) {
-      Alert.alert('Barangay Required', 'Enter the barangay for the service address.');
+      showToast('Enter the barangay for the service address.', 'warning');
       return;
     }
 
@@ -224,11 +224,11 @@ export default function AddressPickerScreen(): React.ReactElement {
     try {
       const coverage = await checkCoverage(selectedAddress.latitude, selectedAddress.longitude);
       if (!coverage.covered || !coverage.area) {
-        Alert.alert(
-          'Outside Service Area',
+        showToast(
           coverage.nearestArea
             ? `This location is outside our active coverage. The nearest area is ${coverage.nearestArea.name}.`
             : 'This location is outside our active coverage.',
+          'warning',
         );
         return;
       }
@@ -240,22 +240,79 @@ export default function AddressPickerScreen(): React.ReactElement {
       });
       router.back();
     } catch {
-      Alert.alert('Coverage Check Failed', 'We could not verify this location. Please check your connection and try again.');
+      showToast('We could not verify this location. Please check your connection and try again.', 'error');
     } finally {
       setCheckingCoverage(false);
     }
   };
 
+  const renderConfirmPanel = (): React.ReactElement => (
+    <View
+      style={[
+        styles.bottomBar,
+        !isPhone && styles.bottomBarWide,
+        { paddingBottom: (isPhone ? insets.bottom : 0) + spacing.base },
+      ]}
+      accessibilityLabel="Confirm service address"
+    >
+      {selectedAddress && (
+        <>
+          <View style={styles.selectedRow}>
+            <MapPin size={16} color={colors.text} style={{ marginRight: 6, marginTop: 2 }} />
+            <Text style={styles.selectedText} numberOfLines={2}>
+              {[selectedAddress.address, barangayText, selectedAddress.city].filter(Boolean).join(', ')}
+            </Text>
+          </View>
+          <TextInput
+            style={styles.barangayInput}
+            placeholder="Barangay *"
+            placeholderTextColor={colors.textTertiary}
+            value={barangayText}
+            onChangeText={setBarangayText}
+            maxLength={100}
+            accessibilityLabel="Barangay"
+          />
+          {!hasExactCoordinates && (
+            <Text style={styles.precisionWarning} accessibilityRole="alert">
+              City found. Now use your current location or move the map pin to the exact service address.
+            </Text>
+          )}
+        </>
+      )}
+      <Button
+        title="Confirm Address"
+        onPress={() => void handleConfirm()}
+        loading={checkingCoverage}
+        disabled={!selectedAddress || !hasExactCoordinates || !barangayText.trim() || checkingCoverage}
+      />
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Back from address picker"
+        >
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Select Address</Text>
       </View>
 
+      <View
+        style={[styles.workspace, !isPhone && styles.workspaceWide]}
+        accessibilityLabel={isPhone ? 'Service address picker' : 'Wide service address picker workspace'}
+      >
+      <ScrollView
+        style={[styles.controlPanel, isPhone ? styles.controlPanelPhone : styles.controlPanelWide]}
+        contentContainerStyle={styles.controlPanelContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
       {/* Search */}
       <View style={styles.searchContainer}>
         <View style={styles.searchRow}>
@@ -281,14 +338,14 @@ export default function AddressPickerScreen(): React.ReactElement {
       </View>
 
       {searchResults.length > 0 && (
-        <FlatList
-          data={searchResults}
-          keyExtractor={(_, i) => i.toString()}
-          style={styles.resultsList}
-          renderItem={({ item }) => (
+        <View style={styles.resultsList} accessibilityLabel="Matching service areas">
+          {searchResults.map((item, index) => (
             <TouchableOpacity
+              key={`${item.city}-${index}`}
               style={styles.resultItem}
               onPress={() => handleSelectResult(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`Use ${item.city}, ${item.province} as the map starting area`}
             >
               <MapPin size={16} color={colors.textTertiary} style={styles.resultIcon} />
               <View style={styles.resultText}>
@@ -298,8 +355,8 @@ export default function AddressPickerScreen(): React.ReactElement {
                 </Text>
               </View>
             </TouchableOpacity>
-          )}
-        />
+          ))}
+        </View>
       )}
 
       {searchMessage.length > 0 && searchResults.length === 0 && (
@@ -318,6 +375,8 @@ export default function AddressPickerScreen(): React.ReactElement {
               key={addr.id}
               style={styles.savedItem}
               onPress={() => handleSelectSaved(addr)}
+              accessibilityRole="button"
+              accessibilityLabel={`Use saved address ${addr.label}`}
             >
               <View style={styles.savedIconWrap}>
                 <SavedIcon size={20} color={colors.primary} />
@@ -345,6 +404,8 @@ export default function AddressPickerScreen(): React.ReactElement {
           onPress={() => void handleUseMyLocation()}
           disabled={gpsLoading}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Use this device location"
         >
           {gpsLoading ? (
             <ActivityIndicator size="small" color={colors.primary} />
@@ -365,6 +426,8 @@ export default function AddressPickerScreen(): React.ReactElement {
           </Text>
         </View>
       )}
+      {!isPhone && renderConfirmPanel()}
+      </ScrollView>
 
       {/* Map */}
       <MapView
@@ -372,49 +435,24 @@ export default function AddressPickerScreen(): React.ReactElement {
         style={styles.map}
         initialRegion={defaultRegion}
         onPress={handleMapPress}
+        accessibilityLabel="Choose the exact service location on the map"
       >
         {pin && <Marker coordinate={pin} />}
       </MapView>
-
-      {/* Bottom bar */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
-        {selectedAddress && (
-          <>
-            <View style={styles.selectedRow}>
-              <MapPin size={16} color={colors.text} style={{ marginRight: 6, marginTop: 2 }} />
-              <Text style={styles.selectedText} numberOfLines={2}>
-                {[selectedAddress.address, barangayText, selectedAddress.city].filter(Boolean).join(', ')}
-              </Text>
-            </View>
-            <TextInput
-              style={styles.barangayInput}
-              placeholder="Barangay *"
-              placeholderTextColor={colors.textTertiary}
-              value={barangayText}
-              onChangeText={setBarangayText}
-              maxLength={100}
-              accessibilityLabel="Barangay"
-            />
-            {!hasExactCoordinates && (
-              <Text style={styles.precisionWarning} accessibilityRole="alert">
-                City found. Now use your current location or move the map pin to the exact service address.
-              </Text>
-            )}
-          </>
-        )}
-        <Button
-          title="Confirm Address"
-          onPress={() => void handleConfirm()}
-          loading={checkingCoverage}
-          disabled={!selectedAddress || !hasExactCoordinates || !barangayText.trim() || checkingCoverage}
-        />
       </View>
+      {isPhone && renderConfirmPanel()}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
+  workspace: { flex: 1 },
+  workspaceWide: { flexDirection: 'row' },
+  controlPanel: { backgroundColor: colors.background },
+  controlPanelPhone: { maxHeight: 330 },
+  controlPanelWide: { width: 420, flexGrow: 0, borderRightWidth: 1, borderRightColor: colors.border },
+  controlPanelContent: { paddingTop: spacing.sm, paddingBottom: spacing.base },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -481,19 +519,13 @@ const styles = StyleSheet.create({
     color: colors.warningDark,
   },
   resultsList: {
-    position: 'absolute',
-    top: 140,
-    left: spacing.base,
-    right: spacing.base,
-    maxHeight: 200,
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
     backgroundColor: colors.background,
     borderRadius: borderRadius.md,
-    zIndex: 20,
-    elevation: 5,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
   },
   resultItem: {
     flexDirection: 'row',
@@ -568,6 +600,13 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     color: colors.text,
     flex: 1,
+  },
+  bottomBarWide: {
+    marginHorizontal: spacing.base,
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
   },
   barangayInput: {
     ...typography.body,

@@ -1,7 +1,7 @@
 import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
@@ -9,6 +9,7 @@ import { Card, SectionHeader, TrustStrip } from '@/components/ui';
 import type { ComponentType } from 'react';
 import { Smartphone, CreditCard, ScanLine, Wallet, AlertTriangle, Lock } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
+import { showToast } from '@/lib/toast';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -26,19 +27,18 @@ export default function PaymentMethodsScreen(): React.ReactElement {
   const { isPhone } = useResponsive();
 
   const handleMethodInfo = (method: (typeof PAYMENT_METHODS)[number]): void => {
-    Alert.alert(
-      method.label,
+    showToast(
       method.available
         ? 'Your existing onService wallet balance can be selected at checkout when it covers the full booking total. New wallet top-ups are temporarily unavailable.'
         : `${method.label} authorization is temporarily unavailable while the external payment flow is corrected. No payment will be created from this information screen.`,
-      [{ text: 'OK' }],
+      method.available ? 'info' : 'warning',
     );
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, !isPhone && styles.contentWide]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={(): void => { router.back(); }} style={styles.backBtn}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from payment methods" onPress={(): void => { router.back(); }} style={styles.backBtn}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Payment Methods</Text>

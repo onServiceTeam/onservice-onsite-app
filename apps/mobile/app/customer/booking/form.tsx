@@ -68,6 +68,9 @@ export default function BookingFormScreen(): React.ReactElement {
       key={d.value}
       style={[styles.dateChip, selectedDate === d.value && styles.dateChipSelected]}
       onPress={() => handleDateSelect(d.value)}
+      accessibilityRole="button"
+      accessibilityLabel={`Select date ${d.label}`}
+      accessibilityState={{ selected: selectedDate === d.value }}
     >
       <Text style={[styles.dateLabel, selectedDate === d.value && styles.dateLabelSelected]}>
         {d.label}
@@ -94,7 +97,12 @@ export default function BookingFormScreen(): React.ReactElement {
       {/* Header */}
       <View style={styles.header}>
         <View style={[styles.headerInner, !isPhone && styles.headerInnerWide]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Go back from booking"
+          >
             <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.title}>Book Service</Text>
@@ -124,6 +132,9 @@ export default function BookingFormScreen(): React.ReactElement {
           <TouchableOpacity
             style={styles.addressButton}
             onPress={() => router.push(Routes.CUSTOMER.ADDRESS_PICKER)}
+            accessibilityRole="button"
+            accessibilityLabel={draft.address ? `Change service address, currently ${draft.address}` : 'Select service address'}
+            accessibilityHint="Opens address search and the exact map pin"
           >
             <MapPin size={18} color={colors.primary} style={styles.addressIcon} />
             <Text style={[styles.addressText, !draft.address && styles.addressPlaceholder]}>
@@ -160,6 +171,9 @@ export default function BookingFormScreen(): React.ReactElement {
                 key={t}
                 style={[styles.timeChip, selectedTime === t && styles.timeChipSelected]}
                 onPress={() => handleTimeSelect(t)}
+                accessibilityRole="button"
+                accessibilityLabel={`Select time ${t}`}
+                accessibilityState={{ selected: selectedTime === t }}
               >
                 <Text
                   style={[styles.timeLabel, selectedTime === t && styles.timeLabelSelected]}

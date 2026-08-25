@@ -342,7 +342,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
       {isActiveJob && (
         <Button
           title="Chat with Customer"
-          onPress={() => router.push(`/provider/chat/${booking.id}`)}
+          onPress={() => router.push(buildRoute(Routes.PROVIDER.CHAT, { id: booking.id }) as never)}
           variant="outline"
         />
       )}
@@ -369,6 +369,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
             value={cancelReason}
             onChangeText={setCancelReason}
             textAlignVertical="top"
+            accessibilityLabel="Provider cancellation reason"
           />
           <Button
             title={cancelMutation.isPending ? 'Cancelling...' : 'Confirm Cancellation'}
@@ -379,6 +380,8 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           <TouchableOpacity
             onPress={() => { setShowCancelForm(false); setCancelReason(''); }}
             style={styles.cancelFormDismiss}
+            accessibilityRole="button"
+            accessibilityLabel="Keep job"
           >
             <Text style={styles.cancelFormDismissText}>Never mind</Text>
           </TouchableOpacity>

@@ -11,7 +11,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Lock, Check } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
 
-import { Routes } from '@/config/navigation';
+import { buildRoute, Routes } from '@/config/navigation';
 export default function BookingConfirmScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -107,6 +107,8 @@ export default function BookingConfirmScreen(): React.ReactElement {
             style={styles.infoCard}
             onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Learn about payment, escrow, and booking support"
           >
             <View style={styles.infoIconWrap}><Lock size={22} color={colors.primary} /></View>
             <Text style={styles.infoText}>
@@ -151,7 +153,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
         {bookingId && booking && !isPaid && (
           <Button
             title="Complete Payment"
-            onPress={() => router.replace(`/customer/booking/pay?bookingId=${bookingId}`)}
+            onPress={() => router.replace({ pathname: Routes.CUSTOMER.BOOKING_PAY, params: { bookingId } })}
             style={styles.primaryAction}
           />
         )}
@@ -159,7 +161,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
           title="View Booking"
           onPress={() => {
             if (bookingId) {
-              router.replace(`/customer/booking/${bookingId}`);
+              router.replace(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: bookingId }));
             } else {
               router.replace(Routes.TABS.BOOKINGS);
             }

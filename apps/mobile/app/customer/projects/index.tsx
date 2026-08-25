@@ -9,7 +9,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
 import { Building2, ChevronLeft, ChevronRight } from '@/components/icons';
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
-import { Routes } from '@/config/navigation';
+import { buildRoute, Routes } from '@/config/navigation';
 
 const STATUS_LABEL: Record<Project['status'], string> = {
   planning: 'Planning',
@@ -37,7 +37,9 @@ export default function ProjectsListScreen(): React.ReactElement {
     <TouchableOpacity
       style={[styles.card, numColumns > 1 && styles.cardGrid]}
       activeOpacity={0.7}
-      onPress={() => router.push(`/customer/projects/${item.id}`)}
+      onPress={() => router.push(buildRoute(Routes.CUSTOMER.PROJECT_DETAIL, { id: item.id }))}
+      accessibilityRole="button"
+      accessibilityLabel={`Open project ${item.title}`}
     >
       <View style={styles.cardTop}>
         <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
@@ -58,11 +60,11 @@ export default function ProjectsListScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Back from projects">
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Projects</Text>
-        <TouchableOpacity onPress={() => router.push(Routes.CUSTOMER.PROJECT_NEW)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity onPress={() => router.push(Routes.CUSTOMER.PROJECT_NEW)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Create a new project">
           <Text style={styles.newBtn}>+ New</Text>
         </TouchableOpacity>
       </View>
@@ -81,6 +83,15 @@ export default function ProjectsListScreen(): React.ReactElement {
           renderItem={renderItem}
           contentContainerStyle={styles.body}
           refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} />}
+          ListHeaderComponent={
+            <View style={styles.overview} accessibilityLabel="Project planning overview">
+              <Text style={styles.overviewEyebrow}>MULTI-STAGE WORK</Text>
+              <Text style={styles.overviewTitle}>Plan bigger work without losing the simple booking flow</Text>
+              <Text style={styles.overviewText}>
+                Keep milestones, choices, documents, and an early budget together here. A project is a planning record, not a provider assignment, quote, booking, or payment.
+              </Text>
+            </View>
+          }
           ListEmptyComponent={
             <EmptyState
               icon={<Building2 size={48} color={colors.textTertiary} />}
@@ -100,6 +111,10 @@ const styles = StyleSheet.create({
   title: { ...typography.h3, color: colors.text },
   newBtn: { ...typography.body, fontWeight: '700', color: colors.info },
   body: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.base, paddingBottom: 40, gap: spacing.md, flexGrow: 1 },
+  overview: { backgroundColor: colors.primary, borderRadius: borderRadius.lg, padding: spacing.lg, marginBottom: spacing.md },
+  overviewEyebrow: { ...typography.caption, color: colors.white, fontWeight: '800', letterSpacing: 0.8, marginBottom: spacing.xs },
+  overviewTitle: { ...typography.h2, color: colors.white, marginBottom: spacing.sm },
+  overviewText: { ...typography.bodySmall, color: colors.primaryLight, lineHeight: 20 },
   gridRow: { gap: spacing.md },
   card: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   cardGrid: { flex: 1 },

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ScrollView,
   RefreshControl,
   KeyboardAvoidingView,
@@ -14,13 +13,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore, type User } from '@/stores/auth.store';
 import { Button, Input } from '@/components/ui';
+import ConfirmModal from '@/components/ConfirmModal';
 import { showToast } from '@/lib/toast';
 import api from '@/services/api';
 import type { ApiResponse } from '@/services/api';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-// Phase 14 R5-complete — Avatar + PhoneInput cross-cutting components.
+// Phase 14 R5-complete — shared Avatar with initials fallback.
 import Avatar from '@/components/Avatar';
-import PhoneInput from '@/components/PhoneInput';
 import { platformConfig } from '@/config/platform.config';
 import type { ComponentType } from 'react';
 import {
@@ -43,13 +42,16 @@ type IconComponent = ComponentType<IconProps>;
 export default function ProfileScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { isDesktop } = useResponsive();
+  const { isTablet, isDesktop } = useResponsive();
+  const isWide = isTablet || isDesktop;
   const { user, logout, setUser } = useAuthStore();
   const [editing, setEditing] = useState(false);
   const [firstName, setFirstName] = useState(user?.firstName ?? '');
   const [lastName, setLastName] = useState(user?.lastName ?? '');
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [logoutVisible, setLogoutVisible] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -69,21 +71,23 @@ export default function ProfileScreen(): React.ReactElement {
   }, [setUser]);
 
   const handleLogout = (): void => {
-    Alert.alert('Log Out', 'Are you sure you want to log out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Log Out',
-        style: 'destructive',
-        onPress: (): void => {
-          void logout().finally(() => router.replace(Routes.AUTH.LOGIN));
-        },
-      },
-    ]);
+    setLogoutVisible(true);
+  };
+
+  const confirmLogout = async (): Promise<void> => {
+    setLoggingOut(true);
+    try {
+      await logout();
+      router.replace(Routes.AUTH.LOGIN);
+    } finally {
+      setLoggingOut(false);
+      setLogoutVisible(false);
+    }
   };
 
   const handleSaveProfile = async (): Promise<void> => {
     if (firstName.trim().length < 2 || lastName.trim().length < 2) {
-      Alert.alert('Invalid', 'Names must be at least 2 characters.');
+      showToast('First and last names must each be at least 2 characters.', 'error');
       return;
     }
     setSaving(true);
@@ -152,7 +156,7 @@ export default function ProfileScreen(): React.ReactElement {
     >
       <ScrollView
         style={[styles.container, { paddingTop: insets.top + spacing.base }]}
-        contentContainerStyle={[styles.content, isDesktop && styles.desktopContent]}
+        contentContainerStyle={[styles.content, isWide && styles.wideContent]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -165,7 +169,12 @@ export default function ProfileScreen(): React.ReactElement {
       >
         <Text style={styles.title}>Profile</Text>
 
-        <View style={styles.userCard}>
+        <View
+          style={[styles.profileWorkspace, isWide && styles.profileWorkspaceWide]}
+          accessibilityLabel={isWide ? 'Wide customer profile workspace' : 'Customer profile workspace'}
+        >
+        <View style={[styles.identityColumn, isWide && styles.identityColumnWide]}>
+        <View style={styles.userCard} accessibilityLabel="Customer identity and contact details">
           {/* Phase 14 R5-complete — Avatar with initials fallback */}
           <Avatar
             name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || undefined}
@@ -191,19 +200,28 @@ export default function ProfileScreen(): React.ReactElement {
                 autoCapitalize="words"
                 maxLength={100}
               />
-              {/* Phase 14 R5-complete — PhoneInput (read-only display via value prop;
-                actual phone change requires OTP re-verification — separate flow). */}
-              <PhoneInput
-                value={user?.phone ?? ''}
-                onChange={() => {
-                  Alert.alert(
-                    'Change Phone',
-                    'Phone number changes require OTP re-verification. This feature is in development.',
-                  );
-                }}
-                label="Mobile Number"
-                testID="profile-phone-input"
-              />
+              <View style={styles.phoneRecord} accessibilityLabel="Verified mobile number">
+                <Text style={styles.phoneRecordLabel}>Mobile Number</Text>
+                <Text style={styles.phoneRecordValue}>{user?.phone ?? 'Not available'}</Text>
+                <Text style={styles.phoneRecordHint}>
+                  Phone changes are not available on this screen because the number protects account access.
+                </Text>
+                <TouchableOpacity
+                  style={styles.phoneSupportLink}
+                  onPress={() => router.push({
+                    pathname: Routes.SUPPORT.NEW,
+                    params: {
+                      type: 'account_issue',
+                      subject: 'Change my account phone number',
+                      description: 'I need help changing the verified phone number on my account.',
+                    },
+                  })}
+                  accessibilityRole="button"
+                  accessibilityLabel="Contact support about changing the verified phone number"
+                >
+                  <Text style={styles.phoneSupportText}>Contact account support</Text>
+                </TouchableOpacity>
+              </View>
               <View style={styles.editActions}>
                 <Button title="Save" onPress={handleSaveProfile} loading={saving} size="sm" />
                 <Button
@@ -224,14 +242,41 @@ export default function ProfileScreen(): React.ReactElement {
                 {user?.firstName ?? ''} {user?.lastName ?? ''}
               </Text>
               <Text style={styles.userPhone}>{user?.phone ?? ''}</Text>
-              <TouchableOpacity onPress={() => setEditing(true)} style={styles.editButton}>
+              <TouchableOpacity
+                onPress={() => setEditing(true)}
+                style={styles.editButton}
+                accessibilityRole="button"
+                accessibilityLabel="Edit customer profile"
+              >
                 <Text style={styles.editButtonText}>Edit Profile</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
 
-        <View style={[styles.menu, isDesktop && styles.desktopMenu]}>
+        {isWide && (
+          <View style={styles.securityNote} accessibilityLabel="Account phone security note">
+            <Text style={styles.securityNoteTitle}>Account access</Text>
+            <Text style={styles.securityNoteText}>
+              Your verified mobile number is used to protect sign-in. Account and data tools are available in the settings panel.
+            </Text>
+          </View>
+        )}
+
+        {isWide && (
+          <Button
+            title="Log Out"
+            onPress={handleLogout}
+            variant="outline"
+            style={styles.logoutButton}
+          />
+        )}
+        {isWide && <Text style={styles.version}>Version {platformConfig.appVersion}</Text>}
+        </View>
+
+        <View style={[styles.settingsColumn, isWide && styles.settingsColumnWide]}>
+        {isWide && <Text style={styles.sectionTitle}>Account settings</Text>}
+        <View style={[styles.menu, isDesktop && styles.desktopMenu]} accessibilityLabel="Customer account settings">
           {menuItems.map((item) => {
             const ItemIcon = item.icon;
             return (
@@ -240,6 +285,8 @@ export default function ProfileScreen(): React.ReactElement {
                 style={[styles.menuItem, isDesktop && styles.desktopMenuItem]}
                 onPress={item.onPress}
                 activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityLabel={item.label}
               >
                 <View style={styles.menuIconWrap}>
                   <ItemIcon size={20} color={colors.primary} />
@@ -250,16 +297,30 @@ export default function ProfileScreen(): React.ReactElement {
             );
           })}
         </View>
+        </View>
+        </View>
 
-        <Button
-          title="Log Out"
-          onPress={handleLogout}
-          variant="outline"
-          style={styles.logoutButton}
-        />
+        {!isWide && (
+          <Button
+            title="Log Out"
+            onPress={handleLogout}
+            variant="outline"
+            style={styles.logoutButton}
+          />
+        )}
 
-        <Text style={styles.version}>Version {platformConfig.appVersion}</Text>
+        {!isWide && <Text style={styles.version}>Version {platformConfig.appVersion}</Text>}
       </ScrollView>
+      <ConfirmModal
+        visible={logoutVisible}
+        title="Log out?"
+        message="You will need your verified mobile number to sign in again."
+        confirmLabel="Log Out"
+        destructive
+        loading={loggingOut}
+        onConfirm={() => void confirmLogout()}
+        onCancel={() => setLogoutVisible(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -267,8 +328,15 @@ export default function ProfileScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
   content: { paddingBottom: 100 },
-  desktopContent: { width: '100%', maxWidth: 960, alignSelf: 'center' },
+  wideContent: { width: '100%', maxWidth: 1180, alignSelf: 'center' },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.lg },
+  profileWorkspace: { width: '100%' },
+  profileWorkspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+  identityColumn: { width: '100%' },
+  identityColumnWide: { width: 360 },
+  settingsColumn: { width: '100%' },
+  settingsColumnWide: { flex: 1, minWidth: 0 },
+  sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
   userCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -296,6 +364,29 @@ const styles = StyleSheet.create({
   editButtonText: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
   editForm: { flex: 1 },
   editActions: { flexDirection: 'row', gap: spacing.sm },
+  phoneRecord: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundSecondary,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  phoneRecordLabel: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.xs },
+  phoneRecordValue: { ...typography.body, color: colors.text, fontWeight: '700' },
+  phoneRecordHint: { ...typography.caption, color: colors.textSecondary, lineHeight: 18, marginTop: spacing.xs },
+  phoneSupportLink: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  phoneSupportText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
+  securityNote: {
+    padding: spacing.base,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+    marginBottom: spacing.base,
+  },
+  securityNoteTitle: { ...typography.body, color: colors.primary, fontWeight: '700', marginBottom: spacing.xs },
+  securityNoteText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20 },
   menu: {
     marginBottom: spacing.lg,
     backgroundColor: colors.surface,

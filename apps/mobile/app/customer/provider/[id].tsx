@@ -184,7 +184,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from provider profile" onPress={() => router.back()} style={styles.backButton}>
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Provider Profile</Text>
@@ -207,7 +207,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from provider profile" onPress={() => router.back()} style={styles.backButton}>
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Provider Profile</Text>
@@ -224,7 +224,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from provider profile" onPress={() => router.back()} style={styles.backButton}>
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Provider Profile</Text>

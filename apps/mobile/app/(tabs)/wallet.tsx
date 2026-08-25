@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { getWalletBalance } from '@/services/payment.service';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
@@ -34,6 +34,7 @@ import {
 } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
+import PaginationLoader from '@/components/PaginationLoader';
 import { useResponsive } from '@/hooks/useResponsive';
 
 type IconProps = { size?: number; color?: string };
@@ -66,7 +67,8 @@ const TRANSACTION_ICONS: Record<string, IconComponent> = {
 export default function WalletScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { isDesktop } = useResponsive();
+  const { isTablet, isDesktop } = useResponsive();
+  const isWide = isTablet || isDesktop;
   // Phase 14 R5-complete — FilterChips for transaction-type filter.
   const [txFilter, setTxFilter] = React.useState<string>('all');
 
@@ -76,16 +78,24 @@ export default function WalletScreen(): React.ReactElement {
     staleTime: 60 * 1000,
   });
 
-  const transactionsQuery = useQuery({
+  const transactionsQuery = useInfiniteQuery({
     queryKey: ['walletTransactions'],
-    queryFn: async () => {
+    queryFn: async ({ pageParam }) => {
       const res = await api.get<{
         success: boolean;
         data: Transaction[];
         pagination: { total: number };
-      }>('/api/v1/wallet/transactions', { params: { page: 1, pageSize: 20 } });
-      return res.data.data;
+      }>('/api/v1/wallet/transactions', { params: { page: pageParam, pageSize: 20 } });
+      return {
+        transactions: res.data.data,
+        page: pageParam,
+        total: res.data.pagination.total,
+      };
     },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => (
+      lastPage.page * 20 < lastPage.total ? lastPage.page + 1 : undefined
+    ),
     staleTime: 60 * 1000,
   });
 
@@ -97,7 +107,7 @@ export default function WalletScreen(): React.ReactElement {
   }, [walletQuery, transactionsQuery]);
 
   const wallet = walletQuery.data;
-  const allTransactions = transactionsQuery.data ?? [];
+  const allTransactions = transactionsQuery.data?.pages.flatMap((page) => page.transactions) ?? [];
   // BUG-PHASE53-02 fix — pre-fix the FilterChips set `txFilter` but
   // the transactions array was rendered as-is. Filter chips were
   // dead — clicking them did nothing visible. Phase 14 R5 wired
@@ -125,7 +135,10 @@ export default function WalletScreen(): React.ReactElement {
   }, [allTransactions, txFilter]);
 
   const renderBalanceCard = (): React.ReactElement => (
-    <View style={[styles.balanceCard, isDesktop && styles.desktopBalanceCard]}>
+    <View
+      style={[styles.balanceCard, isWide && styles.wideBalanceCard]}
+      accessibilityLabel="Customer wallet balance summary"
+    >
       {walletQuery.isLoading ? (
         <ActivityIndicator size="large" color={colors.white} />
       ) : (
@@ -140,6 +153,8 @@ export default function WalletScreen(): React.ReactElement {
           <TouchableOpacity
             style={styles.topUpBtn}
             onPress={() => router.push(Routes.CUSTOMER.WALLET)}
+            accessibilityRole="button"
+            accessibilityLabel="Open wallet top-up availability information"
           >
             <Text style={styles.topUpBtnText}>Top Up Paused</Text>
           </TouchableOpacity>
@@ -182,6 +197,12 @@ export default function WalletScreen(): React.ReactElement {
       )}
       contentContainerStyle={styles.list}
       showsVerticalScrollIndicator={false}
+      onEndReached={() => {
+        if (transactionsQuery.hasNextPage && !transactionsQuery.isFetchingNextPage) {
+          void transactionsQuery.fetchNextPage();
+        }
+      }}
+      onEndReachedThreshold={0.3}
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}
@@ -212,11 +233,33 @@ export default function WalletScreen(): React.ReactElement {
           />
         )
       }
+      ListFooterComponent={
+        transactionsQuery.hasNextPage && !transactionsQuery.isFetchingNextPage ? (
+          <TouchableOpacity
+            style={styles.loadMoreButton}
+            onPress={() => void transactionsQuery.fetchNextPage()}
+            accessibilityRole="button"
+            accessibilityLabel="Load more wallet transactions"
+          >
+            <Text style={styles.loadMoreText}>Load more transactions</Text>
+          </TouchableOpacity>
+        ) : (
+          <PaginationLoader
+            loading={transactionsQuery.isFetchingNextPage}
+            hasMore={!!transactionsQuery.hasNextPage}
+            endLabel={allTransactions.length > 0 ? "You're all caught up" : undefined}
+          />
+        )
+      }
     />
   );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
+      <View
+        style={[styles.workspace, isWide && styles.workspaceWide]}
+        accessibilityLabel={isWide ? 'Wide customer wallet workspace' : 'Customer wallet workspace'}
+      >
       <Text style={styles.title}>Wallet</Text>
 
       {/* Phase 14 R5-complete — FilterChips for transaction-type filter */}
@@ -236,20 +279,23 @@ export default function WalletScreen(): React.ReactElement {
           message="We couldn't load your wallet. Please check your connection and try again."
           onRetry={onRefresh}
         />
-      ) : isDesktop ? (
-        <View style={styles.desktopColumns}>
-          <View style={styles.desktopSummary}>{renderBalanceCard()}</View>
-          <View style={styles.desktopTransactions}>{renderTransactionList(false)}</View>
+      ) : isWide ? (
+        <View style={styles.wideColumns}>
+          <View style={styles.wideSummary}>{renderBalanceCard()}</View>
+          <View style={styles.wideTransactions}>{renderTransactionList(false)}</View>
         </View>
       ) : (
         renderTransactionList(true)
       )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.base },
+  workspace: { flex: 1, width: '100%' },
+  workspaceWide: { maxWidth: 1180, alignSelf: 'center' },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.lg },
 
   balanceCard: {
@@ -259,25 +305,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xl,
   },
-  desktopColumns: { flex: 1, flexDirection: 'row', gap: spacing.lg, minHeight: 0 },
-  desktopSummary: { width: 360 },
-  desktopTransactions: { flex: 1, minWidth: 0 },
-  desktopBalanceCard: { alignItems: 'flex-start' },
-  balanceLabel: { ...typography.body, color: 'rgba(255,255,255,0.7)', marginBottom: spacing.sm },
+  wideColumns: { flex: 1, flexDirection: 'row', gap: spacing.lg, minHeight: 0 },
+  wideSummary: { width: 340 },
+  wideTransactions: { flex: 1, minWidth: 0 },
+  wideBalanceCard: { alignItems: 'flex-start' },
+  balanceLabel: { ...typography.body, color: colors.white, marginBottom: spacing.sm },
   balanceAmount: { fontSize: 36, fontWeight: '800', color: colors.white, lineHeight: 44 },
-  pendingText: { ...typography.bodySmall, color: 'rgba(255,255,255,0.6)', marginTop: spacing.sm },
+  pendingText: { ...typography.bodySmall, color: colors.white, marginTop: spacing.sm },
   topUpBtn: {
     marginTop: spacing.md,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: colors.white,
     borderRadius: borderRadius.md,
     paddingVertical: spacing.sm + 2,
     paddingHorizontal: spacing.lg,
   },
-  topUpBtnText: { ...typography.body, fontWeight: '700', color: colors.white },
+  topUpBtnText: { ...typography.body, fontWeight: '700', color: colors.primary },
 
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
 
   list: { paddingBottom: 100 },
+  loadMoreButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.base,
+    paddingHorizontal: spacing.base,
+  },
+  loadMoreText: { ...typography.button, color: colors.primary },
   txRow: {
     flexDirection: 'row',
     alignItems: 'center',

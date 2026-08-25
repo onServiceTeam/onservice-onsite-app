@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -17,6 +17,7 @@ import { platformConfig } from '@/config/platform.config';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { PartyPopper, Heart } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
+import { Routes } from '@/config/navigation';
 
 const TIP_PERCENTAGES = [10, 15, 20] as const;
 
@@ -105,7 +106,7 @@ export default function TipScreen(): React.ReactElement {
     }),
     onSuccess: () => {
       showToast('Thank you! Your tip has been sent to the provider.', 'success');
-      router.replace({ pathname: '/customer/booking/make-recurring', params: { bookingId: bookingId ?? '' } });
+      router.replace({ pathname: Routes.CUSTOMER.BOOKING_MAKE_RECURRING, params: { bookingId: bookingId ?? '' } });
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
@@ -159,6 +160,13 @@ export default function TipScreen(): React.ReactElement {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.base }]}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        accessibilityLabel="Scrollable tip form"
+      >
       <View
         style={[styles.content, !isPhone && styles.contentWide]}
         accessibilityLabel={isPhone ? 'Tip form' : 'Desktop tip workspace'}
@@ -187,6 +195,9 @@ export default function TipScreen(): React.ReactElement {
                   setSelectedPercent(pct);
                   setCustomAmount('');
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Tip ${pct} percent, ${formatPHP(amount)}`}
+                accessibilityState={{ selected: isSelected }}
               >
                 <Text style={[styles.presetPercent, isSelected && styles.presetTextSelected]}>{pct}%</Text>
                 <Text style={[styles.presetAmount, isSelected && styles.presetTextSelected]}>
@@ -201,6 +212,9 @@ export default function TipScreen(): React.ReactElement {
               setShowCustom(true);
               setSelectedPercent(null);
             }}
+            accessibilityRole="button"
+            accessibilityLabel="Enter a custom tip amount"
+            accessibilityState={{ selected: showCustom }}
           >
             <Text style={[styles.presetPercent, showCustom && styles.presetTextSelected]}>Custom</Text>
           </TouchableOpacity>
@@ -217,6 +231,7 @@ export default function TipScreen(): React.ReactElement {
               placeholderTextColor={colors.textTertiary}
               keyboardType="decimal-pad"
               autoFocus
+              accessibilityLabel="Custom tip amount"
             />
           </View>
         )}
@@ -241,6 +256,7 @@ export default function TipScreen(): React.ReactElement {
             maxLength={500}
             numberOfLines={3}
             textAlignVertical="top"
+            accessibilityLabel="Optional tip message"
           />
           {message.length > 0 && (
             <Text style={styles.messageCount}>{message.length}/500</Text>
@@ -271,6 +287,7 @@ export default function TipScreen(): React.ReactElement {
           </Text>
         )}
       </View>
+      </ScrollView>
 
       <View style={[styles.actions, !isPhone && styles.actionsWide]}>
         <Button
@@ -281,7 +298,7 @@ export default function TipScreen(): React.ReactElement {
         />
         <Button
           title="Maybe Later"
-          onPress={() => router.replace({ pathname: '/customer/booking/make-recurring', params: { bookingId: bookingId ?? '' } })}
+          onPress={() => router.replace({ pathname: Routes.CUSTOMER.BOOKING_MAKE_RECURRING, params: { bookingId: bookingId ?? '' } })}
           variant="ghost"
           disabled={loading}
         />
@@ -292,11 +309,10 @@ export default function TipScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.lg },
-  content: { flex: 1, alignItems: 'center' },
+  scroll: { flex: 1, width: '100%' },
+  scrollContent: { flexGrow: 1, paddingBottom: spacing.lg },
+  content: { width: '100%', maxWidth: 640, alignSelf: 'center', alignItems: 'center' },
   contentWide: {
-    width: '100%',
-    maxWidth: 640,
-    alignSelf: 'center',
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,

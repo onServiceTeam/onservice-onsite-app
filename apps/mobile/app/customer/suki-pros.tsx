@@ -138,6 +138,7 @@ function MembershipCard({
         <View style={styles.redeemSection}>
           <View style={styles.redeemRow}>
             <TextInput
+              accessibilityLabel="Suki points to redeem"
               style={styles.redeemInput}
               keyboardType="numeric"
               value={redeemInput}
@@ -146,6 +147,9 @@ function MembershipCard({
               placeholderTextColor={colors.textTertiary}
             />
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Redeem Suki points"
+              accessibilityState={{ disabled: redeeming || !redeemInput || Number(redeemInput) < platformConfig.sukiMinRedeemPoints }}
               // BUG-PHASE73-01 fix — pre-fix the visual disabled style
               // checked `Number(redeemInput) < 100` (hardcoded) while
               // the actual disabled prop checked `<
@@ -262,7 +266,7 @@ export default function SukiProsScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from Suki Pros" onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Suki Pros</Text>

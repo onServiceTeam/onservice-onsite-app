@@ -4,10 +4,15 @@ The app ships as a **web build** (Expo web export), fully tested at the web/API
 layer. This file tracks the **native** Android/iOS build, which gates two
 device-level QA tracks: Appium native E2E and the F#3 Maestro visual baselines.
 
-## STATUS (2026-06-11): dependency migration DONE; native build PROVEN; full device run blocked by the Windows + OneDrive host
+## STATUS (reconciled 2026-08-25): native alignment is not on master; web remains green; device capture is still pending
 
-The dependency migration described below was completed on branch
-**`native-build-sdk55-align`** (pushed to GitHub). With it:
+The dependency migration described below was completed and a debug APK was
+proven in June, but the referenced `native-build-sdk55-align` branch no longer
+exists locally or on the current GitHub remote and its dependency changes were
+not merged into master. Current master still uses Reanimated 3.17 and the older
+SDK-55 module versions. `npx expo install --check` reproduces that drift.
+
+The historical migration evidence showed that, with the aligned dependency set:
 
 - **Every native module compiles** (reanimated 4, screens, all expo modules).
 - A **debug APK builds (217 MB), installs, and launches** on an Android emulator.
@@ -16,9 +21,8 @@ The dependency migration described below was completed on branch
   -p web` builds a correct bundle (app.onservice.ph, no dev placeholders). So the
   alignment is safe for the deployed web path.
 
-What still blocks a full on-device test run, and why it's NOT a code problem —
-both are limitations of **this Windows machine with the repo in a deep
-OneDrive-synced folder**:
+Two host limitations also affected the June run from the old deep OneDrive
+checkout:
 
 1. **Windows 260-char path limit** on the C++/CMake codegen (e.g.
    `react-native-mmkv:buildCMakeRelWithDebInfo`). A `C:\o` directory junction
@@ -37,16 +41,16 @@ OneDrive-synced folder**:
   a real `git clone`, not a junction) and enable Windows long paths. Then the
   local debug/release builds + Maestro/Appium run as scripted below.
 
-Maestro and Appium are **ready**: the 84 flows + `scripts/maestro/capture-baselines.sh`
-are committed; Appium 2 + uiautomator2 are installed and `qa-frameworks/appium/smoke.mjs`
-is written. They just need an APK that loads on a non-OneDrive/short-path host.
+Maestro and Appium are scaffolded: 89 screen flows plus two setup helpers and
+`scripts/maestro/capture-baselines.sh` are committed; Appium 2 + uiautomator2
+are installed and `qa-frameworks/appium/smoke.mjs` is written. They need a
+fresh aligned APK and a supported device/emulator session.
 
-**Merging the dependency alignment to master:** the branch is jest- and
-web-export-verified, but it changes the deployed web app's deps (reanimated 4,
-sentry 7, all expo modules). Land it deliberately: redeploy the branch's web
-build to staging, re-run the Playwright E2E (apps/admin live suite), and merge
-only if it stays 20/20 green — so the live tester isn't exposed to an
-un-runtime-validated dep change.
+**Recreating and landing the dependency alignment:** use a fresh topic branch.
+It changes the deployed web app's dependencies (Reanimated 4, Sentry 7, and the
+Expo/native modules), so rebuild the migration from current master, prove the
+APK, Jest suite, and web export, deploy that exact artifact to staging, and run
+the live browser gates before merging.
 
 ---
 
@@ -70,7 +74,7 @@ Two concrete failures seen, in order:
 Other modules also flagged behind by `expo install --check` (align them too):
 `react-native-gesture-handler` 2.24→2.30, `react-native-screens` 4.10→4.23,
 `react-native-safe-area-context` 5.4→5.6, `react-native-svg` 15.8→15.15,
-`react-native-webview` 13.13→13.16, `react-native` 0.83.0→0.83.6, plus several
+`react-native-webview` 13.13→13.16, `react-native` 0.83.0→0.83.10, plus several
 `expo-*` patch bumps.
 
 > Do NOT run a blanket `expo install --fix`: it also tries to DOWNGRADE jest
@@ -105,7 +109,7 @@ the web build and the jest suite, not just native.
 
 - **Maestro visual baselines (F#3):** install the debug APK on a booted
   emulator, start Metro with `EXPO_PUBLIC_API_URL=http://10.0.2.2:7381`, then
-  `bash scripts/maestro/capture-baselines.sh`. The 84 flows are already rewritten
+  `bash scripts/maestro/capture-baselines.sh`. The 89 screen flows are already rewritten
   with real login + deep-link navigation (`scripts/maestro/generate-visual-flows.mjs`).
 - **Appium native E2E:** Appium 2 + the uiautomator2 driver are installed; the
   smoke (`qa-frameworks/appium/smoke.mjs`) points at the debug APK and drives the

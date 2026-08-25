@@ -10,6 +10,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
 import { useResponsive } from '@/hooks/useResponsive';
+import { buildRoute, Routes } from '@/config/navigation';
 
 export default function NewProjectScreen(): React.ReactElement {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function NewProjectScreen(): React.ReactElement {
     onSuccess: (project) => {
       void queryClient.invalidateQueries({ queryKey: ['projects'] });
       showToast('Project created. Add your milestones next.', 'success');
-      router.replace(`/customer/projects/${project.id}`);
+      router.replace(buildRoute(Routes.CUSTOMER.PROJECT_DETAIL, { id: project.id }));
     },
     onError: (err) => showToast(getErrorMessage(err, 'Could not create the project.'), 'error'),
   });
@@ -43,7 +44,12 @@ export default function NewProjectScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back from new project"
+        >
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>New Project</Text>
@@ -77,6 +83,7 @@ export default function NewProjectScreen(): React.ReactElement {
             placeholder="e.g. Kitchen renovation"
             placeholderTextColor={colors.textTertiary}
             maxLength={160}
+            accessibilityLabel="Project title"
           />
         </View>
 
@@ -92,6 +99,7 @@ export default function NewProjectScreen(): React.ReactElement {
             numberOfLines={4}
             textAlignVertical="top"
             maxLength={4000}
+            accessibilityLabel="Project description"
           />
         </View>
 
@@ -104,6 +112,7 @@ export default function NewProjectScreen(): React.ReactElement {
             placeholder="Cebu City"
             placeholderTextColor={colors.textTertiary}
             maxLength={100}
+            accessibilityLabel="Project city"
           />
         </View>
 
@@ -118,6 +127,7 @@ export default function NewProjectScreen(): React.ReactElement {
               placeholder="0.00"
               placeholderTextColor={colors.textTertiary}
               keyboardType="numeric"
+              accessibilityLabel="Estimated total budget"
             />
           </View>
           <Text style={styles.hint}>A planning figure only. A future booking or accepted quote determines the real price.</Text>
@@ -128,6 +138,9 @@ export default function NewProjectScreen(): React.ReactElement {
           style={[styles.submit, !isValid && styles.submitDisabled]}
           onPress={() => mutation.mutate()}
           disabled={!isValid || mutation.isPending}
+          accessibilityRole="button"
+          accessibilityLabel="Create project"
+          accessibilityState={{ disabled: !isValid || mutation.isPending, busy: mutation.isPending }}
         >
           {mutation.isPending ? <ActivityIndicator color={colors.white} /> : <Text style={styles.submitText}>Create Project</Text>}
         </TouchableOpacity>
@@ -149,14 +162,14 @@ const styles = StyleSheet.create({
   planningNoticeText: { ...typography.bodySmall, color: colors.infoDark, lineHeight: 20 },
   field: { marginBottom: spacing.lg },
   label: { ...typography.body, fontWeight: '600', color: colors.text, marginBottom: spacing.sm },
-  input: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, fontSize: 14, color: colors.text },
+  input: { minHeight: 48, backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, fontSize: 14, color: colors.text },
   textArea: { minHeight: 100 },
-  amountRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: borderRadius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingHorizontal: spacing.base },
+  amountRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: borderRadius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingHorizontal: spacing.base },
   prefix: { fontSize: 16, color: colors.textSecondary, marginRight: spacing.xs },
   amountInput: { flex: 1, paddingVertical: spacing.base, fontSize: 16, color: colors.text },
   hint: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.xs },
   validationText: { ...typography.caption, color: colors.error, marginTop: spacing.xs },
-  submit: { backgroundColor: colors.text, borderRadius: borderRadius.lg, paddingVertical: spacing.base, alignItems: 'center', marginTop: spacing.sm },
+  submit: { minHeight: 48, backgroundColor: colors.primary, borderRadius: borderRadius.lg, paddingVertical: spacing.base, alignItems: 'center', justifyContent: 'center', marginTop: spacing.sm },
   submitDisabled: { opacity: 0.5 },
   submitText: { ...typography.body, fontWeight: '700', color: colors.white },
 });

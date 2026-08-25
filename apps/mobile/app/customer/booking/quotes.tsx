@@ -1,6 +1,6 @@
 import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,8 @@ import { useResponsive } from '@/hooks/useResponsive';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
+import ConfirmModal from '@/components/ConfirmModal';
+import { Routes } from '@/config/navigation';
 
 function QuoteCard({ quote, onAccept, onDecline, isPending }: {
   quote: BookingQuote;
@@ -23,7 +25,10 @@ function QuoteCard({ quote, onAccept, onDecline, isPending }: {
   const isResolved = quote.status !== 'submitted';
 
   return (
-    <View style={[styles.quoteCard, isResolved && styles.quoteResolved]}>
+    <View
+      style={[styles.quoteCard, isResolved && styles.quoteResolved]}
+      accessibilityLabel={`Quote from ${quote.providerName ?? 'provider'} for ${formatPHP(quote.quotedPrice)}`}
+    >
       <View style={styles.quoteHeader}>
         <View style={{ flex: 1 }}>
           <Text style={styles.providerName}>{quote.providerName ?? 'Provider'}</Text>
@@ -102,6 +107,8 @@ function QuoteCard({ quote, onAccept, onDecline, isPending }: {
             style={styles.declineBtn}
             onPress={onDecline}
             disabled={isPending}
+            accessibilityRole="button"
+            accessibilityLabel={`Decline quote from ${quote.providerName ?? 'provider'}`}
           >
             <Text style={styles.declineBtnText}>Decline</Text>
           </TouchableOpacity>
@@ -109,6 +116,8 @@ function QuoteCard({ quote, onAccept, onDecline, isPending }: {
             style={styles.acceptBtn}
             onPress={onAccept}
             disabled={isPending}
+            accessibilityRole="button"
+            accessibilityLabel={`Accept quote from ${quote.providerName ?? 'provider'}`}
           >
             {isPending ? <ActivityIndicator size="small" color={colors.white} /> : (
               <Text style={styles.acceptBtnText}>Accept Quote</Text>
@@ -125,6 +134,10 @@ export default function QuotesScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { isPhone } = useResponsive();
+  const [pendingDecision, setPendingDecision] = React.useState<{
+    type: 'accept' | 'decline';
+    quoteId: string;
+  } | null>(null);
   const { data: quotes, isLoading, isError, refetch } = useQuery({
     queryKey: ['bookingQuotes', bookingId],
     queryFn: () => getBookingQuotes(bookingId ?? ''),
@@ -140,9 +153,9 @@ export default function QuotesScreen(): React.ReactElement {
       // but that screen had no payment action for status='payment_
       // pending', so the customer was stuck. Now route directly to
       // the new pay-existing-booking screen.
-      Alert.alert('Quote Accepted', 'Now choose a payment method to confirm the booking.', [
-        { text: 'OK', onPress: () => router.replace(`/customer/booking/pay?bookingId=${bookingId}`) },
-      ]);
+      setPendingDecision(null);
+      showToast('Quote accepted. Choose a payment method to confirm the booking.', 'success');
+      router.replace({ pathname: Routes.CUSTOMER.BOOKING_PAY, params: { bookingId: bookingId ?? '' } });
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : 'Could not accept quote.';
@@ -154,6 +167,7 @@ export default function QuotesScreen(): React.ReactElement {
     mutationFn: (quoteId: string) => declineQuote(bookingId ?? '', quoteId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['bookingQuotes', bookingId] });
+      setPendingDecision(null);
       showToast('Quote declined.', 'success');
     },
     onError: (err: unknown) => {
@@ -163,10 +177,7 @@ export default function QuotesScreen(): React.ReactElement {
   });
 
   const handleAccept = (quoteId: string): void => {
-    Alert.alert('Accept Quote', 'Are you sure you want to accept this quote? Other quotes will be declined.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Accept', onPress: () => acceptMutation.mutate(quoteId) },
-    ]);
+    setPendingDecision({ type: 'accept', quoteId });
   };
 
   // BUG-PHASE51-01 fix — pre-fix the Decline button fired the
@@ -176,20 +187,18 @@ export default function QuotesScreen(): React.ReactElement {
   // touch and is irreversible — the API has no "undecline" path.
   // Now: confirm dialog matching the Accept-side pattern.
   const handleDecline = (quoteId: string): void => {
-    Alert.alert(
-      'Decline Quote',
-      'Are you sure you want to decline this quote? This cannot be undone — the provider will see the decision.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Decline', style: 'destructive', onPress: () => declineMutation.mutate(quoteId) },
-      ],
-    );
+    setPendingDecision({ type: 'decline', quoteId });
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Back from quote comparison"
+        >
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Compare Quotes</Text>
@@ -240,6 +249,22 @@ export default function QuotesScreen(): React.ReactElement {
           )}
         </ScrollView>
       )}
+      <ConfirmModal
+        visible={pendingDecision !== null}
+        title={pendingDecision?.type === 'decline' ? 'Decline this quote?' : 'Accept this quote?'}
+        message={pendingDecision?.type === 'decline'
+          ? 'This cannot be undone. The provider will see your decision.'
+          : 'Accepting this quote will decline the other quotes. You will choose a payment method next.'}
+        confirmLabel={pendingDecision?.type === 'decline' ? 'Decline Quote' : 'Accept Quote'}
+        destructive={pendingDecision?.type === 'decline'}
+        loading={acceptMutation.isPending || declineMutation.isPending}
+        onConfirm={() => {
+          if (!pendingDecision) return;
+          if (pendingDecision.type === 'accept') acceptMutation.mutate(pendingDecision.quoteId);
+          else declineMutation.mutate(pendingDecision.quoteId);
+        }}
+        onCancel={() => setPendingDecision(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -253,7 +278,7 @@ const styles = StyleSheet.create({
   placeholder: { width: 30 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
-  bodyContentWide: { padding: spacing.xl, paddingBottom: spacing.xl },
+  bodyContentWide: { padding: spacing.xl, paddingBottom: spacing.xl, width: '100%', maxWidth: 1180, alignSelf: 'center' },
   quoteGrid: { width: '100%' },
   quoteGridWide: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.base },
   quoteCell: { width: '100%' },

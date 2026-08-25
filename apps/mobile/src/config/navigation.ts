@@ -53,6 +53,13 @@ export const Routes = {
     BOOKING_TRACKER: '/customer/booking/tracker',
     BOOKING_COMPLETE: '/customer/booking/complete',
     BOOKING_MAKE_RECURRING: '/customer/booking/make-recurring',
+    BOOKING_PAY: '/customer/booking/pay',
+    BOOKING_PAYMENT_FAILED: '/customer/booking/payment-failed',
+    BOOKING_PHOTOS: '/customer/booking/photos',
+    BOOKING_REVIEW: '/customer/booking/review',
+    BOOKING_TIP: '/customer/booking/tip',
+    BOOKING_DISPUTE: '/customer/booking/dispute',
+    BOOKING_CHANGE_ORDER: '/customer/booking/change-order',
     DISPUTES: '/customer/disputes',
     DISPUTE_DETAIL: '/customer/dispute/[id]',
     CHAT: '/customer/chat/[id]',
@@ -87,6 +94,7 @@ export const Routes = {
     HELP: '/customer/help',
     TERMS: '/customer/terms',
     ACCOUNT_MANAGEMENT: '/customer/account-management',
+    DATA_RIGHTS: '/customer/data-rights',
     // BUG-PHASE126-01 — pre-fix this block had 24 entries pointing at
     // screens that don't exist on disk and have no consumers anywhere
     // in the app (verified 2026-05-05 via grep across apps/mobile/app

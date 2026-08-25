@@ -12,6 +12,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useCaptchaOtp } from '@/hooks/useCaptchaOtp';
 import { getConfig } from '@/services/config.service';
+import AuthBrandPanel from '@/components/AuthBrandPanel';
 
 import { Routes } from '@/config/navigation';
 export default function OTPVerifyScreen(): React.ReactElement {
@@ -96,11 +97,22 @@ export default function OTPVerifyScreen(): React.ReactElement {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + spacing.xxl }]}>
+    <View style={[
+      styles.container,
+      isPhone ? { paddingTop: insets.top + spacing.xxl } : styles.containerWide,
+    ]}>
       <View
         style={[styles.workspace, !isPhone && styles.workspaceWide]}
         accessibilityLabel={!isPhone ? 'Desktop verification workspace' : undefined}
       >
+        {!isPhone ? (
+          <AuthBrandPanel
+            eyebrow="SECURE VERIFICATION"
+            title="Confirm the number tied to your records."
+            description="The verification step protects access to bookings, provider work evidence, payment state, and support conversations."
+          />
+        ) : null}
+        <View style={[styles.formColumn, !isPhone && styles.formColumnWide]}>
         <View style={styles.header}>
           <Text style={styles.title}>Enter Verification Code</Text>
           <Text style={styles.subtitle}>
@@ -139,6 +151,7 @@ export default function OTPVerifyScreen(): React.ReactElement {
             )}
           </View>
         </Card>
+        </View>
       </View>
       {captchaModal}
     </View>
@@ -152,8 +165,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
   },
+  containerWide: { paddingTop: spacing.xl, paddingBottom: spacing.xl, justifyContent: 'center' },
   workspace: { width: '100%' },
-  workspaceWide: { maxWidth: 560 },
+  workspaceWide: {
+    maxWidth: 1120,
+    minHeight: 720,
+    maxHeight: 820,
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  formColumn: { width: '100%' },
+  formColumnWide: { width: 'auto', flex: 1, justifyContent: 'center', paddingHorizontal: 64, paddingVertical: spacing.xl },
   card: { borderRadius: borderRadius.lg },
   header: { alignItems: 'center', marginBottom: spacing.xl },
   title: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },

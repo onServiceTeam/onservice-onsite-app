@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   Image,
   ActivityIndicator,
 } from 'react-native';
@@ -22,6 +21,7 @@ import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Check, Star, Lock } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
+import { Routes } from '@/config/navigation';
 
 const STAR_OPTIONS = [1, 2, 3, 4, 5];
 const REVIEWABLE_BOOKING_STATUSES = new Set(['confirmed', 'payout_ready', 'paid_out']);
@@ -50,15 +50,24 @@ function StarRow({
   value,
   onChange,
   size = 32,
+  label,
 }: {
   value: number;
   onChange: (val: number) => void;
   size?: number;
+  label: string;
 }): React.ReactElement {
   return (
     <View style={styles.starRow}>
       {STAR_OPTIONS.map((star) => (
-        <TouchableOpacity key={star} onPress={() => onChange(star)} activeOpacity={0.6}>
+        <TouchableOpacity
+          key={star}
+          accessibilityRole="radio"
+          accessibilityLabel={`${label}, ${star} star${star === 1 ? '' : 's'}`}
+          accessibilityState={{ selected: value === star }}
+          onPress={() => onChange(star)}
+          activeOpacity={0.6}
+        >
           <Star size={size} color={star <= value ? colors.warning : colors.textTertiary} fill={star <= value ? colors.warning : 'none'} />
         </TouchableOpacity>
       ))}
@@ -125,11 +134,11 @@ export default function ReviewScreen(): React.ReactElement {
       return;
     }
     if (overallRating === 0) {
-      Alert.alert('Rating Required', 'Please select an overall rating.');
+      showToast('Please select an overall rating.', 'warning');
       return;
     }
     if (comment.length > 0 && comment.length < 20) {
-      Alert.alert('Review Too Short', 'Written reviews must be at least 20 characters.');
+      showToast('Written reviews must be at least 20 characters.', 'warning');
       return;
     }
 
@@ -156,7 +165,7 @@ export default function ReviewScreen(): React.ReactElement {
       if (privateNote.trim().length > 0) payload.privateNote = privateNote.trim();
 
       await createReview(payload);
-      router.replace({ pathname: '/customer/booking/tip', params: { bookingId: validBookingId } });
+      router.replace({ pathname: Routes.CUSTOMER.BOOKING_TIP, params: { bookingId: validBookingId } });
     } catch (err: unknown) {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
       // A7 — non-blocking toast instead of a modal Alert for network failures.
@@ -214,7 +223,7 @@ export default function ReviewScreen(): React.ReactElement {
         </View>
         <View style={styles.overallSection}>
           <Text style={styles.overallLabel}>How was the service?</Text>
-          <StarRow value={overallRating} onChange={setOverallRating} size={40} />
+          <StarRow label="Overall rating" value={overallRating} onChange={setOverallRating} size={40} />
           {overallRating > 0 && (
             <Text style={styles.ratingText}>
               {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][overallRating]}
@@ -224,6 +233,9 @@ export default function ReviewScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.expandButton}
+          accessibilityRole="button"
+          accessibilityLabel={`${showSubRatings ? 'Hide' : 'Show'} detailed ratings`}
+          accessibilityState={{ expanded: showSubRatings }}
           onPress={() => setShowSubRatings(!showSubRatings)}
         >
           <Text style={styles.expandLabel}>
@@ -238,6 +250,7 @@ export default function ReviewScreen(): React.ReactElement {
               <View key={sub.key} style={styles.subRatingRow}>
                 <Text style={styles.subRatingLabel}>{sub.label}</Text>
                 <StarRow
+                  label={sub.label}
                   value={subRatings[sub.key]}
                   onChange={(val) => setSubRatings((prev) => ({ ...prev, [sub.key]: val }))}
                   size={22}
@@ -280,6 +293,8 @@ export default function ReviewScreen(): React.ReactElement {
                 <Image source={{ uri }} style={styles.photoImage} />
                 <TouchableOpacity
                   style={styles.removePhotoBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove review photo ${i + 1}`}
                   onPress={() => imagePicker.removeImage(i)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
@@ -290,6 +305,8 @@ export default function ReviewScreen(): React.ReactElement {
             {imagePicker.localUris.length < 5 && (
               <TouchableOpacity
                 style={[styles.photoThumb, styles.addPhotoBox]}
+                accessibilityRole="button"
+                accessibilityLabel="Add review photo"
                 onPress={imagePicker.showPickerOptions}
               >
                 <Text style={styles.addPhotoPlus}>+</Text>
@@ -366,7 +383,7 @@ export default function ReviewScreen(): React.ReactElement {
           />
           <Button
             title="Skip"
-            onPress={() => router.replace({ pathname: '/customer/booking/tip', params: { bookingId: validBookingId } })}
+            onPress={() => router.replace({ pathname: Routes.CUSTOMER.BOOKING_TIP, params: { bookingId: validBookingId } })}
             variant="ghost"
             disabled={loading}
           />

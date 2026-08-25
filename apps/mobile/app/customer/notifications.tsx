@@ -132,6 +132,10 @@ export default function NotificationsScreen(): React.ReactElement {
       style={[styles.card, !item.isRead && styles.cardUnread]}
       onPress={() => void handleNotificationPress(item)}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.title}. ${item.body}`}
+      accessibilityHint="Opens the related booking, message, support, or account workspace when available"
+      accessibilityState={{ selected: !item.isRead }}
     >
       <View style={styles.iconChip}><Icon size={22} color={colors.primary} /></View>
       <View style={styles.cardContent}>
@@ -147,12 +151,19 @@ export default function NotificationsScreen(): React.ReactElement {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back from notifications">
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Notifications</Text>
         {unread > 0 && (
-          <TouchableOpacity onPress={() => markAllMutation.mutate()} style={styles.markAllButton} disabled={markAllMutation.isPending}>
+          <TouchableOpacity
+            onPress={() => markAllMutation.mutate()}
+            style={styles.markAllButton}
+            disabled={markAllMutation.isPending}
+            accessibilityRole="button"
+            accessibilityLabel="Mark all notifications as read"
+            accessibilityState={{ disabled: markAllMutation.isPending, busy: markAllMutation.isPending }}
+          >
             <Text style={styles.markAllText}>{markAllMutation.isPending ? 'Marking…' : 'Mark all read'}</Text>
           </TouchableOpacity>
         )}
@@ -193,7 +204,14 @@ export default function NotificationsScreen(): React.ReactElement {
             />
           }
           ListFooterComponent={hasNextPage ? (
-            <TouchableOpacity style={styles.loadMoreButton} onPress={() => void fetchNextPage()} disabled={isFetchingNextPage}>
+            <TouchableOpacity
+              style={styles.loadMoreButton}
+              onPress={() => void fetchNextPage()}
+              disabled={isFetchingNextPage}
+              accessibilityRole="button"
+              accessibilityLabel="Load earlier notifications"
+              accessibilityState={{ disabled: isFetchingNextPage, busy: isFetchingNextPage }}
+            >
               <Text style={styles.loadMoreText}>{isFetchingNextPage ? 'Loading…' : 'Load earlier notifications'}</Text>
             </TouchableOpacity>
           ) : null}

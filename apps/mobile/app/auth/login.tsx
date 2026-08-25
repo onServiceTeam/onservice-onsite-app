@@ -16,6 +16,7 @@ import PhoneInput from '@/components/PhoneInput';
 import { Routes } from '@/config/navigation';
 import { DEMO_MODE, demoLogin, type DemoRole } from '@/config/demo';
 import { useResponsive } from '@/hooks/useResponsive';
+import AuthBrandPanel from '@/components/AuthBrandPanel';
 
 export default function LoginScreen(): React.ReactElement {
   const router = useRouter();
@@ -72,13 +73,24 @@ export default function LoginScreen(): React.ReactElement {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { paddingTop: insets.top + spacing.xxl }]}
+      style={[
+        styles.container,
+        isPhone ? { paddingTop: insets.top + spacing.xxl } : styles.containerWide,
+      ]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View
         style={[styles.workspace, !isPhone && styles.workspaceWide]}
         accessibilityLabel={!isPhone ? 'Desktop login workspace' : undefined}
       >
+        {!isPhone ? (
+          <AuthBrandPanel
+            eyebrow="YOUR SERVICE ACCOUNT"
+            title="Return to every service record."
+            description="Log in to manage bookings, compare provider work, review payment state, and keep support context in one place."
+          />
+        ) : null}
+        <View style={[styles.formColumn, !isPhone && styles.formColumnWide]}>
         <View style={styles.header}>
           <Text style={styles.title}>Welcome back</Text>
           <Text style={styles.subtitle}>
@@ -162,6 +174,7 @@ export default function LoginScreen(): React.ReactElement {
           </Text>
           .
         </Text>
+        </View>
       </View>
 
       {captchaModal}
@@ -176,8 +189,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
   },
+  containerWide: { paddingTop: spacing.xl, paddingBottom: spacing.xl, justifyContent: 'center' },
   workspace: { width: '100%' },
-  workspaceWide: { maxWidth: 560 },
+  workspaceWide: {
+    maxWidth: 1120,
+    minHeight: 720,
+    maxHeight: 820,
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  formColumn: { width: '100%' },
+  formColumnWide: { width: 'auto', flex: 1, justifyContent: 'center', paddingHorizontal: 64, paddingVertical: spacing.xl },
   header: { marginBottom: spacing.xl },
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary },

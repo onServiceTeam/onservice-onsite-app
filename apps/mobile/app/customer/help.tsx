@@ -1,20 +1,21 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking, Platform, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { SectionHeader } from '@/components/ui';
 import { Mail, MessageSquare, ChevronLeft, ChevronRight } from '@/components/icons';
+import { showToast } from '@/lib/toast';
 
 const SUPPORT_EMAIL = 'support@onservice.ph';
 
 // Bug (Jenico feedback): on the web build, Linking.openURL('mailto:…')
 // navigated the whole tab to a blank page. On web we surface the
-// address in a dialog the user can copy instead; native still deep-links.
+// address in a non-blocking message the user can copy instead; native still deep-links.
 function openEmail(): void {
-  if (Platform.OS === 'web') { Alert.alert('Email support', SUPPORT_EMAIL); return; }
-  Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => { Alert.alert('Could not open', SUPPORT_EMAIL); });
+  if (Platform.OS === 'web') { showToast(`Email support at ${SUPPORT_EMAIL}`, 'info'); return; }
+  Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => { showToast(`Email support at ${SUPPORT_EMAIL}`, 'info'); });
 }
 import { fetchCancellationPolicy, policyToHelpAnswer } from '@/utils/cancellation-policy';
 import { platformConfig } from '@/config/platform.config';
@@ -141,7 +142,7 @@ export default function HelpScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from help and support" onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Help & Support</Text>
@@ -179,6 +180,9 @@ export default function HelpScreen(): React.ReactElement {
                 <TouchableOpacity
                   key={key}
                   style={styles.faqItem}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.q}, ${isOpen ? 'expanded' : 'collapsed'}`}
+                  accessibilityState={{ expanded: isOpen }}
                   onPress={() => toggleFAQ(key)}
                   activeOpacity={0.7}
                 >

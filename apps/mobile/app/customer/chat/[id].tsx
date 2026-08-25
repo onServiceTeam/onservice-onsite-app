@@ -11,7 +11,7 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
-  Alert,
+  Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,6 +44,7 @@ import { LazyImage, StatusBadge } from '@/components/ui';
 import { formatDateTime, formatTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useResponsive } from '@/hooks/useResponsive';
+import { buildRoute, Routes } from '@/config/navigation';
 
 import * as ImagePicker from 'expo-image-picker';
 
@@ -61,6 +62,7 @@ export default function ChatScreen(): React.ReactElement {
   const [sending, setSending] = useState(false);
   const [typingUser, setTypingUser] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [reportingMessageId, setReportingMessageId] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -235,30 +237,25 @@ export default function ChatScreen(): React.ReactElement {
   };
 
   const handleReport = useCallback((messageId: string) => {
-    const submit = (reason: string): void => {
-      void reportMessage(messageId, reason)
-        .then(() => showToast('Reported. Our team will review it.', 'success'))
-        .catch(() => showToast('Could not report this message. Please try again.', 'error'));
-    };
-    Alert.alert('Report message', 'Why are you reporting this message?', [
-      { text: 'Spam', onPress: () => submit('spam') },
-      { text: 'Harassment or abuse', onPress: () => submit('harassment') },
-      { text: 'Scam / asking to pay off the app', onPress: () => submit('scam_or_off_platform') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setReportingMessageId(messageId);
   }, []);
+
+  const submitReport = useCallback((reason: string): void => {
+    if (!reportingMessageId) return;
+    const messageId = reportingMessageId;
+    setReportingMessageId(null);
+    void reportMessage(messageId, reason)
+      .then(() => showToast('Reported. Our team will review it.', 'success'))
+      .catch(() => showToast('Could not report this message. Please try again.', 'error'));
+  }, [reportingMessageId]);
 
   const renderMessage = ({ item }: { item: Message }): React.ReactElement => {
     const isMine = item.senderId === userId;
     // You can report the other party's real messages (not your own, not system).
     const canReport = !isMine && item.messageType !== 'system';
     return (
-      <TouchableOpacity
-        activeOpacity={canReport ? 0.7 : 1}
-        onLongPress={canReport ? () => handleReport(item.id) : undefined}
-        delayLongPress={350}
+      <View
         style={[styles.messageBubble, isMine ? styles.myBubble : styles.theirBubble]}
-        accessibilityHint={canReport ? 'Long press to report this message' : undefined}
       >
         {item.messageType === 'image' && item.imageUrl && (
           <LazyImage source={item.imageUrl} style={styles.chatImage} contentFit="cover" accessibilityLabel="Chat photo" />
@@ -276,7 +273,17 @@ export default function ChatScreen(): React.ReactElement {
             ? <CheckCheck size={12} color="rgba(255,255,255,0.7)" accessibilityLabel="Read" />
             : <Check size={12} color="rgba(255,255,255,0.7)" accessibilityLabel="Sent" />)}
         </View>
-      </TouchableOpacity>
+        {canReport && (
+          <TouchableOpacity
+            style={styles.reportMessageButton}
+            onPress={() => handleReport(item.id)}
+            accessibilityRole="button"
+            accessibilityLabel="Report this message"
+          >
+            <Text style={styles.reportMessageText}>Report</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     );
   };
 
@@ -301,10 +308,10 @@ export default function ChatScreen(): React.ReactElement {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
         <Text style={styles.loadingText}>Failed to set up chat.</Text>
-        <TouchableOpacity onPress={retryInit} style={styles.retryButton}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retry opening booking chat" onPress={retryInit} style={styles.retryButton}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.back()} style={[styles.retryButton, { marginTop: spacing.sm }]}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from unavailable booking chat" onPress={() => router.back()} style={[styles.retryButton, { marginTop: spacing.sm }]}>
           <Text style={[styles.retryText, { color: colors.textSecondary }]}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -327,7 +334,7 @@ export default function ChatScreen(): React.ReactElement {
       keyboardVerticalOffset={0}
     >
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back from provider chat">
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
@@ -386,6 +393,9 @@ export default function ChatScreen(): React.ReactElement {
           style={styles.photoButton}
           onPress={handlePhotoSend}
           disabled={uploadingPhoto || sending}
+          accessibilityRole="button"
+          accessibilityLabel="Send a photo"
+          accessibilityState={{ disabled: uploadingPhoto || sending, busy: uploadingPhoto }}
         >
           {uploadingPhoto ? (
             <ActivityIndicator size="small" color={colors.primary} />
@@ -401,11 +411,15 @@ export default function ChatScreen(): React.ReactElement {
           placeholderTextColor={colors.textTertiary}
           multiline
           maxLength={2000}
+          accessibilityLabel="Message to provider"
         />
         <TouchableOpacity
           style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
           onPress={handleSend}
           disabled={!inputText.trim() || sending}
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
+          accessibilityState={{ disabled: !inputText.trim() || sending, busy: sending }}
         >
           <Send size={20} color={colors.white} />
         </TouchableOpacity>
@@ -433,16 +447,21 @@ export default function ChatScreen(): React.ReactElement {
               </View>
               <TouchableOpacity
                 style={styles.contextAction}
-                onPress={() => router.push(`/customer/booking/${bookingId}`)}
+                onPress={() => router.push(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: bookingId }))}
                 accessibilityRole="button"
+                accessibilityLabel="Open booking details from chat"
               >
                 <Text style={styles.contextActionText}>View booking details</Text>
               </TouchableOpacity>
               {['paid', 'provider_en_route', 'provider_arrived', 'in_progress'].includes(bookingQuery.data.status) && (
                 <TouchableOpacity
                   style={[styles.contextAction, styles.contextActionSecondary]}
-                  onPress={() => router.push(`/customer/booking/tracker?bookingId=${bookingId}`)}
+                  onPress={() => router.push({
+                    pathname: Routes.CUSTOMER.BOOKING_TRACKER,
+                    params: { bookingId },
+                  })}
                   accessibilityRole="button"
+                  accessibilityLabel="Open live job tracker from chat"
                 >
                   <Text style={styles.contextActionSecondaryText}>Open booking tracker</Text>
                 </TouchableOpacity>
@@ -456,6 +475,32 @@ export default function ChatScreen(): React.ReactElement {
         </View>
       )}
       </View>
+
+      <Modal
+        visible={reportingMessageId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReportingMessageId(null)}
+      >
+        <View style={styles.reportOverlay}>
+          <View style={styles.reportDialog} accessibilityRole="alert" accessibilityLabel="Report message reason">
+            <Text style={styles.reportTitle}>Report message</Text>
+            <Text style={styles.reportCopy}>Choose the reason that best describes the message. Support receives the exact reported message and booking context.</Text>
+            <TouchableOpacity style={styles.reportReason} onPress={() => submitReport('spam')} accessibilityRole="button" accessibilityLabel="Report reason spam">
+              <Text style={styles.reportReasonText}>Spam</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.reportReason} onPress={() => submitReport('harassment')} accessibilityRole="button" accessibilityLabel="Report reason harassment or abuse">
+              <Text style={styles.reportReasonText}>Harassment or abuse</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.reportReason} onPress={() => submitReport('scam_or_off_platform')} accessibilityRole="button" accessibilityLabel="Report reason scam or off-app payment request">
+              <Text style={styles.reportReasonText}>Scam or asking to pay off the app</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.reportCancel} onPress={() => setReportingMessageId(null)} accessibilityRole="button" accessibilityLabel="Cancel message report">
+              <Text style={styles.reportCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -541,6 +586,8 @@ const styles = StyleSheet.create({
   myTime: { color: 'rgba(255,255,255,0.6)' },
   theirTime: { color: colors.textTertiary },
   readReceipt: { fontSize: 10, color: 'rgba(255,255,255,0.7)' },
+  reportMessageButton: { alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center', marginTop: spacing.xs, paddingHorizontal: spacing.xs },
+  reportMessageText: { ...typography.caption, color: colors.error, fontWeight: '700' },
   chatImage: { width: 200, height: 150, borderRadius: borderRadius.md, marginBottom: spacing.xs },
 
   emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
@@ -585,4 +632,12 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: { opacity: 0.4 },
   sendIcon: { fontSize: 20, color: colors.white },
+  reportOverlay: { flex: 1, backgroundColor: 'rgba(5,26,62,0.48)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  reportDialog: { width: '100%', maxWidth: 480, backgroundColor: colors.surface, borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg },
+  reportTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.sm },
+  reportCopy: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.lg },
+  reportReason: { minHeight: 48, justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.md, paddingHorizontal: spacing.base, marginBottom: spacing.sm },
+  reportReasonText: { ...typography.body, color: colors.text, fontWeight: '600' },
+  reportCancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xs },
+  reportCancelText: { ...typography.body, color: colors.textSecondary, fontWeight: '600' },
 });

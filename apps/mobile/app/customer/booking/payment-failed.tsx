@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertCircle } from '@/components/icons';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 // Phase D CRIT-89 fix — pre-fix the screen claimed bookings were
@@ -41,6 +42,7 @@ function formatCountdown(totalSeconds: number): string {
 
 export default function PaymentFailedScreen(): React.ReactElement {
   const router = useRouter();
+  const { isPhone } = useResponsive();
   const { reason, bookingId } = useLocalSearchParams<{ reason?: string; bookingId?: string }>();
   const [secondsLeft, setSecondsLeft] = useState(HOLD_SECONDS);
 
@@ -79,9 +81,14 @@ export default function PaymentFailedScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, !isPhone && styles.scrollContentWide]}
         showsVerticalScrollIndicator={false}
       >
+        <View
+          style={[styles.workspace, !isPhone && styles.workspaceWide]}
+          accessibilityLabel={isPhone ? 'Payment recovery' : 'Wide payment recovery workspace'}
+        >
+        <View style={[styles.statusColumn, !isPhone && styles.statusColumnWide]}>
         <View style={styles.iconWrap}>
           <View style={styles.iconCircle}>
             <AlertCircle size={56} color={colors.error} />
@@ -98,7 +105,9 @@ export default function PaymentFailedScreen(): React.ReactElement {
           <Text style={styles.reasonLabel}>Reason</Text>
           <Text style={styles.reasonText}>{failureMessage}</Text>
         </View>
+        </View>
 
+        <View style={[styles.actionColumn, !isPhone && styles.actionColumnWide]}>
         <View style={styles.actions}>
           {/* Phase 200 — retry and change-method must land on a screen
                where the customer can actually re-pay. The pay screen takes
@@ -110,10 +119,12 @@ export default function PaymentFailedScreen(): React.ReactElement {
             style={styles.primaryBtn}
             onPress={() =>
               bookingId
-                ? router.replace({ pathname: '/customer/booking/pay', params: { bookingId } })
+                ? router.replace({ pathname: Routes.CUSTOMER.BOOKING_PAY, params: { bookingId } })
                 : router.back()
             }
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Retry booking payment"
           >
             <Text style={styles.primaryBtnText}>Retry Payment</Text>
           </TouchableOpacity>
@@ -122,10 +133,12 @@ export default function PaymentFailedScreen(): React.ReactElement {
             style={styles.secondaryBtn}
             onPress={() =>
               bookingId
-                ? router.replace({ pathname: '/customer/booking/pay', params: { bookingId } })
+                ? router.replace({ pathname: Routes.CUSTOMER.BOOKING_PAY, params: { bookingId } })
                 : router.push(Routes.CUSTOMER.PAYMENT_METHODS)
             }
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Use a different payment method"
           >
             <Text style={styles.secondaryBtnText}>Use Different Payment Method</Text>
           </TouchableOpacity>
@@ -142,6 +155,8 @@ export default function PaymentFailedScreen(): React.ReactElement {
               },
             })}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Contact support about payment failure"
           >
             <Text style={styles.linkBtnText}>Contact Support</Text>
           </TouchableOpacity>
@@ -156,6 +171,8 @@ export default function PaymentFailedScreen(): React.ReactElement {
             <Text style={styles.holdCountdown}>{formatCountdown(secondsLeft)}</Text>
           </Text>
         )}
+        </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -169,6 +186,20 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
     alignItems: 'stretch',
+  },
+  scrollContentWide: { maxWidth: 1040, width: '100%', alignSelf: 'center', justifyContent: 'center' },
+  workspace: { width: '100%' },
+  workspaceWide: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
+  statusColumn: { width: '100%' },
+  statusColumnWide: { flex: 1, minWidth: 0 },
+  actionColumn: { width: '100%' },
+  actionColumnWide: {
+    width: 380,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
   },
   iconWrap: { alignItems: 'center', marginBottom: spacing.lg },
   iconCircle: {

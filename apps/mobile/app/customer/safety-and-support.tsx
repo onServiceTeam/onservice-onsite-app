@@ -119,7 +119,15 @@ function Accordion({ title, children, defaultOpen = false }: { title: string; ch
 
   return (
     <View style={styles.accordionContainer}>
-      <TouchableOpacity style={styles.accordionHeader} onPress={toggle} activeOpacity={0.7}>
+      <TouchableOpacity
+        style={styles.accordionHeader}
+        onPress={toggle}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${title}, ${open ? 'expanded' : 'collapsed'}`}
+        accessibilityHint={open ? 'Collapses this safety answer' : 'Expands this safety answer'}
+        accessibilityState={{ expanded: open }}
+      >
         <Text style={styles.accordionTitle}>{title}</Text>
         <Text style={styles.accordionChevron}>{open ? '▾' : '▸'}</Text>
       </TouchableOpacity>
@@ -139,7 +147,7 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back from safety and support">
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Safety & support</Text>
@@ -184,7 +192,7 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
         <View style={styles.section}>
           <SectionHeader title="If you need help" />
 
-          <TouchableOpacity onPress={handleEmergencyCall} style={styles.emergencyButton} activeOpacity={0.8}>
+          <TouchableOpacity onPress={handleEmergencyCall} style={styles.emergencyButton} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Call 911 for immediate danger">
             <AlertTriangle size={24} color={colors.white} />
             <View style={styles.emergencyTextBlock}>
               <Text style={styles.emergencyTitle}>Call 911</Text>
@@ -192,7 +200,7 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.push(Routes.SUPPORT.INBOX)} style={styles.supportButton} activeOpacity={0.8}>
+          <TouchableOpacity onPress={() => router.push(Routes.SUPPORT.INBOX)} style={styles.supportButton} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Open onService support inbox">
             <MessageSquare size={24} color={colors.primary} />
             <View style={styles.supportTextBlock}>
               <Text style={styles.supportTitle}>Message onService support</Text>
@@ -212,6 +220,8 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
             })}
             style={styles.reportButton}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Report a safety concern"
           >
             <Text style={styles.reportButtonText}>Report a safety concern →</Text>
           </TouchableOpacity>

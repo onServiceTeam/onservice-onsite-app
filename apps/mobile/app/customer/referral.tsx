@@ -83,7 +83,7 @@ export default function ReferralScreen(): React.ReactElement {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <View style={[styles.headerInner, !isPhone && styles.headerInnerWide]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back from referrals">
             <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Referral Program</Text>
@@ -124,13 +124,13 @@ export default function ReferralScreen(): React.ReactElement {
               <Text style={styles.codeLabel}>Your Referral Code</Text>
               <Text style={styles.codeText}>{code.code}</Text>
               <View style={styles.codeActions}>
-                <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
+                <TouchableOpacity style={styles.copyBtn} onPress={handleCopy} accessibilityRole="button" accessibilityLabel="Copy referral code">
                   <View style={styles.copyBtnRow}>
                     <ClipboardList size={14} color={colors.primary} />
                     <Text style={styles.copyBtnText}> Copy</Text>
                   </View>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+                <TouchableOpacity style={styles.shareBtn} onPress={handleShare} accessibilityRole="button" accessibilityLabel="Share referral code">
                   <Send size={16} color={colors.white} />
                   <Text style={styles.shareBtnText}> Share</Text>
                 </TouchableOpacity>
@@ -166,11 +166,15 @@ export default function ReferralScreen(): React.ReactElement {
                 placeholderTextColor={colors.textTertiary}
                 autoCapitalize="characters"
                 maxLength={10}
+                accessibilityLabel="Referral code"
               />
               <TouchableOpacity
                 style={[styles.redeemBtn, !redeemInput.trim() && styles.redeemBtnDisabled]}
                 onPress={() => redeemMutation.mutate()}
                 disabled={!redeemInput.trim() || redeemMutation.isPending}
+                accessibilityRole="button"
+                accessibilityLabel="Redeem referral code"
+                accessibilityState={{ disabled: !redeemInput.trim() || redeemMutation.isPending, busy: redeemMutation.isPending }}
               >
                 {redeemMutation.isPending ? (
                   <ActivityIndicator size="small" color={colors.white} />
@@ -258,10 +262,10 @@ const styles = StyleSheet.create({
   codeLabel: { fontSize: 12, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.sm },
   codeText: { fontSize: 32, fontWeight: '900', color: colors.text, letterSpacing: 4, marginBottom: spacing.base },
   codeActions: { flexDirection: 'row', gap: spacing.md },
-  copyBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.md, backgroundColor: colors.backgroundSecondary },
+  copyBtn: { minHeight: 44, paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.md, backgroundColor: colors.backgroundSecondary, justifyContent: 'center' },
   copyBtnRow: { flexDirection: 'row' as const, alignItems: 'center' as const },
   copyBtnText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
-  shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.md, backgroundColor: colors.info },
+  shareBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.md, backgroundColor: colors.primary },
   shareBtnText: { fontSize: 14, fontWeight: '600', color: colors.white },
   statsRow: { flexDirection: 'row', gap: spacing.md, marginBottom: 20 },
   statCard: { flex: 1, backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
@@ -272,7 +276,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 10 },
   redeemRow: { flexDirection: 'row', gap: 10 },
   redeemInput: { flex: 1, backgroundColor: colors.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, fontSize: 16, fontWeight: '600', color: colors.text, letterSpacing: 2, textAlign: 'center' },
-  redeemBtn: { paddingHorizontal: spacing.lg, borderRadius: 12, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
+  redeemBtn: { minHeight: 48, paddingHorizontal: spacing.lg, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   redeemBtnDisabled: { opacity: 0.5 },
   redeemBtnText: { fontSize: 14, fontWeight: '700', color: colors.white },
   section: { marginBottom: spacing.lg },

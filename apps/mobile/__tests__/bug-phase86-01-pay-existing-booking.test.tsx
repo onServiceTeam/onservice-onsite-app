@@ -39,7 +39,7 @@ it('BUG-PHASE86-01 — a payment-pending booking can be paid from an existing wa
   );
 
   await screen.findByText('Complete Payment');
-  fireEvent.click(screen.getByRole('button', { name: /Wallet Balance/i }));
+  fireEvent.click(screen.getByRole('radio', { name: /Wallet Balance/i }));
 
   const payButton = screen.getByRole('button', { name: /Pay ₱1,100\.00/i });
   await waitFor(() => expect((payButton as HTMLButtonElement).disabled).toBe(false));

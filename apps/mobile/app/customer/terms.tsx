@@ -255,6 +255,7 @@ export default function TermsScreen(): React.ReactElement {
       <View style={[styles.tabRow, !isPhone && styles.tabRowWide]}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'terms' && styles.tabActive]}
+          accessibilityLabel="Terms of Service"
           onPress={() => { setActiveTab('terms'); setExpandedIndex(null); }}
           accessibilityRole="tab"
           accessibilityState={{ selected: activeTab === 'terms' }}
@@ -265,6 +266,7 @@ export default function TermsScreen(): React.ReactElement {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'privacy' && styles.tabActive]}
+          accessibilityLabel="Privacy Policy"
           onPress={() => { setActiveTab('privacy'); setExpandedIndex(null); }}
           accessibilityRole="tab"
           accessibilityState={{ selected: activeTab === 'privacy' }}
@@ -310,6 +312,7 @@ export default function TermsScreen(): React.ReactElement {
         {isPhone ? sections.map((section, index) => (
           <TouchableOpacity
             key={section.title}
+            accessibilityLabel={`${section.title}, ${expandedIndex === index ? 'expanded' : 'collapsed'}`}
             style={styles.sectionCard}
             onPress={() => toggleSection(index)}
             activeOpacity={0.7}
@@ -330,6 +333,7 @@ export default function TermsScreen(): React.ReactElement {
                 return (
                   <TouchableOpacity
                     key={section.title}
+                    accessibilityLabel={section.title}
                     style={[styles.railItem, selected && styles.railItemSelected]}
                     onPress={() => setExpandedIndex(index)}
                     accessibilityRole="tab"

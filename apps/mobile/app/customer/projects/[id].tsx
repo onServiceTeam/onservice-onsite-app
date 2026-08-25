@@ -86,7 +86,13 @@ export default function ProjectDetailScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Go back from project"
+          onPress={() => router.back()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{project.title}</Text>
@@ -124,7 +130,13 @@ export default function ProjectDetailScreen(): React.ReactElement {
               <View style={styles.sectionHead}>
                 <Text style={styles.sectionTitle}>Choices &amp; materials</Text>
                 {isOwner && (
-                  <TouchableOpacity onPress={() => setShowAddSel((v) => !v)}><Text style={styles.addLink}>+ Add</Text></TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.addAction}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${showAddSel ? 'Hide' : 'Show'} add choice form`}
+                    accessibilityState={{ expanded: showAddSel }}
+                    onPress={() => setShowAddSel((v) => !v)}
+                  ><Text style={styles.addLink}>+ Add</Text></TouchableOpacity>
                 )}
               </View>
               {project.selections.length === 0 ? (
@@ -139,10 +151,17 @@ export default function ProjectDetailScreen(): React.ReactElement {
               )}
               {showAddSel && (
                 <View style={styles.selForm}>
-                  <TextInput style={styles.inlineInput} value={selCat} onChangeText={setSelCat} placeholder="Category (e.g. Door)" placeholderTextColor={colors.textTertiary} maxLength={80} />
-                  <TextInput style={styles.inlineInput} value={selLabel} onChangeText={setSelLabel} placeholder="Label (e.g. Material)" placeholderTextColor={colors.textTertiary} maxLength={120} />
-                  <TextInput style={styles.inlineInput} value={selValue} onChangeText={setSelValue} placeholder="Value (e.g. Solid oak)" placeholderTextColor={colors.textTertiary} maxLength={200} />
-                  <TouchableOpacity style={[styles.inlineBtn, (!selCat.trim() || !selLabel.trim() || !selValue.trim()) && styles.disabled]} onPress={() => createSel.mutate()} disabled={!selCat.trim() || !selLabel.trim() || !selValue.trim() || createSel.isPending}>
+                  <TextInput accessibilityLabel="Choice category" style={styles.inlineInput} value={selCat} onChangeText={setSelCat} placeholder="Category (e.g. Door)" placeholderTextColor={colors.textTertiary} maxLength={80} />
+                  <TextInput accessibilityLabel="Choice label" style={styles.inlineInput} value={selLabel} onChangeText={setSelLabel} placeholder="Label (e.g. Material)" placeholderTextColor={colors.textTertiary} maxLength={120} />
+                  <TextInput accessibilityLabel="Choice value" style={styles.inlineInput} value={selValue} onChangeText={setSelValue} placeholder="Value (e.g. Solid oak)" placeholderTextColor={colors.textTertiary} maxLength={200} />
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Add project choice"
+                    accessibilityState={{ disabled: !selCat.trim() || !selLabel.trim() || !selValue.trim() || createSel.isPending }}
+                    style={[styles.inlineBtn, (!selCat.trim() || !selLabel.trim() || !selValue.trim()) && styles.disabled]}
+                    onPress={() => createSel.mutate()}
+                    disabled={!selCat.trim() || !selLabel.trim() || !selValue.trim() || createSel.isPending}
+                  >
                     {createSel.isPending ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.inlineBtnText}>Add choice</Text>}
                   </TouchableOpacity>
                 </View>
@@ -155,7 +174,13 @@ export default function ProjectDetailScreen(): React.ReactElement {
                 <Text style={styles.empty}>No documents have been attached to this planning record.</Text>
               ) : (
                 project.documents.map((d) => (
-                  <TouchableOpacity key={d.id} style={styles.docRow} onPress={() => Linking.openURL(d.fileUrl)}>
+                  <TouchableOpacity
+                    key={d.id}
+                    style={styles.docRow}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Open project document ${d.label}`}
+                    onPress={() => Linking.openURL(d.fileUrl)}
+                  >
                     <Text style={styles.docLabel}>{d.label}</Text>
                     <Text style={styles.docType}>{d.docType}</Text>
                   </TouchableOpacity>
@@ -169,7 +194,13 @@ export default function ProjectDetailScreen(): React.ReactElement {
               <View style={styles.sectionHead}>
                 <Text style={styles.sectionTitle}>Milestones</Text>
                 {isOwner && (
-                  <TouchableOpacity onPress={() => setShowAddMs((v) => !v)}><Text style={styles.addLink}>+ Add</Text></TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.addAction}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${showAddMs ? 'Hide' : 'Show'} add milestone form`}
+                    accessibilityState={{ expanded: showAddMs }}
+                    onPress={() => setShowAddMs((v) => !v)}
+                  ><Text style={styles.addLink}>+ Add</Text></TouchableOpacity>
                 )}
               </View>
               {project.milestones.length === 0 ? (
@@ -204,8 +235,15 @@ export default function ProjectDetailScreen(): React.ReactElement {
               )}
               {showAddMs && (
                 <View style={styles.inlineForm}>
-                  <TextInput style={styles.inlineInput} value={msTitle} onChangeText={setMsTitle} placeholder="Milestone (e.g. Foundation)" placeholderTextColor={colors.textTertiary} maxLength={160} />
-                  <TouchableOpacity style={[styles.inlineBtn, !msTitle.trim() && styles.disabled]} onPress={() => createMs.mutate()} disabled={!msTitle.trim() || createMs.isPending}>
+                  <TextInput accessibilityLabel="Milestone title" style={styles.inlineInput} value={msTitle} onChangeText={setMsTitle} placeholder="Milestone (e.g. Foundation)" placeholderTextColor={colors.textTertiary} maxLength={160} />
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Add project milestone"
+                    accessibilityState={{ disabled: !msTitle.trim() || createMs.isPending }}
+                    style={[styles.inlineBtn, !msTitle.trim() && styles.disabled]}
+                    onPress={() => createMs.mutate()}
+                    disabled={!msTitle.trim() || createMs.isPending}
+                  >
                     {createMs.isPending ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.inlineBtnText}>Add</Text>}
                   </TouchableOpacity>
                 </View>
@@ -223,6 +261,7 @@ export default function ProjectDetailScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.sm },
+  backBtn: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { ...typography.h3, color: colors.text, flex: 1, textAlign: 'center' },
   bodyScroll: { flex: 1 },
   body: { padding: spacing.base, paddingBottom: 40, gap: spacing.md },
@@ -239,6 +278,7 @@ const styles = StyleSheet.create({
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
   sectionTitle: { ...typography.body, fontWeight: '700', color: colors.text },
   addLink: { ...typography.bodySmall, fontWeight: '700', color: colors.info },
+  addAction: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'center' },
   empty: { ...typography.bodySmall, color: colors.textTertiary },
   progressTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
   progressPct: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' },
@@ -249,18 +289,18 @@ const styles = StyleSheet.create({
   msTitle: { ...typography.body, fontWeight: '600', color: colors.text },
   msMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
   msStatus: { fontSize: 12, fontWeight: '600' },
-  msAction: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: borderRadius.md, backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary },
+  msAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: borderRadius.md, backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary },
   msActionText: { ...typography.caption, color: colors.primary, fontWeight: '700' },
   selRow: { paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   selLabel: { ...typography.caption, color: colors.textSecondary },
   selValue: { ...typography.body, color: colors.text, fontWeight: '600', marginTop: 1 },
-  docRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  docRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   docLabel: { ...typography.body, color: colors.info, fontWeight: '600', flex: 1 },
   docType: { ...typography.caption, color: colors.textTertiary },
   inlineForm: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   selForm: { gap: spacing.sm, marginTop: spacing.sm },
   inlineInput: { flex: 1, backgroundColor: colors.surfaceMuted, borderRadius: borderRadius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, fontSize: 14, color: colors.text },
-  inlineBtn: { backgroundColor: colors.text, borderRadius: borderRadius.md, paddingHorizontal: spacing.base, justifyContent: 'center', alignItems: 'center' },
+  inlineBtn: { minHeight: 44, backgroundColor: colors.primary, borderRadius: borderRadius.md, paddingHorizontal: spacing.base, justifyContent: 'center', alignItems: 'center' },
   inlineBtnText: { ...typography.bodySmall, fontWeight: '700', color: colors.white },
   disabled: { opacity: 0.5 },
   footer: { ...typography.caption, color: colors.textTertiary, textAlign: 'center', marginTop: spacing.sm },

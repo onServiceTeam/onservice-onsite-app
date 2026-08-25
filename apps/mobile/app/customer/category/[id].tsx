@@ -140,7 +140,7 @@ export default function SubcategoryListScreen(): React.ReactElement {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back from services">
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>{data?.categoryName ?? draft.categoryName ?? 'Services'}</Text>
@@ -158,6 +158,10 @@ export default function SubcategoryListScreen(): React.ReactElement {
           onRetry={onRefresh}
         />
       ) : (
+        <View
+          style={styles.listWorkspace}
+          accessibilityLabel={numColumns > 1 ? 'Tablet and desktop service catalog' : 'Service catalog'}
+        >
         <FlatList
           data={subcategories}
           renderItem={renderItem}
@@ -165,7 +169,7 @@ export default function SubcategoryListScreen(): React.ReactElement {
           key={`subcats-${numColumns}`}
           numColumns={numColumns}
           columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, numColumns > 1 && styles.listWide]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} />
@@ -182,6 +186,7 @@ export default function SubcategoryListScreen(): React.ReactElement {
             />
           }
         />
+        </View>
       )}
 
       <ConfirmModal
@@ -214,6 +219,8 @@ const styles = StyleSheet.create({
   backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text, flex: 1 },
   list: { padding: spacing.base },
+  listWorkspace: { flex: 1 },
+  listWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl },
   gridRow: { gap: spacing.md },
   cardGrid: { flex: 1 },
   card: {

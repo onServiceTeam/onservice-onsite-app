@@ -14,6 +14,7 @@ import { Ban, Wrench, ThumbsDown, AlertOctagon, Lock, Coins, CircleHelp, AlertTr
 import { showToast } from '@/lib/toast';
 import { platformConfig } from '@/config/platform.config';
 import { buildRoute, Routes } from '@/config/navigation';
+import { useResponsive } from '@/hooks/useResponsive';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -33,6 +34,7 @@ const EVIDENCE_REQUIRED = new Set(['damage', 'theft']);
 export default function DisputeScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const router = useRouter();
+  const { isPhone } = useResponsive();
 
   const [disputeType, setDisputeType] = useState('');
   const [description, setDescription] = useState('');
@@ -70,7 +72,12 @@ export default function DisputeScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Back from dispute form"
+        >
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>File a Dispute</Text>
@@ -78,7 +85,10 @@ export default function DisputeScreen(): React.ReactElement {
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
+      >
         <View style={styles.warningBox}>
           <View style={styles.warningIconWrap}><AlertTriangle size={22} color={colors.warning} /></View>
           <Text style={styles.warningText}>
@@ -86,7 +96,12 @@ export default function DisputeScreen(): React.ReactElement {
           </Text>
         </View>
 
-        <View style={styles.section}>
+        <View
+          style={[styles.formWorkspace, !isPhone && styles.formWorkspaceWide]}
+          accessibilityLabel={isPhone ? 'Dispute form' : 'Wide dispute review form'}
+        >
+        <View style={[styles.formColumn, !isPhone && styles.typeColumnWide]}>
+        <View style={styles.section} accessibilityLabel="Dispute reason">
           <Text style={styles.sectionTitle}>What happened?</Text>
           {DISPUTE_TYPES.map((type) => {
             const TypeIcon = type.icon;
@@ -95,6 +110,9 @@ export default function DisputeScreen(): React.ReactElement {
                 key={type.value}
                 style={[styles.typeOption, disputeType === type.value && styles.typeSelected]}
                 onPress={() => setDisputeType(type.value)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: disputeType === type.value }}
+                accessibilityLabel={`${type.label}. ${type.desc}`}
               >
                 <View style={styles.typeIconWrap}><TypeIcon size={22} color={colors.primary} /></View>
                 <View style={{ flex: 1 }}>
@@ -108,8 +126,10 @@ export default function DisputeScreen(): React.ReactElement {
             );
           })}
         </View>
+        </View>
 
-        <View style={styles.section}>
+        <View style={[styles.formColumn, !isPhone && styles.detailColumnWide]}>
+        <View style={styles.section} accessibilityLabel="Dispute details">
           <Text style={styles.sectionTitle}>Describe the issue *</Text>
           <Text style={styles.hint}>Minimum 50 characters. Be specific and factual.</Text>
           <TextInput
@@ -122,6 +142,7 @@ export default function DisputeScreen(): React.ReactElement {
             placeholder="Explain what happened in detail. Include relevant times, conversations, and specifics."
             placeholderTextColor={colors.textTertiary}
             maxLength={2000}
+            accessibilityLabel="Dispute description"
           />
           <Text style={[styles.charCount, description.length < 50 ? styles.charRed : styles.charGreen]}>
             {description.length}/50 min
@@ -132,7 +153,7 @@ export default function DisputeScreen(): React.ReactElement {
           <Text style={styles.sectionTitle}>Evidence {needsEvidence ? '(required)' : '(optional)'}</Text>
           {needsEvidence && (
             <Text style={styles.hintWarn}>
-              Photos or videos are required for {disputeType} disputes. Please attach at least one photo as evidence.
+              Photos are required for {disputeType} disputes. Please attach at least one photo as evidence.
             </Text>
           )}
           <View style={styles.photoGrid}>
@@ -143,6 +164,8 @@ export default function DisputeScreen(): React.ReactElement {
                   style={styles.removeBtn}
                   onPress={() => imagePicker.removeImage(i)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove evidence photo ${i + 1}`}
                 >
                   <Text style={styles.removeBtnText}>×</Text>
                 </TouchableOpacity>
@@ -152,6 +175,8 @@ export default function DisputeScreen(): React.ReactElement {
               <TouchableOpacity
                 style={[styles.photoThumb, styles.addPhoto]}
                 onPress={imagePicker.showPickerOptions}
+                accessibilityRole="button"
+                accessibilityLabel="Add dispute evidence photo"
               >
                 <Text style={styles.addPhotoPlus}>+</Text>
                 <Text style={styles.addPhotoLabel}>Add Photo</Text>
@@ -178,6 +203,9 @@ export default function DisputeScreen(): React.ReactElement {
           style={[styles.submitBtn, !isValid && styles.submitDisabled]}
           onPress={() => mutation.mutate()}
           disabled={!isValid || mutation.isPending}
+          accessibilityRole="button"
+          accessibilityLabel="Submit dispute"
+          accessibilityState={{ disabled: !isValid || mutation.isPending, busy: mutation.isPending }}
         >
           {mutation.isPending ? (
             <ActivityIndicator color={colors.white} />
@@ -185,6 +213,8 @@ export default function DisputeScreen(): React.ReactElement {
             <Text style={styles.submitText}>Submit Dispute</Text>
           )}
         </TouchableOpacity>
+        </View>
+        </View>
       </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -200,6 +230,12 @@ const styles = StyleSheet.create({
   placeholder: { width: 30 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
+  bodyContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.xl },
+  formWorkspace: { width: '100%' },
+  formWorkspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl },
+  formColumn: { width: '100%' },
+  typeColumnWide: { width: 380 },
+  detailColumnWide: { flex: 1, minWidth: 0 },
   warningBox: { flexDirection: 'row', gap: 10, backgroundColor: colors.warningLight, borderRadius: borderRadius.lg, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: colors.warning },
   warningIcon: { fontSize: 20 },
   warningIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },

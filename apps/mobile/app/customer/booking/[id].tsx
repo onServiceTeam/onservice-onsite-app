@@ -186,32 +186,32 @@ export default function BookingDetailScreen(): React.ReactElement {
       {canViewQuotes && (
         <Button
           title="View Quotes"
-          onPress={() => router.push(`/customer/booking/quotes?bookingId=${id}`)}
+          onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_QUOTES, params: { bookingId: id } })}
         />
       )}
       {needsPayment && (
         <Button
           title="Complete Payment"
-          onPress={() => router.push(`/customer/booking/pay?bookingId=${id}`)}
+          onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_PAY, params: { bookingId: id } })}
         />
       )}
       {isActive && (
         <Button
           title="Track Booking"
-          onPress={() => router.push(`/customer/booking/tracker?bookingId=${id}`)}
+          onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_TRACKER, params: { bookingId: id } })}
         />
       )}
       {needsConfirmation && (
         <Button
           title="Confirm & Review"
-          onPress={() => router.push(`/customer/booking/complete?bookingId=${id}`)}
+          onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_COMPLETE, params: { bookingId: id } })}
         />
       )}
       {canViewChangeOrders && (
         <>
           <Button
             title="Parts & Materials / Change Orders"
-            onPress={() => router.push(`/customer/booking/change-order?bookingId=${id}`)}
+            onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_CHANGE_ORDER, params: { bookingId: id } })}
             variant="outline"
           />
           <Text style={styles.changeOrderNote}>
@@ -222,14 +222,14 @@ export default function BookingDetailScreen(): React.ReactElement {
       {hasPhotos && (
         <Button
           title="View Job Photos"
-          onPress={() => router.push(`/customer/booking/photos?bookingId=${id}`)}
+          onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_PHOTOS, params: { bookingId: id } })}
           variant="outline"
         />
       )}
       {(isActive || needsConfirmation) && booking.providerId && (
         <Button
           title="Chat with Provider"
-          onPress={() => router.push(`/customer/chat/${booking.id}`)}
+          onPress={() => router.push(buildRoute(Routes.CUSTOMER.CHAT, { id: booking.id }))}
           variant="outline"
           style={styles.chatButton}
         />
@@ -256,6 +256,7 @@ export default function BookingDetailScreen(): React.ReactElement {
             value={cancelReason}
             onChangeText={setCancelReason}
             textAlignVertical="top"
+            accessibilityLabel="Cancellation reason"
           />
           <Button
             title={cancelMutation.isPending ? 'Cancelling...' : 'Confirm Cancellation'}
@@ -267,6 +268,8 @@ export default function BookingDetailScreen(): React.ReactElement {
           <TouchableOpacity
             onPress={() => { setShowCancelForm(false); setCancelReason(''); }}
             style={styles.cancelFormDismiss}
+            accessibilityRole="button"
+            accessibilityLabel="Keep booking"
           >
             <Text style={styles.cancelFormDismissText}>Never mind</Text>
           </TouchableOpacity>
@@ -275,7 +278,7 @@ export default function BookingDetailScreen(): React.ReactElement {
       {canFileDispute && (
         <Button
           title="File a Dispute"
-          onPress={() => router.push(`/customer/booking/dispute?bookingId=${id}`)}
+          onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_DISPUTE, params: { bookingId: id } })}
           variant="ghost"
         />
       )}
@@ -289,7 +292,7 @@ export default function BookingDetailScreen(): React.ReactElement {
       <Button
         title="Get Support"
         onPress={() => router.push({
-          pathname: '/support/new',
+          pathname: Routes.SUPPORT.NEW,
           params: {
             bookingId: id,
             type: 'booking_issue',
@@ -302,7 +305,7 @@ export default function BookingDetailScreen(): React.ReactElement {
         <View style={styles.completedActions}>
           <Button
             title="Leave a Review"
-            onPress={() => router.push(`/customer/booking/review?bookingId=${id}`)}
+            onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_REVIEW, params: { bookingId: id } })}
             variant="outline"
           />
         </View>
@@ -377,7 +380,9 @@ export default function BookingDetailScreen(): React.ReactElement {
             <Text style={styles.sectionTitle}>Provider</Text>
             <TouchableOpacity
               style={styles.providerRow}
-              onPress={() => booking.providerId && router.push(`/customer/provider/${booking.providerId}`)}
+              onPress={() => booking.providerId && router.push(buildRoute(Routes.CUSTOMER.PROVIDER_PROFILE, { id: booking.providerId }))}
+              accessibilityRole="button"
+              accessibilityLabel={`View provider ${booking.providerName}`}
             >
               {/* Phase 14 Remediation #5 — Bug 902 Avatar component with initials fallback */}
               <Avatar name={booking.providerName} size={48} />

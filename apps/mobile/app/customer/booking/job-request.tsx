@@ -13,9 +13,10 @@ import { ChevronLeft, ChevronRight } from '@/components/icons';
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
 import { platformConfig } from '@/config/platform.config';
-import { Routes } from '@/config/navigation';
+import { buildRoute, Routes } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
 import ServiceScopeNotice from '@/components/ServiceScopeNotice';
+import { getConfig } from '@/services/config.service';
 
 const URGENCY_OPTIONS = [
   { value: 'same_day' as const, label: 'Same Day', desc: 'Within 4 hours' },
@@ -28,6 +29,7 @@ export default function JobRequestScreen(): React.ReactElement {
   const router = useRouter();
   const draft = useBookingStore((s) => s.draft);
   const { isPhone } = useResponsive();
+  const maxQuotesPerBooking = Number(getConfig().maxQuotesPerBooking) || platformConfig.maxQuotesPerBooking;
 
   const [description, setDescription] = useState('');
   const [urgency, setUrgency] = useState<'same_day' | 'within_3_days' | 'within_a_week' | 'flexible'>('within_3_days');
@@ -93,6 +95,7 @@ export default function JobRequestScreen(): React.ReactElement {
             onChangeText={(t) => onNumberChange(f.fieldKey, t)}
             placeholder={f.placeholder ?? 'Enter a number'}
             placeholderTextColor={colors.textTertiary}
+            accessibilityLabel={f.label}
           />
           {f.unit ? <Text style={styles.intakeUnit}>{f.unit}</Text> : null}
         </View>
@@ -108,6 +111,7 @@ export default function JobRequestScreen(): React.ReactElement {
           placeholder={f.placeholder ?? ''}
           placeholderTextColor={colors.textTertiary}
           maxLength={200}
+          accessibilityLabel={f.label}
         />
       );
     }
@@ -121,6 +125,9 @@ export default function JobRequestScreen(): React.ReactElement {
                 key={opt}
                 style={[styles.chip, selected && styles.chipSelected]}
                 onPress={() => setAnswer(f.fieldKey, opt)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+                accessibilityLabel={`${f.label}: ${opt}`}
               >
                 <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{opt}</Text>
               </TouchableOpacity>
@@ -139,6 +146,9 @@ export default function JobRequestScreen(): React.ReactElement {
               key={o.label}
               style={[styles.chip, selected && styles.chipSelected]}
               onPress={() => setAnswer(f.fieldKey, o.val)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selected }}
+              accessibilityLabel={`${f.label}: ${o.label}`}
             >
               <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{o.label}</Text>
             </TouchableOpacity>
@@ -173,7 +183,7 @@ export default function JobRequestScreen(): React.ReactElement {
     },
     onSuccess: (booking) => {
       showToast('Job request submitted. Providers will send quotes soon.', 'success');
-      router.replace(`/customer/booking/${booking.id}`);
+      router.replace(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: booking.id }));
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
@@ -205,7 +215,7 @@ export default function JobRequestScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back from custom quote request">
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Request Custom Quote</Text>
@@ -213,7 +223,12 @@ export default function JobRequestScreen(): React.ReactElement {
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-        <View style={[styles.formContent, !isPhone && styles.formContentWide]}>
+        <View
+          style={[styles.formContent, !isPhone && styles.formContentWide]}
+          accessibilityLabel={isPhone ? 'Custom quote request form' : 'Wide custom quote request workspace'}
+        >
+        <View style={[styles.requestWorkspace, !isPhone && styles.requestWorkspaceWide]}>
+        <View style={[styles.requestColumn, !isPhone && styles.requestPrimaryWide]}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Service Category</Text>
           <View style={styles.categoryCard}>
@@ -242,6 +257,7 @@ export default function JobRequestScreen(): React.ReactElement {
             placeholder="Describe the issue in detail. What needs to be done? What materials might be needed?"
             placeholderTextColor={colors.textTertiary}
             maxLength={2000}
+            accessibilityLabel="Describe the custom job"
           />
           <Text style={[styles.charCount, description.length < 50 ? styles.charCountRed : styles.charCountGreen]}>
             {description.length}/50 min
@@ -283,6 +299,8 @@ export default function JobRequestScreen(): React.ReactElement {
                   style={styles.removeBtn}
                   onPress={() => imagePicker.removeImage(i)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove custom job photo ${i + 1}`}
                 >
                   <Text style={styles.removeBtnText}>×</Text>
                 </TouchableOpacity>
@@ -292,6 +310,8 @@ export default function JobRequestScreen(): React.ReactElement {
               <TouchableOpacity
                 style={[styles.photoThumb, styles.addPhotoBtn]}
                 onPress={imagePicker.showPickerOptions}
+                accessibilityRole="button"
+                accessibilityLabel="Add a custom job photo"
               >
                 <Text style={styles.addPhotoIcon}>+</Text>
                 <Text style={styles.addPhotoText}>Add Photo</Text>
@@ -305,7 +325,9 @@ export default function JobRequestScreen(): React.ReactElement {
             </View>
           )}
         </View>
+        </View>
 
+        <View style={[styles.requestColumn, !isPhone && styles.requestSecondaryWide]}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Urgency</Text>
           {URGENCY_OPTIONS.map((opt) => (
@@ -313,6 +335,9 @@ export default function JobRequestScreen(): React.ReactElement {
               key={opt.value}
               style={[styles.urgencyOption, urgency === opt.value && styles.urgencySelected]}
               onPress={() => setUrgency(opt.value)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: urgency === opt.value }}
+              accessibilityLabel={`${opt.label}. ${opt.desc}`}
             >
               <View style={[styles.radio, urgency === opt.value && styles.radioSelected]} />
               <View style={{ flex: 1 }}>
@@ -338,6 +363,7 @@ export default function JobRequestScreen(): React.ReactElement {
                 onChangeText={setBudgetMin}
                 placeholder="Min"
                 placeholderTextColor={colors.textTertiary}
+                accessibilityLabel="Minimum budget in pesos"
               />
             </View>
             <Text style={styles.budgetDash}>—</Text>
@@ -350,6 +376,7 @@ export default function JobRequestScreen(): React.ReactElement {
                 onChangeText={setBudgetMax}
                 placeholder="Max"
                 placeholderTextColor={colors.textTertiary}
+                accessibilityLabel="Maximum budget in pesos"
               />
             </View>
           </View>
@@ -370,6 +397,8 @@ export default function JobRequestScreen(): React.ReactElement {
             onPress={() => router.push(Routes.CUSTOMER.ADDRESS_PICKER)}
             activeOpacity={0.7}
             testID="job-request-address-picker"
+            accessibilityRole="button"
+            accessibilityLabel={draft.address ? 'Change custom job address' : 'Choose custom job address'}
           >
             <Text style={styles.addressText}>
               {draft.address
@@ -403,6 +432,9 @@ export default function JobRequestScreen(): React.ReactElement {
           style={[styles.submitBtn, !isValid && styles.submitBtnDisabled]}
           onPress={() => mutation.mutate()}
           disabled={!isValid || mutation.isPending}
+          accessibilityRole="button"
+          accessibilityLabel="Submit custom job request"
+          accessibilityState={{ disabled: !isValid || mutation.isPending, busy: mutation.isPending }}
         >
           {mutation.isPending ? (
             <ActivityIndicator color={colors.white} />
@@ -412,8 +444,10 @@ export default function JobRequestScreen(): React.ReactElement {
         </TouchableOpacity>
 
         <Text style={styles.footer}>
-          Up to 5 providers will send you quotes. You can compare and choose the best one.
+          Up to {maxQuotesPerBooking} providers can send quotes. You can compare the scope, price, and timing before choosing.
         </Text>
+        </View>
+        </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -430,7 +464,12 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
   formContent: { width: '100%' },
-  formContentWide: { maxWidth: 920, alignSelf: 'center' },
+  formContentWide: { maxWidth: 1180, alignSelf: 'center' },
+  requestWorkspace: { width: '100%' },
+  requestWorkspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl },
+  requestColumn: { width: '100%' },
+  requestPrimaryWide: { flex: 1, minWidth: 0 },
+  requestSecondaryWide: { width: 360 },
   section: { marginBottom: spacing.lg },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 6 },
   hint: { fontSize: 13, color: colors.textSecondary, marginBottom: spacing.sm },

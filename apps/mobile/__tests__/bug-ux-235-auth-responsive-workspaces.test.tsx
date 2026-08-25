@@ -37,16 +37,19 @@ import RegisterScreen from '../app/auth/register';
 it('Bug UX-235 — login, registration, and OTP use bounded desktop workspaces', () => {
   const login = render(<LoginScreen />);
   expect(screen.getByLabelText('Desktop login workspace')).toBeTruthy();
+  expect(screen.getByText('Return to every service record.')).toBeTruthy();
   expect(screen.getByText('Welcome back')).toBeTruthy();
   login.unmount();
 
   const registration = render(<RegisterScreen />);
   expect(screen.getByLabelText('Desktop registration workspace')).toBeTruthy();
+  expect(screen.getByText('Start with a clear service record.')).toBeTruthy();
   expect(screen.getByText('Create Account')).toBeTruthy();
   registration.unmount();
 
   const otp = render(<OTPVerifyScreen />);
   expect(screen.getByLabelText('Desktop verification workspace')).toBeTruthy();
+  expect(screen.getByText('Confirm the number tied to your records.')).toBeTruthy();
   expect(screen.getByText('Enter Verification Code')).toBeTruthy();
   otp.unmount();
 });
