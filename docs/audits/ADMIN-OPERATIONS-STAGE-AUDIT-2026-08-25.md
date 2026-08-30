@@ -4,7 +4,7 @@
 
 This is the durable route-by-route control ledger for the admin overhaul requested by Ken. It is intentionally incomplete. `W1` means the current stage inspected and changed the named surface with rendered behavior tests. It does not mean every state on that page has been manually exercised. `NEXT` means the page remains in the active screen-by-screen pass. `HOLD` means money, compliance, legal, or policy behavior cannot be changed autonomously even though safe visual and accessibility work may continue.
 
-Current audited code checkpoint: `8d6a0ae4eb429757e15848f48252d50acd014687`.
+Current audited code checkpoint: `a512e1ae2b24c7a42ccaf00c519e4921779fbec0`.
 The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its documentation and production-evidence checkpoint was `cc15c61b7cacad2911e6bae97fe48d4e43179df7`.
 
 ## Shared admin contract established in W1
@@ -29,7 +29,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/providers` | Provider queue | W3 PARTIAL | Queue approval now uses the same atomic rationale/checklist contract as Provider 360. Suspension and reactivation require reasons, preserve the audit record, state active-booking effects, and notify the provider. Recheck filters, bulk support workflow, capacity context, and Provider 360 exits. |
 | `/providers/:id` | Provider 360 | W3 PARTIAL | Approval rationale/checklist now commits with status, role, audit, and notification; staff suspension/reactivation and note deletion use reasoned in-app workflows. Continue every Jobs, Financials, Reviews, Disputes, Activity, evidence, payout, service-area, booking, and support state. E29/D31 holds automatic handling of bookings assigned to a suspended staff member. |
 | `/customers` | Customer queue | NEXT | Recheck search, segmentation, masking, status, and Customer 360 exits. |
-| `/customers/:id` | Customer 360 | NEXT | Recheck account enforcement, fraud-review context, booking/support/payment linkage, and audit evidence. |
+| `/customers/:id` | Customer 360 | W4 PARTIAL/HOLD | Suspension/reactivation are reasoned, audited, session-revoking, generic-notice workflows. Booking/payment/dispute/provider/referral records link to canonical workspaces; activity identifies actors and client evidence; fraud analytics use configured window and no-refund semantics. E30/D32 holds fraud-review clearance. E31/D33 holds unbounded single-operator wallet adjustments. Continue wallet-control, complete chronology, and authenticated visual-state review. |
 | `/bookings` | Booking operations queue | NEXT | Recheck status definitions, service-area context, assignment, customer/provider exits, and tablet table behavior. |
 | `/bookings/:id` | Booking 360 and evidence | HOLD/NEXT | Safe layout can continue. Escrow release, refund, cancellation, and force-complete actions are money-path decisions. |
 | `/catalog` | Customer bookable scope and provider fulfillment contract | W1 | Service/add-on deactivation now requires audit reason and states customer impact. Continue modal and all pricing-type state visuals. |
@@ -84,16 +84,29 @@ These changes are Bugs UX-415 through UX-428. They do not alter money, dispute, 
 
 These changes are Bugs UX-429 through UX-438. They do not claim that every Provider 360 tab or provider-queue state is complete.
 
-## Remaining browser-native confirmations after W3
+## W4 customer-operations contract
 
-W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. W3 removed the two Provider 360 prompts, leaving 29. They are deliberately visible here rather than being hidden by a false completion claim.
+- Customer suspension and reactivation no longer use browser-native confirmation. A super-admin must supply a reason after seeing the exact session, active-booking, open-dispute, and wallet boundary.
+- Suspension changes account state, deletes stored refresh sessions, records previous/next state and revoked-session count, and sends a generic customer notice in one transaction. A previously issued short-lived access token can remain valid until expiry. Suspension does not cancel bookings, move money, or decide disputes.
+- Internal enforcement evidence stays in the admin audit record and is not copied into the customer notification.
+- Fraud-review state is visible and duplicate flagging is rejected. Fraud analysis now uses the configured time window and counts only `no_refund` outcomes as provider-favoring. Refunds accompanied by a provider warning or suspension no longer count against the customer.
+- Customer 360 links booking rows, wallet transactions, payment intents, disputes, providers, referring/referred customers, and qualifying referral bookings to their canonical workspaces.
+- The activity timeline identifies the customer/admin/system actor and displays available masked or role-authorized IP and client evidence. Open-dispute impact includes every dispute on the customer's bookings, regardless of which party filed it.
+- Account status notifications open customer Account Management in both inbox and device-push routing.
+- The MED-N15 fraud-action, MED-N14/N17 activity masking, and Phase 160 reason-bound tests now execute service behavior instead of passing by reading source text.
+- E30/D32 records the missing auditable fraud-review clearance action. E31/D33 records the unbounded, single-operator wallet-adjustment risk. No schema or money behavior was invented in this wave.
+
+These changes are Bugs UX-439 through UX-451. They do not claim that Customer 360's money controls, every visual state, or global customer queue are complete.
+
+## Remaining browser-native confirmations after W4
+
+W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. W3 removed two Provider 360 prompts. W4 removed the two Customer 360 prompts, leaving 27. They are deliberately visible here rather than being hidden by a false completion claim.
 
 | Screen | Count | Current hold or remaining design work |
 | --- | ---: | --- |
 | Booking 360 | 4 | Escrow, refund, cancellation, and completion money effects |
 | Compliance | 2 | DSR/regulatory action and export scope |
 | Consent Versions | 1 | Legal publication lifecycle |
-| Customer 360 | 2 | Account suspension and fraud review need enforcement evidence design |
 | Data Protection | 4 | DSR completion, information request, rejection, and NPC escalation |
 | Dispute 360 | 2 | Escalation/reopen tied to dispute lifecycle |
 | Disputes queue | 1 | Resolution outcome can apply money effects |
@@ -145,4 +158,15 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 - Focused rendered admin tests cover all five W3 UI defects. Focused API tests cover all five W3 server defects, plus the affected approval, role, transaction, and provider-suspension suites.
 - `git diff --check` passed.
 - The locally built public admin entry rendered at 390×844, 1024×768, and 1440×900 with no horizontal overflow and no captured browser warnings or errors. This verifies the public authentication shell only. Authenticated Provider 360 and provider-queue behavior is supported by rendered tests, not falsely claimed as a live signed-in browser exercise.
-- GitHub and production evidence remains pending for the documentation checkpoint that follows code checkpoint `8d6a0ae4eb429757e15848f48252d50acd014687`.
+- GitHub CI run `33299876772` and Gates run `33299876773` passed for W3. Production synchronization did not run because the current server rejected every supplied and agent-loaded SSH identity. E32 records the access blocker; no live W3 deployment claim is made.
+
+## W4 local verification
+
+- Admin: 121 test files passed, 1 skipped; 234 tests passed, 3 explicit todos.
+- API: 460 locally runnable suites passed, 1 suite remained intentionally skipped; 3,081 tests passed. The separate production-nginx certificate test could not run because Docker Desktop was off. This is not counted as a pass; live `nginx -t` remains required after deployment.
+- Mobile: 407 suites passed; 789 tests passed and 84 device-baseline todos remain explicit.
+- Admin, API, and mobile TypeScript passed. Repository, admin, and mobile lint passed. Admin and API production builds passed; admin transformed 2,839 modules.
+- Focused rendered admin tests cover the Customer 360 action, state, link, metric-window, referral, and activity defects. Focused API tests execute suspension, session revocation, audit, notice privacy, profile context, dispute semantics/scope, and actor behavior. The customer notification destination has a focused mobile contract test.
+- `git diff --check` passed.
+- Code checkpoint `a512e1ae2b24c7a42ccaf00c519e4921779fbec0` was pushed to `master`. GitHub CI and governance evidence are pending at this documentation edit.
+- Production backup, fast-forward, deployment, hashes, nginx validation, authenticated browser evidence, and live API checks remain blocked by E32. No production synchronization is claimed.

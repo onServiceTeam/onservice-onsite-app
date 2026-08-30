@@ -25,7 +25,7 @@ The old 29-admin-page and 84-mobile-screen counts are stale.
 | Mobile route files total     |                    119 |
 | API route modules            |                     48 |
 | API migrations               |                    145 |
-| API Jest suites / tests      |            456 / 3,100 |
+| API Jest suites / tests      |            462 / 3,083 |
 
 Mobile route-screen families:
 
@@ -72,6 +72,7 @@ This trace exposes the key company rule: admin pages must not invent a second st
 10. Admin support list/detail PII masking is wired at the route boundary, named assignment replaces pasted UUIDs, assignments are validated and audit-logged, and closed-case resolution notes persist.
 11. Production deployment documentation now matches the real shared Hetzner topology; the API deploy workflow is manual until its repository secrets are deliberately configured.
 12. The customer/provider and admin artifacts plus API were deployed, followed by the CI, transaction, icon, routing, bundle-splitting, and deployment-document hardening through `17337c3a53cd59b45c5eda0493dbbc2720b28734`. GitHub, the local working clone, and `/opt/onservice` were reverified clean and aligned after deployment.
+13. Customer 360 account enforcement now requires an in-app reason, revokes refresh sessions on suspension, preserves internal evidence, sends a generic customer notice, and exposes the exact booking/dispute/money boundary. Booking, payment, dispute, provider, referral, and activity records link to their canonical workspaces with actor/client context. Fraud analysis uses the configured window and no-refund semantics rather than treating provider-warning refunds as customer fraud evidence.
 
 ## Open register, ordered by risk
 
@@ -84,6 +85,8 @@ This trace exposes the key company rule: admin pages must not invent a second st
 - Customer-acceptance signature identity remains held under E19; the provider-session bitmap is not verified customer identity evidence.
 - Suki redemption has a centavo/peso unit mismatch under E25. No redemption or wallet change is authorized until the money-path option is approved.
 - Property/site/visit architecture for the proof-to-close direction requires D28. Read-only consolidation and current proof-integrity fixes can proceed; schema/backfill cannot.
+- Fraud-review clearance requires the explicit audited transition in E30/D32. Reactivation must not silently clear trust-review state.
+- Manual customer/provider wallet adjustments remain unbounded and single-operator. E31/D33 holds amount limits and dual-control design because this is direct money movement.
 - The operational launch runbook still requires legal, tax, payments-live-mode, backup/PITR, DNS/TLS, and regulator sign-offs. The staging demo must not be described as launch-ready production.
 
 ### Engineering and production operations
@@ -96,6 +99,7 @@ This trace exposes the key company rule: admin pages must not invent a second st
 - Docker Compose warns that the existing uploads volume is not declared external. This must be reconciled without risking uploaded customer/provider files.
 - Fixed: `/opt/SERVER-MAP.md` documents the shared host without storing credentials.
 - Static frontend deployment is still manual. The verified procedure extracts into existing bind-mounted directories, preserving their inodes and avoiding a shared-nginx restart.
+- Production synchronization is currently blocked by E32: the server rejects every supplied and agent-loaded SSH identity, and the GitHub deploy workflow has no configured deployment secrets. No post-W2 deployment is claimed until access is restored and the full backup/fast-forward/hash/nginx checklist runs.
 
 ### Product, admin, and documentation
 
