@@ -4,7 +4,7 @@
 
 This is the durable route-by-route control ledger for the admin overhaul requested by Ken. It is intentionally incomplete. `W1` means the current stage inspected and changed the named surface with rendered behavior tests. It does not mean every state on that page has been manually exercised. `NEXT` means the page remains in the active screen-by-screen pass. `HOLD` means money, compliance, legal, or policy behavior cannot be changed autonomously even though safe visual and accessibility work may continue.
 
-Current audited code checkpoint: `a512e1ae2b24c7a42ccaf00c519e4921779fbec0`.
+Current audited code checkpoint: `4c55afdfcfac118406c6dd917842e034922e1617`.
 The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its documentation and production-evidence checkpoint was `cc15c61b7cacad2911e6bae97fe48d4e43179df7`.
 
 ## Shared admin contract established in W1
@@ -27,7 +27,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/change-password` | Credential rotation | W1/PREVIOUS | Account menu now reaches it at all widths. Existing forced-rotation behavior remains unchanged. |
 | `/` | Command center | NEXT | Re-audit every queue, metric definition, source failure, and cross-link after shell release. |
 | `/providers` | Provider queue | W3 PARTIAL | Queue approval now uses the same atomic rationale/checklist contract as Provider 360. Suspension and reactivation require reasons, preserve the audit record, state active-booking effects, and notify the provider. Recheck filters, bulk support workflow, capacity context, and Provider 360 exits. |
-| `/providers/:id` | Provider 360 | W3 PARTIAL | Approval rationale/checklist now commits with status, role, audit, and notification; staff suspension/reactivation and note deletion use reasoned in-app workflows. Continue every Jobs, Financials, Reviews, Disputes, Activity, evidence, payout, service-area, booking, and support state. E29/D31 holds automatic handling of bookings assigned to a suspended staff member. |
+| `/providers/:id` | Provider 360 | W3+W5 PARTIAL/HOLD | Approval, staff, notes, certifications, Jobs, Financials, Reviews, Disputes, and Activity now form a linked case workspace. Review moderation/public responses and certification decisions are provider-scoped and transactionally audited; staff audit verbs are now admitted by the database. E29/D31 still holds automatic handling of bookings assigned to suspended staff, and E31/D33 still holds wallet-adjustment limits/dual control. Authenticated visual-state review remains open. |
 | `/customers` | Customer queue | NEXT | Recheck search, segmentation, masking, status, and Customer 360 exits. |
 | `/customers/:id` | Customer 360 | W4 PARTIAL/HOLD | Suspension/reactivation are reasoned, audited, session-revoking, generic-notice workflows. Booking/payment/dispute/provider/referral records link to canonical workspaces; activity identifies actors and client evidence; fraud analytics use configured window and no-refund semantics. E30/D32 holds fraud-review clearance. E31/D33 holds unbounded single-operator wallet adjustments. Continue wallet-control, complete chronology, and authenticated visual-state review. |
 | `/bookings` | Booking operations queue | NEXT | Recheck status definitions, service-area context, assignment, customer/provider exits, and tablet table behavior. |
@@ -97,6 +97,18 @@ These changes are Bugs UX-429 through UX-438. They do not claim that every Provi
 - E30/D32 records the missing auditable fraud-review clearance action. E31/D33 records the unbounded, single-operator wallet-adjustment risk. No schema or money behavior was invented in this wave.
 
 These changes are Bugs UX-439 through UX-451. They do not claim that Customer 360's money controls, every visual state, or global customer queue are complete.
+
+## W5 remaining Provider 360 contract
+
+- Jobs expose every canonical booking status and link the exact booking, customer, and latest related dispute instead of leaving support with detached labels.
+- Financials retain payout identifiers and open the provider-filtered payout queue. Wallet adjustment behavior is unchanged under E31/D33.
+- Reviews and disputes now request 20-row pages and render reachable pagination instead of silently stopping after the first API envelope. Review/customer/booking and dispute/customer/booking records link to their canonical workspaces.
+- Hiding/restoring a review requires a moderation reason. Adding/replacing a public admin response separates customer-visible copy from the internal support rationale. Both operations are provider-scoped, no-op protected, and write first-class audit actions in the same transaction as the review update.
+- Certification verification/removal now writes the actor, evidence snapshot, before/after state, and reason atomically. Removing verification requires at least 10 characters. The existing provider notification remains post-commit.
+- Provider Activity now includes attributable admin actions across the provider account, onboarding application, documents, certification, staff, notes, service-area requests, and reviews. It also identifies account-event actors while preserving MED-N14 IP/client masking.
+- Migration 157 appends rather than replaces the live audit constraints. It admits the new review/certification events and repairs provider-staff action verbs/target that existed in application code but were absent from the database contract. The append pattern preserves later values such as `payout_completed`.
+
+These changes are Bugs UX-452 through UX-462. They do not alter wallet, payout, booking assignment, escrow, refund, or dispute-resolution semantics.
 
 ## Remaining browser-native confirmations after W4
 
@@ -168,5 +180,14 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 - Admin, API, and mobile TypeScript passed. Repository, admin, and mobile lint passed. Admin and API production builds passed; admin transformed 2,839 modules.
 - Focused rendered admin tests cover the Customer 360 action, state, link, metric-window, referral, and activity defects. Focused API tests execute suspension, session revocation, audit, notice privacy, profile context, dispute semantics/scope, and actor behavior. The customer notification destination has a focused mobile contract test.
 - `git diff --check` passed.
-- Code checkpoint `a512e1ae2b24c7a42ccaf00c519e4921779fbec0` was pushed to `master`. GitHub CI and governance evidence are pending at this documentation edit.
+- Code checkpoint `a512e1ae2b24c7a42ccaf00c519e4921779fbec0` was pushed to `master`. GitHub CI run `33301291011` and Gates run `33301291020` passed on the W4 documentation checkpoint containing that code.
 - Production backup, fast-forward, deployment, hashes, nginx validation, authenticated browser evidence, and live API checks remain blocked by E32. No production synchronization is claimed.
+
+## W5 local verification
+
+- Admin: 128 test files passed, 1 skipped; 241 tests passed, 3 explicit todos.
+- API: 467 locally runnable suites passed, 1 suite remained intentionally skipped; 3,088 tests passed. The separate production-nginx certificate test could not run because Docker Desktop was off and is not counted as a pass.
+- Focused rendered admin tests cover job/review/dispute/customer/booking/payout linkage, pagination, moderation reasons, public-response separation, and activity actors. Focused API tests execute canonical-ID projection, provider scoping, atomic review/certification auditing, and merged admin chronology.
+- Admin and API TypeScript passed. Repository and admin lint passed. Admin and API production builds passed; admin transformed 2,839 modules. `git diff --check` passed.
+- Code checkpoint `4c55afdfcfac118406c6dd917842e034922e1617` was pushed to `master`. GitHub CI/Gates and PostgreSQL migration evidence are pending at this documentation edit.
+- Production backup, migration, deployment, hashes, nginx validation, authenticated browser evidence, and live API checks remain blocked by E32. No production synchronization is claimed.

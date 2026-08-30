@@ -24,8 +24,8 @@ The old 29-admin-page and 84-mobile-screen counts are stale.
 | Mobile route layouts         |                      9 |
 | Mobile route files total     |                    119 |
 | API route modules            |                     48 |
-| API migrations               |                    145 |
-| API Jest suites / tests      |            462 / 3,083 |
+| API migrations               |                    146 |
+| API Jest suites / tests      |            468 / 3,089 |
 
 Mobile route-screen families:
 
@@ -73,6 +73,7 @@ This trace exposes the key company rule: admin pages must not invent a second st
 11. Production deployment documentation now matches the real shared Hetzner topology; the API deploy workflow is manual until its repository secrets are deliberately configured.
 12. The customer/provider and admin artifacts plus API were deployed, followed by the CI, transaction, icon, routing, bundle-splitting, and deployment-document hardening through `17337c3a53cd59b45c5eda0493dbbc2720b28734`. GitHub, the local working clone, and `/opt/onservice` were reverified clean and aligned after deployment.
 13. Customer 360 account enforcement now requires an in-app reason, revokes refresh sessions on suspension, preserves internal evidence, sends a generic customer notice, and exposes the exact booking/dispute/money boundary. Booking, payment, dispute, provider, referral, and activity records link to their canonical workspaces with actor/client context. Fraud analysis uses the configured window and no-refund semantics rather than treating provider-warning refunds as customer fraud evidence.
+14. Provider 360 jobs, payouts, reviews, disputes, certifications, and activity now operate as one support record. Canonical booking/customer/dispute exits and pagination are reachable; review moderation/public responses and certification decisions are provider-scoped and transactionally audited; activity includes attributable admin chronology; and migration 157 repairs the provider-staff audit constraint without dropping newer verbs.
 
 ## Open register, ordered by risk
 
