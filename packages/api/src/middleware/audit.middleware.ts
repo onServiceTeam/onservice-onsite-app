@@ -4,7 +4,8 @@ import { logger } from '../utils/logger';
 import { db } from '../models/db';
 
 /**
- * MED-M03 fix — audit failure tracking.
+ * Dormant audit-middleware prototype. E37 records that this module is not
+ * mounted by the API and must not be described as global coverage.
  *
  * Pre-fix: failed audit_log INSERTs were caught with a logger.error
  * and silently dropped. Per NPC RA 10173 §22 (records of processing
@@ -13,7 +14,7 @@ import { db } from '../models/db';
  * gives compromised admins a window where their actions disappear
  * from the trail.
  *
- * Post-fix:
+ * If a replacement is approved, the intended safeguards included here are:
  *   1. The catch handler still logs (so the error doesn't disappear),
  *      but ALSO increments an exported counter so /healthz or a cron
  *      alert can detect "audit insert failure rate above threshold"
@@ -26,7 +27,8 @@ import { db } from '../models/db';
  *      can manually backfill from grep'd error logs if needed.
  */
 
-// Exported for /healthz and tests.
+// These metrics are dormant while the middleware is unmounted. They are not
+// currently exposed by /healthz; E37 requires monitored evidence before use.
 export const auditFailureMetrics = {
   consecutiveFailures: 0,
   totalFailures: 0,
@@ -50,9 +52,11 @@ const FAIL_CLOSED_PREFIXES: ReadonlyArray<string> = [
 ];
 
 /**
- * Audit logging middleware.
- * Logs all write operations (POST, PUT, PATCH, DELETE) for compliance.
- * Writes to both the structured logger and the audit_log DB table.
+ * Unmounted audit logging prototype.
+ *
+ * Do not mount this as a shortcut. It writes after the response, has no shared
+ * request/outcome correlation contract, and cannot currently guarantee a
+ * durable record for a successful state change. See E37.
  */
 export function auditMiddleware(
   req: AuthenticatedRequest,

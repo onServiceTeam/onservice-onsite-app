@@ -1,18 +1,25 @@
-import React, { useState } from 'react';
-// Phase 14 remediation — audited (D14r-9 markers pass)
-import { useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { getErrorMessage } from '@/lib/api';
 import { adminConfig } from '@/config/admin.config';
-import { ClipboardList } from '@/components/icons';
+import {
+  ChevronDown,
+  ChevronUp,
+  ClipboardList,
+  Download,
+  ExternalLink,
+  Search,
+} from '@/components/icons';
+import { Button, buttonVariants } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { LoadingState } from '@/components/ui/LoadingState';
 
 interface AuditEntry {
   id: string;
-  /**
-   * Backend now UNIONs audit_log + admin_actions. `source` discriminates
-   * the two streams so the UI can label them. Older API responses don't
-   * include this field; the UI defaults to 'audit_log'.
-   */
   source?: 'audit_log' | 'admin_actions';
   userId: string | null;
   userEmail: string | null;
@@ -24,49 +31,82 @@ interface AuditEntry {
   newValues: Record<string, unknown> | null;
   ipAddress: string | null;
   userAgent: string | null;
-  /** admin_actions rows carry a reason text; audit_log rows return null. */
   reason?: string | null;
   createdAt: string;
 }
-
-const SOURCE_BADGE: Record<NonNullable<AuditEntry['source']>, { label: string; cls: string }> = {
-  audit_log:    { label: 'request',  cls: 'bg-slate-100 text-slate-700' },
-  admin_actions:{ label: 'admin op', cls: 'bg-amber-100 text-amber-800' },
-};
-
-// Friendly labels for the new admin_actions verbs that have landed since
-// Phase 14. Anything not listed falls back to the raw action string.
-const ACTION_LABELS: Record<string, string> = {
-  staff_added: 'Staff member added',
-  staff_removed: 'Staff member removed',
-  staff_role_changed: 'Staff role changed',
-  staff_role_promoted_dpo: 'Promoted to DPO',
-  staff_role_demoted_from_dpo: 'Demoted from DPO',
-  config_changed: 'Configuration changed',
-  service_area_created: 'Service area created',
-  service_area_updated: 'Service area updated',
-  service_area_deleted: 'Service area deleted',
-  promotion_created: 'Promotion created',
-  promotion_updated: 'Promotion updated',
-  promotion_deleted: 'Promotion deleted',
-  notification_template_updated: 'Notification template updated',
-  notification_template_deleted: 'Notification template deleted',
-  consent_version_published: 'Consent version published',
-  customer_flagged_fraud: 'Customer flagged for fraud',
-  legacy_password_rotation_flagged: 'Bulk password rotation flagged',
-  admin_password_rotated: 'Admin password rotated',
-  dsr_status_changed: 'DSR status changed',
-  dsr_more_info_requested: 'DSR — more info requested',
-  dsr_rejected: 'DSR rejected',
-  dsr_escalated_to_npc: 'DSR escalated to NPC',
-  dsr_assigned: 'DSR assigned',
-  admin_message_sent: 'Booking support message sent',
-};
 
 interface AuditResponse {
   data: AuditEntry[];
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
 }
+
+type SourceFilter = 'all' | 'audit_log' | 'admin_actions';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const SOURCE_BADGE: Record<NonNullable<AuditEntry['source']>, { label: string; cls: string }> = {
+  audit_log: { label: 'System event', cls: 'bg-slate-100 text-slate-700' },
+  admin_actions: { label: 'Admin decision', cls: 'bg-amber-100 text-amber-800' },
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  admin_message_sent: 'Booking support message sent',
+  audit_log_exported: 'Audit timeline exported',
+  booking_cancelled: 'Booking cancelled',
+  booking_force_completed: 'Booking force-completed',
+  booking_reassigned: 'Booking reassigned',
+  config_changed: 'Configuration changed',
+  consent_version_published: 'Consent version published',
+  conversation_viewed: 'Private booking conversation viewed',
+  customer_credited: 'Customer wallet adjusted',
+  customer_flagged_fraud: 'Customer flagged for fraud review',
+  customer_reactivated: 'Customer reactivated',
+  customer_suspended: 'Customer suspended',
+  dispute_assigned: 'Dispute assigned',
+  dispute_escalated: 'Dispute escalated',
+  dispute_message_sent: 'Dispute message sent',
+  dispute_reopened: 'Dispute reopened',
+  dispute_resolved: 'Dispute resolved',
+  message_flag_reviewed: 'Reported message reviewed',
+  message_redacted: 'Message redacted',
+  payout_approved: 'Payout approved',
+  payout_completed: 'Payout marked transferred',
+  payout_rejected: 'Payout rejected',
+  pii_reveal: 'Private information revealed',
+  provider_approved: 'Provider approved',
+  provider_certification_unverified: 'Provider certification unverified',
+  provider_certification_verified: 'Provider certification verified',
+  provider_reactivated: 'Provider reactivated',
+  provider_rejected: 'Provider rejected',
+  provider_staff_approved: 'Provider staff approved',
+  provider_staff_reactivated: 'Provider staff reactivated',
+  provider_staff_rejected: 'Provider staff rejected',
+  provider_staff_sent_back: 'Provider staff sent back',
+  provider_staff_suspended: 'Provider staff suspended',
+  provider_suspended: 'Provider suspended',
+  provider_tier_changed: 'Provider tier changed',
+  refund_issued: 'Refund issued',
+  review_response_updated: 'Provider review response updated',
+  review_visibility_changed: 'Provider review visibility changed',
+  service_area_created: 'Service area created',
+  service_area_deleted: 'Service area deleted',
+  service_area_updated: 'Service area updated',
+  staff_added: 'Staff member added',
+  staff_removed: 'Staff member removed',
+  staff_role_changed: 'Staff role changed',
+  staff_role_demoted_from_dpo: 'DPO access removed',
+  staff_role_promoted_dpo: 'DPO access granted',
+  support_ticket_status_updated: 'Support case status updated',
+};
+
+const ROLE_COLORS: Record<string, string> = {
+  admin: 'bg-purple-100 text-purple-700',
+  super_admin: 'bg-red-100 text-red-700',
+  dpo: 'bg-indigo-100 text-indigo-700',
+  customer: 'bg-blue-100 text-blue-700',
+  provider: 'bg-green-100 text-green-700',
+  provider_staff: 'bg-emerald-100 text-emerald-700',
+};
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString('en-PH', {
@@ -81,15 +121,6 @@ function formatDate(iso: string): string {
   });
 }
 
-const ROLE_COLORS: Record<string, string> = {
-  admin: 'bg-purple-100 text-purple-700',
-  super_admin: 'bg-red-100 text-red-700',
-  customer: 'bg-blue-100 text-blue-700',
-  provider: 'bg-green-100 text-green-700',
-};
-
-type SourceFilter = 'all' | 'audit_log' | 'admin_actions';
-
 function parsePage(value: string | null): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
@@ -99,45 +130,193 @@ function parseSource(value: string | null): SourceFilter {
   return value === 'audit_log' || value === 'admin_actions' ? value : 'all';
 }
 
+function humanizeSlug(value: string): string {
+  return value
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function actionLabel(action: string): string {
+  if (ACTION_LABELS[action]) return ACTION_LABELS[action];
+  return /^[a-z][a-z0-9_]*$/.test(action) ? humanizeSlug(action) : action;
+}
+
+function shortId(value: string): string {
+  return value.slice(0, 8).toUpperCase();
+}
+
+function entityDestination(entry: AuditEntry): { to: string; label: string } | null {
+  if (!entry.entityId) return null;
+  const id = encodeURIComponent(entry.entityId);
+  switch (entry.entityType) {
+    case 'booking':
+      return { to: `/bookings/${id}`, label: 'Open Booking 360' };
+    case 'customer':
+      return { to: `/customers/${id}`, label: 'Open Customer 360' };
+    case 'provider':
+      return { to: `/providers/${id}`, label: 'Open Provider 360' };
+    case 'dispute':
+      return { to: `/disputes/${id}`, label: 'Open Dispute 360' };
+    case 'payout':
+      return { to: `/payouts?payoutId=${id}`, label: 'Open exact payout' };
+    case 'support_ticket':
+      return { to: `/support-tickets?ticketId=${id}`, label: 'Open support case' };
+    case 'business':
+      return { to: `/business-accounts/${id}`, label: 'Open business account' };
+    case 'service_area':
+    case 'service_area_change_request':
+      return { to: '/service-areas', label: 'Open Service Areas' };
+    case 'pricing_rule':
+      return { to: '/pricing-rules', label: 'Open Pricing Rules' };
+    case 'promotion':
+      return { to: '/marketing', label: 'Open Marketing' };
+    case 'notification_template':
+      return { to: '/notification-templates', label: 'Open notification templates' };
+    case 'admin_staff':
+    case 'admin_role':
+      return { to: '/staff', label: 'Open Staff & Roles' };
+    case 'config':
+    case 'system':
+      return { to: '/settings', label: 'Open System Settings' };
+    default:
+      return null;
+  }
+}
+
+function exactEntityTimeline(entry: AuditEntry): string | null {
+  if (!entry.entityId || !UUID_REGEX.test(entry.entityId)) return null;
+  const params = new URLSearchParams({ entityType: entry.entityType, entityId: entry.entityId });
+  return `/audit-log?${params.toString()}`;
+}
+
+function SourceBadge({ entry }: { entry: AuditEntry }): React.ReactElement {
+  const source = entry.source ?? 'audit_log';
+  const badge = SOURCE_BADGE[source];
+  return (
+    <span className={`inline-flex rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${badge.cls}`}>
+      {badge.label}
+    </span>
+  );
+}
+
+function EntityLink({ entry }: { entry: AuditEntry }): React.ReactElement {
+  const destination = entityDestination(entry);
+  if (!destination) {
+    return (
+      <span className="text-[var(--color-text-secondary)]">
+        {humanizeSlug(entry.entityType)}{entry.entityId ? ` · ${shortId(entry.entityId)}` : ''}
+      </span>
+    );
+  }
+  return (
+    <Link
+      to={destination.to}
+      className="inline-flex min-h-11 items-center gap-1 font-medium text-[var(--color-secondary)] hover:underline"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {humanizeSlug(entry.entityType)} · {shortId(entry.entityId!)}
+      <ExternalLink size={14} aria-hidden="true" />
+      <span className="sr-only">{destination.label}</span>
+    </Link>
+  );
+}
+
 export default function AuditLogPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
   const actionFilter = searchParams.get('action')?.trim() ?? '';
   const entityTypeFilter = searchParams.get('entityType')?.trim() ?? '';
-  // 'all' | 'audit_log' | 'admin_actions' — narrows the unioned response.
+  const entityIdFilter = searchParams.get('entityId')?.trim() ?? '';
+  const userIdFilter = searchParams.get('userId')?.trim() ?? '';
   const sourceFilter = parseSource(searchParams.get('source'));
-  // BUG-PHASE42-02 fix — pre-fix there was no way to bound an audit
-  // query by date. Compliance audits ("show me all entries from
-  // 2026-04-01 to 2026-04-30") had to be done by paginating to the
-  // right time slice manually. The API supports `from` and `to`
-  // params; the UI now exposes them.
   const fromDate = searchParams.get('from') ?? '';
   const toDate = searchParams.get('to') ?? '';
-  const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
-  const pageSize = adminConfig.defaultPageSize;
-  const dateError = fromDate && toDate && fromDate > toDate ? 'From date must be before or equal to To date.' : '';
 
-  function updateFilter(key: string, value: string): void {
-    setSearchParams((current) => {
-      const params = new URLSearchParams(current);
-      params.delete('page');
-      const trimmed = value.trim();
-      if (trimmed) params.set(key, trimmed);
-      else params.delete(key);
-      return params;
-    });
+  const [draftAction, setDraftAction] = useState(actionFilter);
+  const [draftEntityType, setDraftEntityType] = useState(entityTypeFilter);
+  const [draftEntityId, setDraftEntityId] = useState(entityIdFilter);
+  const [draftUserId, setDraftUserId] = useState(userIdFilter);
+  const [draftSource, setDraftSource] = useState<SourceFilter>(sourceFilter);
+  const [draftFrom, setDraftFrom] = useState(fromDate);
+  const [draftTo, setDraftTo] = useState(toDate);
+  const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
+  const [exportNotice, setExportNotice] = useState('');
+  const pageSize = adminConfig.defaultPageSize;
+
+  useEffect(() => {
+    setDraftAction(actionFilter);
+    setDraftEntityType(entityTypeFilter);
+    setDraftEntityId(entityIdFilter);
+    setDraftUserId(userIdFilter);
+    setDraftSource(sourceFilter);
+    setDraftFrom(fromDate);
+    setDraftTo(toDate);
+  }, [actionFilter, entityIdFilter, entityTypeFilter, fromDate, sourceFilter, toDate, userIdFilter]);
+
+  const dateError = fromDate && toDate && fromDate > toDate
+    ? 'From date must be before or equal to To date.'
+    : '';
+  const entityIdError = entityIdFilter && !UUID_REGEX.test(entityIdFilter)
+    ? 'Record ID must be a complete UUID.'
+    : '';
+  const userIdError = userIdFilter && !UUID_REGEX.test(userIdFilter)
+    ? 'Actor ID must be a complete UUID.'
+    : '';
+  const filterError = dateError || entityIdError || userIdError;
+  const hasFilters = Boolean(
+    actionFilter || entityTypeFilter || entityIdFilter || userIdFilter
+    || sourceFilter !== 'all' || fromDate || toDate,
+  );
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: [
+      'admin', 'audit-log', page, actionFilter, entityTypeFilter, entityIdFilter,
+      userIdFilter, sourceFilter, fromDate, toDate,
+    ],
+    queryFn: async () => {
+      const params: Record<string, string | number> = { page, pageSize };
+      if (actionFilter) params.action = actionFilter;
+      if (entityTypeFilter) params.entityType = entityTypeFilter;
+      if (entityIdFilter) params.entityId = entityIdFilter;
+      if (userIdFilter) params.userId = userIdFilter;
+      if (sourceFilter !== 'all') params.source = sourceFilter;
+      if (fromDate) params.from = fromDate;
+      if (toDate) params.to = toDate;
+      const response = await api.get<AuditResponse>('/api/v1/admin/audit-log', { params });
+      return response.data;
+    },
+    placeholderData: (previous) => previous,
+    enabled: !filterError,
+  });
+
+  const entries = data?.data ?? [];
+  const pagination = data?.pagination;
+
+  function applyFilters(event: React.FormEvent): void {
+    event.preventDefault();
+    const params = new URLSearchParams();
+    if (draftAction.trim()) params.set('action', draftAction.trim());
+    if (draftEntityType.trim()) params.set('entityType', draftEntityType.trim().toLowerCase());
+    if (draftEntityId.trim()) params.set('entityId', draftEntityId.trim());
+    if (draftUserId.trim()) params.set('userId', draftUserId.trim());
+    if (draftSource !== 'all') params.set('source', draftSource);
+    if (draftFrom) params.set('from', draftFrom);
+    if (draftTo) params.set('to', draftTo);
+    setSearchParams(params);
     setSelectedEntry(null);
+    setExportError('');
+    setExportNotice('');
   }
 
-  function setSourceFilter(value: SourceFilter): void {
-    setSearchParams((current) => {
-      const params = new URLSearchParams(current);
-      params.delete('page');
-      if (value === 'all') params.delete('source');
-      else params.set('source', value);
-      return params;
-    });
+  function clearFilters(): void {
+    setSearchParams(new URLSearchParams());
     setSelectedEntry(null);
+    setExportError('');
+    setExportNotice('');
   }
 
   function setPage(nextPage: number): void {
@@ -147,288 +326,374 @@ export default function AuditLogPage(): React.ReactElement {
       else params.set('page', String(nextPage));
       return params;
     });
-  }
-
-  function clearFilters(): void {
-    setSearchParams(new URLSearchParams());
     setSelectedEntry(null);
   }
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['admin', 'audit-log', page, actionFilter, entityTypeFilter, sourceFilter, fromDate, toDate],
-    queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize };
+  async function exportCsv(): Promise<void> {
+    setExporting(true);
+    setExportError('');
+    setExportNotice('');
+    try {
+      const params: Record<string, string | number> = { limit: 10_000 };
       if (actionFilter) params.action = actionFilter;
       if (entityTypeFilter) params.entityType = entityTypeFilter;
+      if (entityIdFilter) params.entityId = entityIdFilter;
+      if (userIdFilter) params.userId = userIdFilter;
       if (sourceFilter !== 'all') params.source = sourceFilter;
       if (fromDate) params.from = fromDate;
       if (toDate) params.to = toDate;
-      const res = await api.get<AuditResponse>('/api/v1/admin/audit-log', { params });
-      return res.data;
-    },
-    placeholderData: (prev) => prev,
-    enabled: !dateError,
-  });
-
-  const entries = data?.data ?? [];
-  const pagination = data?.pagination;
+      const response = await api.get<Blob>('/api/v1/admin/compliance/audit-log/export.csv', {
+        params,
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `audit-log-${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })}.csv`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+      setExportNotice('Masked CSV downloaded. The export itself was recorded in the audit timeline.');
+    } catch (exportFailure) {
+      setExportError(getErrorMessage(exportFailure));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto w-full max-w-[1600px] space-y-6">
+      <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--color-text)]">Audit Log</h1>
-          <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            Track all system actions for compliance and security monitoring.
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-secondary)]">
+            Governance · operator accountability
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-[var(--color-text)]">Audit Log</h1>
+          <p className="mt-1 max-w-3xl text-sm text-[var(--color-text-secondary)]">
+            Reconstruct recorded admin decisions and selected system events, then open the customer,
+            provider, booking, support, dispute, payout, or company record that owns the event.
           </p>
         </div>
-        {pagination && (
-          <span className="text-sm text-[var(--color-text-secondary)]">
-            {pagination.total.toLocaleString()} total entries
-          </span>
-        )}
-      </div>
-
-      <div className="flex gap-3 flex-wrap">
-        <input
-          type="text"
-          placeholder="Filter by action (e.g. POST, staff_added)"
-          value={actionFilter}
-          onChange={(e) => updateFilter('action', e.target.value)}
-          aria-label="Filter audit log by action"
-          className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] w-60"
-        />
-        <input
-          type="text"
-          placeholder="Filter by entity type"
-          value={entityTypeFilter}
-          onChange={(e) => updateFilter('entityType', e.target.value)}
-          aria-label="Filter audit log by entity type"
-          className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] w-60"
-        />
-        <select
-          value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
-          aria-label="Filter audit log by source stream"
-          className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-        >
-          <option value="all">All sources</option>
-          <option value="audit_log">Request log</option>
-          <option value="admin_actions">Admin operations</option>
-        </select>
-        <div className="flex items-center gap-1.5">
-          <label className="text-xs text-[var(--color-text-secondary)]" htmlFor="audit-from">From</label>
-          <input
-            id="audit-from"
-            type="date"
-            value={fromDate}
-            onChange={(e) => updateFilter('from', e.target.value)}
-            aria-label="Filter audit log from date"
-            className="px-2 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-          />
-          <label className="text-xs text-[var(--color-text-secondary)]" htmlFor="audit-to">To</label>
-          <input
-            id="audit-to"
-            type="date"
-            value={toDate}
-            onChange={(e) => updateFilter('to', e.target.value)}
-            aria-label="Filter audit log to date"
-            className="px-2 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-          />
-        </div>
-        {(actionFilter || entityTypeFilter || sourceFilter !== 'all' || fromDate || toDate) && (
-          <button
+        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+          {pagination && (
+            <span className="rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm text-[var(--color-text-secondary)]">
+              {pagination.total.toLocaleString()} matching records
+            </span>
+          )}
+          <Button
             type="button"
-            onClick={clearFilters}
-            className="px-3 py-2 text-sm text-[var(--color-primary)] hover:underline"
+            variant="outline"
+            onClick={() => void exportCsv()}
+            disabled={exporting || Boolean(filterError)}
           >
-            Clear Filters
-          </button>
-        )}
+            <Download size={16} aria-hidden="true" />
+            {exporting ? 'Preparing CSV…' : 'Export filtered CSV'}
+          </Button>
+        </div>
+      </header>
+
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <strong>Coverage boundary:</strong> this timeline combines privileged admin actions and explicitly
+        recorded system events. It is not a complete HTTP request trace while E37 remains open. CSV exports
+        use the same two sources and filters, mask contact/network/free-text PII, cap at 10,000 rows, and are audited.
       </div>
 
-      {dateError && <p role="alert" className="text-sm text-red-600">{dateError}</p>}
+      <Card className="p-4 md:p-5">
+        <form onSubmit={applyFilters} className="space-y-4" aria-label="Audit timeline filters">
+          <div className="flex items-center gap-2">
+            <Search size={18} className="text-[var(--color-secondary)]" aria-hidden="true" />
+            <h2 className="font-semibold text-[var(--color-text)]">Find one incident or record trail</h2>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <label className="space-y-1 text-xs font-medium text-[var(--color-text-secondary)]">
+              Action contains
+              <Input
+                value={draftAction}
+                onChange={(event) => setDraftAction(event.target.value)}
+                placeholder="provider_approved or POST"
+                maxLength={100}
+                aria-label="Filter audit log by action"
+              />
+            </label>
+            <label className="space-y-1 text-xs font-medium text-[var(--color-text-secondary)]">
+              Record type
+              <Input
+                value={draftEntityType}
+                onChange={(event) => setDraftEntityType(event.target.value)}
+                placeholder="booking, customer, provider"
+                maxLength={50}
+                aria-label="Filter audit log by entity type"
+              />
+            </label>
+            <label className="space-y-1 text-xs font-medium text-[var(--color-text-secondary)]">
+              Exact record ID
+              <Input
+                value={draftEntityId}
+                onChange={(event) => setDraftEntityId(event.target.value)}
+                placeholder="Full UUID"
+                maxLength={36}
+                aria-label="Filter audit log by entity ID"
+              />
+            </label>
+            <label className="space-y-1 text-xs font-medium text-[var(--color-text-secondary)]">
+              Exact actor ID
+              <Input
+                value={draftUserId}
+                onChange={(event) => setDraftUserId(event.target.value)}
+                placeholder="Full UUID"
+                maxLength={36}
+                aria-label="Filter audit log by actor ID"
+              />
+            </label>
+            <label className="space-y-1 text-xs font-medium text-[var(--color-text-secondary)]">
+              Source
+              <select
+                value={draftSource}
+                onChange={(event) => setDraftSource(event.target.value as SourceFilter)}
+                aria-label="Filter audit log by source stream"
+                className="min-h-11 w-full rounded-md border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+              >
+                <option value="all">Both recorded sources</option>
+                <option value="admin_actions">Admin decisions</option>
+                <option value="audit_log">Selected system events</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-xs font-medium text-[var(--color-text-secondary)]">
+              From · Manila date
+              <Input
+                type="date"
+                value={draftFrom}
+                onChange={(event) => setDraftFrom(event.target.value)}
+                aria-label="Filter audit log from date"
+              />
+            </label>
+            <label className="space-y-1 text-xs font-medium text-[var(--color-text-secondary)]">
+              To · Manila date
+              <Input
+                type="date"
+                value={draftTo}
+                onChange={(event) => setDraftTo(event.target.value)}
+                aria-label="Filter audit log to date"
+              />
+            </label>
+            <div className="flex items-end gap-2">
+              <Button type="submit" className="flex-1">Apply filters</Button>
+              {hasFilters && (
+                <Button type="button" variant="outline" onClick={clearFilters}>Clear</Button>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            Filters apply only when submitted, preventing a new server query for every typed character.
+            Record and actor IDs must be complete UUIDs.
+          </p>
+        </form>
+      </Card>
+
+      {filterError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{filterError}</p>}
+      {exportError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">Export failed: {exportError}</p>}
+      {exportNotice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{exportNotice}</p>}
 
       {isLoading && !data ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-primary)]" />
-        </div>
+        <LoadingState label="Loading recorded events…" />
       ) : isError ? (
-        <div role="alert" className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <p className="text-red-600 font-medium">Failed to load audit log</p>
-          <p className="text-sm text-red-600 mt-1">Check your connection and try again.</p>
-        </div>
+        <ErrorState title="Failed to load audit timeline" description={getErrorMessage(error)} />
       ) : entries.length === 0 ? (
-        <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-12 text-center">
-          <ClipboardList size={40} className="mx-auto mb-3 text-slate-400" />
-          <p className="font-medium text-[var(--color-text)]">No audit entries found</p>
-          <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            {/* BUG-PHASE108-01 fix — pre-fix this checked only
-                actionFilter || entityTypeFilter, so when a compliance
-                officer narrowed by date or source and got zero hits,
-                the message claimed "Audit entries will appear as
-                system actions occur" — implying NO entries exist
-                anywhere in the system, the opposite of the reality.
-                Now checks the full filter set, matching the same
-                condition used to show the Clear Filters button above. */}
-            {(actionFilter || entityTypeFilter || sourceFilter !== 'all' || fromDate || toDate)
-              ? 'Try adjusting your filters.'
-              : 'Audit entries will appear as system actions occur.'}
-          </p>
-        </div>
+        <EmptyState
+          title="No matching recorded events"
+          description={hasFilters
+            ? 'No event matches the submitted filters. Clear or broaden one filter.'
+            : 'No admin decision or selected system event has been recorded yet.'}
+          icon={<ClipboardList size={30} className="text-slate-400" />}
+          action={hasFilters ? <Button variant="outline" onClick={clearFilters}>Clear filters</Button> : undefined}
+        />
       ) : (
         <>
-          <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] overflow-hidden">
-            <table className="w-full text-sm">
+          <Card className="hidden overflow-x-auto lg:block">
+            <table className="w-full min-w-[1100px] text-sm">
               <thead>
-                <tr className="bg-[var(--color-bg)] border-b border-[var(--color-border)]">
-                  <th className="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">Timestamp</th>
-                  <th className="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">User</th>
-                  <th className="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">Action</th>
-                  <th className="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">Entity</th>
-                  <th className="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">IP</th>
-                  <th className="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]" />
+                <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+                  <th className="px-4 py-3 text-left font-medium text-[var(--color-text-secondary)]">Manila time</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--color-text-secondary)]">Actor</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--color-text-secondary)]">Recorded action</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--color-text-secondary)]">Source record</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--color-text-secondary)]">Network</th>
+                  <th className="w-12 px-4 py-3"><span className="sr-only">Details</span></th>
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry) => (
-                  <tr
-                    key={entry.id}
-                    tabIndex={0}
-                    className="border-b border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-colors cursor-pointer"
-                    onClick={() => setSelectedEntry(selectedEntry?.id === entry.id ? null : entry)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        setSelectedEntry(selectedEntry?.id === entry.id ? null : entry);
-                      }
-                    }}
-                  >
-                    <td className="px-4 py-3 text-[var(--color-text)] whitespace-nowrap">
-                      {formatDate(entry.createdAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[var(--color-text)]">{entry.userEmail ?? 'System'}</span>
-                        {entry.userRole && (
-                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${ROLE_COLORS[entry.userRole] ?? 'bg-gray-100 text-gray-600'}`}>
-                            {entry.userRole}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-[var(--color-text)]">
-                      <div className="flex items-center gap-2">
-                        {entry.source && (
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${SOURCE_BADGE[entry.source].cls}`}
-                            title={`Source: ${entry.source}`}
-                          >
-                            {SOURCE_BADGE[entry.source].label}
-                          </span>
-                        )}
-                        <span className="font-mono text-xs">
-                          {ACTION_LABELS[entry.action] ?? entry.action}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-[var(--color-text-secondary)]">{entry.entityType}</span>
-                      {entry.entityId && (
-                        <span className="text-xs text-[var(--color-text-secondary)] ml-1 font-mono">
-                          {entry.entityId.slice(0, 8)}...
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-[var(--color-text-secondary)] font-mono text-xs">{entry.ipAddress ?? '—'}</td>
-                    <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                      {selectedEntry?.id === entry.id ? '▲' : '▼'}
-                    </td>
-                  </tr>
-                ))}
+                {entries.map((entry) => {
+                  const expanded = selectedEntry?.id === entry.id;
+                  return (
+                    <tr
+                      key={`${entry.source ?? 'audit_log'}-${entry.id}`}
+                      tabIndex={0}
+                      aria-expanded={expanded}
+                      className="cursor-pointer border-b border-[var(--color-border)] transition-colors hover:bg-[var(--color-bg)]"
+                      onClick={() => setSelectedEntry(expanded ? null : entry)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedEntry(expanded ? null : entry);
+                        }
+                      }}
+                    >
+                      <td className="whitespace-nowrap px-4 py-3 text-[var(--color-text)]">{formatDate(entry.createdAt)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[var(--color-text)]">{entry.userEmail || 'System'}</span>
+                          {entry.userRole && (
+                            <span className={`rounded px-2 py-1 text-xs font-medium ${ROLE_COLORS[entry.userRole] ?? 'bg-gray-100 text-gray-600'}`}>
+                              {humanizeSlug(entry.userRole)}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col items-start gap-2">
+                          <SourceBadge entry={entry} />
+                          <span className="font-medium text-[var(--color-text)]">{actionLabel(entry.action)}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3"><EntityLink entry={entry} /></td>
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--color-text-secondary)]">{entry.ipAddress || 'Not recorded'}</td>
+                      <td className="px-4 py-3 text-[var(--color-text-secondary)]">
+                        {expanded ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+          </Card>
+
+          <div className="grid gap-3 lg:hidden">
+            {entries.map((entry) => {
+              const expanded = selectedEntry?.id === entry.id;
+              return (
+                <button
+                  key={`${entry.source ?? 'audit_log'}-${entry.id}`}
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() => setSelectedEntry(expanded ? null : entry)}
+                  className="min-h-11 rounded-lg border border-[var(--color-border)] bg-white p-4 text-left"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <SourceBadge entry={entry} />
+                      <p className="font-semibold text-[var(--color-text)]">{actionLabel(entry.action)}</p>
+                      <p className="text-sm text-[var(--color-text-secondary)]">
+                        {humanizeSlug(entry.entityType)}{entry.entityId ? ` · ${shortId(entry.entityId)}` : ''}
+                      </p>
+                    </div>
+                    {expanded ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border)] pt-3 text-xs text-[var(--color-text-secondary)]">
+                    <span>{entry.userEmail || 'System'}</span>
+                    <span>{formatDate(entry.createdAt)}</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
-          {selectedEntry && (
-            <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-6">
-              <h3 className="font-semibold text-[var(--color-text)] mb-3">Entry Details</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-[var(--color-text-secondary)]">Entry ID:</span>
-                  <p className="font-mono text-[var(--color-text)]">{selectedEntry.id}</p>
-                </div>
-                <div>
-                  <span className="text-[var(--color-text-secondary)]">User ID:</span>
-                  <p className="font-mono text-[var(--color-text)]">{selectedEntry.userId ?? 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="text-[var(--color-text-secondary)]">User Agent:</span>
-                  <p className="text-[var(--color-text)] text-xs break-all">{selectedEntry.userAgent ?? 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="text-[var(--color-text-secondary)]">Full Action:</span>
-                  <p className="font-mono text-[var(--color-text)]">{selectedEntry.action}</p>
-                </div>
-              </div>
-              {selectedEntry.reason && (
-                <div className="mt-4">
-                  <span className="text-[var(--color-text-secondary)] text-sm">Reason:</span>
-                  <p className="mt-1 text-[var(--color-text)] text-sm bg-amber-50 border border-amber-200 rounded p-3">
-                    {selectedEntry.reason}
-                  </p>
-                </div>
-              )}
-              {(selectedEntry.oldValues || selectedEntry.newValues) && (
-                <div className="mt-4 grid grid-cols-2 gap-4">
-                  {selectedEntry.oldValues && (
-                    <div>
-                      <span className="text-[var(--color-text-secondary)] text-sm">Old Values:</span>
-                      <pre className="mt-1 bg-[var(--color-bg)] rounded p-3 text-xs font-mono overflow-auto max-h-40">
-                        {JSON.stringify(selectedEntry.oldValues, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                  {selectedEntry.newValues && (
-                    <div>
-                      <span className="text-[var(--color-text-secondary)] text-sm">New Values:</span>
-                      <pre className="mt-1 bg-[var(--color-bg)] rounded p-3 text-xs font-mono overflow-auto max-h-40">
-                        {JSON.stringify(selectedEntry.newValues, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+          {selectedEntry && <EntryDetails entry={selectedEntry} />}
 
           {pagination && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between">
+            <nav className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Audit timeline pages">
               <p className="text-sm text-[var(--color-text-secondary)]">
                 Page {pagination.page} of {pagination.totalPages}
               </p>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                  className="px-4 py-2 border border-[var(--color-border)] rounded-lg text-sm disabled:opacity-40 hover:bg-[var(--color-bg)] transition-colors"
-                >
+                <Button type="button" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                   Previous
-                </button>
-                <button
-                  type="button"
-                  disabled={page >= pagination.totalPages}
-                  onClick={() => setPage(page + 1)}
-                  className="px-4 py-2 border border-[var(--color-border)] rounded-lg text-sm disabled:opacity-40 hover:bg-[var(--color-bg)] transition-colors"
-                >
+                </Button>
+                <Button type="button" variant="outline" disabled={page >= pagination.totalPages} onClick={() => setPage(page + 1)}>
                   Next
-                </button>
+                </Button>
               </div>
-            </div>
+            </nav>
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function EntryDetails({ entry }: { entry: AuditEntry }): React.ReactElement {
+  const destination = entityDestination(entry);
+  const exactTimeline = exactEntityTimeline(entry);
+  const outlineLink = buttonVariants({ variant: 'outline' });
+  return (
+    <Card className="p-4 md:p-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-secondary)]">Selected event</p>
+          <h2 className="mt-1 text-lg font-semibold text-[var(--color-text)]">{actionLabel(entry.action)}</h2>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{formatDate(entry.createdAt)} · Manila time</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {destination && (
+            <Link to={destination.to} className={outlineLink}>
+              {destination.label} <ExternalLink size={15} aria-hidden="true" />
+            </Link>
+          )}
+          {exactTimeline && (
+            <Link to={exactTimeline} className={outlineLink}>Only this record</Link>
+          )}
+          {entry.userId && UUID_REGEX.test(entry.userId) && (
+            <Link to={`/audit-log?userId=${encodeURIComponent(entry.userId)}`} className={outlineLink}>
+              Only this actor
+            </Link>
+          )}
+        </div>
+      </div>
+
+      <dl className="mt-5 grid grid-cols-1 gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
+        <DetailField label="Entry ID" value={entry.id} mono />
+        <DetailField label="Actor ID" value={entry.userId || 'System'} mono={Boolean(entry.userId)} />
+        <DetailField label="Full action" value={entry.action} mono />
+        <DetailField label="Source" value={SOURCE_BADGE[entry.source ?? 'audit_log'].label} />
+        <DetailField label="Record type" value={humanizeSlug(entry.entityType)} />
+        <DetailField label="Record ID" value={entry.entityId || 'Not recorded'} mono={Boolean(entry.entityId)} />
+        <DetailField label="Masked network" value={entry.ipAddress || 'Not recorded'} mono />
+        <DetailField label="Client" value={entry.userAgent || 'Not recorded'} />
+      </dl>
+
+      {entry.reason && (
+        <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Recorded reason</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-amber-950">{entry.reason}</p>
+        </div>
+      )}
+
+      {(entry.oldValues || entry.newValues) && (
+        <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {entry.oldValues && <JsonPanel label="Before" value={entry.oldValues} />}
+          {entry.newValues && <JsonPanel label="After / details" value={entry.newValues} />}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function DetailField({ label, value, mono = false }: { label: string; value: string; mono?: boolean }): React.ReactElement {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-secondary)]">{label}</dt>
+      <dd className={`mt-1 break-all text-[var(--color-text)] ${mono ? 'font-mono text-xs' : ''}`}>{value}</dd>
+    </div>
+  );
+}
+
+function JsonPanel({ label, value }: { label: string; value: Record<string, unknown> }): React.ReactElement {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-secondary)]">{label}</p>
+      <pre className="mt-1 max-h-72 overflow-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 font-mono text-xs text-[var(--color-text)]">
+        {JSON.stringify(value, null, 2)}
+      </pre>
     </div>
   );
 }

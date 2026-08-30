@@ -5,8 +5,8 @@
  * Auth: every endpoint requires admin or super_admin.
  * Generate / finalize / regenerate / run / acknowledge writes are super_admin only.
  *
- * Audit: writes are captured globally by `auditMiddleware`, and the underlying
- *        services additionally insert paired `admin_actions` rows.
+ * Audit: coverage is action-specific. The global middleware is not mounted;
+ *        E37 tracks the gap. Service-written `admin_actions` remain canonical.
  */
 
 import { Router, Response, NextFunction } from 'express';

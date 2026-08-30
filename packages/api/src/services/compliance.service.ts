@@ -3,7 +3,8 @@
  *
  * Pure, hermetic-friendly functions wrapping the consent_records and
  * data_subject_requests tables (migration 057). Plus utility helpers:
- *   - exportAuditLogCsv: streams a CSV of audit_log rows (RFC 4180).
+ *   - exportAuditLogCsv: exports the same audit_log + admin_actions timeline
+ *     shown in Admin Audit Log (RFC 4180).
  *   - getBirCalendar: fail-closed until an accountant approves the taxpayer
  *     profile and current filing schedule (E22).
  *   - getDsrAlerts: DSRs due in <= 2 days, used by dashboard.
@@ -17,6 +18,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { neutralizeCsvFormula } from '../utils/csv';
+import { maskPiiInObject, maskPiiInString, type Json } from '../utils/pii-mask';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -87,6 +89,7 @@ interface DsrRow {
 
 interface AuditLogExportRow {
   id: string;
+  source: 'audit_log' | 'admin_actions';
   created_at: Date;
   user_email: string | null;
   user_role: string | null;
@@ -96,6 +99,7 @@ interface AuditLogExportRow {
   ip_address: string | null;
   old_values: unknown;
   new_values: unknown;
+  reason: string | null;
 }
 
 const VALID_REQUEST_TYPES: ReadonlySet<DsrRequestType> = new Set([
@@ -736,7 +740,7 @@ export async function updateDsrStatus(input: {
 // Audit log CSV export
 // ─────────────────────────────────────────────────────────────────
 
-const CSV_HEADER = 'id,createdAt,userEmail,userRole,action,entityType,entityId,ipAddress,oldValues,newValues';
+const CSV_HEADER = 'id,source,createdAt,userEmail,userRole,action,entityType,entityId,ipAddress,reason,oldValues,newValues';
 
 function csvEscape(value: unknown): string {
   if (value === null || value === undefined) return '';
@@ -749,12 +753,10 @@ function csvEscape(value: unknown): string {
 }
 
 /**
- * MED-N44 fix — viewerRole-aware PII masking on email + ip_address
- * before serializing to CSV. Pre-fix the export returned raw email +
- * raw IP regardless of which admin tier called the endpoint, which
- * undermined the maskPiiForRole pattern enforced everywhere else
- * (Bug 66 family). Junior admins now see masked email + masked IP;
- * super_admin / dpo see the full values.
+ * MED-N44 + W12 — CSV is an operations index, not a bulk PII reveal.
+ * Email, IP, free-text reasons, and nested old/new JSON remain masked for
+ * every role. A raw value must be opened through a record-scoped audited
+ * reveal path, never exported as a whole-timeline shortcut.
  *
  * MED-N45 fix — exportAuditLogCsvStream emits a NodeJS.ReadableStream
  * via async-iterator semantics so the CSV is not built fully in
@@ -765,10 +767,9 @@ function csvEscape(value: unknown): string {
 
 function maskEmailForRole(
   email: string | null | undefined,
-  role: string | null | undefined,
+  _role: string | null | undefined,
 ): string {
   if (!email) return '';
-  if (role === 'super_admin' || role === 'dpo') return email;
   // Mask: keep first char + first char of domain.
   const [local, domain] = email.split('@');
   if (!local || !domain) return '***';
@@ -778,10 +779,9 @@ function maskEmailForRole(
 
 function maskIpForRole(
   ip: string | null | undefined,
-  role: string | null | undefined,
+  _role: string | null | undefined,
 ): string {
   if (!ip) return '';
-  if (role === 'super_admin' || role === 'dpo') return ip;
   // Mask trailing octet for IPv4 (1.2.3.4 → 1.2.3.x); for IPv6 keep
   // first 4 hextets.
   const trimmed = ip.trim();
@@ -800,6 +800,8 @@ interface ExportAuditFilter {
   userId?: string;
   action?: string;
   entityType?: string;
+  entityId?: string;
+  source?: 'audit_log' | 'admin_actions';
   from?: string;
   to?: string;
   limit?: number;
@@ -807,21 +809,44 @@ interface ExportAuditFilter {
   viewerRole?: string;
 }
 
+const AUDIT_TIMELINE_RELATION = `
+  SELECT 'audit_log'::text AS source,
+         id, user_id, action, entity_type, entity_id,
+         old_values, new_values, ip_address::text AS ip_address,
+         NULL::text AS reason, created_at
+    FROM audit_log
+  UNION ALL
+  SELECT 'admin_actions'::text AS source,
+         id, admin_id AS user_id, action_type AS action,
+         target_type AS entity_type, target_id AS entity_id,
+         NULL::jsonb AS old_values, details AS new_values,
+         NULL::text AS ip_address, reason, created_at
+    FROM admin_actions
+`;
+
 function buildExportWhere(filter: ExportAuditFilter): { whereSql: string; params: unknown[] } {
   const where: string[] = [];
   const params: unknown[] = [];
 
   if (filter.userId) {
     params.push(filter.userId);
-    where.push(`al.user_id = $${params.length}`);
+    where.push(`combined.user_id = $${params.length}`);
   }
   if (filter.action) {
     params.push(`%${filter.action}%`);
-    where.push(`al.action ILIKE $${params.length}`);
+    where.push(`combined.action ILIKE $${params.length}`);
   }
   if (filter.entityType) {
     params.push(filter.entityType);
-    where.push(`al.entity_type = $${params.length}`);
+    where.push(`combined.entity_type = $${params.length}`);
+  }
+  if (filter.entityId) {
+    params.push(filter.entityId);
+    where.push(`combined.entity_id = $${params.length}`);
+  }
+  if (filter.source) {
+    params.push(filter.source);
+    where.push(`combined.source = $${params.length}`);
   }
   // BUG-PHASE133-01 fix (CSV export) — same Manila-anchored half-open
   // interval as the audit-log listing route. Both surfaces share the
@@ -829,11 +854,11 @@ function buildExportWhere(filter: ExportAuditFilter): { whereSql: string; params
   // YYYY-MM-DD `from`/`to` query params to both endpoints).
   if (filter.from) {
     params.push(filter.from);
-    where.push(`al.created_at >= ($${params.length}::date AT TIME ZONE 'Asia/Manila')`);
+    where.push(`combined.created_at >= ($${params.length}::date AT TIME ZONE 'Asia/Manila')`);
   }
   if (filter.to) {
     params.push(filter.to);
-    where.push(`al.created_at < (($${params.length}::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`);
+    where.push(`combined.created_at < (($${params.length}::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`);
   }
 
   return {
@@ -843,8 +868,15 @@ function buildExportWhere(filter: ExportAuditFilter): { whereSql: string; params
 }
 
 function rowToCsvLine(r: AuditLogExportRow, viewerRole?: string): string {
+  const oldValues = r.old_values === null || r.old_values === undefined
+    ? ''
+    : JSON.stringify(maskPiiInObject(r.old_values as Json));
+  const newValues = r.new_values === null || r.new_values === undefined
+    ? ''
+    : JSON.stringify(maskPiiInObject(r.new_values as Json));
   return [
     csvEscape(r.id),
+    csvEscape(r.source),
     csvEscape(r.created_at.toISOString()),
     csvEscape(maskEmailForRole(r.user_email, viewerRole)),
     csvEscape(r.user_role),
@@ -852,8 +884,9 @@ function rowToCsvLine(r: AuditLogExportRow, viewerRole?: string): string {
     csvEscape(r.entity_type),
     csvEscape(r.entity_id),
     csvEscape(maskIpForRole(r.ip_address, viewerRole)),
-    csvEscape(r.old_values === null || r.old_values === undefined ? '' : JSON.stringify(r.old_values)),
-    csvEscape(r.new_values === null || r.new_values === undefined ? '' : JSON.stringify(r.new_values)),
+    csvEscape(r.reason ? maskPiiInString(r.reason) : ''),
+    csvEscape(oldValues),
+    csvEscape(newValues),
   ].join(',');
 }
 
@@ -862,15 +895,15 @@ export async function exportAuditLogCsv(filter: ExportAuditFilter): Promise<stri
   const limit = Math.max(1, Math.min(50000, filter.limit ?? 10000));
 
   const result = await db.query<AuditLogExportRow>(
-    `SELECT al.id, al.created_at,
+    `SELECT combined.id, combined.source, combined.created_at,
             u.email AS user_email, u.role AS user_role,
-            al.action, al.entity_type, al.entity_id,
-            al.ip_address::text AS ip_address,
-            al.old_values, al.new_values
-       FROM audit_log al
-       LEFT JOIN users u ON u.id = al.user_id
+            combined.action, combined.entity_type, combined.entity_id,
+            combined.ip_address, combined.reason,
+            combined.old_values, combined.new_values
+       FROM (${AUDIT_TIMELINE_RELATION}) combined
+       LEFT JOIN users u ON u.id = combined.user_id
        ${whereSql}
-      ORDER BY al.created_at DESC
+      ORDER BY combined.created_at DESC, combined.id DESC
       LIMIT ${limit}`,
     params,
   );
@@ -908,15 +941,15 @@ export async function* exportAuditLogCsvStream(
     const remaining = totalLimit - yielded;
     const take = Math.min(batchSize, remaining);
     const result = await db.query<AuditLogExportRow>(
-      `SELECT al.id, al.created_at,
+      `SELECT combined.id, combined.source, combined.created_at,
               u.email AS user_email, u.role AS user_role,
-              al.action, al.entity_type, al.entity_id,
-              al.ip_address::text AS ip_address,
-              al.old_values, al.new_values
-         FROM audit_log al
-         LEFT JOIN users u ON u.id = al.user_id
+              combined.action, combined.entity_type, combined.entity_id,
+              combined.ip_address, combined.reason,
+              combined.old_values, combined.new_values
+         FROM (${AUDIT_TIMELINE_RELATION}) combined
+         LEFT JOIN users u ON u.id = combined.user_id
          ${whereSql}
-        ORDER BY al.created_at DESC
+        ORDER BY combined.created_at DESC, combined.id DESC
         LIMIT ${take} OFFSET ${offset}`,
       params,
     );

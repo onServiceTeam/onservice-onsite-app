@@ -459,13 +459,14 @@ describe('exportAuditLogCsv', () => {
     const csv = await svc.exportAuditLogCsv({});
     const firstLine = csv.split(/\r?\n/)[0];
     expect(firstLine).toBe(
-      'id,createdAt,userEmail,userRole,action,entityType,entityId,ipAddress,oldValues,newValues',
+      'id,source,createdAt,userEmail,userRole,action,entityType,entityId,ipAddress,reason,oldValues,newValues',
     );
   });
 
-  it('MED-N44 — escapes commas + JSON for super_admin viewer (sees full PII)', async () => {
+  it('MED-N44 — bulk export masks PII even for a super_admin viewer', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([{
       id: 'al-1',
+      source: 'audit_log',
       created_at: new Date('2026-04-01T12:34:56Z'),
       user_email: 'jane,smith@example.com',
       user_role: 'admin',
@@ -474,15 +475,17 @@ describe('exportAuditLogCsv', () => {
       entity_id: 'cfg-1',
       ip_address: '203.0.113.1',
       old_values: { name: 'old "name"' },
-      new_values: { name: 'new' },
+      new_values: { name: 'new', email: 'person@example.com' },
+      reason: 'Requested by jane,smith@example.com',
     }]));
-    // MED-N44 fix — pass viewerRole='super_admin' so PII is unmasked.
     const csv = await svc.exportAuditLogCsv({ viewerRole: 'super_admin' });
     const lines = csv.split(/\r?\n/);
     expect(lines).toHaveLength(2);
-    const dataLine = lines[1];
-    // email contains comma → must be wrapped
-    expect(dataLine).toContain('"jane,smith@example.com"');
+    const dataLine = lines[1]!;
+    expect(dataLine).toContain('j***@e***');
+    expect(dataLine).toContain('203.0.113.x');
+    expect(dataLine).not.toContain('jane,smith@example.com');
+    expect(dataLine).not.toContain('person@example.com');
     // old_values JSON contains quotes → wrapped + doubled
     expect(dataLine).toContain('"{""name"":""old \\""name\\""""}"');
     expect(dataLine).toContain('al-1');
@@ -492,6 +495,7 @@ describe('exportAuditLogCsv', () => {
   it('MED-N44 — junior admin viewer gets masked email + masked IP', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([{
       id: 'al-1',
+      source: 'audit_log',
       created_at: new Date('2026-04-01T12:34:56Z'),
       user_email: 'jane@example.com',
       user_role: 'admin',
@@ -499,6 +503,7 @@ describe('exportAuditLogCsv', () => {
       entity_type: 'config',
       entity_id: 'cfg-1',
       ip_address: '203.0.113.1',
+      reason: null,
       old_values: null,
       new_values: null,
     }]));
@@ -518,24 +523,38 @@ describe('exportAuditLogCsv', () => {
     dbQueryMock.mockResolvedValueOnce(rows([]));
     await svc.exportAuditLogCsv({
       userId: USER_ID, action: 'login', entityType: 'user',
+      entityId: DSR_ID, source: 'admin_actions',
       from: '2026-01-01', to: '2026-12-31',
     });
     const sql = dbQueryMock.mock.calls[0][0] as string;
     const params = dbQueryMock.mock.calls[0][1] as unknown[];
     expect(sql).toMatch(/WHERE/);
-    expect(sql).toMatch(/al\.user_id = \$1/);
-    expect(sql).toMatch(/al\.action ILIKE \$2/);
-    expect(sql).toMatch(/al\.entity_type = \$3/);
+    expect(sql).toMatch(/combined\.user_id = \$1/);
+    expect(sql).toMatch(/combined\.action ILIKE \$2/);
+    expect(sql).toMatch(/combined\.entity_type = \$3/);
+    expect(sql).toMatch(/combined\.entity_id = \$4/);
+    expect(sql).toMatch(/combined\.source = \$5/);
     // BUG-PHASE133-01 — pre-fix asserted the broken `>= $4` / `<= $5`
     // pattern that interpreted YYYY-MM-DD as UTC midnight, missing
     // the 00:00-08:00 Manila slice on from-day and excluding 16
     // hours (08:00-23:59 Manila) on the to-day. Now Manila-anchored
     // half-open interval.
-    expect(sql).toMatch(/al\.created_at >= \(\$4::date AT TIME ZONE 'Asia\/Manila'\)/);
+    expect(sql).toMatch(/combined\.created_at >= \(\$6::date AT TIME ZONE 'Asia\/Manila'\)/);
     expect(sql).toMatch(
-      /al\.created_at < \(\(\$5::date \+ INTERVAL '1 day'\) AT TIME ZONE 'Asia\/Manila'\)/,
+      /combined\.created_at < \(\(\$7::date \+ INTERVAL '1 day'\) AT TIME ZONE 'Asia\/Manila'\)/,
     );
-    expect(params).toEqual([USER_ID, '%login%', 'user', '2026-01-01', '2026-12-31']);
+    expect(params).toEqual([
+      USER_ID, '%login%', 'user', DSR_ID, 'admin_actions', '2026-01-01', '2026-12-31',
+    ]);
+  });
+
+  it('W12 — exports both recorded sources through the same timeline relation', async () => {
+    dbQueryMock.mockResolvedValueOnce(rows([]));
+    await svc.exportAuditLogCsv({});
+    const sql = dbQueryMock.mock.calls[0][0] as string;
+    expect(sql).toMatch(/FROM audit_log/);
+    expect(sql).toMatch(/UNION ALL/);
+    expect(sql).toMatch(/FROM admin_actions/);
   });
 
   it('omits WHERE when no filters', async () => {
@@ -547,6 +566,7 @@ describe('exportAuditLogCsv', () => {
   it('emits empty fields for null old/new values', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([{
       id: 'al-2',
+      source: 'admin_actions',
       created_at: new Date('2026-04-01T00:00:00Z'),
       user_email: null,
       user_role: null,
@@ -554,6 +574,7 @@ describe('exportAuditLogCsv', () => {
       entity_type: 'y',
       entity_id: null,
       ip_address: null,
+      reason: null,
       old_values: null,
       new_values: null,
     }]));

@@ -48,7 +48,7 @@ describe('AuditLogPage support-message terminology', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText('Booking support message sent')).toBeInTheDocument();
+    expect((await screen.findAllByText('Booking support message sent')).length).toBeGreaterThan(0);
     expect(screen.queryByText('Admin message sent to customer')).not.toBeInTheDocument();
   });
 });

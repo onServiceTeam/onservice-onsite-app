@@ -18,6 +18,15 @@ import * as slotWaitlistService from '../services/slot-waitlist.service';
 import * as dataManagementService from '../services/data-management.service';
 import * as securityService from '../services/security.service';
 import * as adminAnalyticsService from '../services/admin-analytics.service';
+import { parseAuditTimelineListQuery } from '../validators/admin-audit-log.validators';
+import {
+  maskEmail,
+  maskIp,
+  maskPiiInObject,
+  maskPiiInString,
+  maskUserAgent,
+  type Json,
+} from '../utils/pii-mask';
 
 const router = Router();
 
@@ -1728,7 +1737,8 @@ router.get(
 // --- Audit Log ---
 //
 // Backed by a UNION ALL across two tables:
-//   * audit_log     — generic per-request log (any user, any action).
+//   * audit_log     — selected explicitly recorded system events. The generic
+//                     request middleware is not mounted; E37 tracks the gap.
 //   * admin_actions — privileged actions (staff_added/removed,
 //                     consent_version_published, dsr_*, service_area_*,
 //                     promotion_*, notification_template_*, etc.).
@@ -1763,8 +1773,8 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 50));
+      const parsed = parseAuditTimelineListQuery(req.query as Record<string, unknown>);
+      const { page, pageSize } = parsed;
       const offset = (page - 1) * pageSize;
 
       // Filters are applied to the unioned subquery via an outer
@@ -1773,17 +1783,21 @@ router.get(
       const params: unknown[] = [];
       let paramIdx = 1;
 
-      if (req.query.userId && typeof req.query.userId === 'string') {
+      if (parsed.userId) {
         filters.push(`combined.user_id = $${paramIdx++}`);
-        params.push(req.query.userId);
+        params.push(parsed.userId);
       }
-      if (req.query.action && typeof req.query.action === 'string') {
+      if (parsed.action) {
         filters.push(`combined.action ILIKE $${paramIdx++}`);
-        params.push(`%${req.query.action}%`);
+        params.push(`%${parsed.action}%`);
       }
-      if (req.query.entityType && typeof req.query.entityType === 'string') {
+      if (parsed.entityType) {
         filters.push(`combined.entity_type = $${paramIdx++}`);
-        params.push(req.query.entityType);
+        params.push(parsed.entityType);
+      }
+      if (parsed.entityId) {
+        filters.push(`combined.entity_id = $${paramIdx++}`);
+        params.push(parsed.entityId);
       }
       // BUG-PHASE133-01 fix — pre-fix passed YYYY-MM-DD strings
       // directly to a timestamptz comparison, so Pg interpreted them
@@ -1796,18 +1810,17 @@ router.get(
       // `< manila_midnight(date + 1day)` (half-open, includes whole
       // to-day Manila). Same Manila TZ correction shape as Phases
       // 109/113/117/119/122/123/124/129/130/132.
-      if (req.query.from && typeof req.query.from === 'string') {
+      if (parsed.from) {
         filters.push(`combined.created_at >= ($${paramIdx++}::date AT TIME ZONE 'Asia/Manila')`);
-        params.push(req.query.from);
+        params.push(parsed.from);
       }
-      if (req.query.to && typeof req.query.to === 'string') {
+      if (parsed.to) {
         filters.push(`combined.created_at < (($${paramIdx++}::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`);
-        params.push(req.query.to);
+        params.push(parsed.to);
       }
-      if (req.query.source && typeof req.query.source === 'string') {
-        // 'audit_log' | 'admin_actions' — restrict to a single stream.
+      if (parsed.source) {
         filters.push(`combined.source = $${paramIdx++}`);
-        params.push(req.query.source);
+        params.push(parsed.source);
       }
 
       const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
@@ -1847,7 +1860,7 @@ router.get(
            FROM (${baseRelation}) combined
            LEFT JOIN users u ON u.id = combined.user_id
          ${whereClause}
-         ORDER BY combined.created_at DESC
+         ORDER BY combined.created_at DESC, combined.id DESC
          LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
         [...params, pageSize, offset],
       );
@@ -1858,16 +1871,20 @@ router.get(
           id: r.id,
           source: r.source,
           userId: r.user_id,
-          userEmail: r.user_email,
+          // The timeline is an operations index, not a bulk PII reveal.
+          // Contact, network data, free-text reasons, and nested JSON remain
+          // masked for every role. Operators use the audited 360 reveal path
+          // when raw contact is genuinely required for one record.
+          userEmail: r.user_email ? maskEmail(r.user_email) : null,
           userRole: r.user_role,
           action: r.action,
           entityType: r.entity_type,
           entityId: r.entity_id,
-          oldValues: r.old_values,
-          newValues: r.new_values,
-          ipAddress: r.ip_address,
-          userAgent: r.user_agent,
-          reason: r.reason,
+          oldValues: r.old_values === null ? null : maskPiiInObject(r.old_values as Json),
+          newValues: r.new_values === null ? null : maskPiiInObject(r.new_values as Json),
+          ipAddress: r.ip_address ? maskIp(r.ip_address) : null,
+          userAgent: r.user_agent ? maskUserAgent(r.user_agent) : null,
+          reason: r.reason ? maskPiiInString(r.reason) : null,
           createdAt: r.created_at,
         })),
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },

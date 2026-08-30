@@ -6,8 +6,8 @@
  * `resolve` and `reopen` are super_admin only because they move money or
  * reverse a settled financial event.
  *
- * Audit: writes are captured globally by `auditMiddleware` and each service
- *        write also inserts a paired `admin_actions` row.
+ * Audit: coverage is action-specific. The global middleware is not mounted;
+ *        E37 tracks the gap. Service-written `admin_actions` remain canonical.
  */
 
 import { Router, Response, NextFunction } from 'express';

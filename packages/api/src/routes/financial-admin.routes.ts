@@ -5,8 +5,8 @@
  * Auth: every endpoint requires admin or super_admin.
  * Money-affecting writes (OR cancellation) are super_admin only.
  *
- * Audit: writes are captured globally by `auditMiddleware` (POST/PUT/PATCH/DELETE),
- *        and `or.service.cancelOR` writes its own paired `admin_actions` row.
+ * Audit: coverage is action-specific. The global middleware is not mounted;
+ *        E37 tracks the gap. `or.service.cancelOR` writes `admin_actions`.
  */
 
 import { Router, Response, NextFunction } from 'express';

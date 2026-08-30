@@ -9,6 +9,7 @@ import { requireDpoRole } from '../middleware/require-dpo.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import * as compliance from '../services/compliance.service';
 import * as complianceAdmin from '../services/compliance-admin.service';
+import { parseAuditTimelineExportQuery } from '../validators/admin-audit-log.validators';
 
 const router = Router();
 
@@ -201,21 +202,19 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const filters = {
-        userId: parseString(req.query.userId),
-        action: parseString(req.query.action),
-        entityType: parseString(req.query.entityType),
-        from: parseString(req.query.from),
-        to: parseString(req.query.to),
-        limit: parseInt32(req.query.limit),
-      };
-      const csv = await compliance.exportAuditLogCsv(filters);
+      const filters = parseAuditTimelineExportQuery(req.query as Record<string, unknown>);
+      const csv = await compliance.exportAuditLogCsv({
+        ...filters,
+        viewerRole: req.user!.role,
+      });
 
       // Phase 14 Dispatch 08 — Bug 401. Audit-log CSV exports are
       // themselves audit-logged. Without this, an admin can extract
       // the full audit trail with no record of the extraction.
       const { db } = await import('../models/db');
-      const rowCount = (csv.match(/\n/g) ?? []).length - 1; // subtract header
+      // The header has no trailing newline. Each newline therefore equals one
+      // exported data row; subtracting one under-counted every non-empty CSV.
+      const rowCount = (csv.match(/\r?\n/g) ?? []).length;
       // BUG-PHASE24-13 fix: admin_actions.target_id is NOT NULL. The
       // export is system-wide (no concrete entity), so use the admin's
       // own id as a self-targeted audit row. target_type was 'system'

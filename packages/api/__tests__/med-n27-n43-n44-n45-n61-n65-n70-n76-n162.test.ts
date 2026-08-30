@@ -115,18 +115,36 @@ describe('MED-N43 — updateDsrStatus only stamps completed_at on FULFILLED tran
   });
 });
 
-describe('MED-N44 — exportAuditLogCsv masks PII for non-elevated viewers', () => {
-  it('MED-N44 — maskEmailForRole + maskIpForRole helpers exist', () => {
-    expect(COMPLIANCE_SVC).toMatch(/function maskEmailForRole\(/);
-    expect(COMPLIANCE_SVC).toMatch(/function maskIpForRole\(/);
-  });
-  it('MED-N44 — super_admin and dpo see full PII; others get masked', () => {
-    expect(COMPLIANCE_SVC).toMatch(/role === 'super_admin' \|\| role === 'dpo'/);
-  });
-  it('MED-N44 — IPv4 mask drops trailing octet', () => {
-    const start = COMPLIANCE_SVC.indexOf('function maskIpForRole(');
-    const body = COMPLIANCE_SVC.slice(start, start + 800);
-    expect(body).toMatch(/parts\[0\]\}\.\$\{parts\[1\]\}\.\$\{parts\[2\]\}\.x/);
+describe('MED-N44 — exportAuditLogCsv masks bulk PII for every viewer', () => {
+  it('MED-N44 — ordinary and elevated exports both mask email and network data', async () => {
+    dbQueryMock.mockResolvedValue({
+      rows: [{
+        id: '11111111-1111-4111-8111-111111111111',
+        source: 'audit_log',
+        created_at: new Date('2026-08-30T12:00:00.000Z'),
+        user_email: 'person@example.com',
+        user_role: 'admin',
+        action: 'record_viewed',
+        entity_type: 'booking',
+        entity_id: '22222222-2222-4222-8222-222222222222',
+        ip_address: '203.0.113.19',
+        old_values: null,
+        new_values: null,
+        reason: null,
+      }],
+      rowCount: 1,
+    });
+    const { exportAuditLogCsv } = await import('../src/services/compliance.service');
+
+    const ordinaryCsv = await exportAuditLogCsv({ viewerRole: 'admin' });
+    const elevatedCsv = await exportAuditLogCsv({ viewerRole: 'super_admin' });
+
+    for (const csv of [ordinaryCsv, elevatedCsv]) {
+      expect(csv).toContain('p***@e***');
+      expect(csv).toContain('203.0.113.x');
+      expect(csv).not.toContain('person@example.com');
+      expect(csv).not.toContain('203.0.113.19');
+    }
   });
 });
 

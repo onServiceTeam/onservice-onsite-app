@@ -1719,3 +1719,24 @@ three-field server check as complete KYC enforcement. Tightening the predicate
 requires the E32-blocked aggregate production audit so existing pending and
 approved records are not stranded without a deliberate legacy path. See
 `.ai-coder/escalations/E36-provider-approval-does-not-enforce-government-id-back-2026-08-30.md`.
+
+---
+
+## 54. The Admin Audit Log is not a complete correlated activity trail
+
+The middleware previously described as globally capturing every write is not
+mounted by the API. Its failure metrics are not exposed, and `audit_log` rows do
+not populate the available `request_id` field. The visible timeline combines
+selected explicit `audit_log` events with selected `admin_actions`; it cannot
+prove that every customer, provider, staff, support, booking, payment, payout,
+dispute, work-order, or admin mutation was recorded.
+
+W12 makes that boundary visible, keeps the list and masked CSV export on the
+same two-source/filter contract, and removes false global-coverage comments. Do
+not mount the existing middleware as a shortcut: it writes after the response,
+lacks outcome and correlation semantics, and can duplicate explicit domain
+events. A replacement needs a canonical event contract, transactional evidence
+rules, durable operational telemetry, privacy controls, integrity/retention,
+monitoring, recovery, and executed failure tests. E32 separately blocks the
+required production aggregate inspection. See
+`.ai-coder/escalations/E37-audit-request-stream-is-not-global-or-correlated-2026-08-30.md`.

@@ -2,14 +2,14 @@
 //
 // Renders the page with a stubbed api response containing one row from
 // each source stream and asserts:
-//   1. The "request" + "admin op" badges render correctly.
+//   1. The truthful "System event" + "Admin decision" badges render.
 //   2. ACTION_LABELS rewrites known admin action types to friendly text.
 //   3. Unknown action strings pass through verbatim.
 //   4. The source filter dropdown is present.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -74,16 +74,15 @@ function withProviders(child: React.ReactElement): React.ReactElement {
 }
 
 describe('LL#5 admin audit timeline — source discriminator + action labels', () => {
-  it('renders both source badges (request + admin op)', async () => {
+  it('renders both source badges without claiming complete request coverage', async () => {
     const { container } = render(withProviders(<AuditLogPage />));
     await waitFor(() => {
       // Two rows in the body.
       const rows = container.querySelectorAll('tbody tr');
       expect(rows.length).toBeGreaterThanOrEqual(2);
     });
-    const text = container.textContent ?? '';
-    expect(text.toLowerCase()).toContain('request');
-    expect(text.toLowerCase()).toContain('admin op');
+    expect(screen.getAllByText('System event').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Admin decision').length).toBeGreaterThan(0);
   });
 
   it('rewrites known admin action types via ACTION_LABELS', async () => {

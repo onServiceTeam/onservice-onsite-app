@@ -5,7 +5,8 @@
  * Auth: every endpoint requires admin or super_admin.
  * Write endpoints that move money or affect compliance are super_admin only.
  *
- * Audit: writes are captured globally by `auditMiddleware` (POST/PUT/PATCH/DELETE).
+ * Audit: coverage is action-specific. The global middleware is not mounted;
+ * E37 tracks the missing complete and correlated write trail.
  */
 
 import { Router, Response, NextFunction } from 'express';
