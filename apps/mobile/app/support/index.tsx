@@ -85,8 +85,14 @@ export default function SupportInboxScreen(): React.ReactElement {
           <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
         ) : ticketsQuery.isError ? (
           <View style={styles.errorCard}>
-            <Text style={styles.errorText}>We could not load your requests. Pull to retry.</Text>
-            <TouchableOpacity onPress={() => ticketsQuery.refetch()}><Text style={styles.retryText}>Try again</Text></TouchableOpacity>
+            <Text style={styles.errorText}>We could not load your requests.</Text>
+            <TouchableOpacity
+              onPress={() => ticketsQuery.refetch()}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading support requests"
+            >
+              <Text style={styles.retryText}>Try again</Text>
+            </TouchableOpacity>
           </View>
         ) : tickets.length === 0 ? (
           <EmptyState

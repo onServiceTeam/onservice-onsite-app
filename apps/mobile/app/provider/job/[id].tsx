@@ -111,6 +111,7 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
     staleTime: 15 * 1000,
   });
   const linkedDispute = disputeQuery.data?.disputes[0];
+  const hasDisputeStatus = ['disputed', 'resolved'].includes(booking?.status ?? '');
   const providerTier = providerMeQuery.data?.tier;
 
   const statusMutation = useMutation({
@@ -263,7 +264,9 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
         <Text style={styles.earningsLabel}>Service Price</Text>
         <Text style={styles.earningsValue}>{formatPHP(booking.servicePrice)}</Text>
       </View>
-      {tierPct != null && commissionAmount != null && netEarnings != null && providerTier ? (
+      {providerMeQuery.isLoading ? (
+        <Skeleton width="100%" height={72} borderRadius={borderRadius.md} />
+      ) : tierPct != null && commissionAmount != null && netEarnings != null && providerTier ? (
         <>
           <View style={styles.earningsRow}>
             <Text style={styles.earningsLabel}>{`Platform commission (${tierPct}%)`}</Text>
@@ -279,14 +282,30 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           </Text>
         </>
       ) : (
-        <Text style={styles.earningsNote}>Net earnings preview is unavailable. Refresh before relying on a commission estimate.</Text>
+        <ErrorState
+          compact
+          title="Net earnings unavailable"
+          message="We couldn't load the live commission rate for this job."
+          onRetry={() => void providerMeQuery.refetch()}
+        />
       )}
     </Card>
   );
 
   const actionPanel = (
     <>
-      {linkedDispute && (
+      {hasDisputeStatus && disputeQuery.isLoading && (
+        <Skeleton width="100%" height={48} borderRadius={borderRadius.md} />
+      )}
+      {hasDisputeStatus && disputeQuery.isError && (
+        <ErrorState
+          compact
+          title="Dispute case unavailable"
+          message="This job is marked as disputed, but its support case could not be loaded."
+          onRetry={() => void disputeQuery.refetch()}
+        />
+      )}
+      {linkedDispute && !disputeQuery.isError && (
         <Button
           title={linkedDispute.providerRespondedAt ? 'View Dispute Case' : 'Respond to Dispute'}
           onPress={() => router.push(buildRoute(Routes.PROVIDER.DISPUTE_DETAIL, { id: linkedDispute.id }))}
@@ -428,10 +447,12 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           <ProofSummaryCard summary={proofSummaryQuery.data} audience="provider" />
         )}
         {proofSummaryQuery.isError && (
-          <View style={styles.proofError} accessibilityRole="alert">
-            <Text style={styles.proofErrorTitle}>Proof status unavailable</Text>
-            <Text style={styles.proofErrorText}>Refresh before relying on the completion checklist and photo count.</Text>
-          </View>
+          <ErrorState
+            compact
+            title="Proof status unavailable"
+            message="We couldn't verify the completion checklist and photo count for this job."
+            onRetry={() => void proofSummaryQuery.refetch()}
+          />
         )}
 
         {/* D27 Phase 2 — structured job details the customer answered on the

@@ -117,6 +117,8 @@ export default function ProviderPhotosScreen(): React.ReactElement {
     ? (booking?.providerBeforePhotos ?? [])
     : (booking?.providerAfterPhotos ?? []);
   const existingPhotos = Array.from(new Set([...canonicalPhotos, ...legacyForPhase]));
+  const sourceLoading = bookingLoading || photosQuery.isLoading;
+  const sourceError = bookingError || photosQuery.isError;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -129,7 +131,7 @@ export default function ProviderPhotosScreen(): React.ReactElement {
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={colors.primary} colors={[colors.primary]} />}
+        refreshControl={<RefreshControl refreshing={isRefetching || photosQuery.isRefetching} onRefresh={() => { void refetch(); void photosQuery.refetch(); }} tintColor={colors.primary} colors={[colors.primary]} />}
       >
         <View
           style={[styles.workspace, !isPhone && styles.workspaceWide]}
@@ -158,19 +160,21 @@ export default function ProviderPhotosScreen(): React.ReactElement {
           </View>
 
           <View style={styles.evidenceColumn}>
-            {bookingLoading && (
+            {sourceLoading ? (
               <View style={{ marginBottom: spacing.base }}>
                 <SkeletonCard />
               </View>
-            )}
-            {bookingError && (
+            ) : sourceError ? (
               <ErrorState
                 compact
-                message="We couldn't load this job's photos. Please check your connection and try again."
-                onRetry={() => void refetch()}
+                title={bookingError ? 'Job unavailable' : 'Photo history unavailable'}
+                message={bookingError
+                  ? "We couldn't confirm this job before changing its evidence."
+                  : "We couldn't load the canonical photo record. Upload controls are paused to prevent duplicate evidence."}
+                onRetry={() => { void refetch(); void photosQuery.refetch(); }}
               />
-            )}
-
+            ) : (
+            <>
             {existingPhotos.length > 0 && (
               <View style={styles.existingSection}>
                 <Text style={styles.existingLabel}>Already Uploaded ({existingPhotos.length})</Text>
@@ -224,6 +228,8 @@ export default function ProviderPhotosScreen(): React.ReactElement {
                   </Text>
                 )}
               </TouchableOpacity>
+            )}
+            </>
             )}
           </View>
         </View>

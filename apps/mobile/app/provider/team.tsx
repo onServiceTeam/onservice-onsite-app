@@ -224,7 +224,7 @@ export default function ProviderTeamScreen(): React.ReactElement {
         </View>
 
         <View style={styles.membersColumn}>
-        <Text style={styles.sectionLabel}>Team members ({members.length})</Text>
+        <Text style={styles.sectionLabel}>Team members ({isError ? '—' : members.length})</Text>
 
         {isLoading && (
           <View style={{ marginTop: spacing.base }}>
@@ -302,6 +302,8 @@ export default function ProviderTeamScreen(): React.ReactElement {
           </View>
         ))}
 
+        {!isError && (
+        <>
         <View style={styles.assignmentsHeader}>
           <View style={styles.assignmentsHeaderCopy}>
             <Text style={styles.sectionLabel}>Active assignments</Text>
@@ -352,6 +354,8 @@ export default function ProviderTeamScreen(): React.ReactElement {
               </TouchableOpacity>
             );
           })
+        )}
+        </>
         )}
         </View>
         </View>

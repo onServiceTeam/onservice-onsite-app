@@ -1,0 +1,125 @@
+# Provider, staff, and onboarding linkage audit, 2026-08-31
+
+## Outcome
+
+The provider stage now has repeatable browser evidence for its owner workspace,
+assigned-team-member workspace, shared support workspace, and the sequential
+provider application flow. The audit corrected 27 user-facing truth,
+recovery, contract, and accessibility defects numbered UX-579 through UX-605.
+
+This is repository and local-browser evidence. It is not a production
+deployment claim. E32 still blocks trusted SSH access and deployment to
+`46.62.207.225`, so the server was not changed in this wave.
+
+## Browser evidence
+
+| Matrix | Scope | Viewports | Result |
+| --- | --- | --- | ---: |
+| Populated state | 45 provider-owner routes plus 8 staff/shared-support route instances | 768, 1024, 1366 | 159 / 159 passed |
+| Forced API failure | the same 53 route instances with source failures | 768, 1024, 1366 | 159 / 159 passed |
+| Sequential application | role, categories, service area, vetting, documents, selfie, agreement, pending review, application status | 768, 1024, 1366 | 27 / 27 passed |
+
+The populated-state audit uses linked Metro Cebu records for one provider,
+customer, booking, team member, payout, dispute, conversation, and support
+case. Any unregistered API request fails the audit. It therefore cannot pass by
+quietly rendering an empty screen after receiving a generic fixture.
+
+The sequential application audit starts with a customer identity at every
+viewport and executes the actual draft flow. It selects a catalog category,
+captures a service-area geolocation, completes required vetting fields,
+uploads three private document records and one selfie record, accepts the
+agreement, submits the application, and reads the recorded pending status.
+
+Evidence lives in
+`.ai-coder/checkpoints/logs/provider-browser-audit-2026-08-31/`. The JSON
+reports contain every path, expected marker, overflow result, unmatched API,
+console error, and screenshot path. Contact sheets provide one-page visual
+review at each width.
+
+## Corrections made
+
+| Bug | Surface | Corrected behavior |
+| --- | --- | --- |
+| UX-579 | Provider dashboard | A failed active-job preview is no longer presented as “No active jobs.” |
+| UX-580 | Earnings | Loading summary data no longer confirms a false zero. |
+| UX-581 | Earnings | Trend failure has a direct browser retry rather than unsupported pull-only guidance. |
+| UX-582 | Calendar | A source failure is distinct from a day with no jobs. |
+| UX-583 | Services | A failed provider-service feed is distinct from no offered services. |
+| UX-584 | Services | Category and subcategory failures expose their own retries. |
+| UX-585 | Account management | Deactivation controls remain hidden until pending-deletion status is confirmed. |
+| UX-586 | Job detail | A dispute lookup failure is visible and retryable instead of hiding the case path. |
+| UX-587 | Job photos | New uploads pause when canonical evidence history cannot be verified. |
+| UX-588 | Completion | Completion controls stay hidden until the booking record is verified. |
+| UX-589 | Job detail | Proof-summary failure has a direct retry. |
+| UX-590 | Team | Roster/assignment failures no longer become zero-member or zero-assignment claims. |
+| UX-591 | Chat | Message-history failure is not presented as a new empty conversation. |
+| UX-592 | Active job | Staff-roster failure is shown instead of silently removing assignment controls. |
+| UX-593 | Job detail | Commission failure no longer displays an unverified net amount. |
+| UX-594 | Quote builder | Template-feed failure is not presented as no matching templates. |
+| UX-595 | Quote builder | Commission failure has a direct retry. |
+| UX-596 | Change order | Commission failure has a direct retry. |
+| UX-597 | Completion | Earnings-preview failure is explicit and retryable. |
+| UX-598 | Withdrawal | Saved payout-detail failure is explicit while the editable manual form remains usable. |
+| UX-599 | Withdrawal | Recent-earnings failure has a direct retry. |
+| UX-600 | Earnings | Transaction failure does not hide a valid wallet and summary. |
+| UX-601 | NBI banner | The component reads the production API envelope, so required expired/missing clearance warnings cannot disappear. |
+| UX-602 | Quote templates | Failed offered-service choices have a direct desktop retry. |
+| UX-603 | Chat | Failed booking context has a direct desktop retry while conversation history remains usable. |
+| UX-604 | Shared support | Failure copy now points to the implemented retry button instead of claiming nonexistent pull refresh. |
+| UX-605 | Provider application selfie | Browser upload is a named button with disabled/busy accessibility state and a tested private-upload path. |
+
+Every correction has its own rendered behavioral test. No test asserts merely
+that a file or bug label exists.
+
+## Cross-role linkage checked
+
+| Provider or staff task | Customer counterpart | Admin/company counterpart | Shared record |
+| --- | --- | --- | --- |
+| Services, coverage, availability | discovery, address coverage, provider profile | Catalog, Service Areas, Provider 360 | catalog and provider-area records |
+| Job requests and quotes | custom request and quote comparison | Bookings and Dispatch | booking, quote, intake, and pricing records |
+| Active work, checklist, photos, completion | tracker, proof, change order, confirmation | Booking 360, Support, Communications | booking proof summary and canonical evidence |
+| Chat and support | booking chat and shared support case | Communications and Support Tickets | conversation and support-ticket records |
+| Earnings, withdrawals, payouts | paid/held booking and wallet | Financials and Payouts | wallet ledger, commission, payout request |
+| Disputes and reviews | customer claim/evidence and review | Dispute 360 and Provider 360 | participant-scoped dispute/review records |
+| Team assignments | named assigned worker on service record | Provider 360 and Staff & Roles | approved membership and booking assignment |
+| Provider application | customer account retains access during review | Provider 360 verification queue | application, private uploads, and decision status |
+
+The provider application remains a reviewed extension of a customer account.
+Submission does not promote the local role. Only the recorded admin decision
+and refreshed canonical session can activate the provider workspace.
+
+## Visual review
+
+The 768-pixel layouts use the compact tablet/browser navigation and preserve
+usable cards, controls, and two-column workspaces where space permits. The
+1024- and 1366-pixel layouts use the role-specific operations rail. The
+Stitch-derived direction is consistent across the reviewed screens: pale
+canvas, white bounded work surfaces, dark navy hierarchy, blue primary
+actions, visible status chips, and contextual right-side panels for evidence,
+money, or next actions.
+
+No horizontal overflow, blank document, global error boundary, unhandled page
+error, unexpected console error, or unmatched API path remained in the final
+browser matrices.
+
+## Honest residual limits
+
+- The fixture audit exercises HTTP conversation history but has no Socket.IO
+  server. Real two-device text/photo delivery remains device/live evidence.
+- Geolocation is a browser-granted Metro Cebu test coordinate. It verifies the
+  flow and boundary logic, not a field device's GPS quality.
+- Native camera and photo-library behavior remains part of F#3 device baseline
+  work. Browser file selection is covered here.
+- E14, E16, E18, E19, E21, E24, E25, F#10, and other recorded money/legal/data
+  holds were not bypassed or reinterpreted by visual work.
+- Expo/React Native dependency drift remains a separate compatibility wave.
+  A forced bulk upgrade would be higher risk than the defects corrected here.
+- Production remains untouched until E32's server identity problem is resolved.
+
+## Next stage
+
+The next autonomous stage is the same source-truth, populated-state,
+failure-state, and sequential-flow audit for all customer screens. After that,
+the admin/company stage must recheck every queue and 360 view against the
+customer/provider records rather than treating the existing admin surface as
+presumptively correct.

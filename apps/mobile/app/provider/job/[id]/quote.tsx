@@ -14,6 +14,7 @@ import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import { X } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
+import { ErrorState } from '@/components/ui';
 
 interface LineItemDraft {
   id: number;
@@ -279,6 +280,13 @@ export default function QuoteBuilderScreen(): React.ReactElement {
             <View style={styles.templatePanel}>
               {templatesQuery.isLoading ? (
                 <ActivityIndicator size="small" color={colors.info} />
+              ) : templatesQuery.isError ? (
+                <ErrorState
+                  compact
+                  title="Quote templates unavailable"
+                  message="We couldn't load your saved templates. You can retry or continue building this quote manually."
+                  onRetry={() => void templatesQuery.refetch()}
+                />
               ) : relevantTemplates.length === 0 ? (
                 <Text style={styles.templateEmpty}>No templates match this service yet. Create one under Profile → Quote Templates, or save an all-services template.</Text>
               ) : (
@@ -433,8 +441,19 @@ export default function QuoteBuilderScreen(): React.ReactElement {
           {totalAmount > 0 && totalAmount < platformConfig.minimumQuoteAmount && (
             <Text style={styles.minWarn}>Minimum quote: {formatPHP(platformConfig.minimumQuoteAmount)}</Text>
           )}
+          {totalAmount > 0 && providerMeQuery.isLoading && (
+            <View style={styles.commissionLoading} accessibilityLabel="Loading live commission rate">
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.commissionLoadingText}>Loading live commission rate…</Text>
+            </View>
+          )}
           {totalAmount > 0 && providerMeQuery.isError && (
-            <Text style={styles.minWarn}>Commission preview unavailable. Your quote total is still shown accurately to the customer.</Text>
+            <ErrorState
+              compact
+              title="Commission preview unavailable"
+              message="The customer total is accurate, but your net earnings cannot be confirmed yet."
+              onRetry={() => void providerMeQuery.refetch()}
+            />
           )}
         </View>
 
@@ -482,6 +501,8 @@ const styles = StyleSheet.create({
   contextError: { fontSize: 14, lineHeight: 20, color: colors.error },
   contextRetry: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', marginTop: spacing.sm },
   contextRetryText: { fontSize: 14, color: colors.primary, fontWeight: '700' },
+  commissionLoading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.md },
+  commissionLoadingText: { fontSize: 12, color: colors.textSecondary },
   intakeBlock: { marginTop: spacing.base, gap: spacing.xs },
   intakeRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm, paddingVertical: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   intakeKey: { fontSize: 12, color: colors.textSecondary, flex: 1 },

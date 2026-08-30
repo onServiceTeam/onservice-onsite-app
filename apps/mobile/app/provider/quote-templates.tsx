@@ -134,7 +134,18 @@ export default function QuoteTemplatesScreen(): React.ReactElement {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            {servicesQuery.isError ? <Text style={styles.fieldHelp}>Your services could not be loaded. You can still save an all-services template.</Text> : null}
+            {servicesQuery.isError ? (
+              <View style={styles.serviceError} accessibilityRole="alert">
+                <Text style={styles.fieldHelp}>Your services could not be loaded. You can still save an all-services template.</Text>
+                <TouchableOpacity
+                  onPress={() => void servicesQuery.refetch()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loading services"
+                >
+                  <Text style={styles.retryLink}>Try again</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             {items.map((it, i) => (
               <View key={`${it.description}-${i}`} style={styles.itemRow}>
                 <Text style={styles.itemDesc}>{it.description}</Text>
@@ -222,6 +233,8 @@ const styles = StyleSheet.create({
   formTitle: { ...typography.body, fontWeight: '700', color: colors.text },
   fieldLabel: { ...typography.caption, color: colors.textSecondary, fontWeight: '700', marginTop: spacing.xs },
   fieldHelp: { ...typography.caption, color: colors.textTertiary, lineHeight: 17 },
+  serviceError: { gap: spacing.xs },
+  retryLink: { ...typography.bodySmall, color: colors.secondary, fontWeight: '700' },
   serviceOptions: { gap: spacing.sm, paddingRight: spacing.base },
   serviceChip: { borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: colors.surfaceMuted },
   serviceChipSelected: { borderColor: colors.primary, backgroundColor: colors.primaryLight },

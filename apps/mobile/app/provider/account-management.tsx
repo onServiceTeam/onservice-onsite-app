@@ -22,6 +22,7 @@ import { Package, AlertTriangle, CheckCircle2, XCircle, Hourglass, Clock, Chevro
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
 import ConfirmModal from '@/components/ConfirmModal';
+import { ErrorState } from '@/components/ui';
 import { useResponsive } from '@/hooks/useResponsive';
 
 function formatDate(iso: string): string {
@@ -251,6 +252,13 @@ export default function AccountManagementScreen(): React.ReactElement {
 
           {isDeletionLoading ? (
             <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: spacing.lg }} />
+          ) : deletionError ? (
+            <ErrorState
+              compact
+              title="Deactivation status unavailable"
+              message="We couldn't confirm whether this account already has a pending deactivation request."
+              onRetry={() => void deletionQuery.refetch()}
+            />
           ) : hasPendingDeletion ? (
             <View style={styles.deletionActive}>
               <View style={styles.warningBanner}>

@@ -20,8 +20,8 @@ import {
   type ProviderServiceItem,
 } from '@/services/provider-api.service';
 import { getCategories, getSubcategories, type Category, type Subcategory } from '@/services/catalog.service';
-// A7 — shared UI kit for loading/empty states + toast feedback.
-import { Button, SkeletonCard, EmptyState } from '@/components/ui';
+// A7 — shared UI kit for loading/empty/error states + toast feedback.
+import { Button, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
@@ -152,19 +152,21 @@ export default function ManageServicesScreen(): React.ReactElement {
           <View accessibilityLabel="Services on your profile" style={styles.servicesPanel}>
             <View style={styles.panelHeading}>
               <Text style={styles.panelTitle}>Services on your profile</Text>
-              <Text style={styles.serviceCount}>{services.length}</Text>
+              <Text style={styles.serviceCount}>{servicesError ? '—' : services.length}</Text>
             </View>
-            {servicesError && (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorBannerText}>Failed to load your services. Pull to refresh.</Text>
-              </View>
-            )}
             {servicesQuery.isLoading ? (
               <>
                 <SkeletonCard />
                 <SkeletonCard />
                 <SkeletonCard />
               </>
+            ) : servicesError ? (
+              <ErrorState
+                compact
+                title="Services unavailable"
+                message="We couldn't load the services currently on your profile."
+                onRetry={() => void servicesQuery.refetch()}
+              />
             ) : services.length === 0 ? (
               // BUG-PHASE183-01 — empty state has an embedded "Add Your First
               // Service" CTA so a provider sees a clear next step.
@@ -212,38 +214,46 @@ export default function ManageServicesScreen(): React.ReactElement {
             <Text style={styles.addTitle}>Add a Service</Text>
 
             <Text style={styles.formLabel}>Category</Text>
-            {categoriesError && (
-              <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: spacing.sm }}>
-                <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load categories. Please try again.</Text>
+            {categoriesQuery.isLoading ? (
+              <ActivityIndicator color={colors.secondary} style={styles.catalogLoader} />
+            ) : categoriesError ? (
+              <ErrorState
+                compact
+                title="Service categories unavailable"
+                message="We couldn't load the catalog used to add services."
+                onRetry={() => void categoriesQuery.refetch()}
+              />
+            ) : (
+              <View style={styles.chipGrid}>
+                {categories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[styles.chip, selectedCategory?.id === cat.id && styles.chipActive]}
+                    onPress={() => {
+                      setSelectedCategory(cat);
+                      setSelectedSubcategory(null);
+                    }}
+                  >
+                    <Text style={[styles.chipText, selectedCategory?.id === cat.id && styles.chipTextActive]}>
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             )}
-            <View style={styles.chipGrid}>
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[styles.chip, selectedCategory?.id === cat.id && styles.chipActive]}
-                  onPress={() => {
-                    setSelectedCategory(cat);
-                    setSelectedSubcategory(null);
-                  }}
-                >
-                  <Text style={[styles.chipText, selectedCategory?.id === cat.id && styles.chipTextActive]}>
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
 
             {selectedCategory && (
               <>
                 <Text style={styles.formLabel}>Subcategory</Text>
-                {subcategoriesError && (
-                  <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginBottom: spacing.sm }}>
-                    <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load subcategories. Please try again.</Text>
-                  </View>
-                )}
                 {subcategoriesQuery.isLoading ? (
-                  <ActivityIndicator color={colors.secondary} style={{ marginVertical: spacing.md }} />
+                  <ActivityIndicator color={colors.secondary} style={styles.catalogLoader} />
+                ) : subcategoriesError ? (
+                  <ErrorState
+                    compact
+                    title="Service options unavailable"
+                    message={`We couldn't load services under ${selectedCategory.name}.`}
+                    onRetry={() => void subcategoriesQuery.refetch()}
+                  />
                 ) : (
                   <View style={styles.chipGrid}>
                     {subcategories.map((sub) => (
@@ -308,6 +318,7 @@ const styles = StyleSheet.create({
   serviceCount: { ...typography.caption, color: colors.primary, backgroundColor: colors.primaryLight, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: borderRadius.full },
   errorBanner: { backgroundColor: colors.errorLight, padding: spacing.md, borderRadius: borderRadius.lg, marginBottom: spacing.md },
   errorBannerText: { ...typography.bodySmall, color: colors.error, textAlign: 'center' },
+  catalogLoader: { marginVertical: spacing.md },
   pricingNotice: {
     backgroundColor: colors.primaryLight,
     borderRadius: borderRadius.lg,

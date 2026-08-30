@@ -48,6 +48,7 @@ import { listBookingPhotos, uploadBookingPhoto, uploadSignature } from '@/servic
 import { getErrorMessage } from '@/utils/errors';
 import { showToast } from '@/lib/toast';
 import SignaturePad, { type SignaturePadRef } from '@/components/SignaturePad';
+import { ErrorState, SkeletonCard } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Camera, CheckCircle2, Edit, ChevronLeft } from '@/components/icons';
 // Phase 14 R5-complete — CommissionBreakdown post-complete summary panel.
@@ -266,6 +267,43 @@ export default function JobCompleteScreen({ staffMode = false }: { staffMode?: b
     }
   };
 
+  if (!staffMode && bookingQuery.isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Complete Job</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.sourceState}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!staffMode && (bookingQuery.isError || !bookingQuery.data)) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Complete Job</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <ErrorState
+          title="Job unavailable"
+          message="We couldn't verify this job before recording completion evidence."
+          onRetry={() => void bookingQuery.refetch()}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -446,6 +484,21 @@ export default function JobCompleteScreen({ staffMode = false }: { staffMode?: b
             />
           </View>
         )}
+        {!staffMode && grossEarnings > 0 && providerMeQuery.isLoading && (
+          <View style={styles.earningsPreviewState} accessibilityLabel="Loading completion earnings preview">
+            <SkeletonCard />
+          </View>
+        )}
+        {!staffMode && grossEarnings > 0 && providerMeQuery.isError && (
+          <View style={styles.earningsPreviewState}>
+            <ErrorState
+              compact
+              title="Earnings preview unavailable"
+              message="We couldn't load the live commission rate for this completion record."
+              onRetry={() => void providerMeQuery.refetch()}
+            />
+          </View>
+        )}
         </View>
       </View>
     </SafeAreaView>
@@ -468,6 +521,8 @@ const styles = StyleSheet.create({
   backText: { fontSize: 22, color: colors.text },
   headerTitle: { ...typography.h3, color: colors.text },
   placeholder: { width: 44 },
+  sourceState: { flex: 1, padding: spacing.base },
+  earningsPreviewState: { marginTop: spacing.lg },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: spacing.xl },
   bodyContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.xl },
