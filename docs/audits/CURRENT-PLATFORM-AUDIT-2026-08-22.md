@@ -19,26 +19,29 @@ The old 29-admin-page and 84-mobile-screen counts are stale.
 
 | Surface                      | Current code inventory |
 | ---------------------------- | ---------------------: |
-| Admin routed page components |                     34 |
-| Mobile route-screen files    |                    103 |
-| API route modules            |                     47 |
-| API Jest suites / tests      |            282 / 3,015 |
+| Admin routed page components |                     35 |
+| Mobile task screens          |                    110 |
+| Mobile route layouts         |                      9 |
+| Mobile route files total     |                    119 |
+| API route modules            |                     48 |
+| API migrations               |                    145 |
+| API Jest suites / tests      |            456 / 3,100 |
 
 Mobile route-screen families:
 
 | Family                       | Files |
 | ---------------------------- | ----: |
 | Customer tabs                |     4 |
-| Customer detail/flow screens |    39 |
+| Customer detail/flow screens |    41 |
 | Provider tabs                |     4 |
-| Provider operations screens  |    35 |
+| Provider operations screens  |    38 |
 | Provider onboarding          |    10 |
-| Provider staff               |     3 |
+| Provider staff               |     5 |
 | Shared support               |     3 |
 | Authentication               |     3 |
 | Shared root/onboarding       |     2 |
 
-The 34 admin components are Login, Change Password, Dashboard, Providers, Provider Detail, Customers, Customer Detail, Bookings, Booking Detail, Catalog, Projects, Disputes, Dispute Detail, Financials, Payouts, Notification Templates, Recurring, Business Accounts, Business Account Detail, Service Areas, Analytics, Audit Log, System Settings, Cancellation Policy, Support Tickets, Staff & Roles, Pricing Rules, Marketing, Dispatch Console, Communications, Compliance, Data Protection Log, Consent Versions, and Not Found.
+The 35 admin components are Login, Change Password, Dashboard, Providers, Provider Detail, Customers, Customer Detail, Bookings, Booking Detail, Catalog, Projects, Disputes, Dispute Detail, Financials, Payouts, Notification Templates, Recurring, Business Accounts, Business Account Detail, Service Areas, Analytics, Audit Log, System Settings, Cancellation Policy, Support Tickets, Staff & Roles, Pricing Rules, Marketing, Dispatch Console, Communications, Tester Feedback, Compliance, Data Protection Log, Consent Versions, and Not Found.
 
 ## Cross-role source-of-truth trace
 
@@ -102,6 +105,7 @@ This trace exposes the key company rule: admin pages must not invent a second st
 - Historical audits and strategy files contained stale screen counts, Boracay-first direction, old fee values, and old server details. They are retained as history but now carry warnings.
 - The 354 admin visual baselines cover the former 29-page catalog. Newer route components need explicit visual-state coverage.
 - Customer/provider web now uses a responsive role workspace, but every inner screen still needs interaction and overflow checks at phone, tablet, and desktop widths. A shared desktop shell does not by itself prove every route is fully responsive.
+- Provider-staff suspension immediately revokes assigned-job access but does not resolve the retained `performer_staff_id`. E29/D31 recommends state-aware reassignment for pre-start work and an explicit provider/admin exception for work already under way; automatic booking or money mutation remains held.
 
 ## Verification required for each remaining batch
 

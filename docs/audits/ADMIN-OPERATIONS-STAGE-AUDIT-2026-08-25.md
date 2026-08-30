@@ -4,7 +4,7 @@
 
 This is the durable route-by-route control ledger for the admin overhaul requested by Ken. It is intentionally incomplete. `W1` means the current stage inspected and changed the named surface with rendered behavior tests. It does not mean every state on that page has been manually exercised. `NEXT` means the page remains in the active screen-by-screen pass. `HOLD` means money, compliance, legal, or policy behavior cannot be changed autonomously even though safe visual and accessibility work may continue.
 
-Current audited code checkpoint: `6a7bcc696071338aeb96c6476075a17332f12a45`.
+Current audited code checkpoint: `8d6a0ae4eb429757e15848f48252d50acd014687`.
 The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its documentation and production-evidence checkpoint was `cc15c61b7cacad2911e6bae97fe48d4e43179df7`.
 
 ## Shared admin contract established in W1
@@ -26,8 +26,8 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/login` | Admin authentication | W2 | A first-time visit without the readable admin session hint now settles signed out without generating expected `/auth/me` and refresh 401s. Returning sessions still hydrate normally. |
 | `/change-password` | Credential rotation | W1/PREVIOUS | Account menu now reaches it at all widths. Existing forced-rotation behavior remains unchanged. |
 | `/` | Command center | NEXT | Re-audit every queue, metric definition, source failure, and cross-link after shell release. |
-| `/providers` | Provider queue | NEXT | Recheck application filters, bulk support workflow, capacity context, and Provider 360 exits. |
-| `/providers/:id` | Provider 360 | NEXT | Recheck every tab, staff suspension, internal notes, evidence, payout, service-area, booking, and support linkage. |
+| `/providers` | Provider queue | W3 PARTIAL | Queue approval now uses the same atomic rationale/checklist contract as Provider 360. Suspension and reactivation require reasons, preserve the audit record, state active-booking effects, and notify the provider. Recheck filters, bulk support workflow, capacity context, and Provider 360 exits. |
+| `/providers/:id` | Provider 360 | W3 PARTIAL | Approval rationale/checklist now commits with status, role, audit, and notification; staff suspension/reactivation and note deletion use reasoned in-app workflows. Continue every Jobs, Financials, Reviews, Disputes, Activity, evidence, payout, service-area, booking, and support state. E29/D31 holds automatic handling of bookings assigned to a suspended staff member. |
 | `/customers` | Customer queue | NEXT | Recheck search, segmentation, masking, status, and Customer 360 exits. |
 | `/customers/:id` | Customer 360 | NEXT | Recheck account enforcement, fraud-review context, booking/support/payment linkage, and audit evidence. |
 | `/bookings` | Booking operations queue | NEXT | Recheck status definitions, service-area context, assignment, customer/provider exits, and tablet table behavior. |
@@ -73,11 +73,22 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 
 These changes are Bugs UX-415 through UX-428. They do not alter money, dispute, cancellation, legal, privacy-retention, or pricing-rule behavior held by the existing escalation records.
 
-## Remaining browser-native confirmations after W2
+## W3 provider-operations contract
 
-W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. The count therefore remains 31. They are deliberately visible here rather than being hidden by a false completion claim.
+- Provider approval can no longer succeed and then lose its rationale in a failed best-effort note request. Provider 360 and the provider queue send one checklist/rationale contract; the API validates it and writes status, provider role, audit evidence, and approval notification inside the approval transaction.
+- Provider-account suspension and reactivation require 10–1,000-character reasons. The reason is stored in the admin record, delivered to the provider in the same transaction, and no longer appears in ordinary server logs.
+- Suspension still flags in-progress provider bookings for review before escrow release. Reactivation deliberately does not clear those booking review holds.
+- Provider-staff suspension/reactivation and internal-note deletion no longer use browser-native confirmation. Both require an operator reason, and the server rejects a crafted reasonless request.
+- E29/D31 records one unresolved consequence honestly: a suspended staff member loses assigned-job access immediately while the booking retains that performer assignment. The operator is warned to take over or reassign; automatic mutation remains held until evidence attribution and customer continuity have one approved contract.
+- The old MED-N71 approval test no longer passes by searching a fixed-length source-code slice. It now executes approval and asserts the notification written by the transaction.
 
-| Screen | Count | Reason not converted in W1 |
+These changes are Bugs UX-429 through UX-438. They do not claim that every Provider 360 tab or provider-queue state is complete.
+
+## Remaining browser-native confirmations after W3
+
+W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. W3 removed the two Provider 360 prompts, leaving 29. They are deliberately visible here rather than being hidden by a false completion claim.
+
+| Screen | Count | Current hold or remaining design work |
 | --- | ---: | --- |
 | Booking 360 | 4 | Escrow, refund, cancellation, and completion money effects |
 | Compliance | 2 | DSR/regulatory action and export scope |
@@ -90,7 +101,6 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 | Financials | 5 | Reconciliation and tax workpaper operations |
 | Payouts | 1 | Provider-money decision |
 | Pricing Rules | 1 | Live charge/revenue-share rule toggle under E28 |
-| Provider 360 | 2 | Staff suspension and internal-note deletion |
 | Cancellation Policy | 1 | E09 policy/refund authority conflict |
 | System Settings | 3 | Live configuration, cache, and reset impact |
 
@@ -126,3 +136,13 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 - The public API hostname retained its expected edge-level 403 behavior for direct config and protected support-summary requests. The protected response contained only the generic nginx rejection page.
 - The read-only feedback recheck remained 10 submissions, 5 issue items, all `new`, and 0 assigned. No production feedback content or personal data was printed or changed.
 - Clean browser geometry/DOM checks at 390×844, 1024×768, and 1440×900 showed no horizontal overflow. Phone showed only the single-column authentication workspace; tablet split 435/589 pixels; desktop split 612/828 pixels. All three had zero captured console warnings or errors, confirming that Bug UX-415 removed W1's first-visit authentication noise. The browser screenshot capture API failed, so no new image artifact is claimed for this evidence.
+
+## W3 local verification
+
+- Admin: 115 test files passed, 1 skipped; 228 tests passed, 3 explicit todos.
+- API: 454 locally runnable suites passed, 1 suite remained intentionally skipped; 3,098 tests passed. The separate production-nginx certificate test again could not run because Docker Desktop was off. This is not counted as a pass; live `nginx -t` remains required after deployment.
+- Admin, API, and mobile TypeScript passed. Repository lint passed. Admin and API production builds passed; admin transformed 2,839 modules.
+- Focused rendered admin tests cover all five W3 UI defects. Focused API tests cover all five W3 server defects, plus the affected approval, role, transaction, and provider-suspension suites.
+- `git diff --check` passed.
+- The locally built public admin entry rendered at 390×844, 1024×768, and 1440×900 with no horizontal overflow and no captured browser warnings or errors. This verifies the public authentication shell only. Authenticated Provider 360 and provider-queue behavior is supported by rendered tests, not falsely claimed as a live signed-in browser exercise.
+- GitHub and production evidence remains pending for the documentation checkpoint that follows code checkpoint `8d6a0ae4eb429757e15848f48252d50acd014687`.
