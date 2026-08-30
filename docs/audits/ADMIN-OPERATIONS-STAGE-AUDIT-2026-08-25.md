@@ -4,7 +4,7 @@
 
 This is the durable route-by-route control ledger for the admin overhaul requested by Ken. It is intentionally incomplete. `W1` means the current stage inspected and changed the named surface with rendered behavior tests. It does not mean every state on that page has been manually exercised. `NEXT` means the page remains in the active screen-by-screen pass. `HOLD` means money, compliance, legal, or policy behavior cannot be changed autonomously even though safe visual and accessibility work may continue.
 
-Current audited code checkpoint: `5021422844b8f30f5d9bcc076d8c0abcf2d4d05c`.
+Current audited code checkpoint: `ddcfdc44d05fb2807389192cb9cbe4f69760eea5`.
 The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its documentation and production-evidence checkpoint was `cc15c61b7cacad2911e6bae97fe48d4e43179df7`.
 
 ## Shared admin contract established in W1
@@ -28,7 +28,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/` | Command center | NEXT | Re-audit every queue, metric definition, source failure, and cross-link after shell release. |
 | `/providers` | Provider queue | W3 PARTIAL | Queue approval now uses the same atomic rationale/checklist contract as Provider 360. Suspension and reactivation require reasons, preserve the audit record, state active-booking effects, and notify the provider. Recheck filters, bulk support workflow, capacity context, and Provider 360 exits. |
 | `/providers/:id` | Provider 360 | W3+W5 PARTIAL/HOLD | Approval, staff, notes, certifications, Jobs, Financials, Reviews, Disputes, and Activity now form a linked case workspace. Review moderation/public responses and certification decisions are provider-scoped and transactionally audited; staff audit verbs are now admitted by the database. E29/D31 still holds automatic handling of bookings assigned to suspended staff, and E31/D33 still holds wallet-adjustment limits/dual control. Authenticated visual-state review remains open. |
-| `/customers` | Customer queue | NEXT | Recheck search, segmentation, masking, status, and Customer 360 exits. |
+| `/customers` | Customer queue | W7 PARTIAL | Ordinary-admin contacts are masked; account state and fraud review are separate signals; search covers full name, phone, email, and customer ID; whole-queue totals and support/dispute/active-booking workload are visible; and rows open Customer 360, filtered bookings, or a user-bound support workspace. Saved views, named ownership, and authenticated wide-state evidence remain open. |
 | `/customers/:id` | Customer 360 | W4 PARTIAL/HOLD | Suspension/reactivation are reasoned, audited, session-revoking, generic-notice workflows. Booking/payment/dispute/provider/referral records link to canonical workspaces; activity identifies actors and client evidence; fraud analytics use configured window and no-refund semantics. E30/D32 holds fraud-review clearance. E31/D33 holds unbounded single-operator wallet adjustments. Continue wallet-control, complete chronology, and authenticated visual-state review. |
 | `/bookings` | Booking operations queue | W6 PARTIAL | Search now covers booking, customer, provider, service, and city; customer/provider names open their canonical 360 records; unassigned state is explicit. Saved views, ownership, and authenticated tablet table evidence remain open. |
 | `/bookings/:id` | Booking 360 and evidence | W6 PARTIAL/HOLD | Conversation and support-case exits, partial-address truth, gateway/wallet/retained-sales money chronology, and rendered action confirmations are connected. Cancellation requires explicit live money inputs but E09 still holds policy/runtime authority; escrow release, refund, cancellation, and force-complete semantics remain money-path controlled. |
@@ -127,6 +127,23 @@ They do not change escrow,
 refund, cancellation calculation, payout, dispute-resolution, or live-GPS
 semantics.
 
+## W7 customer-queue operations contract
+
+- Ordinary admins receive masked phone and email values in the queue. A super-admin may receive the raw values under the existing role policy; an ordinary agent must use the audited Customer 360 reveal workflow when full contact data is genuinely needed.
+- Account state and fraud-review state are independent. The queue no longer invents `suspended` or `flag_fraud` as selectable customer-account statuses. The one **Inactive (includes suspended)** filter reflects the current database truth, while fraud review remains a separate risk signal.
+- Search covers customer UUID, full name, phone, and email. Filter and sort state is URL-bound so an operator can preserve the exact queue view during a handoff.
+- Whole-queue summary cards show total, active, inactive, and fraud-review counts rather than restating the current page. The default order puts fraud review, open support, open booking-linked disputes, and active bookings ahead of routine accounts. Operators can also sort by active bookings, completed gross booking value, or newest account.
+- Each row distinguishes active bookings from lifetime bookings and shows open support cases plus open/all booking-linked disputes. Those counts come from the canonical booking, support-case, and dispute records rather than customer-filed-only approximations.
+- Customer, booking, and support exits preserve identity context. Customer opens Customer 360; booking workload opens the booking queue searched by that customer UUID; support opens the support queue prefilled for that customer.
+- Completed value is explicitly labelled gross. Refund, gateway, wallet, and net-money investigation remains in Customer 360 rather than being inferred from a booking total.
+- The response extension is additive. An older server response without the new summary or operational fields still renders with safe count/status fallbacks instead of crashing the queue.
+
+These changes are Bugs UX-487 through UX-494. UX-491 also extends booking
+search to customer and provider UUIDs so the customer-queue handoff resolves
+the intended records. They do not change account mutation, fraud-review,
+wallet, payment, refund, escrow, dispute-resolution, or support-case lifecycle
+semantics.
+
 ## Remaining browser-native confirmations after W6
 
 W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. W3 removed two Provider 360 prompts. W4 removed the two Customer 360 prompts. W6 removed four Booking 360 prompts and two Dispatch prompts, leaving 21. They are deliberately visible here rather than being hidden by a false completion claim.
@@ -216,3 +233,11 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 - Focused rendered admin tests cover booking-party links, rendered action decisions, configured dispatch centering, derived attention, saved-base/accepting-work truth, exact conversation deep links, cancellation handoff, partial addresses, money chronology, support access, and audit labels. Focused API tests execute search, money projection, partial addresses, transactionally coupled reassignment/messages, cancellation input validation, support-admin authorization, and independent availability/service/radius checks.
 - Code checkpoint `5021422844b8f30f5d9bcc076d8c0abcf2d4d05c` was pushed to `master`. GitHub Gates run `33308846223` passed. CI run `33308846227` attempt 1 was cancelled after the Docker runner stalled while initializing its service container; attempt 2 passed Mobile, API, Admin, and the API Docker image build plus liveness boot check.
 - Production backup, fast-forward, deployment, hashes, nginx validation, authenticated browser evidence, and live API checks remain blocked by E32. No production synchronization is claimed.
+
+## W7 local and GitHub verification
+
+- Admin: 142 test files passed, 1 skipped; 252 tests passed, 3 explicit todos. API: 480 locally runnable suites passed, 1 suite remained intentionally skipped; 3,088 tests passed and 1 test remained intentionally skipped. The separate Docker-dependent generated-certificate nginx suite was excluded locally and is not counted as a pass.
+- Focused rendered admin tests execute the support-ready queue, canonical exits, URL-bound sort behavior, and compatibility with an older additive response. Focused API tests execute role-based contact masking, full-name/status truth, operational counts, booking UUID search, and the server sort allowlist/order.
+- Admin and API TypeScript passed. Repository and admin lint passed. Admin and API production builds passed; admin transformed 2,839 modules. `git diff --check` passed.
+- Code checkpoint `ddcfdc44d05fb2807389192cb9cbe4f69760eea5` was pushed to `master`. GitHub Gates run `33310413687` passed. CI run `33310413661` passed Mobile, API, Admin, and the API Docker image build plus liveness boot check.
+- Authenticated Customer queue browser evidence remains rendered-test evidence rather than a false signed-in production claim. Production backup, fast-forward, deployment, hashes, nginx validation, and live API checks remain blocked by E32; no production synchronization is claimed.

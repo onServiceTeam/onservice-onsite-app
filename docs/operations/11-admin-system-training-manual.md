@@ -126,7 +126,17 @@ How to read a KYC document during vetting: open Profile, click the NBI / ID / se
 
 ### 2.4 Customers (`/customers`)
 
-Customer list. Search by name/phone/email. Filter by status (`active`, `inactive`, `suspended`, `flag_fraud`). Columns show total bookings, total spent, total disputes (red when above zero). This list is read-only; drill into a customer for actions.
+The customer operations queue. Search by full name, phone, email, or customer ID. Filter account state as `active` or **Inactive (includes suspended)**. Fraud review is a separate signal, not an account status.
+
+The cards at the top describe the whole matching queue, not just the visible page: total customers, active accounts, inactive accounts, and accounts flagged for fraud review. The default sort puts support attention first. Other sorts prioritize active bookings, completed gross booking value, or newest accounts. Each row shows active and lifetime bookings, open support cases, and open/all booking-linked disputes.
+
+Ordinary admins see masked phone and email values in this queue. Open Customer 360 and use its audited reveal control only when the complete value is needed for support. A super-admin may see the raw queue value under the existing role policy.
+
+How to work from the queue:
+1. Start with **Support attention** and the fraud-review badge, open-support count, open-dispute count, and active-booking count. Account state and risk are independent, so an active customer may still require fraud review.
+2. Open the customer name for Customer 360. Use **Bookings** to open the booking queue searched by that customer ID, or **Support** to open the support queue prefilled for that person.
+3. Treat **Completed gross value** as completed booking value before refund or payment reconciliation. Use Customer 360 Payments and the booking Money record for gateway, wallet, refund, or net-value questions.
+4. The list is read-only. Account suspension, fraud review, and wallet actions belong in Customer 360 and remain role-gated.
 
 ### 2.5 Customer detail (`/customers/:id`)
 

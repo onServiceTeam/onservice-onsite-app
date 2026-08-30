@@ -56,6 +56,15 @@ The app must show the same hours to customers. Match the line above exactly.
 
 Every contact becomes a ticket in admin, even if you resolve it in one reply. That is how we get a record and a number.
 
+Before creating or opening a ticket, use the Customer queue (`/customers`) as the account-level triage entry:
+
+1. Keep the default **Support attention** order unless you are looking for a specific account. Search accepts full name, phone, email, or customer ID.
+2. Read account state and fraud-review state separately. **Inactive (includes suspended)** is the account filter; fraud review is an independent risk signal and must not be described to the customer as an account status.
+3. Check active/lifetime bookings, open support cases, and open/all booking-linked disputes before replying. Open the linked booking or existing case instead of creating a disconnected duplicate.
+4. Ordinary support accounts see masked phone and email values in the queue. Open Customer 360 and use the audited reveal control only when the complete value is needed for the support task.
+5. Use the row's **Support** exit to prefill a user-bound queue or case-creation context. Use **Bookings** to carry the customer ID into the booking queue. Do not copy and paste an arbitrary account identifier into a case.
+6. The queue's completed value is gross completed booking value. Confirm payment attempts, wallet entries, refunds, and net outcome in Customer 360 or Booking 360 before making a money statement.
+
 ```
 contact comes in (in-app / email / FB / SMS)
         |
