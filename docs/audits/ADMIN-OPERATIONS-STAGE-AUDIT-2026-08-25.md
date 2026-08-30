@@ -4,10 +4,10 @@
 
 This is the durable route-by-route control ledger for the admin overhaul requested by Ken. It is intentionally incomplete. `W1` means the current stage inspected and changed the named surface with rendered behavior tests. It does not mean every state on that page has been manually exercised. `NEXT` means the page remains in the active screen-by-screen pass. `HOLD` means money, compliance, legal, or policy behavior cannot be changed autonomously even though safe visual and accessibility work may continue.
 
-Current audited code checkpoint: `f4e6dda640497c1c26e280da395390289c0201e4`.
+Current audited code checkpoint: `2c56f9a80b44f270baf82c0f6ef10056aba14af8`.
 The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its documentation and production-evidence checkpoint was `cc15c61b7cacad2911e6bae97fe48d4e43179df7`.
 
-## Shared admin contract established in W1 and extended through W12
+## Shared admin contract established in W1 and extended through W13
 
 - The shell now has a bounded 1,600-pixel workspace, route and record breadcrumbs, collapsible desktop navigation, mobile navigation without decorative shadow, truthful production/staging/development labeling, Philippine time, keyboard page search, and a reachable account menu at phone through desktop widths.
 - Search preserves page/workspace destinations and now adds bounded server-backed record search for customers, providers, bookings, support tickets, disputes, and payouts. Every result opens a canonical workspace, customer/provider contact remains masked, and DPO accounts remain page-only while E34 is unresolved.
@@ -41,12 +41,12 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/notification-templates` | Customer/provider communications | W1 | Create, update, activate, deactivate, and delete use in-app decisions with channel impact. Continue variable validation and preview audit. |
 | `/recurring` | Series support | W1/HOLD | Cancellation has one reasoned decision and clear existing/future booking impact. E20 still holds automatic charging. |
 | `/business-accounts` | Enterprise account queue | W1 | Approval previews terms and credit limit; suspension explains booking and invoicing impact. |
-| `/business-accounts/:id` | Enterprise account 360 | NEXT | Recheck members, contracts, invoices, bookings, account owner/manager, and support linkage. |
+| `/business-accounts/:id` | Enterprise account 360 | W13 PARTIAL | The named owner and internal relationship manager now resolve to human/account/directory context; manager assignment is super-admin-only, reasoned, active-account/profile validated, transactionally audited, and linked to Staff, owned support cases, and the exact audit record. Full member/contract/invoice/booking/payment/provider linkage remains the next dedicated wave. |
 | `/service-areas` | Market, coverage, and provider-capacity control | W1+W11 | Activation/default/pause/create decisions state cross-role effects. The same active, soft-launch, and recruiting area records now drive provider market selection, boundary validation, and the primary-area link at application time. Continue create/edit responsive layout and provider-request decision states. |
 | `/analytics` | Decision support | W1 | A/B and quality actions are accessible and explicit; retention and commission remain truth-labeled. Continue complete tab state visuals. |
 | `/audit-log` | Operator accountability | W12 PARTIAL/HOLD | The page and masked CSV now share the same `audit_log` plus `admin_actions` source/filter contract; action, entity type, exact record, exact actor, source, and date filters are validated and URL-bound; every supported record type has a canonical exit; and one responsive timeline becomes cards below desktop width. E37 holds any claim of a global request trace: the dormant middleware is not mounted, `request_id` is not populated, and many mutations have no writer. Authenticated visual-state evidence remains open. |
-| `/support-tickets` | Support case queue | W2 | Queue-wide active signals, unassigned filtering, persona-correct waiting states, reopening, required workflow notes, success feedback, and visible append-only manual status history are implemented. No SLA is invented. |
-| `/staff` | Company access and responsibility | NEXT | Recheck role truth, candidate selection, DPO segregation, account status, and support-team workflow. |
+| `/support-tickets` | Support case queue | W2+W13 | Queue-wide active signals, unassigned filtering, persona-correct waiting states, reopening, required workflow notes, success feedback, and visible append-only manual status history are implemented. W13 adds exact staff-owner links and a visible, clearable active-owner view. No SLA is invented. |
+| `/staff` | Company access and responsibility | W13 PARTIAL/HOLD | The account-centered responsive workspace separates login role/status/last-login from directory metadata, includes admin-tier accounts missing profiles, exposes active support workload and exact audit/support exits, and validates every query/write. Profile actions no longer pretend to control account access. E38 holds DPO session invalidation/route segregation and E39 holds governed privileged-account lifecycle. |
 | `/settings` | Platform configuration | HOLD/NEXT | Live, held, and unconnected classifications exist. Money/security settings need source-specific review and rollback preview. |
 | `/settings/cancellation-policy` | Customer cancellation presentation | HOLD | E09 blocks changing policy/money semantics until display and refund math have one authority. |
 | `/pricing-rules` | Surge and revenue-share control | HOLD | E28 records the missing server-authoritative preview/staged publication decision. Only safe Stitch surface cleanup occurred in W1. |
@@ -200,6 +200,18 @@ These changes are Bugs UX-531 through UX-540. They do not claim global request
 correlation, complete mutation evidence, immutable storage, or production data
 coverage, and they do not change any lifecycle, money, legal, or role authority.
 
+## W13 Staff, account, and support ownership contract
+
+- Staff inventory is account-centered rather than profile-centered. Every current admin, super-admin, and DPO account remains visible even when its operations-directory profile is missing; historical profiles remain visible after an account leaves the admin tier.
+- Login role, account status, and the real `users.last_login_at` are distinct from directory role/status. Directory create, update, deactivate, and archive actions state that they do not grant access, deactivate an account, or revoke a session.
+- Each staff card shows active support workload and links to that exact owner-filtered active queue, the directory-profile audit, and actions performed by the account. Support displays and can clear the applied owner context.
+- Business relationship-manager assignment now requires super-admin authority, an active admin/super-admin account with an active non-archived directory profile, a written reason, a locked transaction, and a before/after admin action. Business 360 resolves owner and manager names, account/profile truth, support workload, Staff, and assignment-audit exits.
+- Cookie-authenticated admin mutations are protected at credential selection, not only under the `/admin` URL prefix. This closes Staff, Support, and every other authenticated mixed-prefix write while leaving mobile Bearer-token calls unchanged. The CSRF token is bound to the authenticated admin ID, and a stray Authorization header cannot bypass a selected admin cookie.
+- E38 records that DPO role changes do not invalidate existing access/refresh/CSRF/session state and that E34 still lacks a complete route matrix. E39 records that the app has no governed privileged-account lifecycle or real last-active-super-admin account invariant. W13 changes no DPO session, production account, or production role.
+
+These changes are Bugs UX-541 through UX-557. They do not resolve E34, E38,
+E39, money policy, compliance policy, or production access under E32.
+
 ## Remaining browser-native confirmations after W9
 
 W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. W3 removed two Provider 360 prompts. W4 removed the two Customer 360 prompts. W6 removed four Booking 360 prompts and two Dispatch prompts, leaving 21. W7 and W8 changed read-only queue surfaces. W9 replaced the Disputes-list resolution prompt, leaving 20. The remaining prompts are deliberately visible here rather than being hidden by a false completion claim.
@@ -338,3 +350,12 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 - The local browser reached the real Stitch admin login at the Audit Log destination and correctly stopped at authentication. No credential bypass was used, so authenticated live visual evidence is not claimed.
 - Code checkpoint `f4e6dda640497c1c26e280da395390289c0201e4` was pushed to `master`. GitHub Gates run `33321028025` and CI run `33321028028` passed, including Mobile, API, Admin, and API image build/liveness.
 - E37 holds global audit-stream architecture and E32 blocks production inspection and synchronization. No production deployment or production audit-coverage claim is made.
+
+## W13 local and GitHub verification
+
+- Admin passed 161 test files and 271 assertions, with one skipped file and three explicit todos. API passed 507 locally runnable suites and 3,106 assertions, with one intentional suite/test skip. Mobile passed 412 suites and 791 assertions with 84 explicit device-baseline todos.
+- The Docker-dependent generated-certificate nginx suite could not reach Docker Desktop locally and is not counted as a local pass. GitHub independently built and booted the API image.
+- Focused executed tests cover account-centered staff truth, missing-profile support owners, strict query/write validation, no-op rejection, rendered responsive account/profile boundaries, exact support-owner links, manager validation/audit/context, mixed-prefix admin-cookie CSRF, and per-admin CSRF identity binding.
+- All workspace TypeScript checks, repository lint, API/Admin production builds, API smoke 13/13, environment contract 81/81, Gate A 10/10, Gate C 6/6, all six gate self-tests, the no-N+1 scanner, strict phantom-test scan, and `git diff --check` passed.
+- Code checkpoint `2c56f9a80b44f270baf82c0f6ef10056aba14af8` was pushed to `master`. GitHub Gates run `33323987373` passed. CI run `33323987371` independently passed Mobile, API, Admin, and API image build/liveness.
+- Authenticated inner-screen browser evidence remains rendered-test evidence rather than a false production-session claim. E32 blocks production synchronization. E38 and E39 are hard stops for DPO-session and privileged-account lifecycle implementation.

@@ -17,7 +17,9 @@ The DPO is the designated Data Protection Officer required by RA 10173. Their jo
 - Privacy impact assessments for new features
 - Coordinating with the National Privacy Commission (NPC)
 
-The role is explicitly segregated from super_admin to prevent the same person from approving their own DPO decisions.
+The role is intended to be segregated from general operations. The current route matrix is incomplete under E34, and super-admin retains implicit DPO fallback authority, so the application does not yet enforce complete personnel segregation.
+
+> **W13 access warning:** promotion and removal update `users.role`, but do not revoke already-issued access tokens, refresh-token rows, CSRF tokens, or browser sessions. An old access token can retain its former role for its remaining lifetime. Follow the controlled sign-out and access review below; do not describe the database update as immediate revocation. E38 holds the session-version correction.
 
 ## Who can hold the role
 
@@ -32,21 +34,21 @@ The role is explicitly segregated from super_admin to prevent the same person fr
 2. Open **Staff & Roles → DPO Management**.
 3. Search for an existing active admin account by name, email, or phone.
 4. Select the account, enter the appointment authority and handover context, then click **Assign DPO**. This calls `POST /staff/dpos/:userId/promote` with the written reason.
-5. The user is now a DPO. They must enroll TOTP 2FA on next login (forced by the admin login flow).
+5. Complete a controlled sign-out of the person's existing admin sessions and verify a fresh two-factor login. The current app does not perform or prove that revocation automatically. A fresh login receives the new DPO claim; TOTP enrollment is required only if the account has not already enrolled it.
 
 ## How to revoke
 
 1. Open **Staff & Roles → DPO Management**.
 2. Click **Start handover** next to the current DPO.
 3. Choose the destination account role, enter the appointment-end and replacement context, then confirm. This calls `POST /staff/dpos/:userId/demote` with the written reason.
-4. The DPO seat is vacant until the replacement is assigned. Complete any required NPC registration update outside the app.
+4. Complete a controlled sign-out and access review for the outgoing DPO. Their already-issued token is not invalidated by the role update. The DPO seat is vacant until the replacement is assigned; complete any required NPC registration update outside the app.
 
-## What changes when a user becomes DPO
+## What changes after a fresh DPO session
 
 - They can sign in via the admin login flow (`POST /auth/admin/login`).
 - They are forced to enroll TOTP 2FA on first sign-in.
-- They gain access to every route gated by `requireDpoRole`: consent records, breach logs, data subject requests, DPO-scope reporting.
-- They do **not** automatically gain access to general admin routes (booking management, financial reports, BIR filing, catalog editing). Those remain admin/super_admin only.
+- A newly issued DPO token reaches routes currently gated by `requireDpoRole`, including consent, breach, and data-subject-request work.
+- They should not gain general admin operations from the DPO role. E34 records that the current page and API route matrix is not fully reconciled, so verify the approved route inventory rather than relying on the sidebar alone.
 
 ## What stays with super_admin
 
@@ -83,3 +85,4 @@ ORDER BY created_at DESC;
 - **Tried to promote a super_admin.** Refused with 409. Demote them to admin first if you really want to formally assign DPO.
 - **Tried to promote a deactivated user.** Refused with 409. Reactivate first.
 - **Promoted user already DPO.** Idempotent — no-op, no audit row.
+- **Old session still works with the prior role.** This is the open E38 limitation. Complete the controlled sign-out/access review and escalate any failed revocation; do not assume the role update invalidated the token.

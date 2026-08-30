@@ -331,6 +331,8 @@ Recurring-booking subscriptions. Filter by status (`active`, `paused`, `cancelle
 
 B2B accounts (office, condo, restaurant, hotel, retail, school, hospital, other). Filter by status (`pending`, `active`, `suspended`, `closed`). Fields include company, contact details, payment terms, volume discount, monthly credit limit. The detail page manages the account.
 
+The detail page identifies the business owner and the internal relationship manager. Only super-admin can change that manager. Select an active admin/super-admin account with an active directory profile and enter a specific reason. The assignment changes internal relationship ownership only: it does not grant account access, move money, alter billing, or reassign support cases. Use the links beside the current manager to inspect their Staff record, active owned support cases, and the exact assignment audit before changing ownership.
+
 ### 2.19 Service Areas (`/service-areas`)
 
 The "cities are data, not code" control surface. This is how we turn markets on and off. Stats cards show total areas, active areas, total providers, waitlist count.
@@ -357,7 +359,7 @@ Provider change requests appear above the market table. Each card links to Provi
 
 ### 2.21 Audit Log (`/audit-log`)
 
-The unified read-only log. It combines request-level entries (badge "request") and privileged admin operations (badge "admin op," which carry the typed reason). Filterable. When you need to know who did what and why, this is the page. Every money/destructive action you take is recorded here.
+The selected-event read-only log. It combines explicit domain audit entries (badge "System event") and privileged admin operations (badge "Admin decision," which can carry a typed reason). Filter by action, record type, exact record, exact actor, source, and date. This is an investigation index, not proof of every request or mutation: E37 records that request correlation and complete writer coverage do not yet exist. Follow the canonical record link and verify the domain record before making a support, money, or compliance conclusion.
 
 Booking conversation interventions appear as **Booking support message sent**. This participant-neutral label is intentional because an assigned provider can see and receive the same system message as the customer.
 
@@ -393,11 +395,11 @@ When a user replies to a waiting case, it returns to the active queue. Automated
 
 Super_admin only. Plain admins get an "access required" notice. There are three tabs:
 
-- **Staff:** search and select an existing active admin-tier account by name, email, or phone; attach an operations-directory profile; and activate, deactivate, or archive that profile. Every write requires a reason. Never paste a raw user ID. These profiles do not grant or revoke panel access.
+- **Staff:** review every admin-tier account, including accounts missing a directory profile. The card separates actual login role, account status, last login, active support workload, and profile metadata. Open the exact owned-case queue or audit records from the card. Search and select an existing active admin-tier account by name, email, or phone to attach a profile; activate, deactivate, or archive that profile only with a reason. Never paste a raw user ID. Profiles do not grant or revoke panel access.
 - **Role Profiles:** create, edit, or archive organizational role metadata. Every change requires a reason and records before/after values. The `super_admin` profile cannot be edited or archived, and a profile with active staff cannot be archived. Permission labels here remain metadata; `users.role` and server route checks are the live access source.
 - **DPO Management:** inspect the actual Data Protection Officer seat, assign one active admin account when vacant, or complete a reasoned handover. This is a real account-role change. The server serializes assignment and refuses a second active DPO.
 
-The last-active-super-admin check on this page protects the directory profile only; it does not replace governance of the real account role. Use the Audit Log after any staff, profile, or DPO change.
+This page has no governed create/deactivate/recovery/session-revoke lifecycle or locked last-active-super-admin account invariant. E39 holds that privileged-account design. DPO promotion/removal also does not revoke old tokens or sessions; E38 requires a controlled sign-out and access review. Use the Audit Log after any profile or DPO change, but remember the E37 coverage limit.
 
 ### 2.27 Settings / Platform Settings (`/settings`)
 
