@@ -56,6 +56,16 @@ Those finer named roles function today as organizational metadata for how we des
 
 Bottom line for a new admin: if a button is greyed out or you see a "requires a super-admin account" banner, that is expected. Ask a super_admin to do that step, or escalate per the SOP.
 
+### Using global record search
+
+Press `Ctrl+K` on Windows, `Cmd+K` on macOS, or `/` when you are not typing in another field. Enter at least two characters. The header searches both page destinations and six record types: Customers, Providers, Bookings, Support tickets, Disputes, and Payouts.
+
+Use the real identifier or reference you received. Search accepts customer/provider name, email or Philippine phone input, booking/dispute IDs, support ticket number or subject, and payout transfer reference. A phone such as `0917...`, `917...`, or `63917...` is normalized for matching.
+
+Search results never show complete customer/provider phone or email, even to a super-admin. Open Customer 360 or Provider 360 and use the audited contact reveal only when the support task genuinely requires it. The result status is a locator, not proof that a booking is paid, a dispute is settled, or a payout moved.
+
+Every result opens its canonical workspace. A payout result opens the Payouts page with an **Exact payout** banner; use **Clear** before switching to a broader provider search. DPO accounts see page destinations only while E34's privacy-role access contradiction remains unresolved.
+
 ---
 
 ## 2. Page-by-page guide (35 routed page components)

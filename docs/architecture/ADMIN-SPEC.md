@@ -10,7 +10,7 @@ This document describes what each admin module must contain to be considered "co
 
 **Header (top bar):**
 - Logo on left
-- Search (cmd+K opens global search across providers, customers, bookings, disputes)
+- Search (`Cmd+K`, `Ctrl+K`, or `/`) preserves page destinations and adds bounded server-backed customers, providers, bookings, support tickets, disputes, and payouts. Result contact is masked, each result opens its canonical workspace, and DPO search remains page-only pending the E34 access decision.
 - Date/time in Asia/Manila
 - Active environment badge (production / staging / development)
 - Notification bell with badge count

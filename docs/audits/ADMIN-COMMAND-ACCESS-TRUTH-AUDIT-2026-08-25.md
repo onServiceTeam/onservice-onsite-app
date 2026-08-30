@@ -43,6 +43,18 @@ DPO routing complete: privacy-only doctrine conflicts with navigation, client
 guards, Dashboard API access, DSR permissions, consent permissions, and the
 mixed Compliance page. No role middleware was broadened in W9.
 
+## W10 global record-search continuation
+
+The command header now reaches the records an operations employee receives in a real support handoff without turning search into a PII bypass:
+
+- searchable kinds are customer, provider, booking, support ticket, dispute, and payout;
+- searchable input is bounded to the stored identity and operational references needed to find those records, including Philippine phone normalization;
+- customer/provider result subtitles are always masked regardless of whether the operator is `admin` or `super_admin`; complete contact still requires the audited 360 reveal workflow;
+- each result opens the canonical record workspace, while payout results use a visible exact `payoutId` filter that constrains both count and rows and can be cleared;
+- the server permits only `admin` and `super_admin`, and a DPO header remains page-only without making a record-search request while E34 is unresolved.
+
+This contract is intentionally narrower than the underlying role's other page permissions. Search does not add account, case, dispute, payout, or compliance actions and does not reinterpret a status as money proof.
+
 ## Production read-only evidence
 
 The production check read aggregate counts only:
@@ -103,7 +115,7 @@ Behavior tests cover:
 
 ## Remaining admin priorities
 
-1. Add safe global entity search using an explicit searchable-field and ordinary-admin PII matrix.
-2. Resolve E34 as one DPO route/API/action design rather than piecemeal middleware exceptions; keep NPC registration and external appointment records in the launch runbook.
-3. Define fine-grained admin authorization before treating role-profile permission labels as executable policy.
+1. Resolve E34 as one DPO route/API/action design rather than piecemeal middleware exceptions; keep NPC registration and external appointment records in the launch runbook.
+2. Define fine-grained admin authorization before treating role-profile permission labels as executable policy.
+3. Re-audit Audit Log correlation/export and remaining queue ownership so customer/provider incidents can be reconstructed from canonical records.
 4. Continue page-by-page command, money, destructive-action, metric-source, freshness, and case-linkage review.

@@ -4,13 +4,13 @@
 
 This is the durable route-by-route control ledger for the admin overhaul requested by Ken. It is intentionally incomplete. `W1` means the current stage inspected and changed the named surface with rendered behavior tests. It does not mean every state on that page has been manually exercised. `NEXT` means the page remains in the active screen-by-screen pass. `HOLD` means money, compliance, legal, or policy behavior cannot be changed autonomously even though safe visual and accessibility work may continue.
 
-Current audited code checkpoint: `b5e2dbdc775a9962db73f1576fdca74362ca5033`.
+Current audited code checkpoint: `b8b8f01da3c4e274371a6c534512eb993a268245`.
 The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its documentation and production-evidence checkpoint was `cc15c61b7cacad2911e6bae97fe48d4e43179df7`.
 
-## Shared admin contract established in W1
+## Shared admin contract established in W1 and extended through W10
 
 - The shell now has a bounded 1,600-pixel workspace, route and record breadcrumbs, collapsible desktop navigation, mobile navigation without decorative shadow, truthful production/staging/development labeling, Philippine time, keyboard page search, and a reachable account menu at phone through desktop widths.
-- Search is explicit about its current limit. It searches page and workspace destinations only. It does not pretend to search bookings, people, tickets, disputes, or payouts.
+- Search preserves page/workspace destinations and now adds bounded server-backed record search for customers, providers, bookings, support tickets, disputes, and payouts. Every result opens a canonical workspace, customer/provider contact remains masked, and DPO accounts remain page-only while E34 is unresolved.
 - Shared buttons and form controls now meet the 44-pixel target contract. Cards, inputs, menus, dialogs, switches, tooltips, KPI cards, and the dispatch drawer use solid borders rather than decorative shadows.
 - Consequential actions now have reusable accessible in-app confirmation and reason dialogs. The reason dialog can write the operator's actual reason into APIs that already support audit notes.
 - Catalog service and add-on deletion is correctly presented as deactivation. It requires a reason and preserves historical booking evidence while removing the option from new customer booking.
@@ -37,7 +37,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/disputes` | Trust queue | W9 PARTIAL/HOLD | Exact active and stale whole-queue views are URL-bound and enforced by the API, and list resolution now uses an in-app impact confirmation. Resolution/settlement behavior is unchanged and remains under E18/E24; no unsupported SLA countdown was added. |
 | `/disputes/:id` | Dispute 360 | HOLD/NEXT | Recheck evidence chronology and role exits. Settlement/reopen semantics remain held. |
 | `/financials` | Payments, escrow, tax workpapers, reconciliation | HOLD | No money/tax mutation behavior changed in W1. Requires dedicated finance audit and decision-safe tests. |
-| `/payouts` | Provider withdrawal decisions | HOLD | Existing internal large-payout review is not described as statutory AML. Transfer and decision behavior remain money-path controlled. |
+| `/payouts` | Provider withdrawal decisions | W10 PARTIAL/HOLD | Global record search can open one exact payout through a visible URL-bound filter and Clear action. Existing internal large-payout review is not described as statutory AML. Transfer and decision behavior remain money-path controlled. |
 | `/notification-templates` | Customer/provider communications | W1 | Create, update, activate, deactivate, and delete use in-app decisions with channel impact. Continue variable validation and preview audit. |
 | `/recurring` | Series support | W1/HOLD | Cancellation has one reasoned decision and clear existing/future booking impact. E20 still holds automatic charging. |
 | `/business-accounts` | Enterprise account queue | W1 | Approval previews terms and credit limit; suspension explains booking and invoicing impact. |
@@ -175,6 +175,18 @@ These changes are Bugs UX-504 through UX-514 plus the real-behavior correction
 for BUG-PHASE136-01. They do not change payment, escrow, refund, payout,
 dispatch, dispute-resolution, or compliance authorization semantics.
 
+## W10 safe global record-search contract
+
+- The shared header now searches customer, provider, booking, support, dispute, and payout records after two trimmed characters while preserving the existing page/workspace search.
+- The API accepts one bounded `q` value, caps each entity query at four candidates and the combined response at twelve, and runs six fixed parallel queries rather than record-driven lookups.
+- Operators may search the stored identifiers and operational references they receive during support, including customer/provider names, email or Philippine phone input, ticket number/subject, and payout transfer reference. Returned customer/provider contact is always masked, including for super-admin search results; full contact remains in the audited 360 reveal workflow.
+- Result ranking and type labels make the record kind explicit. Destinations are canonical Customer 360, Provider 360, Booking 360, exact Support/Dispute workspaces, and the payout queue with an exact `payoutId` filter.
+- The payout handoff shows a visible exact-payout banner, constrains both count and row queries to that payout, and can be cleared before broader provider search. It changes no approval, review-hold, reservation, transfer, rejection, or completion behavior.
+- Search is limited to `admin` and `super_admin`. A DPO account keeps page-only command search and does not call the record API while E34 remains unresolved; W10 does not infer general operations authority from the DPO role.
+
+These changes are Bugs UX-515 through UX-522. They do not change account,
+booking, support, dispute, payment, payout, or compliance lifecycle semantics.
+
 ## Remaining browser-native confirmations after W9
 
 W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. W3 removed two Provider 360 prompts. W4 removed the two Customer 360 prompts. W6 removed four Booking 360 prompts and two Dispatch prompts, leaving 21. W7 and W8 changed read-only queue surfaces. W9 replaced the Disputes-list resolution prompt, leaving 20. The remaining prompts are deliberately visible here rather than being hidden by a false completion claim.
@@ -288,3 +300,10 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 - Admin, Mobile, and API TypeScript passed. Repository/admin/API lint passed. Admin and API production builds passed. Gate A passed all 10 blocking fragments, Gate C passed all 6 blocking articles, all 6 gate self-tests passed, the no-N+1 scanner passed with its 30 existing annotated patterns, and `git diff --check` passed.
 - The local Docker-only nginx test could not reach Docker Desktop and is not counted as a pass. GitHub independently passed Gates run `33314152712` and CI run `33314152714`, including Mobile, API, Admin, and API image build plus liveness boot.
 - Code checkpoint `b5e2dbdc775a9962db73f1576fdca74362ca5033` was pushed to `master`. Authenticated Dashboard/Disputes browser evidence remains rendered-test evidence, not a claimed production session. E32 blocks production synchronization, E33 blocks dispatch/payment correction, and E34 blocks inferred DPO authorization changes.
+
+## W10 local and GitHub verification
+
+- Admin: 154 test files passed, 1 skipped; 264 tests passed and 3 explicit todos remained. API: 494 locally runnable suites passed, 1 suite remained intentionally skipped; 3,093 tests passed and 1 test remained intentionally skipped. The Docker-dependent generated-certificate nginx suite was excluded locally and is not counted as a pass.
+- Focused rendered admin tests execute masked record results, canonical navigation, the DPO page-only boundary, and exact payout handoff. Focused API tests execute result masking/ranking, trimmed single-query validation, DPO rejection, payout UUID validation, and exact payout constraints in both count and row queries.
+- Admin, Mobile, and API TypeScript passed. Repository lint and Admin/API production builds passed. The environment contract passed all 81 checks, Gate A passed all 10 blocking fragments, Gate C passed all 6 blocking articles, all 6 gate self-tests passed, the no-N+1 scanner passed with its 30 pre-existing annotated patterns, the strict phantom-test scanner reported no findings, and `git diff --check` passed.
+- GitHub Gates run `33316042546` and CI run `33316042660` passed, including the independent Mobile, API, Admin, and API image build/liveness jobs. Production remains unclaimed under E32; E33 and E34 retain their semantic holds.
