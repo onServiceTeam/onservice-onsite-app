@@ -46,31 +46,33 @@ When the system runs out of untried providers OR hits the 10-attempt cap, it not
 
 ## 3. The Dispatch Console - what to watch
 
-Admin page: **Dispatch** (`/dispatch`, `DispatchConsolePage.tsx`). It is a real-time three-panel console.
+Admin page: **Dispatch** (`/dispatch`, `DispatchConsolePage.tsx`). It is an operations console that refreshes booking state over the admin socket.
 
 What is on screen:
 
-- **Header counters:** active bookings, providers online (online = `approved` AND `is_available = TRUE`), socket connection status, and filters for city / status / service.
-- **Map:** Leaflet/OSM map with markers for bookings and online providers. Live GPS updates flow in over the socket (`gps_update`).
+- **Header counters:** active bookings, providers accepting work (`approved` AND `is_available = TRUE`), socket connection status, and filters for city / status / service.
+- **Map:** Leaflet/OSM map with booking service-location markers and the saved service-base markers of providers accepting work. These are not live device locations and do not show driver movement.
 - **Active Bookings list:** capped at 50 most relevant. Live-updates over the socket (`booking:created`, `booking:status_changed`).
-- **Alert tail:** the last 20 live alerts (`alert:new`).
+- **Dispatch Attention queue:** derived from the current booking feed for unassigned, overdue, or coordinate-incomplete work. The API does not publish an `alert:new` stream.
 
-The default map center is Cebu City. Use the city filter for the active service area; service areas remain admin data rather than hardcoded launch markets.
+The default map center comes from the configured default service area, with Cebu City as fallback only. Use the city filter for the active service area; service areas remain admin data rather than hardcoded launch markets.
 
 ### What requires super_admin
 
-The console shows everything to any admin, but the action buttons (Reassign, Cancel, Message customer) only work for **super_admin** accounts. Plain `admin` accounts see a read-only banner. Make sure each shift has at least one super_admin on call who can actually push the buttons. See `02-org-structure-and-roles.md` and `11-admin-system-training-manual.md` for who has which role.
+Every admin can inspect the board, open the linked Booking/Customer/Provider/Conversation/Support records, and send a participant **Support message**. **Reassign** and **Review cancellation** require `super_admin`. Make sure each shift has one reachable for assignment and money-path escalation. See `02-org-structure-and-roles.md` and `11-admin-system-training-manual.md` for role boundaries.
 
 Super_admin row actions on the console:
-- **Reassign** - pick an online provider, reason 5+ chars.
-- **Cancel** - reason 10+ chars; triggers a refund per the cancellation policy.
-- **Message customer** - 5 to 2000 chars; lands as a "Message from onService support" notification.
+- **Reassign** - pick an accepting-work provider, reason 5+ chars. The API independently validates approval, account state, availability, service coverage, exact booking location, and service radius.
+- **Review cancellation** - opens Booking 360 so the operator sees the money trail and supplies the explicit live refund inputs before confirming.
+
+All-admin communication action:
+- **Support message** - 5 to 2,000 chars. It is written into the canonical booking conversation as an audited system message and notifies both participants when a provider is assigned; before assignment it is customer-only.
 
 ### What to scan, in order, every time you look at the board
 
 1. Any booking stuck in `requested` (paid, no provider yet). These are your fires.
-2. Any `no_provider_available` alert in the alert tail.
-3. Providers-online count vs active-bookings count. If online providers are near zero in an active city, you have a coverage problem, not a dispatch problem.
+2. Any unassigned, overdue, or missing-coordinate item in Dispatch Attention. Confirm offer history in Booking 360 before concluding that matching exhausted candidates.
+3. Accepting-work-provider count vs active-bookings count. If that count is near zero in an active city, you have a coverage problem, not a dispatch problem. It is not a real-time presence count.
 4. Socket status. If it is disconnected, your board is stale. Refresh.
 
 ---
@@ -94,7 +96,7 @@ You manage by status. Here is the live state machine in plain terms, grouped by 
 | `disputed` | Customer filed a dispute | Hand to trust & safety (`09-...`). |
 | `cancelled_by_*` | Cancelled by customer / provider / admin | Terminal. Check refund fired. |
 
-Full booking monitor: **Bookings** page (`/bookings`). Search by booking ID or city, filter by status, see the escrow column. The list live-updates via `booking:status_changed`. Use Bookings for the full picture; use Dispatch for the live fight.
+Full booking monitor: **Bookings** page (`/bookings`). Search by booking ID, customer, provider, service, or city; filter by status; and inspect the escrow column. The list live-updates via `booking:status_changed`. Use Bookings for the full picture; use Dispatch for the live fight.
 
 ACTIVE bucket (what counts as "in flight" for metrics): `requested`, `quoted`, `matched`, `payment_pending`, `paid`, `provider_en_route`, `provider_arrived`, `in_progress`, `disputed`.
 
@@ -104,7 +106,7 @@ ACTIVE bucket (what counts as "in flight" for metrics): `requested`, `quoted`, `
 
 This is the core live-ops skill. For a real dispatch row, verify the customer payment and held escrow first. Then get them a provider or, failing that, a clean refund and an honest message. Do not leave them silent.
 
-Trigger: a `no_provider_available` alert, or you spot a `requested` booking sitting with no movement and the offer cycle has stopped (out of candidates or hit the 10-attempt cap).
+Trigger: Dispatch Attention shows an unassigned/overdue booking, or you spot a `requested` booking sitting with no movement. Open Booking 360 and confirm the offer cycle stopped because it exhausted candidates or hit the 10-attempt cap.
 
 ### Decision tree
 
@@ -112,7 +114,7 @@ Trigger: a `no_provider_available` alert, or you spot a `requested` booking sitt
 Paid booking with no provider
         |
         v
-Are there ANY online providers in this city for this service?
+Are there ANY accepting-work providers in this city for this service?
         |                                   |
        YES                                  NO
         |                                   |
@@ -131,7 +133,7 @@ Go to step B (widen / notify / refund).
 
 ### A. Manual outreach + re-dispatch (providers exist but are not accepting)
 
-- [ ] **A1.** Open the Dispatch Console, filter to the booking's city + service. Look at who is online on the map.
+- [ ] **A1.** Open the Dispatch Console, filter to the booking's city + service. Treat provider markers as saved service bases, then verify their actual service and radius eligibility.
 - [ ] **A2.** Re-fire dispatch by hand: `POST /bookings/:id/dispatch` (owner or admin). This re-kicks the offer cycle if there is an untried candidate. If the 10-attempt cap was already hit, this will not help and you go to manual reassign or step B.
 - [ ] **A3.** Contact promising nearby providers directly (call/SMS/Viber per `07-provider-support-sop.md`). Ask them to flip their availability on and accept the next offer. Template below.
 - [ ] **A4.** If a provider agrees, use **Reassign** to put the job on them directly (section 6). Do not wait for the auto-cycle if you already have a yes.
@@ -140,8 +142,8 @@ Go to step B (widen / notify / refund).
 
 - [ ] **B1.** Check the provider's and area's radius. A provider carries their own `service_radius_km`, and the service area has its own `radius_km`. If the booking sits just outside coverage, a `super_admin` may use Provider 360 to apply a reasoned direct radius override, but never above Admin Settings **Max Service Radius** (50 km at this audit). This is an audited emergency operations action, not a way to bypass a provider's pending market/location request. Confirm the provider agrees, record why and the intended end time, and restore the prior radius after the booking. Provider-initiated area, pin, or standing-radius changes belong in the Service Areas review queue.
 - [ ] **B1a.** Confirm the booking coordinates represent the actual property, not a city center. New bookings are server-gated, but legacy bookings and old saved addresses may lack coordinates. Do not manually dispatch until the customer supplies an exact pin or device location.
-- [ ] **B2.** If still nothing, **message the customer** honestly from the console (5 to 2000 chars). Tell them what is happening and the next step. Template below.
-- [ ] **B3.** If no provider can be found in a reasonable window, **cancel with a full refund** rather than letting them wait. Use the console Cancel (reason 10+ chars) or the Booking detail refund path. Because they pre-paid, a no-provider outcome is a clean 100% refund plus a goodwill credit (see the rule below). The live cancellation-refund brackets are built for customer/provider-caused cancellations, not platform coverage failures, so do not let those brackets reduce the refund here.
+- [ ] **B2.** If still nothing, send a **Support message** from Dispatch or Booking 360 (5 to 2,000 chars). Before assignment it reaches the customer; after assignment it is visible to both booking participants. Tell them what is happening and the next step. Template below.
+- [ ] **B3.** If no provider can be found in a reasonable window, use **Review cancellation** to open Booking 360 and inspect the recorded payment, escrow, ledger, and prior refund attempts. A no-provider platform failure requires the manual full-refund/goodwill path described in Money Ops; do not misclassify it with customer/provider cancellation brackets. Record the resulting refund destination, status, and reference before telling the customer it completed.
 
 > **Set (editable):** a platform-side no-provider failure is a 100% full refund plus a ₱150 goodwill credit on top. _Recommended default. To change it, edit here and anywhere this value is referenced (`06-customer-support-sop.md`, `09-trust-safety-and-disputes.md`, `10-money-and-compliance-ops.md`)._
 
@@ -166,8 +168,8 @@ Where: **Dispatch Console** row action **Reassign**, or **Booking detail** (`/bo
 
 Steps:
 
-1. [ ] Confirm the new provider is `approved` and online (`is_available = TRUE`). A suspended provider cannot be assigned.
-2. [ ] Confirm they actually cover this service category and area.
+1. [ ] Confirm the new provider is `approved` and accepting work (`is_available = TRUE`). A suspended provider cannot be assigned.
+2. [ ] Confirm they actually cover this service category/subcategory, the booking has exact coordinates, and the property falls inside their service radius. The API rechecks all of these even if a request bypasses the picker.
 3. [ ] Open the booking (Dispatch row or Booking detail).
 4. [ ] Click **Reassign** and pick the named eligible provider.
 5. [ ] Type a clear reason. It is audited in `admin_actions`. Example: "Original provider declined, reassigned to confirmed nearby pro per phone."
@@ -193,7 +195,7 @@ Starting staffing guide (tune with data):
 | Payday days (15th, 30th) | Add 1 dispatcher to the busiest window | Demand spike |
 | Outside support hours | On-call only | Low volume; alerts route to on-call |
 
-Hard rule: **every staffed window must have a super_admin who can actually push Reassign / Cancel / Message.** A plain admin alone cannot resolve a stuck paid job. If your only on-shift person is a plain admin, they escalate to the on-call super_admin.
+Hard rule: **every staffed window must have a super_admin reachable for Reassign and Review cancellation.** A plain admin can inspect records and send a participant Support message, but cannot resolve assignment or money state. If your only on-shift person is a plain admin, they escalate those actions to the on-call super_admin.
 
 Support hours stated to customers are Monday to Saturday, 8:00 AM to 6:00 PM PHT (`06-customer-support-sop.md`). Sunday is closed at launch; urgent safety issues still escalate via the on-call path. Dispatch coverage should at minimum match support hours, and auto-dispatch plus the cron sweeps keep running 24/7 on their own.
 
@@ -211,7 +213,7 @@ Super_admin on next shift: [name]
 
 LIVE NOW
 - Active bookings:      [count]
-- Providers online:     [count, by city if mixed]
+- Providers accepting work: [count, by city if mixed; not live presence]
 - Socket status:        [connected / had drops]
 
 OPEN ITEMS (must be handed over, not dropped)
@@ -222,7 +224,7 @@ OPEN ITEMS (must be handed over, not dropped)
 - Customers waiting on a callback/message: [booking IDs]
 
 COVERAGE FLAGS
-- Cities low on online providers: [city: count]
+- Cities low on accepting-work providers: [city: count]
 - Anything that needs recruiting/ops lead attention: [...]
 
 INCIDENTS / NOTES
@@ -235,7 +237,7 @@ HANDED OVER BY: [name]  AT: [time PHT]
 
 ## 9. Copy-paste customer message templates
 
-Use these from the Dispatch Console "Message customer" (lands as "Message from onService support"). Keep it plain. Use the customer's language where you know it (Bisaya / Tagalog / English).
+Use these from the Dispatch or Booking 360 **Support message** action. The message is audited and appears in the booking conversation. When a provider is assigned, both participants can see it, so do not include internal investigation notes. Keep it plain and use the customer's language where you know it (Bisaya / Tagalog / English).
 
 **Still searching (early, reassuring):**
 ```
@@ -281,9 +283,9 @@ payment/escrow status and will confirm shortly. Reply STOP to opt out.
 Run at shift start and shift end.
 
 - [ ] Dispatch Console open, socket shows connected.
-- [ ] Filter to each active city; eyeball providers-online count per city.
+- [ ] Filter to each active city; compare the accepting-work-provider count with demand. Do not interpret it as live presence.
 - [ ] No `requested` paid booking sitting unmatched beyond the SLA ceiling.
-- [ ] Alert tail clear of unaddressed `no_provider_available`.
+- [ ] Dispatch Attention clear of unexplained unassigned, overdue, and missing-coordinate bookings.
 - [ ] Any `disputed` bookings handed to trust & safety, not parked on the dispatch board.
 - [ ] Any suspended-mid-job bookings have a resolution plan (escrow is frozen on these).
 - [ ] `auto_dispatch_enabled` is ON (System Settings, category Dispatch & Map). If it is OFF, every booking needs manual dispatch. Confirm that is intentional.
@@ -299,7 +301,7 @@ Run at shift start and shift end.
 - [ ] Spot-check that the 5-second offer sweep is healthy: no large pile of stale `pending` offers with `expires_at` in the past. If offers are piling up unexpired, escalate to the API on-call (the cron may be down).
 - [ ] Confirm cities near `min_providers_to_launch` are being fed by recruiting before we market harder there.
 - [ ] Review any manual reassigns from the week. A spike in reassigns usually means one provider or one area is unreliable. Feed to `12-quality-standards-and-kpis.md` and provider support.
-- [ ] Confirm no city is being actively marketed while its online-provider count is too low to serve demand. Flag to Ken / ops lead.
+- [ ] Confirm no city is being actively marketed while its accepting-work-provider count is too low to serve demand. Flag to Ken / ops lead.
 
 ---
 
@@ -309,7 +311,7 @@ Run at shift start and shift end.
 |---|---|---|
 | Stuck paid job, need to push buttons | Super_admin on shift | Dispatch Console |
 | Dispatch frozen / offers not cycling | API on-call | Infra channel; check the 5s sweep worker |
-| Whole city has no online providers | Ops lead + recruiting | `03-provider-recruiting-sop.md` |
+| Whole city has no accepting-work providers | Ops lead + recruiting | `03-provider-recruiting-sop.md` |
 | Customer dispute filed | Trust & safety | `09-trust-safety-and-disputes.md` |
 | Refund / escrow question | Money ops (super_admin) | `10-money-and-compliance-ops.md` |
 | Provider suspended mid-job, escrow frozen | Super_admin | Booking detail + `07-provider-support-sop.md` |
@@ -322,7 +324,7 @@ Run at shift start and shift end.
 - A real dispatch booking is server-verified paid with held escrow. Verify that state, then move quickly to a provider; never dispatch a merely pending payment attempt.
 - Auto-dispatch offers ONE provider at a time, 45 seconds each, up to 10 tries, then it stops and tells the customer once.
 - When it stops, YOU act: re-dispatch by hand, call providers, widen radius, or message + refund. Never go silent on the customer.
-- Reassign and Cancel and Message customer are super_admin only. Every shift needs one reachable.
+- All admins can send an audited participant Support message. Reassign and Review cancellation are super_admin only, so every shift needs one reachable.
 - A no-provider platform failure is a 100% refund plus a ₱150 goodwill credit. Do not apply the customer/provider cancellation brackets to it.
 - Suspending a provider mid-job freezes that job's escrow. Reassign or resolve it; do not abandon it.
 - Watch the board by status. `requested` with no provider is your fire. Disputes go to trust & safety.

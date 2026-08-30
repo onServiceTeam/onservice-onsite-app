@@ -14,7 +14,7 @@ Onboarding begins the moment an admin clicks **Approve** on the provider in the 
 - The system sends an **"Account Approved"** notification to the provider's app.
 - The provider lands on the standard tier **new** (15% commission) unless an admin set them to **founding** (10%, invite-only launch batch). Tier is shown in the admin Provider detail page (`/providers/:id`).
 
-Approval does not make a provider visible to customers yet. A provider only enters auto-dispatch when both conditions are true: `status = approved` AND `is_available = TRUE` (the "online" toggle in their app). The 7-day plan below exists to get them from "approved" to "online and confident."
+Approval does not put a provider into matching yet. A provider enters auto-dispatch only when both conditions are true: `status = approved` AND `is_available = TRUE` (the availability control may say "online" in their app). That toggle means **accepting work**; it is not proof that the app is open or that location is being streamed. The 7-day plan below exists to get them from approved to available and confident.
 
 ---
 
@@ -62,12 +62,12 @@ Starting targets. Tune as the team learns what works.
 | Day 1 | Payout method added and validated | Ops | Test of destination format passes |
 | Day 2 | App walkthrough (offers, jobs, completion, wallet) | Ops/Trainer | Provider can explain the 45-second offer in their own words |
 | Day 2 | Code of Conduct acknowledged | Ops | Acknowledgement logged |
-| Day 3 | Go online for the first time, low-volume window | Provider | `is_available = TRUE`, provider present |
+| Day 3 | Turn on accepting-work availability in a low-volume window | Provider | `is_available = TRUE`, provider confirms they are present and watching offers |
 | Day 3 to 5 | First job with buddy/QA on standby | Buddy | Job hits `completed_by_provider` with photos |
 | Day 5 | First-job debrief, fix gaps | Buddy | Issues logged, retraining if needed |
 | Day 7 | Onboarding review, hand to normal ops | Ops | Checklist fully ticked |
 
-If a provider stalls (no first job by Day 7), flag in `07-provider-support-sop.md` for follow-up. Do not leave half-onboarded providers online.
+If a provider stalls (no first job by Day 7), flag in `07-provider-support-sop.md` for follow-up. Do not leave a half-onboarded provider set to accepting work.
 
 ---
 
@@ -75,15 +75,15 @@ If a provider stalls (no first job by Day 7), flag in `07-provider-support-sop.m
 
 Run this live with the provider, ideally screen by screen on their phone. Bisaya, Tagalog, or English, whatever they are comfortable with.
 
-### 4.1 Going online (availability)
+### 4.1 Accepting-work availability
 
-Approved is not the same as online. The provider flips an availability toggle (`is_available`). Only when online do they receive job offers. Teach them to go offline when they cannot work, so they do not collect offers they will decline. Decline rate hurts their acceptance score, which feeds dispatch ranking.
+Approved is not the same as available for offers. The provider flips an availability toggle (`is_available`). Only while accepting work do they receive job offers. Teach them to turn it off when they cannot work, so they do not collect offers they will decline. The toggle is not a presence or live-location signal. Decline rate hurts their acceptance score, which feeds dispatch ranking.
 
 ### 4.2 How job offers work (the 45-second cycle)
 
 This is the part to get right. When a customer books a fixed-price job near them:
 
-1. The system ranks nearby online providers and sends the offer to **one provider at a time**.
+1. The system ranks nearby eligible providers who are set to accepting work and sends the offer to **one provider at a time**.
 2. The provider has **45 seconds** to **Accept** or **Decline**. After 45 seconds with no action, the offer **expires** and rolls to the next provider.
 3. The system tries up to **10 providers** before giving up and telling the customer "no provider available."
 

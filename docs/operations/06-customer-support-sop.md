@@ -13,7 +13,7 @@ Customers can open, list, view, and reply to their own support cases in the shar
 Two things follow from this:
 
 1. In-app cases enter the same support queue automatically. Email, Facebook Messenger, and later SMS contacts still need an agent-created ticket so the company has one record.
-2. The support case thread is asynchronous, not a real-time live-chat promise. Per-booking customer-to-provider chat remains separate. The super-admin "Message customer" action on the Dispatch Console is also separate and lands as a notification titled "Message from onService support."
+2. The support case thread is asynchronous, not a real-time live-chat promise. Per-booking customer-to-provider chat remains separate. Any admin can send an audited **Support message** from Dispatch or Booking 360. It is a system message in that booking conversation, reaches only the customer before assignment, and is visible to both booking participants after a provider is assigned.
 
 Also true today and worth knowing before you promise anything:
 
@@ -33,7 +33,7 @@ Also true today and worth knowing before you promise anything:
 | Facebook Messenger | onService PH page | Support agents | Launch channel. Filipino customers expect Messenger. Confirm the page is set up. |
 | In-app support cases | Support inbox in customer/provider workspace | Support agents | Customer opens and follows their own case; internal notes never appear. |
 | Phone / SMS hotline | Not provisioned | Support agents | The former placeholder is removed; do not advertise phone support until a real number and staffing exist. |
-| In-app push (outbound only) | Dispatch Console "Message customer" | Super-admin | Lands as "Message from onService support" notification. Not a two-way channel. |
+| Booking participant support message | Dispatch Console or Booking 360 | Support agents / admins | Audited system message in the booking conversation plus participant notice. Customer-only before provider assignment; visible to both participants after assignment. It is not an admin live-chat inbox. |
 | DPO / privacy requests | `dpo@onservice.ph`, `privacy@onservice.ph` | DPO / compliance | Data requests go here, not to general support. See section 9. |
 
 > **Set (editable):** staff email plus Facebook Messenger first (low cost, async, fits a small team), and add a real phone/SMS hotline once volume warrants the staffing. Email is the primary written channel. _Recommended default. To change it, edit here and anywhere this value is referenced._
@@ -196,7 +196,7 @@ ACCURACY NOTE for everyone: E03 fixed the internal booking/escrow ordering. E14 
 3. If the provider is genuinely a no-show (did not arrive, not responding):
    - Set ticket type `provider_no_show`, priority P2.
    - Two clean outcomes: re-match a new provider, or cancel with a fair refund.
-   - Re-match: escalate to Dispatch / super-admin to reassign on the Dispatch Console (reason required). Dispatch can also message the customer in-app.
+   - Re-match: escalate to Dispatch / super-admin to reassign on the Dispatch Console (reason required). Any admin may send a participant Support message before or after the reassignment; remember that the assigned provider can see it.
    - Cancel for provider no-show: this is a provider-fault cancellation. The customer should get a full refund. The platform also funds a small apology credit for a provider no-show (default ₱200 in the displayed policy). Escalate the refund to super-admin; you cannot move the money yourself.
 4. If the job was already marked complete but the provider never really showed, that is a dispute of type `no_show`. Send them to 8.6.
 5. Reassure on timing and log the outcome.

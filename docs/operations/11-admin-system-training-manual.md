@@ -136,7 +136,7 @@ Super_admin actions: Suspend customer account, Flag for fraud review, and a wall
 
 ### 2.6 Bookings (`/bookings`)
 
-The all-bookings monitor. Search by booking ID or city. Filter by any of the ~18 statuses. There is an escrow status column. The list live-updates as bookings change. Read-only; open a booking for actions.
+The all-bookings monitor. Search by booking ID, customer, provider, service, or city. Customer and provider names open their canonical 360 workspaces. Filter by any of the ~18 statuses. There is an escrow status column. The list live-updates as bookings change. Read-only; open a booking for actions.
 
 The booking lifecycle you will see (simplified): `requested` to `matched/quoted` to `payment_pending` to `paid` to `provider_en_route` to `provider_arrived` to `in_progress` to `completed_by_provider` to `confirmed` to `payout_ready` to `paid_out`. A dispute branches off after `completed_by_provider` into `disputed` to `resolved`. Cancellations end in `cancelled_by_customer` / `_provider` / `_admin`. See `10-money-and-compliance-ops.md` for the money meaning of each state.
 
@@ -144,24 +144,26 @@ Note for support staff: E03 fixed the booking/escrow ordering, but current exter
 
 ### 2.7 Booking detail / Booking 360 (`/bookings/:id`)
 
-One booking, 5 tabs: Overview (customer/provider blocks, address), Timeline, Evidence (photos, GPS check-ins, chat count, receipts), Money (price/fee/total, linked dispute), Audit.
+One booking, 5 tabs: Overview (linked customer/provider blocks, partial or complete service address, and direct conversation/support-case exits), Timeline, Evidence (photos, recorded check-ins, chat count, receipts), Money, and Audit. Money shows the booking totals, payment-gateway attempts, booking-linked wallet ledger entries, retained official-receipt/sales records, and linked dispute. It never exposes a PayMongo client key.
 
-Super_admin action panel: Manual escrow release, Refund (peso amount), Reassign provider (from the named online-provider picker), Cancel (with hours-until-scheduled, provider-arrived, customer-no-show flags), Force-complete. Reason minimums are enforced: most actions at least 10 chars, force-complete at least 20 chars.
+Super_admin action panel: Manual escrow release, Refund (peso amount), Reassign provider (from the named accepting-work provider picker), Cancel (with required hours-until-scheduled, provider-arrived, and customer-no-show inputs), and Force-complete. Every action has an in-app confirmation and a reason counter; most reasons need at least 10 chars and force-complete needs at least 20. The reassignment API independently rejects inactive, unapproved, unavailable, service-ineligible, out-of-radius providers and bookings without exact coordinates. Cancellation uses the stated inputs in the live refund calculation. The displayed policy editor still does not govern that calculation; follow the E09 warning and quote only the live outcome.
+
+Ordinary admins can send a **Support message** from Booking 360. The system creates or reuses the booking conversation, writes the audited system message, and notifies the customer plus the assigned provider. Before provider assignment it reaches only the customer. Use the direct Conversation and Support-case links to preserve full context; this is not a replacement for the owned Support Ticket queue.
 
 How to do a manual escrow release (super_admin): open the booking, go to the action panel, click Manual escrow release, type a reason. Use this only when a booking is stuck in `confirmed` but did not auto-release. See `09-trust-safety-and-disputes.md` before touching the money panel.
 
 ### 2.8 Dispatch Console (`/dispatch`)
 
-The live operations console. Three panels: a map (Leaflet/OSM) with booking and online-provider markers, the active bookings list (capped at 50), and a live alert tail (last 20). Header shows live counters (active bookings, providers online), socket connection status, and filters (city/status/service).
+The operations console has three working areas: a Leaflet/OSM map, the active-bookings list (capped at 50), and a derived **Dispatch Attention** queue for unassigned, overdue, or coordinate-incomplete bookings. Booking markers show service locations. Provider markers show saved service bases for approved providers whose accepting-work toggle is on. Neither marker is live device GPS. The header shows active-booking and accepting-work-provider counts, socket connection status for booking refreshes, and city/status/service filters.
 
-Super_admin row actions: Reassign (pick an online provider, reason at least 5), Cancel (reason at least 10, triggers a refund per the cancellation policy), Message customer (5-2000 chars, shows up to the customer as "Message from onService support").
+Ordinary admins can open the canonical Booking, Customer, Provider, Conversation, and Support workspaces and send a 5–2,000-character **Support message** to the booking participants. Super_admin adds **Reassign** and **Review cancellation**. Review cancellation opens Booking 360; Dispatch never performs an unreviewed quick cancellation.
 
 How to watch the dispatch console during a shift:
 1. Confirm the socket status shows connected.
 2. Filter to your launch city (default market is Metro Cebu).
-3. Watch the alert tail. A "no provider available" alert means auto-dispatch tried its candidates and ran out. Follow the no-provider playbook in `08-dispatch-and-live-operations.md` (the short version: confirm there really are online providers in range, then a super_admin manually reassigns or messages the customer).
+3. Work the Dispatch Attention queue. For an unassigned or overdue booking, inspect its timeline and current offers in Booking 360 before deciding whether auto-dispatch exhausted candidates. Follow the no-provider playbook in `08-dispatch-and-live-operations.md`: confirm accepting-work providers actually cover the service and radius, then reassign, send a participant support message, or escalate a reviewed cancellation/refund.
 
-The default map center is Cebu City. Use the city filter to move between active service areas; adding another market remains an admin data change, not a code change.
+The default map center comes from the configured default service area, with Cebu City only as a safe fallback when that configuration is unavailable. Use the city filter to move between active service areas; adding another market remains an admin data change, not a code change.
 
 ### 2.9 Catalog / Service Catalog (`/catalog`)
 
@@ -287,6 +289,8 @@ Provider change requests appear above the market table. Each card links to Provi
 ### 2.21 Audit Log (`/audit-log`)
 
 The unified read-only log. It combines request-level entries (badge "request") and privileged admin operations (badge "admin op," which carry the typed reason). Filterable. When you need to know who did what and why, this is the page. Every money/destructive action you take is recorded here.
+
+Booking conversation interventions appear as **Booking support message sent**. This participant-neutral label is intentional because an assigned provider can see and receive the same system message as the customer.
 
 ### 2.22 Compliance (`/compliance`)
 
@@ -425,7 +429,7 @@ Sign-off: ___________________________ (super_admin)    Date: ____________
 
 - All times Asia/Manila. Support hours are Monday to Saturday, 8:00 AM to 6:00 PM PHT. All money in pesos (centavos under the hood).
 - Reason fields are permanent and public-to-audit. Most need at least 10 chars; dispute resolve, reopen, and force-complete need at least 20.
-- "Online" provider = approved AND available. Suspension removes a provider from dispatch instantly.
+- "Accepting work" provider = approved AND `is_available = TRUE`; this is a provider-controlled availability setting, not proof of app presence or live location. Suspension removes a provider from matching instantly.
 - Current code auto-confirms/releases after 24h while dispute filing remains open for 48h. This is the E18 money-path contradiction: do not call it settled policy, change either timer independently, or assume a later accepted case still has held funds. DSR SLA is 15 days.
 - Waiting support tickets require manual follow-up. The proposed five-day auto-close and two reminders are not implemented.
 - If you are not super_admin and a money/destructive button is locked, that is correct. Escalate, do not work around it.

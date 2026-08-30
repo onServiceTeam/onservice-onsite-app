@@ -167,14 +167,14 @@ These are the platform health numbers. Most come from the Dashboard (`/`), Finan
 
 Why these matter for an instant-pay model: once a booking is verified paid, a high no-provider rate means we are holding money for work we cannot fill, which forces refunds and burns trust. Time-to-match and match rate are the early-warning lights for that; pending or failed authorization attempts are payment reliability, not dispatch demand.
 
-Dispatch-specific watch items (live, from the Dispatch Console):
+Dispatch-specific watch items (current-state, from the Dispatch Console):
 
-- Providers online count vs active bookings. If bookings climb while online providers stay flat, expect no-provider events.
-- The 45-second offer cycle: each unanswered offer cascades to the next provider, capped at 10 attempts, then the customer is notified once. Watch the live alert tail for repeated cascades in one city. See `08-dispatch-and-live-operations.md`.
+- Providers accepting work vs active bookings. The count is an approved-plus-availability-toggle measure, not app presence or live GPS. If bookings climb while accepting-work supply stays flat, expect no-provider events.
+- The 45-second offer cycle: each unanswered offer cascades to the next provider, capped at 10 attempts, then the customer is notified once. Use Dispatch Attention to find unassigned/overdue work, then verify each booking's offer history in Booking 360; the console does not receive a live alert-tail stream. See `08-dispatch-and-live-operations.md`.
 
 City-level health (Dashboard Cities grid, one row per service area):
 
-- [ ] Each active city has providers online during peak hours.
+- [ ] Each active city has enough approved providers set to accepting work during peak hours; separately confirm actual coverage and responsiveness.
 - [ ] `city_low_provider_count` alert is clear. If it fires, that city is at no-provider risk and recruiting needs a push (`03-provider-recruiting-sop.md`).
 
 ---
@@ -250,7 +250,7 @@ Attendees:
 | Bookings + statuses | Bookings `/bookings` | Status filter, escrow column |
 | Single-job audit | Booking detail `/bookings/:id` | Timeline, Evidence, Money, Audit |
 | Provider quality | Provider detail `/providers/:id` | Jobs, Financials, Reviews, Disputes |
-| Live ops | Dispatch `/dispatch` | Counters, map, alert tail |
+| Live ops | Dispatch `/dispatch` | Counters, saved-location map, Dispatch Attention; verify offer history in Booking 360 |
 | Disputes | Disputes `/disputes` | Status + tier filter; risk-pattern flags on detail |
 | Money + GMV + reconciliation | Financials `/financials` | Overview, Escrow, Payouts, Guarantee Fund, Reconciliation |
 | Payout queue | Payouts `/payouts` | Status filter |

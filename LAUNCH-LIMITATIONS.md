@@ -26,24 +26,30 @@ Phase 200 actually did the work:
 - `formatProvider` now returns `latitude`/`longitude`, and the reassign
   dropdown + map popup show the provider's `businessName`.
 
-The server-side `reassignBookingProvider` still validates the chosen
-provider before applying the swap. Working-hours/schedule filtering remains
-a v1.1 polish item.
+The server-side `reassignBookingProvider` now independently validates the
+chosen provider before applying the swap. A crafted request cannot assign an
+inactive, unapproved, unavailable, service-ineligible, or out-of-radius
+provider, and a booking without exact coordinates cannot be reassigned.
+Working-hours/schedule filtering remains outside manual reassignment because
+an operator may be handling an exception after confirming availability.
 
-## 2. Dispatch console — live map + cancel refund note — RESOLVED in Phase 200 (2026-05-29)
+## 2. Dispatch console — operational map and safe cancellation handoff — RESOLVED, accuracy corrected 2026-08-30
 
-**Where:** Cancel dialog + Leaflet map within the Dispatch console.
+**Where:** Leaflet map, attention queue, and booking actions within the Dispatch console.
 
-**Status:** RESOLVED — Phase 200 (2026-05-29).
+**Status:** RESOLVED. Phase 200 supplied the initial map; W6 corrected the
+operator contract and removed unsafe capability claims.
 
 History: the D10 closeout claimed a `cancel-preview` refund-preview endpoint
 and a working map; neither existed (E06). Phase 200 fixes:
 
-- **Live map now works.** `listBookingsAdmin` and `listProviders` /
+- **Operational map works.** `listBookingsAdmin` and `listProviders` /
   `formatBookingAdmin` / `formatProvider` now return the `latitude`/
   `longitude` that already existed on the `bookings`/`providers` tables, so
-  the Leaflet map plots live booking and online-provider markers. Verified
-  by `apps/admin/src/pages/__tests__/dispatch-map-phase200.real.test.tsx`.
+  the Leaflet map plots booking service locations and the saved service bases
+  of providers currently accepting work. These are not live device positions.
+  Verified by `apps/admin/src/pages/__tests__/dispatch-map-phase200.real.test.tsx`
+  and `bug-ux-473-dispatch-truth-links.real.test.tsx`.
 - **Map tiles are admin-configurable.** New `dispatch` settings category
   (migration `127_phase200_dispatch_map_settings.sql`) holds `map_tile_url`,
   `map_tile_attribution`, and an optional publishable `map_tile_api_key`.
@@ -53,13 +59,17 @@ and a working map; neither existed (E06). Phase 200 fixes:
 - **Active-bookings table** now returns live bookings (`status=active`
   expands to the canonical active-status set; pre-fix it matched a literal
   `b.status = 'active'` and was always empty).
-- The cancel dialog no longer references a non-existent preview; it states
-  the refund is computed per policy and shown on the booking detail page.
+- Dispatch derives an **Attention queue** from the current booking feed for
+  unassigned, overdue, or coordinate-incomplete work. It does not claim an
+  `alert:new` event stream that the API does not publish.
+- The quick cancel dialog was removed. **Review cancellation** opens Booking
+  360, where the operator must inspect the money trail and explicitly enter
+  the live money-path inputs. This does not resolve the E09 mismatch between
+  displayed policy configuration and runtime cancellation math.
 
-Remaining v1.1 item: live ETA and real-time GPS *movement* (the map plots
-the booking service-address and provider base location; it does not yet
-animate live driver position). The `etaMinutes` column shows "—" until a
-GPS-ping pipeline is added.
+Remaining held item: live ETA and real-time GPS movement. Dispatch deliberately
+shows the scheduled time rather than manufacturing an ETA. See section 32
+before adding any location producer or operational promise.
 
 ## 3. Customer DSR — no track-requests view in mobile — RESOLVED 2026-05-02 / 2026-05-05
 
@@ -117,19 +127,17 @@ retroactively, so historical publishes remain inert. See
 `packages/api/__tests__/launch-limit-5-material-reconsent.test.ts` for
 the 9 behavioural tests.
 
-## 6. Admin → customer messaging — verb only, no transport — RESOLVED
+## 6. Admin booking-participant support messaging — RESOLVED, corrected 2026-08-30
 
-**Where:** Dispatch console "Send message" action.
+**Where:** Dispatch console and Booking 360 "Support message" actions.
 
-**Status:** RESOLVED — `sendAdminMessageToBookingCustomer` in
-`booking-admin.service.ts` now (a) inserts a real `messages` row of
-type 'system' into the booking's conversation when one exists, so
-the customer sees it inline in the booking chat thread, plus (b)
-fires a push notification with the message preview, plus (c) writes
-the `admin_message_sent` admin_actions audit row. The customer-side
-messaging inbox limitation only applies to bookings that don't yet
-have a conversation row — and the booking auto-creates one as soon
-as either party sends the first message, so the gap is rare.
+**Status:** RESOLVED. `sendAdminMessageToBookingParticipants` in
+`booking-admin.service.ts` upserts the canonical booking conversation and
+writes a system message plus the `admin_message_sent` audit record in one
+transaction. When a provider is assigned, the message is visible to both
+booking participants and both receive notice; before assignment it is
+customer-only. Ordinary admins may use this communication action. It does not
+grant them reassignment, cancellation, refund, or other money authority.
 
 ## 7. NPC escalation reference format — RESOLVED
 
@@ -843,6 +851,13 @@ D12 ships the **provider-specific cross-cutting infrastructure**:
 Plus the bridge test for all 64 provider bug numbers and the
 provider.* i18n namespace.
 
+**W6 v1.0 correction (2026-08-30):** `useJobGpsBroadcast` remains dormant
+infrastructure and is not mounted into the provider or staff route layouts.
+No v1.0 screen starts its producer and no operational GPS endpoint volume is
+expected. The first release that activates it must complete the privacy,
+consent, foreground-service, ownership-validation, and store-disclosure work
+in section 32.
+
 **Current correction (2026-08-25):** the historical per-screen deferral below
 is no longer the current state. The permanent screen ledger accounts for all 62
 provider, provider-onboarding, and provider-staff route files. The staged Stitch
@@ -879,13 +894,9 @@ The remaining provider limitations are:
   pinned at 15.8.0 which conflicts with victory-native 36+).
 
 **Operator obligation:**
-- v1.0 launch monitoring: watch crash reports for any provider screen
-  that uses `useJobGpsBroadcast` — TaskManager + background-location
-  is the most failure-prone area on Android due to OEM battery
-  optimisations. Sentry breadcrumbs include `gps_task_error` /
-  `gps_broadcast_failed` / `gps_start_failed` / `gps_stop_failed`.
-- Monitor `gps-update` endpoint volume in Grafana — sudden spike or
-  drop signals a hook lifecycle bug.
+- Do not expect or advertise background GPS in v1.0. Any
+  `useJobGpsBroadcast` activation or GPS-update endpoint traffic is unexpected
+  until section 32 is deliberately approved and implemented.
 
 **v1.1+ scope:** F#3 device baselines, per-area pricing, Suki custom discount,
 victory-native chart upgrade, and store privacy disclosure submission.
@@ -987,9 +998,9 @@ specific promise we cannot keep.
   customers can confirm the location.
 - Dead i18n key `provider.gps.broadcasting` removed from
   `apps/mobile/src/lib/i18n.ts` — no consumer.
-- Customer-side socket subscription left in place. It listens for an
-  event that never fires today; harmless, and means v1.1 only needs
-  to land the producer side.
+- Customer-side socket subscription remains a dormant consumer. It listens for
+  an event that never fires today. Do not mount the existing provider hook or
+  add a producer until the privacy and ownership contract below is complete.
 
 **v1.1+ scope:**
 1. Add `Location.watchPositionAsync({ accuracy: Balanced, timeInterval: 15000, distanceInterval: 50 })` in `provider/job/active.tsx`, gated by `booking.status === 'provider_en_route'`. Cleanup on unmount + status change.
