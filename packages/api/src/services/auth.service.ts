@@ -29,6 +29,7 @@ interface UserRow {
   avatar_url: string | null;
   is_verified: boolean;
   is_active: boolean;
+  session_version: number | string;
   last_login_at: Date | null;
   created_at: Date;
   updated_at: Date;
@@ -187,20 +188,27 @@ export function verifyPasswordWithRehash(password: string, stored: string): Veri
   return { valid: false, needsRehash: false };
 }
 
-function signAccessToken(userId: string, role: string): string {
+function signAccessToken(userId: string, role: string, sessionVersion: number): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET is not configured');
 
   const roleExpiry = platformConfig.jwtExpiresInByRole[role] ?? platformConfig.jwtExpiresIn;
   const duration = process.env.JWT_ACCESS_EXPIRES_IN || roleExpiry;
-  return jwt.sign({ userId, role }, secret, { algorithm: 'HS256', expiresIn: parseDurationToSeconds(duration) });
+  return jwt.sign({ userId, role, sessionVersion }, secret, { algorithm: 'HS256', expiresIn: parseDurationToSeconds(duration) });
 }
 
-function signRefreshToken(userId: string, role: string): string {
+function refreshDurationForRole(role: string): string {
+  if (role === 'admin' || role === 'super_admin' || role === 'dpo') {
+    return `${platformConfig.adminSessionTimeoutHours}h`;
+  }
+  return process.env.JWT_REFRESH_EXPIRES_IN || platformConfig.jwtRefreshExpiresIn;
+}
+
+function signRefreshToken(userId: string, role: string, sessionVersion: number): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET is not configured');
 
-  const duration = process.env.JWT_REFRESH_EXPIRES_IN || platformConfig.jwtRefreshExpiresIn;
+  const duration = refreshDurationForRole(role);
   // BUG-PHASE23-02 fix: pre-fix the refresh-token payload was
   // {userId, role, type, iat, exp} where iat is seconds-precision.
   // Two refresh tokens signed in the same second for the same user
@@ -210,7 +218,7 @@ function signRefreshToken(userId: string, role: string): string {
   // refresh-rotation that lands inside a one-second window. Add a jti
   // (JWT-ID) random nonce so every token is unique regardless of timing.
   const jti = crypto.randomBytes(16).toString('hex');
-  return jwt.sign({ userId, role, type: 'refresh', jti }, secret,
+  return jwt.sign({ userId, role, sessionVersion, type: 'refresh', jti }, secret,
     { algorithm: 'HS256', expiresIn: parseDurationToSeconds(duration) });
 }
 
@@ -441,11 +449,12 @@ export async function verifyOtp(
     throw createAppError('Your account has been deactivated. Contact support.', 403);
   }
 
-  const accessToken = signAccessToken(user.id, user.role);
-  const refreshToken = signRefreshToken(user.id, user.role);
+  const sessionVersion = Number(user.session_version ?? 1);
+  const accessToken = signAccessToken(user.id, user.role, sessionVersion);
+  const refreshToken = signRefreshToken(user.id, user.role, sessionVersion);
 
   const tokenHash = hashToken(refreshToken);
-  const refreshDuration = process.env.JWT_REFRESH_EXPIRES_IN || platformConfig.jwtRefreshExpiresIn;
+  const refreshDuration = refreshDurationForRole(user.role);
   const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
 
   await db.query(
@@ -477,7 +486,7 @@ export async function refreshAccessToken(
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET is not configured');
 
-  let payload: { userId: string; role: string; type?: string };
+  let payload: { userId: string; role: string; sessionVersion?: number; type?: string };
   try {
     payload = jwt.verify(refreshToken, secret) as typeof payload;
   } catch {
@@ -512,9 +521,6 @@ export async function refreshAccessToken(
   // old token is preserved.
   const tokenHash = hashToken(refreshToken);
 
-  const refreshDuration = process.env.JWT_REFRESH_EXPIRES_IN || platformConfig.jwtRefreshExpiresIn;
-  const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
-
   return await db.transaction(async (client) => {
     const tokenResult = await client.query<RefreshTokenRow>(
       `SELECT * FROM refresh_tokens
@@ -528,6 +534,9 @@ export async function refreshAccessToken(
     }
 
     const storedRow = tokenResult.rows[0]!;
+    if (storedRow.user_id !== payload.userId) {
+      throw createAppError('Refresh token account mismatch.', 401);
+    }
 
     // MED-N85 fingerprint binding check. We only compare when BOTH a
     // stored fingerprint exists AND an incoming one is provided. The
@@ -587,9 +596,22 @@ export async function refreshAccessToken(
     }
 
     const user = userResult.rows[0]!;
-    const newAccessToken = signAccessToken(user.id, user.role);
-    const newRefreshToken = signRefreshToken(user.id, user.role);
+    const currentVersion = Number(user.session_version ?? 1);
+    const tokenVersion = Number(payload.sessionVersion ?? 1);
+    if (payload.role !== user.role
+        || !Number.isSafeInteger(tokenVersion)
+        || tokenVersion < 1
+        || !Number.isSafeInteger(currentVersion)
+        || currentVersion < 1
+        || tokenVersion !== currentVersion) {
+      throw createAppError('This session has been revoked. Please sign in again.', 401);
+    }
+
+    const newAccessToken = signAccessToken(user.id, user.role, currentVersion);
+    const newRefreshToken = signRefreshToken(user.id, user.role, currentVersion);
     const newTokenHash = hashToken(newRefreshToken);
+    const refreshDuration = refreshDurationForRole(user.role);
+    const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
 
     // Delete OLD row only after we know we have a valid user. The new
     // row goes in within the same trx so a failure here rolls the whole
@@ -616,12 +638,16 @@ export async function refreshAccessToken(
 export async function createTokenPair(
   userId: string,
   role: string,
+  sessionVersion: number,
 ): Promise<{ accessToken: string; refreshToken: string }> {
-  const accessToken = signAccessToken(userId, role);
-  const refreshToken = signRefreshToken(userId, role);
+  if (!Number.isSafeInteger(sessionVersion) || sessionVersion < 1) {
+    throw new Error('Invalid session version');
+  }
+  const accessToken = signAccessToken(userId, role, sessionVersion);
+  const refreshToken = signRefreshToken(userId, role, sessionVersion);
 
   const tokenHash = hashToken(refreshToken);
-  const refreshDuration = process.env.JWT_REFRESH_EXPIRES_IN || platformConfig.jwtRefreshExpiresIn;
+  const refreshDuration = refreshDurationForRole(role);
   const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
 
   await db.query(

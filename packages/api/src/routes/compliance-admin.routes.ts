@@ -1,6 +1,8 @@
 /**
  * Phase 11 — Compliance admin routes.
- * Mounted at `/api/v1/admin/compliance`. All endpoints require admin role.
+ * Mounted at `/api/v1/admin/compliance`. Privacy records/actions use the
+ * dedicated DPO-or-super-admin boundary; tax and general audit remain general
+ * admin operations.
  */
 
 import { Router, Response, NextFunction } from 'express';
@@ -16,12 +18,6 @@ const router = Router();
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
     throw createAppError('Admin access required.', 403);
-  }
-}
-
-function requireSuperAdmin(req: AuthenticatedRequest): void {
-  if (req.user!.role !== 'super_admin') {
-    throw createAppError('Super-admin access required.', 403);
   }
 }
 
@@ -134,9 +130,9 @@ router.get(
 router.get(
   '/dsr',
   authMiddleware,
+  requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const status = parseString(req.query.status) as compliance.DsrStatus | undefined;
       const data = await compliance.listDsrs({
         status,
@@ -152,9 +148,9 @@ router.get(
 router.get(
   '/dsr/:id',
   authMiddleware,
+  requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const data = await compliance.getDsr(req.params.id as string);
       if (!data) throw createAppError('Data subject request not found.', 404);
       res.json({ success: true, data });
@@ -165,21 +161,13 @@ router.get(
 router.patch(
   '/dsr/:id',
   authMiddleware,
+  requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const newStatus = body.newStatus;
       if (typeof newStatus !== 'string') {
         throw createAppError('newStatus is required.', 400);
-      }
-      // Segregation of duties (NPC RA 10173): terminal DSR decisions
-      // (completed / rejected) are super_admin-only, matching the dedicated
-      // /dsr/:id/{complete,reject,escalate} endpoints. Pre-fix a base admin
-      // blocked from those endpoints could reach the same terminal state
-      // through this generic PATCH — closing that bypass.
-      if (newStatus === 'completed' || newStatus === 'rejected') {
-        requireSuperAdmin(req);
       }
       const data = await compliance.updateDsrStatus({
         id: req.params.id as string,
@@ -271,9 +259,9 @@ router.get(
 router.get(
   '/dsr-alerts',
   authMiddleware,
+  requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const data = await compliance.getDsrAlerts();
       res.json({ success: true, data });
     } catch (error) { next(error); }
@@ -285,12 +273,9 @@ router.get(
 router.post(
   '/dsr/:id/complete',
   authMiddleware,
+  requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      // DSR decisions are super_admin-gated, matching the sibling /reject +
-      // /escalate (a junior admin shouldn't close a data-subject request when
-      // they can't reject one). NPC RA 10173 segregation of duties.
-      requireSuperAdmin(req);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const data = await complianceAdmin.markDsrComplete({
         dsrId: req.params.id as string,
@@ -306,10 +291,9 @@ router.post(
 router.post(
   '/dsr/:id/request-info',
   authMiddleware,
+  requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      // Super_admin-gated to match the other DSR decision endpoints.
-      requireSuperAdmin(req);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const infoNeeded = typeof body.infoNeeded === 'string' ? body.infoNeeded : '';
       validateDsrText(infoNeeded, 'infoNeeded');
@@ -326,9 +310,9 @@ router.post(
 router.post(
   '/dsr/:id/reject',
   authMiddleware,
+  requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireSuperAdmin(req);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const reason = typeof body.reason === 'string' ? body.reason : '';
       validateDsrText(reason, 'reason');
@@ -345,9 +329,9 @@ router.post(
 router.post(
   '/dsr/:id/escalate',
   authMiddleware,
+  requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireSuperAdmin(req);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const npcReference = typeof body.npcReference === 'string' ? body.npcReference : '';
       // npcReference is just an external case ID — keep it short.
@@ -370,9 +354,9 @@ router.post(
 router.get(
   '/consent-versions',
   authMiddleware,
+  requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const [summaries, published] = await Promise.all([
         complianceAdmin.listConsentVersions(),
         complianceAdmin.listPublishedConsentVersions({
@@ -387,9 +371,9 @@ router.get(
 router.post(
   '/consent-versions',
   authMiddleware,
+  requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const data = await complianceAdmin.publishConsentVersion({
         adminUserId: req.user!.userId,

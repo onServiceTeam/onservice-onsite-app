@@ -3,7 +3,7 @@
 // Government IDs, NBI clearances, and selfies are personal data (NPC RA 10173).
 // They must NOT be reachable by a bare URL. This service resolves the stored
 // object key for a provider's KYC document, enforces that the requester is the
-// owning provider OR an admin/super_admin/dpo, and returns a server-side read
+// owning provider OR an operations admin/super_admin, and returns a server-side read
 // stream (from the private KYC bucket) for the route to pipe. No public URL is
 // ever exposed to a client.
 
@@ -24,7 +24,7 @@ export function isKycDocType(v: unknown): v is KycDocType {
   return typeof v === 'string' && Object.prototype.hasOwnProperty.call(DOC_TYPE_TO_COLUMN, v);
 }
 
-const ADMIN_ROLES = new Set(['admin', 'super_admin', 'dpo']);
+const ADMIN_ROLES = new Set(['admin', 'super_admin']);
 
 interface ProviderKycRow {
   id: string;
@@ -44,7 +44,7 @@ interface KycAccessArgs {
 
 /**
  * Shared authorization + resolution. Loads the provider, verifies the
- * requester is the owner or an admin/super_admin/dpo, and returns the stored
+ * requester is the owner or an admin/super_admin, and returns the stored
  * value (URL or key) for the requested document. Throws 404/403 as needed.
  */
 async function resolveAuthorizedKycValue(args: KycAccessArgs): Promise<string> {
@@ -72,7 +72,7 @@ async function resolveAuthorizedKycValue(args: KycAccessArgs): Promise<string> {
 /**
  * Authorize + resolve a provider's KYC document to a server-side read stream.
  * `providerId` is the providers.id. Access is granted only to the owning
- * provider (by users.id) or an admin/super_admin/dpo.
+ * provider (by users.id) or an operations admin/super_admin.
  */
 export async function getProviderKycDocumentStream(args: KycAccessArgs): Promise<uploadService.ObjectStream> {
   const stored = await resolveAuthorizedKycValue(args);

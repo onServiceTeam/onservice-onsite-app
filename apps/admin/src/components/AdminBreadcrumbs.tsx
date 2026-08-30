@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight } from '@/components/icons';
 import { ADMIN_NAV_GROUPS } from '@/config/admin-navigation';
+import { useAuthStore } from '@/stores/auth.store';
 
 function routeContext(pathname: string): { group: string; label: string; to: string; record?: string } | null {
   const items = ADMIN_NAV_GROUPS.flatMap((group) => group.items.map((item) => ({ ...item, group: group.label })));
@@ -18,12 +19,14 @@ function routeContext(pathname: string): { group: string; label: string; to: str
 
 export default function AdminBreadcrumbs(): React.ReactElement | null {
   const { pathname } = useLocation();
+  const role = useAuthStore((state) => state.user?.role);
   const context = routeContext(pathname);
   if (!context || pathname === '/') return null;
+  const home = role === 'dpo' ? { label: 'Privacy', to: '/privacy' } : { label: 'Command', to: '/' };
 
   return (
     <nav aria-label="Breadcrumb" className="mb-4 flex min-h-6 items-center gap-2 text-xs text-[var(--color-text-secondary)]">
-      <Link to="/" className="font-semibold text-[var(--color-primary)] hover:underline">Command</Link>
+      <Link to={home.to} className="font-semibold text-[var(--color-primary)] hover:underline">{home.label}</Link>
       <ChevronRight size={14} aria-hidden="true" />
       <span>{context.group}</span>
       <ChevronRight size={14} aria-hidden="true" />

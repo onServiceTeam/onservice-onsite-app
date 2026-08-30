@@ -1,9 +1,7 @@
 // Segregation of duties for the generic DSR status PATCH.
-// Terminal DSR decisions (completed / rejected) are super_admin-only,
-// matching the dedicated /dsr/:id/{complete,reject,escalate} endpoints.
-// Pre-fix a base admin could reach the terminal state through the generic
-// PATCH /dsr/:id, bypassing the super_admin gate on those endpoints
-// (NPC RA 10173 segregation of duties).
+// D34 makes the dedicated DPO role (plus super-admin fallback) the owner of
+// every DSR read and transition. Plain operations admins never receive a
+// partially writable DSR surface.
 
 import express from 'express';
 import request from 'supertest';
@@ -53,15 +51,15 @@ describe('DSR PATCH — segregation of duties', () => {
     expect(updateMock).not.toHaveBeenCalled();
   });
 
-  it('allows a base admin to set the non-terminal in_progress status', async () => {
+  it('blocks a base admin from setting the non-terminal in_progress status', async () => {
     updateMock.mockResolvedValueOnce({ id: 'd1', status: 'in_progress' });
     const res = await request(buildApp()).patch('/api/v1/admin/compliance/dsr/d1').send({ newStatus: 'in_progress' });
-    expect(res.status).toBe(200);
-    expect(updateMock).toHaveBeenCalled();
+    expect(res.status).toBe(403);
+    expect(updateMock).not.toHaveBeenCalled();
   });
 
-  it('allows a super_admin to set the terminal completed status', async () => {
-    CURRENT_USER = { userId: 's1', role: 'super_admin' };
+  it('allows the appointed DPO to set the terminal completed status', async () => {
+    CURRENT_USER = { userId: 'dpo-1', role: 'dpo' };
     const res = await request(buildApp()).patch('/api/v1/admin/compliance/dsr/d1').send({ newStatus: 'completed' });
     expect(res.status).toBe(200);
     expect(updateMock).toHaveBeenCalled();

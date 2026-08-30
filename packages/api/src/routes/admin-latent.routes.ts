@@ -14,7 +14,8 @@
  * at the mount level for cookie-auth (Bearer auth bypasses per
  * CRIT-PHASE17-02). Mutating decisions and 2FA rotation require
  * super_admin. The service-area request queue is readable by admin,
- * super_admin, and DPO staff so support can investigate before escalation.
+ * super_admin staff so support can investigate before escalation. The DPO is
+ * privacy-only and cannot inspect marketplace service-area operations.
  */
 
 import { Router, type Response, type NextFunction } from 'express';
@@ -33,7 +34,7 @@ function requireSuperAdmin(req: AuthenticatedRequest): void {
 }
 
 function requireAdmin(req: AuthenticatedRequest): void {
-  if (!['admin', 'super_admin', 'dpo'].includes(req.user!.role)) {
+  if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
     throw createAppError('Admin access required.', 403);
   }
 }

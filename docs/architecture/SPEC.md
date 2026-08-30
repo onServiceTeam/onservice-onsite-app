@@ -1833,7 +1833,7 @@ All in-app messages are scanned for patterns indicating off-platform coordinatio
 
 - **Customer accounts:** Phone + OTP authentication. Optional: biometric (fingerprint/face) for app access. Session timeout: 30 days of inactivity.
 - **Provider accounts:** Phone + OTP + ID verification. Session timeout: 7 days of inactivity. Must re-authenticate for: withdrawals, profile changes, accepting high-value jobs (>₱10,000).
-- **Admin accounts:** Email + password + 2FA (mandatory). Session timeout: 1 hour of inactivity. All actions logged with IP address and timestamp. Cannot delete audit logs.
+- **Admin, super-admin, and DPO accounts:** Email + password + mandatory 2FA. Access JWTs last at most 15 minutes; the privileged refresh session uses an 8-hour sliding inactivity window. Every protected HTTP request and Socket.IO handshake checks the account's current active state, role, and session generation so deactivation or a governed role transition revokes prior tokens. General-admin and privacy-only DPO routes remain segregated. Privileged actions must be attributable in the audit trail; audit records cannot be deleted through the app.
 
 ## 9.3 Data Security
 

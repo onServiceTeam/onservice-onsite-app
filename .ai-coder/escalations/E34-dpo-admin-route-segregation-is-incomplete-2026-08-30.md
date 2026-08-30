@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-30
 **Severity:** High compliance and least-privilege risk
-**Status:** Open hard stop for DPO authorization changes
+**Status:** RESOLVED IN CODE — production migration/deployment evidence pending E32
 **Found during:** Admin Dashboard W9 suspicion-first audit
 
 ## Bad news first
@@ -79,3 +79,23 @@ authorization wave:
 - Do not claim DPO operations are complete because consent search alone works.
 - Do not change production roles or accounts without a verified server
   session, backup, and explicit impact check.
+
+## Code resolution recorded 2026-08-31
+
+D34 selected the dedicated internal DPO identity and privacy-only route model.
+The implementation now provides `/privacy`, `/data-protection-log`, and
+`/consent-versions` as the DPO client surface, rejects general-admin direct
+URLs, and enforces the corresponding API matrix independently. Login,
+navigation, command search, and breadcrumbs use the same role boundary. The
+old mixed privacy/NPC tab is no longer mounted in Compliance.
+
+Behavioral evidence includes `bug-ux-560-dpo-api-route-matrix.test.ts`,
+`bug-ux-561-admin-role-route-guard.real.test.tsx`,
+`bug-ux-564-privacy-home.real.test.tsx`,
+`bug-ux-565-dpo-navigation.real.test.tsx`, and
+`bug-ux-567-dpo-dsr-actions.real.test.tsx`. The full admin and API suites,
+repository gates, builds, and desktop visual baselines were run locally. E40
+remains open for counsel-approved breach classification and deadline wording.
+
+No production role, session, schema, or file was changed. E32 still blocks the
+live migration, deployment, and read-only post-deploy matrix check.

@@ -201,22 +201,32 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: 'Governance',
     items: [
       {
+        to: '/privacy',
+        Icon: Shield,
+        label: 'Privacy Workspace',
+        description: 'DPO queues, deadlines, and privacy controls',
+        roles: ['super_admin', 'dpo'],
+      },
+      {
         to: '/compliance',
         Icon: Shield,
         label: 'Compliance',
-        description: 'Regulatory and tax controls',
+        description: 'Tax, audit, and regulatory operations',
+        roles: ['super_admin', 'admin'],
       },
       {
         to: '/data-protection-log',
         Icon: Lock,
         label: 'Data Protection',
         description: 'Data subject request operations',
+        roles: ['super_admin', 'dpo'],
       },
       {
         to: '/consent-versions',
         Icon: FileText,
         label: 'Consent Versions',
         description: 'Published legal-document history',
+        roles: ['super_admin', 'dpo'],
       },
       {
         to: '/audit-log',
@@ -252,7 +262,13 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
 export function visibleAdminNavGroups(role: AdminUser['role'] | undefined): AdminNavGroup[] {
   return ADMIN_NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !item.roles || (role ? item.roles.includes(role) : false)),
+    items: group.items.filter((item) => {
+      if (!role) return false;
+      if (item.roles) return item.roles.includes(role);
+      // D34 — unspecified legacy routes are operations routes, never implicit
+      // DPO routes. Privacy items must opt in explicitly above.
+      return role !== 'dpo';
+    }),
   })).filter((group) => group.items.length > 0);
 }
 

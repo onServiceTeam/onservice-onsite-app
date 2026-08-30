@@ -28,7 +28,7 @@ afterEach(() => {
   testState.get.mockReset();
 });
 
-it('Bug UX-519 — DPO command search stays page-only and explains the E34 boundary', async () => {
+it('Bug UX-519 — DPO command search stays privacy-page-only and explains the active access boundary', async () => {
   vi.useFakeTimers();
   render(<MemoryRouter><Header /></MemoryRouter>);
   const search = screen.getByRole('textbox', { name: 'Search admin pages and records' });
@@ -40,6 +40,6 @@ it('Bug UX-519 — DPO command search stays page-only and explains the E34 bound
   });
 
   expect(testState.get).not.toHaveBeenCalled();
-  expect(screen.getByText(/Page search only for the privacy role.*E34/i)).toBeVisible();
+  expect(screen.getByText(/Page search only for the privacy role.*outside DPO access/i)).toBeVisible();
   expect(screen.queryByRole('region', { name: 'Matching operational records' })).toBeNull();
 });

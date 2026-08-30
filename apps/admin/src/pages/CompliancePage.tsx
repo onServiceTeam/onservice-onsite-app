@@ -1,8 +1,9 @@
 /**
  * Phase 11 — Admin Compliance Center.
  *
- * Five tabs (state-driven): NPC Compliance, BIR Calendar, Audit Log,
- * Tax Documents (stub), Regulatory Reports (stub).
+ * General operations compliance workspace: BIR Calendar, Audit Log, held tax
+ * workpapers, and regulatory reports. D34 moved NPC privacy work to the
+ * dedicated `/privacy` workspace.
  *
  * Mirrors MarketingPage.tsx layout: header + Tabs from @/components/ui.
  */
@@ -113,10 +114,10 @@ const STATUS_LABEL: Record<DsrStatus, string> = {
   rejected: 'Rejected',
 };
 
-const COMPLIANCE_TABS = new Set<ComplianceTab>(['npc', 'bir', 'audit', 'tax', 'reports']);
+const COMPLIANCE_TABS = new Set<ComplianceTab>(['bir', 'audit', 'tax', 'reports']);
 
 function parseTab(value: string | null): ComplianceTab {
-  return value && COMPLIANCE_TABS.has(value as ComplianceTab) ? value as ComplianceTab : 'npc';
+  return value && COMPLIANCE_TABS.has(value as ComplianceTab) ? value as ComplianceTab : 'audit';
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────
@@ -140,23 +141,19 @@ export default function CompliancePage(): React.ReactElement {
           <Shield size={20} /> Compliance
         </h1>
         <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
-          NPC consent &amp; DSR queue, audit evidence, held BIR workpapers, and
-          regulatory reports.
+          Audit evidence, held BIR workpapers, and regulatory reports. Privacy
+          operations use the dedicated Privacy Workspace.
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={(value) => selectTab(value as ComplianceTab)}>
         <TabsList>
-          <TabsTrigger value="npc">NPC Compliance</TabsTrigger>
           <TabsTrigger value="bir">BIR Hold</TabsTrigger>
           <TabsTrigger value="audit">Audit Log</TabsTrigger>
           <TabsTrigger value="tax">Tax Documents</TabsTrigger>
           <TabsTrigger value="reports">Regulatory Reports</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="npc">
-          <NpcTab />
-        </TabsContent>
         <TabsContent value="bir">
           <BirTab />
         </TabsContent>
@@ -174,9 +171,11 @@ export default function CompliancePage(): React.ReactElement {
   );
 }
 
-// ─── NPC tab ────────────────────────────────────────────────────────────────
+// ─── Held legacy NPC tab ───────────────────────────────────────────────────
+// E40: retained only as reference while privacy counsel settles the replacement
+// request/breach contract. It is deliberately not mounted in CompliancePage.
 
-function NpcTab(): React.ReactElement {
+function _NpcTab(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const dsrStatusParam = searchParams.get('dsrStatus');
   const statusFilter = dsrStatusParam === 'received' || dsrStatusParam === 'in_progress' || dsrStatusParam === 'completed' || dsrStatusParam === 'rejected'

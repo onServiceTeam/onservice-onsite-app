@@ -8,7 +8,7 @@
 //                    Contains the access JWT. Browser sends on every same-
 //                    origin /api/* request. JS cannot read it (HttpOnly).
 //   admin_refresh  — HttpOnly, Secure, SameSite=Strict, scoped to the
-//                    refresh endpoint, 7 days.
+//                    refresh endpoint, configured admin session lifetime.
 //   admin_csrf     — NOT HttpOnly, Secure, SameSite=Strict, Path=/, 15 min.
 //                    JS reads it and echoes the value in X-CSRF-Token on
 //                    every write. The middleware compares cookie ↔ header.
@@ -42,8 +42,8 @@ export async function setAdminSessionCookies(
   },
 ): Promise<IssuedCookies> {
   const isProduction = process.env.NODE_ENV === 'production';
-  const accessLifetimeMs = 15 * 60 * 1000; // 15 min
-  const refreshLifetimeMs = 7 * 24 * 60 * 60 * 1000; // 7 days
+  const accessLifetimeMs = ADMIN_SESSION_ACCESS_LIFETIME_MS;
+  const refreshLifetimeMs = platformConfig.adminSessionTimeoutHours * 60 * 60 * 1000;
 
   // Generate CSRF token (32 bytes → 43-char base64url string).
   const csrfToken = crypto.randomBytes(32).toString('base64url');
@@ -122,18 +122,18 @@ export async function revokeAdminCsrfTokens(adminUserId: string): Promise<void> 
 // admin-tunable platformConfig.adminSessionTimeoutHours, but the
 // 15-minute cap on the ACCESS cookie is intentional security and
 // orthogonal to the admin SESSION timeout (which governs the
-// refresh cookie + admin_sessions row, not the access cookie).
+// refresh cookie, not the access cookie).
 //
 // The architecture is:
 //   - access cookie (this constant) — short-lived JWT carrying
 //     identity for one request burst. Hard-capped at 15 min so a
 //     stolen cookie can do at most 15 min of damage before requiring
-//     a refresh round-trip (which re-validates fingerprint + CSRF +
-//     admin_sessions row).
-//   - refresh cookie + admin_sessions.expires_at — governed by
-//     platformConfig.adminSessionTimeoutHours (default 1 h, admin-
-//     tunable up to 24 h). This is what the admin Settings UI
-//     "session timeout" actually controls.
+//     a refresh round-trip (which re-validates the stored refresh token,
+//     current user role/activity/session generation, fingerprint, and CSRF).
+//   - refresh cookie + refresh-token JWT/row — governed by
+//     platformConfig.adminSessionTimeoutHours (currently 8 h). This is what
+//     the privileged-session contract describes. There is no separate
+//     admin_sessions table.
 //   - admin_csrf_tokens.expires_at — bound to the access cookie
 //     lifetime so refresh re-mints the CSRF token in lockstep.
 //

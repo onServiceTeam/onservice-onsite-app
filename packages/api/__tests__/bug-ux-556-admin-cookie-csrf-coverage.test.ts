@@ -19,10 +19,23 @@ describe('admin cookie CSRF route coverage', () => {
     process.env.JWT_SECRET = 'ux-556-test-secret-that-is-long-enough';
 
     const token = jwt.sign(
-      { userId: '10000000-0000-4000-8000-000000000001', role: 'super_admin' },
+      { userId: '10000000-0000-4000-8000-000000000001', role: 'super_admin', sessionVersion: 1 },
       process.env.JWT_SECRET,
       { expiresIn: '5m' },
     );
+    mockQuery.mockImplementation((sql: string) => {
+      if (/FROM users/.test(sql)) {
+        return Promise.resolve({
+          rows: [{ role: 'super_admin', is_active: true, session_version: 1 }],
+        });
+      }
+      if (/FROM admin_csrf_tokens/.test(sql)) {
+        return Promise.resolve({
+          rows: [{ id: '20000000-0000-4000-8000-000000000001', admin_user_id: '10000000-0000-4000-8000-000000000001' }],
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
     const app = express();
     app.use(cookieParser());
     app.use(express.json());
@@ -36,11 +49,7 @@ describe('admin cookie CSRF route coverage', () => {
       .send({ action: 'change-role' });
     expect(missingCsrf.status).toBe(403);
     expect(missingCsrf.body).toMatchObject({ error: { code: 'csrf_invalid' } });
-    expect(mockQuery).not.toHaveBeenCalled();
-
-    mockQuery.mockResolvedValueOnce({
-      rows: [{ id: '20000000-0000-4000-8000-000000000001', admin_user_id: '10000000-0000-4000-8000-000000000001' }],
-    });
+    expect(mockQuery).toHaveBeenCalledTimes(1);
     const protectedWrite = await request(app)
       .post('/api/v1/staff/probe')
       .set('Cookie', [`admin_session=${token}`, 'admin_csrf=matching-token'])
@@ -48,7 +57,7 @@ describe('admin cookie CSRF route coverage', () => {
       .send({ action: 'change-role' });
     expect(protectedWrite.status).toBe(200);
     expect(protectedWrite.body).toEqual({ success: true, role: 'super_admin' });
-    expect(mockQuery).toHaveBeenCalledTimes(1);
+    expect(mockQuery).toHaveBeenCalledTimes(3);
 
     const safeRead = await request(app)
       .get('/api/v1/staff/probe')
@@ -70,7 +79,7 @@ describe('admin cookie CSRF route coverage', () => {
       .send({ action: 'change-role' });
     expect(bearerWrite.status).toBe(200);
     expect(bearerWrite.body.role).toBe('super_admin');
-    expect(mockQuery).toHaveBeenCalledTimes(1);
+    expect(mockQuery).toHaveBeenCalledTimes(6);
 
     if (priorSecret === undefined) delete process.env.JWT_SECRET;
     else process.env.JWT_SECRET = priorSecret;

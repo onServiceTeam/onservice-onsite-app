@@ -65,7 +65,7 @@ function SidebarContent({
             onService PH
           </h1>
           <p className="text-xs font-medium text-[var(--color-text-secondary)]">
-            Operations Console
+            {user?.role === 'dpo' ? 'Privacy Console' : 'Operations Console'}
           </p>
         </div>
         {onClose && (

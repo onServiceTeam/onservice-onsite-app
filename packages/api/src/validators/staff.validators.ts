@@ -62,7 +62,4 @@ export const updateStaffMemberSchema = z.object({
 );
 
 export const promoteDpoSchema = z.object({ reason }).strict();
-export const demoteDpoSchema = z.object({
-  reason,
-  demoteTo: z.enum(['admin', 'customer', 'provider']).default('admin'),
-}).strict();
+export const demoteDpoSchema = z.object({ reason }).strict();

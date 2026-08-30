@@ -85,7 +85,7 @@ describe('Bug 1251 fix verified — setAdminSessionCookies', () => {
     expect(refresh.options.httpOnly).toBe(true);
     expect(refresh.options.sameSite).toBe('strict');
     expect(refresh.options.path).toBe('/api/v1/auth/admin/refresh');
-    expect(refresh.options.maxAge).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(refresh.options.maxAge).toBe(1 * 60 * 60 * 1000);
 
     const csrfCookie = cookieCalls.find((c) => c.name === 'admin_csrf')!;
     expect(csrfCookie.value).toBe(csrfToken);

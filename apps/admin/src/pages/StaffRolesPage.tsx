@@ -959,7 +959,6 @@ function DpoTab(): React.ReactElement {
   const [selectedCandidateId, setSelectedCandidateId] = useState('');
   const [promoteReason, setPromoteReason] = useState('');
   const [pendingDemotion, setPendingDemotion] = useState<DpoUser | null>(null);
-  const [demoteTo, setDemoteTo] = useState<'admin' | 'customer' | 'provider'>('admin');
   const [demoteReason, setDemoteReason] = useState('');
   const [error, setError] = useState('');
 
@@ -997,14 +996,13 @@ function DpoTab(): React.ReactElement {
   });
 
   const demoteMutation = useMutation({
-    mutationFn: async ({ userId, reason, nextRole }: { userId: string; reason: string; nextRole: 'admin' | 'customer' | 'provider' }) => {
-      await api.post(`/api/v1/staff/dpos/${userId}/demote`, { reason, demoteTo: nextRole });
+    mutationFn: async ({ userId, reason }: { userId: string; reason: string }) => {
+      await api.post(`/api/v1/staff/dpos/${userId}/demote`, { reason });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminDpos'] });
       setPendingDemotion(null);
       setDemoteReason('');
-      setDemoteTo('admin');
       setError('');
     },
     onError: (e) => setError(getErrorMessage(e)),
@@ -1021,12 +1019,11 @@ function DpoTab(): React.ReactElement {
           DPO and removes the account&apos;s previous role. Only one active DPO may be assigned; every handover is audited.
         </p>
       </div>
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-950">
-        <p className="font-semibold">Access and session boundary</p>
-        <p className="mt-1 text-red-900">
-          DPO route segregation is not yet complete, and changing the database role does not revoke already-issued
-          login or refresh tokens. Treat every assignment or removal as requiring a controlled sign-out and access
-          review. Do not promise that all page and API access changes immediately.
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+        <p className="font-semibold">Immediate privacy access boundary</p>
+        <p className="mt-1 text-emerald-900">
+          Assignment and handover invalidate the account&apos;s old access, refresh, CSRF, and live socket sessions.
+          The affected person must sign in again and receives only the routes allowed by the new account role.
         </p>
       </div>
 
@@ -1113,7 +1110,7 @@ function DpoTab(): React.ReactElement {
           <button
             type="button"
             className="mt-3 text-sm text-red-700 hover:underline sm:mt-0"
-            onClick={() => { setPendingDemotion(dpo); setDemoteReason(''); setDemoteTo('admin'); setError(''); }}
+            onClick={() => { setPendingDemotion(dpo); setDemoteReason(''); setError(''); }}
           >
             Start handover
           </button>
@@ -1130,21 +1127,11 @@ function DpoTab(): React.ReactElement {
               {[pendingDemotion.firstName, pendingDemotion.lastName].filter(Boolean).join(' ') || pendingDemotion.email}
             </p>
             <p className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-              This changes the account role in the database and leaves the DPO seat vacant until a replacement is
-              assigned. Existing tokens are not revoked by this action, so complete the controlled sign-out, access
-              review, documented handover, and NPC update outside the app as required.
+              This returns the dedicated account to the Admin role, immediately revokes every old session, and leaves
+              the DPO seat vacant until a replacement is assigned. Complete the documented records handover and NPC
+              update outside the app as required.
             </p>
-            <label htmlFor="dpo-demote-role" className="mt-4 block text-sm font-medium">Account role after removal</label>
-            <select
-              id="dpo-demote-role"
-              className="mt-1 w-full rounded border border-[var(--color-border)] px-3 py-2 text-sm"
-              value={demoteTo}
-              onChange={(e) => setDemoteTo(e.target.value as 'admin' | 'customer' | 'provider')}
-            >
-              <option value="admin">Admin</option>
-              <option value="customer">Customer</option>
-              <option value="provider">Provider</option>
-            </select>
+            <p className="mt-4 text-sm"><span className="font-medium">Account role after removal:</span> Admin</p>
             <label htmlFor="dpo-demote-reason" className="mt-4 block text-sm font-medium">Handover reason</label>
             <textarea
               id="dpo-demote-reason"
@@ -1165,7 +1152,7 @@ function DpoTab(): React.ReactElement {
                     setError('Enter a handover reason of at least 10 characters.');
                     return;
                   }
-                  demoteMutation.mutate({ userId: pendingDemotion.id, reason, nextRole: demoteTo });
+                  demoteMutation.mutate({ userId: pendingDemotion.id, reason });
                 }}
               >
                 {demoteMutation.isPending ? 'Removing...' : 'Confirm handover'}

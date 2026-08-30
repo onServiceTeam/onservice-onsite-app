@@ -18,6 +18,11 @@ const loggerInfo = jest.fn();
 const loggerWarn = jest.fn();
 const loggerError = jest.fn();
 const loggerDebug = jest.fn();
+const dbQuery = jest.fn();
+
+jest.mock('../src/models/db', () => ({
+  db: { query: (...args: unknown[]) => dbQuery(...args) },
+}));
 
 jest.mock('../src/utils/logger', () => ({
   logger: {
@@ -52,7 +57,7 @@ jest.mock('jsonwebtoken', () => ({
 // Capture the io.use middleware and io.on('connection') handler when
 // initSocketServer constructs a Server, so we can drive them in tests.
 let capturedAuthMiddleware:
-  | ((socket: Record<string, unknown>, next: (err?: Error) => void) => void)
+  | ((socket: Record<string, unknown>, next: (err?: Error) => void) => void | Promise<void>)
   | null = null;
 let capturedConnectionHandler:
   | ((socket: Record<string, unknown>) => void)
@@ -63,7 +68,7 @@ jest.mock('socket.io', () => {
     constructor(_http: unknown, _opts: unknown) {
       // no-op
     }
-    use(fn: (s: Record<string, unknown>, n: (e?: Error) => void) => void): this {
+    use(fn: (s: Record<string, unknown>, n: (e?: Error) => void) => void | Promise<void>): this {
       capturedAuthMiddleware = fn;
       return this;
     }
@@ -100,6 +105,9 @@ function makeFakeIo(): { io: { to: jest.Mock }; toCalls: string[]; emits: EmitSp
 
 beforeEach(() => {
   jest.clearAllMocks();
+  dbQuery.mockResolvedValue({
+    rows: [{ role: 'admin', is_active: true, session_version: 1 }],
+  });
   capturedAuthMiddleware = null;
   capturedConnectionHandler = null;
   socketService._setIoForTest(null);
@@ -173,42 +181,42 @@ describe('initSocketServer — JWT auth middleware', () => {
     process.env = OLD_ENV;
   });
 
-  it('rejects connections with no token', () => {
+  it('rejects connections with no token', async () => {
     const next = jest.fn();
-    capturedAuthMiddleware!({ handshake: { auth: {} } }, next);
+    await capturedAuthMiddleware!({ handshake: { auth: {} } }, next);
     expect(next).toHaveBeenCalledWith(expect.any(Error));
     expect((next.mock.calls[0]![0] as Error).message).toBe('Authentication required');
   });
 
-  it('rejects partial pre_auth_2fa tokens', () => {
+  it('rejects partial pre_auth_2fa tokens', async () => {
     jwtVerify.mockReturnValue({ userId: 'u1', role: 'admin', type: 'pre_auth_2fa' });
     const next = jest.fn();
-    capturedAuthMiddleware!({ handshake: { auth: { token: 'tok' } } }, next);
+    await capturedAuthMiddleware!({ handshake: { auth: { token: 'tok' } } }, next);
     expect(next).toHaveBeenCalledWith(expect.any(Error));
     expect((next.mock.calls[0]![0] as Error).message).toBe('Invalid token type');
   });
 
-  it('rejects refresh tokens', () => {
+  it('rejects refresh tokens', async () => {
     jwtVerify.mockReturnValue({ userId: 'u1', role: 'admin', type: 'refresh' });
     const next = jest.fn();
-    capturedAuthMiddleware!({ handshake: { auth: { token: 'tok' } } }, next);
+    await capturedAuthMiddleware!({ handshake: { auth: { token: 'tok' } } }, next);
     expect((next.mock.calls[0]![0] as Error).message).toBe('Invalid token type');
   });
 
-  it('accepts a valid access token and stamps userId/userRole on the socket', () => {
-    jwtVerify.mockReturnValue({ userId: 'u1', role: 'admin' });
+  it('accepts a valid access token and stamps canonical userId/userRole on the socket', async () => {
+    jwtVerify.mockReturnValue({ userId: 'u1', role: 'admin', sessionVersion: 1 });
     const next = jest.fn();
     const socket: Record<string, unknown> = { handshake: { auth: { token: 'tok' } } };
-    capturedAuthMiddleware!(socket, next);
+    await capturedAuthMiddleware!(socket, next);
     expect(next).toHaveBeenCalledWith();
     expect(socket.userId).toBe('u1');
     expect(socket.userRole).toBe('admin');
   });
 
-  it('rejects when JWT verification throws', () => {
+  it('rejects when JWT verification throws', async () => {
     jwtVerify.mockImplementation(() => { throw new Error('bad sig'); });
     const next = jest.fn();
-    capturedAuthMiddleware!({ handshake: { auth: { token: 'tok' } } }, next);
+    await capturedAuthMiddleware!({ handshake: { auth: { token: 'tok' } } }, next);
     expect((next.mock.calls[0]![0] as Error).message).toBe('Invalid token');
   });
 });

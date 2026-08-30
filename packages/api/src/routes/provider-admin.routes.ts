@@ -249,12 +249,10 @@ router.get(
     try {
       requireAdmin(req);
       const limit = Number(req.query.limit ?? 50);
-      // PROGRESS.md follow-up — forward the caller's role so MED-N14
-      // PII masking returns raw IP/UA for super_admin + dpo and
-      // masked values for junior admins.
-      const role = req.user?.role === 'super_admin' || req.user?.role === 'dpo'
-        ? 'super_admin'
-        : 'admin';
+      // Forward the authorized operations role so super_admin receives the
+      // intended forensic view while plain admin remains masked. DPO is
+      // rejected by requireAdmin above and is never upgraded here.
+      const role = req.user?.role === 'super_admin' ? 'super_admin' : 'admin';
       const data = await providerAdminService.getProviderActivity(
         (req.params.id as string), limit, role,
       );
