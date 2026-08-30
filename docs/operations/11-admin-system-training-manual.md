@@ -125,13 +125,13 @@ Row actions depend on status: a pending provider shows Approve / Reject; an appr
 
 How to approve a provider:
 1. Open the provider's detail page first (click the row). Do not approve from the list without reviewing the documents.
-2. Confirm the three required documents are present and readable: NBI clearance, government ID front, selfie. The system refuses approval and lists what is missing if any are absent.
+2. Confirm all four evidence files are present and readable: NBI clearance, government ID front, government ID back, and selfie. The system refuses approval when NBI, ID front, or selfie is absent, but E36 means the reviewer must manually stop when ID back is absent.
 3. Back on the list (or from detail), click Approve.
 4. The provider flips `pending` to `approved`, gets an "Account Approved" notification, and the action is written to the audit log.
 
 How to reject a provider:
 1. Click Reject on a pending provider.
-2. Type a reason of at least 10 characters. The provider sees this reason, so write it plainly (for example, "NBI clearance image is blurry and unreadable, please re-upload").
+2. Type a reason of at least 10 characters. The provider sees this reason, so write it plainly (for example, "NBI clearance image is blurry and unreadable"). Do not promise immediate re-upload or request KYC outside the app; E35 records the unavailable rejected-application correction path.
 3. The provider flips to `rejected` and gets an "Application Declined" notice with your reason.
 
 How to suspend a provider (use carefully):
@@ -468,7 +468,7 @@ Navigation and roles
 
 Providers
 - [ ] Can open a Provider 360 and view KYC docs through the proxy.
-- [ ] Can state the three required KYC documents (NBI, gov ID front, selfie) and why approval fails without them.
+- [ ] Can state all four KYC evidence files (NBI, government ID front, government ID back, selfie), explain which three the server currently enforces, and apply the E36 manual ID-back stop.
 - [ ] Can name the five tiers and their commission rates from memory.
 - [ ] Knows there is no delete; removal is Suspend or `deactivated`.
 

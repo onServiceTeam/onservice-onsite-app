@@ -162,11 +162,11 @@ priority. Bring a valid ID and NBI clearance. Apply in the onService app.
 
 The application happens entirely in the mobile app. You guide people to it and help them complete it. You do not approve anyone.
 
-### What the applicant does (7-step application, then status screens)
+### What the applicant does (role choice, six application steps, then status screens)
 
 1. Role select (provider)
 2. Business name + service categories (1 to 10 categories)
-3. Service area and radius
+3. Admin-configured provider market, exact operating location, and radius
 4. Vetting questionnaire
 5. Documents: government ID front, government ID back, NBI clearance
 6. Selfie
@@ -180,7 +180,8 @@ On submit, a provider row is created with status `pending`. It is now in the vet
 
 - [ ] Business name (2 to 200 characters)
 - [ ] 1 to 10 service categories chosen
-- [ ] Service radius (1 to 50 km) and a location inside the Philippines
+- [ ] An Admin-configured active, soft-launch, or recruiting market
+- [ ] Exact operating location inside that market and a radius within the live Admin **Max Service Radius**
 - [ ] Government ID front and back images
 - [ ] NBI clearance image (issued within last 6 months)
 - [ ] Selfie
@@ -196,7 +197,7 @@ No funnel rates are defined in the app, so these are starting targets to tune ag
 |---|---|---|
 | Contacted -> Interested | Replied, wants in | 30% |
 | Interested -> App downloaded | Got the app open | 70% |
-| Downloaded -> Submitted | Completed all 5 steps, status `pending` | 60% |
+| Downloaded -> Submitted | Completed all 6 application steps, status `pending` | 60% |
 | Submitted -> Approved | Passed vetting (admin) | 50 to 60% |
 | Net: Contacted -> Approved | End to end | ~8 to 12% |
 
@@ -218,7 +219,7 @@ Run recruiting as a weekly loop per area. Numbers below are per recruiter per we
 
 - [ ] Monday: pull the week's targets per category from the area's gap (target minus current approved). Plan channel mix.
 - [ ] Mon to Fri: post in 3 to 5 Facebook groups, send 20+ direct messages, work 2+ barangay or trade-school contacts.
-- [ ] Daily: chase every `pending` application that is missing docs (you can see who applied; ping them to finish).
+- [ ] Daily: follow up with applicants who report that they are still completing the form. Admin sees submitted provider records, not a durable in-progress draft queue; E35 tracks that gap.
 - [ ] Daily: confirm the approving admin is clearing the vetting queue so applicants do not go cold.
 - [ ] Friday: log the funnel numbers (contacted, interested, submitted, approved) per category in the recruiting tracker. Compare to target.
 - [ ] Friday: send referral asks to your best new approved providers.
@@ -305,8 +306,9 @@ Recruit toward the approval bar, not just toward a submission. The vetting team 
 Hand-off checklist:
 
 - [ ] Applicant submitted in-app (status `pending`)
-- [ ] All three required documents uploaded (NBI clearance, government ID front, selfie are the hard requirements admin checks at approval)
+- [ ] All four evidence files are visible in Provider 360: NBI clearance, government ID front, government ID back, and selfie. The server currently blocks approval for missing NBI, ID front, or selfie but not missing ID back; reviewers must enforce the fourth file manually under E36.
 - [ ] Categories and service area look right for where we are recruiting
+- [ ] Provider 360 shows the selected primary market, exact operating pin, and radius captured by the application
 - [ ] Flagged for founding-tier consideration if they are an early, strong applicant
 - [ ] Logged in the recruiting tracker
 

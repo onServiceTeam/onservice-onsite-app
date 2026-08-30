@@ -161,8 +161,8 @@ Copy-paste ready. Replace `[bracketed]` fields. Bilingual (English with Bisaya o
 
 ### 6.3 Provider rejection message
 
-(Reason is required and stored. Be specific and kind. Use a reason code R01-R10, see `04-provider-vetting-sop.md`.)
-> Hi [Name], thanks for applying to onService. We can't approve your application right now because: [specific reason, e.g. "the NBI clearance uploaded is older than 6 months"]. You're welcome to re-apply once that's sorted. If you think this is a mistake, reply here and we'll take another look.
+(Reason is required and stored. Be specific and kind. Use a reason code R01-R10, see `04-provider-vetting-and-filtering.md`. E35 means the app cannot currently reopen a rejected application.)
+> Hi [Name], thanks for applying to onService. We can't approve your application right now because: [specific reason, e.g. "the NBI clearance uploaded is older than 6 months"]. Please don't send ID or NBI files by chat or email. If you think this is a mistake, reply here and we'll record your case and contact you when the secure in-app correction path is available.
 
 ### 6.4 Customer support macros
 

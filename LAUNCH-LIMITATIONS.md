@@ -1680,3 +1680,42 @@ tests for all three admin-tier roles.
 Production synchronization and live role evidence are separately blocked by
 E32 until the server identity is established. See
 `.ai-coder/escalations/E34-dpo-admin-route-segregation-is-incomplete-2026-08-30.md`.
+
+---
+
+## 52. Provider onboarding drafts and rejected resubmission are not durable
+
+The active provider application is created in `providers` and reviewed through
+Provider 360, but the pre-submit mobile draft is memory-only. A browser refresh
+or app restart can lose it. The older `provider_onboarding_progress` table and
+super-admin endpoints are a disconnected second review model: no applicant
+route populates it, it omits the current vetting step, and its approval does not
+grant the canonical provider role or run the active approval checklist.
+
+W11 makes stale later-step URLs fail back safely, uses Admin-configured markets,
+stores an exact in-market pin, creates the canonical primary market linkage,
+and never invents a pending status for an account with no application. It does
+not claim durable resume. A rejected canonical provider row also blocks a new
+application, so the previously documented reapply instruction is not available.
+
+Do not revive the generic snapshot with KYC, address, ID, or reference-contact
+data and do not delete it without a backed-up production row audit. The launch
+correction needs one typed, privacy-scoped draft contract and a same-record,
+audited request-changes/resubmission lifecycle. E32 blocks the required live
+row inspection. See
+`.ai-coder/escalations/E35-provider-onboarding-source-of-truth-and-resubmission-2026-08-30.md`.
+
+---
+
+## 53. Provider approval does not enforce the government ID back image
+
+The applicant flow collects government ID front, government ID back, NBI
+clearance, and selfie, and Provider 360 displays all four. The server approval
+gate currently requires only NBI, ID front, and selfie. An admin can therefore
+approve a pending provider whose ID back image is missing.
+
+Operations must manually verify all four files and must not treat the existing
+three-field server check as complete KYC enforcement. Tightening the predicate
+requires the E32-blocked aggregate production audit so existing pending and
+approved records are not stranded without a deliberate legacy path. See
+`.ai-coder/escalations/E36-provider-approval-does-not-enforce-government-id-back-2026-08-30.md`.

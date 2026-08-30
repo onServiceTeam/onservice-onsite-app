@@ -88,10 +88,15 @@ Hard requirements:
 - [ ] Government ID, front and back. Accepted IDs: National ID, Passport, Driver's License, or UMID. Name on the ID matches the application.
 - [ ] NBI Clearance, issued within the last 6 months. (The mobile form hints this; we hold the line at review.)
 - [ ] Selfie. Used for a visual face-match against the government ID. Note: there is NO automated liveness/face-match in v1.0. An admin compares the selfie to the ID by eye in the Provider Review queue. (Onfido/Persona wiring is a v1.1+ item.)
-- [ ] Inside a service area we operate. Provider lat/lng falls within a configured `service_areas` market (Metro Cebu is the default market: Cebu City, Mandaue, Lapu-Lapu, Talisay).
+- [ ] Inside the selected provider market. Submission verifies the exact lat/lng against an Admin-configured active, soft-launch, or recruiting `service_areas` boundary and creates its primary `provider_service_areas` link (Metro Cebu is the default market: Cebu City, Mandaue, Lapu-Lapu, Talisay).
 - [ ] At least 1 service category selected (the app allows 1 to 10).
 - [ ] Independent Contractor agreement accepted (`icAgreementAccepted: true` at submission, timestamped server-side).
 - [ ] Service radius between 1 km and the live **Max Service Radius** in Admin Settings (50 km at the time of this audit, hard-bounded to 5-100 km). The application, provider change request, approval, and direct admin override all enforce the same saved maximum.
+
+**Current enforcement warning:** Provider 360 shows both ID sides, but the API
+approval prerequisite checks only NBI, government ID front, and selfie. Until
+E36 is resolved, the reviewer must manually stop approval when the ID back is
+missing; the enabled approval action is not proof that all four files exist.
 
 Policy requirements from DECISION-003 (not all enforced in code, enforce them here):
 
@@ -238,7 +243,7 @@ Certifications: providers can self-add certifications in the mobile app (name, i
 
 ## 4a. The interview script and application questionnaire (the exact questions to ask)
 
-The application in the app collects documents and categories. It does not tell you who the person is. A short interview does. Run it by phone or video once Stages A to D look clean (do not interview someone who already failed a document check). Keep it to 15 to 20 minutes. Record the answers in the provider's admin Notes (category `general` or `quality`).
+The application collects documents, categories, market/location, and a vetting questionnaire. Treat those as claims to verify, not a substitute for knowing who the person is. Run a short phone or video interview once Stages A to D look clean (do not interview someone who already failed a document check). Keep it to 15 to 20 minutes. Record the answers in the provider's admin Notes (category `general` or `quality`).
 
 The questions below are grouped by what they reveal, so you know what you are listening for, not just what to ask. You do not have to read them word for word, but cover every group. Bisaya, Tagalog, or English, whatever the applicant is comfortable in.
 
@@ -336,7 +341,7 @@ Lifecycle: application -> `pending` -> Approve to `approved` OR Reject to `rejec
 
 Decision rule:
 
-- **APPROVE** when the scorecard is 80+, all three KYC docs are on file, and no auto-fail triggered.
+- **APPROVE** when the scorecard is 80+, all four KYC evidence files are on file and reviewed, and no auto-fail triggered. E36 means the ID back is temporarily a manual gate even when the button is enabled.
 - **HOLD** when the scorecard is 60 to 79 or a document is unclear. Holding is not a status in the app. In practice you leave the provider at `pending` and message them for the missing item. Log the hold reason in Notes so the next admin knows where it stands.
 - **REJECT** when the scorecard is below 60 or any auto-fail triggered.
 
@@ -351,7 +356,7 @@ Decision rule:
 7. Confirm service categories and service area look right.
 8. Score the scorecard (Section 3). Write the score and notes in the **Notes** tab (category `general` or `quality`).
 9. If it passes, go back to the **Providers** list (or use the detail action) and click **Approve**.
-   - The system refuses approval if any of `nbi_clearance_url`, `government_id_front_url`, or `selfie_url` is missing, and returns a clean message listing what is missing. If you see that, the provider has not finished onboarding; set it back to a hold and message them.
+   - The system refuses approval if any of `nbi_clearance_url`, `government_id_front_url`, or `selfie_url` is missing, and returns a clean message listing what is missing. It does not yet include `government_id_back_url` in that check. Stop manually if the back image is absent, record the hold in Notes, and follow E36 rather than treating the enabled button as clearance.
    - On success the status flips `pending -> approved`, `reviewed_at` is stamped, an audit row `provider_approved` is written, and the provider gets an "Account Approved" notification.
 10. Set the tier if needed. New approvals default to **New** (15%). If this is one of the founding batch, use **Change Tier** to set Founding (reason required, 10+ chars).
 
@@ -361,7 +366,7 @@ Decision rule:
 2. Enter a reason. The admin UI requires at least 10 characters. Use a reason code from Section 8 plus a plain-language sentence the provider will actually read.
 3. The status flips `pending -> rejected`, the reason is stored, an audit row `provider_rejected` is written, and the provider gets an "Application Declined" notification with your reason.
 
-A rejected provider can re-apply once they fix the issue (for example, get a fresh NBI). Treat a re-application as a new review.
+A rejected provider cannot currently resubmit through the app because the canonical provider row remains on the account and duplicate application is blocked. Do not promise reapplication or collect replacement KYC outside the app. E35 defines the required same-record request-changes/resubmission design.
 
 ---
 
@@ -404,14 +409,19 @@ Use a code plus a human sentence. The provider sees your sentence, so keep it ki
 | R09 | Duplicate or fraudulent application | No |
 | R10 | Incomplete application after a hold (provider never sent the missing item) | Yes |
 
+The **Re-apply possible?** column is the intended policy classification, not a
+current app capability. E35 blocks every rejected canonical provider from
+resubmitting today. Do not promise the Yes outcomes until the same-record,
+audited resubmission flow exists.
+
 Copy-paste rejection message template (SMS/email, keep under 480 chars):
 
 ```
 Hi [Name], thanks for applying to onService PH. We can't approve your
-application right now because: [plain reason]. [If re-apply possible:]
-You're welcome to re-apply once you've sorted this out. [If you need an
-NBI: You can get a fresh NBI clearance at clearance.nbi.gov.ph.] Questions?
-Reply here or email providers@onservice.ph. - onService PH Team
+application right now because: [plain reason]. The app cannot securely reopen
+a rejected application yet, so please do not send ID or NBI files by chat or
+email. Reply here or email providers@onservice.ph so we can record your case
+and contact you when the in-app correction path is available. - onService PH Team
 ```
 
 ---

@@ -205,9 +205,9 @@ Playbook:
 
 ## 11. Verification, documents, re-upload, and expiry
 
-Required documents to be approved: NBI clearance, government ID front, and selfie (these three are hard-required by the approve action). Government ID back is collected at application time too.
+The application policy requires four evidence files: NBI clearance, government ID front, government ID back, and selfie. The current approve action hard-requires only NBI, ID front, and selfie; E36 records the missing ID-back enforcement, so support and reviewers must not describe the three-field API check as the complete policy.
 
-Approval rule: a super_admin cannot approve a provider unless `nbi_clearance_url`, `government_id_front_url`, and `selfie_url` are all on the row. The Approve action returns a clean error listing what is missing.
+Current API rule: an authorized admin-tier operator cannot approve a provider unless `nbi_clearance_url`, `government_id_front_url`, and `selfie_url` are all on the row. The Approve action returns a clean error listing those missing fields. The operator must separately verify `government_id_back_url` until E36 is resolved.
 
 NBI expiry:
 - The provider row carries `nbi_expiry_date`. A background job warns providers whose NBI expires within 30 days (default) and notifies again when expired.
@@ -216,7 +216,7 @@ NBI expiry:
 
 Re-upload playbook:
 1. "My NBI is expiring / expired": tell them to get a fresh NBI (must be recent, the app hints within the last 6 months) and re-upload through the app. KYC documents go to a private bucket; admins view them through an authenticated proxy, never raw URLs.
-2. "I was rejected for a blurry or wrong document": rejections store a reason. Read it to the provider, tell them exactly which document and what was wrong, and have them resubmit. Re-review and route to a super_admin to approve once the new document is clear.
+2. "I was rejected for a blurry or wrong document": rejections store a reason. Read the customer-safe reason and explain which document was wrong, but do not ask them to send KYC through chat, email, or another off-platform channel. Rejected applicants cannot currently resubmit against the same canonical provider row; log a support case and escalate under E35 instead of promising an unavailable reapplication path.
 3. "My document was approved but shows expired": check `expires_at` on the document and the NBI expiry date. If genuinely expired, it needs a new upload.
 4. Certifications (for Elite tier): providers self-add certifications; `is_verified` is set by an admin. Elite needs a verified certification. If a provider expects Elite but their cert is not verified yet, that is the blocker. Route the cert for verification.
 
