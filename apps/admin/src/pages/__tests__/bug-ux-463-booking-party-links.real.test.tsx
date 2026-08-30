@@ -27,5 +27,5 @@ it('Bug UX-463 — the booking queue links its customer and assigned provider to
   expect(await screen.findByText('Ana Reyes')).toHaveAttribute('to', '/customers/customer-123');
   expect(screen.getByText('Cebu Home Pro')).toHaveAttribute('to', '/providers/provider-123');
   expect(screen.getByText('booking-')).toHaveAttribute('to', '/bookings/booking-12345678');
-  expect(screen.getByRole('textbox', { name: /search bookings by booking, customer, provider, service, or city/i })).toBeVisible();
+  expect(screen.getByRole('textbox', { name: /search bookings by booking, customer, provider, service, city, or party id/i })).toBeVisible();
 });

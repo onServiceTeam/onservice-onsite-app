@@ -26,7 +26,7 @@ import { ACTIVE_BOOKING_STATUSES } from '../src/types/booking.types';
 describe('Phase 200 — listBookingsAdmin status=active expansion', () => {
   beforeEach(() => {
     dbQueryMock.mockReset();
-    // listBookingsAdmin runs count first, then the data query.
+    // listBookingsAdmin runs filtered count, whole-queue summary, then data.
     dbQueryMock.mockResolvedValue({ rows: [{ count: '0' }] });
   });
 
@@ -58,8 +58,7 @@ describe('Phase 200 — listBookingsAdmin status=active expansion', () => {
 
   it('selects booking latitude/longitude for the dispatch map', async () => {
     await adminService.listBookingsAdmin({ status: 'active', page: 1, pageSize: 20 });
-    // calls[0] = count, calls[1] = data query.
-    const dataSql = dbQueryMock.mock.calls[1]![0] as string;
+    const dataSql = dbQueryMock.mock.calls.find(([sql]) => String(sql).includes('SELECT b.id'))?.[0] as string;
     expect(dataSql).toContain('b.latitude');
     expect(dataSql).toContain('b.longitude');
   });

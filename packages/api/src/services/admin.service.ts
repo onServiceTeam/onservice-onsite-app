@@ -1,7 +1,11 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
-import { ACTIVE_BOOKING_STATUSES, COMPLETED_BOOKING_STATUSES } from '../types/booking.types';
+import {
+  ACTIVE_BOOKING_STATUSES,
+  ALL_BOOKING_STATUSES,
+  COMPLETED_BOOKING_STATUSES,
+} from '../types/booking.types';
 import { maskEmail, maskPhilippinePhone, type ActorRole } from '../utils/pii-mask';
 
 interface KpiRow {
@@ -89,6 +93,30 @@ interface BookingAdminRow {
   // DECIMAL columns — pg returns them as strings. Used by the dispatch map.
   latitude: string | null;
   longitude: string | null;
+  open_support_tickets: string;
+  unassigned_support_tickets: string;
+  urgent_support_tickets: string;
+  support_owner_names: string | null;
+  open_disputes: string;
+  past_scheduled: boolean;
+}
+
+interface BookingQueueSummaryRow {
+  total_bookings: string;
+  active_bookings: string;
+  unassigned_active: string;
+  open_support_bookings: string;
+  disputed_bookings: string;
+  past_scheduled_bookings: string;
+}
+
+export interface BookingQueueSummary {
+  totalBookings: number;
+  activeBookings: number;
+  unassignedActive: number;
+  openSupportBookings: number;
+  disputedBookings: number;
+  pastScheduledBookings: number;
 }
 
 interface RevenueRow {
@@ -583,11 +611,42 @@ export async function listCustomers(
 }
 
 export async function listBookingsAdmin(
-  filters: { status?: string; search?: string; page: number; pageSize: number },
-): Promise<{ bookings: BookingAdminRow[]; total: number }> {
+  filters: {
+    status?: string;
+    search?: string;
+    view?: string;
+    sort?: string;
+    page: number;
+    pageSize: number;
+  },
+): Promise<{ bookings: BookingAdminRow[]; total: number; summary: BookingQueueSummary }> {
+  const queueViews = new Set(['all', 'active', 'unassigned', 'support', 'disputed', 'past_scheduled']);
+  const queueSorts = new Set(['attention', 'newest', 'scheduled', 'highest_value']);
+  const view = filters.view ?? 'all';
+  const sort = filters.sort ?? 'newest';
+
+  if (filters.status && filters.status !== 'active' && !ALL_BOOKING_STATUSES.includes(filters.status as never)) {
+    throw createAppError('Invalid booking status filter.', 400);
+  }
+  if (!queueViews.has(view)) throw createAppError('Invalid booking queue view.', 400);
+  if (!queueSorts.has(sort)) throw createAppError('Invalid booking queue sort.', 400);
+
   const conditions: string[] = [];
   const params: unknown[] = [];
   let paramIdx = 1;
+  const activeStatusesSql = ACTIVE_BOOKING_STATUSES.map((status) => `'${status}'`).join(', ');
+  const openSupportSql = `EXISTS (
+    SELECT 1 FROM support_tickets st
+    WHERE st.booking_id = b.id AND st.status NOT IN ('resolved', 'closed')
+  )`;
+  const openDisputeSql = `EXISTS (
+    SELECT 1 FROM disputes d
+    WHERE d.booking_id = b.id AND d.status IN ('open', 'under_review', 'escalated')
+  )`;
+  // E33: E03's approved instant-pay contract makes only a verified paid
+  // unmatched booking an assignment exception. Requested/quoted/payment-pending
+  // bookings must not be promoted as ready for provider assignment.
+  const assignmentAttentionSql = `b.provider_id IS NULL AND b.status = 'paid'`;
 
   if (filters.status) {
     // Phase 200 fix — "active" is a logical bucket, not a stored status.
@@ -617,10 +676,23 @@ export async function listBookingsAdmin(
       OR COALESCE(p.business_name, '') ILIKE $${paramIdx}
       OR CONCAT_WS(' ', pu.first_name, pu.last_name) ILIKE $${paramIdx}
       OR COALESCE(pu.phone, '') ILIKE $${paramIdx}
+      OR COALESCE(ss.name, '') ILIKE $${paramIdx}
       OR COALESCE(sc.name, '') ILIKE $${paramIdx}
     )`);
     params.push(`%${filters.search}%`);
     paramIdx++;
+  }
+
+  if (view === 'active') {
+    conditions.push(`b.status IN (${activeStatusesSql})`);
+  } else if (view === 'unassigned') {
+    conditions.push(assignmentAttentionSql);
+  } else if (view === 'support') {
+    conditions.push(openSupportSql);
+  } else if (view === 'disputed') {
+    conditions.push(`(b.status = 'disputed' OR ${openDisputeSql})`);
+  } else if (view === 'past_scheduled') {
+    conditions.push(`b.scheduled_at < NOW() AND b.status IN (${activeStatusesSql})`);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -629,12 +701,36 @@ export async function listBookingsAdmin(
     JOIN users u ON u.id = b.customer_id
     LEFT JOIN providers p ON p.id = b.provider_id
     LEFT JOIN users pu ON pu.id = p.user_id
+    LEFT JOIN service_subcategories ss ON ss.id = b.subcategory_id
     LEFT JOIN service_categories sc ON sc.id = b.category_id`;
 
-  const countResult = await db.query<CountRow>(
-    `SELECT COUNT(*)::text as count ${bookingListJoins} ${whereClause}`,
-    params,
-  );
+  const openSupportCountSql = `(SELECT COUNT(*) FROM support_tickets st WHERE st.booking_id = b.id AND st.status NOT IN ('resolved', 'closed'))`;
+  const unassignedSupportCountSql = `(SELECT COUNT(*) FROM support_tickets st WHERE st.booking_id = b.id AND st.status NOT IN ('resolved', 'closed') AND st.assigned_agent_id IS NULL)`;
+  const urgentSupportCountSql = `(SELECT COUNT(*) FROM support_tickets st WHERE st.booking_id = b.id AND st.status NOT IN ('resolved', 'closed') AND st.priority = 'urgent')`;
+  const openDisputeCountSql = `(SELECT COUNT(*) FROM disputes d WHERE d.booking_id = b.id AND d.status IN ('open', 'under_review', 'escalated'))`;
+  const orderClause = sort === 'attention'
+    ? `${urgentSupportCountSql} DESC, ${unassignedSupportCountSql} DESC, ${openDisputeCountSql} DESC, CASE WHEN ${assignmentAttentionSql} THEN 1 ELSE 0 END DESC, CASE WHEN b.scheduled_at < NOW() AND b.status IN (${activeStatusesSql}) THEN 1 ELSE 0 END DESC, ${openSupportCountSql} DESC, b.scheduled_at ASC NULLS LAST, b.created_at DESC`
+    : sort === 'scheduled'
+      ? 'b.scheduled_at ASC NULLS LAST, b.created_at DESC'
+      : sort === 'highest_value'
+        ? 'b.total_amount DESC, b.created_at DESC'
+        : 'b.created_at DESC';
+
+  const [countResult, summaryResult] = await Promise.all([
+    db.query<CountRow>(
+      `SELECT COUNT(*)::text as count ${bookingListJoins} ${whereClause}`,
+      params,
+    ),
+    db.query<BookingQueueSummaryRow>(
+      `SELECT COUNT(*)::text AS total_bookings,
+              COUNT(*) FILTER (WHERE b.status IN (${activeStatusesSql}))::text AS active_bookings,
+              COUNT(*) FILTER (WHERE ${assignmentAttentionSql})::text AS unassigned_active,
+              COUNT(*) FILTER (WHERE ${openSupportSql})::text AS open_support_bookings,
+              COUNT(*) FILTER (WHERE b.status = 'disputed' OR ${openDisputeSql})::text AS disputed_bookings,
+              COUNT(*) FILTER (WHERE b.scheduled_at < NOW() AND b.status IN (${activeStatusesSql}))::text AS past_scheduled_bookings
+         FROM bookings b`,
+    ),
+  ]);
 
   const offset = (filters.page - 1) * filters.pageSize;
   const dataResult = await db.query<BookingAdminRow>(
@@ -643,15 +739,40 @@ export async function listBookingsAdmin(
        b.latitude::text AS latitude, b.longitude::text AS longitude,
        CONCAT(u.first_name, ' ', u.last_name) AS customer_name,
        p.business_name AS provider_name,
-       sc.name AS category_name
+       COALESCE(ss.name, sc.name) AS category_name,
+       ${openSupportCountSql}::text AS open_support_tickets,
+       ${unassignedSupportCountSql}::text AS unassigned_support_tickets,
+       ${urgentSupportCountSql}::text AS urgent_support_tickets,
+       (SELECT STRING_AGG(support_owner.owner_name, ', ' ORDER BY support_owner.owner_name)
+          FROM (
+            SELECT DISTINCT NULLIF(BTRIM(CONCAT_WS(' ', au.first_name, au.last_name)), '') AS owner_name
+              FROM support_tickets st
+              JOIN users au ON au.id = st.assigned_agent_id
+             WHERE st.booking_id = b.id AND st.status NOT IN ('resolved', 'closed')
+          ) support_owner
+         WHERE support_owner.owner_name IS NOT NULL) AS support_owner_names,
+       ${openDisputeCountSql}::text AS open_disputes,
+       (b.scheduled_at < NOW() AND b.status IN (${activeStatusesSql})) AS past_scheduled
      ${bookingListJoins}
      ${whereClause}
-     ORDER BY b.created_at DESC
+     ORDER BY ${orderClause}
      LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
     [...params, filters.pageSize, offset],
   );
 
-  return { bookings: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
+  const summary = summaryResult.rows[0];
+  return {
+    bookings: dataResult.rows,
+    total: Number(countResult.rows[0]?.count ?? 0),
+    summary: {
+      totalBookings: Number(summary?.total_bookings ?? 0),
+      activeBookings: Number(summary?.active_bookings ?? 0),
+      unassignedActive: Number(summary?.unassigned_active ?? 0),
+      openSupportBookings: Number(summary?.open_support_bookings ?? 0),
+      disputedBookings: Number(summary?.disputed_bookings ?? 0),
+      pastScheduledBookings: Number(summary?.past_scheduled_bookings ?? 0),
+    },
+  };
 }
 
 /**
@@ -810,6 +931,12 @@ export function formatBookingAdmin(b: BookingAdminRow): Record<string, unknown> 
     // Phase 200 — surfaced for the dispatch map.
     latitude: b.latitude != null ? Number(b.latitude) : null,
     longitude: b.longitude != null ? Number(b.longitude) : null,
+    openSupportTickets: Number(b.open_support_tickets ?? 0),
+    unassignedSupportTickets: Number(b.unassigned_support_tickets ?? 0),
+    urgentSupportTickets: Number(b.urgent_support_tickets ?? 0),
+    supportOwnerNames: b.support_owner_names ?? null,
+    openDisputes: Number(b.open_disputes ?? 0),
+    pastScheduled: Boolean(b.past_scheduled),
   };
 }
 

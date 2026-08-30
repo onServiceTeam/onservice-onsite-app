@@ -11,17 +11,21 @@ import { listBookingsAdmin } from '../src/services/admin.service';
 it('Bug UX-464 — booking search resolves customer, provider, service, city, and booking identifiers in both count and result queries', async () => {
   dbQueryMock
     .mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 })
+    .mockResolvedValueOnce({ rows: [], rowCount: 0 })
     .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
   await listBookingsAdmin({ search: 'Cebu Home Pro', page: 1, pageSize: 25 });
 
-  expect(dbQueryMock).toHaveBeenCalledTimes(2);
-  for (const [sql, params] of dbQueryMock.mock.calls) {
+  const filteredQueries = dbQueryMock.mock.calls.filter(([sql]) => String(sql).includes('LEFT JOIN providers p'));
+  expect(filteredQueries).toHaveLength(2);
+  for (const [sql, params] of filteredQueries) {
     expect(sql).toContain('LEFT JOIN providers p');
     expect(sql).toContain('LEFT JOIN users pu');
+    expect(sql).toContain('LEFT JOIN service_subcategories ss');
     expect(sql).toContain('LEFT JOIN service_categories sc');
     expect(sql).toContain("CONCAT_WS(' ', u.first_name, u.last_name)");
     expect(sql).toContain('p.business_name');
+    expect(sql).toContain('ss.name');
     expect(sql).toContain('sc.name');
     expect(params[0]).toBe('%Cebu Home Pro%');
   }

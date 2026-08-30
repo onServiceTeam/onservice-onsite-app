@@ -295,12 +295,22 @@ router.get(
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
       const status = typeof req.query.status === 'string' ? req.query.status : undefined;
       const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+      const view = typeof req.query.view === 'string' ? req.query.view : undefined;
+      const sort = typeof req.query.sort === 'string' ? req.query.sort : undefined;
 
-      const { bookings, total } = await adminService.listBookingsAdmin({ status, search, page, pageSize });
+      const { bookings, total, summary } = await adminService.listBookingsAdmin({
+        status,
+        search,
+        view,
+        sort,
+        page,
+        pageSize,
+      });
 
       res.json({
         success: true,
         data: bookings.map(adminService.formatBookingAdmin),
+        summary,
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
       });
     } catch (error) {
