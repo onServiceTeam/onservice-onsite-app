@@ -20,6 +20,7 @@ import * as notificationService from './notification.service';
 import * as orService from './or.service';
 import * as paymentService from './payment.service';
 import * as gatewayRetryService from './gateway-retry.service';
+import * as socketService from './socket.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -38,6 +39,7 @@ export interface BookingDetail {
   servicePrice: number;
   serviceFee: number;
   totalAmount: number;
+  conversationId: string | null;
   category: { id: string; name: string } | null;
   subcategory: { id: string; name: string } | null;
   address: { full: string; barangay: string; city: string; province: string } | null;
@@ -100,6 +102,42 @@ export interface BookingDispute {
   resolvedAt: string | null;
 }
 
+export interface BookingMoney {
+  paymentIntents: Array<{
+    id: string;
+    gatewayIntentId: string | null;
+    gatewayPaymentId: string | null;
+    amount: number;
+    refundedAmount: number;
+    paymentMethod: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  ledgerEntries: Array<{
+    id: string;
+    walletType: string;
+    walletUserId: string | null;
+    type: string;
+    amount: number;
+    balanceAfter: number;
+    description: string;
+    referenceId: string | null;
+    createdAt: string;
+  }>;
+  salesRecords: Array<{
+    id: string;
+    number: string;
+    grossAmount: number;
+    providerReceived: number;
+    platformRetained: number;
+    isCancellation: boolean;
+    cancelledAt: string | null;
+    pdfUrl: string | null;
+    issuedAt: string;
+  }>;
+}
+
 export interface ManualReleaseResult {
   bookingId: string;
   releasedAmount: number;
@@ -140,8 +178,12 @@ export interface ForceCompleteResult {
 // ─────────────────────────────────────────────────────────────────
 
 const TERMINAL_REASSIGN_BLOCKED = new Set<string>([
+  'provider_arrived',
+  'in_progress',
   'completed_by_provider',
   'confirmed',
+  'disputed',
+  'resolved',
   'cancelled_by_customer',
   'cancelled_by_provider',
   'cancelled_by_admin',
@@ -200,6 +242,7 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
     service_price: string;
     service_fee: string;
     total_amount: string;
+    conversation_id: string | null;
     address: string | null;
     barangay: string | null;
     city: string | null;
@@ -232,6 +275,7 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
             b.service_price::text AS service_price,
             b.service_fee::text   AS service_fee,
             b.total_amount::text  AS total_amount,
+            c.id                  AS conversation_id,
             b.address, b.barangay, b.city, b.province, b.created_at,
             b.category_id,    sc.name  AS category_name,
             b.subcategory_id, ssc.name AS subcategory_name,
@@ -257,6 +301,7 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
        LEFT JOIN users cu                  ON cu.id  = b.customer_id
        LEFT JOIN providers p               ON p.id   = b.provider_id
        LEFT JOIN users pu                  ON pu.id  = p.user_id
+       LEFT JOIN conversations c           ON c.booking_id = b.id
       WHERE b.id = $1`,
     [bookingId],
   );
@@ -277,12 +322,12 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
     averageRatingGiven = cstats.rows[0]?.avg ? Number(cstats.rows[0].avg) : null;
   }
 
-  const address = row.address && row.barangay && row.city && row.province
+  const address = row.address || row.barangay || row.city || row.province
     ? {
-        full: row.address,
-        barangay: row.barangay,
-        city: row.city,
-        province: row.province,
+        full: row.address ?? '',
+        barangay: row.barangay ?? '',
+        city: row.city ?? '',
+        province: row.province ?? '',
       }
     : null;
 
@@ -325,6 +370,7 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
     servicePrice: Number(row.service_price),
     serviceFee: Number(row.service_fee),
     totalAmount: Number(row.total_amount),
+    conversationId: row.conversation_id,
     category: row.category_id ? { id: row.category_id, name: row.category_name ?? '' } : null,
     subcategory: row.subcategory_id
       ? { id: row.subcategory_id, name: row.subcategory_name ?? '' }
@@ -603,7 +649,116 @@ export async function getBookingDispute(bookingId: string): Promise<BookingDispu
 }
 
 // ─────────────────────────────────────────────────────────────────
-// 5) Manual escrow release (SACRED — super-admin only at route layer)
+// 5) Booking payment and ledger trail (read-only)
+// ─────────────────────────────────────────────────────────────────
+
+export async function getBookingMoney(bookingId: string): Promise<BookingMoney> {
+  const booking = await db.query<{ id: string }>(
+    `SELECT id FROM bookings WHERE id = $1`,
+    [bookingId],
+  );
+  if (!booking.rows[0]) throw createAppError('Booking not found.', 404);
+
+  const [paymentResult, ledgerResult, salesResult] = await Promise.all([
+    db.query<{
+      id: string;
+      paymongo_intent_id: string | null;
+      paymongo_payment_id: string | null;
+      amount: string;
+      refunded_amount: string;
+      payment_method: string;
+      status: string;
+      created_at: Date;
+      updated_at: Date;
+    }>(
+      `SELECT id, paymongo_intent_id, paymongo_payment_id,
+              amount::text, refunded_amount::text, payment_method, status,
+              created_at, updated_at
+         FROM payment_intents
+        WHERE booking_id = $1
+        ORDER BY created_at DESC`,
+      [bookingId],
+    ),
+    db.query<{
+      id: string;
+      wallet_type: string;
+      wallet_user_id: string | null;
+      type: string;
+      amount: string;
+      balance_after: string;
+      description: string;
+      reference_id: string | null;
+      created_at: Date;
+    }>(
+      `SELECT wt.id, w.type AS wallet_type, w.user_id AS wallet_user_id,
+              wt.type, wt.amount::text, wt.balance_after::text,
+              wt.description, wt.reference_id, wt.created_at
+         FROM wallet_transactions wt
+         JOIN wallets w ON w.id = wt.wallet_id
+        WHERE wt.booking_id = $1
+        ORDER BY wt.created_at ASC, wt.id ASC`,
+      [bookingId],
+    ),
+    db.query<{
+      id: string;
+      or_number: string;
+      gross_amount: string;
+      provider_received: string;
+      platform_retained: string;
+      is_cancellation: boolean;
+      cancelled_at: Date | null;
+      pdf_url: string | null;
+      issued_at: Date;
+    }>(
+      `SELECT id, or_number, gross_amount::text, provider_received::text,
+              platform_retained::text, is_cancellation, cancelled_at,
+              pdf_url, issued_at
+         FROM official_receipts
+        WHERE booking_id = $1
+        ORDER BY issued_at ASC, id ASC`,
+      [bookingId],
+    ),
+  ]);
+
+  return {
+    paymentIntents: paymentResult.rows.map((row) => ({
+      id: row.id,
+      gatewayIntentId: row.paymongo_intent_id,
+      gatewayPaymentId: row.paymongo_payment_id,
+      amount: Number(row.amount),
+      refundedAmount: Number(row.refunded_amount),
+      paymentMethod: row.payment_method,
+      status: row.status,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+    })),
+    ledgerEntries: ledgerResult.rows.map((row) => ({
+      id: row.id,
+      walletType: row.wallet_type,
+      walletUserId: row.wallet_user_id,
+      type: row.type,
+      amount: Number(row.amount),
+      balanceAfter: Number(row.balance_after),
+      description: row.description,
+      referenceId: row.reference_id,
+      createdAt: row.created_at.toISOString(),
+    })),
+    salesRecords: salesResult.rows.map((row) => ({
+      id: row.id,
+      number: row.or_number,
+      grossAmount: Number(row.gross_amount),
+      providerReceived: Number(row.provider_received),
+      platformRetained: Number(row.platform_retained),
+      isCancellation: row.is_cancellation,
+      cancelledAt: row.cancelled_at ? row.cancelled_at.toISOString() : null,
+      pdfUrl: row.pdf_url,
+      issuedAt: row.issued_at.toISOString(),
+    })),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 6) Manual escrow release (SACRED — super-admin only at route layer)
 // ─────────────────────────────────────────────────────────────────
 
 export async function manualReleaseEscrow(
@@ -778,9 +933,23 @@ export async function reassignBookingProvider(
 ): Promise<ReassignResult> {
   const trimmedReason = requireReason(reason, 5);
 
-  return db.transaction(async (client) => {
-    const bookingResult = await client.query<{ id: string; status: string; provider_id: string | null }>(
-      `SELECT id, status, provider_id FROM bookings WHERE id = $1 FOR UPDATE`,
+  const result = await db.transaction(async (client) => {
+    const bookingResult = await client.query<{
+      id: string;
+      status: string;
+      customer_id: string;
+      provider_id: string | null;
+      performer_staff_id: string | null;
+      old_provider_user_id: string | null;
+      category_id: string;
+      subcategory_id: string | null;
+      latitude: string | null;
+      longitude: string | null;
+    }>(
+      `SELECT id, status, customer_id, provider_id, performer_staff_id,
+              category_id, subcategory_id, latitude, longitude,
+              (SELECT user_id FROM providers WHERE id = bookings.provider_id) AS old_provider_user_id
+         FROM bookings WHERE id = $1 FOR UPDATE`,
       [bookingId],
     );
     const booking = bookingResult.rows[0];
@@ -793,32 +962,113 @@ export async function reassignBookingProvider(
       );
     }
 
-    const providerResult = await client.query<{ id: string; is_active: boolean }>(
-      `SELECT p.id, u.is_active
+    if (booking.provider_id === newProviderId) {
+      throw createAppError('Booking is already assigned to this provider.', 409);
+    }
+
+    if (booking.latitude === null || booking.longitude === null) {
+      throw createAppError(
+        'Booking has no exact location coordinates. Correct the booking location before reassignment.',
+        409,
+      );
+    }
+
+    const providerResult = await client.query<{
+      id: string;
+      user_id: string;
+      status: string;
+      is_active: boolean;
+      is_available: boolean;
+      service_eligible: boolean;
+      in_range: boolean;
+    }>(
+      `SELECT p.id, p.user_id, p.status, u.is_active, p.is_available,
+              EXISTS (
+                SELECT 1
+                  FROM provider_services ps
+                 WHERE ps.provider_id = p.id
+                   AND ps.is_active = TRUE
+                   AND ps.category_id = $2
+                   AND ($3::uuid IS NULL OR ps.subcategory_id IS NULL OR ps.subcategory_id = $3)
+              ) AS service_eligible,
+              CASE
+                WHEN p.latitude IS NULL OR p.longitude IS NULL OR p.service_radius_km IS NULL
+                  THEN FALSE
+                ELSE (
+                  6371 * ACOS(LEAST(1.0, GREATEST(-1.0,
+                    COS(RADIANS($4::numeric)) * COS(RADIANS(p.latitude::numeric))
+                      * COS(RADIANS(p.longitude::numeric) - RADIANS($5::numeric))
+                      + SIN(RADIANS($4::numeric)) * SIN(RADIANS(p.latitude::numeric))
+                  )))
+                ) <= p.service_radius_km
+              END AS in_range
          FROM providers p
          JOIN users u ON u.id = p.user_id
         WHERE p.id = $1`,
-      [newProviderId],
+      [
+        newProviderId,
+        booking.category_id,
+        booking.subcategory_id,
+        booking.latitude,
+        booking.longitude,
+      ],
     );
     const provider = providerResult.rows[0];
     if (!provider) throw createAppError('New provider not found.', 404);
     if (!provider.is_active) {
       throw createAppError('New provider is not active.', 409);
     }
+    if (provider.status !== 'approved') {
+      throw createAppError('New provider is not approved.', 409);
+    }
+    if (!provider.is_available) {
+      throw createAppError('New provider is not accepting work.', 409);
+    }
+    if (!provider.service_eligible) {
+      throw createAppError('New provider does not offer this booking\'s service.', 409);
+    }
+    if (!provider.in_range) {
+      throw createAppError('Booking is outside the new provider\'s service radius.', 409);
+    }
 
     await client.query(
-      `UPDATE bookings SET provider_id = $1, updated_at = NOW() WHERE id = $2`,
+      `UPDATE bookings
+          SET provider_id = $1,
+              performer_staff_id = NULL,
+              updated_at = NOW()
+        WHERE id = $2`,
       [newProviderId, bookingId],
     );
 
+    const conversationResult = await client.query(
+      `UPDATE conversations
+          SET provider_id = $1, updated_at = NOW()
+        WHERE booking_id = $2 AND provider_id IS DISTINCT FROM $1`,
+      [provider.user_id, bookingId],
+    );
+
+    const offersResult = await client.query(
+      `UPDATE booking_offers
+          SET status = 'cancelled', responded_at = NOW()
+        WHERE booking_id = $1 AND status = 'pending'`,
+      [bookingId],
+    );
+
     const actionResult = await client.query<{ id: string }>(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-       VALUES ($1, 'booking_reassigned', 'booking', $2, $3::jsonb, $4)
-       RETURNING id`,
+       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+        VALUES ($1, 'booking_reassigned', 'booking', $2, $3::jsonb, $4, $5)
+        RETURNING id`,
       [
         adminUserId,
         bookingId,
-        JSON.stringify({ oldProviderId: booking.provider_id, newProviderId }),
+        JSON.stringify({
+          oldProviderId: booking.provider_id,
+          newProviderId,
+          clearedPerformerStaffId: booking.performer_staff_id,
+          conversationParticipantUpdated: (conversationResult.rowCount ?? 0) > 0,
+          pendingOffersCancelled: offersResult.rowCount ?? 0,
+        }),
+        trimmedReason.slice(0, 500),
         trimmedReason,
       ],
     );
@@ -840,8 +1090,53 @@ export async function reassignBookingProvider(
       oldProviderId: booking.provider_id,
       newProviderId,
       adminActionId,
+      customerId: booking.customer_id,
+      oldProviderUserId: booking.old_provider_user_id,
+      newProviderUserId: provider.user_id,
     };
   });
+
+  const notices = [
+    notificationService.createPushNotification({
+      userId: result.customerId,
+      type: 'provider_assigned',
+      title: 'Your service provider changed',
+      body: 'onService support reassigned your booking. Open the booking for the current provider and updates.',
+      data: { bookingId, source: 'admin_reassignment' },
+    }),
+    notificationService.createPushNotification({
+      userId: result.newProviderUserId,
+      type: 'provider_assigned',
+      title: 'Booking assigned by onService support',
+      body: 'A booking has been assigned to your provider account. Review it before travelling.',
+      data: { bookingId, source: 'admin_reassignment' },
+    }),
+  ];
+  if (result.oldProviderUserId && result.oldProviderUserId !== result.newProviderUserId) {
+    notices.push(notificationService.createPushNotification({
+      userId: result.oldProviderUserId,
+      type: 'provider_assigned',
+      title: 'Booking reassigned by onService support',
+      body: 'You no longer have access to this booking or its customer conversation.',
+      data: { bookingId, source: 'admin_reassignment' },
+    }));
+  }
+  const noticeResults = await Promise.allSettled(notices);
+  if (noticeResults.some((notice) => notice.status === 'rejected')) {
+    logger.warn('One or more booking reassignment notifications failed', { bookingId });
+  }
+  socketService.emitAdminEvent(socketService.ADMIN_EVENTS.BOOKING_PROVIDER_ASSIGNED, {
+    id: bookingId,
+    oldProviderId: result.oldProviderId,
+    newProviderId,
+  });
+
+  return {
+    bookingId: result.bookingId,
+    oldProviderId: result.oldProviderId,
+    newProviderId: result.newProviderId,
+    adminActionId: result.adminActionId,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -852,12 +1147,22 @@ export async function cancelBookingAsAdmin(
   bookingId: string,
   reason: string,
   adminUserId: string,
-  hoursUntilScheduled?: number,
-  providerArrived?: boolean,
-  customerNoShow?: boolean,
+  hoursUntilScheduled?: unknown,
+  providerArrived?: unknown,
+  customerNoShow?: unknown,
 ): Promise<CancelResult> {
   const trimmedReason = requireReason(reason, 10);
 
+  if (hoursUntilScheduled !== undefined
+    && (typeof hoursUntilScheduled !== 'number' || !Number.isFinite(hoursUntilScheduled))) {
+    throw createAppError('hoursUntilScheduled must be a finite number when provided.', 400);
+  }
+  if (providerArrived !== undefined && typeof providerArrived !== 'boolean') {
+    throw createAppError('providerArrived must be a boolean when provided.', 400);
+  }
+  if (customerNoShow !== undefined && typeof customerNoShow !== 'boolean') {
+    throw createAppError('customerNoShow must be a boolean when provided.', 400);
+  }
   // Pre-flight read (read-only, fast-fail outside any transaction).
   const bookingResult = await db.query<{
     id: string;
@@ -1086,28 +1391,26 @@ export async function forceCompleteBooking(
 export interface AdminMessageResult {
   bookingId: string;
   customerId: string;
+  providerUserId: string | null;
   conversationId: string | null;
   messageId: string | null;
-  notificationId: string;
+  customerNotificationId: string | null;
+  providerNotificationId: string | null;
 }
 
 /**
- * Sends an admin-originated message to the customer associated with a
- * booking. Used by the dispatch console "Message customer" action.
+ * Posts an admin-originated support update to the booking participants.
  *
  * Behavior:
- *  - Always creates a `notifications` row (type `new_message`) so the
- *    customer is notified through the normal channel.
- *  - If a `conversations` row exists for the booking, also inserts a
- *    `messages` row with `message_type = system` and the admin as sender
- *    so the message appears inline in the customer's chat thread.
- *  - HTTP-layer audit (auditMiddleware on POST) captures the admin
- *    action; since migration 058 added the `admin_message_sent` verb and
- *    `message` target_type to the admin_actions CHECK constraints, an
- *    `admin_actions` row IS now also written here (best-effort: the
- *    insert is wrapped so a failure never aborts the message send).
+ *  - When a provider is assigned, creates or reuses the canonical booking
+ *    conversation and inserts one system message visible to both parties.
+ *  - The message and booking-targeted admin action commit atomically.
+ *  - Participant inbox/push notifications and socket wake-ups happen after
+ *    commit. They never manufacture a second support thread.
+ *  - Before provider assignment, the update is customer-only because no
+ *    customer/provider conversation can truthfully exist yet.
  */
-export async function sendAdminMessageToBookingCustomer(
+export async function sendAdminMessageToBookingParticipants(
   bookingId: string,
   message: string,
   adminUserId: string,
@@ -1123,89 +1426,166 @@ export async function sendAdminMessageToBookingCustomer(
     throw createAppError('message must be 5–2000 characters.', 400);
   }
 
-  interface BookingRow { id: string; customer_id: string }
-  const bookingResult = await db.query<BookingRow>(
-    `SELECT id, customer_id FROM bookings WHERE id = $1`,
-    [bookingId],
-  );
-  const booking = bookingResult.rows[0];
-  if (!booking) throw createAppError('Booking not found.', 404);
+  const durable = await db.transaction(async (client) => {
+    const bookingResult = await client.query<{
+      id: string;
+      customer_id: string;
+      provider_user_id: string | null;
+    }>(
+      `SELECT b.id, b.customer_id, p.user_id AS provider_user_id
+         FROM bookings b
+         LEFT JOIN providers p ON p.id = b.provider_id
+        WHERE b.id = $1
+        FOR UPDATE OF b`,
+      [bookingId],
+    );
+    const booking = bookingResult.rows[0];
+    if (!booking) throw createAppError('Booking not found.', 404);
 
-  interface ConversationLookupRow { id: string }
-  const conversationResult = await db.query<ConversationLookupRow>(
-    `SELECT id FROM conversations WHERE booking_id = $1`,
-    [bookingId],
-  );
-  const conversationId = conversationResult.rows[0]?.id ?? null;
+    let conversationId: string | null = null;
+    let messageId: string | null = null;
+    if (booking.provider_user_id) {
+      const conversationResult = await client.query<{ id: string }>(
+        `INSERT INTO conversations (booking_id, customer_id, provider_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (booking_id) DO UPDATE
+           SET customer_id = EXCLUDED.customer_id,
+               provider_id = EXCLUDED.provider_id,
+               updated_at = NOW()
+         RETURNING id`,
+        [bookingId, booking.customer_id, booking.provider_user_id],
+      );
+      conversationId = conversationResult.rows[0]?.id ?? null;
+      if (!conversationId) throw createAppError('Failed to resolve booking conversation.', 500);
 
-  let messageId: string | null = null;
-  if (conversationId) {
-    interface MessageInsertRow { id: string }
-    const insertResult = await db.query<MessageInsertRow>(
-      `INSERT INTO messages
-         (conversation_id, sender_id, content, message_type, image_url, is_flagged)
-       VALUES ($1, $2, $3, 'system', NULL, FALSE)
+      const insertResult = await client.query<{ id: string }>(
+        `INSERT INTO messages
+           (conversation_id, sender_id, content, message_type, image_url, is_flagged)
+         VALUES ($1, $2, $3, 'system', NULL, FALSE)
+         RETURNING id`,
+        [conversationId, adminUserId, trimmed],
+      );
+      messageId = insertResult.rows[0]?.id ?? null;
+      if (!messageId) throw createAppError('Failed to record support message.', 500);
+    }
+
+    const actionResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'admin_message_sent', 'booking', $2, $3::jsonb)
        RETURNING id`,
-      [conversationId, adminUserId, trimmed],
-    );
-    messageId = insertResult.rows[0]?.id ?? null;
-    await db.query(
-      `UPDATE conversations SET updated_at = NOW() WHERE id = $1`,
-      [conversationId],
-    );
-  }
-
-  const notification = await notificationService.createPushNotification({
-    userId: booking.customer_id,
-    type: 'new_message',
-    title: 'Message from onService support',
-    body: trimmed.slice(0, 200),
-    data: {
-      bookingId,
-      conversationId,
-      messageId,
-      source: 'admin_dispatch_console',
-      adminUserId,
-    },
-  });
-
-  logger.info('Admin sent message to booking customer', {
-    bookingId,
-    customerId: booking.customer_id,
-    adminUserId,
-    conversationId,
-    messageId,
-    notificationId: notification.id,
-    bodyLength: trimmed.length,
-  });
-
-  // gate-c-allowed: best-effort-audit-only — wrapped in try/catch with logger.warn on failure; message already durably inserted above
-  try {
-    await db.query(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, 'admin_message_sent', 'message', $2, $3::jsonb)`,
       [
         adminUserId,
-        messageId ?? bookingId,
+        bookingId,
         JSON.stringify({
           bookingId,
           customerId: booking.customer_id,
+          providerUserId: booking.provider_user_id,
           conversationId,
           messageId,
-          notificationId: notification.id,
+          audience: booking.provider_user_id ? 'booking_participants' : 'customer_only',
           bodyLength: trimmed.length,
         }),
       ],
     );
-  } catch (err) {
-    logger.warn('audit_log insert failed', { err: String(err) });
+    if (!actionResult.rows[0]?.id) throw createAppError('Failed to record support-message audit.', 500);
+
+    return {
+      customerId: booking.customer_id,
+      providerUserId: booking.provider_user_id,
+      conversationId,
+      messageId,
+    };
+  });
+
+  const notificationRequests = [
+    notificationService.createPushNotification({
+      userId: durable.customerId,
+      type: 'new_message',
+      title: 'Message from onService support',
+      body: trimmed.slice(0, 200),
+      data: {
+        bookingId,
+        conversationId: durable.conversationId,
+        messageId: durable.messageId,
+        source: 'admin_booking_support',
+      },
+    }),
+  ];
+  if (durable.providerUserId) {
+    notificationRequests.push(notificationService.createPushNotification({
+      userId: durable.providerUserId,
+      type: 'new_message',
+      title: 'Message from onService support',
+      body: trimmed.slice(0, 200),
+      data: {
+        bookingId,
+        conversationId: durable.conversationId,
+        messageId: durable.messageId,
+        source: 'admin_booking_support',
+      },
+    }));
   }
+  const notificationResults = await Promise.allSettled(notificationRequests);
+  const customerNotificationId = notificationResults[0]?.status === 'fulfilled'
+    ? notificationResults[0].value.id
+    : null;
+  const providerNotificationId = notificationResults[1]?.status === 'fulfilled'
+    ? notificationResults[1].value.id
+    : null;
+  if (notificationResults.some((result) => result.status === 'rejected')) {
+    logger.warn('Booking support message notification failed after durable message commit', { bookingId });
+  }
+
+  if (durable.conversationId && durable.messageId) {
+    const socketMessage = {
+      id: durable.messageId,
+      conversationId: durable.conversationId,
+      senderId: adminUserId,
+      senderName: 'onService Support',
+      senderRole: 'admin',
+      content: trimmed,
+      messageType: 'system',
+      imageUrl: null,
+      isRead: false,
+      isFlagged: false,
+      createdAt: new Date().toISOString(),
+    };
+    socketService.emitToConversation(durable.conversationId, 'new:message', socketMessage);
+    socketService.emitToUser(durable.customerId, 'notification:message', {
+      conversationId: durable.conversationId,
+      message: socketMessage,
+    });
+    if (durable.providerUserId) {
+      socketService.emitToUser(durable.providerUserId, 'notification:message', {
+        conversationId: durable.conversationId,
+        message: socketMessage,
+      });
+    }
+  }
+
+  logger.info('Admin sent support message to booking participants', {
+    bookingId,
+    customerId: durable.customerId,
+    providerUserId: durable.providerUserId,
+    adminUserId,
+    conversationId: durable.conversationId,
+    messageId: durable.messageId,
+    customerNotificationId,
+    providerNotificationId,
+    bodyLength: trimmed.length,
+  });
 
   return {
     bookingId,
-    customerId: booking.customer_id,
-    conversationId,
-    messageId,
-    notificationId: notification.id,
+    customerId: durable.customerId,
+    providerUserId: durable.providerUserId,
+    conversationId: durable.conversationId,
+    messageId: durable.messageId,
+    customerNotificationId,
+    providerNotificationId,
   };
 }
+
+// Backward-compatible internal alias for earlier callers and audit tests.
+export const sendAdminMessageToBookingCustomer = sendAdminMessageToBookingParticipants;

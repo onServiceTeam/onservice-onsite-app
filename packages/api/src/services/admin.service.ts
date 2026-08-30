@@ -541,15 +541,31 @@ export async function listBookingsAdmin(
     }
   }
   if (filters.search) {
-    conditions.push(`(b.id::text ILIKE $${paramIdx} OR b.city ILIKE $${paramIdx})`);
+    conditions.push(`(
+      b.id::text ILIKE $${paramIdx}
+      OR COALESCE(b.city, '') ILIKE $${paramIdx}
+      OR CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${paramIdx}
+      OR u.phone ILIKE $${paramIdx}
+      OR COALESCE(u.email, '') ILIKE $${paramIdx}
+      OR COALESCE(p.business_name, '') ILIKE $${paramIdx}
+      OR CONCAT_WS(' ', pu.first_name, pu.last_name) ILIKE $${paramIdx}
+      OR COALESCE(pu.phone, '') ILIKE $${paramIdx}
+      OR COALESCE(sc.name, '') ILIKE $${paramIdx}
+    )`);
     params.push(`%${filters.search}%`);
     paramIdx++;
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const bookingListJoins = `
+    FROM bookings b
+    JOIN users u ON u.id = b.customer_id
+    LEFT JOIN providers p ON p.id = b.provider_id
+    LEFT JOIN users pu ON pu.id = p.user_id
+    LEFT JOIN service_categories sc ON sc.id = b.category_id`;
 
   const countResult = await db.query<CountRow>(
-    `SELECT COUNT(*)::text as count FROM bookings b ${whereClause}`,
+    `SELECT COUNT(*)::text as count ${bookingListJoins} ${whereClause}`,
     params,
   );
 
@@ -561,10 +577,7 @@ export async function listBookingsAdmin(
        CONCAT(u.first_name, ' ', u.last_name) AS customer_name,
        p.business_name AS provider_name,
        sc.name AS category_name
-     FROM bookings b
-     JOIN users u ON u.id = b.customer_id
-     LEFT JOIN providers p ON p.id = b.provider_id
-     LEFT JOIN service_categories sc ON sc.id = b.category_id
+     ${bookingListJoins}
      ${whereClause}
      ORDER BY b.created_at DESC
      LIMIT $${paramIdx++} OFFSET $${paramIdx}`,

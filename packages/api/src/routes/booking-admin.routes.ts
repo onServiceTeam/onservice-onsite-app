@@ -116,6 +116,18 @@ router.get(
   },
 );
 
+router.get(
+  '/:id/money',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const data = await bookingAdminService.getBookingMoney((req.params.id as string));
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
 // ─── Manual escrow release (super_admin) ────────────────────────────────────
 
 router.post(
@@ -196,9 +208,9 @@ router.post(
         (req.params.id as string),
         String(reason ?? ''),
         req.user!.userId,
-        hoursUntilScheduled !== undefined ? Number(hoursUntilScheduled) : undefined,
-        providerArrived !== undefined ? Boolean(providerArrived) : undefined,
-        customerNoShow !== undefined ? Boolean(customerNoShow) : undefined,
+        hoursUntilScheduled,
+        providerArrived,
+        customerNoShow,
       );
       res.json({ success: true, data });
     } catch (error) { next(error); }
@@ -224,19 +236,19 @@ router.post(
   },
 );
 
-// ─── Admin message to customer (super_admin) ────────────────────────────────
+// ─── Audited booking support message (admin and super_admin) ────────────────
 
 router.post(
   '/:id/message',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireSuperAdmin(req);
+      requireAdmin(req);
       const { message } = req.body ?? {};
       if (typeof message !== 'string' || message.trim().length === 0) {
         throw createAppError('message is required.', 400);
       }
-      const data = await bookingAdminService.sendAdminMessageToBookingCustomer(
+      const data = await bookingAdminService.sendAdminMessageToBookingParticipants(
         (req.params.id as string),
         message,
         req.user!.userId,

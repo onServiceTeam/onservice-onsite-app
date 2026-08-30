@@ -1,45 +1,51 @@
-// BUG-PHASE97-01 — admin DispatchConsole map default center.
-//
-// Pre-fix the map opened on Manila (14.5995, 120.9842) at zoom 11.
-// Admins opening the dispatch console saw an empty Manila map and had
-// to manually pan to the active market every shift — a real workflow
-// tax for ops.
-//
-// Fix: replace the hardcoded `MANILA` constant with a `DEFAULT_MAP_CENTER`
-// constant wired into the MapContainer. The default market is now Metro
-// Cebu (10.3157, 123.8854), per the city-agnostic, Cebu-default direction
-// in CLAUDE.md — superseding the earlier Boracay default this test was
-// originally written against. The assertions below guard against the
-// original Manila regression and confirm the map is driven by the
-// constant rather than a hardcoded literal.
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { expect, it, vi } from 'vitest';
 
-import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+vi.mock('react-leaflet', () => {
+  const React2 = require('react') as typeof import('react');
+  return {
+    MapContainer: ({ center, children }: { center?: [number, number]; children?: React.ReactNode }) => React2.createElement(
+      'div',
+      { 'data-map-center': JSON.stringify(center) },
+      children,
+    ),
+    TileLayer: () => React2.createElement('div'),
+    Marker: ({ children }: { children?: React.ReactNode }) => React2.createElement('div', null, children),
+    Popup: ({ children }: { children?: React.ReactNode }) => React2.createElement('div', null, children),
+    useMap: () => ({ fitBounds: vi.fn(), setView: vi.fn() }),
+  };
+});
 
-const DISPATCH = readFileSync(
-  resolve(__dirname, '../DispatchConsolePage.tsx'),
-  'utf8',
-);
+const apiMocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
+vi.mock('@/lib/api', () => ({ default: apiMocks, getErrorMessage: (error: Error) => error.message }));
 
-describe('BUG-PHASE97-01 — dispatch map defaults to the active market, not Manila', () => {
-  it('BUG-PHASE97-01 — pre-fix MANILA constant + Manila coords are gone', () => {
-    expect(DISPATCH).not.toMatch(/^const MANILA: \[number, number\] = /m);
-    expect(DISPATCH).not.toMatch(/14\.5995, 120\.9842/);
+import DispatchConsolePage from '../DispatchConsolePage';
+
+it('BUG-PHASE97-01 — dispatch renders the configured default service-area center instead of a hardcoded Manila viewport', async () => {
+  apiMocks.get.mockImplementation(async (url: string) => {
+    if (url.includes('/admin/service-areas')) {
+      return { data: { data: [{
+        centerLat: 7.0707,
+        centerLng: 125.6087,
+        isDefault: true,
+        status: 'active',
+      }] } };
+    }
+    return { data: { data: [] } };
   });
 
-  it('BUG-PHASE97-01 — DEFAULT_MAP_CENTER set to Metro Cebu (default launch market)', () => {
-    expect(DISPATCH).toMatch(/DEFAULT_MAP_CENTER: \[number, number\] = \[10\.3157, 123\.8854\]/);
-  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const { container } = render(React.createElement(
+    QueryClientProvider,
+    { client },
+    React.createElement(MemoryRouter, null, React.createElement(DispatchConsolePage)),
+  ));
 
-  it('BUG-PHASE97-01 — DEFAULT_ZOOM is a city-level zoom, not the wide Manila-region zoom 11', () => {
-    const m = DISPATCH.match(/const DEFAULT_ZOOM = (\d+)/);
-    expect(m).not.toBeNull();
-    expect(Number(m![1])).toBeGreaterThanOrEqual(12);
-  });
-
-  it('BUG-PHASE97-01 — MapContainer center prop uses the new constant', () => {
-    expect(DISPATCH).toMatch(/center=\{DEFAULT_MAP_CENTER\}/);
-    expect(DISPATCH).not.toMatch(/center=\{MANILA\}/);
+  await waitFor(() => {
+    expect(container.querySelector('[data-map-center]'))
+      .toHaveAttribute('data-map-center', JSON.stringify([7.0707, 125.6087]));
   });
 });

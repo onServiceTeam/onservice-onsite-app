@@ -5,7 +5,7 @@ import { expect, it, vi } from 'vitest';
 import api from '@/lib/api';
 import { BookingActions } from '../BookingDetailPage';
 
-it('Bug UX-011 — reassigns a booking from named online providers instead of a UUID field', async () => {
+it('Bug UX-011 — reassigns a booking from named accepting-work providers instead of a UUID field', async () => {
   vi.mocked(api.get).mockResolvedValue({
     status: 200,
     ok: true,
@@ -22,6 +22,6 @@ it('Bug UX-011 — reassigns a booking from named online providers instead of a 
   fireEvent.click(screen.getByRole('button', { name: 'Reassign' }));
 
   expect(await screen.findByRole('option', { name: 'Cebu Home Pro · Cebu City' })).toBeTruthy();
-  expect(screen.getByRole('combobox', { name: 'New online provider' })).toBeTruthy();
+  expect(screen.getByRole('combobox', { name: 'New accepting-work provider' })).toBeTruthy();
   expect(screen.queryByText(/UUID/i)).toBeNull();
 });

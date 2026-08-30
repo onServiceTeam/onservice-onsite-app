@@ -60,7 +60,7 @@ const ACTION_LABELS: Record<string, string> = {
   dsr_rejected: 'DSR rejected',
   dsr_escalated_to_npc: 'DSR escalated to NPC',
   dsr_assigned: 'DSR assigned',
-  admin_message_sent: 'Admin message sent to customer',
+  admin_message_sent: 'Booking support message sent',
 };
 
 interface AuditResponse {

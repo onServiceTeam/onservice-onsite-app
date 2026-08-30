@@ -4,21 +4,23 @@
  * Three-panel admin tool that visualises live booking + provider activity:
  *   - Header: title, live counters, filters (city / status / service), refresh.
  *   - Map (top): react-leaflet OSM with custom markers per booking status and
- *     online-provider markers. Click → side detail panel.
- *   - Bottom-left: ACTIVE BOOKINGS list (capped at 50 rows). Reassign / Cancel
- *     / Message buttons are wired to real mutations as of Phase 14 Dispatch 10
- *     (Bug 272.A/B/C closed). Each button opens a modal with client-side
+ *     available-provider service-base markers. Provider locations are not
+ *     live GPS in the v1.0 release.
+ *   - Bottom-left: ACTIVE BOOKINGS list (capped at 50 rows). Reassign and
+ *     support-message buttons are wired to real mutations. Cancellation is
+ *     handed off to Booking 360 because refund inputs require full case review.
+ *     Each mutation button opens a modal with client-side
  *     validation aligned to the booking-admin.service reason/message rules;
  *     mutation goes through the booking-admin.service which writes
  *     a paired admin_actions row inside its transaction (D06 trx pattern).
- *   - Bottom-right: ALERT TAIL — last 20 admin alerts streamed via socket.
+ *   - Bottom-right: derived dispatch-attention queue from the loaded bookings.
  *
  * Data sources:
  *   - GET /api/v1/admin/bookings?status=active&limit=100  (graceful empty
  *     fallback if endpoint returns 404).
  *   - GET /api/v1/admin/providers?online=true&limit=200   (same fallback).
- *   - Live socket events: booking:created, booking:status_changed,
- *     booking:gps_update, alert:new (see use-admin-socket.ts).
+ *   - Live socket events: booking:created, booking:status_changed, and
+ *     booking:provider_assigned (see use-admin-socket.ts).
  */
 
 import L from 'leaflet';
@@ -27,8 +29,9 @@ import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import 'leaflet/dist/leaflet.css';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
@@ -101,7 +104,6 @@ interface DispatchBooking {
   latitude: number | null;
   longitude: number | null;
   scheduledAt: string | null;
-  etaMinutes: number | null;
 }
 
 interface DispatchProvider {
@@ -120,14 +122,6 @@ interface ListEnvelope<T> {
   data?: T[];
 }
 
-interface AdminAlert {
-  id: string;
-  severity: 'info' | 'warning' | 'danger';
-  title: string;
-  description: string;
-  createdAt: string;
-}
-
 interface BookingCreatedPayload {
   id: string;
   status: string;
@@ -142,12 +136,6 @@ interface BookingStatusChangedPayload {
   newStatus: string;
 }
 
-interface BookingGpsUpdatePayload {
-  id: string;
-  lat: number;
-  lng: number;
-}
-
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 // Default dispatch-map viewport. The platform is city-agnostic; the
@@ -155,14 +143,16 @@ interface BookingGpsUpdatePayload {
 // Lapu-Lapu, Talisay) per CLAUDE.md, so the map opens on Cebu City
 // rather than the old Boracay coords (superseded by the Cebu-default,
 // multi-city direction — Ken, 2026-06-04). Real bookings/providers with
-// coordinates pan the map on load; this is only the empty-state center.
-//
-// TODO(service-areas): derive this from the active/default service_areas
-// row (admin/service-areas API exposes centerLat/centerLng + status) so
-// the empty-state viewport follows whichever market is active, instead of
-// a hardcoded city literal.
+// coordinates pan the map on load; the first active/default service area
+// provides the normal empty-state center and this literal is only a final
+// fallback when service-area configuration is unavailable.
 const DEFAULT_MAP_CENTER: [number, number] = [10.3157, 123.8854]; // Cebu City
 const DEFAULT_ZOOM = 12;
+
+const ACTIVE_DISPATCH_STATUSES = new Set([
+  'requested', 'quoted', 'matched', 'payment_pending', 'paid',
+  'provider_en_route', 'provider_arrived', 'in_progress', 'disputed',
+]);
 
 const STATUS_COLORS: Record<string, string> = {
   pending: '#f59e0b',
@@ -221,38 +211,51 @@ function unwrap<T>(payload: ListEnvelope<T> | undefined): T[] {
 }
 
 async function fetchBookings(): Promise<DispatchBooking[]> {
-  try {
-    // Phase 200 — the admin bookings route reads `pageSize` (max 100), not
-    // `limit`; the old `limit=100` was ignored and only 20 rows came back.
-    // status=active now expands server-side to the live-booking set.
-    const res = await api.get<ListEnvelope<DispatchBooking>>(
-      '/api/v1/admin/bookings?status=active&pageSize=100',
-    );
-    return unwrap(res.data);
-  } catch (err) {
-    // Endpoint may not exist yet — surface as a non-blocking warning toast
-    // and render an empty list rather than tearing down the page.
-    toast.warning('Live bookings feed unavailable — showing empty list.', {
-      description: err instanceof Error ? err.message : String(err),
-    });
-    return [];
-  }
+  const res = await api.get<ListEnvelope<DispatchBooking>>(
+    '/api/v1/admin/bookings?status=active&pageSize=100',
+  );
+  return unwrap(res.data);
 }
 
 async function fetchProviders(): Promise<DispatchProvider[]> {
-  try {
-    // Phase 200 — `online=true` now filters to approved + available providers
-    // server-side, and `pageSize` (not `limit`) is the honored param.
-    const res = await api.get<ListEnvelope<DispatchProvider>>(
-      '/api/v1/admin/providers?online=true&pageSize=100',
-    );
-    return unwrap(res.data);
-  } catch (err) {
-    toast.warning('Online-providers feed unavailable — showing empty list.', {
-      description: err instanceof Error ? err.message : String(err),
-    });
-    return [];
-  }
+  // `online=true` is the historical API name. Server semantics are approved
+  // + accepting work; coordinates are the saved service base, not live GPS.
+  const res = await api.get<ListEnvelope<DispatchProvider>>(
+    '/api/v1/admin/providers?online=true&pageSize=100',
+  );
+  return unwrap(res.data);
+}
+
+interface DispatchServiceArea {
+  centerLat: number;
+  centerLng: number;
+  isDefault: boolean;
+  status: string;
+}
+
+async function fetchServiceAreas(): Promise<DispatchServiceArea[]> {
+  const res = await api.get<ListEnvelope<DispatchServiceArea>>(
+    '/api/v1/admin/service-areas?pageSize=100',
+  );
+  return unwrap(res.data);
+}
+
+function DispatchMapViewport({
+  center,
+  positions,
+}: {
+  center: [number, number];
+  positions: Array<[number, number]>;
+}): null {
+  const map = useMap();
+  useEffect(() => {
+    if (positions.length > 0 && typeof map.fitBounds === 'function') {
+      map.fitBounds(L.latLngBounds(positions), { padding: [32, 32], maxZoom: 14 });
+    } else if (typeof map.setView === 'function') {
+      map.setView(center, DEFAULT_ZOOM);
+    }
+  }, [center, map, positions]);
+  return null;
 }
 
 // ─── Map tile config ────────────────────────────────────────────────────────
@@ -312,9 +315,9 @@ function StatusBadge({ status }: { status: AdminSocketStatus }): React.ReactElem
 export default function DispatchConsolePage(): React.ReactElement {
   const queryClient = useQueryClient();
   const socketStatus = useAdminSocketStatus();
-  // Phase 200 fix — reassign/cancel/message are super_admin-only on the
-  // server (booking-admin.routes.ts requireSuperAdmin). Pre-fix the row
-  // action buttons rendered for any admin and 403'd. Gate them.
+  // Reassignment and cancellation review are super-admin controls. The
+  // audited participant support-message route is intentionally available to
+  // ordinary admins, so only the money/state controls use this gate.
   const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
 
   const bookingsQuery = useQuery({
@@ -326,6 +329,11 @@ export default function DispatchConsolePage(): React.ReactElement {
     queryKey: ['dispatch', 'providers'],
     queryFn: fetchProviders,
     refetchInterval: 60_000,
+  });
+  const serviceAreasQuery = useQuery({
+    queryKey: ['dispatch', 'service-areas'],
+    queryFn: fetchServiceAreas,
+    staleTime: 5 * 60_000,
   });
   // Admin-configurable map tiles. Stale-time long since tile config rarely
   // changes; falls back to OSM on any error inside the fetcher.
@@ -340,7 +348,6 @@ export default function DispatchConsolePage(): React.ReactElement {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [serviceFilter, setServiceFilter] = useState<string>('');
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
-  const [alerts, setAlerts] = useState<AdminAlert[]>([]);
 
   const allBookings: DispatchBooking[] = useMemo(
     () => bookingsQuery.data ?? [],
@@ -355,8 +362,9 @@ export default function DispatchConsolePage(): React.ReactElement {
   const cityOptions = useMemo(() => {
     const set = new Set<string>();
     allBookings.forEach((b) => { if (b.city) set.add(b.city); });
+    allProviders.forEach((provider) => { if (provider.city) set.add(provider.city); });
     return Array.from(set).sort();
-  }, [allBookings]);
+  }, [allBookings, allProviders]);
 
   const serviceOptions = useMemo(() => {
     const set = new Set<string>();
@@ -380,6 +388,12 @@ export default function DispatchConsolePage(): React.ReactElement {
   }, [allBookings, cityFilter, statusFilter, serviceFilter]);
 
   const visibleBookings = filteredBookings.slice(0, 50);
+  const visibleProviders = useMemo(
+    () => cityFilter
+      ? allProviders.filter((provider) => provider.city === cityFilter)
+      : allProviders,
+    [allProviders, cityFilter],
+  );
 
   // ─── Live event subscriptions ───────────────────────────────────────────
 
@@ -400,7 +414,6 @@ export default function DispatchConsolePage(): React.ReactElement {
         latitude: null,
         longitude: null,
         scheduledAt: null,
-        etaMinutes: null,
       };
       return [stub, ...list];
     });
@@ -409,29 +422,78 @@ export default function DispatchConsolePage(): React.ReactElement {
   useAdminSocketEvent<BookingStatusChangedPayload>('booking:status_changed', (payload) => {
     queryClient.setQueryData<DispatchBooking[]>(['dispatch', 'bookings'], (prev) => {
       if (!prev) return prev;
+      if (!ACTIVE_DISPATCH_STATUSES.has(payload.newStatus)) {
+        return prev.filter((booking) => booking.id !== payload.id);
+      }
       return prev.map((b) => (b.id === payload.id ? { ...b, status: payload.newStatus } : b));
     });
   });
 
-  useAdminSocketEvent<BookingGpsUpdatePayload>('booking:gps_update', (payload) => {
-    queryClient.setQueryData<DispatchBooking[]>(['dispatch', 'bookings'], (prev) => {
-      if (!prev) return prev;
-      return prev.map((b) =>
-        b.id === payload.id ? { ...b, latitude: payload.lat, longitude: payload.lng } : b,
-      );
-    });
-  });
-
-  useAdminSocketEvent<AdminAlert>('alert:new', (payload) => {
-    setAlerts((prev) => {
-      const next = [payload, ...prev];
-      return next.slice(0, 20);
-    });
+  useAdminSocketEvent<{ id: string }>('booking:provider_assigned', () => {
+    void queryClient.invalidateQueries({ queryKey: ['dispatch', 'bookings'] });
   });
 
   // ─── Live counters ──────────────────────────────────────────────────────
   const activeBookingCount = filteredBookings.length;
-  const onlineProviderCount = allProviders.length;
+  const availableProviderCount = visibleProviders.length;
+
+  const mapCenter = useMemo<[number, number]>(() => {
+    const areas = serviceAreasQuery.data ?? [];
+    const area = areas.find((candidate) => candidate.isDefault
+      && (candidate.status === 'active' || candidate.status === 'soft_launch'))
+      ?? areas.find((candidate) => candidate.status === 'active' || candidate.status === 'soft_launch');
+    const latitude = Number(area?.centerLat);
+    const longitude = Number(area?.centerLng);
+    return Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? [latitude, longitude]
+      : DEFAULT_MAP_CENTER;
+  }, [serviceAreasQuery.data]);
+
+  const mapPositions = useMemo<Array<[number, number]>>(() => [
+    ...filteredBookings
+      .filter((booking) => booking.latitude != null && booking.longitude != null)
+      .map((booking) => [booking.latitude as number, booking.longitude as number] as [number, number]),
+    ...visibleProviders
+      .filter((provider) => provider.latitude != null && provider.longitude != null)
+      .map((provider) => [provider.latitude as number, provider.longitude as number] as [number, number]),
+  ], [filteredBookings, visibleProviders]);
+
+  const attentionItems = useMemo(() => {
+    const items: Array<{
+      id: string;
+      bookingId: string;
+      severity: 'danger' | 'warning' | 'info';
+      title: string;
+      description: string;
+    }> = [];
+    const now = Date.now();
+    for (const booking of filteredBookings) {
+      if (!booking.providerId) {
+        items.push({
+          id: `${booking.id}-unassigned`, bookingId: booking.id, severity: 'danger',
+          title: 'Provider not assigned',
+          description: `${booking.categoryName ?? 'Booking'} in ${booking.city ?? 'an unknown city'} needs dispatch review.`,
+        });
+      }
+      if (booking.scheduledAt && new Date(booking.scheduledAt).getTime() < now
+        && ['requested', 'quoted', 'matched', 'payment_pending', 'paid'].includes(booking.status)) {
+        items.push({
+          id: `${booking.id}-overdue`, bookingId: booking.id, severity: 'danger',
+          title: 'Scheduled time has passed',
+          description: `${formatStatus(booking.status)} · scheduled ${formatDateTime(booking.scheduledAt)}.`,
+        });
+      }
+      if (booking.latitude == null || booking.longitude == null) {
+        items.push({
+          id: `${booking.id}-coordinates`, bookingId: booking.id, severity: 'warning',
+          title: 'Service coordinates missing',
+          description: 'Map routing and arrival-radius verification cannot operate for this booking.',
+        });
+      }
+    }
+    const order = { danger: 0, warning: 1, info: 2 } as const;
+    return items.sort((a, b) => order[a.severity] - order[b.severity]).slice(0, 20);
+  }, [filteredBookings]);
 
   const selectedBooking = useMemo(
     () => allBookings.find((b) => b.id === selectedBookingId) ?? null,
@@ -443,14 +505,10 @@ export default function DispatchConsolePage(): React.ReactElement {
   const [reassignProviderId, setReassignProviderId] = useState<string>('');
   const [reassignReason, setReassignReason] = useState<string>('');
 
-  const [cancelTarget, setCancelTarget] = useState<DispatchBooking | null>(null);
-  const [cancelReason, setCancelReason] = useState<string>('');
-
   const [messageTarget, setMessageTarget] = useState<DispatchBooking | null>(null);
   const [messageBody, setMessageBody] = useState<string>('');
 
   const canReassign = reassignProviderId.length > 0 && reassignReason.trim().length >= 5;
-  const canCancel = cancelReason.trim().length >= 10;
   const canSendMessage = messageBody.trim().length >= 5 && messageBody.trim().length <= 2000;
 
   const reassignMutation = useMutation({
@@ -470,21 +528,6 @@ export default function DispatchConsolePage(): React.ReactElement {
     onError: (err) => toast.error(`Reassign failed: ${getErrorMessage(err)}`),
   });
 
-  const cancelMutation = useMutation({
-    mutationFn: async (vars: { bookingId: string; reason: string }) => {
-      await api.post(`/api/v1/admin/bookings/${vars.bookingId}/cancel`, {
-        reason: vars.reason,
-      });
-    },
-    onSuccess: () => {
-      toast.success('Booking cancelled.');
-      setCancelTarget(null);
-      setCancelReason('');
-      void queryClient.invalidateQueries({ queryKey: ['dispatch', 'bookings'] });
-    },
-    onError: (err) => toast.error(`Cancel failed: ${getErrorMessage(err)}`),
-  });
-
   const messageMutation = useMutation({
     mutationFn: async (vars: { bookingId: string; message: string }) => {
       await api.post(`/api/v1/admin/bookings/${vars.bookingId}/message`, {
@@ -492,7 +535,7 @@ export default function DispatchConsolePage(): React.ReactElement {
       });
     },
     onSuccess: () => {
-      toast.success('Message sent to customer.');
+      toast.success('Booking support message posted.');
       setMessageTarget(null);
       setMessageBody('');
     },
@@ -504,10 +547,6 @@ export default function DispatchConsolePage(): React.ReactElement {
     setReassignProviderId('');
     setReassignReason('');
   }
-  function handleCancel(b: DispatchBooking): void {
-    setCancelTarget(b);
-    setCancelReason('');
-  }
   function handleMessage(b: DispatchBooking): void {
     setMessageTarget(b);
     setMessageBody('');
@@ -516,6 +555,7 @@ export default function DispatchConsolePage(): React.ReactElement {
   function handleRefresh(): void {
     void bookingsQuery.refetch();
     void providersQuery.refetch();
+    void serviceAreasQuery.refetch();
   }
 
   // BUG-PHASE18-03 fix: pre-fix `useState(() => 'dispatch-map-' + Date.now())`
@@ -564,7 +604,7 @@ export default function DispatchConsolePage(): React.ReactElement {
             <div className="flex items-center gap-3 text-xs text-slate-600">
               <span><strong>{activeBookingCount}</strong> active bookings</span>
               <span>·</span>
-              <span><strong>{onlineProviderCount}</strong> providers online</span>
+              <span><strong>{availableProviderCount}</strong> providers accepting work</span>
               <span>·</span>
               <StatusBadge status={socketStatus} />
             </div>
@@ -611,6 +651,14 @@ export default function DispatchConsolePage(): React.ReactElement {
         </div>
       </header>
 
+      {(bookingsQuery.isError || providersQuery.isError || serviceAreasQuery.isError) && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {bookingsQuery.isError && `Active bookings feed failed: ${getErrorMessage(bookingsQuery.error)} `}
+          {providersQuery.isError && `Accepting-work provider feed failed: ${getErrorMessage(providersQuery.error)}`}
+          {serviceAreasQuery.isError && ` Service-area feed failed: ${getErrorMessage(serviceAreasQuery.error)} Map is using its fallback center.`}
+        </div>
+      )}
+
       {/* ── Map ─────────────────────────────────────────────────────── */}
       <section className="min-h-[280px] flex-1 overflow-hidden rounded-lg border border-[var(--color-border)] bg-white">
         {mapKey === null ? (
@@ -620,7 +668,7 @@ export default function DispatchConsolePage(): React.ReactElement {
         ) : (
         <MapContainer
           key={mapKey}
-          center={DEFAULT_MAP_CENTER}
+          center={mapCenter}
           zoom={DEFAULT_ZOOM}
           scrollWheelZoom
           style={{ height: '100%', width: '100%' }}
@@ -630,6 +678,7 @@ export default function DispatchConsolePage(): React.ReactElement {
             attribution={mapTile.attribution}
             url={mapTile.url}
           />
+          <DispatchMapViewport center={mapCenter} positions={mapPositions} />
           {filteredBookings
             .filter((b) => b.latitude != null && b.longitude != null)
             .map((b) => (
@@ -648,7 +697,7 @@ export default function DispatchConsolePage(): React.ReactElement {
                 </Popup>
               </Marker>
             ))}
-          {allProviders
+          {visibleProviders
             .filter((p) => p.latitude != null && p.longitude != null)
             .map((p) => (
               <Marker
@@ -659,7 +708,8 @@ export default function DispatchConsolePage(): React.ReactElement {
                 <Popup>
                   <div className="text-xs">
                     <div className="font-semibold">{p.businessName ?? 'Provider'}</div>
-                    <div>{p.city ?? '—'}</div>
+                    <div>{p.city ?? '—'} · saved service base</div>
+                    <div>Accepting work, not live GPS</div>
                   </div>
                 </Popup>
               </Marker>
@@ -678,7 +728,7 @@ export default function DispatchConsolePage(): React.ReactElement {
               Showing {visibleBookings.length} of {filteredBookings.length}
             </span>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-auto">
             {bookingsQuery.isLoading && (
               <div className="p-4 text-sm text-slate-500">Loading bookings…</div>
             )}
@@ -693,7 +743,7 @@ export default function DispatchConsolePage(): React.ReactElement {
                   <th className="px-3 py-2">Amount</th>
                   <th className="px-3 py-2">Customer → Provider</th>
                   <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">ETA</th>
+                  <th className="px-3 py-2">Scheduled</th>
                   <th className="px-3 py-2 text-right">Actions</th>
                 </tr>
               </thead>
@@ -714,11 +764,35 @@ export default function DispatchConsolePage(): React.ReactElement {
                       }
                     }}
                   >
-                    <td className="px-3 py-2 font-mono text-slate-700">{b.id.slice(0, 8)}</td>
+                    <td className="px-3 py-2 font-mono">
+                      <Link
+                        to={`/bookings/${b.id}`}
+                        onClick={(event) => event.stopPropagation()}
+                        className="text-[var(--color-secondary)] hover:underline"
+                      >
+                        {b.id.slice(0, 8)}
+                      </Link>
+                    </td>
                     <td className="px-3 py-2">{b.categoryName ?? '—'}</td>
                     <td className="px-3 py-2 font-medium">{formatCurrency(b.totalAmount)}</td>
                     <td className="px-3 py-2">
-                      {(b.customerName ?? 'Customer')} → {b.providerName ?? '(unassigned)'}
+                      <Link
+                        to={`/customers/${b.customerId}`}
+                        onClick={(event) => event.stopPropagation()}
+                        className="font-medium text-[var(--color-secondary)] hover:underline"
+                      >
+                        {b.customerName ?? 'Customer'}
+                      </Link>
+                      {' → '}
+                      {b.providerId ? (
+                        <Link
+                          to={`/providers/${b.providerId}`}
+                          onClick={(event) => event.stopPropagation()}
+                          className="font-medium text-[var(--color-secondary)] hover:underline"
+                        >
+                          {b.providerName ?? 'Provider'}
+                        </Link>
+                      ) : '(unassigned)'}
                     </td>
                     <td className="px-3 py-2">
                       <span
@@ -728,10 +802,11 @@ export default function DispatchConsolePage(): React.ReactElement {
                         {formatStatus(b.status)}
                       </span>
                     </td>
-                    <td className="px-3 py-2">{b.etaMinutes != null ? `${b.etaMinutes}m` : '—'}</td>
+                    <td className="px-3 py-2">{formatDateTime(b.scheduledAt)}</td>
                     <td className="px-3 py-2 text-right">
-                      {isSuperAdmin ? (
-                        <>
+                      <>
+                        {isSuperAdmin && (
+                          <>
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); handleReassign(b); }}
@@ -740,26 +815,25 @@ export default function DispatchConsolePage(): React.ReactElement {
                           >
                             Reassign
                           </button>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleCancel(b); }}
-                            aria-label={`Cancel booking ${b.id}`}
-                            className="text-red-600 hover:underline mr-2"
+                          <Link
+                            to={`/bookings/${b.id}`}
+                            onClick={(event) => event.stopPropagation()}
+                            aria-label={`Review cancellation for booking ${b.id}`}
+                            className="text-red-700 hover:underline mr-2"
                           >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleMessage(b); }}
-                            aria-label={`Message customer for booking ${b.id}`}
-                            className="text-slate-600 hover:underline"
-                          >
-                            Message
-                          </button>
-                        </>
-                      ) : (
-                        <span className="text-[var(--color-text-tertiary)]">—</span>
-                      )}
+                            Review cancellation
+                          </Link>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleMessage(b); }}
+                          aria-label={`Post support message for booking ${b.id}`}
+                          className="text-slate-600 hover:underline"
+                        >
+                          Support message
+                        </button>
+                      </>
                     </td>
                   </tr>
                 ))}
@@ -768,33 +842,35 @@ export default function DispatchConsolePage(): React.ReactElement {
           </div>
         </div>
 
-        {/* Alert tail */}
+        {/* Derived operational attention queue */}
         <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-white">
           <div className="px-4 py-2 border-b border-slate-200 flex items-center gap-2">
             <AlertCircle size={14} className="text-amber-500" />
-            <h2 className="text-sm font-semibold text-slate-700">Live Alerts</h2>
-            <span className="ml-auto text-xs text-slate-500">{alerts.length}</span>
+            <h2 className="text-sm font-semibold text-slate-700">Dispatch Attention</h2>
+            <span className="ml-auto text-xs text-slate-500">{attentionItems.length}</span>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {alerts.length === 0 && (
-              <div className="p-4 text-xs text-slate-500">No alerts received yet.</div>
+            {attentionItems.length === 0 && (
+              <div className="p-4 text-xs text-slate-500">No loaded booking currently needs dispatch attention.</div>
             )}
             <ul>
-              {alerts.map((a) => (
-                <li key={a.id} className="px-4 py-2 border-b border-slate-100 text-xs">
+              {attentionItems.map((item) => (
+                <li key={item.id} className="border-b border-slate-100 text-xs">
+                  <button type="button" onClick={() => setSelectedBookingId(item.bookingId)} className="w-full px-4 py-2 text-left hover:bg-slate-50">
                   <div className="flex items-center gap-2">
                     <span
                       className={`inline-block w-1.5 h-1.5 rounded-full ${
-                        a.severity === 'danger'
+                        item.severity === 'danger'
                           ? 'bg-red-500'
-                          : a.severity === 'warning'
+                          : item.severity === 'warning'
                             ? 'bg-amber-500'
                             : 'bg-blue-500'
                       }`}
                     />
-                    <span className="font-medium text-slate-800">{a.title}</span>
+                    <span className="font-medium text-slate-800">{item.title}</span>
                   </div>
-                  <div className="text-slate-500 mt-0.5">{a.description}</div>
+                  <div className="text-slate-500 mt-0.5">{item.description}</div>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -832,6 +908,16 @@ export default function DispatchConsolePage(): React.ReactElement {
             <div><strong>Provider:</strong> {selectedBooking.providerName ?? '(unassigned)'}</div>
             <div><strong>City:</strong> {selectedBooking.city ?? '—'}</div>
             <div><strong>Scheduled:</strong> {formatDateTime(selectedBooking.scheduledAt)}</div>
+            <div><strong>Service map:</strong> {selectedBooking.latitude != null && selectedBooking.longitude != null ? 'coordinates available' : 'coordinates missing'}</div>
+            <div className="grid grid-cols-2 gap-2 pt-3">
+              <Link to={`/bookings/${selectedBooking.id}`} className="rounded border border-slate-200 px-3 py-2 text-center font-semibold text-[var(--color-secondary)] hover:bg-slate-50">Booking 360</Link>
+              <Link to={`/customers/${selectedBooking.customerId}`} className="rounded border border-slate-200 px-3 py-2 text-center font-semibold text-[var(--color-secondary)] hover:bg-slate-50">Customer 360</Link>
+              {selectedBooking.providerId && (
+                <Link to={`/providers/${selectedBooking.providerId}`} className="rounded border border-slate-200 px-3 py-2 text-center font-semibold text-[var(--color-secondary)] hover:bg-slate-50">Provider 360</Link>
+              )}
+              <Link to={`/communications?bookingId=${encodeURIComponent(selectedBooking.id)}`} className="rounded border border-slate-200 px-3 py-2 text-center font-semibold text-[var(--color-secondary)] hover:bg-slate-50">Conversation</Link>
+              <Link to={`/support-tickets?bookingId=${encodeURIComponent(selectedBooking.id)}`} className="rounded border border-slate-200 px-3 py-2 text-center font-semibold text-[var(--color-secondary)] hover:bg-slate-50">Support cases</Link>
+            </div>
           </div>
         </div>
       )}
@@ -859,7 +945,7 @@ export default function DispatchConsolePage(): React.ReactElement {
                 onChange={(e) => setReassignProviderId(e.target.value)}
                 className="w-full text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
               >
-                <option value="">Select an online provider…</option>
+                <option value="">Select an accepting-work provider…</option>
                 {allProviders.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.businessName ?? p.id}{p.city ? ` — ${p.city}` : ''}
@@ -868,7 +954,7 @@ export default function DispatchConsolePage(): React.ReactElement {
               </select>
               {allProviders.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">
-                  No online providers loaded. Refresh the live feed and retry.
+                  No providers accepting work were loaded. Refresh the feed and retry.
                 </p>
               )}
             </div>
@@ -902,7 +988,6 @@ export default function DispatchConsolePage(): React.ReactElement {
                   toast.warning('Reason must be at least 5 characters.');
                   return;
                 }
-                if (!window.confirm('Reassign this booking to the selected provider?')) return;
                 reassignMutation.mutate({
                   bookingId: reassignTarget.id,
                   newProviderId: reassignProviderId,
@@ -917,84 +1002,17 @@ export default function DispatchConsolePage(): React.ReactElement {
         </DialogContent>
       </Dialog>
 
-      {/* ── Cancel dialog ───────────────────────────────────────────── */}
-      <Dialog
-        open={cancelTarget !== null}
-        onOpenChange={(open) => { if (!open) setCancelTarget(null); }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel booking</DialogTitle>
-            <DialogDescription>
-              {cancelTarget
-                ? `Booking ${cancelTarget.id.slice(0, 8)} — ${formatCurrency(cancelTarget.totalAmount)}.`
-                : ''}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2">
-              The customer will be refunded per the current cancellation policy.
-              The exact amount is computed and shown on the booking detail page after cancellation.
-            </div>
-            <div>
-              <Label htmlFor="cancel-reason">Cancellation reason</Label>
-              <Textarea
-                id="cancel-reason"
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Why cancel? (audit trail)"
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setCancelTarget(null)}
-              disabled={cancelMutation.isPending}
-            >
-              Keep booking
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (!cancelTarget) return;
-                // BUG-PHASE77-02 fix — pre-fix client validated reason
-                // ≥ 5 chars but the server's `cancelBookingAsAdmin`
-                // (booking-admin.service.ts:839) requires ≥ 10 via
-                // `requireReason(reason, 10)`. A 6–9 char reason passed
-                // the client check, hit the server, and bounced with
-                // a generic 400. Now: client matches server's 10-char
-                // floor so the dialog catches it with a clear toast.
-                if (cancelReason.trim().length < 10) {
-                  toast.warning('Reason must be at least 10 characters.');
-                  return;
-                }
-                if (!window.confirm('Cancel this booking and trigger the configured refund flow?')) return;
-                cancelMutation.mutate({
-                  bookingId: cancelTarget.id,
-                  reason: cancelReason.trim(),
-                });
-              }}
-              disabled={cancelMutation.isPending || !canCancel}
-            >
-              {cancelMutation.isPending ? 'Cancelling…' : 'Cancel booking'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Message customer dialog ─────────────────────────────────── */}
+      {/* ── Booking support message dialog ──────────────────────────── */}
       <Dialog
         open={messageTarget !== null}
         onOpenChange={(open) => { if (!open) setMessageTarget(null); }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Message customer</DialogTitle>
+            <DialogTitle>Post booking support message</DialogTitle>
             <DialogDescription>
               {messageTarget
-                ? `Sends an admin notification to the customer on booking ${messageTarget.id.slice(0, 8)}.`
+                ? `Adds an audited support message to booking ${messageTarget.id.slice(0, 8)}. If a provider is assigned, both booking participants can read it and both are notified.`
                 : ''}
             </DialogDescription>
           </DialogHeader>
@@ -1004,7 +1022,7 @@ export default function DispatchConsolePage(): React.ReactElement {
               id="message-body"
               value={messageBody}
               onChange={(e) => setMessageBody(e.target.value)}
-              placeholder="Type the message the customer will see…"
+              placeholder="Type the support update the booking participants will see…"
               rows={5}
               maxLength={2000}
             />

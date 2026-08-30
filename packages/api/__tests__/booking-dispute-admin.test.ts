@@ -55,6 +55,19 @@ jest.mock('../src/services/payment.service', () => ({
   processRefund: jest.fn(),
 }));
 
+const createPushNotificationMock = jest.fn();
+jest.mock('../src/services/notification.service', () => ({
+  createPushNotification: (...args: unknown[]) => createPushNotificationMock(...args),
+}));
+
+const emitAdminEventMock = jest.fn();
+jest.mock('../src/services/socket.service', () => ({
+  ADMIN_EVENTS: { BOOKING_PROVIDER_ASSIGNED: 'booking:provider_assigned' },
+  emitAdminEvent: (...args: unknown[]) => emitAdminEventMock(...args),
+  emitToConversation: jest.fn(),
+  emitToUser: jest.fn(),
+}));
+
 import * as bookingSvc from '../src/services/booking-admin.service';
 import * as disputeAdminSvc from '../src/services/dispute-admin.service';
 import * as escrowService from '../src/services/escrow.service';
@@ -111,6 +124,9 @@ beforeEach(() => {
   disputeMocks.resolveDisputeInTransaction.mockReset();
   disputeMocks.assignDispute.mockReset();
   disputeMocks.escalateDispute.mockReset();
+  createPushNotificationMock.mockReset();
+  createPushNotificationMock.mockResolvedValue({ id: 'notification-1' });
+  emitAdminEventMock.mockReset();
 });
 
 // ─── booking-admin: getBookingDetail ────────────────────────────────────────
@@ -488,7 +504,15 @@ describe('reassignBookingProvider', () => {
   it('throws 404 when new provider missing', async () => {
     setupTxRecorder(async (sql) => {
       if (/FROM bookings WHERE id = \$1 FOR UPDATE/.test(sql)) {
-        return rows([{ id: BOOKING_ID, status: 'confirmed_by_provider', provider_id: 'old' }]);
+        return rows([{
+          id: BOOKING_ID,
+          status: 'confirmed_by_provider',
+          provider_id: 'old',
+          category_id: 'cat-1',
+          subcategory_id: null,
+          latitude: '10.3157',
+          longitude: '123.8854',
+        }]);
       }
       if (/FROM providers/.test(sql)) return rows([]);
       return rows([]);
@@ -510,13 +534,32 @@ describe('reassignBookingProvider', () => {
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
-  it('happy path: UPDATE bookings + INSERT booking_reassigned', async () => {
+  it('Bug UX-468 — reassignment moves booking, conversation, staff assignment, offers, notices, and audit together', async () => {
     const calls = setupTxRecorder(async (sql) => {
       if (/FROM bookings WHERE id = \$1 FOR UPDATE/.test(sql)) {
-        return rows([{ id: BOOKING_ID, status: 'requested', provider_id: 'old' }]);
+        return rows([{
+          id: BOOKING_ID,
+          status: 'requested',
+          customer_id: CUSTOMER_ID,
+          provider_id: 'old',
+          performer_staff_id: 'old-staff',
+          old_provider_user_id: 'old-provider-user',
+          category_id: 'cat-1',
+          subcategory_id: null,
+          latitude: '10.3157',
+          longitude: '123.8854',
+        }]);
       }
       if (/FROM providers/.test(sql)) {
-        return rows([{ id: PROVIDER_ID, is_active: true }]);
+        return rows([{
+          id: PROVIDER_ID,
+          user_id: 'new-provider-user',
+          status: 'approved',
+          is_active: true,
+          is_available: true,
+          service_eligible: true,
+          in_range: true,
+        }]);
       }
       if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-ras' }]);
       return rows([]);
@@ -529,9 +572,18 @@ describe('reassignBookingProvider', () => {
     );
     expect(out.newProviderId).toBe(PROVIDER_ID);
     expect(out.oldProviderId).toBe('old');
-    expect(calls.find((c) => /UPDATE bookings SET provider_id/.test(c.sql))).toBeDefined();
+    const bookingUpdate = calls.find((c) => /UPDATE bookings[\s\S]*provider_id/.test(c.sql));
+    expect(bookingUpdate?.sql).toContain('performer_staff_id = NULL');
+    expect(calls.find((c) => /UPDATE conversations/.test(c.sql))).toBeDefined();
+    expect(calls.find((c) => /UPDATE booking_offers/.test(c.sql))).toBeDefined();
     const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
     expect(insert?.sql).toContain("'booking_reassigned'");
+    expect(createPushNotificationMock).toHaveBeenCalledTimes(3);
+    expect(emitAdminEventMock).toHaveBeenCalledWith('booking:provider_assigned', {
+      id: BOOKING_ID,
+      oldProviderId: 'old',
+      newProviderId: PROVIDER_ID,
+    });
   });
 });
 

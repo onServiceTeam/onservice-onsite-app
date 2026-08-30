@@ -120,13 +120,29 @@ export default function BookingsPage(): React.ReactElement {
     {
       key: 'customer',
       header: 'Customer',
-      render: (r) => <span className="text-[var(--color-text)]">{r.customerName}</span>,
+      render: (r) => (
+        <Link
+          to={`/customers/${r.customerId}`}
+          className="font-medium text-[var(--color-secondary)] hover:underline"
+        >
+          {r.customerName || 'Unnamed customer'}
+        </Link>
+      ),
     },
     {
       key: 'provider',
       header: 'Provider',
       render: (r) => (
-        <span className="text-[var(--color-text)]">{r.providerName ?? '(unassigned)'}</span>
+        r.providerId ? (
+          <Link
+            to={`/providers/${r.providerId}`}
+            className="font-medium text-[var(--color-secondary)] hover:underline"
+          >
+            {r.providerName || 'Unnamed provider'}
+          </Link>
+        ) : (
+          <span className="text-[var(--color-text-secondary)]">Unassigned</span>
+        )
       ),
     },
     {
@@ -191,8 +207,8 @@ export default function BookingsPage(): React.ReactElement {
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by booking ID or city..."
-            aria-label="Search bookings by ID or city"
+            placeholder="Booking, customer, provider, service, city..."
+            aria-label="Search bookings by booking, customer, provider, service, or city"
             className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
           />
           <button type="submit" className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-lg hover:opacity-90 transition-opacity">

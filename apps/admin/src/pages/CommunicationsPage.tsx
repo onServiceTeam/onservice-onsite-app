@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { MessageSquare, Flag, AlertTriangle, Search, EyeOff, CheckCircle2 } from '@/components/icons';
 import api, { getErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
@@ -73,9 +73,11 @@ function fmtTime(iso: string | null): string {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function CommunicationsPage(): React.ReactElement {
-  const [tab, setTab] = useState<TabId>('queue');
-  const [search, setSearch] = useState('');
-  const [searchDraft, setSearchDraft] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const bookingFilter = (searchParams.get('bookingId') ?? '').trim();
+  const [tab, setTab] = useState<TabId>(() => bookingFilter ? 'all' : 'queue');
+  const [search, setSearch] = useState(() => bookingFilter);
+  const [searchDraft, setSearchDraft] = useState(() => bookingFilter);
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
@@ -90,6 +92,16 @@ export default function CommunicationsPage(): React.ReactElement {
     },
   });
 
+  useEffect(() => {
+    if (!bookingFilter) return;
+    setTab('all');
+    setSearch(bookingFilter);
+    setSearchDraft(bookingFilter);
+    setPage(1);
+    setSelectedId(null);
+    setSelectedMessageId(null);
+  }, [bookingFilter]);
+
   return (
     <div className="space-y-5">
       <div>
@@ -101,6 +113,35 @@ export default function CommunicationsPage(): React.ReactElement {
           Opening a thread and every moderation action is recorded in the audit log.
         </p>
       </div>
+
+      {bookingFilter && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm">
+          <div>
+            <span className="font-semibold text-[var(--color-text)]">Booking conversation</span>
+            <span className="ml-2 font-mono text-xs text-[var(--color-text-secondary)]">{bookingFilter}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link to={`/bookings/${bookingFilter}`} className="font-semibold text-[var(--color-secondary)] hover:underline">
+              Booking 360
+            </Link>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete('bookingId');
+                setSearchParams(next, { replace: true });
+                setSearch('');
+                setSearchDraft('');
+                setSelectedId(null);
+              }}
+            >
+              Clear booking filter
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="flex gap-3 flex-wrap">
@@ -183,6 +224,7 @@ export default function CommunicationsPage(): React.ReactElement {
             <ConversationList
               filter={tab}
               search={search}
+              autoSelectBookingId={bookingFilter || undefined}
               page={page}
               onPageChange={(nextPage) => { setPage(nextPage); setSelectedId(null); setSelectedMessageId(null); }}
               onSelect={(conversationId) => {
@@ -228,10 +270,11 @@ function StatChip({
 // ─── Conversation list ───────────────────────────────────────────────────────
 
 function ConversationList({
-  filter, search, page, onPageChange, onSelect, selectedId,
+  filter, search, autoSelectBookingId, page, onPageChange, onSelect, selectedId,
 }: {
   filter: 'all' | 'flagged' | 'reported';
   search: string;
+  autoSelectBookingId?: string;
   page: number;
   onPageChange: (page: number) => void;
   onSelect: (id: string) => void;
@@ -248,9 +291,16 @@ function ConversationList({
     },
   });
 
+  const conversations = q.data?.conversations ?? [];
+  useEffect(() => {
+    if (!autoSelectBookingId || selectedId) return;
+    const exact = conversations.find((conversation) => conversation.bookingId === autoSelectBookingId);
+    if (exact) onSelect(exact.id);
+  }, [autoSelectBookingId, conversations, onSelect, selectedId]);
+
   if (q.isLoading) return <LoadingState />;
   if (q.isError) return <ErrorState title="Failed to load" description={getErrorMessage(q.error)} />;
-  const conversations = q.data?.conversations ?? [];
+
   if (conversations.length === 0) {
     return (
       <Card className="p-6">
@@ -286,7 +336,7 @@ function ConversationList({
             <p className="text-xs text-[var(--color-text-secondary)] mt-1 truncate">{c.lastMessagePreview}</p>
           )}
           <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1">
-            {c.messageCount} message(s) · {fmtTime(c.lastMessageAt)}
+            Booking {c.bookingId.slice(0, 8)} · {c.messageCount} message(s) · {fmtTime(c.lastMessageAt)}
           </p>
         </button>
       ))}

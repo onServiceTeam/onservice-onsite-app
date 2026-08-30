@@ -1,136 +1,166 @@
 /**
- * Phase 13 Dispatch C — Admin → customer message audit tests.
+ * Admin booking support-message behavior.
  *
- * Verifies that sendAdminMessageToBookingCustomer writes an admin_actions
- * row with verb 'admin_message_sent' and target_type 'message' (allowed by
- * migration 058). Audit insert failure must NOT abort the message send.
+ * The durable system message and booking audit entry share one transaction.
+ * Participant notifications and sockets run only after that commit succeeds.
  */
 
 const dbQueryMock = jest.fn();
+const dbTransactionMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({
   db: {
     query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (callback: unknown) => dbTransactionMock(callback),
   },
 }));
 
 const loggerWarn = jest.fn();
-const loggerInfo = jest.fn();
-const loggerError = jest.fn();
-const loggerDebug = jest.fn();
-
 jest.mock('../src/utils/logger', () => ({
   logger: {
-    info: (...a: unknown[]) => loggerInfo(...a),
-    warn: (...a: unknown[]) => loggerWarn(...a),
-    error: (...a: unknown[]) => loggerError(...a),
-    debug: (...a: unknown[]) => loggerDebug(...a),
+    info: jest.fn(),
+    warn: (...args: unknown[]) => loggerWarn(...args),
+    error: jest.fn(),
+    debug: jest.fn(),
   },
 }));
 
-const createNotificationMock = jest.fn();
-
+const createPushNotificationMock = jest.fn();
 jest.mock('../src/services/notification.service', () => ({
-  createPushNotification: (...args: unknown[]) => createNotificationMock(...args),
+  createPushNotification: (...args: unknown[]) => createPushNotificationMock(...args),
 }));
 
-import * as bookingAdminSvc from '../src/services/booking-admin.service';
+const emitToConversationMock = jest.fn();
+const emitToUserMock = jest.fn();
+jest.mock('../src/services/socket.service', () => ({
+  ADMIN_EVENTS: { BOOKING_PROVIDER_ASSIGNED: 'booking:provider_assigned' },
+  emitAdminEvent: jest.fn(),
+  emitToConversation: (...args: unknown[]) => emitToConversationMock(...args),
+  emitToUser: (...args: unknown[]) => emitToUserMock(...args),
+}));
+
+import { sendAdminMessageToBookingParticipants } from '../src/services/booking-admin.service';
 
 type QueryResult<T> = { rows: T[]; rowCount: number };
+type TxQuery = (sql: string, params?: unknown[]) => Promise<QueryResult<unknown>>;
+
 function rows<T>(data: T[]): QueryResult<T> {
   return { rows: data, rowCount: data.length };
 }
 
 const BOOKING_ID = 'b0000000-0000-0000-0000-000000000001';
 const CUSTOMER_ID = 'c0000000-0000-0000-0000-000000000001';
+const PROVIDER_USER_ID = 'p0000000-0000-0000-0000-000000000001';
 const ADMIN_ID = 'a0000000-0000-0000-0000-000000000001';
-const CONVO_ID = 'v0000000-0000-0000-0000-000000000001';
+const CONVERSATION_ID = 'v0000000-0000-0000-0000-000000000001';
 const MESSAGE_ID = 'm0000000-0000-0000-0000-000000000001';
-const NOTIFICATION_ID = 'n0000000-0000-0000-0000-000000000001';
 
 beforeEach(() => {
   dbQueryMock.mockReset();
+  dbTransactionMock.mockReset();
+  createPushNotificationMock.mockReset();
+  emitToConversationMock.mockReset();
+  emitToUserMock.mockReset();
   loggerWarn.mockReset();
-  loggerInfo.mockReset();
-  loggerError.mockReset();
-  loggerDebug.mockReset();
-  createNotificationMock.mockReset();
-  createNotificationMock.mockResolvedValue({ id: NOTIFICATION_ID });
 });
 
-describe('sendAdminMessageToBookingCustomer — admin_actions audit', () => {
-  it('writes admin_message_sent / message audit with target_id=messageId when conversation exists', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ id: BOOKING_ID, customer_id: CUSTOMER_ID }])) // SELECT booking
-      .mockResolvedValueOnce(rows([{ id: CONVO_ID }]))                              // SELECT conversation
-      .mockResolvedValueOnce(rows([{ id: MESSAGE_ID }]))                            // INSERT messages
-      .mockResolvedValueOnce(rows([]))                                              // UPDATE conversations
-      .mockResolvedValueOnce(rows([]));                                             // INSERT admin_actions
-
-    const out = await bookingAdminSvc.sendAdminMessageToBookingCustomer(
-      BOOKING_ID,
-      'Hello, this is the support team checking in on your booking.',
-      ADMIN_ID,
-    );
-
-    expect(out.messageId).toBe(MESSAGE_ID);
-    expect(out.conversationId).toBe(CONVO_ID);
-
-    const auditCall = dbQueryMock.mock.calls[4];
-    const auditSql = auditCall[0] as string;
-    const auditParams = auditCall[1] as unknown[];
-    expect(auditSql).toMatch(/INSERT INTO admin_actions/);
-    expect(auditSql).toMatch(/'admin_message_sent'/);
-    expect(auditSql).toMatch(/'message'/);
-    expect(auditParams[0]).toBe(ADMIN_ID);
-    expect(auditParams[1]).toBe(MESSAGE_ID);
-    const details = JSON.parse(auditParams[2] as string) as Record<string, unknown>;
-    expect(details.bookingId).toBe(BOOKING_ID);
-    expect(details.conversationId).toBe(CONVO_ID);
-    expect(details.messageId).toBe(MESSAGE_ID);
-    expect(details.notificationId).toBe(NOTIFICATION_ID);
+it('Bug UX-469 — commits the participant message and booking audit atomically before notifying both parties', async () => {
+  const txQuery = jest.fn(async (sql: string): Promise<QueryResult<unknown>> => {
+    if (/FROM bookings b/.test(sql)) {
+      return rows([{ id: BOOKING_ID, customer_id: CUSTOMER_ID, provider_user_id: PROVIDER_USER_ID }]);
+    }
+    if (/INSERT INTO conversations/.test(sql)) return rows([{ id: CONVERSATION_ID }]);
+    if (/INSERT INTO messages/.test(sql)) return rows([{ id: MESSAGE_ID }]);
+    if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'action-1' }]);
+    return rows([]);
   });
+  dbTransactionMock.mockImplementationOnce(async (callback: (client: { query: TxQuery }) => Promise<unknown>) => (
+    callback({ query: txQuery })
+  ));
+  createPushNotificationMock
+    .mockResolvedValueOnce({ id: 'customer-notification' })
+    .mockResolvedValueOnce({ id: 'provider-notification' });
 
-  it('uses bookingId as audit target_id when no conversation exists', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ id: BOOKING_ID, customer_id: CUSTOMER_ID }])) // SELECT booking
-      .mockResolvedValueOnce(rows([]))                                              // SELECT conversation -> none
-      .mockResolvedValueOnce(rows([]));                                             // INSERT admin_actions
+  const result = await sendAdminMessageToBookingParticipants(
+    BOOKING_ID,
+    'Support has reviewed this booking and is checking in with both parties.',
+    ADMIN_ID,
+  );
 
-    const out = await bookingAdminSvc.sendAdminMessageToBookingCustomer(
-      BOOKING_ID,
-      'Hello, this is the support team checking in on your booking.',
-      ADMIN_ID,
-    );
-
-    expect(out.messageId).toBeNull();
-    expect(out.conversationId).toBeNull();
-
-    const auditCall = dbQueryMock.mock.calls[2];
-    const auditParams = auditCall[1] as unknown[];
-    expect(auditParams[0]).toBe(ADMIN_ID);
-    expect(auditParams[1]).toBe(BOOKING_ID);
-    const details = JSON.parse(auditParams[2] as string) as Record<string, unknown>;
-    expect(details.messageId).toBeNull();
-    expect(details.conversationId).toBeNull();
+  expect(dbTransactionMock).toHaveBeenCalledTimes(1);
+  const auditCall = txQuery.mock.calls.find(([sql]) => /INSERT INTO admin_actions/.test(sql));
+  expect(auditCall).toBeDefined();
+  expect(auditCall?.[1]?.[1]).toBe(BOOKING_ID);
+  expect(JSON.parse(String(auditCall?.[1]?.[2]))).toMatchObject({
+    bookingId: BOOKING_ID,
+    conversationId: CONVERSATION_ID,
+    messageId: MESSAGE_ID,
+    audience: 'booking_participants',
   });
-
-  it('still resolves when audit insert throws (warn logged, message send not aborted)', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ id: BOOKING_ID, customer_id: CUSTOMER_ID }])) // SELECT booking
-      .mockResolvedValueOnce(rows([]))                                              // SELECT conversation -> none
-      .mockRejectedValueOnce(new Error('audit boom'));                              // INSERT admin_actions fails
-
-    const out = await bookingAdminSvc.sendAdminMessageToBookingCustomer(
-      BOOKING_ID,
-      'Hello, this is the support team checking in on your booking.',
-      ADMIN_ID,
-    );
-
-    expect(out.notificationId).toBe(NOTIFICATION_ID);
-    expect(loggerWarn).toHaveBeenCalledWith(
-      'audit_log insert failed',
-      expect.objectContaining({ err: expect.stringContaining('audit boom') }),
-    );
+  expect(createPushNotificationMock).toHaveBeenCalledTimes(2);
+  expect(emitToConversationMock).toHaveBeenCalledWith(
+    CONVERSATION_ID,
+    'new:message',
+    expect.objectContaining({ id: MESSAGE_ID, senderRole: 'admin' }),
+  );
+  expect(emitToUserMock).toHaveBeenCalledTimes(2);
+  expect(result).toMatchObject({
+    bookingId: BOOKING_ID,
+    customerId: CUSTOMER_ID,
+    providerUserId: PROVIDER_USER_ID,
+    conversationId: CONVERSATION_ID,
+    messageId: MESSAGE_ID,
+    customerNotificationId: 'customer-notification',
+    providerNotificationId: 'provider-notification',
   });
+});
+
+it('sends a pre-assignment booking update only to the customer without fabricating a conversation', async () => {
+  const txQuery = jest.fn(async (sql: string): Promise<QueryResult<unknown>> => {
+    if (/FROM bookings b/.test(sql)) {
+      return rows([{ id: BOOKING_ID, customer_id: CUSTOMER_ID, provider_user_id: null }]);
+    }
+    if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'action-2' }]);
+    return rows([]);
+  });
+  dbTransactionMock.mockImplementationOnce(async (callback: (client: { query: TxQuery }) => Promise<unknown>) => (
+    callback({ query: txQuery })
+  ));
+  createPushNotificationMock.mockResolvedValueOnce({ id: 'customer-notification' });
+
+  const result = await sendAdminMessageToBookingParticipants(
+    BOOKING_ID,
+    'Support is still finding the right provider for your booking.',
+    ADMIN_ID,
+  );
+
+  expect(txQuery.mock.calls.some(([sql]) => /INSERT INTO conversations|INSERT INTO messages/.test(sql))).toBe(false);
+  expect(createPushNotificationMock).toHaveBeenCalledTimes(1);
+  expect(emitToConversationMock).not.toHaveBeenCalled();
+  expect(result).toMatchObject({ conversationId: null, messageId: null, providerUserId: null });
+});
+
+it('rolls back the support message when its audit entry cannot be recorded', async () => {
+  const txQuery = jest.fn(async (sql: string): Promise<QueryResult<unknown>> => {
+    if (/FROM bookings b/.test(sql)) {
+      return rows([{ id: BOOKING_ID, customer_id: CUSTOMER_ID, provider_user_id: PROVIDER_USER_ID }]);
+    }
+    if (/INSERT INTO conversations/.test(sql)) return rows([{ id: CONVERSATION_ID }]);
+    if (/INSERT INTO messages/.test(sql)) return rows([{ id: MESSAGE_ID }]);
+    if (/INSERT INTO admin_actions/.test(sql)) throw new Error('audit insert failed');
+    return rows([]);
+  });
+  dbTransactionMock.mockImplementationOnce(async (callback: (client: { query: TxQuery }) => Promise<unknown>) => (
+    callback({ query: txQuery })
+  ));
+
+  await expect(sendAdminMessageToBookingParticipants(
+    BOOKING_ID,
+    'This update must never exist without its support audit entry.',
+    ADMIN_ID,
+  )).rejects.toThrow('audit insert failed');
+
+  expect(createPushNotificationMock).not.toHaveBeenCalled();
+  expect(emitToConversationMock).not.toHaveBeenCalled();
+  expect(emitToUserMock).not.toHaveBeenCalled();
 });

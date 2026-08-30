@@ -44,11 +44,12 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import KpiCard from '@/components/ui/KpiCard';
 import { Textarea } from '@/components/ui/Textarea';
+import { useConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { useAuthStore } from '@/stores/auth.store';
 
 // ─── Types (mirror packages/api/src/services/booking-admin.service.ts) ────
 
-interface BookingDetail {
+export interface BookingDetail {
   id: string;
   status: string;
   escrowStatus: string | null;
@@ -61,6 +62,7 @@ interface BookingDetail {
   servicePrice: number;
   serviceFee: number;
   totalAmount: number;
+  conversationId: string | null;
   category: { id: string; name: string } | null;
   subcategory: { id: string; name: string } | null;
   address: { full: string; barangay: string; city: string; province: string } | null;
@@ -230,6 +232,42 @@ interface BookingDispute {
   resolvedAt: string | null;
 }
 
+interface BookingMoney {
+  paymentIntents: Array<{
+    id: string;
+    gatewayIntentId: string | null;
+    gatewayPaymentId: string | null;
+    amount: number;
+    refundedAmount: number;
+    paymentMethod: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  ledgerEntries: Array<{
+    id: string;
+    walletType: string;
+    walletUserId: string | null;
+    type: string;
+    amount: number;
+    balanceAfter: number;
+    description: string;
+    referenceId: string | null;
+    createdAt: string;
+  }>;
+  salesRecords: Array<{
+    id: string;
+    number: string;
+    grossAmount: number;
+    providerReceived: number;
+    platformRetained: number;
+    isCancellation: boolean;
+    cancelledAt: string | null;
+    pdfUrl: string | null;
+    issuedAt: string;
+  }>;
+}
+
 interface AssignableProvider {
   id: string;
   businessName: string | null;
@@ -395,12 +433,20 @@ function BookingHeader({ detail }: { detail: BookingDetail }): React.ReactElemen
           <p className="text-2xl font-bold text-[var(--color-text)]">
             {fmtCentavos(detail.totalAmount)}
           </p>
-          <Link
-            to={`/support-tickets?bookingId=${encodeURIComponent(detail.id)}`}
-            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--color-border)] bg-white px-4 text-sm font-semibold text-[var(--color-primary)]"
-          >
-            <MessageSquare size={14} /> Support cases
-          </Link>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Link
+              to={`/communications?bookingId=${encodeURIComponent(detail.id)}`}
+              className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--color-border)] bg-white px-4 text-sm font-semibold text-[var(--color-primary)]"
+            >
+              <MessageSquare size={14} /> {detail.conversationId ? 'Open conversation' : 'Find conversation'}
+            </Link>
+            <Link
+              to={`/support-tickets?bookingId=${encodeURIComponent(detail.id)}`}
+              className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--color-border)] bg-white px-4 text-sm font-semibold text-[var(--color-primary)]"
+            >
+              <MessageSquare size={14} /> Support cases
+            </Link>
+          </div>
         </div>
       </div>
     </Card>
@@ -415,6 +461,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
   const queryClient = useQueryClient();
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [open, setOpen] = useState<ActionId | null>(null);
 
   const [reason, setReason] = useState('');
@@ -440,6 +487,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
     queryClient.invalidateQueries({ queryKey: ['admin-booking-timeline', bookingId] });
     queryClient.invalidateQueries({ queryKey: ['admin-booking-dispute', bookingId] });
     queryClient.invalidateQueries({ queryKey: ['admin-booking-evidence', bookingId] });
+    queryClient.invalidateQueries({ queryKey: ['admin-booking-money', bookingId] });
     // Also refresh the bookings list so its row reflects the action when the
     // admin navigates back (was stale until a manual refetch).
     queryClient.invalidateQueries({ queryKey: ['adminBookings'] });
@@ -539,6 +587,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
     const n = Number(hoursUntilScheduled);
     return Number.isFinite(n) ? n : undefined;
   })();
+  const cancelInputsOk = reasonOk && cancelHours !== undefined;
 
   return (
     <Card className="p-5">
@@ -620,20 +669,20 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                 htmlFor="booking-reassign-provider"
                 className="text-xs text-[var(--color-text-secondary)]"
               >
-                New online provider
+                New accepting-work provider
               </label>
               <select
                 id="booking-reassign-provider"
                 value={providerId}
                 onChange={(e) => setProviderId(e.target.value)}
-                aria-label="New online provider"
+                aria-label="New accepting-work provider"
                 disabled={providersQuery.isLoading || providersQuery.isError}
                 className="h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 text-sm"
               >
                 <option value="">
                   {providersQuery.isLoading
-                    ? 'Loading online providers...'
-                    : 'Choose an online provider'}
+                    ? 'Loading accepting-work providers...'
+                    : 'Choose an accepting-work provider'}
                 </option>
                 {(providersQuery.data ?? []).map((provider) => (
                   <option key={provider.id} value={provider.id}>
@@ -644,7 +693,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
               </select>
               {providersQuery.isError && (
                 <p role="alert" className="mt-1 text-xs text-[var(--color-error)]">
-                  Online providers could not be loaded. Use Dispatch to retry.
+                  Accepting-work providers could not be loaded. Use Dispatch to retry.
                 </p>
               )}
             </div>
@@ -657,7 +706,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                   htmlFor="booking-cancel-hours"
                   className="text-xs text-[var(--color-text-secondary)]"
                 >
-                  Hours until scheduled (optional)
+                  Hours until scheduled (required)
                 </label>
                 <input
                   id="booking-cancel-hours"
@@ -665,6 +714,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                   step="0.5"
                   value={hoursUntilScheduled}
                   onChange={(e) => setHoursUntilScheduled(e.target.value)}
+                  required
                   className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm"
                 />
               </div>
@@ -684,6 +734,9 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                 />
                 Customer no-show
               </label>
+              <p className="sm:col-span-3 text-xs text-[var(--color-text-secondary)]">
+                These three values directly affect the live refund split. Enter the schedule difference from the case record and mark arrival or no-show only when the evidence supports it.
+              </p>
             </div>
           )}
 
@@ -703,7 +756,11 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                   : 'Why is this action being taken?'
               }
               rows={3}
+              maxLength={5000}
             />
+            <p className="mt-1 text-right text-xs text-[var(--color-text-secondary)]">
+              {reason.length}/5000
+            </p>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -712,8 +769,12 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                 size="sm"
                 disabled={!reasonOk || releaseMut.isPending}
                 onClick={() => {
-                  if (window.confirm('Manually release escrow for this booking?'))
-                    releaseMut.mutate({ reason });
+                  void confirm({
+                    title: 'Release held escrow?',
+                    description: 'This moves the booking funds to the provider and platform wallets. The recorded reason will remain in the booking audit trail.',
+                    confirmLabel: 'Release escrow',
+                    tone: 'destructive',
+                  }).then((approved) => { if (approved) releaseMut.mutate({ reason: reason.trim() }); });
                 }}
               >
                 Confirm release
@@ -723,11 +784,16 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
               <Button
                 size="sm"
                 disabled={!reasonOk || refundAmtCentavos === 0 || refundMut.isPending}
-                onClick={() =>
-                  window.confirm(`Refund ${fmtCentavos(refundAmtCentavos)} from escrow?`)
-                    ? refundMut.mutate({ amount: refundAmtCentavos, reason })
-                    : undefined
-                }
+                onClick={() => {
+                  void confirm({
+                    title: `Refund ${fmtCentavos(refundAmtCentavos)}?`,
+                    description: 'This debits held escrow and starts the gateway refund path. Verify the amount and the evidence before continuing.',
+                    confirmLabel: 'Issue refund',
+                    tone: 'destructive',
+                  }).then((approved) => {
+                    if (approved) refundMut.mutate({ amount: refundAmtCentavos, reason: reason.trim() });
+                  });
+                }}
               >
                 Confirm refund {refundAmtCentavos > 0 && `(${fmtCentavos(refundAmtCentavos)})`}
               </Button>
@@ -736,7 +802,16 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
               <Button
                 size="sm"
                 disabled={!reasonOk || !providerIdOk || reassignMut.isPending}
-                onClick={() => reassignMut.mutate({ newProviderId: providerId, reason })}
+                onClick={() => {
+                  const providerName = (providersQuery.data ?? []).find((provider) => provider.id === providerId)?.businessName ?? 'the selected provider';
+                  void confirm({
+                    title: `Reassign to ${providerName}?`,
+                    description: 'The booking owner, conversation access, pending offers, and any provider-team assignment must move together. Review the booking timeline after this action.',
+                    confirmLabel: 'Reassign booking',
+                  }).then((approved) => {
+                    if (approved) reassignMut.mutate({ newProviderId: providerId, reason: reason.trim() });
+                  });
+                }}
               >
                 Confirm reassign
               </Button>
@@ -745,17 +820,22 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
               <Button
                 size="sm"
                 variant="destructive"
-                disabled={!reasonOk || cancelMut.isPending}
-                onClick={() =>
-                  window.confirm('Cancel this booking?')
-                    ? cancelMut.mutate({
+                disabled={!cancelInputsOk || cancelMut.isPending}
+                onClick={() => {
+                  void confirm({
+                    title: 'Cancel this booking?',
+                    description: 'The timing, arrival, and no-show inputs above directly control the live refund calculation. Verify each one against the schedule, timeline, and evidence. The customer-facing policy editor does not currently control this calculation.',
+                    confirmLabel: 'Cancel booking',
+                    tone: 'destructive',
+                  }).then((approved) => {
+                    if (approved) cancelMut.mutate({
                         reason,
                         hoursUntilScheduled: cancelHours,
                         providerArrived: providerArrived || undefined,
                         customerNoShow: customerNoShow || undefined,
-                      })
-                    : undefined
-                }
+                      });
+                  });
+                }}
               >
                 Confirm cancel
               </Button>
@@ -765,7 +845,12 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                 size="sm"
                 disabled={!reasonOkForce || forceMut.isPending}
                 onClick={() => {
-                  if (window.confirm('Force-complete this booking?')) forceMut.mutate({ reason });
+                  void confirm({
+                    title: 'Force-complete this booking?',
+                    description: 'This can confirm completion and release held escrow without the normal customer step. Use only after reviewing proof, communication, and dispute context.',
+                    confirmLabel: 'Force complete',
+                    tone: 'destructive',
+                  }).then((approved) => { if (approved) forceMut.mutate({ reason: reason.trim() }); });
                 }}
               >
                 Confirm force-complete
@@ -802,13 +887,14 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
           </div>
         </div>
       )}
+      {confirmationDialog}
     </Card>
   );
 }
 
 // ─── OverviewTab ──────────────────────────────────────────────────────────
 
-function OverviewTab({ detail }: { detail: BookingDetail }): React.ReactElement {
+export function OverviewTab({ detail }: { detail: BookingDetail }): React.ReactElement {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <Card className="p-5">
@@ -864,7 +950,7 @@ function OverviewTab({ detail }: { detail: BookingDetail }): React.ReactElement 
             address object existed but had empty/null sub-fields (or
             when API returned an unexpected shape). Now: only render
             the lines if they actually have content. */}
-        {detail.address && (detail.address.full || detail.address.city) ? (
+        {detail.address && [detail.address.full, detail.address.barangay, detail.address.city, detail.address.province].some(Boolean) ? (
           <div className="text-sm text-[var(--color-text)]">
             {detail.address.full && <p>{detail.address.full}</p>}
             {[detail.address.barangay, detail.address.city, detail.address.province].filter(Boolean)
@@ -1238,7 +1324,12 @@ export function EvidenceTab({ bookingId }: { bookingId: string }): React.ReactEl
                     <li key={ticket.id} className="rounded-md border border-[var(--color-border)] p-2 text-sm">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge label={ticket.status} variant={ticket.status === 'resolved' || ticket.status === 'closed' ? 'success' : 'warning'} />
-                        <span className="font-medium">{ticket.ticketNumber}</span>
+                        <Link
+                          to={`/support-tickets?ticketId=${encodeURIComponent(ticket.id)}&bookingId=${encodeURIComponent(bookingId)}`}
+                          className="font-medium text-[var(--color-secondary)] hover:underline"
+                        >
+                          {ticket.ticketNumber}
+                        </Link>
                         <span className="text-xs text-[var(--color-text-secondary)]">{ticket.priority}</span>
                       </div>
                       <p className="mt-1 text-[var(--color-text-secondary)]">{ticket.subject}</p>
@@ -1285,7 +1376,7 @@ export function EvidenceTab({ bookingId }: { bookingId: string }): React.ReactEl
 
 // ─── MoneyTab ─────────────────────────────────────────────────────────────
 
-function MoneyTab({
+export function MoneyTab({
   bookingId,
   detail,
 }: {
@@ -1297,6 +1388,15 @@ function MoneyTab({
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: BookingDispute | null }>(
         `/api/v1/admin/bookings/${bookingId}/dispute`,
+      );
+      return res.data.data;
+    },
+  });
+  const moneyQuery = useQuery({
+    queryKey: ['admin-booking-money', bookingId],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: BookingMoney }>(
+        `/api/v1/admin/bookings/${bookingId}/money`,
       );
       return res.data.data;
     },
@@ -1361,6 +1461,119 @@ function MoneyTab({
               Open dispute detail →
             </Link>
           </div>
+        )}
+      </Card>
+
+      <Card className="p-5">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--color-text)]">Payment attempts</h3>
+            <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+              Gateway intent status and cumulative refunds for this booking. Client keys are never shown.
+            </p>
+          </div>
+          <Link to="/financials?tab=reconciliation" className="text-xs font-semibold text-[var(--color-secondary)] hover:underline">
+            Open reconciliation
+          </Link>
+        </div>
+        {moneyQuery.isLoading ? (
+          <LoadingState />
+        ) : moneyQuery.isError ? (
+          <ErrorState description={getErrorMessage(moneyQuery.error)} />
+        ) : !moneyQuery.data || moneyQuery.data.paymentIntents.length === 0 ? (
+          <div className="mt-3"><EmptyState title="No payment intent recorded." /></div>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="text-xs uppercase text-[var(--color-text-secondary)]">
+                <tr>
+                  <th className="px-3 py-2 text-left">Created</th>
+                  <th className="px-3 py-2 text-left">Method</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3 py-2 text-right">Refunded</th>
+                  <th className="px-3 py-2 text-left">Gateway reference</th>
+                </tr>
+              </thead>
+              <tbody>
+                {moneyQuery.data.paymentIntents.map((payment) => (
+                  <tr key={payment.id} className="border-t border-[var(--color-border)]">
+                    <td className="px-3 py-2 text-xs">{fmtDate(payment.createdAt)}</td>
+                    <td className="px-3 py-2">{payment.paymentMethod}</td>
+                    <td className="px-3 py-2"><Badge label={payment.status} variant={payment.status === 'succeeded' ? 'success' : payment.status === 'failed' ? 'danger' : 'info'} /></td>
+                    <td className="px-3 py-2 text-right font-medium">{fmtCentavos(payment.amount)}</td>
+                    <td className="px-3 py-2 text-right">{fmtCentavos(payment.refundedAmount)}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{payment.gatewayPaymentId ?? payment.gatewayIntentId ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="text-sm font-semibold text-[var(--color-text)]">Internal wallet ledger</h3>
+        <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+          Every booking-linked debit and credit, including escrow, commission, service fee, and refunds.
+        </p>
+        {!moneyQuery.isLoading && !moneyQuery.isError && moneyQuery.data && (
+          moneyQuery.data.ledgerEntries.length === 0 ? (
+            <div className="mt-3"><EmptyState title="No booking ledger entries recorded." /></div>
+          ) : (
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-xs uppercase text-[var(--color-text-secondary)]">
+                  <tr>
+                    <th className="px-3 py-2 text-left">When</th>
+                    <th className="px-3 py-2 text-left">Wallet</th>
+                    <th className="px-3 py-2 text-left">Entry</th>
+                    <th className="px-3 py-2 text-right">Amount</th>
+                    <th className="px-3 py-2 text-right">Balance after</th>
+                    <th className="px-3 py-2 text-left">Reference</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {moneyQuery.data.ledgerEntries.map((entry) => (
+                    <tr key={entry.id} className="border-t border-[var(--color-border)]">
+                      <td className="px-3 py-2 text-xs">{fmtDate(entry.createdAt)}</td>
+                      <td className="px-3 py-2">{entry.walletType}</td>
+                      <td className="px-3 py-2"><Badge label={entry.type} variant="info" /></td>
+                      <td className={`px-3 py-2 text-right font-medium ${entry.amount < 0 ? 'text-red-700' : 'text-emerald-700'}`}>{fmtCentavos(entry.amount)}</td>
+                      <td className="px-3 py-2 text-right">{fmtCentavos(entry.balanceAfter)}</td>
+                      <td className="px-3 py-2 text-xs">{entry.referenceId ?? (entry.description || '—')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="text-sm font-semibold text-[var(--color-text)]">Legacy sales records</h3>
+        {!moneyQuery.isLoading && !moneyQuery.isError && moneyQuery.data && (
+          moneyQuery.data.salesRecords.length === 0 ? (
+            <div className="mt-3"><EmptyState title="No legacy sales record issued." /></div>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {moneyQuery.data.salesRecords.map((record) => (
+                <li key={record.id} className="flex items-start justify-between gap-3 rounded-md border border-[var(--color-border)] p-3 text-sm">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-medium">{record.number}</span>
+                      {record.isCancellation && <Badge label="cancellation" variant="warning" />}
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                      Gross {fmtCentavos(record.grossAmount)} · provider {fmtCentavos(record.providerReceived)} · platform {fmtCentavos(record.platformRetained)} · issued {fmtDate(record.issuedAt)}
+                    </p>
+                  </div>
+                  {record.pdfUrl && <a href={record.pdfUrl} target="_blank" rel="noreferrer noopener" className="text-xs font-semibold text-[var(--color-secondary)] hover:underline">Open PDF</a>}
+                </li>
+              ))}
+            </ul>
+          )
         )}
       </Card>
     </div>
