@@ -26,7 +26,7 @@ import {
 import api, { getErrorMessage } from '@/lib/api';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import Badge from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
+import { Button, buttonVariants } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -146,6 +146,7 @@ interface JobsResult {
     completedAt: string | null;
     rating: number | null;
     hasDispute: boolean;
+    disputeId: string | null;
   }[];
   total: number;
   page: number;
@@ -171,6 +172,7 @@ interface Financials {
 interface Review {
   id: string;
   bookingId: string;
+  reviewerId: string;
   reviewerName: string;
   rating: number;
   comment: string;
@@ -185,6 +187,7 @@ interface Review {
 interface Dispute {
   id: string;
   bookingId: string;
+  customerId: string;
   customerName: string;
   status: string;
   resolutionType: string | null;
@@ -193,9 +196,14 @@ interface Dispute {
 
 interface ActivityRow {
   id: string;
-  source: 'audit' | 'login';
+  source: 'audit' | 'login' | 'admin_action';
   action: string;
   detail: string | null;
+  actor: {
+    kind: 'provider' | 'provider_staff' | 'customer' | 'admin' | 'system';
+    id: string | null;
+    name: string | null;
+  };
   ipAddress: string | null;
   userAgent: string | null;
   createdAt: string;
@@ -946,7 +954,7 @@ export function CertificationsTab({
               <Button
                 className="min-h-11"
                 variant="destructive"
-                disabled={review.isPending || reason.trim().length < 3}
+                disabled={review.isPending || reason.trim().length < 10}
                 onClick={() => review.mutate({ certId: unverifyTarget.id, isVerified: false, reason: reason.trim() })}
               >
                 {review.isPending ? 'Saving...' : 'Remove verification'}
@@ -961,7 +969,7 @@ export function CertificationsTab({
 
 // ─── Jobs Tab ─────────────────────────────────────────────────────────────
 
-function JobsTab({ providerId }: { providerId: string }): React.ReactElement {
+export function JobsTab({ providerId }: { providerId: string }): React.ReactElement {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -985,12 +993,23 @@ function JobsTab({ providerId }: { providerId: string }): React.ReactElement {
       <div className="flex items-center gap-3 flex-wrap">
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} aria-label="Filter bookings by status" className="px-3 py-2 border rounded text-sm">
           <option value="">All statuses</option>
-          <option value="completed">Completed</option>
-          <option value="confirmed">Confirmed</option>
+          <option value="requested">Requested</option>
+          <option value="quoted">Quoted</option>
+          <option value="matched">Matched</option>
+          <option value="payment_pending">Payment pending</option>
+          <option value="paid">Paid</option>
+          <option value="provider_en_route">Provider en route</option>
+          <option value="provider_arrived">Provider arrived</option>
           <option value="in_progress">In progress</option>
+          <option value="completed_by_provider">Completed by provider</option>
+          <option value="confirmed">Confirmed</option>
           <option value="disputed">Disputed</option>
+          <option value="resolved">Resolved</option>
+          <option value="payout_ready">Payout ready</option>
+          <option value="paid_out">Paid out</option>
           <option value="cancelled_by_customer">Cancelled (customer)</option>
           <option value="cancelled_by_provider">Cancelled (provider)</option>
+          <option value="cancelled_by_admin">Cancelled (admin)</option>
         </select>
         <span className="text-xs text-[var(--color-text-secondary)]">{data.total} total</span>
       </div>
@@ -1000,6 +1019,7 @@ function JobsTab({ providerId }: { providerId: string }): React.ReactElement {
           <thead className="text-xs uppercase text-[var(--color-text-secondary)] bg-slate-50">
             <tr>
               <th className="px-3 py-2 text-left">Date</th>
+              <th className="px-3 py-2 text-left">Booking</th>
               <th className="px-3 py-2 text-left">Customer</th>
               <th className="px-3 py-2 text-left">Service</th>
               <th className="px-3 py-2 text-right">Total</th>
@@ -1011,17 +1031,32 @@ function JobsTab({ providerId }: { providerId: string }): React.ReactElement {
           </thead>
           <tbody>
             {data.rows.length === 0 ? (
-              <tr><td colSpan={8} className="text-center py-8 text-[var(--color-text-secondary)]">No jobs found.</td></tr>
+              <tr><td colSpan={9} className="text-center py-8 text-[var(--color-text-secondary)]">No jobs found.</td></tr>
             ) : data.rows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100">
                 <td className="px-3 py-2">{formatDateOnly(row.scheduledAt)}</td>
-                <td className="px-3 py-2">{row.customerName}</td>
+                <td className="px-3 py-2">
+                  <Link to={`/bookings/${row.id}`} aria-label={`Open booking ${row.id}`} className="font-mono text-xs text-[var(--color-primary)] hover:underline">
+                    {row.id.slice(0, 8)}
+                  </Link>
+                </td>
+                <td className="px-3 py-2">
+                  <Link to={`/customers/${row.customerId}`} aria-label={`Open customer ${row.customerId}`} className="text-[var(--color-primary)] hover:underline">
+                    {row.customerName}
+                  </Link>
+                </td>
                 <td className="px-3 py-2">{row.categoryName}</td>
                 <td className="px-3 py-2 text-right">{formatPHP(row.totalAmount)}</td>
                 <td className="px-3 py-2 text-right">{formatPHP(row.serviceFee)}</td>
                 <td className="px-3 py-2"><Badge label={row.status} variant="default" /></td>
                 <td className="px-3 py-2">{row.rating != null ? <span className="inline-flex items-center gap-1">{row.rating} <Star size={13} className="text-amber-500" fill="currentColor" aria-hidden="true" /></span> : '—'}</td>
-                <td className="px-3 py-2">{row.hasDispute ? <Badge label="yes" variant="danger" /> : '—'}</td>
+                <td className="px-3 py-2">
+                  {row.hasDispute && row.disputeId ? (
+                    <Link to={`/disputes/${row.disputeId}`} className="hover:underline" aria-label={`Open dispute for booking ${row.id}`}>
+                      <Badge label="Open" variant="danger" />
+                    </Link>
+                  ) : '—'}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -1043,7 +1078,7 @@ function JobsTab({ providerId }: { providerId: string }): React.ReactElement {
 
 // ─── Financials Tab ───────────────────────────────────────────────────────
 
-function FinancialsTab({ providerId }: { providerId: string }): React.ReactElement {
+export function FinancialsTab({ providerId }: { providerId: string }): React.ReactElement {
   const queryClient = useQueryClient();
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
@@ -1101,11 +1136,19 @@ function FinancialsTab({ providerId }: { providerId: string }): React.ReactEleme
       <Card className="p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-[var(--color-text)]">Recent Payouts</h3>
-          {isSuperAdmin && (
-            <Button variant="outline" size="sm" onClick={() => setAdjustOpen((v) => !v)}>
-              {adjustOpen ? 'Cancel' : 'Adjust Wallet'}
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <Link
+              to={`/payouts?providerId=${encodeURIComponent(providerId)}`}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              Open payout queue
+            </Link>
+            {isSuperAdmin && (
+              <Button variant="outline" size="sm" onClick={() => setAdjustOpen((v) => !v)}>
+                {adjustOpen ? 'Cancel' : 'Adjust Wallet'}
+              </Button>
+            )}
+          </div>
         </div>
 
         {adjustOpen && isSuperAdmin && (
@@ -1150,6 +1193,7 @@ function FinancialsTab({ providerId }: { providerId: string }): React.ReactEleme
           <table className="w-full text-sm">
             <thead className="text-xs uppercase text-[var(--color-text-secondary)] bg-slate-50">
               <tr>
+                <th className="px-3 py-2 text-left">Payout</th>
                 <th className="px-3 py-2 text-left">Date</th>
                 <th className="px-3 py-2 text-left">Method</th>
                 <th className="px-3 py-2 text-right">Amount</th>
@@ -1159,9 +1203,10 @@ function FinancialsTab({ providerId }: { providerId: string }): React.ReactEleme
             </thead>
             <tbody>
               {f.recentPayouts.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-6 text-[var(--color-text-secondary)]">No payouts yet.</td></tr>
+                <tr><td colSpan={6} className="text-center py-6 text-[var(--color-text-secondary)]">No payouts yet.</td></tr>
               ) : f.recentPayouts.map((po) => (
                 <tr key={po.id} className="border-t border-slate-100">
+                  <td className="px-3 py-2 font-mono text-xs">{po.id.slice(0, 8)}</td>
                   <td className="px-3 py-2">{formatDateOnly(po.createdAt)}</td>
                   <td className="px-3 py-2">{po.method}</td>
                   <td className="px-3 py-2 text-right">{formatPHP(po.amount)}</td>
@@ -1197,6 +1242,8 @@ function FinancialsTab({ providerId }: { providerId: string }): React.ReactEleme
 
 export function ReviewsTab({ providerId }: { providerId: string }): React.ReactElement {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const { requestReason, reasonDialog } = useReasonDialog();
 
   // BUG-PHASE20-01 fix: API returns a paginated envelope
   // {rows, total, page, pageSize}, not Review[]. Pre-fix the page typed
@@ -1206,43 +1253,100 @@ export function ReviewsTab({ providerId }: { providerId: string }): React.ReactE
   // this paginated pattern (Disputes, Jobs already correct) get the
   // same treatment.
   const q = useQuery({
-    queryKey: ['admin-provider-reviews', providerId],
+    queryKey: ['admin-provider-reviews', providerId, page],
     queryFn: async () => {
       const res = await api.get<{
         success: true;
         data: { rows: Review[]; total: number; page: number; pageSize: number };
       }>(
         `/api/v1/admin/providers/${providerId}/reviews`,
+        { params: { page, pageSize: 20 } },
       );
       return res.data.data;
     },
   });
 
   const visibility = useMutation({
-    mutationFn: async (args: { reviewId: string; isVisible: boolean }) => {
+    mutationFn: async (args: { reviewId: string; isVisible: boolean; reason: string }) => {
       await api.patch(
         `/api/v1/admin/providers/${providerId}/reviews/${args.reviewId}/visibility`,
-        { isVisible: args.isVisible },
+        { isVisible: args.isVisible, reason: args.reason },
       );
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin-provider-reviews', providerId] }),
   });
 
+  const response = useMutation({
+    mutationFn: async (args: { reviewId: string; response: string; reason: string }) => {
+      await api.patch(
+        `/api/v1/admin/providers/${providerId}/reviews/${args.reviewId}/response`,
+        { response: args.response, reason: args.reason },
+      );
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin-provider-reviews', providerId] }),
+  });
+
+  async function changeVisibility(review: Review): Promise<void> {
+    const reason = await requestReason({
+      title: review.isVisible ? 'Hide customer review?' : 'Restore customer review?',
+      description: review.isVisible
+        ? 'The review will stop appearing in customer-facing provider profiles. Its evidence and history remain available to support.'
+        : 'The review will return to customer-facing provider profiles. Its original rating and comment will become visible again.',
+      confirmLabel: review.isVisible ? 'Hide review' : 'Restore review',
+      placeholder: 'Record the moderation policy or evidence that supports this decision.',
+      tone: review.isVisible ? 'destructive' : 'default',
+    });
+    if (!reason) return;
+    visibility.mutate({ reviewId: review.id, isVisible: !review.isVisible, reason });
+  }
+
+  async function publishResponse(review: Review): Promise<void> {
+    const publicResponse = await requestReason({
+      title: review.adminResponse ? 'Replace the public admin response?' : 'Add a public admin response?',
+      description: 'This text is public support communication. Customers and providers may rely on it, so do not include private notes, phone numbers, or internal investigation details.',
+      confirmLabel: 'Continue',
+      reasonLabel: 'Public response',
+      placeholder: 'Write the response that should appear with this review.',
+      minLength: 3,
+      maxLength: 2000,
+      tone: 'default',
+    });
+    if (!publicResponse) return;
+    const auditReason = await requestReason({
+      title: 'Confirm public response',
+      description: 'Record the internal support rationale for publishing this response. This rationale stays in the admin audit trail and is not shown publicly.',
+      confirmLabel: 'Publish response',
+      placeholder: 'Reference the support review, policy, or case outcome behind the response.',
+      tone: 'default',
+    });
+    if (!auditReason) return;
+    response.mutate({ reviewId: review.id, response: publicResponse, reason: auditReason });
+  }
+
   if (q.isLoading) return <LoadingState label="Loading reviews…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
   // BUG-PHASE20-01: extract rows from paginated envelope
-  const reviews = q.data?.rows ?? [];
+  const data = q.data!;
+  const reviews = data.rows;
 
-  if (reviews.length === 0) return <EmptyState title="No reviews yet" description="This provider has not received any reviews." />;
+  if (data.total === 0) return <EmptyState title="No reviews yet" description="This provider has not received any reviews." />;
 
   return (
     <div className="space-y-3 mt-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-[var(--color-text-secondary)]">{data.total} review{data.total === 1 ? '' : 's'} on record</p>
+        {(visibility.isError || response.isError) && (
+          <p role="alert" className="text-xs text-red-700">{getErrorMessage(visibility.error ?? response.error)}</p>
+        )}
+      </div>
       {reviews.map((r) => (
         <Card key={r.id} className={`p-4 ${!r.isVisible ? 'opacity-60' : ''}`}>
           <div className="flex justify-between items-start gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium text-sm">{r.reviewerName}</span>
+                <Link to={`/customers/${r.reviewerId}`} aria-label={`Open customer ${r.reviewerId}`} className="font-medium text-sm text-[var(--color-primary)] hover:underline">
+                  {r.reviewerName}
+                </Link>
                 <span className="inline-flex gap-0.5" aria-label={`${r.rating} out of 5 stars`}>
                   {Array.from({ length: 5 }, (_, index) => (
                     <Star key={index} size={13} className={index < r.rating ? 'text-amber-500' : 'text-slate-300'} fill={index < r.rating ? 'currentColor' : 'none'} aria-hidden="true" />
@@ -1253,6 +1357,9 @@ export function ReviewsTab({ providerId }: { providerId: string }): React.ReactE
                 {r.isFlagged && <Badge label="flagged" variant="danger" />}
               </div>
               <p className="text-sm text-[var(--color-text)] mt-1 whitespace-pre-wrap">{r.comment}</p>
+              <Link to={`/bookings/${r.bookingId}`} aria-label={`Open booking ${r.bookingId}`} className="mt-1 inline-flex font-mono text-xs text-[var(--color-primary)] hover:underline">
+                Booking {r.bookingId.slice(0, 8)}
+              </Link>
               {r.privateNote && (
                 <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Private customer note to onService</p>
@@ -1279,36 +1386,58 @@ export function ReviewsTab({ providerId }: { providerId: string }): React.ReactE
                 </p>
               )}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => visibility.mutate({ reviewId: r.id, isVisible: !r.isVisible })}
-              disabled={visibility.isPending}
-            >
-              {r.isVisible ? <><EyeOff size={12} /> Hide</> : <><Eye size={12} /> Show</>}
-            </Button>
+            <div className="flex shrink-0 flex-col gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void changeVisibility(r)}
+                disabled={visibility.isPending || response.isPending}
+              >
+                {r.isVisible ? <><EyeOff size={12} /> Hide</> : <><Eye size={12} /> Restore</>}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void publishResponse(r)}
+                disabled={visibility.isPending || response.isPending}
+              >
+                <MessageSquare size={12} /> {r.adminResponse ? 'Replace response' : 'Add response'}
+              </Button>
+            </div>
           </div>
         </Card>
       ))}
+      {data.total > data.pageSize && (
+        <Pagination
+          page={data.page}
+          pageSize={data.pageSize}
+          total={data.total}
+          totalPages={Math.ceil(data.total / data.pageSize)}
+          onPageChange={setPage}
+        />
+      )}
+      {reasonDialog}
     </div>
   );
 }
 
 // ─── Disputes Tab ─────────────────────────────────────────────────────────
 
-function DisputesTab({ providerId }: { providerId: string }): React.ReactElement {
+export function DisputesTab({ providerId }: { providerId: string }): React.ReactElement {
+  const [page, setPage] = useState(1);
   // BUG-PHASE20-01 (same pattern): API returns paginated envelope, not array.
   // The crash here is dormant when there are zero disputes (length on
   // undefined would also crash, but the `disputes.length === 0` guard hits
   // before .map). For non-zero, .map would throw the same TypeError.
   const q = useQuery({
-    queryKey: ['admin-provider-disputes', providerId],
+    queryKey: ['admin-provider-disputes', providerId, page],
     queryFn: async () => {
       const res = await api.get<{
         success: true;
         data: { rows: Dispute[]; total: number; page: number; pageSize: number };
       }>(
         `/api/v1/admin/providers/${providerId}/disputes`,
+        { params: { page, pageSize: 20 } },
       );
       return res.data.data;
     },
@@ -1316,45 +1445,63 @@ function DisputesTab({ providerId }: { providerId: string }): React.ReactElement
 
   if (q.isLoading) return <LoadingState label="Loading disputes…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
-  const disputes = q.data?.rows ?? [];
+  const data = q.data!;
+  const disputes = data.rows;
 
-  if (disputes.length === 0) return <EmptyState title="No disputes" description="This provider has no disputes." />;
+  if (data.total === 0) return <EmptyState title="No disputes" description="This provider has no disputes." />;
 
   return (
-    <Card className="p-0 overflow-x-auto mt-4">
-      <table className="w-full text-sm">
-        <thead className="text-xs uppercase text-[var(--color-text-secondary)] bg-slate-50">
-          <tr>
-            <th className="px-3 py-2 text-left">Date</th>
-            <th className="px-3 py-2 text-left">Customer</th>
-            <th className="px-3 py-2 text-left">Status</th>
-            <th className="px-3 py-2 text-left">Resolution</th>
-          </tr>
-        </thead>
-        <tbody>
-          {disputes.map((d) => (
-            <tr key={d.id} className="border-t border-slate-100">
-              <td className="px-3 py-2">{formatDate(d.createdAt)}</td>
-              <td className="px-3 py-2">{d.customerName}</td>
-              <td className="px-3 py-2"><Badge label={d.status} variant={d.status === 'resolved' ? 'success' : 'warning'} /></td>
-              <td className="px-3 py-2">{d.resolutionType ?? '—'}</td>
+    <div className="mt-4 space-y-3">
+      <p className="text-xs text-[var(--color-text-secondary)]">{data.total} dispute{data.total === 1 ? '' : 's'} linked to this provider</p>
+      <Card className="p-0 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-xs uppercase text-[var(--color-text-secondary)] bg-slate-50">
+            <tr>
+              <th className="px-3 py-2 text-left">Dispute</th>
+              <th className="px-3 py-2 text-left">Booking</th>
+              <th className="px-3 py-2 text-left">Customer</th>
+              <th className="px-3 py-2 text-left">Status</th>
+              <th className="px-3 py-2 text-left">Resolution</th>
+              <th className="px-3 py-2 text-left">Date</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
+          </thead>
+          <tbody>
+            {disputes.map((d) => (
+              <tr key={d.id} className="border-t border-slate-100">
+                <td className="px-3 py-2"><Link to={`/disputes/${d.id}`} aria-label={`Open dispute ${d.id}`} className="font-mono text-xs text-[var(--color-primary)] hover:underline">{d.id.slice(0, 8)}</Link></td>
+                <td className="px-3 py-2"><Link to={`/bookings/${d.bookingId}`} aria-label={`Open booking ${d.bookingId}`} className="font-mono text-xs text-[var(--color-primary)] hover:underline">{d.bookingId.slice(0, 8)}</Link></td>
+                <td className="px-3 py-2"><Link to={`/customers/${d.customerId}`} aria-label={`Open customer ${d.customerId}`} className="text-[var(--color-primary)] hover:underline">{d.customerName}</Link></td>
+                <td className="px-3 py-2"><Badge label={d.status} variant={d.status === 'resolved' ? 'success' : d.status === 'escalated' ? 'danger' : 'warning'} /></td>
+                <td className="px-3 py-2">{d.resolutionType ?? '—'}</td>
+                <td className="px-3 py-2">{formatDate(d.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      {data.total > data.pageSize && (
+        <Pagination
+          page={data.page}
+          pageSize={data.pageSize}
+          total={data.total}
+          totalPages={Math.ceil(data.total / data.pageSize)}
+          onPageChange={setPage}
+        />
+      )}
+    </div>
   );
 }
 
 // ─── Activity Tab ─────────────────────────────────────────────────────────
 
-function ActivityTab({ providerId }: { providerId: string }): React.ReactElement {
+export function ActivityTab({ providerId }: { providerId: string }): React.ReactElement {
+  const [limit, setLimit] = useState(50);
   const q = useQuery({
-    queryKey: ['admin-provider-activity', providerId],
+    queryKey: ['admin-provider-activity', providerId, limit],
     queryFn: async () => {
       const res = await api.get<{ success: true; data: ActivityRow[] }>(
         `/api/v1/admin/providers/${providerId}/activity`,
-        { params: { limit: 100 } },
+        { params: { limit } },
       );
       return res.data.data;
     },
@@ -1364,33 +1511,54 @@ function ActivityTab({ providerId }: { providerId: string }): React.ReactElement
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
   const rows = q.data!;
 
-  if (rows.length === 0) return <EmptyState title="No activity" description="No recent admin actions or login attempts on file." />;
-
   return (
-    <Card className="p-0 overflow-x-auto mt-4">
-      <table className="w-full text-sm">
+    <div className="mt-4 space-y-3">
+      <select
+        aria-label="Provider activity row limit"
+        value={limit}
+        onChange={(event) => setLimit(Number(event.target.value))}
+        className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white"
+      >
+        <option value={50}>Last 50</option>
+        <option value={100}>Last 100</option>
+        <option value={200}>Last 200</option>
+      </select>
+      {rows.length === 0 ? (
+        <EmptyState title="No activity" description="No recent admin actions, account events, or login attempts on file." />
+      ) : (
+      <Card className="p-0 overflow-x-auto">
+        <table className="w-full text-sm">
         <thead className="text-xs uppercase text-[var(--color-text-secondary)] bg-slate-50">
           <tr>
             <th className="px-3 py-2 text-left">Time</th>
             <th className="px-3 py-2 text-left">Source</th>
+            <th className="px-3 py-2 text-left">Actor</th>
             <th className="px-3 py-2 text-left">Action</th>
+            <th className="px-3 py-2 text-left">Detail</th>
             <th className="px-3 py-2 text-left">IP</th>
-            <th className="px-3 py-2 text-left">User Agent</th>
+            <th className="px-3 py-2 text-left">Device / client</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.id} className="border-t border-slate-100">
               <td className="px-3 py-2 whitespace-nowrap">{formatDate(r.createdAt)}</td>
-              <td className="px-3 py-2"><Badge label={r.source} variant={r.source === 'audit' ? 'info' : 'default'} /></td>
+              <td className="px-3 py-2"><Badge label={r.source} variant={r.source === 'admin_action' ? 'danger' : r.source === 'login' ? 'info' : 'success'} /></td>
+              <td className="px-3 py-2 text-xs">
+                <p className="font-medium text-[var(--color-text)]">{r.actor?.name ?? (r.actor?.kind === 'system' ? 'System' : 'Unknown user')}</p>
+                <p className="text-[var(--color-text-secondary)]">{r.actor?.kind ?? 'unknown'}{r.actor?.id ? ` · ${r.actor.id.slice(0, 8)}…` : ''}</p>
+              </td>
               <td className="px-3 py-2 font-mono text-xs">{r.action}</td>
-              <td className="px-3 py-2 text-xs">{r.ipAddress ?? '—'}</td>
+              <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)] max-w-sm break-words">{r.detail ?? '—'}</td>
+              <td className="px-3 py-2 text-xs font-mono">{r.ipAddress ?? '—'}</td>
               <td className="px-3 py-2 text-xs truncate max-w-xs" title={r.userAgent ?? ''}>{r.userAgent ?? '—'}</td>
             </tr>
           ))}
         </tbody>
-      </table>
-    </Card>
+        </table>
+      </Card>
+      )}
+    </div>
   );
 }
 

@@ -8,9 +8,12 @@ import { getProviderActivity } from '../src/services/provider-admin.service';
 
 function queueProviderActivity(): void {
   queryMock
-    .mockResolvedValueOnce({ rows: [{ user_id: 'user-1', phone: '+639171234567' }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [{
-      id: 'audit-1', action: 'profile_updated', entity_type: 'provider',
+      user_id: 'user-1', phone: '+639171234567', first_name: 'Paolo', last_name: 'Santos',
+    }], rowCount: 1 })
+    .mockResolvedValueOnce({ rows: [{
+      id: 'audit-1', user_id: 'user-1', actor_first: 'Paolo', actor_last: 'Santos',
+      actor_role: 'provider', action: 'profile_updated', entity_type: 'provider',
       ip_address: '192.168.1.42', user_agent: 'Mozilla/5.0 Chrome/120',
       new_values: { city: 'Cebu City' }, created_at: new Date('2026-08-30T01:00:00.000Z'),
     }], rowCount: 1 })
@@ -18,7 +21,8 @@ function queueProviderActivity(): void {
       id: 'login-1', attempt_type: 'otp_verify', success: true,
       ip_address: '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
       user_agent: 'Mozilla/5.0 Safari/605', created_at: new Date('2026-08-30T02:00:00.000Z'),
-    }], rowCount: 1 });
+    }], rowCount: 1 })
+    .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 }
 
 it('MED-N14 — provider activity masks network fingerprints by default and reveals raw values only to super-admin', async () => {

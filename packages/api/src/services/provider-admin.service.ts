@@ -179,6 +179,7 @@ export interface JobRow {
   completedAt: string | null;
   rating: number | null;
   hasDispute: boolean;
+  disputeId: string | null;
 }
 
 export interface ProviderJobsResult {
@@ -207,6 +208,7 @@ export interface ProviderFinancials {
 export interface ProviderReview {
   id: string;
   bookingId: string;
+  reviewerId: string;
   reviewerName: string;
   rating: number;
   comment: string;
@@ -221,6 +223,7 @@ export interface ProviderReview {
 export interface ProviderDispute {
   id: string;
   bookingId: string;
+  customerId: string;
   customerName: string;
   status: string;
   resolutionType: string | null;
@@ -229,9 +232,14 @@ export interface ProviderDispute {
 
 export interface ProviderActivityRow {
   id: string;
-  source: 'audit' | 'login';
+  source: 'audit' | 'login' | 'admin_action';
   action: string;
   detail: string | null;
+  actor: {
+    kind: 'provider' | 'provider_staff' | 'customer' | 'admin' | 'system';
+    id: string | null;
+    name: string | null;
+  };
   ipAddress: string | null;
   userAgent: string | null;
   createdAt: string;
@@ -469,8 +477,12 @@ export async function reviewProviderCertification(params: {
   isVerified: boolean;
   reason?: string;
 }): Promise<ProviderCertification> {
-  if (!params.isVerified && (!params.reason || params.reason.trim().length < 3)) {
-    throw createAppError('A reason is required when removing verification.', 400);
+  const reason = params.reason?.trim();
+  if (!params.isVerified && (!reason || reason.length < 10)) {
+    throw createAppError('A reason of at least 10 characters is required when removing verification.', 400);
+  }
+  if (reason && reason.length > 2000) {
+    throw createAppError('Certification review reason must not exceed 2000 characters.', 400);
   }
 
   const reviewed = await db.transaction(async (client) => {
@@ -484,6 +496,9 @@ export async function reviewProviderCertification(params: {
     );
     const current = currentResult.rows[0];
     if (!current) throw createAppError('Certification not found for this provider.', 404);
+    if (current.is_verified === params.isVerified) {
+      throw createAppError(`Certification is already ${params.isVerified ? 'verified' : 'unverified'}.`, 409);
+    }
 
     if (params.isVerified) {
       if (!current.certificate_url) {
@@ -505,6 +520,30 @@ export async function reviewProviderCertification(params: {
         WHERE id = $3 AND provider_id = $4
         RETURNING *`,
       [params.isVerified, params.adminId, params.certId, params.providerId],
+    );
+    const actionType = params.isVerified
+      ? 'provider_certification_verified'
+      : 'provider_certification_unverified';
+    const auditReason = reason ?? 'Verified against the submitted certification document and expiry date.';
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, $2, 'provider_certification', $3, $4::jsonb, $5, $6)`,
+      [
+        params.adminId,
+        actionType,
+        params.certId,
+        JSON.stringify({
+          providerId: params.providerId,
+          certificationName: current.name,
+          previousVerified: current.is_verified,
+          nextVerified: params.isVerified,
+          hasDocument: Boolean(current.certificate_url),
+          expiryDate: certificationDateKey(current.expiry_date),
+        }),
+        auditReason.slice(0, 500),
+        auditReason,
+      ],
     );
     return { row: updatedResult.rows[0]!, ownerUserId: current.owner_user_id };
   });
@@ -616,6 +655,7 @@ export async function getProviderJobs(
     completed_at: Date | null;
     rating: number | null;
     has_dispute: boolean;
+    dispute_id: string | null;
   }>(
     `SELECT b.id, b.customer_id,
             (cu.first_name || ' ' || cu.last_name) AS customer_name,
@@ -623,11 +663,19 @@ export async function getProviderJobs(
             b.status, b.total_amount, b.service_fee,
             b.scheduled_at, b.completed_at,
             r.rating,
-            EXISTS (SELECT 1 FROM disputes d WHERE d.booking_id = b.id) AS has_dispute
+            d.id IS NOT NULL AS has_dispute,
+            d.id AS dispute_id
        FROM bookings b
        JOIN users cu ON cu.id = b.customer_id
        LEFT JOIN service_categories sc ON sc.id = b.category_id
        LEFT JOIN reviews r ON r.booking_id = b.id
+       LEFT JOIN LATERAL (
+         SELECT id
+           FROM disputes
+          WHERE booking_id = b.id
+          ORDER BY created_at DESC
+          LIMIT 1
+       ) d ON TRUE
        ${where}
       ORDER BY b.scheduled_at DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -647,6 +695,7 @@ export async function getProviderJobs(
       completedAt: r.completed_at ? r.completed_at.toISOString() : null,
       rating: r.rating,
       hasDispute: r.has_dispute,
+      disputeId: r.dispute_id,
     })),
     total,
     page: safePage,
@@ -755,6 +804,7 @@ export async function getProviderReviews(
     db.query<{
       id: string;
       booking_id: string;
+      reviewer_id: string;
       reviewer_name: string;
       rating: number;
       comment: string;
@@ -765,7 +815,7 @@ export async function getProviderReviews(
       image_urls: string[] | null;
       created_at: Date;
     }>(
-      `SELECT r.id, r.booking_id,
+      `SELECT r.id, r.booking_id, r.reviewer_id,
               (u.first_name || ' ' || u.last_name) AS reviewer_name,
               r.rating, r.comment, r.is_visible, r.is_flagged, r.private_note, r.admin_response,
               ARRAY(SELECT image_url FROM review_images ri WHERE ri.review_id = r.id) AS image_urls,
@@ -782,6 +832,7 @@ export async function getProviderReviews(
   const rows: ProviderReview[] = dataResult.rows.map((r) => ({
     id: r.id,
     bookingId: r.booking_id,
+    reviewerId: r.reviewer_id,
     reviewerName: r.reviewer_name,
     rating: r.rating,
     comment: r.comment,
@@ -801,20 +852,99 @@ export async function getProviderReviews(
   };
 }
 
-export async function setReviewVisibility(reviewId: string, isVisible: boolean): Promise<void> {
-  const result = await db.query(
-    `UPDATE reviews SET is_visible = $1, updated_at = NOW() WHERE id = $2`,
-    [isVisible, reviewId],
-  );
-  if (result.rowCount === 0) throw createAppError('Review not found.', 404);
+function validateReviewAuditReason(reason: string): string {
+  const trimmed = reason?.trim();
+  if (!trimmed || trimmed.length < 10) {
+    throw createAppError('reason must be at least 10 characters.', 400);
+  }
+  if (trimmed.length > 2000) {
+    throw createAppError('reason must not exceed 2000 characters.', 400);
+  }
+  return trimmed;
 }
 
-export async function setReviewAdminResponse(reviewId: string, response: string): Promise<void> {
-  const result = await db.query(
-    `UPDATE reviews SET admin_response = $1, updated_at = NOW() WHERE id = $2`,
-    [response, reviewId],
-  );
-  if (result.rowCount === 0) throw createAppError('Review not found.', 404);
+export async function setReviewVisibility(
+  providerId: string,
+  reviewId: string,
+  isVisible: boolean,
+  reason: string,
+  adminId: string,
+): Promise<void> {
+  const auditReason = validateReviewAuditReason(reason);
+  await db.transaction(async (client) => {
+    const current = await client.query<{ is_visible: boolean }>(
+      `SELECT is_visible FROM reviews WHERE id = $1 AND provider_id = $2 FOR UPDATE`,
+      [reviewId, providerId],
+    );
+    const review = current.rows[0];
+    if (!review) throw createAppError('Review not found for this provider.', 404);
+    if (review.is_visible === isVisible) {
+      throw createAppError(`Review is already ${isVisible ? 'visible' : 'hidden'}.`, 409);
+    }
+
+    await client.query(
+      `UPDATE reviews SET is_visible = $1, updated_at = NOW() WHERE id = $2 AND provider_id = $3`,
+      [isVisible, reviewId, providerId],
+    );
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'review_visibility_changed', 'review', $2, $3::jsonb, $4, $5)`,
+      [
+        adminId,
+        reviewId,
+        JSON.stringify({ providerId, previousVisible: review.is_visible, nextVisible: isVisible }),
+        auditReason.slice(0, 500),
+        auditReason,
+      ],
+    );
+  });
+}
+
+export async function setReviewAdminResponse(
+  providerId: string,
+  reviewId: string,
+  response: string,
+  reason: string,
+  adminId: string,
+): Promise<void> {
+  const publicResponse = response?.trim();
+  if (!publicResponse || publicResponse.length < 3) {
+    throw createAppError('response must be at least 3 characters.', 400);
+  }
+  if (publicResponse.length > 2000) {
+    throw createAppError('response must not exceed 2000 characters.', 400);
+  }
+  const auditReason = validateReviewAuditReason(reason);
+
+  await db.transaction(async (client) => {
+    const current = await client.query<{ admin_response: string | null }>(
+      `SELECT admin_response FROM reviews WHERE id = $1 AND provider_id = $2 FOR UPDATE`,
+      [reviewId, providerId],
+    );
+    const review = current.rows[0];
+    if (!review) throw createAppError('Review not found for this provider.', 404);
+    if (review.admin_response === publicResponse) {
+      throw createAppError('This public response is already published.', 409);
+    }
+
+    await client.query(
+      `UPDATE reviews SET admin_response = $1, updated_at = NOW() WHERE id = $2 AND provider_id = $3`,
+      [publicResponse, reviewId, providerId],
+    );
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'review_response_updated', 'review', $2, $3::jsonb, $4, $5)`,
+      [
+        adminId,
+        reviewId,
+        JSON.stringify({ providerId, previousResponse: review.admin_response, publicResponse }),
+        auditReason.slice(0, 500),
+        auditReason,
+      ],
+    );
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -842,12 +972,13 @@ export async function getProviderDisputes(
     db.query<{
       id: string;
       booking_id: string;
+      customer_id: string;
       customer_name: string;
       status: string;
       resolution_type: string | null;
       created_at: Date;
     }>(
-      `SELECT d.id, d.booking_id,
+      `SELECT d.id, d.booking_id, b.customer_id,
               (cu.first_name || ' ' || cu.last_name) AS customer_name,
               d.status,
               d.resolution_type,
@@ -865,6 +996,7 @@ export async function getProviderDisputes(
   const rows: ProviderDispute[] = dataResult.rows.map((r) => ({
     id: r.id,
     bookingId: r.booking_id,
+    customerId: r.customer_id,
     customerName: r.customer_name,
     status: r.status,
     resolutionType: r.resolution_type,
@@ -895,17 +1027,30 @@ export async function getProviderActivity(
   const safeLimit = Math.min(200, Math.max(1, Math.floor(limit) || 50));
 
   // 1. audit_log entries scoped to this provider entity OR to its user_id
-  const userResult = await db.query<{ user_id: string; phone: string }>(
-    `SELECT p.user_id, u.phone FROM providers p JOIN users u ON u.id = p.user_id WHERE p.id = $1`,
+  const userResult = await db.query<{
+    user_id: string;
+    phone: string;
+    first_name: string;
+    last_name: string;
+  }>(
+    `SELECT p.user_id, u.phone, u.first_name, u.last_name
+       FROM providers p
+       JOIN users u ON u.id = p.user_id
+      WHERE p.id = $1`,
     [providerId],
   );
   if (!userResult.rows[0]) throw createAppError('Provider not found.', 404);
   const userId = userResult.rows[0].user_id;
   const phone = userResult.rows[0].phone;
+  const providerName = `${userResult.rows[0].first_name} ${userResult.rows[0].last_name}`.trim();
 
-  const [auditRows, loginRows] = await Promise.all([
+  const [auditRows, loginRows, adminActionRows] = await Promise.all([
     db.query<{
       id: string;
+      user_id: string | null;
+      actor_first: string | null;
+      actor_last: string | null;
+      actor_role: string | null;
       action: string;
       entity_type: string;
       ip_address: string | null;
@@ -913,10 +1058,13 @@ export async function getProviderActivity(
       new_values: unknown;
       created_at: Date;
     }>(
-      `SELECT id, action, entity_type, ip_address::text, user_agent, new_values, created_at
-         FROM audit_log
-        WHERE entity_id = $1 OR (entity_type = 'users' AND entity_id = $2)
-        ORDER BY created_at DESC
+      `SELECT al.id, al.user_id, u.first_name AS actor_first, u.last_name AS actor_last,
+              u.role AS actor_role, al.action, al.entity_type, al.ip_address::text,
+              al.user_agent, al.new_values, al.created_at
+         FROM audit_log al
+         LEFT JOIN users u ON u.id = al.user_id
+        WHERE al.entity_id = $1 OR (al.entity_type = 'users' AND al.entity_id = $2)
+        ORDER BY al.created_at DESC
         LIMIT $3`,
       [providerId, userId, safeLimit],
     ),
@@ -935,6 +1083,44 @@ export async function getProviderActivity(
         LIMIT $2`,
       [phone, safeLimit],
     ),
+    db.query<{
+      id: string;
+      admin_id: string | null;
+      admin_first: string | null;
+      admin_last: string | null;
+      action_type: string;
+      reason: string | null;
+      details: unknown;
+      created_at: Date;
+    }>(
+      `SELECT a.id, a.admin_id, u.first_name AS admin_first, u.last_name AS admin_last,
+              a.action_type, a.reason, a.details, a.created_at
+         FROM admin_actions a
+         LEFT JOIN users u ON u.id = a.admin_id
+        WHERE (a.target_type = 'provider' AND a.target_id = $1)
+           OR (a.target_type = 'provider_application' AND a.target_id = $2)
+           OR (a.target_type = 'provider_note' AND EXISTS (
+                 SELECT 1 FROM provider_admin_notes n WHERE n.id = a.target_id AND n.provider_id = $1
+              ))
+           OR (a.target_type = 'provider_staff' AND EXISTS (
+                 SELECT 1 FROM provider_staff ps WHERE ps.id = a.target_id AND ps.provider_id = $1
+              ))
+           OR (a.target_type = 'provider_document' AND EXISTS (
+                 SELECT 1 FROM provider_documents pd WHERE pd.id = a.target_id AND pd.user_id = $2
+              ))
+           OR (a.target_type = 'provider_certification' AND EXISTS (
+                 SELECT 1 FROM provider_certifications pc WHERE pc.id = a.target_id AND pc.provider_id = $1
+              ))
+           OR (a.target_type = 'service_area_change_request' AND EXISTS (
+                 SELECT 1 FROM service_area_change_requests sar WHERE sar.id = a.target_id AND sar.provider_id = $2
+              ))
+           OR (a.target_type = 'review' AND EXISTS (
+                 SELECT 1 FROM reviews r WHERE r.id = a.target_id AND r.provider_id = $1
+              ))
+        ORDER BY a.created_at DESC
+        LIMIT $3`,
+      [providerId, userId, safeLimit],
+    ),
   ]);
 
   // MED-N14 fix: dynamic-import the masking helpers to avoid
@@ -951,27 +1137,55 @@ export async function getProviderActivity(
     return requesterRole === 'super_admin' ? ua : maskUserAgent(ua);
   };
 
-  const audit = auditRows.rows.map<ProviderActivityRow>((r) => ({
-    id: `audit:${r.id}`,
-    source: 'audit',
-    action: r.action,
-    detail: r.new_values ? JSON.stringify(r.new_values) : null,
-    ipAddress: maskIfNeeded(r.ip_address),
-    userAgent: maskUaIfNeeded(r.user_agent),
-    createdAt: r.created_at.toISOString(),
-  }));
+  const audit = auditRows.rows.map<ProviderActivityRow>((r) => {
+    const actorName = `${r.actor_first ?? ''} ${r.actor_last ?? ''}`.trim() || null;
+    const actorKind: ProviderActivityRow['actor']['kind'] = r.user_id === userId
+      ? 'provider'
+      : r.actor_role === 'provider_staff'
+        ? 'provider_staff'
+        : r.actor_role === 'customer'
+          ? 'customer'
+          : r.user_id
+            ? 'admin'
+            : 'system';
+    return {
+      id: `audit:${r.id}`,
+      source: 'audit',
+      action: r.action,
+      detail: r.new_values ? JSON.stringify(r.new_values) : null,
+      actor: { kind: actorKind, id: r.user_id, name: actorName },
+      ipAddress: maskIfNeeded(r.ip_address),
+      userAgent: maskUaIfNeeded(r.user_agent),
+      createdAt: r.created_at.toISOString(),
+    };
+  });
 
   const logins = loginRows.rows.map<ProviderActivityRow>((r) => ({
     id: `login:${r.id}`,
     source: 'login',
     action: `${r.attempt_type}:${r.success ? 'ok' : 'fail'}`,
     detail: null,
+    actor: { kind: 'provider', id: userId, name: providerName || null },
     ipAddress: maskIfNeeded(r.ip_address),
     userAgent: maskUaIfNeeded(r.user_agent),
     createdAt: r.created_at.toISOString(),
   }));
 
-  return [...audit, ...logins]
+  const adminActs = adminActionRows.rows.map<ProviderActivityRow>((r) => {
+    const adminName = `${r.admin_first ?? ''} ${r.admin_last ?? ''}`.trim() || null;
+    return {
+      id: `admin_action:${r.id}`,
+      source: 'admin_action',
+      action: r.action_type,
+      detail: r.reason ?? (r.details ? JSON.stringify(r.details) : null),
+      actor: { kind: r.admin_id ? 'admin' : 'system', id: r.admin_id, name: adminName },
+      ipAddress: null,
+      userAgent: null,
+      createdAt: r.created_at.toISOString(),
+    };
+  });
+
+  return [...audit, ...logins, ...adminActs]
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
     .slice(0, safeLimit);
 }

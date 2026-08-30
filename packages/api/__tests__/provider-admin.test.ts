@@ -233,6 +233,7 @@ describe('getProviderJobs', () => {
           completed_at: new Date('2024-01-15T10:00:00Z'),
           rating: 5,
           has_dispute: false,
+          dispute_id: null,
         },
       ]),
     );
@@ -302,6 +303,7 @@ describe('getProviderReviews + mutations', () => {
         {
           id: 'r1',
           booking_id: 'b1',
+          reviewer_id: 'c1',
           reviewer_name: 'Joe Cust',
           rating: 4,
           comment: 'good',
@@ -322,13 +324,24 @@ describe('getProviderReviews + mutations', () => {
 
   it('setReviewVisibility throws 404 when missing', async () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    await expect(svc.setReviewVisibility('rX', false)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(
+      svc.setReviewVisibility(PROVIDER_ID, 'rX', false, 'violates review policy', ADMIN_ID),
+    ).rejects.toMatchObject({ statusCode: 404 });
   });
 
   it('setReviewAdminResponse updates row', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    await svc.setReviewAdminResponse('r1', 'Thanks for the feedback');
-    expect(dbQueryMock.mock.calls[0][1]).toEqual(['Thanks for the feedback', 'r1']);
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ admin_response: null }]))
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    await svc.setReviewAdminResponse(
+      PROVIDER_ID,
+      'r1',
+      'Thanks for the feedback',
+      'support case outcome reviewed',
+      ADMIN_ID,
+    );
+    expect(dbQueryMock.mock.calls[1][1]).toEqual(['Thanks for the feedback', 'r1', PROVIDER_ID]);
   });
 });
 
@@ -341,6 +354,7 @@ describe('getProviderDisputes', () => {
         {
           id: 'd1',
           booking_id: 'b1',
+          customer_id: 'c1',
           customer_name: 'Joe Cust',
           status: 'resolved',
           resolution_type: 'partial_refund',
@@ -359,11 +373,20 @@ describe('getProviderDisputes', () => {
 describe('getProviderActivity', () => {
   it('merges audit + login_attempts and sorts desc', async () => {
     dbQueryMock
-      .mockResolvedValueOnce(rows([{ user_id: USER_ID, phone: '+639170000000' }]))
+      .mockResolvedValueOnce(rows([{
+        user_id: USER_ID,
+        phone: '+639170000000',
+        first_name: 'Jane',
+        last_name: 'Provider',
+      }]))
       .mockResolvedValueOnce(
         rows([
           {
             id: 'a1',
+            user_id: USER_ID,
+            actor_first: 'Jane',
+            actor_last: 'Provider',
+            actor_role: 'provider',
             action: 'PATCH /providers/x',
             entity_type: 'providers',
             ip_address: '1.2.3.4',
@@ -384,7 +407,8 @@ describe('getProviderActivity', () => {
             created_at: new Date('2024-02-03T00:00:00Z'),
           },
         ]),
-      );
+      )
+      .mockResolvedValueOnce(rows([]));
 
     const out = await svc.getProviderActivity(PROVIDER_ID, 50);
     expect(out).toHaveLength(2);

@@ -174,11 +174,17 @@ router.patch(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const { isVisible } = req.body ?? {};
+      const { isVisible, reason } = req.body ?? {};
       if (typeof isVisible !== 'boolean') {
         throw createAppError('isVisible (boolean) required.', 400);
       }
-      await providerAdminService.setReviewVisibility((req.params.reviewId as string), isVisible);
+      await providerAdminService.setReviewVisibility(
+        req.params.id as string,
+        req.params.reviewId as string,
+        isVisible,
+        String(reason ?? ''),
+        req.user!.userId,
+      );
       res.json({ success: true });
     } catch (error) {
       next(error);
@@ -192,11 +198,17 @@ router.patch(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const { response } = req.body ?? {};
+      const { response, reason } = req.body ?? {};
       if (typeof response !== 'string' || !response.trim()) {
         throw createAppError('response (non-empty string) required.', 400);
       }
-      await providerAdminService.setReviewAdminResponse((req.params.reviewId as string), response.trim());
+      await providerAdminService.setReviewAdminResponse(
+        req.params.id as string,
+        req.params.reviewId as string,
+        response,
+        String(reason ?? ''),
+        req.user!.userId,
+      );
       res.json({ success: true });
     } catch (error) {
       next(error);
