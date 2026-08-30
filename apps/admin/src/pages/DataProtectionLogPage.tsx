@@ -5,8 +5,8 @@
  * Lists data_subject_requests with filters and DPO actions:
  *   - Mark complete (response payload URL)
  *   - Request more info (info needed)
- *   - Reject (reason ≥ 20 chars, super_admin)
- *   - Escalate to NPC (NPC reference, super_admin)
+ *   - Reject (reason ≥ 20 chars, DPO or super-admin fallback)
+ *   - Escalate to NPC (NPC reference, DPO or super-admin fallback)
  *
  * All feedback uses sonner toasts. All form inputs include aria-* attributes.
  */
@@ -121,13 +121,12 @@ interface DialogState {
 
 export default function DataProtectionLogPage(): React.ReactElement {
   const queryClient = useQueryClient();
-  // Audit fix (2026-06-05) — ALL four DSR actions (complete, request-info,
-  // reject, escalate) are super_admin-only on the server
-  // (compliance-admin.routes.ts: requireSuperAdmin on /complete, /request-info,
-  // /reject, /escalate). Gate every action button on isSuperAdmin so a
-  // non-super admin never sees a button that returns a guaranteed 403. (The
-  // earlier comment wrongly described complete/request-info as any-admin.)
-  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
+  // D34 — privacy decisions belong to the dedicated DPO role, with super admin
+  // retained as the documented fallback. Plain operations admins cannot read
+  // or act on these records.
+  const canManagePrivacy = useAuthStore(
+    (s) => s.user?.role === 'super_admin' || s.user?.role === 'dpo',
+  );
   const [searchParams, setSearchParams] = useSearchParams();
 
   const statusFilter = parseStatus(searchParams.get('status'));
@@ -315,7 +314,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
         const terminal = r.status === 'completed' || r.status === 'rejected';
         return (
           <div className="flex flex-wrap gap-1.5">
-            {isSuperAdmin && (
+            {canManagePrivacy && (
               <>
                 <Button
                   size="sm"
@@ -375,11 +374,10 @@ export default function DataProtectionLogPage(): React.ReactElement {
         </div>
       </div>
 
-      {!isSuperAdmin && (
+      {!canManagePrivacy && (
         <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          You have read-only access to this page. Acting on a Data Subject Request
-          (complete, request info, reject, escalate) requires super-admin access —
-          contact a super administrator.
+          Data Subject Requests are restricted to the appointed Data Protection
+          Officer and the super-admin fallback.
         </div>
       )}
 
@@ -569,7 +567,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
           <DialogHeader>
             <DialogTitle>Reject data subject request</DialogTitle>
             <DialogDescription>
-              Rejection is a terminal action and is logged in the audit trail. Super-admin only.
+              Rejection is a terminal privacy action and is logged in the audit trail.
             </DialogDescription>
           </DialogHeader>
           <div>
@@ -618,7 +616,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
           <DialogHeader>
             <DialogTitle>Escalate to NPC</DialogTitle>
             <DialogDescription>
-              Record an NPC reference number. Status remains in_progress. Super-admin only.
+              Record an NPC reference number. Status remains in progress and the action is audited.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

@@ -243,6 +243,18 @@ export default function CancellationPolicyPage(): React.ReactElement {
     );
   }
 
+  if (!activeVersion) {
+    return (
+      <div className="p-6">
+        <ErrorState
+          title="No active cancellation policy"
+          description="Bookings must not rely on a missing or inactive cancellation policy. Restore and verify a server-canonical policy before accepting new work."
+          action={<Button onClick={(): void => { void versionsQuery.refetch(); }}>Retry policy lookup</Button>}
+        />
+      </div>
+    );
+  }
+
   const editPayload = editing;
 
   return (

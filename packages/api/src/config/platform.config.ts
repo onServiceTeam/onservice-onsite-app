@@ -101,6 +101,7 @@ export const platformConfig = {
     provider: '15m',
     admin: '15m',
     super_admin: '15m',
+    dpo: '15m',
   } as Record<string, string>,
   jwtRefreshExpiresIn: '30d',
 

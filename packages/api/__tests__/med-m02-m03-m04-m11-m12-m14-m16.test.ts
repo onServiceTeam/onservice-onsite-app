@@ -115,9 +115,10 @@ describe('MED-M11 — logger key-based redaction for password/hash/secret/token'
 });
 
 describe('MED-M12 — audit context documented; 15-min access-cookie cap intentional', () => {
-  it('MED-M12 — explanation of access vs refresh vs admin_sessions split is in source', () => {
+  it('MED-M12 — explanation of access, refresh, canonical user state, and CSRF split is in source', () => {
     expect(COOKIES_SRC).toMatch(/short-lived JWT carrying/);
-    expect(COOKIES_SRC).toMatch(/refresh cookie \+ admin_sessions\.expires_at/);
+    expect(COOKIES_SRC).toMatch(/current user role\/activity\/session generation/);
+    expect(COOKIES_SRC).toMatch(/refresh cookie \+ refresh-token JWT\/row/);
     expect(COOKIES_SRC).toMatch(/admin_csrf_tokens\.expires_at — bound to the access cookie/);
   });
   it('MED-M12 — 15-min cap preserved (security, NOT a setting bug)', () => {

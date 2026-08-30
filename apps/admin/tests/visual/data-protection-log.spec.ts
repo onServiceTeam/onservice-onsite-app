@@ -6,7 +6,7 @@
 //   pnpm exec playwright test tests/visual/data-protection-log.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
-import { test, expect } from './_fixtures';
+import { test, expect, waitForVisualSettled } from './_fixtures';
 
 const ROUTE = '/data-protection-log';
 
@@ -17,6 +17,7 @@ test.describe('DataProtectionLogPage', () => {
 
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`data-protection-log-default-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -55,6 +56,7 @@ test.describe('DataProtectionLogPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`data-protection-log-empty-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -75,6 +77,7 @@ test.describe('DataProtectionLogPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`data-protection-log-error-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,

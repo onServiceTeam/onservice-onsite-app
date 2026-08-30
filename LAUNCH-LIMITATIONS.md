@@ -1660,25 +1660,25 @@ webhook/duplicate/acceptance/notification regressions. See
 
 ---
 
-## 51. DPO admin-route segregation is incomplete
+## 51. DPO admin-route segregation is incomplete — RESOLVED IN CODE
 
-D15 and the operating doctrine define the DPO as an independent privacy-only
-role. The current application does not enforce that boundary consistently. The
-shared admin navigation exposes general operations pages to DPO sessions, there
-is no complete client route guard, DPO login lands on Dashboard even though its
-API excludes the role, consent administration accepts DPO while most DSR list
-and action routes do not, and the Compliance page mixes privacy work with BIR
-and general-admin material.
+D34 now implements the independent privacy-only DPO boundary. DPO login lands
+at `/privacy`; its navigation and direct-route guard expose only the privacy
+home, data-subject requests, consent versions, and account controls. General
+operations, support, customer/provider, booking, communication, money, tax,
+staff, settings, catalog, marketing, and general-audit routes remain excluded.
+The API route matrix is enforced independently of the client, and super admin
+retains fallback privacy authority without granting privacy records to a plain
+admin.
 
-This is an access-governance and privacy launch blocker, not permission to make
-one middleware allowlist wider. W9 leaves authorization unchanged. A dedicated
-wave must produce an explicit route/API/action matrix, a privacy-only DPO home,
-consistent DSR and consent ownership, general-admin boundaries, navigation and
-deep-link guards, migration/backward-compatibility treatment, and executed
-tests for all three admin-tier roles.
+Executed client and API tests cover allowed and rejected routes, direct URLs,
+navigation/search/breadcrumb surfaces, DSR actions, and the privacy home. The
+mixed Compliance page no longer mounts its old privacy/NPC tab. E40 separately
+holds the breach-classification workflow and statutory wording for counsel.
 
-Production synchronization and live role evidence are separately blocked by
-E32 until the server identity is established. See
+This resolution is committed code and local evidence only. Production migration,
+deployment, and live role evidence remain blocked by E32 until the server
+identity is established. See
 `.ai-coder/escalations/E34-dpo-admin-route-segregation-is-incomplete-2026-08-30.md`.
 
 ---
@@ -1743,20 +1743,25 @@ required production aggregate inspection. See
 
 ---
 
-## 55. DPO role changes do not revoke existing sessions
+## 55. DPO role changes do not revoke existing sessions — RESOLVED IN CODE
 
-The Staff & Roles DPO actions change `users.role` and record the transition,
-but they do not revoke existing access tokens, refresh-token rows, admin CSRF
-tokens, or browser sessions. Access tokens carry the role that existed when
-they were issued and remain usable for their current 15-minute lifetime.
-Refresh rotation reloads the current database role, but that does not make the
-already-issued access token fail immediately.
+Migration 158 adds canonical `users.session_version` state. Every protected HTTP
+request and authenticated socket handshake reloads the account role, active
+state, and session generation before accepting token authority. DPO promotion
+and removal now run as one locked transaction that changes the role, advances
+the generation, deletes refresh sessions, revokes active admin CSRF records,
+and writes the before/after transition plus revocation counts to the admin
+action. Local sockets are disconnected after commit.
 
-W13 removes the false immediate-access claim and displays the session and route
-boundary before assignment or removal. It does not change authorization or
-token state. Resolve this with E34 through an approved DPO route matrix, an
-immediate token-revocation/session-version design, transactional token cleanup,
-and executed old-token rejection tests. See
+Promotion is limited to an active plain-admin identity and removal always
+returns that same internal identity to admin. Executed tests prove old access
+and refresh tokens fail, current-generation tokens work, role mismatches and
+inactive accounts fail closed, sockets reject stale generations, and provider
+staff invitation preserves the generation. General privileged-account
+lifecycle and multi-instance socket fan-out remain governed separately by E39.
+
+This resolution is committed code and local evidence only. Production migration
+and post-deploy verification remain blocked by E32. See
 `.ai-coder/escalations/E38-dpo-role-changes-do-not-revoke-existing-sessions-2026-08-31.md`.
 
 ---
@@ -1777,3 +1782,25 @@ break-glass policy, immediate token invalidation, rollback, and executed
 concurrency tests. E32 blocks the required production account/session
 inventory. See
 `.ai-coder/escalations/E39-admin-account-lifecycle-is-not-governed-in-app-2026-08-31.md`.
+
+---
+
+## 57. Privacy deadline wording and breach-notification classification need counsel
+
+The product currently calls the 15-calendar-day DSR target an NPC-required
+fulfilment SLA and starts an "NPC notice pending" 72-hour clock for every row
+entered in the breach log. Official NPC material checked on 2026-08-31 does not
+support either conclusion that broadly. The 15-day material concerns whether a
+PIC/PIP took timely or appropriate action or responded before a complaint, and
+explicitly says the request need not be granted or denied in that period.
+Mandatory breach notification depends on a recorded assessment of the data,
+unauthorized acquisition, and likely serious harm, with limited Commission-
+approved postponement or omission paths.
+
+Do not silently rewrite legal promises or treat the current timer as a legal
+determination. The recommended correction keeps a conservative internal
+response clock while adding an audited breach-notification assessment,
+determination/rationale, affected-subject notice evidence, NPC receipt, and
+follow-up-report tracking. The operative wording and policy require qualified
+Philippine privacy counsel. See
+`.ai-coder/escalations/E40-privacy-deadline-legal-language-and-breach-classification-2026-08-31.md`.

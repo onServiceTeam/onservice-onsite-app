@@ -66,6 +66,7 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
       .slice(0, 8);
   }, [navItems, query]);
   const recordSearchAllowed = user?.role === 'admin' || user?.role === 'super_admin';
+  const isDpo = user?.role === 'dpo';
 
   useEffect(() => {
     const needle = query.trim();
@@ -201,7 +202,7 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
           aria-label="Search admin pages and records"
           aria-expanded={searchOpen}
           aria-controls="admin-command-results"
-          placeholder="Search pages, people, bookings, cases..."
+          placeholder={recordSearchAllowed ? 'Search pages, people, bookings, cases...' : 'Search privacy pages...'}
         />
         <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-[var(--color-border)] bg-white px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-text-secondary)] sm:block">
           Ctrl K
@@ -213,7 +214,7 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
             className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 max-h-[min(70vh,34rem)] overflow-y-auto rounded-lg border border-[var(--color-border-strong)] bg-white"
           >
             <div className="border-b border-[var(--color-border)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--color-text-tertiary)]">
-              Pages and operational records
+              {recordSearchAllowed ? 'Pages and operational records' : 'Privacy pages'}
             </div>
             {pageResults.length > 0 && (
               <section aria-label="Matching admin pages">
@@ -292,7 +293,7 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
             <p className="border-t border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-[11px] text-[var(--color-text-secondary)]">
               {recordSearchAllowed
                 ? 'Record results mask contact details and open the canonical case workspace. Use the audited 360 reveal only when full contact is needed.'
-                : 'Page search only for the privacy role. General operations record search remains held under E34.'}
+                : 'Page search only for the privacy role. General operations records are intentionally outside DPO access.'}
             </p>
           </div>
         )}
@@ -309,9 +310,9 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
 
       <button
         type="button"
-        onClick={() => navigate('/#operational-alerts')}
+        onClick={() => navigate(isDpo ? '/privacy' : '/#operational-alerts')}
         className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]"
-        aria-label="View operational alerts"
+        aria-label={isDpo ? 'View privacy deadlines' : 'View operational alerts'}
       >
         <Bell size={20} />
       </button>

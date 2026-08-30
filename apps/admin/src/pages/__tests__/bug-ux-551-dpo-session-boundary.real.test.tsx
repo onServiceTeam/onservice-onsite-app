@@ -19,7 +19,7 @@ vi.mock('react-router-dom', async () => {
 
 import StaffRolesPage from '../StaffRolesPage';
 
-it('Bug UX-551 — DPO role changes disclose incomplete route segregation and non-revoked sessions before action', async () => {
+it('Bug UX-551 — DPO role changes explain the immediate privacy route and session boundary', async () => {
   apiGet.mockResolvedValue({ data: { data: [] } });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -28,7 +28,7 @@ it('Bug UX-551 — DPO role changes disclose incomplete route segregation and no
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText('Access and session boundary')).toBeInTheDocument();
-  expect(screen.getByText(/DPO route segregation is not yet complete/i)).toBeInTheDocument();
-  expect(screen.getByText(/does not revoke already-issued login or refresh tokens/i)).toBeInTheDocument();
+  expect(await screen.findByText('Immediate privacy access boundary')).toBeInTheDocument();
+  expect(screen.getByText(/invalidate the account's old access, refresh, CSRF, and live socket sessions/i)).toBeInTheDocument();
+  expect(screen.getByText(/only the routes allowed by the new account role/i)).toBeInTheDocument();
 });

@@ -8,8 +8,8 @@ import { maskPhilippinePhone, maskEmail, type ActorRole } from '../utils/pii-mas
 // user_email + user_first_name + user_last_name. Post-fix:
 //   - super_admin: raw (audit the read at the route layer if surfaced
 //     via a "reveal" affordance).
-//   - dpo: masked phone/email (DPO doesn't need raw user contacts to
-//     do their compliance job).
+//   - dpo: masked phone/email but full name when a privacy workflow supplies
+//     a ticket record. The support routes themselves reject DPO sessions.
 //   - all other admin roles: masked phone/email + last initial only.
 // First name is always preserved (needed to greet the customer in
 // reply messages).

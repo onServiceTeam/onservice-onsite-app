@@ -83,15 +83,15 @@ router.delete(
 // LAUNCH-LIMITATIONS #12 — admin password rotation endpoints.
 // ─────────────────────────────────────────────────────────────────
 
-// Telemetry — anyone admin-tier can read; the count is non-sensitive.
+// Operations telemetry — admin and super_admin can read. DPO accounts retain
+// their own password/device controls but not workforce-wide security stats.
 router.get(
   '/admin/legacy-password-stats',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       if (req.user?.role !== 'admin'
-          && req.user?.role !== 'super_admin'
-          && req.user?.role !== 'dpo') {
+          && req.user?.role !== 'super_admin') {
         throw createAppError('admin tier role required.', 403);
       }
       const data = await passwordRotation.getLegacyPasswordStats();

@@ -6,7 +6,7 @@
 //   pnpm exec playwright test tests/visual/dispatch-console.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
-import { test, expect } from './_fixtures';
+import { test, expect, waitForVisualSettled } from './_fixtures';
 import type { Page } from '@playwright/test';
 
 const ROUTE = '/dispatch';
@@ -38,6 +38,7 @@ test.describe('DispatchConsolePage', () => {
 
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await hideExternalMapTiles(page);
         await expect(page).toHaveScreenshot(`dispatch-console-default-${width}.png`, {
           fullPage: true,
@@ -78,6 +79,7 @@ test.describe('DispatchConsolePage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await hideExternalMapTiles(page);
         await expect(page).toHaveScreenshot(`dispatch-console-empty-${width}.png`, {
           fullPage: true,
@@ -99,6 +101,7 @@ test.describe('DispatchConsolePage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await hideExternalMapTiles(page);
         await expect(page).toHaveScreenshot(`dispatch-console-error-${width}.png`, {
           fullPage: true,

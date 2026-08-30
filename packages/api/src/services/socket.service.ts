@@ -4,10 +4,12 @@ import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 import * as messagingService from './messaging.service';
+import { db } from '../models/db';
 
 interface AuthPayload {
   userId: string;
   role: string;
+  sessionVersion?: number;
   exp: number; // unix-seconds JWT expiry
 }
 
@@ -61,7 +63,7 @@ export function initSocketServer(httpServer: HttpServer): Server {
     pingInterval: platformConfig.socketPingIntervalMs,
   });
 
-  io.use((socket: AuthenticatedSocket, next) => {
+  io.use(async (socket: AuthenticatedSocket, next) => {
     // Bug 1251 fix: prefer the admin_session HttpOnly cookie when the browser
     // sends one (admin web), and fall back to the legacy handshake-auth token
     // (mobile clients still pass it explicitly).
@@ -94,8 +96,32 @@ export function initSocketServer(httpServer: HttpServer): Server {
         return;
       }
 
+      const canonical = await db.query<{
+        role: string;
+        is_active: boolean;
+        session_version: number | string;
+      }>(
+        `SELECT role, is_active, session_version
+           FROM users
+          WHERE id = $1`,
+        [payload.userId],
+      );
+      const account = canonical.rows[0];
+      const tokenVersion = Number(payload.sessionVersion ?? 1);
+      const currentVersion = Number(account?.session_version);
+      if (!account?.is_active
+          || account.role !== payload.role
+          || !Number.isSafeInteger(tokenVersion)
+          || tokenVersion < 1
+          || !Number.isSafeInteger(currentVersion)
+          || currentVersion < 1
+          || tokenVersion !== currentVersion) {
+        next(new Error('Session revoked'));
+        return;
+      }
+
       socket.userId = payload.userId;
-      socket.userRole = payload.role;
+      socket.userRole = account.role;
       socket.tokenExp = payload.exp;
       next();
     } catch {
@@ -257,6 +283,15 @@ export function emitToUser(userId: string, event: string, data: unknown): void {
 
 export function emitToConversation(conversationId: string, event: string, data: unknown): void {
   io?.to(`conversation:${conversationId}`).emit(event, data);
+}
+
+/**
+ * Disconnect every live socket for one account after an access-sensitive
+ * account transition commits. The next handshake must present a token with
+ * the current role and session generation.
+ */
+export function disconnectUserSockets(userId: string): void {
+  io?.in(`user:${userId}`).disconnectSockets(true);
 }
 
 // ─── Phase 10: Real-time admin dispatch console ─────────────────────────────

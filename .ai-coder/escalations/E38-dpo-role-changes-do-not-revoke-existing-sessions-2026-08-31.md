@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-31
 **Severity:** High privacy authorization risk
-**Status:** Open hard stop for DPO role-transition changes
+**Status:** RESOLVED IN CODE — production migration/deployment evidence pending E32
 **Found during:** Admin Staff & Roles W13 audit
 
 ## Bad news first
@@ -73,3 +73,23 @@ Resolve this together with E34 in a dedicated security and privacy wave:
   tokens.
 - Do not change a production DPO role or session while E32 blocks verified
   server identity and E34 remains unresolved.
+
+## Code resolution recorded 2026-08-31
+
+Migration 158 introduces `users.session_version`. Protected HTTP requests and
+Socket.IO handshakes compare the signed role/generation with canonical account
+state. DPO promotion and removal now lock the account, constrain the transition
+to `admin -> dpo -> admin`, advance the generation, remove refresh sessions,
+revoke admin CSRF records, audit the exact transition and revocation counts,
+then disconnect local sockets after commit.
+
+Behavioral evidence includes `bug-ux-558-canonical-session-state.test.ts`,
+`bug-ux-559-dpo-transition-revocation.test.ts`,
+`bug-ux-562-admin-session-timeout.test.ts`,
+`bug-ux-566-socket-session-generation.test.ts`, and
+`bug-ux-570-provider-staff-session-generation.test.ts`. E39 remains open for
+the broader privileged-account lifecycle and any future multi-instance socket
+adapter requirement.
+
+No production token, account, schema, or service was changed. E32 still blocks
+Migration 158 and live old-token/post-transition verification.

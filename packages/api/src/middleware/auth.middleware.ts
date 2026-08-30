@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { createAppError } from './error.middleware';
 import { requireAdminCsrf } from './admin-csrf.middleware';
 import { logger } from '../utils/logger';
+import { db } from '../models/db';
 
 // E01 / D15 (2026-05-02) — `dpo` is a real role for NPC RA 10173 §21
 // segregation of duties. JWTs may now be signed with role='dpo'.
@@ -10,6 +11,11 @@ export interface AuthPayload {
   userId: string;
   // D23 — `provider_staff` is a team member with their own scoped login.
   role: 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo' | 'provider_staff';
+  /**
+   * Migration 158 account-session generation. Tokens minted before migration
+   * 158 have no claim and are treated as generation 1 only.
+   */
+  sessionVersion?: number;
   iat: number;
   exp: number;
 }
@@ -50,7 +56,13 @@ export function authMiddleware(
     return;
   }
 
-  const authenticate = (): void => {
+  const rejectRevokedSession = (): void => {
+    const revoked = createAppError('Your session is no longer valid. Please sign in again.', 401);
+    (revoked as { code?: string }).code = 'session_revoked';
+    next(revoked);
+  };
+
+  const authenticate = async (): Promise<void> => {
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
       logger.error('JWT_SECRET environment variable is not set');
@@ -58,27 +70,15 @@ export function authMiddleware(
       return;
     }
 
+    let payload: AuthPayload & { type?: string };
     try {
-      const payload = jwt.verify(token, jwtSecret) as AuthPayload & { type?: string };
+      payload = jwt.verify(token, jwtSecret) as AuthPayload & { type?: string };
 
       // Reject pre-auth (2FA pending) and refresh tokens from being used as access tokens
       if (payload.type === 'pre_auth_2fa' || payload.type === 'refresh') {
         next(createAppError('Invalid authentication token.', 401));
         return;
       }
-
-      req.user = payload;
-
-      // UX-556 — CSRF follows the credential, not a URL prefix. Admin pages
-      // also write through mixed route families such as /staff and
-      // /support-tickets. Validate the JWT first so an expired access cookie
-      // still returns token_expired and can use the normal refresh flow; only
-      // an authenticated cookie request proceeds to the CSRF identity check.
-      if (cookieToken) {
-        void requireAdminCsrf(req, res, next).catch(next);
-        return;
-      }
-      next();
     } catch (err) {
       // MED-M04 fix — distinguish expired vs malformed JWT so the
       // client can take the right action: TokenExpiredError → mobile/
@@ -100,8 +100,65 @@ export function authMiddleware(
       }
       // Unknown error class — keep generic message for safety.
       next(createAppError('Invalid or expired authentication token.', 401));
+      return;
+    }
+
+    // UX-558 / migration 158 — a signed token is not sufficient authority.
+    // Reload the canonical account state on every protected request so role
+    // changes and deactivation take effect immediately. A missing version on a
+    // pre-migration token means generation 1, never "whatever is current".
+    try {
+      const canonical = await db.query<{
+        role: AuthPayload['role'];
+        is_active: boolean;
+        session_version: number | string;
+      }>(
+        `SELECT role, is_active, session_version
+           FROM users
+          WHERE id = $1`,
+        [payload.userId],
+      );
+      const account = canonical.rows[0];
+      if (!account || !account.is_active) {
+        rejectRevokedSession();
+        return;
+      }
+
+      const tokenVersion = Number(payload.sessionVersion ?? 1);
+      const currentVersion = Number(account.session_version);
+      if (account.role !== payload.role
+          || !Number.isSafeInteger(tokenVersion)
+          || tokenVersion < 1
+          || !Number.isSafeInteger(currentVersion)
+          || currentVersion < 1
+          || currentVersion !== tokenVersion) {
+        rejectRevokedSession();
+        return;
+      }
+
+      req.user = {
+        ...payload,
+        role: account.role,
+        sessionVersion: currentVersion,
+      };
+
+      // UX-556 — CSRF follows the credential, not a URL prefix. Admin pages
+      // also write through mixed route families such as /staff and
+      // /support-tickets. Canonical account validation runs before the CSRF
+      // identity check, so a revoked role/session cannot reach a write route.
+      if (cookieToken) {
+        await requireAdminCsrf(req, res, next);
+        return;
+      }
+      next();
+    } catch (err) {
+      logger.error('Canonical authentication state lookup failed', {
+        userId: payload.userId,
+        error: err instanceof Error ? err.message : 'Unknown',
+      });
+      next(createAppError('Unable to validate the authentication session.', 500));
     }
   };
 
-  authenticate();
+  void authenticate();
 }

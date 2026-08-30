@@ -111,7 +111,7 @@ test.describe('CatalogPage', () => {
           void route;
         });
         await page.goto(ROUTE);
-        await expect(page.locator('.animate-spin')).toBeVisible();
+        await expect(page.getByText('Loading the service catalog…')).toBeVisible();
         await expect(page.locator('main')).toHaveScreenshot(`catalog-loading-${width}.png`, {
           maxDiffPixelRatio: 0.01,
         });
@@ -151,7 +151,7 @@ test.describe('CatalogPage', () => {
           }
         });
         await page.goto(ROUTE);
-        await expect(page.getByText('Failed to load catalog. Please try again.')).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByText('Service catalog unavailable')).toBeVisible({ timeout: 10_000 });
         await expect(page.locator('.animate-spin')).toHaveCount(0);
         await expect(page.locator('main')).toHaveScreenshot(`catalog-error-${width}.png`, {
           maxDiffPixelRatio: 0.01,

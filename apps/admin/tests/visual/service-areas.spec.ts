@@ -6,7 +6,7 @@
 //   pnpm exec playwright test tests/visual/service-areas.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
-import { test, expect } from './_fixtures';
+import { test, expect, waitForVisualSettled } from './_fixtures';
 
 const ROUTE = '/service-areas';
 
@@ -17,6 +17,7 @@ test.describe('ServiceAreasPage', () => {
 
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`service-areas-default-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -55,6 +56,7 @@ test.describe('ServiceAreasPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`service-areas-empty-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -75,6 +77,7 @@ test.describe('ServiceAreasPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`service-areas-error-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,

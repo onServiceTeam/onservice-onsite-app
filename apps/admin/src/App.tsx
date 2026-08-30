@@ -2,6 +2,7 @@ import React, { useEffect, lazy } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import { useAuthStore } from '@/stores/auth.store';
+import type { AdminUser } from '@/stores/auth.store';
 import AdminLayout from '@/components/AdminLayout';
 import LoginPage from '@/pages/LoginPage';
 // LAUNCH-LIMITATIONS #12 — must-rotate-password redirect target.
@@ -39,6 +40,7 @@ const FeedbackPage = lazy(() => import('@/pages/FeedbackPage'));
 const CompliancePage = lazy(() => import('@/pages/CompliancePage'));
 const DataProtectionLogPage = lazy(() => import('@/pages/DataProtectionLogPage'));
 const ConsentVersionsPage = lazy(() => import('@/pages/ConsentVersionsPage'));
+const PrivacyWorkspacePage = lazy(() => import('@/pages/PrivacyWorkspacePage'));
 // Phase L MED-L01 fix — 404 catch-all page.
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 
@@ -55,6 +57,24 @@ function MustRotateGuard(): React.ReactElement {
     return <Navigate to="/change-password" replace />;
   }
   return <Outlet />;
+}
+
+export function RoleRouteGuard({
+  allowed,
+}: {
+  allowed: AdminUser['role'][];
+}): React.ReactElement {
+  const role = useAuthStore((s) => s.user?.role);
+  if (!role || !allowed.includes(role)) {
+    return <Navigate to={role === 'dpo' ? '/privacy' : '/'} replace />;
+  }
+  return <Outlet />;
+}
+
+export function RoleHome(): React.ReactElement {
+  const role = useAuthStore((s) => s.user?.role);
+  if (role === 'dpo') return <Navigate to="/privacy" replace />;
+  return <DashboardPage />;
 }
 
 export default function App(): React.ReactElement {
@@ -83,38 +103,45 @@ export default function App(): React.ReactElement {
               the wrapper element below; if mustRotatePassword=true the
               guard redirects to /change-password. */}
           <Route element={<MustRotateGuard />}>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/providers" element={<ProvidersPage />} />
-            <Route path="/providers/:id" element={<ProviderDetailPage />} />
-            <Route path="/customers" element={<CustomersPage />} />
-            <Route path="/customers/:id" element={<CustomerDetailPage />} />
-            <Route path="/bookings" element={<BookingsPage />} />
-            <Route path="/bookings/:id" element={<BookingDetailPage />} />
-            <Route path="/catalog" element={<CatalogPage />} />
-            <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/disputes" element={<DisputesPage />} />
-            <Route path="/disputes/:id" element={<DisputeDetailPage />} />
-            <Route path="/financials" element={<FinancialsPage />} />
-            <Route path="/payouts" element={<PayoutsPage />} />
-            <Route path="/notification-templates" element={<NotificationTemplatesPage />} />
-            <Route path="/recurring" element={<RecurringPage />} />
-            <Route path="/business-accounts" element={<BusinessAccountsPage />} />
-            <Route path="/business-accounts/:id" element={<BusinessAccountDetailPage />} />
-            <Route path="/service-areas" element={<ServiceAreasPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/audit-log" element={<AuditLogPage />} />
-            <Route path="/support-tickets" element={<SupportTicketsPage />} />
-            <Route path="/staff" element={<StaffRolesPage />} />
-            <Route path="/settings" element={<SystemSettingsPage />} />
-            <Route path="/settings/cancellation-policy" element={<CancellationPolicyPage />} />
-            <Route path="/marketing" element={<MarketingPage />} />
-            <Route path="/dispatch" element={<DispatchConsolePage />} />
-            <Route path="/communications" element={<CommunicationsPage />} />
-            <Route path="/feedback" element={<FeedbackPage />} />
-            <Route path="/compliance" element={<CompliancePage />} />
-            <Route path="/data-protection-log" element={<DataProtectionLogPage />} />
-            <Route path="/consent-versions" element={<ConsentVersionsPage />} />
-            <Route path="/pricing-rules" element={<PricingRulesPage />} />
+            <Route path="/" element={<RoleHome />} />
+            <Route element={<RoleRouteGuard allowed={['admin', 'super_admin']} />}>
+              <Route path="/providers" element={<ProvidersPage />} />
+              <Route path="/providers/:id" element={<ProviderDetailPage />} />
+              <Route path="/customers" element={<CustomersPage />} />
+              <Route path="/customers/:id" element={<CustomerDetailPage />} />
+              <Route path="/bookings" element={<BookingsPage />} />
+              <Route path="/bookings/:id" element={<BookingDetailPage />} />
+              <Route path="/catalog" element={<CatalogPage />} />
+              <Route path="/projects" element={<ProjectsPage />} />
+              <Route path="/disputes" element={<DisputesPage />} />
+              <Route path="/disputes/:id" element={<DisputeDetailPage />} />
+              <Route path="/financials" element={<FinancialsPage />} />
+              <Route path="/payouts" element={<PayoutsPage />} />
+              <Route path="/notification-templates" element={<NotificationTemplatesPage />} />
+              <Route path="/recurring" element={<RecurringPage />} />
+              <Route path="/business-accounts" element={<BusinessAccountsPage />} />
+              <Route path="/business-accounts/:id" element={<BusinessAccountDetailPage />} />
+              <Route path="/service-areas" element={<ServiceAreasPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/audit-log" element={<AuditLogPage />} />
+              <Route path="/support-tickets" element={<SupportTicketsPage />} />
+              <Route path="/settings" element={<SystemSettingsPage />} />
+              <Route path="/marketing" element={<MarketingPage />} />
+              <Route path="/dispatch" element={<DispatchConsolePage />} />
+              <Route path="/communications" element={<CommunicationsPage />} />
+              <Route path="/feedback" element={<FeedbackPage />} />
+              <Route path="/compliance" element={<CompliancePage />} />
+              <Route path="/pricing-rules" element={<PricingRulesPage />} />
+            </Route>
+            <Route element={<RoleRouteGuard allowed={['super_admin']} />}>
+              <Route path="/staff" element={<StaffRolesPage />} />
+              <Route path="/settings/cancellation-policy" element={<CancellationPolicyPage />} />
+            </Route>
+            <Route element={<RoleRouteGuard allowed={['dpo', 'super_admin']} />}>
+              <Route path="/privacy" element={<PrivacyWorkspacePage />} />
+              <Route path="/data-protection-log" element={<DataProtectionLogPage />} />
+              <Route path="/consent-versions" element={<ConsentVersionsPage />} />
+            </Route>
             {/* Phase L MED-L01 fix — catch-all 404. Inside AdminLayout
                  so admin chrome stays visible; pre-fix typoed URLs just
                  rendered a blank page. */}

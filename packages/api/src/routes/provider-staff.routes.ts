@@ -39,7 +39,15 @@ router.post(
     try {
       const userId = req.user!.userId;
       const staff = await providerStaffService.acceptInvite(req.params.staffId as string, userId);
-      const tokens = await authService.createTokenPair(userId, 'provider_staff');
+      // Preserve the account's canonical session generation while minting the
+      // post-acceptance role token. The role mismatch invalidates the caller's
+      // former customer/provider token on its next request; inventing version 1
+      // here would strand any account whose generation has already advanced.
+      const tokens = await authService.createTokenPair(
+        userId,
+        'provider_staff',
+        Number(req.user!.sessionVersion ?? 1),
+      );
       res.json({
         success: true,
         data: {

@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
+import { disconnectUserSockets } from './socket.service';
 
 export interface AdminRole {
   id: string;
@@ -699,14 +700,26 @@ export async function promoteToDpo(
   targetUserId: string,
   promotedByAdminId: string,
   reason: string,
-): Promise<{ userId: string; previousRole: string; newRole: 'dpo' }> {
+): Promise<{
+  userId: string;
+  previousRole: string;
+  newRole: 'dpo';
+  sessionVersion: number;
+  revokedRefreshTokens: number;
+  revokedCsrfTokens: number;
+}> {
   if (!targetUserId) throw createAppError('Target user ID is required.', 400);
   const trimmedReason = reason.trim();
   if (trimmedReason.length < 10) throw createAppError('Reason must be at least 10 characters.', 400);
 
-  return db.transaction(async (client) => {
-    const target = await client.query<{ id: string; role: string; is_active: boolean }>(
-      `SELECT id, role, is_active FROM users WHERE id = $1 FOR UPDATE`,
+  const result = await db.transaction(async (client) => {
+    const target = await client.query<{
+      id: string;
+      role: string;
+      is_active: boolean;
+      session_version: number | string;
+    }>(
+      `SELECT id, role, is_active, session_version FROM users WHERE id = $1 FOR UPDATE`,
       [targetUserId],
     );
     if (target.rows.length === 0) {
@@ -724,7 +737,18 @@ export async function promoteToDpo(
     }
     if (prev.role === 'dpo') {
       // Idempotent — return current state without writing an audit row.
-      return { userId: prev.id, previousRole: 'dpo', newRole: 'dpo' as const };
+      return {
+        userId: prev.id,
+        previousRole: 'dpo',
+        newRole: 'dpo' as const,
+        sessionVersion: Number(prev.session_version),
+        revokedRefreshTokens: 0,
+        revokedCsrfTokens: 0,
+        changed: false,
+      };
+    }
+    if (prev.role !== 'admin') {
+      throw createAppError('Only a dedicated active admin account can be appointed as DPO.', 409);
     }
 
     // Serialize the singleton DPO seat without locking unrelated user rows.
@@ -737,8 +761,25 @@ export async function promoteToDpo(
       throw createAppError('An active DPO is already assigned. Complete the documented handover first.', 409);
     }
 
-    await client.query(
-      `UPDATE users SET role = 'dpo', updated_at = NOW() WHERE id = $1`,
+    const updated = await client.query<{ session_version: number | string }>(
+      `UPDATE users
+          SET role = 'dpo',
+              session_version = session_version + 1,
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING session_version`,
+      [prev.id],
+    );
+    const sessionVersion = Number(updated.rows[0]!.session_version);
+    const revokedRefresh = await client.query(
+      `DELETE FROM refresh_tokens WHERE user_id = $1`,
+      [prev.id],
+    );
+    const revokedCsrf = await client.query(
+      `UPDATE admin_csrf_tokens
+          SET revoked_at = NOW()
+        WHERE admin_user_id = $1
+          AND revoked_at IS NULL`,
       [prev.id],
     );
 
@@ -749,21 +790,50 @@ export async function promoteToDpo(
       [
         promotedByAdminId,
         prev.id,
-        JSON.stringify({ previousRole: prev.role, newRole: 'dpo' }),
+        JSON.stringify({
+          previousRole: prev.role,
+          newRole: 'dpo',
+          sessionVersion,
+          revokedRefreshTokens: revokedRefresh.rowCount ?? 0,
+          revokedCsrfTokens: revokedCsrf.rowCount ?? 0,
+        }),
         trimmedReason.slice(0, 500),
         trimmedReason,
       ],
     );
 
-    logger.info('User promoted to DPO', { targetUserId: prev.id, promotedByAdminId, previousRole: prev.role });
-    return { userId: prev.id, previousRole: prev.role, newRole: 'dpo' as const };
+    logger.info('User promoted to DPO', {
+      targetUserId: prev.id,
+      promotedByAdminId,
+      previousRole: prev.role,
+      sessionVersion,
+      revokedRefreshTokens: revokedRefresh.rowCount ?? 0,
+      revokedCsrfTokens: revokedCsrf.rowCount ?? 0,
+    });
+    return {
+      userId: prev.id,
+      previousRole: prev.role,
+      newRole: 'dpo' as const,
+      sessionVersion,
+      revokedRefreshTokens: revokedRefresh.rowCount ?? 0,
+      revokedCsrfTokens: revokedCsrf.rowCount ?? 0,
+      changed: true,
+    };
   });
+  if (result.changed) disconnectUserSockets(result.userId);
+  return {
+    userId: result.userId,
+    previousRole: result.previousRole,
+    newRole: result.newRole,
+    sessionVersion: result.sessionVersion,
+    revokedRefreshTokens: result.revokedRefreshTokens,
+    revokedCsrfTokens: result.revokedCsrfTokens,
+  };
 }
 
 /**
- * Demotes a DPO back to plain admin. Refuses to demote a non-DPO.
- * Default fallback role is 'admin'; pass `demoteTo` to override (must
- * be one of: admin, customer, provider — never super_admin).
+ * Removes the DPO appointment and returns the dedicated identity to plain
+ * admin. Refuses to cross the internal/external account-persona boundary.
  *
  * Operationally there should be 0 or 1 DPO at any time per NPC §21;
  * the demote path is for handover (demote outgoing, then promote new).
@@ -772,16 +842,18 @@ export async function demoteFromDpo(
   targetUserId: string,
   demotedByAdminId: string,
   reason: string,
-  demoteTo: 'admin' | 'customer' | 'provider' = 'admin',
-): Promise<{ userId: string; previousRole: 'dpo'; newRole: typeof demoteTo }> {
+): Promise<{
+  userId: string;
+  previousRole: 'dpo';
+  newRole: 'admin';
+  sessionVersion: number;
+  revokedRefreshTokens: number;
+  revokedCsrfTokens: number;
+}> {
   if (!targetUserId) throw createAppError('Target user ID is required.', 400);
   const trimmedReason = reason.trim();
   if (trimmedReason.length < 10) throw createAppError('Reason must be at least 10 characters.', 400);
-  if (!['admin', 'customer', 'provider'].includes(demoteTo)) {
-    throw createAppError('Invalid demoteTo role.', 400);
-  }
-
-  return db.transaction(async (client) => {
+  const result = await db.transaction(async (client) => {
     const target = await client.query<{ id: string; role: string }>(
       `SELECT id, role FROM users WHERE id = $1 FOR UPDATE`,
       [targetUserId],
@@ -794,9 +866,26 @@ export async function demoteFromDpo(
       throw createAppError('Target user is not currently a DPO.', 409);
     }
 
-    await client.query(
-      `UPDATE users SET role = $2, updated_at = NOW() WHERE id = $1`,
-      [prev.id, demoteTo],
+    const updated = await client.query<{ session_version: number | string }>(
+      `UPDATE users
+          SET role = 'admin',
+              session_version = session_version + 1,
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING session_version`,
+      [prev.id],
+    );
+    const sessionVersion = Number(updated.rows[0]!.session_version);
+    const revokedRefresh = await client.query(
+      `DELETE FROM refresh_tokens WHERE user_id = $1`,
+      [prev.id],
+    );
+    const revokedCsrf = await client.query(
+      `UPDATE admin_csrf_tokens
+          SET revoked_at = NOW()
+        WHERE admin_user_id = $1
+          AND revoked_at IS NULL`,
+      [prev.id],
     );
 
     await client.query(
@@ -806,15 +895,37 @@ export async function demoteFromDpo(
       [
         demotedByAdminId,
         prev.id,
-        JSON.stringify({ previousRole: 'dpo', newRole: demoteTo }),
+        JSON.stringify({
+          previousRole: 'dpo',
+          newRole: 'admin',
+          sessionVersion,
+          revokedRefreshTokens: revokedRefresh.rowCount ?? 0,
+          revokedCsrfTokens: revokedCsrf.rowCount ?? 0,
+        }),
         trimmedReason.slice(0, 500),
         trimmedReason,
       ],
     );
 
-    logger.info('User demoted from DPO', { targetUserId: prev.id, demotedByAdminId, newRole: demoteTo });
-    return { userId: prev.id, previousRole: 'dpo' as const, newRole: demoteTo };
+    logger.info('User demoted from DPO', {
+      targetUserId: prev.id,
+      demotedByAdminId,
+      newRole: 'admin',
+      sessionVersion,
+      revokedRefreshTokens: revokedRefresh.rowCount ?? 0,
+      revokedCsrfTokens: revokedCsrf.rowCount ?? 0,
+    });
+    return {
+      userId: prev.id,
+      previousRole: 'dpo' as const,
+      newRole: 'admin' as const,
+      sessionVersion,
+      revokedRefreshTokens: revokedRefresh.rowCount ?? 0,
+      revokedCsrfTokens: revokedCsrf.rowCount ?? 0,
+    };
   });
+  disconnectUserSockets(result.userId);
+  return result;
 }
 
 /**

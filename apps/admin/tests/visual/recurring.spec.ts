@@ -6,7 +6,7 @@
 //   pnpm exec playwright test tests/visual/recurring.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
-import { test, expect } from './_fixtures';
+import { test, expect, waitForVisualSettled } from './_fixtures';
 
 const ROUTE = '/recurring';
 
@@ -17,6 +17,7 @@ test.describe('RecurringPage', () => {
 
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`recurring-default-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -55,6 +56,7 @@ test.describe('RecurringPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`recurring-empty-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -75,6 +77,7 @@ test.describe('RecurringPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`recurring-error-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,

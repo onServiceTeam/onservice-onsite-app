@@ -19,6 +19,9 @@ jest.mock('../src/models/db', () => ({
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
+jest.mock('../src/services/socket.service', () => ({
+  disconnectUserSockets: jest.fn(),
+}));
 
 import { promoteToDpo, demoteFromDpo, listDpos } from '../src/services/staff.service';
 import { requireDpoRole, requireSuperAdminRole } from '../src/middleware/require-dpo.middleware';
@@ -164,19 +167,24 @@ describe('E01 — bootstrap-admin allows dpo role', () => {
 describe('E01 — promoteToDpo writes UPDATE + audit row in single trx', () => {
   it('E01 — promotes a non-DPO user; UPDATE users + INSERT admin_actions in one trx', async () => {
     dbQueryMock.mockResolvedValueOnce({
-      rows: [{ id: 'u1', role: 'admin', is_active: true }],
+      rows: [{ id: 'u1', role: 'admin', is_active: true, session_version: 1 }],
       rowCount: 1,
     });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 }); // advisory lock
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // vacant DPO seat
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 }); // UPDATE
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ session_version: 2 }], rowCount: 1 }); // UPDATE
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 2 }); // refresh revocation
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 }); // CSRF revocation
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 }); // INSERT audit
 
     const out = await promoteToDpo('u1', 'super-1', DPO_REASON);
 
-    expect(out).toEqual({ userId: 'u1', previousRole: 'admin', newRole: 'dpo' });
+    expect(out).toEqual({
+      userId: 'u1', previousRole: 'admin', newRole: 'dpo', sessionVersion: 2,
+      revokedRefreshTokens: 2, revokedCsrfTokens: 1,
+    });
     expect(dbTransactionMock).toHaveBeenCalledTimes(1);
-    expect(dbQueryMock).toHaveBeenCalledTimes(5);
+    expect(dbQueryMock).toHaveBeenCalledTimes(7);
 
     const auditCall = dbQueryMock.mock.calls.find(
       ([sql]) => /INSERT INTO admin_actions/.test(sql as string),
@@ -186,23 +194,29 @@ describe('E01 — promoteToDpo writes UPDATE + audit row in single trx', () => {
     const params = auditCall![1] as unknown[];
     expect(params[0]).toBe('super-1');
     expect(params[1]).toBe('u1');
-    expect(JSON.parse(params[2] as string)).toEqual({ previousRole: 'admin', newRole: 'dpo' });
+    expect(JSON.parse(params[2] as string)).toEqual({
+      previousRole: 'admin', newRole: 'dpo', sessionVersion: 2,
+      revokedRefreshTokens: 2, revokedCsrfTokens: 1,
+    });
   });
 
   it('E01 — idempotent if already dpo (no audit row written)', async () => {
     dbQueryMock.mockResolvedValueOnce({
-      rows: [{ id: 'u1', role: 'dpo', is_active: true }],
+      rows: [{ id: 'u1', role: 'dpo', is_active: true, session_version: 1 }],
       rowCount: 1,
     });
     const out = await promoteToDpo('u1', 'super-1', DPO_REASON);
-    expect(out).toEqual({ userId: 'u1', previousRole: 'dpo', newRole: 'dpo' });
+    expect(out).toEqual({
+      userId: 'u1', previousRole: 'dpo', newRole: 'dpo', sessionVersion: 1,
+      revokedRefreshTokens: 0, revokedCsrfTokens: 0,
+    });
     // Only the SELECT FOR UPDATE — no UPDATE, no audit row.
     expect(dbQueryMock).toHaveBeenCalledTimes(1);
   });
 
   it('E01 — refuses to promote a super_admin (segregation)', async () => {
     dbQueryMock.mockResolvedValueOnce({
-      rows: [{ id: 'u1', role: 'super_admin', is_active: true }],
+      rows: [{ id: 'u1', role: 'super_admin', is_active: true, session_version: 1 }],
       rowCount: 1,
     });
     await expect(promoteToDpo('u1', 'super-1', DPO_REASON)).rejects.toThrow(/Super admins already hold DPO/);
@@ -210,7 +224,7 @@ describe('E01 — promoteToDpo writes UPDATE + audit row in single trx', () => {
 
   it('E01 — refuses to promote a deactivated user', async () => {
     dbQueryMock.mockResolvedValueOnce({
-      rows: [{ id: 'u1', role: 'admin', is_active: false }],
+      rows: [{ id: 'u1', role: 'admin', is_active: false, session_version: 1 }],
       rowCount: 1,
     });
     await expect(promoteToDpo('u1', 'super-1', DPO_REASON)).rejects.toThrow(/deactivated/);
@@ -228,36 +242,28 @@ describe('E01 — demoteFromDpo writes UPDATE + audit row in single trx', () => 
       rows: [{ id: 'u1', role: 'dpo' }],
       rowCount: 1,
     });
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ session_version: 2 }], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 2 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
     const out = await demoteFromDpo('u1', 'super-1', DPO_REASON);
 
-    expect(out).toEqual({ userId: 'u1', previousRole: 'dpo', newRole: 'admin' });
+    expect(out).toEqual({
+      userId: 'u1', previousRole: 'dpo', newRole: 'admin', sessionVersion: 2,
+      revokedRefreshTokens: 2, revokedCsrfTokens: 1,
+    });
 
     const updateCall = dbQueryMock.mock.calls.find(
-      ([sql]) => /UPDATE users SET role/.test(sql as string),
+      ([sql]) => /UPDATE users[\s\S]*role = 'admin'/.test(sql as string),
     );
     expect(updateCall).toBeDefined();
-    expect((updateCall![1] as unknown[])[1]).toBe('admin');
 
     const auditCall = dbQueryMock.mock.calls.find(
       ([sql]) => /INSERT INTO admin_actions/.test(sql as string),
     );
     expect(auditCall).toBeDefined();
     expect(auditCall![0]).toMatch(/'staff_role_demoted_from_dpo'/);
-  });
-
-  it('E01 — accepts custom demoteTo', async () => {
-    dbQueryMock.mockResolvedValueOnce({
-      rows: [{ id: 'u1', role: 'dpo' }],
-      rowCount: 1,
-    });
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
-    const out = await demoteFromDpo('u1', 'super-1', DPO_REASON, 'customer');
-    expect(out.newRole).toBe('customer');
   });
 
   it('E01 — refuses to demote a non-DPO', async () => {
@@ -268,12 +274,6 @@ describe('E01 — demoteFromDpo writes UPDATE + audit row in single trx', () => 
     await expect(demoteFromDpo('u1', 'super-1', DPO_REASON)).rejects.toThrow(/not currently a DPO/);
   });
 
-  it('E01 — rejects invalid demoteTo', async () => {
-    await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      demoteFromDpo('u1', 'super-1', DPO_REASON, 'super_admin' as any),
-    ).rejects.toThrow(/Invalid demoteTo/);
-  });
 });
 
 describe('E01 — listDpos returns active DPOs only', () => {

@@ -282,9 +282,8 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const userId = req.params.userId as string;
-      const demoteTo = req.body.demoteTo as 'admin' | 'customer' | 'provider';
       const reason = req.body.reason as string;
-      const result = await staffService.demoteFromDpo(userId, req.user!.userId, reason, demoteTo);
+      const result = await staffService.demoteFromDpo(userId, req.user!.userId, reason);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);

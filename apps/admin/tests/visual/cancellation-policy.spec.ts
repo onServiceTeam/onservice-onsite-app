@@ -6,7 +6,7 @@
 //   pnpm exec playwright test tests/visual/cancellation-policy.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
-import { test, expect } from './_fixtures';
+import { test, expect, waitForVisualSettled } from './_fixtures';
 
 const ROUTE = '/settings/cancellation-policy';
 
@@ -17,6 +17,9 @@ test.describe('CancellationPolicyPage', () => {
 
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
+        await expect(page.getByText('Active version (v3)')).toBeVisible();
+        await expect(page.getByText('24 hours or more')).toBeVisible();
         await expect(page).toHaveScreenshot(`cancellation-policy-default-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -55,6 +58,8 @@ test.describe('CancellationPolicyPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
+        await expect(page.getByText('No active cancellation policy')).toBeVisible();
         await expect(page).toHaveScreenshot(`cancellation-policy-empty-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -75,6 +80,8 @@ test.describe('CancellationPolicyPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
+        await expect(page.getByText('Failed to load cancellation policy')).toBeVisible();
         await expect(page).toHaveScreenshot(`cancellation-policy-error-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,

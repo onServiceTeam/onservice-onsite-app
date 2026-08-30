@@ -116,6 +116,18 @@ export async function createBreach(input: {
   if (!input.scope || input.scope.trim().length < 10) {
     throw createAppError('Breach scope must be at least 10 characters.', 400);
   }
+  // UX-571 — this value is persisted in a Postgres INTEGER column and is
+  // evidence used during incident assessment. Reject negative, fractional,
+  // non-finite, and out-of-range counts before opening the transaction.
+  if (input.affectedUserCount !== undefined
+      && (!Number.isSafeInteger(input.affectedUserCount)
+        || input.affectedUserCount < 0
+        || input.affectedUserCount > 2_147_483_647)) {
+    throw createAppError(
+      'affectedUserCount must be a whole number from 0 to 2147483647.',
+      400,
+    );
+  }
   const occurredAt = new Date(input.occurredAt);
   const discoveredAt = new Date(input.discoveredAt);
   if (Number.isNaN(occurredAt.getTime())) throw createAppError('Invalid occurredAt timestamp.', 400);

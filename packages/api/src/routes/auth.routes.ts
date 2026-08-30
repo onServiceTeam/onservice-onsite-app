@@ -34,10 +34,11 @@ interface UserProfileRow {
   email: string | null;
   first_name: string;
   last_name: string;
-  role: string;
+  role: 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo' | 'provider_staff';
   avatar_url: string | null;
   is_verified: boolean;
   is_active: boolean;
+  session_version: number | string;
   created_at: Date;
 }
 
@@ -67,7 +68,7 @@ interface AdminSetupRequest extends AuthenticatedRequest {
   isSetupToken?: boolean;
 }
 
-function adminAuthOrSetupToken(
+export function adminAuthOrSetupToken(
   req: AdminSetupRequest,
   _res: Response,
   next: NextFunction,
@@ -91,6 +92,7 @@ function adminAuthOrSetupToken(
         // E01 / D15 — `dpo` added for NPC RA 10173 §21 segregation.
         // D23 — `provider_staff` team-member login.
         role: 'customer' | 'provider' | 'admin' | 'super_admin' | 'dpo' | 'provider_staff';
+        sessionVersion?: number;
         type?: string;
         iat: number;
         exp: number;
@@ -98,14 +100,36 @@ function adminAuthOrSetupToken(
       // E01 / D15 — admin tier roles include 'dpo'. They share the
       // 2FA setup + admin login flow.
       const ADMIN_TIER = new Set(['admin', 'super_admin', 'dpo']);
+      const canonical = await db.query<{
+        role: UserProfileRow['role'];
+        is_active: boolean;
+        session_version: number | string;
+      }>(
+        `SELECT role, is_active, session_version FROM users WHERE id = $1`,
+        [payload.userId],
+      );
+      const account = canonical.rows[0];
+      const tokenVersion = Number(payload.sessionVersion ?? 1);
+      const currentVersion = Number(account?.session_version);
+      if (!account?.is_active
+          || account.role !== payload.role
+          || !Number.isSafeInteger(tokenVersion)
+          || tokenVersion < 1
+          || !Number.isSafeInteger(currentVersion)
+          || currentVersion < 1
+          || tokenVersion !== currentVersion) {
+        next(createAppError('This authentication session has been revoked. Please login again.', 401));
+        return;
+      }
       if (payload.type === 'pre_auth_2fa_setup') {
-        if (!ADMIN_TIER.has(payload.role)) {
+        if (!ADMIN_TIER.has(account.role)) {
           next(createAppError('Admin role required.', 403));
           return;
         }
         req.user = {
           userId: payload.userId,
-          role: payload.role,
+          role: account.role,
+          sessionVersion: currentVersion,
           iat: payload.iat,
           exp: payload.exp,
         };
@@ -117,20 +141,29 @@ function adminAuthOrSetupToken(
         next(createAppError('Invalid authentication token.', 401));
         return;
       }
-      if (!ADMIN_TIER.has(payload.role)) {
+      if (!ADMIN_TIER.has(account.role)) {
         next(createAppError('Admin role required.', 403));
         return;
       }
       req.user = {
         userId: payload.userId,
-        role: payload.role,
+        role: account.role,
+        sessionVersion: currentVersion,
         iat: payload.iat,
         exp: payload.exp,
       };
       req.isSetupToken = false;
       next();
-    } catch {
-      next(createAppError('Invalid or expired authentication token.', 401));
+    } catch (error) {
+      const name = error instanceof Error ? error.name : '';
+      if (name === 'TokenExpiredError' || name === 'JsonWebTokenError' || name === 'NotBeforeError') {
+        next(createAppError('Invalid or expired authentication token.', 401));
+        return;
+      }
+      logger.error('Admin setup session canonical-state lookup failed', {
+        error: error instanceof Error ? error.message : 'Unknown',
+      });
+      next(createAppError('Unable to validate the authentication session.', 500));
     }
   })();
 }
@@ -530,6 +563,7 @@ router.post(
       >(
         `SELECT id, phone, email, first_name, last_name, role, avatar_url,
                 is_verified, is_active, created_at, password_hash,
+                session_version,
                 COALESCE(must_rotate_password, FALSE) AS must_rotate_password
          FROM users WHERE email = $1 AND role IN ('admin', 'super_admin', 'dpo')`,
         [email.toLowerCase().trim()],
@@ -620,7 +654,12 @@ router.post(
         const secret = process.env.JWT_SECRET;
         if (!secret) throw new Error('JWT_SECRET is not configured');
         const preAuthToken = jwt.default.sign(
-          { userId: user.id, role: user.role, type: 'pre_auth_2fa' },
+          {
+            userId: user.id,
+            role: user.role,
+            sessionVersion: Number(user.session_version),
+            type: 'pre_auth_2fa',
+          },
           secret,
           { algorithm: 'HS256', expiresIn: 600 },
         );
@@ -658,7 +697,12 @@ router.post(
         // causing "Invalid or expired authentication token" before the admin
         // could finish.
         const preAuthToken = jwtSetup.default.sign(
-          { userId: user.id, role: user.role, type: 'pre_auth_2fa_setup' },
+          {
+            userId: user.id,
+            role: user.role,
+            sessionVersion: Number(user.session_version),
+            type: 'pre_auth_2fa_setup',
+          },
           setupSecret,
           { algorithm: 'HS256', expiresIn: 1800 },
         );
@@ -687,7 +731,11 @@ router.post(
         [user.id],
       );
 
-      const tokens = await authService.createTokenPair(user.id, user.role);
+      const tokens = await authService.createTokenPair(
+        user.id,
+        user.role,
+        Number(user.session_version),
+      );
 
       await securityService.recordLoginAttempt({
         phone: email,
@@ -749,7 +797,7 @@ router.post(
       const secret = process.env.JWT_SECRET;
       if (!secret) throw new Error('JWT_SECRET is not configured');
 
-      let payload: { userId: string; role: string; type?: string };
+      let payload: { userId: string; role: string; sessionVersion?: number; type?: string };
       try {
         payload = jwt.default.verify(preAuthToken, secret) as typeof payload;
       } catch {
@@ -766,8 +814,19 @@ router.post(
       // crashed with "value too long for type character varying(15)" —
       // 2FA verify always 500'd on success, blocking admin tier login
       // entirely. Now we pass the user's actual phone (PH format = 13 chars).
-      const userResult = await db.query<{ id: string; phone: string | null; totp_secret: string | null; totp_enabled: boolean; role: string }>(
-        `SELECT id, phone, totp_secret, totp_enabled, role FROM users WHERE id = $1 AND role IN ('admin', 'super_admin', 'dpo') AND is_active = TRUE`,
+      const userResult = await db.query<{
+        id: string;
+        phone: string | null;
+        totp_secret: string | null;
+        totp_enabled: boolean;
+        role: string;
+        session_version: number | string;
+      }>(
+        `SELECT id, phone, totp_secret, totp_enabled, role, session_version
+           FROM users
+          WHERE id = $1
+            AND role IN ('admin', 'super_admin', 'dpo')
+            AND is_active = TRUE`,
         [payload.userId],
       );
 
@@ -776,6 +835,10 @@ router.post(
       }
 
       const user = userResult.rows[0]!;
+      if (user.role !== payload.role
+          || Number(user.session_version) !== Number(payload.sessionVersion ?? 1)) {
+        throw createAppError('This authentication session has been revoked. Please login again.', 401);
+      }
       const decryptedSecret = decryptSecret(user.totp_secret!);
       // window=2 (±60s) tolerates moderate device clock drift (common on
       // emulators) without meaningfully weakening 2FA (lockout + rate limit
@@ -796,7 +859,11 @@ router.post(
         [user.id],
       );
 
-      const tokens = await authService.createTokenPair(user.id, user.role);
+      const tokens = await authService.createTokenPair(
+        user.id,
+        user.role,
+        Number(user.session_version),
+      );
 
       // BUG-PHASE23-03 fix: pass user.phone (varchar(15) compatible),
       // not user.id (36-char UUID overflows). Truncate defensively if
@@ -822,7 +889,7 @@ router.post(
         UserProfileRow & { must_rotate_password: boolean | null }
       >(
         `SELECT id, phone, email, first_name, last_name, role, avatar_url,
-                is_verified, is_active, created_at,
+                is_verified, is_active, created_at, session_version,
                 COALESCE(must_rotate_password, FALSE) AS must_rotate_password
          FROM users WHERE id = $1`,
         [user.id],
@@ -985,6 +1052,7 @@ router.post(
         // path).
         const fullUser = await db.query<UserProfileRow & { must_rotate_password: boolean | null }>(
           `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at,
+                  session_version,
                   COALESCE(must_rotate_password, FALSE) AS must_rotate_password
              FROM users WHERE id = $1`,
           [userId],
@@ -993,7 +1061,12 @@ router.post(
           `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
           [userId],
         );
-        const tokens = await authService.createTokenPair(userId, role);
+        const canonicalUser = fullUser.rows[0]!;
+        const tokens = await authService.createTokenPair(
+          userId,
+          canonicalUser.role,
+          Number(canonicalUser.session_version),
+        );
 
         // Bug 1251 + CRIT-N11 fix: HttpOnly cookies only.
         await setAdminSessionCookies(res, {
@@ -1053,7 +1126,7 @@ router.post(
       };
 
       const userResult = await db.query<UserProfileRow>(
-        `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at
+        `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, session_version, created_at
          FROM users WHERE id = $1 AND role IN ('admin', 'super_admin', 'dpo') AND is_active = TRUE`,
         [payload.userId],
       );
