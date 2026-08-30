@@ -399,12 +399,16 @@ export async function completePayout(
 }
 
 export async function listPayouts(
-  filters: { providerId?: string; status?: string; page: number; pageSize: number },
+  filters: { payoutId?: string; providerId?: string; status?: string; page: number; pageSize: number },
 ): Promise<{ payouts: PayoutRow[]; total: number }> {
   const conditions: string[] = [];
   const params: unknown[] = [];
   let paramIdx = 1;
 
+  if (filters.payoutId) {
+    conditions.push(`p.id = $${paramIdx++}`);
+    params.push(filters.payoutId);
+  }
   if (filters.providerId) {
     conditions.push(`p.provider_id = $${paramIdx++}`);
     params.push(filters.providerId);

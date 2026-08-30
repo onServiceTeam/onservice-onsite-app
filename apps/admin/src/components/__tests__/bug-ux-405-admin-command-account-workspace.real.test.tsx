@@ -31,7 +31,7 @@ describe('admin header access', () => {
       </MemoryRouter>,
     );
 
-    const search = screen.getByRole('textbox', { name: 'Jump to an admin page' });
+    const search = screen.getByRole('textbox', { name: 'Search admin pages and records' });
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
     expect(document.activeElement).toBe(search);
     expect(screen.getByLabelText(/Philippine time/i)).toBeTruthy();

@@ -42,6 +42,7 @@ import disputeRoutes from './routes/dispute.routes';
 import walletRoutes from './routes/wallet.routes';
 import paymentRoutes from './routes/payment.routes';
 import adminRoutes from './routes/admin.routes';
+import adminSearchRoutes from './routes/admin-search.routes';
 import providerAdminRoutes from './routes/provider-admin.routes';
 import customerAdminRoutes from './routes/customer-admin.routes';
 import messagingAdminRoutes from './routes/messaging-admin.routes';
@@ -224,6 +225,10 @@ app.use('/api/v1/admin', requireAdminCsrf);
 app.use('/api/v1/admin/settings', settingsRoutes);
 // Bug 1170 / 1198 (Phase 14 Dispatch 02) — admin cancellation-policy editor.
 app.use('/api/v1/admin/cancellation-policies', cancellationPolicyAdminRoutes);
+// W10 — bounded cross-entity command search. Keep it separate from the
+// generic admin router so its validation and E34 operations-role boundary are
+// independently testable.
+app.use('/api/v1/admin/search', adminSearchRoutes);
 // Phase 05: provider 360 sub-routes mounted BEFORE generic admin routes so
 // `/admin/providers/:id/profile` etc. match before any `/admin/*` fallthrough.
 app.use('/api/v1/admin/providers', providerAdminRoutes);

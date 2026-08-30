@@ -74,6 +74,7 @@ export default function PayoutsPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
   const statusFilter = parseStatus(searchParams.get('status'));
+  const payoutId = searchParams.get('payoutId')?.trim() ?? '';
   const search = searchParams.get('providerId')?.trim() ?? '';
   const [searchInput, setSearchInput] = useState(search);
 
@@ -85,11 +86,12 @@ export default function PayoutsPage(): React.ReactElement {
   const [actionError, setActionError] = useState('');
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['adminPayouts', page, statusFilter, search],
+    queryKey: ['adminPayouts', page, statusFilter, search, payoutId],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (statusFilter) params.status = statusFilter;
       if (search) params.providerId = search;
+      if (payoutId) params.payoutId = payoutId;
       const res = await api.get<PaginatedResult>('/api/v1/payouts', { params });
       return res.data;
     },
@@ -182,6 +184,7 @@ export default function PayoutsPage(): React.ReactElement {
     setSearchParams((current) => {
       const params = new URLSearchParams(current);
       params.delete('page');
+      params.delete('payoutId');
       if (trimmed) params.set('providerId', trimmed);
       else params.delete('providerId');
       return params;
@@ -344,6 +347,23 @@ export default function PayoutsPage(): React.ReactElement {
       </div>
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
+        {payoutId && (
+          <div className="flex min-h-11 items-center gap-2 rounded-md border border-[var(--color-primary)] bg-[var(--color-bg)] px-3 text-sm text-[var(--color-text)]">
+            <span>Exact payout <strong>{payoutId.slice(0, 8).toUpperCase()}</strong></span>
+            <button
+              type="button"
+              className="min-h-9 rounded px-2 font-semibold text-[var(--color-primary)] hover:bg-white"
+              onClick={() => setSearchParams((current) => {
+                const params = new URLSearchParams(current);
+                params.delete('payoutId');
+                params.delete('page');
+                return params;
+              })}
+            >
+              Clear
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSearch} className="flex gap-2">
           <label htmlFor="payout-provider-filter" className="sr-only">Filter by provider ID</label>
           <input

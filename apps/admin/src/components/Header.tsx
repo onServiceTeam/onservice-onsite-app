@@ -1,12 +1,48 @@
 import React, { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useAuthStore } from '@/stores/auth.store';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Bell, ChevronDown, Key, Menu, Search, Settings } from '@/components/icons';
+import {
+  ArrowRight,
+  Banknote,
+  Bell,
+  ChevronDown,
+  ClipboardList,
+  Key,
+  Menu,
+  RefreshCw,
+  Scale,
+  Search,
+  Settings,
+  Ticket,
+  Users,
+  Wrench,
+} from '@/components/icons';
 import { visibleAdminNavItems } from '@/config/admin-navigation';
+import api from '@/lib/api';
 
 interface HeaderProps {
   onOpenNavigation?: () => void;
 }
+
+type AdminSearchKind = 'customer' | 'provider' | 'booking' | 'support' | 'dispute' | 'payout';
+
+interface AdminRecordResult {
+  kind: AdminSearchKind;
+  id: string;
+  title: string;
+  subtitle: string;
+  status: string | null;
+  to: string;
+}
+
+const RECORD_KIND_META = {
+  customer: { label: 'Customer', Icon: Users },
+  provider: { label: 'Provider', Icon: Wrench },
+  booking: { label: 'Booking', Icon: ClipboardList },
+  support: { label: 'Support', Icon: Ticket },
+  dispute: { label: 'Dispute', Icon: Scale },
+  payout: { label: 'Payout', Icon: Banknote },
+} satisfies Record<AdminSearchKind, { label: string; Icon: typeof Users }>;
 
 export default function Header({ onOpenNavigation }: HeaderProps): React.ReactElement {
   const user = useAuthStore((state) => state.user);
@@ -17,15 +53,57 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [recordResults, setRecordResults] = useState<AdminRecordResult[]>([]);
+  const [recordLoading, setRecordLoading] = useState(false);
+  const [recordError, setRecordError] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const navItems = useMemo(() => visibleAdminNavItems(user?.role), [user?.role]);
-  const results = useMemo(() => {
+  const pageResults = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return navItems.slice(0, 6);
     return navItems
       .filter((item) => `${item.label} ${item.description}`.toLowerCase().includes(needle))
       .slice(0, 8);
   }, [navItems, query]);
+  const recordSearchAllowed = user?.role === 'admin' || user?.role === 'super_admin';
+
+  useEffect(() => {
+    const needle = query.trim();
+    if (!recordSearchAllowed || needle.length < 2) {
+      setRecordResults([]);
+      setRecordLoading(false);
+      setRecordError(false);
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+    setRecordResults([]);
+    setRecordLoading(true);
+    setRecordError(false);
+
+    const timer = window.setTimeout(() => {
+      void api.get<{ success: true; data: AdminRecordResult[] }>('/api/v1/admin/search', {
+        params: { q: needle },
+        signal: controller.signal,
+      }).then((response) => {
+        if (cancelled) return;
+        setRecordResults(Array.isArray(response.data.data) ? response.data.data : []);
+        setRecordLoading(false);
+      }).catch(() => {
+        if (cancelled) return;
+        setRecordResults([]);
+        setRecordError(true);
+        setRecordLoading(false);
+      });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [query, recordSearchAllowed]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -70,7 +148,8 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
 
   const handleSearchSubmit = (event: FormEvent): void => {
     event.preventDefault();
-    if (results[0]) chooseResult(results[0].to);
+    if (pageResults[0]) chooseResult(pageResults[0].to);
+    else if (recordResults[0]) chooseResult(recordResults[0].to);
   };
 
   const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Admin';
@@ -119,10 +198,10 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
           onFocus={() => setSearchOpen(true)}
           onBlur={() => window.setTimeout(() => setSearchOpen(false), 120)}
           className="h-11 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] pl-10 pr-14 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-primary)] focus:bg-white"
-          aria-label="Jump to an admin page"
+          aria-label="Search admin pages and records"
           aria-expanded={searchOpen}
           aria-controls="admin-command-results"
-          placeholder="Jump to a page or workspace..."
+          placeholder="Search pages, people, bookings, cases..."
         />
         <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-[var(--color-border)] bg-white px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-text-secondary)] sm:block">
           Ctrl K
@@ -131,18 +210,16 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
         {searchOpen && (
           <div
             id="admin-command-results"
-            className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-lg border border-[var(--color-border-strong)] bg-white"
+            className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 max-h-[min(70vh,34rem)] overflow-y-auto rounded-lg border border-[var(--color-border-strong)] bg-white"
           >
             <div className="border-b border-[var(--color-border)] px-3 py-2 text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--color-text-tertiary)]">
-              Page and workspace search
+              Pages and operational records
             </div>
-            {results.length === 0 ? (
-              <p className="px-4 py-5 text-sm text-[var(--color-text-secondary)]">
-                No matching admin page.
-              </p>
-            ) : (
+            {pageResults.length > 0 && (
+              <section aria-label="Matching admin pages">
+                <p className="px-3 pt-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--color-text-tertiary)]">Pages</p>
               <ul>
-                {results.map((item) => (
+                {pageResults.map((item) => (
                   <li key={item.to}>
                     <button
                       type="button"
@@ -163,10 +240,59 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
                   </li>
                 ))}
               </ul>
+              </section>
+            )}
+
+            {recordSearchAllowed && query.trim().length >= 2 && (
+              <section className={pageResults.length > 0 ? 'border-t border-[var(--color-border)]' : ''} aria-label="Matching operational records">
+                <p className="px-3 pt-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--color-text-tertiary)]">Records</p>
+                {recordLoading ? (
+                  <p className="flex min-h-12 items-center gap-2 px-4 text-sm text-[var(--color-text-secondary)]" role="status">
+                    <RefreshCw size={16} className="animate-spin" /> Searching records…
+                  </p>
+                ) : recordError ? (
+                  <p className="px-4 py-4 text-sm text-[var(--color-danger)]" role="alert">
+                    Record search is unavailable. Page shortcuts still work.
+                  </p>
+                ) : recordResults.length === 0 ? (
+                  <p className="px-4 py-4 text-sm text-[var(--color-text-secondary)]">No matching operational record.</p>
+                ) : (
+                  <ul>
+                    {recordResults.map((result) => {
+                      const { Icon, label } = RECORD_KIND_META[result.kind];
+                      return (
+                        <li key={`${result.kind}:${result.id}`}>
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => chooseResult(result.to)}
+                            className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left hover:bg-[var(--color-surface-hover)]"
+                            aria-label={`Open ${label} ${result.title}`}
+                          >
+                            <Icon size={18} className="shrink-0 text-[var(--color-primary)]" />
+                            <span className="min-w-0 flex-1">
+                              <span className="flex min-w-0 items-center gap-2">
+                                <span className="truncate text-sm font-semibold text-[var(--color-text)]">{result.title}</span>
+                                <span className="shrink-0 rounded border border-[var(--color-border)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]">{label}</span>
+                              </span>
+                              <span className="block truncate text-xs text-[var(--color-text-secondary)]">{result.subtitle}</span>
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            )}
+
+            {pageResults.length === 0 && (!recordSearchAllowed || query.trim().length < 2) && (
+              <p className="px-4 py-5 text-sm text-[var(--color-text-secondary)]">No matching admin page.</p>
             )}
             <p className="border-t border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-[11px] text-[var(--color-text-secondary)]">
-              Page search only. Record search by booking, person, ticket, dispute, or payout is
-              not yet available.
+              {recordSearchAllowed
+                ? 'Record results mask contact details and open the canonical case workspace. Use the audited 360 reveal only when full contact is needed.'
+                : 'Page search only for the privacy role. General operations record search remains held under E34.'}
             </p>
           </div>
         )}

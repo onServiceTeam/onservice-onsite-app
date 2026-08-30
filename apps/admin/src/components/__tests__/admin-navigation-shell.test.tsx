@@ -28,13 +28,13 @@ describe('admin operations shell', () => {
       </MemoryRouter>,
     );
 
-    const search = screen.getByRole('textbox', { name: 'Jump to an admin page' });
+    const search = screen.getByRole('textbox', { name: 'Search admin pages and records' });
     fireEvent.focus(search);
     fireEvent.change(search, { target: { value: 'support' } });
 
     expect(screen.getByRole('button', { name: /Support Queue/i })).toBeTruthy();
     expect(
-      screen.getByText(/Page search only\. Record search by booking, person, ticket, dispute, or payout/i),
+      screen.getByText(/Record results mask contact details and open the canonical case workspace/i),
     ).toBeTruthy();
   });
 });

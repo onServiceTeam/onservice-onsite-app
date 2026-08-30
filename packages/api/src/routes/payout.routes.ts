@@ -14,6 +14,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { db } from '../models/db';
 
 const router = Router();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
@@ -107,8 +108,16 @@ router.get(
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
       const status = typeof req.query.status === 'string' ? req.query.status : undefined;
       const providerId = typeof req.query.providerId === 'string' ? req.query.providerId : undefined;
+      const payoutId = typeof req.query.payoutId === 'string' ? req.query.payoutId : undefined;
 
-      const { payouts, total } = await payoutService.listPayouts({ providerId, status, page, pageSize });
+      if (providerId && !UUID_REGEX.test(providerId)) {
+        throw createAppError('providerId must be a valid UUID.', 400);
+      }
+      if (payoutId && !UUID_REGEX.test(payoutId)) {
+        throw createAppError('payoutId must be a valid UUID.', 400);
+      }
+
+      const { payouts, total } = await payoutService.listPayouts({ payoutId, providerId, status, page, pageSize });
 
       res.json({
         success: true,
