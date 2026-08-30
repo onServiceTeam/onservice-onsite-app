@@ -1,7 +1,12 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
-import { suspendProviderSchema, changeProviderTierSchema } from '../validators/admin.validators';
+import {
+  assignBusinessAccountManagerSchema,
+  businessAccountIdParamsSchema,
+  suspendProviderSchema,
+  changeProviderTierSchema,
+} from '../validators/admin.validators';
 import { createPricingRuleSchema, updatePricingRuleSchema } from '../validators/admin-pricing-rules.validators';
 import { createServiceAreaSchema, updateServiceAreaSchema } from '../validators/admin-service-area.validators';
 import * as adminService from '../services/admin.service';
@@ -827,28 +832,18 @@ router.post(
 router.post(
   '/business-accounts/:id/assign-manager',
   authMiddleware,
+  validationMiddleware({ params: businessAccountIdParamsSchema, body: assignBusinessAccountManagerSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const id = req.params.id;
-      const { accountManagerId } = req.body as { accountManagerId: string };
-
-      if (!accountManagerId) {
-        res.status(400).json({ success: false, message: 'accountManagerId is required.' });
-        return;
-      }
-
-      const result = await db.query(
-        `UPDATE business_accounts SET account_manager_id = $1, updated_at = NOW() WHERE id = $2`,
-        [accountManagerId, id],
-      );
-
-      if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ success: false, message: 'Business account not found.' });
-        return;
-      }
-
-      res.json({ success: true, message: 'Account manager assigned.' });
+      requireSuperAdmin(req);
+      const { accountManagerId, reason } = req.body as { accountManagerId: string; reason: string };
+      const account = await businessService.assignBusinessAccountManager({
+        businessId: req.params.id as string,
+        accountManagerId,
+        assignedByAdminId: req.user!.userId,
+        reason,
+      });
+      res.json({ success: true, data: businessService.formatBusinessAccount(account) });
     } catch (error) {
       next(error);
     }

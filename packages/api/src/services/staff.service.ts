@@ -14,9 +14,10 @@ export interface AdminRole {
 
 export interface AdminStaff {
   id: string;
+  profile_id?: string | null;
   user_id: string;
-  role_id: string;
-  is_active: boolean;
+  role_id: string | null;
+  is_active: boolean | null;
   last_login_at: string | null;
   created_at: string;
   updated_at: string;
@@ -25,6 +26,20 @@ export interface AdminStaff {
   user_first_name?: string;
   user_last_name?: string;
   role_name?: string;
+  account_role?: string;
+  account_is_active?: boolean;
+  active_support_cases?: string;
+}
+
+export interface StaffDirectorySummary {
+  totalProfiles: number;
+  activeProfiles: number;
+  inactiveProfiles: number;
+  activeAccounts: number;
+  inactiveAccounts: number;
+  activeSupportOwners: number;
+  totalAdminAccounts: number;
+  unprofiledAdminAccounts: number;
 }
 
 export interface StaffCandidate {
@@ -254,46 +269,121 @@ export async function deleteRole(
 export async function listStaff(params: {
   page: number;
   limit: number;
-  isActive?: boolean;
+  profileActive?: boolean;
+  profileMissing?: boolean;
+  accountActive?: boolean;
+  accountRole?: 'admin' | 'super_admin' | 'dpo';
   roleId?: string;
-}): Promise<{ staff: AdminStaff[]; total: number }> {
-  const { page, limit, isActive, roleId } = params;
+  search?: string;
+}): Promise<{ staff: AdminStaff[]; total: number; summary: StaffDirectorySummary }> {
+  const { page, limit, profileActive, profileMissing, accountActive, accountRole, roleId, search } = params;
   const offset = (page - 1) * limit;
   const conditions: string[] = [];
   const values: unknown[] = [];
   let idx = 1;
 
-  if (isActive !== undefined) {
+  if (profileMissing) {
+    conditions.push('ast.id IS NULL');
+  } else if (profileActive !== undefined) {
     conditions.push(`ast.is_active = $${idx++}`);
-    values.push(isActive);
+    values.push(profileActive);
+  }
+  if (accountActive !== undefined) {
+    conditions.push(`u.is_active = $${idx++}`);
+    values.push(accountActive);
+  }
+  if (accountRole !== undefined) {
+    conditions.push(`u.role = $${idx++}`);
+    values.push(accountRole);
   }
   if (roleId) {
     conditions.push(`ast.role_id = $${idx++}`);
     values.push(roleId);
   }
+  if (search) {
+    const escaped = search.trim().replace(/[\\%_]/g, '\\$&');
+    conditions.push(`(
+      CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${idx} ESCAPE '\\'
+      OR COALESCE(u.email, '') ILIKE $${idx} ESCAPE '\\'
+      OR u.phone ILIKE $${idx} ESCAPE '\\'
+    )`);
+    values.push(`%${escaped}%`);
+    idx += 1;
+  }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const baseCondition = `(u.role IN ('admin', 'super_admin', 'dpo') OR ast.id IS NOT NULL)`;
+  const where = `WHERE ${[baseCondition, ...conditions].join(' AND ')}`;
 
   const countResult = await db.query<{ count: string }>(
-    `SELECT COUNT(*) AS count FROM admin_staff ast ${where}`,
+    `SELECT COUNT(*) AS count
+       FROM users u
+       LEFT JOIN admin_staff ast ON ast.user_id = u.id
+       LEFT JOIN admin_roles ar ON ast.role_id = ar.id
+       ${where}`,
     values,
   );
 
-  const result = await db.query<AdminStaff>(
-    `SELECT ast.*,
+  const [result, summaryResult] = await Promise.all([
+    db.query<AdminStaff>(
+    `SELECT COALESCE(ast.id, u.id) AS id, ast.id AS profile_id,
+            u.id AS user_id, ast.role_id, ast.is_active,
+            u.last_login_at AS last_login_at,
+            ast.created_at, ast.updated_at,
             u.phone AS user_phone, u.email AS user_email,
             u.first_name AS user_first_name, u.last_name AS user_last_name,
-            ar.name AS role_name
-     FROM admin_staff ast
-     JOIN users u ON ast.user_id = u.id
-     JOIN admin_roles ar ON ast.role_id = ar.id
+            u.role AS account_role, u.is_active AS account_is_active,
+            ar.name AS role_name,
+            (SELECT COUNT(*)::text
+               FROM support_tickets st
+              WHERE st.assigned_agent_id = u.id
+                AND st.status NOT IN ('resolved', 'closed')) AS active_support_cases
+     FROM users u
+     LEFT JOIN admin_staff ast ON ast.user_id = u.id
+     LEFT JOIN admin_roles ar ON ast.role_id = ar.id
      ${where}
-     ORDER BY ast.created_at DESC
+     ORDER BY COALESCE(ast.created_at, u.created_at) DESC, u.id
      LIMIT $${idx} OFFSET $${idx + 1}`,
     [...values, limit, offset],
-  );
+    ),
+    db.query<{
+      total_profiles: string;
+      active_profiles: string;
+      inactive_profiles: string;
+      active_accounts: string;
+      inactive_accounts: string;
+      active_support_owners: string;
+      total_admin_accounts: string;
+      unprofiled_admin_accounts: string;
+    }>(
+      `SELECT (SELECT COUNT(*) FROM admin_staff)::text AS total_profiles,
+              (SELECT COUNT(*) FROM admin_staff WHERE is_active = TRUE)::text AS active_profiles,
+              (SELECT COUNT(*) FROM admin_staff WHERE is_active = FALSE)::text AS inactive_profiles,
+              (SELECT COUNT(*) FROM users WHERE role IN ('admin', 'super_admin', 'dpo') AND is_active = TRUE)::text AS active_accounts,
+              (SELECT COUNT(*) FROM users WHERE role IN ('admin', 'super_admin', 'dpo') AND is_active = FALSE)::text AS inactive_accounts,
+              (SELECT COUNT(*) FROM users WHERE role IN ('admin', 'super_admin') AND is_active = TRUE)::text AS active_support_owners,
+              (SELECT COUNT(*) FROM users WHERE role IN ('admin', 'super_admin', 'dpo'))::text AS total_admin_accounts,
+              (SELECT COUNT(*)
+                 FROM users u
+                WHERE u.role IN ('admin', 'super_admin', 'dpo')
+                  AND NOT EXISTS (SELECT 1 FROM admin_staff ast WHERE ast.user_id = u.id))::text AS unprofiled_admin_accounts`,
+    ),
+  ]);
 
-  return { staff: result.rows, total: parseInt(countResult.rows[0]?.count ?? '0', 10) };
+  const summary = summaryResult.rows[0];
+  return {
+    staff: result.rows,
+    total: parseInt(countResult.rows[0]?.count ?? '0', 10),
+    summary: {
+      totalProfiles: Number(summary?.total_profiles ?? 0),
+      activeProfiles: Number(summary?.active_profiles ?? 0),
+      inactiveProfiles: Number(summary?.inactive_profiles ?? 0),
+      activeAccounts: Number(summary?.active_accounts ?? 0),
+      inactiveAccounts: Number(summary?.inactive_accounts ?? 0),
+      activeSupportOwners: Number(summary?.active_support_owners ?? 0),
+      totalAdminAccounts: Number(summary?.total_admin_accounts ?? 0),
+      unprofiledAdminAccounts: Number(summary?.unprofiled_admin_accounts ?? 0),
+    },
+  };
 }
 
 export async function searchStaffCandidates(search: string, limit = 20): Promise<StaffCandidate[]> {
@@ -456,6 +546,12 @@ export async function updateStaffMember(
     const before = current.rows[0];
     if (!before) throw createAppError('Staff member not found.', 404);
 
+    const nextActive = params.isActive ?? before.is_active;
+    const nextRoleId = params.roleId ?? before.role_id;
+    if (nextActive === before.is_active && nextRoleId === before.role_id) {
+      throw createAppError('No staff directory change was requested.', 409);
+    }
+
     let nextRoleName = before.role_name;
     if (params.roleId !== undefined) {
       const nextRole = await client.query<{ name: string }>(
@@ -531,10 +627,10 @@ export async function removeStaffMember(
   const trimmedReason = (reason ?? '').trim();
   if (trimmedReason.length < 10) throw createAppError('Reason must be at least 10 characters.', 400);
   return db.transaction(async (client) => {
-    // Prevent removing the last active super_admin (unchanged invariant).
-    const staffRow = await client.query<{ role_name: string; is_active: boolean }>(
-      `SELECT ar.name AS role_name, ast.is_active FROM admin_staff ast
+    const staffRow = await client.query<{ role_name: string; account_role: string; is_active: boolean }>(
+      `SELECT ar.name AS role_name, u.role AS account_role, ast.is_active FROM admin_staff ast
        JOIN admin_roles ar ON ast.role_id = ar.id
+       JOIN users u ON ast.user_id = u.id
        WHERE ast.id = $1
        FOR UPDATE`,
       [staffId],
@@ -547,18 +643,6 @@ export async function removeStaffMember(
       logger.info('removeStaffMember called on already-removed staff', { staffId });
       return;
     }
-    if (staffRow.rows[0]!.role_name === 'super_admin') {
-      const superCount = await client.query<{ count: string }>(
-        `SELECT COUNT(*) AS count FROM admin_staff ast
-         JOIN admin_roles ar ON ast.role_id = ar.id
-         WHERE ar.name = 'super_admin' AND ast.is_active = TRUE AND ast.id != $1`,
-        [staffId],
-      );
-      if (parseInt(superCount.rows[0]?.count ?? '0', 10) === 0) {
-        throw createAppError('Cannot remove the last active super admin.', 409);
-      }
-    }
-
     // Soft-delete: keep the row, mark inactive + record who/when.
     await client.query(
       `UPDATE admin_staff
@@ -580,6 +664,7 @@ export async function removeStaffMember(
         staffId,
         JSON.stringify({
           removedRole: staffRow.rows[0]!.role_name,
+          accountRoleUnchanged: staffRow.rows[0]!.account_role,
           softDeleted: true,
         }),
         trimmedReason || 'Staff directory profile archived.',

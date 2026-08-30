@@ -16,6 +16,7 @@ get.mockResolvedValue({
   data: {
     data: [{
       id: 'staff-record-1', user_id: 'user-1', is_active: true,
+      account_is_active: true, account_role: 'admin',
       user_first_name: 'Maria', user_last_name: 'Reyes', user_email: 'maria@example.com',
       role_name: 'operations_manager',
     }],
@@ -43,12 +44,18 @@ it('Bug UX-024 — business account manager assignment uses named active staff i
   await waitFor(() => expect((picker as HTMLSelectElement).disabled).toBe(false));
   fireEvent.change(picker, { target: { value: 'user-1' } });
   await waitFor(() => expect((picker as HTMLSelectElement).value).toBe('user-1'));
+  fireEvent.change(screen.getByLabelText('Assignment reason'), {
+    target: { value: 'Assign Maria to own this enterprise relationship.' },
+  });
   const assignButton = screen.getByText('Assign') as HTMLButtonElement;
   await waitFor(() => expect(assignButton.disabled).toBe(false));
   fireEvent.click(assignButton);
 
   await waitFor(() => expect(post).toHaveBeenCalledWith(
     '/api/v1/admin/business-accounts/business-1/assign-manager',
-    { accountManagerId: 'user-1' },
+    {
+      accountManagerId: 'user-1',
+      reason: 'Assign Maria to own this enterprise relationship.',
+    },
   ));
 });

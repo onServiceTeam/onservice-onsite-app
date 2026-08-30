@@ -3,7 +3,20 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { rbacMiddleware } from '../middleware/rbac.middleware';
 import * as staffService from '../services/staff.service';
 import { createAppError } from '../middleware/error.middleware';
-import { platformConfig } from '../config/platform.config';
+import { validationMiddleware } from '../middleware/validation.middleware';
+import {
+  addStaffMemberSchema,
+  createStaffRoleSchema,
+  demoteDpoSchema,
+  dpoUserIdParamsSchema,
+  promoteDpoSchema,
+  staffCandidateQuerySchema,
+  staffIdParamsSchema,
+  staffListQuerySchema,
+  staffReasonSchema,
+  updateStaffMemberSchema,
+  updateStaffRoleSchema,
+} from '../validators/staff.validators';
 
 const router = Router();
 
@@ -33,15 +46,10 @@ router.post(
   '/roles',
   authMiddleware,
   rbacMiddleware('super_admin'),
+  validationMiddleware(createStaffRoleSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { name, description, permissions, reason } = req.body;
-      if (!name || !permissions || !Array.isArray(permissions)) {
-        throw createAppError('Name and permissions array are required.', 400);
-      }
-      if (typeof reason !== 'string' || reason.trim().length < 10) {
-        throw createAppError('Reason must be at least 10 characters.', 400);
-      }
       const role = await staffService.createRole({
         name,
         description,
@@ -60,12 +68,10 @@ router.put(
   '/roles/:id',
   authMiddleware,
   rbacMiddleware('super_admin'),
+  validationMiddleware({ params: staffIdParamsSchema, body: updateStaffRoleSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { name, description, permissions, reason } = req.body;
-      if (typeof reason !== 'string' || reason.trim().length < 10) {
-        throw createAppError('Reason must be at least 10 characters.', 400);
-      }
       const role = await staffService.updateRole(
         getParamId(req),
         { name, description, permissions },
@@ -83,12 +89,10 @@ router.delete(
   '/roles/:id',
   authMiddleware,
   rbacMiddleware('super_admin'),
+  validationMiddleware({ params: staffIdParamsSchema, body: staffReasonSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
-      if (!reason || reason.trim().length < 10) {
-        throw createAppError('Reason must be at least 10 characters.', 400);
-      }
+      const reason = req.body.reason as string;
       await staffService.deleteRole(getParamId(req), req.user!.userId, reason);
       res.json({ success: true, message: 'Role archived.' });
     } catch (error) {
@@ -103,10 +107,10 @@ router.get(
   '/candidates',
   authMiddleware,
   rbacMiddleware('super_admin'),
+  validationMiddleware({ query: staffCandidateQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const search = typeof req.query.search === 'string' ? req.query.search : '';
-      const limit = Math.min(parseInt(req.query.limit as string, 10) || 20, 20);
+      const { search, limit } = req.query as unknown as { search: string; limit: number };
       const candidates = await staffService.searchStaffCandidates(search, limit);
       res.json({ success: true, data: candidates });
     } catch (error) {
@@ -119,10 +123,10 @@ router.get(
   '/dpo-candidates',
   authMiddleware,
   rbacMiddleware('super_admin'),
+  validationMiddleware({ query: staffCandidateQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const search = typeof req.query.search === 'string' ? req.query.search : '';
-      const limit = Math.min(parseInt(req.query.limit as string, 10) || 20, 20);
+      const { search, limit } = req.query as unknown as { search: string; limit: number };
       const candidates = await staffService.searchDpoCandidates(search, limit);
       res.json({ success: true, data: candidates });
     } catch (error) {
@@ -135,14 +139,21 @@ router.get(
   '/',
   authMiddleware,
   rbacMiddleware('super_admin'),
+  validationMiddleware({ query: staffListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const page = parseInt(req.query.page as string, 10) || 1;
-      const limit = Math.min(parseInt(req.query.limit as string, 10) || platformConfig.defaultPageSize, platformConfig.maxPageSize);
-      const isActive = req.query.isActive !== undefined ? req.query.isActive === 'true' : undefined;
-      const roleId = req.query.roleId as string | undefined;
-      const result = await staffService.listStaff({ page, limit, isActive, roleId });
-      res.json({ success: true, data: result.staff, meta: { total: result.total, page, limit } });
+      const { page, limit, profileActive, profileMissing, accountActive, accountRole, roleId, search } = req.query as unknown as {
+        page: number;
+        limit: number;
+        profileActive?: boolean;
+        profileMissing?: boolean;
+        accountActive?: boolean;
+        accountRole?: 'admin' | 'super_admin' | 'dpo';
+        roleId?: string;
+        search?: string;
+      };
+      const result = await staffService.listStaff({ page, limit, profileActive, profileMissing, accountActive, accountRole, roleId, search });
+      res.json({ success: true, data: result.staff, meta: { total: result.total, page, limit, summary: result.summary } });
     } catch (error) {
       next(error);
     }
@@ -153,13 +164,10 @@ router.post(
   '/',
   authMiddleware,
   rbacMiddleware('super_admin'),
+  validationMiddleware(addStaffMemberSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { userId, roleId, reason } = req.body;
-      if (!userId || !roleId) throw createAppError('User ID and role ID are required.', 400);
-      if (typeof reason !== 'string' || reason.trim().length < 10) {
-        throw createAppError('Reason must be at least 10 characters.', 400);
-      }
       // MED-N129 fix — pass the acting super_admin's userId so the
       // service can write the audit row.
       const member = await staffService.addStaffMember({
@@ -179,12 +187,10 @@ router.put(
   '/:id',
   authMiddleware,
   rbacMiddleware('super_admin'),
+  validationMiddleware({ params: staffIdParamsSchema, body: updateStaffMemberSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { roleId, isActive, reason } = req.body;
-      if (typeof reason !== 'string' || reason.trim().length < 10) {
-        throw createAppError('Reason must be at least 10 characters.', 400);
-      }
       const member = await staffService.updateStaffMember(
         getParamId(req),
         { roleId, isActive },
@@ -202,14 +208,12 @@ router.delete(
   '/:id',
   authMiddleware,
   rbacMiddleware('super_admin'),
+  validationMiddleware({ params: staffIdParamsSchema, body: staffReasonSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       // MED-N128 fix — pass the acting super_admin's userId so the
       // service can write the audit row + soft-delete attribution.
-      const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
-      if (reason.trim().length < 10) {
-        throw createAppError('Reason must be at least 10 characters.', 400);
-      }
+      const reason = req.body.reason as string;
       await staffService.removeStaffMember(getParamId(req), req.user!.userId, reason);
       res.json({ success: true, message: 'Staff member removed.' });
     } catch (error) {
@@ -257,16 +261,11 @@ router.post(
   '/dpos/:userId/promote',
   authMiddleware,
   rbacMiddleware('super_admin'),
+  validationMiddleware({ params: dpoUserIdParamsSchema, body: promoteDpoSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const userId = req.params.userId;
-      if (typeof userId !== 'string' || !userId) {
-        throw createAppError('User ID is required.', 400);
-      }
-      const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
-      if (reason.trim().length < 10) {
-        throw createAppError('Reason must be at least 10 characters.', 400);
-      }
+      const userId = req.params.userId as string;
+      const reason = req.body.reason as string;
       const result = await staffService.promoteToDpo(userId, req.user!.userId, reason);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
@@ -279,21 +278,12 @@ router.post(
   '/dpos/:userId/demote',
   authMiddleware,
   rbacMiddleware('super_admin'),
+  validationMiddleware({ params: dpoUserIdParamsSchema, body: demoteDpoSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const userId = req.params.userId;
-      if (typeof userId !== 'string' || !userId) {
-        throw createAppError('User ID is required.', 400);
-      }
-      const demoteTo: 'admin' | 'customer' | 'provider' =
-        typeof req.body?.demoteTo === 'string' &&
-        ['admin', 'customer', 'provider'].includes(req.body.demoteTo)
-          ? req.body.demoteTo
-          : 'admin';
-      const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
-      if (reason.trim().length < 10) {
-        throw createAppError('Reason must be at least 10 characters.', 400);
-      }
+      const userId = req.params.userId as string;
+      const demoteTo = req.body.demoteTo as 'admin' | 'customer' | 'provider';
+      const reason = req.body.reason as string;
       const result = await staffService.demoteFromDpo(userId, req.user!.userId, reason, demoteTo);
       res.status(200).json({ success: true, data: result });
     } catch (error) {

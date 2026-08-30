@@ -25,6 +25,14 @@ interface BusinessAccountRow {
   notes: string | null;
   created_at: Date;
   updated_at: Date;
+  owner_name?: string | null;
+  manager_name?: string | null;
+  manager_email?: string | null;
+  manager_account_role?: string | null;
+  manager_is_active?: boolean | null;
+  manager_profile_id?: string | null;
+  manager_profile_name?: string | null;
+  manager_profile_active?: boolean | null;
 }
 
 interface BusinessMemberRow {
@@ -734,11 +742,130 @@ export async function resolveBookingContract(
 // page so back-office staff can view any account's members and contracts.
 export async function getBusinessAccountAdmin(businessId: string): Promise<BusinessAccountRow> {
   const result = await db.query<BusinessAccountRow>(
-    `SELECT * FROM business_accounts WHERE id = $1`,
+    `SELECT ba.*,
+            NULLIF(TRIM(CONCAT_WS(' ', owner.first_name, owner.last_name)), '') AS owner_name,
+            NULLIF(TRIM(CONCAT_WS(' ', manager.first_name, manager.last_name)), '') AS manager_name,
+            manager.email AS manager_email,
+            manager.role AS manager_account_role,
+            manager.is_active AS manager_is_active,
+            ast.id AS manager_profile_id,
+            ar.name AS manager_profile_name,
+            ast.is_active AS manager_profile_active
+       FROM business_accounts ba
+       LEFT JOIN users owner ON owner.id = ba.owner_user_id
+       LEFT JOIN users manager ON manager.id = ba.account_manager_id
+       LEFT JOIN admin_staff ast ON ast.user_id = manager.id
+       LEFT JOIN admin_roles ar ON ar.id = ast.role_id
+      WHERE ba.id = $1`,
     [businessId],
   );
   if (result.rows.length === 0) throw createAppError('Business account not found.', 404);
   return result.rows[0]!;
+}
+
+export async function assignBusinessAccountManager(params: {
+  businessId: string;
+  accountManagerId: string;
+  assignedByAdminId: string;
+  reason: string;
+}): Promise<BusinessAccountRow> {
+  const reason = params.reason.trim();
+  if (reason.length < 10) {
+    throw createAppError('Reason must be at least 10 characters.', 400);
+  }
+
+  return db.transaction(async (client) => {
+    const accountResult = await client.query<BusinessAccountRow>(
+      `SELECT * FROM business_accounts WHERE id = $1 FOR UPDATE`,
+      [params.businessId],
+    );
+    const account = accountResult.rows[0];
+    if (!account) throw createAppError('Business account not found.', 404);
+    if (account.account_manager_id === params.accountManagerId) {
+      throw createAppError('This staff account already owns the business relationship.', 409);
+    }
+
+    const managerResult = await client.query<{
+      user_id: string;
+      profile_id: string;
+      account_role: string;
+      profile_name: string;
+    }>(
+      `SELECT u.id AS user_id, ast.id AS profile_id,
+              u.role AS account_role, ar.name AS profile_name
+         FROM users u
+         JOIN admin_staff ast ON ast.user_id = u.id AND ast.is_active = TRUE
+         JOIN admin_roles ar ON ar.id = ast.role_id AND ar.deleted_at IS NULL
+        WHERE u.id = $1
+          AND u.is_active = TRUE
+          AND u.role IN ('admin', 'super_admin')
+        FOR SHARE OF u, ast, ar`,
+      [params.accountManagerId],
+    );
+    const manager = managerResult.rows[0];
+    if (!manager) {
+      throw createAppError('Select an active admin account with an active staff directory profile.', 400);
+    }
+
+    const updatedResult = await client.query<BusinessAccountRow>(
+      `UPDATE business_accounts
+          SET account_manager_id = $2,
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING *`,
+      [params.businessId, params.accountManagerId],
+    );
+    const updated = updatedResult.rows[0];
+    if (!updated) throw createAppError('Business account not found.', 404);
+
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'config_changed', 'business_account', $2, $3::jsonb, $4, $5)`,
+      [
+        params.assignedByAdminId,
+        params.businessId,
+        JSON.stringify({
+          changeKind: 'business_account_manager_assigned',
+          previousManagerId: account.account_manager_id,
+          newManagerId: params.accountManagerId,
+          managerProfileId: manager.profile_id,
+          managerAccountRole: manager.account_role,
+          managerDirectoryProfile: manager.profile_name,
+        }),
+        reason.slice(0, 500),
+        reason,
+      ],
+    );
+
+    const hydratedResult = await client.query<BusinessAccountRow>(
+      `SELECT ba.*,
+              NULLIF(TRIM(CONCAT_WS(' ', owner.first_name, owner.last_name)), '') AS owner_name,
+              NULLIF(TRIM(CONCAT_WS(' ', assigned.first_name, assigned.last_name)), '') AS manager_name,
+              assigned.email AS manager_email,
+              assigned.role AS manager_account_role,
+              assigned.is_active AS manager_is_active,
+              assigned_profile.id AS manager_profile_id,
+              assigned_role.name AS manager_profile_name,
+              assigned_profile.is_active AS manager_profile_active
+         FROM business_accounts ba
+         LEFT JOIN users owner ON owner.id = ba.owner_user_id
+         LEFT JOIN users assigned ON assigned.id = ba.account_manager_id
+         LEFT JOIN admin_staff assigned_profile ON assigned_profile.user_id = assigned.id
+         LEFT JOIN admin_roles assigned_role ON assigned_role.id = assigned_profile.role_id
+        WHERE ba.id = $1`,
+      [params.businessId],
+    );
+    const hydrated = hydratedResult.rows[0];
+    if (!hydrated) throw createAppError('Business account not found after manager assignment.', 500);
+
+    logger.info('Business account manager assigned', {
+      businessId: params.businessId,
+      accountManagerId: params.accountManagerId,
+      assignedByAdminId: params.assignedByAdminId,
+    });
+    return hydrated;
+  });
 }
 
 export async function getMembersAdmin(
@@ -848,7 +975,15 @@ export function formatBusinessAccount(ba: BusinessAccountRow): Record<string, un
     contactEmail: ba.contact_email,
     contactPhone: ba.contact_phone,
     accountManagerId: ba.account_manager_id,
+    accountManagerName: ba.manager_name ?? null,
+    accountManagerEmail: ba.manager_email ?? null,
+    accountManagerRole: ba.manager_account_role ?? null,
+    accountManagerIsActive: ba.manager_is_active ?? null,
+    accountManagerProfileId: ba.manager_profile_id ?? null,
+    accountManagerProfileName: ba.manager_profile_name ?? null,
+    accountManagerProfileIsActive: ba.manager_profile_active ?? null,
     ownerUserId: ba.owner_user_id,
+    ownerName: ba.owner_name ?? null,
     status: ba.status,
     paymentTerms: ba.payment_terms,
     volumeDiscountRate: Number(ba.volume_discount_rate),

@@ -35,7 +35,7 @@ it('Bug UX-342 — adding staff uses a named admin-tier candidate picker instead
     </QueryClientProvider>,
   );
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Add Staff' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Add directory profile' }));
   expect(screen.getByLabelText('Find admin-tier account')).toBeInTheDocument();
   expect(screen.queryByLabelText('User ID')).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Find admin-tier account'), { target: { value: 'Ana' } });

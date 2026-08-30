@@ -17,8 +17,8 @@
 //      Caller decides which routes to apply this middleware to.
 //   3. Compares the X-CSRF-Token request header to the admin_csrf cookie.
 //      Mismatch or missing → 403 csrf_invalid.
-//   4. Verifies the token exists in admin_csrf_tokens (not revoked, not
-//      expired). Failure → 403 csrf_invalid.
+//   4. Verifies the token belongs to the authenticated admin in
+//      admin_csrf_tokens (not revoked, not expired). Failure → 403.
 //
 // Usage in route files:
 //   router.post('/admin/...', requireAdminAuth, requireAdminCsrf, async (req, res) => { ... })
@@ -47,7 +47,14 @@ export async function requireAdminCsrf(
   // hit `csrf_invalid` on every POST/PUT/PATCH/DELETE even when
   // they correctly authenticated via Bearer JWT.
   const authHeader = (req.header('authorization') ?? '').trim();
-  if (authHeader.toLowerCase().startsWith('bearer ')) {
+  // authMiddleware deliberately prefers admin_session when both credentials
+  // are present. Only exempt Bearer when it is therefore the credential that
+  // will actually authenticate the request. Otherwise a caller could attach
+  // an arbitrary Authorization header and bypass CSRF while the cookie still
+  // supplies the privileged identity.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hasAdminSessionCookie = Boolean(((req as any).cookies?.admin_session as string | undefined ?? '').trim());
+  if (!hasAdminSessionCookie && authHeader.toLowerCase().startsWith('bearer ')) {
     return next();
   }
 
@@ -69,15 +76,31 @@ export async function requireAdminCsrf(
     return;
   }
 
-  // Verify the token exists, is not revoked, and is not expired.
+  const authenticatedAdminId = (req as Request & { user?: { userId?: string } }).user?.userId;
+  if (!authenticatedAdminId) {
+    res.status(403).json({
+      success: false,
+      error: {
+        code: 'csrf_invalid',
+        message: 'CSRF token cannot be verified without an authenticated admin.',
+      },
+    });
+    return;
+  }
+
+  // Verify the token belongs to this authenticated admin, is not revoked,
+  // and is not expired. Token existence alone is insufficient because it
+  // would allow one admin's readable CSRF token to accompany another admin's
+  // stolen HttpOnly session cookie.
   const result = await db.query<{ id: string; admin_user_id: string }>(
     `SELECT id, admin_user_id
        FROM admin_csrf_tokens
       WHERE token = $1
+        AND admin_user_id = $2
         AND revoked_at IS NULL
         AND expires_at > NOW()
       LIMIT 1`,
-    [headerToken],
+    [headerToken, authenticatedAdminId],
   );
 
   if (result.rows.length === 0) {

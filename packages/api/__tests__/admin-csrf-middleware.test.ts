@@ -24,6 +24,7 @@ interface FakeReq {
   method: string;
   header: (name: string) => string | undefined;
   cookies: Record<string, string>;
+  user: { userId: string };
   ip?: string;
   originalUrl?: string;
 }
@@ -39,6 +40,7 @@ function makeReq(opts: {
     method: opts.method ?? 'POST',
     header: (name: string) => headers[name.toLowerCase()],
     cookies: opts.cookieToken !== undefined ? { admin_csrf: opts.cookieToken } : {},
+    user: { userId: 'admin-1' },
     ip: '127.0.0.1',
     originalUrl: '/api/v1/admin/test',
   };
@@ -152,6 +154,7 @@ describe('Bug 1251 fix verified — requireAdminCsrf', () => {
     await requireAdminCsrf(req as unknown as Request, res as unknown as Response, next as NextFunction);
 
     expect(mockQuery).toHaveBeenCalledTimes(1);
+    expect(mockQuery.mock.calls[0]?.[1]).toEqual(['matching-but-fake', 'admin-1']);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.body).toMatchObject({ success: false, error: { code: 'csrf_invalid' } });
     expect(next).not.toHaveBeenCalled();
@@ -170,6 +173,7 @@ describe('Bug 1251 fix verified — requireAdminCsrf', () => {
     expect(mockQuery).toHaveBeenCalledTimes(1);
     // Verify the DB lookup is constrained: not revoked, not expired.
     const sql = mockQuery.mock.calls[0]![0] as string;
+    expect(sql).toMatch(/admin_user_id = \$2/);
     expect(sql).toMatch(/revoked_at IS NULL/);
     expect(sql).toMatch(/expires_at > NOW\(\)/);
   });

@@ -183,6 +183,8 @@ export default function SupportTicketsPage(): React.ReactElement {
   const searchFilter = (searchParams.get('search') ?? '').trim();
   const bookingFilter = searchParams.get('bookingId') ?? '';
   const userFilter = searchParams.get('userId') ?? '';
+  const assignedAgentFilter = searchParams.get('assignedAgentId') ?? '';
+  const assignedAgentName = searchParams.get('agentName') ?? 'Selected staff account';
   const [selectedOverride, setSelectedOverride] = useState('');
   const selectedId = searchParams.get('ticketId') ?? selectedOverride;
   const createRequested = searchParams.get('new') === '1' && !!userFilter;
@@ -297,6 +299,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       searchFilter,
       bookingFilter,
       userFilter,
+      assignedAgentFilter,
     ],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
@@ -308,6 +311,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       if (searchFilter) params.set('search', searchFilter);
       if (bookingFilter) params.set('bookingId', bookingFilter);
       if (userFilter) params.set('userId', userFilter);
+      if (assignedAgentFilter) params.set('assignedAgentId', assignedAgentFilter);
       const res = await api.get(`/api/v1/support-tickets?${params}`);
       return res.data as { data: Ticket[]; meta: { total: number } };
     },
@@ -1137,6 +1141,28 @@ export default function SupportTicketsPage(): React.ReactElement {
               Clear linked view
             </button>
           </div>
+        </div>
+      )}
+
+      {assignedAgentFilter && (
+        <div className="flex flex-col justify-between gap-3 rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-950 md:flex-row md:items-center">
+          <div>
+            <strong className="block">Staff ownership view</strong>
+            <span>Assigned to {assignedAgentName}{activeFilter ? ' · active cases only' : ''}</span>
+          </div>
+          <button
+            type="button"
+            className="min-h-11 rounded-md border border-violet-300 bg-white px-4 font-semibold"
+            onClick={() => setSearchParams((current) => {
+              const params = new URLSearchParams(current);
+              params.delete('assignedAgentId');
+              params.delete('agentName');
+              params.delete('page');
+              return params;
+            })}
+          >
+            Clear staff owner
+          </button>
         </div>
       )}
 

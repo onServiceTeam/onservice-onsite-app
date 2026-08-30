@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { createAppError } from './error.middleware';
+import { requireAdminCsrf } from './admin-csrf.middleware';
 import { logger } from '../utils/logger';
 
 // E01 / D15 (2026-05-02) — `dpo` is a real role for NPC RA 10173 §21
@@ -27,7 +28,7 @@ export interface AuthenticatedRequest extends Request {
  */
 export function authMiddleware(
   req: AuthenticatedRequest,
-  _res: Response,
+  res: Response,
   next: NextFunction,
 ): void {
   // Prefer the HttpOnly admin_session cookie when present.
@@ -49,44 +50,58 @@ export function authMiddleware(
     return;
   }
 
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) {
-    logger.error('JWT_SECRET environment variable is not set');
-    next(createAppError('Server configuration error.', 500));
-    return;
-  }
-
-  try {
-    const payload = jwt.verify(token, jwtSecret) as AuthPayload & { type?: string };
-
-    // Reject pre-auth (2FA pending) and refresh tokens from being used as access tokens
-    if (payload.type === 'pre_auth_2fa' || payload.type === 'refresh') {
-      next(createAppError('Invalid authentication token.', 401));
+  const authenticate = (): void => {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      logger.error('JWT_SECRET environment variable is not set');
+      next(createAppError('Server configuration error.', 500));
       return;
     }
 
-    req.user = payload;
-    next();
-  } catch (err) {
-    // MED-M04 fix — distinguish expired vs malformed JWT so the
-    // client can take the right action: TokenExpiredError → mobile/
-    // admin should silently call refresh; JsonWebTokenError → force
-    // re-login. The error code travels in the AppError under `code`
-    // so route-level handlers can branch without parsing the message.
-    const e = err as { name?: string };
-    if (e?.name === 'TokenExpiredError') {
-      const expired = createAppError('Authentication token expired.', 401);
-      (expired as { code?: string }).code = 'token_expired';
-      next(expired);
-      return;
+    try {
+      const payload = jwt.verify(token, jwtSecret) as AuthPayload & { type?: string };
+
+      // Reject pre-auth (2FA pending) and refresh tokens from being used as access tokens
+      if (payload.type === 'pre_auth_2fa' || payload.type === 'refresh') {
+        next(createAppError('Invalid authentication token.', 401));
+        return;
+      }
+
+      req.user = payload;
+
+      // UX-556 — CSRF follows the credential, not a URL prefix. Admin pages
+      // also write through mixed route families such as /staff and
+      // /support-tickets. Validate the JWT first so an expired access cookie
+      // still returns token_expired and can use the normal refresh flow; only
+      // an authenticated cookie request proceeds to the CSRF identity check.
+      if (cookieToken) {
+        void requireAdminCsrf(req, res, next).catch(next);
+        return;
+      }
+      next();
+    } catch (err) {
+      // MED-M04 fix — distinguish expired vs malformed JWT so the
+      // client can take the right action: TokenExpiredError → mobile/
+      // admin should silently call refresh; JsonWebTokenError → force
+      // re-login. The error code travels in the AppError under `code`
+      // so route-level handlers can branch without parsing the message.
+      const e = err as { name?: string };
+      if (e?.name === 'TokenExpiredError') {
+        const expired = createAppError('Authentication token expired.', 401);
+        (expired as { code?: string }).code = 'token_expired';
+        next(expired);
+        return;
+      }
+      if (e?.name === 'JsonWebTokenError' || e?.name === 'NotBeforeError') {
+        const malformed = createAppError('Invalid authentication token.', 401);
+        (malformed as { code?: string }).code = 'token_invalid';
+        next(malformed);
+        return;
+      }
+      // Unknown error class — keep generic message for safety.
+      next(createAppError('Invalid or expired authentication token.', 401));
     }
-    if (e?.name === 'JsonWebTokenError' || e?.name === 'NotBeforeError') {
-      const malformed = createAppError('Invalid authentication token.', 401);
-      (malformed as { code?: string }).code = 'token_invalid';
-      next(malformed);
-      return;
-    }
-    // Unknown error class — keep generic message for safety.
-    next(createAppError('Invalid or expired authentication token.', 401));
-  }
+  };
+
+  authenticate();
 }

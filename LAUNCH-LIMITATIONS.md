@@ -1740,3 +1740,40 @@ rules, durable operational telemetry, privacy controls, integrity/retention,
 monitoring, recovery, and executed failure tests. E32 separately blocks the
 required production aggregate inspection. See
 `.ai-coder/escalations/E37-audit-request-stream-is-not-global-or-correlated-2026-08-30.md`.
+
+---
+
+## 55. DPO role changes do not revoke existing sessions
+
+The Staff & Roles DPO actions change `users.role` and record the transition,
+but they do not revoke existing access tokens, refresh-token rows, admin CSRF
+tokens, or browser sessions. Access tokens carry the role that existed when
+they were issued and remain usable for their current 15-minute lifetime.
+Refresh rotation reloads the current database role, but that does not make the
+already-issued access token fail immediately.
+
+W13 removes the false immediate-access claim and displays the session and route
+boundary before assignment or removal. It does not change authorization or
+token state. Resolve this with E34 through an approved DPO route matrix, an
+immediate token-revocation/session-version design, transactional token cleanup,
+and executed old-token rejection tests. See
+`.ai-coder/escalations/E38-dpo-role-changes-do-not-revoke-existing-sessions-2026-08-31.md`.
+
+---
+
+## 56. Admin account lifecycle is not governed in the app
+
+Staff & Roles manages operational directory profiles, not privileged login
+accounts. The app has no governed workflow to create, activate, deactivate,
+change, recover, or revoke sessions from an admin-tier account. The bootstrap
+script can create or update one out of band, but it lacks an authenticated
+actor, reasoned admin audit event, session revocation, last-active-super-admin
+invariant, and approval workflow.
+
+W13 shows actual account role/status separately from directory metadata and
+states that profile actions do not control access. A dedicated privileged
+account lifecycle must define locked invariants, attribution, two-person and
+break-glass policy, immediate token invalidation, rollback, and executed
+concurrency tests. E32 blocks the required production account/session
+inventory. See
+`.ai-coder/escalations/E39-admin-account-lifecycle-is-not-governed-in-app-2026-08-31.md`.

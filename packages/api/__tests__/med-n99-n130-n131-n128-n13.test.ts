@@ -181,7 +181,7 @@ describe('MED-N131 — review.service enforces max comment + privateNote length'
 describe('MED-N128 — removeStaffMember soft-deletes + writes audit', () => {
   it('MED-N128 — soft-deletes the row and INSERTs an admin_actions audit', async () => {
     // SELECT FOR UPDATE — staff exists, role is plain admin (not super_admin).
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ role_name: 'admin', is_active: true }], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ role_name: 'admin', account_role: 'admin', is_active: true }], rowCount: 1 });
     // UPDATE admin_staff (soft-delete).
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     // INSERT INTO admin_actions.
@@ -211,27 +211,33 @@ describe('MED-N128 — removeStaffMember soft-deletes + writes audit', () => {
     expect((auditCall![1] as unknown[])[0]).toBe('super-1');
   });
 
-  it('MED-N128 — refuses to remove the LAST active super_admin', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ role_name: 'super_admin', is_active: true }], rowCount: 1 });
-    // count of OTHER active super_admins = 0
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 });
+  it('MED-N128 — archives a super_admin-named directory profile without pretending to revoke account access', async () => {
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [{ role_name: 'super_admin', account_role: 'admin', is_active: true }],
+      rowCount: 1,
+    });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
     await expect(removeStaffMember(
       'only-super',
       'only-super',
       'Archive this obsolete staff directory profile.',
-    )).rejects.toThrow(/last active super admin/i);
+    )).resolves.toBeUndefined();
 
-    // No UPDATE / INSERT happened.
-    const updateCall = dbQueryMock.mock.calls.find(
-      ([sql]) => /UPDATE admin_staff/.test(sql as string),
+    const auditCall = dbQueryMock.mock.calls.find(
+      ([sql]) => /INSERT INTO admin_actions/.test(sql as string),
     );
-    expect(updateCall).toBeUndefined();
+    expect(auditCall).toBeDefined();
+    expect(JSON.parse((auditCall![1] as unknown[])[2] as string)).toMatchObject({
+      removedRole: 'super_admin',
+      accountRoleUnchanged: 'admin',
+    });
   });
 
   it('MED-N128 — is idempotent on already-removed staff', async () => {
     dbQueryMock.mockResolvedValueOnce({
-      rows: [{ role_name: 'admin', is_active: false }],
+      rows: [{ role_name: 'admin', account_role: 'admin', is_active: false }],
       rowCount: 1,
     });
 

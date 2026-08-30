@@ -74,7 +74,15 @@ interface BusinessAccount {
   contactEmail: string;
   contactPhone: string;
   accountManagerId: string | null;
+  accountManagerName?: string | null;
+  accountManagerEmail?: string | null;
+  accountManagerRole?: string | null;
+  accountManagerIsActive?: boolean | null;
+  accountManagerProfileId?: string | null;
+  accountManagerProfileName?: string | null;
+  accountManagerProfileIsActive?: boolean | null;
   ownerUserId: string | null;
+  ownerName?: string | null;
   status: string;
   paymentTerms: string;
   volumeDiscountRate: number; // percent number
@@ -145,6 +153,8 @@ interface AdminStaffOption {
   id: string;
   user_id: string;
   is_active: boolean;
+  account_is_active?: boolean;
+  account_role?: string;
   user_first_name?: string;
   user_last_name?: string;
   user_email?: string;
@@ -332,8 +342,10 @@ function OverviewTab({ account }: { account: BusinessAccount }): React.ReactElem
           <InfoRow label="Payment terms" value={fmtLabel(account.paymentTerms)} />
           <InfoRow label="Registration #" value={account.registrationNumber ?? '—'} />
           <InfoRow label="Tax ID" value={account.taxId ?? '—'} />
-          <InfoRow label="Owner user ID" value={account.ownerUserId ?? '—'} mono />
-          <InfoRow label="Account manager ID" value={account.accountManagerId ?? '—'} mono />
+          <InfoRow label="Business owner" value={account.ownerName ?? account.ownerUserId ?? '—'} />
+          <InfoRow label="Account manager" value={account.accountManagerName ?? (account.accountManagerId ? 'Assigned account unavailable' : 'Unassigned')} />
+          {account.accountManagerId && <InfoRow label="Manager account role" value={fmtLabel(account.accountManagerRole ?? 'Unknown')} />}
+          {account.accountManagerId && <InfoRow label="Manager account status" value={account.accountManagerIsActive ? 'Active' : 'Inactive'} />}
         </dl>
       </Card>
 
@@ -385,11 +397,12 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
     account.monthlyCreditLimit != null ? String(account.monthlyCreditLimit / 100) : '',
   );
   const [managerId, setManagerId] = useState(account.accountManagerId ?? '');
+  const [managerReason, setManagerReason] = useState('');
 
   const managersQuery = useQuery({
     queryKey: ['adminStaff', 'active-manager-options'],
     queryFn: async () => {
-      const res = await api.get('/api/v1/staff?page=1&limit=100&isActive=true');
+      const res = await api.get('/api/v1/staff?page=1&limit=100&profileActive=true&accountActive=true');
       return (res.data.data ?? []) as AdminStaffOption[];
     },
     enabled: isSuperAdmin,
@@ -409,7 +422,7 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
   });
 
   const assignManager = useMutation({
-    mutationFn: async (input: { accountManagerId: string }) => {
+    mutationFn: async (input: { accountManagerId: string; reason: string }) => {
       const res = await api.post<{ success: boolean; data: BusinessAccount }>(
         `/api/v1/admin/business-accounts/${account.id}/assign-manager`,
         input,
@@ -419,6 +432,7 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['admin-business-account', account.id] });
       setManagerId(updated.accountManagerId ?? '');
+      setManagerReason('');
     },
   });
 
@@ -516,8 +530,33 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3 flex items-center gap-2">
           <UserCheck size={14} /> Assign account manager
         </h3>
-        <div className="flex items-end gap-2 flex-wrap">
-          <div className="flex-1 min-w-[260px]">
+        <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] p-3 text-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Current relationship owner</p>
+          {account.accountManagerId ? (
+            <>
+              <p className="mt-1 font-semibold text-[var(--color-text)]">{account.accountManagerName ?? account.accountManagerEmail ?? 'Assigned account unavailable'}</p>
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                {fmtLabel(account.accountManagerRole ?? 'Unknown role')} account · {account.accountManagerIsActive ? 'active' : 'inactive'}
+                {' · '}{account.accountManagerProfileId
+                  ? `${fmtLabel(account.accountManagerProfileName ?? 'Unknown')} profile ${account.accountManagerProfileIsActive ? 'active' : 'inactive'}`
+                  : 'no directory profile'}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold">
+                <Link to={`/staff?search=${encodeURIComponent(account.accountManagerEmail ?? account.accountManagerName ?? '')}`} className="text-[var(--color-primary)] hover:underline">Open staff account</Link>
+                <Link to={`/support-tickets?assignedAgentId=${encodeURIComponent(account.accountManagerId)}&active=1&agentName=${encodeURIComponent(account.accountManagerName ?? account.accountManagerEmail ?? 'Account manager')}`} className="text-[var(--color-primary)] hover:underline">Open owned support cases</Link>
+                <Link to={`/audit-log?entityType=business_account&entityId=${encodeURIComponent(account.id)}`} className="text-[var(--color-primary)] hover:underline">Assignment audit</Link>
+              </div>
+            </>
+          ) : (
+            <p className="mt-1 text-[var(--color-text-secondary)]">No account manager is assigned.</p>
+          )}
+        </div>
+        <p className="mb-3 text-xs text-[var(--color-text-secondary)]">
+          This changes the internal relationship owner only. It does not grant account access, change billing,
+          move money, or reassign support cases. The reason and before/after owners are written to the audit log.
+        </p>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
             <label htmlFor="ba-manager-id" className="text-xs text-[var(--color-text-secondary)]">
               Active account manager
             </label>
@@ -530,26 +569,49 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
               disabled={managersQuery.isLoading || managersQuery.isError}
             >
               <option value="">Select an active staff member</option>
-              {(managersQuery.data ?? []).filter((staff) => staff.is_active).map((staff) => {
+              {(managersQuery.data ?? []).filter((staff) => (
+                staff.is_active
+                && staff.account_is_active !== false
+                && (staff.account_role === undefined || staff.account_role === 'admin' || staff.account_role === 'super_admin')
+              )).map((staff) => {
                 const name = `${staff.user_first_name ?? ''} ${staff.user_last_name ?? ''}`.trim();
                 const label = name || staff.user_email || 'Unnamed staff member';
                 return (
                   <option key={staff.id} value={staff.user_id}>
-                    {label}{staff.role_name ? ` · ${fmtLabel(staff.role_name)}` : ''}
+                    {label}{staff.account_role ? ` · ${fmtLabel(staff.account_role)}` : ''}
+                    {staff.role_name ? ` · ${fmtLabel(staff.role_name)} profile` : ''}
                   </option>
                 );
               })}
             </select>
           </div>
+          <div>
+            <label htmlFor="ba-manager-reason" className="text-xs text-[var(--color-text-secondary)]">Assignment reason</label>
+            <textarea
+              id="ba-manager-reason"
+              value={managerReason}
+              onChange={(event) => setManagerReason(event.target.value)}
+              placeholder="Why this staff account should own the relationship"
+              className="mt-1 min-h-20 w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
           <Button
             size="sm"
-            disabled={assignManager.isPending || managerId.trim().length === 0}
-            onClick={() => assignManager.mutate({ accountManagerId: managerId.trim() })}
+            disabled={
+              assignManager.isPending
+              || managerId.trim().length === 0
+              || managerId === account.accountManagerId
+              || managerReason.trim().length < 10
+            }
+            onClick={() => assignManager.mutate({ accountManagerId: managerId.trim(), reason: managerReason.trim() })}
           >
             Assign
           </Button>
-        </div>
-        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          {managerReason.trim().length > 0 && managerReason.trim().length < 10 && (
+            <span className="text-xs text-amber-700">Reason must be at least 10 characters.</span>
+          )}
           {managersQuery.isError && (
             <span role="alert" className="text-xs text-red-600">Could not load active staff members.</span>
           )}

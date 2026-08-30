@@ -12,3 +12,12 @@ export const changeProviderTierSchema = z.object({
   tier: z.enum(['founding', 'new', 'verified', 'pro', 'elite']),
   reason: z.string().min(10, 'Reason must be at least 10 characters').max(1000),
 });
+
+export const assignBusinessAccountManagerSchema = z.object({
+  accountManagerId: z.string().uuid('Invalid account manager ID'),
+  reason: z.string().trim().min(10, 'Reason must be at least 10 characters').max(5000),
+}).strict();
+
+export const businessAccountIdParamsSchema = z.object({
+  id: z.string().uuid('Invalid business account ID'),
+}).strict();

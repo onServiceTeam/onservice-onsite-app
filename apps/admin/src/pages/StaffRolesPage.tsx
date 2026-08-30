@@ -1,10 +1,10 @@
 import React, { useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
-import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { Badge, Pagination } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 
 interface AdminRole {
@@ -23,9 +23,10 @@ function getStaffCount(role: AdminRole): number {
 
 interface AdminStaff {
   id: string;
+  profile_id?: string | null;
   user_id: string;
-  role_id: string;
-  is_active: boolean;
+  role_id: string | null;
+  is_active: boolean | null;
   last_login_at: string | null;
   created_at: string;
   user_phone?: string;
@@ -33,6 +34,20 @@ interface AdminStaff {
   user_first_name?: string;
   user_last_name?: string;
   role_name?: string;
+  account_role?: string;
+  account_is_active?: boolean;
+  active_support_cases?: string;
+}
+
+interface StaffDirectorySummary {
+  totalProfiles: number;
+  activeProfiles: number;
+  inactiveProfiles: number;
+  activeAccounts: number;
+  inactiveAccounts: number;
+  activeSupportOwners: number;
+  totalAdminAccounts: number;
+  unprofiledAdminAccounts: number;
 }
 
 interface StaffCandidate {
@@ -66,6 +81,18 @@ function parsePage(value: string | null): number {
 
 function parseTab(value: string | null): TabId {
   return value === 'roles' || value === 'dpo' ? value : 'staff';
+}
+
+function formatLastLogin(value: string | null): string {
+  if (!value) return 'No recorded login';
+  return new Date(value).toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 // ─── Roles Tab ──────────────────────────────────────────────────────
@@ -346,6 +373,13 @@ function RolesTab(): React.ReactElement {
 
 function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: number) => void }): React.ReactElement {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchFilter = (searchParams.get('search') ?? '').trim();
+  const profileStatusFilter = searchParams.get('profileStatus') ?? '';
+  const accountStatusFilter = searchParams.get('accountStatus') ?? '';
+  const accountRoleFilter = searchParams.get('accountRole') ?? '';
+  const roleProfileFilter = searchParams.get('roleId') ?? '';
+  const [searchDraft, setSearchDraft] = useState(searchFilter);
   const [showAdd, setShowAdd] = useState(false);
   const [candidateSearch, setCandidateSearch] = useState('');
   const [selectedCandidateId, setSelectedCandidateId] = useState('');
@@ -372,10 +406,24 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
   const limit = adminConfig.defaultPageSize;
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['adminStaff', page],
+    queryKey: ['adminStaff', page, searchFilter, profileStatusFilter, accountStatusFilter, accountRoleFilter, roleProfileFilter],
     queryFn: async () => {
-      const res = await api.get(`/api/v1/staff?page=${page}&limit=${limit}`);
-      return res.data as { data: AdminStaff[]; meta: { total: number } };
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (searchFilter.length >= 2) params.set('search', searchFilter);
+      if (profileStatusFilter === 'active' || profileStatusFilter === 'inactive') {
+        params.set('profileActive', profileStatusFilter === 'active' ? 'true' : 'false');
+      }
+      if (profileStatusFilter === 'missing') params.set('profileMissing', 'true');
+      if (accountStatusFilter === 'active' || accountStatusFilter === 'inactive') {
+        params.set('accountActive', accountStatusFilter === 'active' ? 'true' : 'false');
+      }
+      if (['admin', 'super_admin', 'dpo'].includes(accountRoleFilter)) params.set('accountRole', accountRoleFilter);
+      if (roleProfileFilter) params.set('roleId', roleProfileFilter);
+      const res = await api.get(`/api/v1/staff?${params}`);
+      return res.data as {
+        data: AdminStaff[];
+        meta: { total: number; summary?: StaffDirectorySummary };
+      };
     },
   });
 
@@ -449,88 +497,22 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
     addMutation.mutate({ userId, roleId, reason: addReason.trim() });
   }
 
-  const columns: Column<AdminStaff>[] = [
-    {
-      key: 'name',
-      header: 'Name',
-      render: (r) => (
-        <div>
-          <span className="font-medium">{r.user_first_name ?? ''} {r.user_last_name ?? ''}</span>
-          {r.user_email && <p className="text-xs text-[var(--color-text-secondary)]">{r.user_email}</p>}
-        </div>
-      ),
-    },
-    { key: 'phone', header: 'Phone', render: (r) => r.user_phone ?? '—' },
-    {
-      key: 'role',
-      header: 'Role',
-      render: (r) => (
-        <select
-          aria-label={`Change role for ${r.user_first_name ?? 'staff member'} ${r.user_last_name ?? ''}`.trim()}
-          className="text-sm border border-[var(--color-border)] rounded px-2 py-1"
-          value={r.role_id}
-          onChange={(e) => {
-            const newRoleId = e.target.value;
-            if (newRoleId === r.role_id) return;
-            const newRoleName = (roles ?? []).find((rr) => rr.id === newRoleId)?.name ?? '(unknown)';
-            // Stage the change for confirmation rather than firing
-            // immediately (BUG-PHASE44-01).
-            setPendingRoleChange({ staff: r, newRoleId, newRoleName });
-            setRoleChangeReason('');
-            // Reset the visible select back so the UI doesn't show
-            // a stale optimistic selection if the dialog is cancelled.
-            e.target.value = r.role_id;
-          }}
-        >
-          {(roles ?? []).map((role) => (
-            <option key={role.id} value={role.id}>{formatLabel(role.name)}</option>
-          ))}
-        </select>
-      ),
-    },
-    {
-      key: 'active',
-      header: 'Status',
-      render: (r) => (
-        <Badge variant={r.is_active ? 'success' : 'outline'} label={r.is_active ? 'Active' : 'Inactive'} />
-      ),
-    },
-    {
-      key: 'lastLogin',
-      header: 'Last Login',
-      render: (r) => r.last_login_at
-        ? new Date(r.last_login_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-        : 'Never',
-    },
-    {
-      key: 'actions',
-      header: '',
-      render: (r) => (
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className="text-sm text-[var(--color-primary)] hover:underline"
-            onClick={() => {
-              setPendingProfileAction({ staff: r, kind: r.is_active ? 'deactivate' : 'activate' });
-              setProfileActionReason('');
-            }}
-          >
-            {r.is_active ? 'Deactivate' : 'Activate'}
-          </button>
-          <button
-            type="button"
-            className="text-sm text-red-600 hover:underline"
-            onClick={() => {
-              setPendingProfileAction({ staff: r, kind: 'archive' });
-              setProfileActionReason('');
-            }}
-          >
-            Remove
-          </button>
-        </div>
-      ),
-    },
-  ];
+  function setDirectoryFilter(key: 'profileStatus' | 'accountStatus' | 'accountRole' | 'roleId', value: string): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      if (value) params.set(key, value);
+      else params.delete(key);
+      return params;
+    });
+  }
+
+  function staffName(staff: AdminStaff): string {
+    return [staff.user_first_name, staff.user_last_name].filter(Boolean).join(' ')
+      || staff.user_email
+      || staff.user_phone
+      || 'Unnamed staff account';
+  }
 
   return (
     <div className="space-y-4">
@@ -538,19 +520,108 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
         <p className="font-semibold">Staff directory profiles</p>
         <p className="mt-1 text-blue-900">
           This directory can only attach active admin, super-admin, or DPO accounts. Account roles and server RBAC
-          remain the access source; the profile label below does not grant panel access.
+          remain the access source. Directory profiles organize operational ownership but do not grant panel access.
         </p>
       </div>
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold">Staff Members</h2>
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+        <p className="font-semibold">Account lifecycle is not controlled here</p>
+        <p className="mt-1 text-amber-900">
+          Adding, deactivating, or archiving a directory profile does not create or deactivate a login account and
+          does not revoke active sessions. Governed account provisioning, deactivation, and session revocation remain
+          an open launch limitation. Do not treat a profile change as an access-control action.
+        </p>
+      </div>
+
+      <section aria-label="Staff directory summary" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ['Directory profiles', data?.meta?.summary?.totalProfiles ?? data?.meta?.total ?? 0],
+          ['Active profiles', data?.meta?.summary?.activeProfiles ?? 0],
+          ['Admin-tier accounts', data?.meta?.summary?.totalAdminAccounts ?? 0],
+          ['Accounts missing profiles', data?.meta?.summary?.unprofiledAdminAccounts ?? 0],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-lg border border-[var(--color-border)] bg-white p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">{label}</p>
+            <p className="mt-1 text-2xl font-bold text-[var(--color-text)]">{value}</p>
+          </div>
+        ))}
+      </section>
+
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div>
+          <h2 className="text-lg font-semibold">Staff operations directory</h2>
+          <p className="text-sm text-[var(--color-text-secondary)]">Review account truth, directory metadata, workload, and audit history together.</p>
+        </div>
         <button
           type="button"
-          className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg"
+          className="min-h-11 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white"
           onClick={() => setShowAdd(!showAdd)}
         >
-          Add Staff
+          {showAdd ? 'Close form' : 'Add directory profile'}
         </button>
       </div>
+
+      <form
+        role="search"
+        className="grid gap-3 rounded-lg border border-[var(--color-border)] bg-white p-4 md:grid-cols-2 xl:grid-cols-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setSearchParams((current) => {
+            const params = new URLSearchParams(current);
+            params.delete('page');
+            const value = searchDraft.trim();
+            if (value.length >= 2) params.set('search', value);
+            else params.delete('search');
+            return params;
+          });
+        }}
+      >
+        <div className="md:col-span-2 xl:col-span-1">
+          <label htmlFor="staff-directory-search" className="text-xs font-medium text-[var(--color-text-secondary)]">Search staff accounts</label>
+          <div className="mt-1 flex gap-2">
+            <input
+              id="staff-directory-search"
+              value={searchDraft}
+              onChange={(event) => setSearchDraft(event.target.value)}
+              placeholder="Name, email, or phone"
+              className="h-11 min-w-0 flex-1 rounded border border-[var(--color-border)] px-3 text-sm"
+            />
+            <button type="submit" className="h-11 rounded bg-[var(--color-primary)] px-3 text-sm font-semibold text-white">Search</button>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="staff-account-status" className="text-xs font-medium text-[var(--color-text-secondary)]">Login account status</label>
+          <select id="staff-account-status" value={accountStatusFilter} onChange={(event) => setDirectoryFilter('accountStatus', event.target.value)} className="mt-1 h-11 w-full rounded border border-[var(--color-border)] bg-white px-3 text-sm">
+            <option value="">All account statuses</option>
+            <option value="active">Active accounts</option>
+            <option value="inactive">Inactive accounts</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="staff-account-role" className="text-xs font-medium text-[var(--color-text-secondary)]">Login account role</label>
+          <select id="staff-account-role" value={accountRoleFilter} onChange={(event) => setDirectoryFilter('accountRole', event.target.value)} className="mt-1 h-11 w-full rounded border border-[var(--color-border)] bg-white px-3 text-sm">
+            <option value="">All account roles</option>
+            <option value="super_admin">Super admin</option>
+            <option value="admin">Admin</option>
+            <option value="dpo">DPO</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="staff-profile-status" className="text-xs font-medium text-[var(--color-text-secondary)]">Directory status</label>
+          <select id="staff-profile-status" value={profileStatusFilter} onChange={(event) => setDirectoryFilter('profileStatus', event.target.value)} className="mt-1 h-11 w-full rounded border border-[var(--color-border)] bg-white px-3 text-sm">
+            <option value="">All profile statuses</option>
+            <option value="active">Active profiles</option>
+            <option value="inactive">Inactive profiles</option>
+            <option value="missing">No directory profile</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="staff-role-profile-filter" className="text-xs font-medium text-[var(--color-text-secondary)]">Directory role profile</label>
+          <select id="staff-role-profile-filter" value={roleProfileFilter} onChange={(event) => setDirectoryFilter('roleId', event.target.value)} className="mt-1 h-11 w-full rounded border border-[var(--color-border)] bg-white px-3 text-sm">
+            <option value="">All role profiles</option>
+            {(roles ?? []).map((role) => <option key={role.id} value={role.id}>{formatLabel(role.name)}</option>)}
+          </select>
+        </div>
+      </form>
 
       {showAdd && (
         <form
@@ -622,7 +693,132 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
       {isRolesError && <p role="alert" className="text-sm text-red-600">Failed to load roles for assignment. Please refresh.</p>}
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
-      <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No staff members." />
+      {isLoading && <p className="rounded-lg border border-[var(--color-border)] bg-white p-6 text-sm text-[var(--color-text-secondary)]">Loading staff directory...</p>}
+      {!isLoading && !isError && (data?.data.length ?? 0) === 0 && (
+        <p className="rounded-lg border border-dashed border-[var(--color-border)] bg-white p-8 text-center text-sm text-[var(--color-text-secondary)]">
+          No staff accounts or directory profiles match these filters.
+        </p>
+      )}
+      <div className="grid gap-4 xl:grid-cols-2">
+        {(data?.data ?? []).map((staff) => {
+          const activeCases = Number(staff.active_support_cases ?? 0);
+          const accountActive = staff.account_is_active === true;
+          const profileId = staff.profile_id ?? (staff.role_id ? staff.id : null);
+          const profileRoleId = staff.role_id;
+          return (
+            <article key={staff.id} className="rounded-xl border border-[var(--color-border)] bg-white p-4 shadow-sm sm:p-5">
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                <div className="min-w-0">
+                  <h3 className="truncate text-base font-semibold text-[var(--color-text)]">{staffName(staff)}</h3>
+                  <p className="truncate text-sm text-[var(--color-text-secondary)]">{staff.user_email ?? 'No email recorded'}</p>
+                  <p className="text-sm text-[var(--color-text-secondary)]">{staff.user_phone ?? 'No phone recorded'}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={accountActive ? 'success' : 'danger'} label={`Account ${accountActive ? 'active' : 'inactive'}`} />
+                  <Badge variant="info" label={formatLabel(staff.account_role ?? 'unknown account role')} />
+                </div>
+              </div>
+
+              {!accountActive && (
+                <p role="alert" className="mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  This login account is inactive. Its directory profile may still be visible for ownership history.
+                </p>
+              )}
+
+              <div className="mt-4 grid gap-4 border-t border-[var(--color-border)] pt-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Login account</p>
+                  <dl className="mt-2 space-y-2 text-sm">
+                    <div><dt className="text-[var(--color-text-secondary)]">Actual access role</dt><dd className="font-medium">{formatLabel(staff.account_role ?? 'Unknown')}</dd></div>
+                    <div><dt className="text-[var(--color-text-secondary)]">Last login</dt><dd className="font-medium">{formatLastLogin(staff.last_login_at)}</dd></div>
+                    <div><dt className="text-[var(--color-text-secondary)]">Active support cases</dt><dd className="font-medium">{activeCases}</dd></div>
+                  </dl>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Operations directory</p>
+                  {profileId && profileRoleId ? (
+                    <>
+                      <label htmlFor={`staff-profile-${profileId}`} className="mt-2 block text-xs text-[var(--color-text-secondary)]">Role profile metadata</label>
+                      <select
+                        id={`staff-profile-${profileId}`}
+                        aria-label={`Change directory profile for ${staffName(staff)}`}
+                        className="mt-1 h-11 w-full rounded border border-[var(--color-border)] bg-white px-3 text-sm"
+                        value={profileRoleId}
+                        onChange={(event) => {
+                          const newRoleId = event.target.value;
+                          if (newRoleId === profileRoleId) return;
+                          const newRoleName = (roles ?? []).find((role) => role.id === newRoleId)?.name ?? '(unknown)';
+                          setPendingRoleChange({ staff: { ...staff, id: profileId }, newRoleId, newRoleName });
+                          setRoleChangeReason('');
+                          event.target.value = profileRoleId;
+                        }}
+                      >
+                        {(roles ?? []).map((role) => <option key={role.id} value={role.id}>{formatLabel(role.name)}</option>)}
+                      </select>
+                      <div className="mt-3 flex items-center gap-2">
+                        <Badge variant={staff.is_active ? 'success' : 'outline'} label={`Profile ${staff.is_active ? 'active' : 'inactive'}`} />
+                        <span className="text-xs text-[var(--color-text-secondary)]">{formatLabel(staff.role_name ?? 'Unassigned')}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                      <p className="font-semibold">No directory profile</p>
+                      <p className="mt-1 text-xs">This account can still own support cases when its account role is Admin or Super Admin.</p>
+                      <button
+                        type="button"
+                        className="mt-3 font-semibold text-[var(--color-primary)] hover:underline"
+                        onClick={() => {
+                          setShowAdd(true);
+                          setCandidateSearch(staffName(staff));
+                          setSelectedCandidateId(staff.user_id);
+                          setAddRoleId('');
+                          setAddReason('');
+                        }}
+                      >
+                        Prepare directory profile
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-3 border-t border-[var(--color-border)] pt-4 text-sm">
+                <Link className="font-semibold text-[var(--color-primary)] hover:underline" to={`/support-tickets?assignedAgentId=${encodeURIComponent(staff.user_id)}&active=1&agentName=${encodeURIComponent(staffName(staff))}`}>
+                  Open active cases ({activeCases})
+                </Link>
+                {profileId && (
+                  <Link className="font-semibold text-[var(--color-primary)] hover:underline" to={`/audit-log?entityType=admin_staff&entityId=${encodeURIComponent(profileId)}`}>Profile audit</Link>
+                )}
+                <Link className="font-semibold text-[var(--color-primary)] hover:underline" to={`/audit-log?userId=${encodeURIComponent(staff.user_id)}`}>Actions by staff</Link>
+                {profileId && (
+                  <>
+                    <button
+                      type="button"
+                      className="font-semibold text-[var(--color-primary)] hover:underline"
+                      onClick={() => {
+                        setPendingProfileAction({ staff: { ...staff, id: profileId }, kind: staff.is_active ? 'deactivate' : 'activate' });
+                        setProfileActionReason('');
+                      }}
+                    >
+                      {staff.is_active ? 'Deactivate profile' : 'Activate profile'}
+                    </button>
+                    <button
+                      type="button"
+                      className="font-semibold text-red-700 hover:underline"
+                      onClick={() => {
+                        setPendingProfileAction({ staff: { ...staff, id: profileId }, kind: 'archive' });
+                        setProfileActionReason('');
+                      }}
+                    >
+                      Archive profile
+                    </button>
+                  </>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
 
       {data && (
         <Pagination
@@ -638,7 +834,7 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div role="dialog" aria-modal="true" aria-labelledby="staff-role-change-title" className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6">
             <h3 id="staff-role-change-title" className="text-lg font-semibold text-[var(--color-text)] mb-1">
-              Change role
+              Change directory role profile
             </h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
               {pendingRoleChange.staff.user_first_name} {pendingRoleChange.staff.user_last_name}
@@ -825,6 +1021,14 @@ function DpoTab(): React.ReactElement {
           DPO and removes the account&apos;s previous role. Only one active DPO may be assigned; every handover is audited.
         </p>
       </div>
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-950">
+        <p className="font-semibold">Access and session boundary</p>
+        <p className="mt-1 text-red-900">
+          DPO route segregation is not yet complete, and changing the database role does not revoke already-issued
+          login or refresh tokens. Treat every assignment or removal as requiring a controlled sign-out and access
+          review. Do not promise that all page and API access changes immediately.
+        </p>
+      </div>
 
       {dpoQuery.isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Loading DPO assignment...</p>}
       {dpoQuery.isError && <p role="alert" className="text-sm text-red-600">Failed to load the DPO assignment.</p>}
@@ -926,8 +1130,9 @@ function DpoTab(): React.ReactElement {
               {[pendingDemotion.firstName, pendingDemotion.lastName].filter(Boolean).join(' ') || pendingDemotion.email}
             </p>
             <p className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-              This immediately removes DPO route access and leaves the DPO seat vacant until a replacement is assigned.
-              Complete the documented handover and NPC update outside the app as required.
+              This changes the account role in the database and leaves the DPO seat vacant until a replacement is
+              assigned. Existing tokens are not revoked by this action, so complete the controlled sign-out, access
+              review, documented handover, and NPC update outside the app as required.
             </p>
             <label htmlFor="dpo-demote-role" className="mt-4 block text-sm font-medium">Account role after removal</label>
             <select
@@ -1024,13 +1229,13 @@ export default function StaffRolesPage(): React.ReactElement {
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-[var(--color-text)]">Staff & Roles</h1>
 
-      <div className="flex gap-1 border-b border-[var(--color-border)]">
+      <div className="flex flex-wrap gap-1 border-b border-[var(--color-border)]">
         {([['staff', 'Staff'], ['roles', 'Role Profiles'], ['dpo', 'DPO Management']] as [TabId, string][]).map(([id, label]) => (
           <button
             type="button"
             key={id}
             onClick={() => selectTab(id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`min-h-11 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab === id
                 ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
                 : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
