@@ -55,7 +55,8 @@ describe('fraud-pattern threshold settings', () => {
     expect(integerSetting).toHaveBeenCalledWith('fraud_pattern_window_days');
     expect(decimalSetting).toHaveBeenCalledWith('fraud_pattern_favor_provider_rate');
     expect(configured.fraudPattern).toMatchObject({
-      disputesLast30Days: 2,
+      disputesInWindow: 2,
+      windowDays: 7,
       favorProviderRate: 1,
       flagged: true,
       reason: expect.stringContaining('in 7 days'),
@@ -75,7 +76,8 @@ describe('fraud-pattern threshold settings', () => {
     const fallback = await getCustomerDisputes('customer-1');
 
     expect(fallback.fraudPattern).toMatchObject({
-      disputesLast30Days: 5,
+      disputesInWindow: 5,
+      windowDays: 30,
       favorProviderRate: 0.8,
       flagged: true,
       reason: expect.stringContaining('in 30 days'),

@@ -58,6 +58,8 @@ export type NotificationType =
   | 'quality_standing'
   | 'provider_approved' | 'provider_rejected' | 'provider_suspended'
   | 'provider_reactivated' | 'provider_tier_changed'
+  // Customer account-enforcement decisions written by Customer 360.
+  | 'customer_suspended' | 'customer_reactivated'
   // D23 — provider is told when back-office decides on a team member they added.
   | 'provider_staff_approved' | 'provider_staff_rejected'
   | 'service_area_change_approved' | 'service_area_change_rejected'

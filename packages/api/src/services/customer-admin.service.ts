@@ -5,8 +5,9 @@
  * Sacred-file note: this service touches wallet balances via
  * `creditCustomerWallet` (super-admin manual credit). That single function is
  * gated by super-admin role + always writes a paired wallet_transaction
- * within a transaction so money conservation holds. All other functions are
- * read-only or write to users.is_active / admin_actions only.
+ * within a transaction so money conservation holds. Account enforcement also
+ * updates users, revokes refresh sessions when suspending, and writes an audit
+ * row plus a generic customer notification in one transaction.
  */
 
 import { db } from '../models/db';
@@ -14,6 +15,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as settingsService from './settings.service';
 import { maskPhilippinePhone, maskEmail } from '../utils/pii-mask';
+import { ACTIVE_BOOKING_STATUSES } from '../types/booking.types';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -32,10 +34,13 @@ export interface CustomerProfile {
   avatarUrl: string | null;
   isVerified: boolean;
   isActive: boolean;
+  isFlaggedFraud: boolean;
   lastLoginAt: string | null;
   createdAt: string;
   lifetimeBookings: number;
   lifetimeSpent: number;
+  activeBookings: number;
+  openDisputes: number;
   averageRatingGiven: number | null;
   totalReviewsGiven: number;
   addresses: {
@@ -94,6 +99,7 @@ export interface CustomerPayments {
   recentPaymentIntents: {
     id: string;
     bookingId: string;
+    providerId: string | null;
     paymentMethod: string;
     status: string;
     amount: number;
@@ -105,6 +111,7 @@ export interface CustomerPayments {
 export interface CustomerDispute {
   id: string;
   bookingId: string;
+  providerId: string | null;
   providerBusinessName: string | null;
   type: string;
   status: string;
@@ -116,7 +123,8 @@ export interface CustomerDispute {
 export interface CustomerDisputesResult {
   rows: CustomerDispute[];
   fraudPattern: {
-    disputesLast30Days: number;
+    disputesInWindow: number;
+    windowDays: number;
     favorProviderRate: number | null;
     flagged: boolean;
     reason: string | null;
@@ -164,6 +172,11 @@ export interface CustomerActivityRow {
   source: 'audit' | 'login' | 'admin_action';
   action: string;
   detail: string | null;
+  actor: {
+    kind: 'customer' | 'admin' | 'system';
+    id: string | null;
+    name: string | null;
+  };
   ipAddress: string | null;
   userAgent: string | null;
   createdAt: string;
@@ -194,11 +207,12 @@ export async function getCustomerProfile(
     avatar_url: string | null;
     is_verified: boolean;
     is_active: boolean;
+    is_flagged_fraud: boolean;
     last_login_at: Date | null;
     created_at: Date;
   }>(
     `SELECT id, first_name, last_name, phone, email, avatar_url,
-            is_verified, is_active, last_login_at, created_at
+            is_verified, is_active, is_flagged_fraud, last_login_at, created_at
        FROM users
       WHERE id = $1 AND role = 'customer'`,
     [customerId],
@@ -210,17 +224,25 @@ export async function getCustomerProfile(
     db.query<{
       lifetime_bookings: string;
       lifetime_spent: string;
+      active_bookings: string;
+      open_disputes: string;
       avg_rating: string | null;
       total_reviews: string;
     }>(
       `SELECT
          COUNT(b.id)::text AS lifetime_bookings,
          COALESCE(SUM(CASE WHEN b.status = 'confirmed' OR b.status = 'paid_out' THEN b.total_amount ELSE 0 END), 0)::text AS lifetime_spent,
+         COUNT(b.id) FILTER (WHERE b.status = ANY($2::text[]))::text AS active_bookings,
+         (SELECT COUNT(*)::text
+            FROM disputes d
+            JOIN bookings dispute_booking ON dispute_booking.id = d.booking_id
+           WHERE dispute_booking.customer_id = $1
+             AND d.status IN ('open', 'under_review', 'escalated')) AS open_disputes,
          (SELECT AVG(rating)::text FROM reviews WHERE reviewer_id = $1) AS avg_rating,
          (SELECT COUNT(*)::text FROM reviews WHERE reviewer_id = $1) AS total_reviews
          FROM bookings b
         WHERE b.customer_id = $1`,
-      [customerId],
+      [customerId, ACTIVE_BOOKING_STATUSES],
     ),
     db.query<{
       id: string;
@@ -283,10 +305,13 @@ export async function getCustomerProfile(
     avatarUrl: u.avatar_url,
     isVerified: u.is_verified,
     isActive: u.is_active,
+    isFlaggedFraud: u.is_flagged_fraud,
     lastLoginAt: u.last_login_at ? u.last_login_at.toISOString() : null,
     createdAt: u.created_at.toISOString(),
     lifetimeBookings: Number(s?.lifetime_bookings ?? 0),
     lifetimeSpent: Number(s?.lifetime_spent ?? 0),
+    activeBookings: Number(s?.active_bookings ?? 0),
+    openDisputes: Number(s?.open_disputes ?? 0),
     averageRatingGiven: s?.avg_rating ? Number(s.avg_rating) : null,
     totalReviewsGiven: Number(s?.total_reviews ?? 0),
     addresses: addresses.rows.map((r) => ({
@@ -450,12 +475,14 @@ export async function getCustomerPayments(customerId: string): Promise<CustomerP
     db.query<{
       id: string;
       booking_id: string;
+      provider_id: string | null;
       payment_method: string;
       status: string;
       amount: number;
       created_at: Date;
     }>(
-      `SELECT pi.id, pi.booking_id, pi.payment_method, pi.status, pi.amount, pi.created_at
+      `SELECT pi.id, pi.booking_id, b.provider_id,
+              pi.payment_method, pi.status, pi.amount, pi.created_at
          FROM payment_intents pi
          JOIN bookings b ON b.id = pi.booking_id
         WHERE b.customer_id = $1
@@ -491,6 +518,7 @@ export async function getCustomerPayments(customerId: string): Promise<CustomerP
     recentPaymentIntents: intentRow.rows.map((r) => ({
       id: r.id,
       bookingId: r.booking_id,
+      providerId: r.provider_id,
       paymentMethod: r.payment_method,
       status: r.status,
       amount: r.amount,
@@ -508,6 +536,7 @@ export async function getCustomerDisputes(customerId: string): Promise<CustomerD
   const result = await db.query<{
     id: string;
     booking_id: string;
+    provider_id: string | null;
     business_name: string | null;
     type: string;
     status: string;
@@ -515,7 +544,7 @@ export async function getCustomerDisputes(customerId: string): Promise<CustomerD
     refund_amount: number | null;
     created_at: Date;
   }>(
-    `SELECT d.id, d.booking_id,
+    `SELECT d.id, d.booking_id, b.provider_id,
             p.business_name,
             d.type, d.status, d.resolution_type,
             COALESCE(d.refund_amount, 0) AS refund_amount,
@@ -532,6 +561,7 @@ export async function getCustomerDisputes(customerId: string): Promise<CustomerD
   const rows = result.rows.map<CustomerDispute>((r) => ({
     id: r.id,
     bookingId: r.booking_id,
+    providerId: r.provider_id,
     providerBusinessName: r.business_name,
     type: r.type,
     status: r.status,
@@ -567,12 +597,11 @@ export async function getCustomerDisputes(customerId: string): Promise<CustomerD
   const cutoff = now - windowDays * 24 * 60 * 60 * 1000;
   const recent = rows.filter((r) => new Date(r.createdAt).getTime() >= cutoff);
   const resolved = recent.filter((r) => r.status === 'resolved');
-  const favorProvider = resolved.filter(
-    (r) =>
-      r.resolutionType === 'no_refund' ||
-      r.resolutionType === 'refund_with_warning' ||
-      r.resolutionType === 'refund_with_suspension',
-  ).length;
+  // A refund with a provider warning or suspension is customer relief caused
+  // by provider-side findings. Counting those outcomes as provider-favoring
+  // falsely marks legitimate complainants as fraud risks. Only a resolved
+  // no-refund outcome is unambiguously provider-favoring.
+  const favorProvider = resolved.filter((r) => r.resolutionType === 'no_refund').length;
   const favorProviderRate = resolved.length > 0 ? favorProvider / resolved.length : null;
   const flagged =
     recent.length >= countThreshold &&
@@ -581,13 +610,14 @@ export async function getCustomerDisputes(customerId: string): Promise<CustomerD
   let reason: string | null = null;
   if (flagged) {
     const pct = Math.round((favorProviderRate ?? 0) * 100);
-    reason = `Filed ${recent.length} disputes in ${windowDays} days; ${pct}% resolved in favor of provider — possible fraudulent pattern.`;
+    reason = `Filed ${recent.length} disputes in ${windowDays} days; ${pct}% of resolved cases ended with no refund — possible fraudulent pattern.`;
   }
 
   return {
     rows,
     fraudPattern: {
-      disputesLast30Days: recent.length,
+      disputesInWindow: recent.length,
+      windowDays,
       favorProviderRate,
       flagged,
       reason,
@@ -731,26 +761,32 @@ export async function getCustomerActivity(
 ): Promise<CustomerActivityRow[]> {
   const safeLimit = Math.min(200, Math.max(1, Math.floor(limit) || 50));
 
-  const userResult = await db.query<{ phone: string }>(
-    `SELECT phone FROM users WHERE id = $1 AND role = 'customer'`,
+  const userResult = await db.query<{ phone: string; first_name: string | null; last_name: string | null }>(
+    `SELECT phone, first_name, last_name FROM users WHERE id = $1 AND role = 'customer'`,
     [customerId],
   );
   if (!userResult.rows[0]) throw createAppError('Customer not found.', 404);
   const phone = userResult.rows[0].phone;
+  const customerName = `${userResult.rows[0].first_name ?? ''} ${userResult.rows[0].last_name ?? ''}`.trim();
 
   const [auditRows, loginRows, adminActionRows] = await Promise.all([
     db.query<{
       id: string;
+      user_id: string | null;
+      actor_first: string | null;
+      actor_last: string | null;
       action: string;
       ip_address: string | null;
       user_agent: string | null;
       new_values: unknown;
       created_at: Date;
     }>(
-      `SELECT id, action, ip_address::text, user_agent, new_values, created_at
-         FROM audit_log
-        WHERE entity_id = $1 AND entity_type IN ('users', 'customer')
-        ORDER BY created_at DESC
+      `SELECT al.id, al.user_id, u.first_name AS actor_first, u.last_name AS actor_last,
+              al.action, al.ip_address::text, al.user_agent, al.new_values, al.created_at
+         FROM audit_log al
+         LEFT JOIN users u ON u.id = al.user_id
+        WHERE al.entity_id = $1 AND al.entity_type IN ('users', 'customer')
+        ORDER BY al.created_at DESC
         LIMIT $2`,
       [customerId, safeLimit],
     ),
@@ -771,15 +807,20 @@ export async function getCustomerActivity(
     ),
     db.query<{
       id: string;
+      admin_id: string;
+      admin_first: string | null;
+      admin_last: string | null;
       action_type: string;
       reason: string | null;
       details: unknown;
       created_at: Date;
     }>(
-      `SELECT id, action_type, reason, details, created_at
-         FROM admin_actions
-        WHERE target_type = 'customer' AND target_id = $1
-        ORDER BY created_at DESC
+      `SELECT a.id, a.admin_id, u.first_name AS admin_first, u.last_name AS admin_last,
+              a.action_type, a.reason, a.details, a.created_at
+         FROM admin_actions a
+         LEFT JOIN users u ON u.id = a.admin_id
+        WHERE a.target_type = 'customer' AND a.target_id = $1
+        ORDER BY a.created_at DESC
         LIMIT $2`,
       [customerId, safeLimit],
     ),
@@ -796,35 +837,48 @@ export async function getCustomerActivity(
     return requesterRole === 'super_admin' ? ua : maskUserAgent(ua);
   };
 
-  const audit = auditRows.rows.map<CustomerActivityRow>((r) => ({
-    id: `audit:${r.id}`,
-    source: 'audit',
-    action: r.action,
-    detail: r.new_values ? JSON.stringify(r.new_values) : null,
-    ipAddress: maskIfNeeded(r.ip_address),
-    userAgent: maskUaIfNeeded(r.user_agent),
-    createdAt: r.created_at.toISOString(),
-  }));
+  const audit = auditRows.rows.map<CustomerActivityRow>((r) => {
+    const actorName = `${r.actor_first ?? ''} ${r.actor_last ?? ''}`.trim() || null;
+    return {
+      id: `audit:${r.id}`,
+      source: 'audit',
+      action: r.action,
+      detail: r.new_values ? JSON.stringify(r.new_values) : null,
+      actor: {
+        kind: r.user_id === customerId ? 'customer' : r.user_id ? 'admin' : 'system',
+        id: r.user_id,
+        name: actorName,
+      },
+      ipAddress: maskIfNeeded(r.ip_address),
+      userAgent: maskUaIfNeeded(r.user_agent),
+      createdAt: r.created_at.toISOString(),
+    };
+  });
 
   const logins = loginRows.rows.map<CustomerActivityRow>((r) => ({
     id: `login:${r.id}`,
     source: 'login',
     action: `${r.attempt_type}:${r.success ? 'ok' : 'fail'}`,
     detail: null,
+    actor: { kind: 'customer', id: customerId, name: customerName || null },
     ipAddress: maskIfNeeded(r.ip_address),
     userAgent: maskUaIfNeeded(r.user_agent),
     createdAt: r.created_at.toISOString(),
   }));
 
-  const adminActs = adminActionRows.rows.map<CustomerActivityRow>((r) => ({
-    id: `admin_action:${r.id}`,
-    source: 'admin_action',
-    action: r.action_type,
-    detail: r.reason ?? (r.details ? JSON.stringify(r.details) : null),
-    ipAddress: null,
-    userAgent: null,
-    createdAt: r.created_at.toISOString(),
-  }));
+  const adminActs = adminActionRows.rows.map<CustomerActivityRow>((r) => {
+    const adminName = `${r.admin_first ?? ''} ${r.admin_last ?? ''}`.trim() || null;
+    return {
+      id: `admin_action:${r.id}`,
+      source: 'admin_action',
+      action: r.action_type,
+      detail: r.reason ?? (r.details ? JSON.stringify(r.details) : null),
+      actor: { kind: 'admin', id: r.admin_id, name: adminName },
+      ipAddress: null,
+      userAgent: null,
+      createdAt: r.created_at.toISOString(),
+    };
+  });
 
   return [...audit, ...logins, ...adminActs]
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
@@ -842,12 +896,11 @@ export async function updateCustomerStatus(
   adminUserId: string,
 ): Promise<{ isActive: boolean }> {
   const trimmed = reason?.trim();
-  if (!trimmed || trimmed.length < 5) {
-    throw createAppError('reason must be at least 5 characters.', 400);
+  if (!trimmed || trimmed.length < 10) {
+    throw createAppError('reason must be at least 10 characters.', 400);
   }
-  // BUG-PHASE160-01 fix — pre-fix had min(5) but no max. Same
-  // defense-in-depth pattern as Phase 152-159. The reason persists
-  // to admin_actions.reason which is TEXT (unbounded). Cap at 2000.
+  // BUG-PHASE160-01 fix — admin-action reasons are bounded before they
+  // reach the unbounded TEXT ledger column.
   if (trimmed.length > 2000) {
     throw createAppError('reason must be ≤ 2000 characters.', 400);
   }
@@ -856,8 +909,8 @@ export async function updateCustomerStatus(
   }
 
   return db.transaction(async (client) => {
-    const userResult = await client.query<{ id: string; is_active: boolean }>(
-      `SELECT id, is_active FROM users WHERE id = $1 AND role = 'customer' FOR UPDATE`,
+    const userResult = await client.query<{ id: string; is_active: boolean; is_flagged_fraud: boolean }>(
+      `SELECT id, is_active, is_flagged_fraud FROM users WHERE id = $1 AND role = 'customer' FOR UPDATE`,
       [customerId],
     );
     const user = userResult.rows[0];
@@ -870,9 +923,11 @@ export async function updateCustomerStatus(
     let actionType: 'customer_suspended' | 'customer_reactivated' | 'customer_flagged_fraud';
 
     if (action === 'suspend') {
+      if (!user.is_active) throw createAppError('Customer is already suspended.', 409);
       newIsActive = false;
       actionType = 'customer_suspended';
     } else if (action === 'reactivate') {
+      if (user.is_active) throw createAppError('Customer is already active.', 409);
       newIsActive = true;
       actionType = 'customer_reactivated';
     } else {
@@ -883,14 +938,24 @@ export async function updateCustomerStatus(
       // 'customer_suspended' with a reason prefix, inflating
       // suspension counts in analytics and hiding the flag from
       // anyone querying admin_actions.action_type.
+      if (user.is_flagged_fraud) throw createAppError('Customer is already flagged for fraud review.', 409);
       actionType = 'customer_flagged_fraud';
     }
 
-    if (action !== 'flag_fraud' && newIsActive !== user.is_active) {
+    if (action !== 'flag_fraud') {
       await client.query(`UPDATE users SET is_active = $1, updated_at = NOW() WHERE id = $2`, [
         newIsActive,
         customerId,
       ]);
+    }
+
+    let revokedSessionCount = 0;
+    if (action === 'suspend') {
+      const revoked = await client.query(
+        `DELETE FROM refresh_tokens WHERE user_id = $1`,
+        [customerId],
+      );
+      revokedSessionCount = revoked.rowCount ?? 0;
     }
 
     if (action === 'flag_fraud') {
@@ -905,8 +970,38 @@ export async function updateCustomerStatus(
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
        VALUES ($1, $2, 'customer', $3, $4::jsonb, $5)`,
-      [adminUserId, actionType, customerId, JSON.stringify({ requestedAction: action }), trimmed],
+      [
+        adminUserId,
+        actionType,
+        customerId,
+        JSON.stringify({
+          requestedAction: action,
+          previousIsActive: user.is_active,
+          nextIsActive: newIsActive,
+          previousFraudFlag: user.is_flagged_fraud,
+          nextFraudFlag: action === 'flag_fraud' ? true : user.is_flagged_fraud,
+          revokedSessionCount,
+        }),
+        trimmed,
+      ],
     );
+
+    if (action === 'suspend' || action === 'reactivate') {
+      const suspended = action === 'suspend';
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, body, data)
+         VALUES ($1, $2, $3, $4, $5::jsonb)`,
+        [
+          customerId,
+          suspended ? 'customer_suspended' : 'customer_reactivated',
+          suspended ? 'Account suspended' : 'Account reactivated',
+          suspended
+            ? 'Your onService account has been suspended. Contact support if you need help with an active booking or want the decision reviewed.'
+            : 'Your onService account has been reactivated. Please sign in again to continue.',
+          JSON.stringify({ accountStatus: suspended ? 'suspended' : 'active' }),
+        ],
+      );
+    }
 
     logger.info('Customer status updated', {
       customerId,

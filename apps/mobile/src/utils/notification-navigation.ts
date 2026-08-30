@@ -39,6 +39,9 @@ export function resolveNotificationRoute(
     if (type === 'rating_received' || type === 'job_completed') return Routes.TABS.BOOKINGS;
     if (type === 'payment_released') return Routes.TABS.WALLET;
     if (type === 'area_launch') return Routes.TABS.HOME;
+    if (type === 'customer_suspended' || type === 'customer_reactivated') {
+      return Routes.CUSTOMER.ACCOUNT_MANAGEMENT;
+    }
     return null;
   }
 

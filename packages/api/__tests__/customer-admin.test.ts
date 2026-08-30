@@ -82,6 +82,7 @@ describe('getCustomerProfile', () => {
             avatar_url: null,
             is_verified: true,
             is_active: true,
+            is_flagged_fraud: true,
             last_login_at: new Date('2024-03-01T00:00:00Z'),
             created_at: new Date('2024-01-01T00:00:00Z'),
           },
@@ -92,6 +93,8 @@ describe('getCustomerProfile', () => {
           {
             lifetime_bookings: '10',
             lifetime_spent: '500000',
+            active_bookings: '2',
+            open_disputes: '1',
             avg_rating: '4.20',
             total_reviews: '8',
           },
@@ -129,6 +132,9 @@ describe('getCustomerProfile', () => {
     expect(out.fullName).toBe('Joe Cust');
     expect(out.lifetimeBookings).toBe(10);
     expect(out.lifetimeSpent).toBe(500000);
+    expect(out.isFlaggedFraud).toBe(true);
+    expect(out.activeBookings).toBe(2);
+    expect(out.openDisputes).toBe(1);
     expect(out.averageRatingGiven).toBe(4.2);
     expect(out.totalReviewsGiven).toBe(8);
     expect(out.addresses).toEqual([
@@ -159,6 +165,7 @@ describe('getCustomerProfile', () => {
             avatar_url: null,
             is_verified: false,
             is_active: true,
+            is_flagged_fraud: false,
             last_login_at: null,
             created_at: new Date('2024-01-01T00:00:00Z'),
           },
@@ -166,7 +173,7 @@ describe('getCustomerProfile', () => {
       )
       .mockResolvedValueOnce(
         rows([
-          { lifetime_bookings: '0', lifetime_spent: '0', avg_rating: null, total_reviews: '0' },
+          { lifetime_bookings: '0', lifetime_spent: '0', active_bookings: '0', open_disputes: '0', avg_rating: null, total_reviews: '0' },
         ]),
       )
       .mockResolvedValueOnce(rows([]))
@@ -192,6 +199,7 @@ describe('getCustomerProfile', () => {
             avatar_url: null,
             is_verified: true,
             is_active: true,
+            is_flagged_fraud: false,
             last_login_at: null,
             created_at: new Date('2024-01-01T00:00:00Z'),
           },
@@ -199,7 +207,7 @@ describe('getCustomerProfile', () => {
       )
       .mockResolvedValueOnce(
         rows([
-          { lifetime_bookings: '0', lifetime_spent: '0', avg_rating: null, total_reviews: '0' },
+          { lifetime_bookings: '0', lifetime_spent: '0', active_bookings: '0', open_disputes: '0', avg_rating: null, total_reviews: '0' },
         ]),
       )
       .mockResolvedValueOnce(rows([]))
@@ -344,6 +352,7 @@ describe('getCustomerPayments', () => {
           {
             id: 'pi1',
             booking_id: 'b1',
+            provider_id: 'p1',
             payment_method: 'gcash',
             status: 'succeeded',
             amount: 100000,
@@ -361,6 +370,7 @@ describe('getCustomerPayments', () => {
     expect(out.walletAvailable).toBe(50000);
     expect(out.recentTransactions[0].amount).toBe(-100000);
     expect(out.recentPaymentIntents[0].paymentMethod).toBe('gcash');
+    expect(out.recentPaymentIntents[0].providerId).toBe('p1');
     expect(out.paymentMethodCounts).toEqual({ gcash: 5, card: 2 });
   });
 
@@ -387,6 +397,7 @@ describe('getCustomerDisputes', () => {
         {
           id: 'd1',
           booking_id: 'b1',
+          provider_id: 'p1',
           business_name: 'Acme',
           type: 'incomplete',
           status: 'resolved',
@@ -398,9 +409,11 @@ describe('getCustomerDisputes', () => {
     );
     const out = await svc.getCustomerDisputes(CUSTOMER_ID);
     expect(out.rows[0].providerBusinessName).toBe('Acme');
+    expect(out.rows[0].providerId).toBe('p1');
     expect(out.rows[0].refundAmount).toBe(5000);
     expect(out.fraudPattern.flagged).toBe(false);
-    expect(out.fraudPattern.disputesLast30Days).toBe(1);
+    expect(out.fraudPattern.disputesInWindow).toBe(1);
+    expect(out.fraudPattern.windowDays).toBe(30);
   });
 
   it('flags fraud pattern when 5+ disputes in 30d and ≥80% favor provider', async () => {
@@ -408,6 +421,7 @@ describe('getCustomerDisputes', () => {
     const recent = (offsetDays: number, resolution: string | null): Record<string, unknown> => ({
       id: 'd' + offsetDays,
       booking_id: 'b' + offsetDays,
+      provider_id: 'p1',
       business_name: 'X',
       type: 'no_show',
       status: 'resolved',
@@ -419,13 +433,13 @@ describe('getCustomerDisputes', () => {
       rows([
         recent(1, 'no_refund'),
         recent(3, 'no_refund'),
-        recent(5, 'refund_with_warning'),
+        recent(5, 'no_refund'),
         recent(7, 'no_refund'),
         recent(10, 'partial_refund'), // 1 customer-favorable
       ]),
     );
     const out = await svc.getCustomerDisputes(CUSTOMER_ID);
-    expect(out.fraudPattern.disputesLast30Days).toBe(5);
+    expect(out.fraudPattern.disputesInWindow).toBe(5);
     expect(out.fraudPattern.favorProviderRate).toBe(0.8);
     expect(out.fraudPattern.flagged).toBe(true);
     expect(out.fraudPattern.reason).toContain('5 disputes in 30 days');
@@ -617,7 +631,7 @@ describe('getCustomerActivity', () => {
 // ─── updateCustomerStatus ───────────────────────────────────────────────────
 
 describe('updateCustomerStatus', () => {
-  function setupTransaction(selectRows: { id: string; is_active: boolean }[]): {
+  function setupTransaction(selectRows: { id: string; is_active: boolean; is_flagged_fraud?: boolean }[]): {
     calls: { sql: string; params: unknown[] }[];
   } {
     const calls: { sql: string; params: unknown[] }[] = [];
@@ -706,15 +720,13 @@ describe('updateCustomerStatus', () => {
     expect(String(insertCall.params[4])).not.toContain('[fraud_flag]');
   });
 
-  it('skips UPDATE when suspending an already-suspended customer', async () => {
+  it('rejects a duplicate suspension without writing another audit event', async () => {
     const { calls } = setupTransaction([{ id: CUSTOMER_ID, is_active: false }]);
-    await svc.updateCustomerStatus(
-      CUSTOMER_ID,
-      'suspend',
-      'still locked from prior issue',
-      ADMIN_ID,
-    );
+    await expect(svc.updateCustomerStatus(
+      CUSTOMER_ID, 'suspend', 'still locked from prior issue', ADMIN_ID,
+    )).rejects.toMatchObject({ statusCode: 409 });
     expect(calls.some((c) => c.sql.startsWith('UPDATE users'))).toBe(false);
+    expect(calls.some((c) => c.sql.startsWith('INSERT INTO admin_actions'))).toBe(false);
   });
 });
 

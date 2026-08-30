@@ -38,7 +38,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import KpiCard from '@/components/ui/KpiCard';
 import Pagination from '@/components/ui/Pagination';
-import { Textarea } from '@/components/ui/Textarea';
+import { useReasonDialog } from '@/components/ui/ReasonDialog';
 import { useAuthStore } from '@/stores/auth.store';
 
 // silence unused-import warnings for icons used contextually below
@@ -62,10 +62,13 @@ interface CustomerProfile {
   avatarUrl: string | null;
   isVerified: boolean;
   isActive: boolean;
+  isFlaggedFraud: boolean;
   lastLoginAt: string | null;
   createdAt: string;
   lifetimeBookings: number;
   lifetimeSpent: number;
+  activeBookings: number;
+  openDisputes: number;
   averageRatingGiven: number | null;
   totalReviewsGiven: number;
   addresses: {
@@ -122,6 +125,7 @@ interface Payments {
   recentPaymentIntents: {
     id: string;
     bookingId: string;
+    providerId: string | null;
     paymentMethod: string;
     status: string;
     amount: number;
@@ -134,6 +138,7 @@ interface DisputesResult {
   rows: {
     id: string;
     bookingId: string;
+    providerId: string | null;
     providerBusinessName: string | null;
     type: string;
     status: string;
@@ -142,7 +147,8 @@ interface DisputesResult {
     createdAt: string;
   }[];
   fraudPattern: {
-    disputesLast30Days: number;
+    disputesInWindow: number;
+    windowDays: number;
     favorProviderRate: number | null;
     flagged: boolean;
     reason: string | null;
@@ -190,6 +196,11 @@ interface ActivityRow {
   source: 'audit' | 'login' | 'admin_action';
   action: string;
   detail: string | null;
+  actor?: {
+    kind: 'customer' | 'admin' | 'system';
+    id: string | null;
+    name: string | null;
+  };
   ipAddress: string | null;
   userAgent: string | null;
   createdAt: string;
@@ -298,12 +309,13 @@ export default function CustomerDetailPage(): React.ReactElement {
 
 // ─── Header ──────────────────────────────────────────────────────────────
 
-function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactElement {
+export function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactElement {
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
   const queryClient = useQueryClient();
-  const [statusReason, setStatusReason] = useState('');
   const [showStatus, setShowStatus] = useState(false);
+  const [statusSuccess, setStatusSuccess] = useState('');
+  const { requestReason, reasonDialog } = useReasonDialog();
 
   const statusMutation = useMutation({
     mutationFn: async (input: { action: 'suspend' | 'reactivate' | 'flag_fraud'; reason: string }) => {
@@ -313,13 +325,59 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
       );
       return res.data.data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
       queryClient.invalidateQueries({ queryKey: ['admin-customer-profile', profile.id] });
       queryClient.invalidateQueries({ queryKey: ['admin-customer-activity', profile.id] });
-      setStatusReason('');
       setShowStatus(false);
+      setStatusSuccess(
+        input.action === 'suspend'
+          ? 'Customer suspended and refresh sessions revoked.'
+          : input.action === 'reactivate'
+            ? 'Customer reactivated. They must sign in again.'
+            : 'Customer added to the internal fraud-review queue.',
+      );
     },
   });
+
+  async function requestStatusAction(
+    action: 'suspend' | 'reactivate' | 'flag_fraud',
+  ): Promise<void> {
+    setStatusSuccess('');
+    const reason = await requestReason({
+      title:
+        action === 'suspend'
+          ? `Suspend ${profile.fullName}?`
+          : action === 'reactivate'
+            ? `Reactivate ${profile.fullName}?`
+            : `Flag ${profile.fullName} for fraud review?`,
+      description:
+        action === 'suspend'
+          ? `Suspension blocks the next login and token refresh, and revokes stored refresh sessions. A currently issued short-lived access token may work until it expires. It does not cancel ${profile.activeBookings} active booking${profile.activeBookings === 1 ? '' : 's'}, move wallet funds, or resolve ${profile.openDisputes} open dispute${profile.openDisputes === 1 ? '' : 's'}; support must manage those records separately. The audit reason stays internal; the customer receives a generic account-status notice.`
+          : action === 'reactivate'
+            ? 'Reactivation restores sign-in but does not clear a fraud-review flag, alter bookings, or move money. Suspended sessions were revoked, so the customer must sign in again. The audit reason stays internal; the customer receives a generic account-status notice.'
+            : 'This adds an internal fraud-review marker only. It does not suspend the customer, cancel bookings, move money, decide a dispute, or notify the customer.',
+      confirmLabel:
+        action === 'suspend'
+          ? 'Suspend customer'
+          : action === 'reactivate'
+            ? 'Reactivate customer'
+            : 'Flag for review',
+      reasonLabel:
+        action === 'suspend'
+          ? 'Suspension reason'
+          : action === 'reactivate'
+            ? 'Reactivation reason'
+            : 'Fraud-review reason',
+      placeholder:
+        action === 'flag_fraud'
+          ? 'Record the observable pattern, linked cases, and evidence to review.'
+          : 'Record the support case, evidence, and decision basis.',
+      minLength: 10,
+      maxLength: 2000,
+      tone: action === 'suspend' ? 'destructive' : 'default',
+    });
+    if (reason) statusMutation.mutate({ action, reason });
+  }
 
   // D25 — reveal raw contact. The reveal is audit-logged server-side; we keep
   // the raw values in local state only (never re-cached in the query).
@@ -356,6 +414,7 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-semibold text-[var(--color-text)]">{profile.fullName}</h1>
             <Badge label={profile.isActive ? 'active' : 'suspended'} variant={profile.isActive ? 'success' : 'danger'} />
+            {profile.isFlaggedFraud && <Badge label="fraud review" variant="warning" />}
             {profile.isVerified && <Badge label="verified" variant="info" />}
           </div>
 
@@ -440,45 +499,33 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
       {showStatus && isSuperAdmin && (
         <div className="mt-4 p-4 border border-[var(--color-border)] rounded-lg bg-[var(--color-surface-hover)] space-y-3">
           <p className="text-sm font-medium text-[var(--color-text)]">Status action</p>
-          <Textarea
-            aria-label="Status action reason"
-            value={statusReason}
-            onChange={(e) => setStatusReason(e.target.value)}
-            placeholder="Reason (min 5 characters) — recorded in admin_actions ledger"
-            rows={2}
-          />
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            Every decision requires a reason and is written to the customer activity record. Account actions do not cancel bookings, move money, or resolve disputes.
+          </p>
           <div className="flex items-center gap-2 flex-wrap">
             <Button
               size="sm"
               variant="destructive"
-              disabled={statusMutation.isPending || statusReason.trim().length < 5 || !profile.isActive}
-              onClick={() => {
-                if (window.confirm('Suspend this customer account?')) {
-                  statusMutation.mutate({ action: 'suspend', reason: statusReason });
-                }
-              }}
+              disabled={statusMutation.isPending || !profile.isActive}
+              onClick={() => void requestStatusAction('suspend')}
             >
               Suspend
             </Button>
             <Button
               size="sm"
               variant="secondary"
-              disabled={statusMutation.isPending || statusReason.trim().length < 5 || profile.isActive}
-              onClick={() => statusMutation.mutate({ action: 'reactivate', reason: statusReason })}
+              disabled={statusMutation.isPending || profile.isActive}
+              onClick={() => void requestStatusAction('reactivate')}
             >
               Reactivate
             </Button>
             <Button
               size="sm"
               variant="secondary"
-              disabled={statusMutation.isPending || statusReason.trim().length < 5}
-              onClick={() => {
-                if (window.confirm('Flag this customer for fraud review?')) {
-                  statusMutation.mutate({ action: 'flag_fraud', reason: statusReason });
-                }
-              }}
+              disabled={statusMutation.isPending || profile.isFlaggedFraud}
+              onClick={() => void requestStatusAction('flag_fraud')}
             >
-              Flag for fraud
+              {profile.isFlaggedFraud ? 'Fraud review flagged' : 'Flag for fraud review'}
             </Button>
             {statusMutation.isError && (
               <span role="alert" className="text-xs text-red-600 ml-2">{getErrorMessage(statusMutation.error)}</span>
@@ -486,6 +533,8 @@ function CustomerHeader({ profile }: { profile: CustomerProfile }): React.ReactE
           </div>
         </div>
       )}
+      {statusSuccess && <p role="status" className="mt-3 text-sm text-[var(--color-success)]">{statusSuccess}</p>}
+      {reasonDialog}
     </Card>
   );
 }
@@ -586,7 +635,7 @@ function ProfileTab({ profile }: { profile: CustomerProfile }): React.ReactEleme
 
 // ─── BookingsTab ──────────────────────────────────────────────────────────
 
-function BookingsTab({ customerId }: { customerId: string }): React.ReactElement {
+export function BookingsTab({ customerId }: { customerId: string }): React.ReactElement {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const pageSize = 20;
@@ -657,6 +706,7 @@ function BookingsTab({ customerId }: { customerId: string }): React.ReactElement
             <table className="min-w-full text-sm">
               <thead className="text-xs text-[var(--color-text-secondary)] uppercase">
                 <tr>
+                  <th className="px-3 py-2 text-left">Booking</th>
                   <th className="px-3 py-2 text-left">Provider</th>
                   <th className="px-3 py-2 text-left">Category</th>
                   <th className="px-3 py-2 text-left">Status</th>
@@ -668,6 +718,15 @@ function BookingsTab({ customerId }: { customerId: string }): React.ReactElement
               <tbody>
                 {data.rows.map((r) => (
                   <tr key={r.id} className="border-t border-[var(--color-border)]">
+                    <td className="px-3 py-2">
+                      <Link
+                        to={`/bookings/${r.id}`}
+                        aria-label={`Open booking ${r.id}`}
+                        className="font-mono text-xs text-[var(--color-secondary)] hover:underline"
+                      >
+                        {r.id.slice(0, 8)}…
+                      </Link>
+                    </td>
                     <td className="px-3 py-2">
                       {r.providerBusinessName ? (
                         <Link
@@ -723,7 +782,7 @@ function BookingsTab({ customerId }: { customerId: string }): React.ReactElement
 
 // ─── PaymentsTab ──────────────────────────────────────────────────────────
 
-function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement {
+export function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement {
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
   const queryClient = useQueryClient();
@@ -853,6 +912,7 @@ function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement
               <thead className="text-xs text-[var(--color-text-secondary)] uppercase">
                 <tr>
                   <th className="px-3 py-2 text-left">Type</th>
+                  <th className="px-3 py-2 text-left">Booking</th>
                   <th className="px-3 py-2 text-right">Amount</th>
                   <th className="px-3 py-2 text-right">Balance after</th>
                   <th className="px-3 py-2 text-left">Description</th>
@@ -864,6 +924,19 @@ function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement
                   <tr key={t.id} className="border-t border-[var(--color-border)]">
                     <td className="px-3 py-2">
                       <Badge label={t.type} variant="info" />
+                    </td>
+                    <td className="px-3 py-2">
+                      {t.bookingId ? (
+                        <Link
+                          to={`/bookings/${t.bookingId}`}
+                          aria-label={`Open booking ${t.bookingId}`}
+                          className="font-mono text-xs text-[var(--color-secondary)] hover:underline"
+                        >
+                          {t.bookingId.slice(0, 8)}…
+                        </Link>
+                      ) : (
+                        <span className="text-[var(--color-text-secondary)]">—</span>
+                      )}
                     </td>
                     <td
                       className={`px-3 py-2 text-right ${t.amount < 0 ? 'text-red-600' : 'text-green-700'}`}
@@ -894,6 +967,8 @@ function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement
             <table className="min-w-full text-sm">
               <thead className="text-xs text-[var(--color-text-secondary)] uppercase">
                 <tr>
+                  <th className="px-3 py-2 text-left">Booking</th>
+                  <th className="px-3 py-2 text-left">Provider</th>
                   <th className="px-3 py-2 text-left">Method</th>
                   <th className="px-3 py-2 text-left">Status</th>
                   <th className="px-3 py-2 text-right">Amount</th>
@@ -903,6 +978,28 @@ function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement
               <tbody>
                 {data.recentPaymentIntents.map((p) => (
                   <tr key={p.id} className="border-t border-[var(--color-border)]">
+                    <td className="px-3 py-2">
+                      <Link
+                        to={`/bookings/${p.bookingId}`}
+                        aria-label={`Open booking ${p.bookingId}`}
+                        className="font-mono text-xs text-[var(--color-secondary)] hover:underline"
+                      >
+                        {p.bookingId.slice(0, 8)}…
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2">
+                      {p.providerId ? (
+                        <Link
+                          to={`/providers/${p.providerId}`}
+                          aria-label={`Open provider ${p.providerId}`}
+                          className="font-mono text-xs text-[var(--color-secondary)] hover:underline"
+                        >
+                          {p.providerId.slice(0, 8)}…
+                        </Link>
+                      ) : (
+                        <span className="text-[var(--color-text-secondary)]">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">{p.paymentMethod}</td>
                     <td className="px-3 py-2">
                       <Badge
@@ -927,7 +1024,7 @@ function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement
 
 // ─── DisputesTab ──────────────────────────────────────────────────────────
 
-function DisputesTab({ customerId }: { customerId: string }): React.ReactElement {
+export function DisputesTab({ customerId }: { customerId: string }): React.ReactElement {
   const q = useQuery({
     queryKey: ['admin-customer-disputes', customerId],
     queryFn: async () => {
@@ -941,6 +1038,8 @@ function DisputesTab({ customerId }: { customerId: string }): React.ReactElement
   if (q.isLoading) return <LoadingState />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
   const data = q.data!;
+  const fraudWindowDays = data.fraudPattern.windowDays ?? 30;
+  const disputesInWindow = data.fraudPattern.disputesInWindow ?? 0;
 
   return (
     <div className="space-y-4">
@@ -960,8 +1059,8 @@ function DisputesTab({ customerId }: { customerId: string }): React.ReactElement
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <KpiCard
-          title="Disputes (last 30d)"
-          value={data.fraudPattern.disputesLast30Days.toString()}
+          title={`Disputes (last ${fraudWindowDays}d)`}
+          value={disputesInWindow.toString()}
           icon={<AlertTriangle size={16} />}
         />
         <KpiCard
@@ -970,7 +1069,7 @@ function DisputesTab({ customerId }: { customerId: string }): React.ReactElement
           icon={<FileText size={16} />}
         />
         <KpiCard
-          title="Favor-provider rate (30d)"
+          title={`No-refund rate (${fraudWindowDays}d)`}
           value={
             data.fraudPattern.favorProviderRate === null
               ? '—'
@@ -1000,10 +1099,31 @@ function DisputesTab({ customerId }: { customerId: string }): React.ReactElement
                 {data.rows.map((d) => (
                   <tr key={d.id} className="border-t border-[var(--color-border)]">
                     <td className="px-3 py-2 text-xs">
-                      <p className="font-mono">{d.bookingId.slice(0, 8)}…</p>
-                      <p className="text-[var(--color-text-secondary)]">
-                        {d.providerBusinessName ?? '—'}
-                      </p>
+                      <Link
+                        to={`/disputes/${d.id}`}
+                        aria-label={`Open dispute ${d.id}`}
+                        className="block text-[var(--color-secondary)] hover:underline"
+                      >
+                        Dispute {d.id.slice(0, 8)}…
+                      </Link>
+                      <Link
+                        to={`/bookings/${d.bookingId}`}
+                        aria-label={`Open booking ${d.bookingId}`}
+                        className="block font-mono text-[var(--color-secondary)] hover:underline"
+                      >
+                        Booking {d.bookingId.slice(0, 8)}…
+                      </Link>
+                      {d.providerId ? (
+                        <Link
+                          to={`/providers/${d.providerId}`}
+                          aria-label={`Open provider ${d.providerId}`}
+                          className="block text-[var(--color-secondary)] hover:underline"
+                        >
+                          {d.providerBusinessName ?? 'Open provider'}
+                        </Link>
+                      ) : (
+                        <span className="block text-[var(--color-text-secondary)]">No provider assigned</span>
+                      )}
                     </td>
                     <td className="px-3 py-2">{d.type}</td>
                     <td className="px-3 py-2">
@@ -1066,6 +1186,23 @@ export function ReferralsTab({ customerId }: { customerId: string }): React.Reac
         value={data.received ? data.received.referrerName : '—'}
         icon={<Flag size={16} />}
       />
+
+      {data.received && (
+        <Card className="p-4 md:col-span-2 xl:col-span-4">
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            Referral origin:{' '}
+            <Link
+              to={`/customers/${data.received.referrerId}`}
+              aria-label={`Open referring customer ${data.received.referrerId}`}
+              className="font-medium text-[var(--color-secondary)] hover:underline"
+            >
+              {data.received.referrerName}
+            </Link>
+            {' · '}{data.received.refereeCredited ? 'customer bonus credited' : 'customer bonus pending'}
+            {' · '}{fmtDate(data.received.createdAt)}
+          </p>
+        </Card>
+      )}
 
       <Card className="p-5 md:col-span-2 xl:col-span-4">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">My referral codes</h3>
@@ -1133,7 +1270,15 @@ export function ReferralsTab({ customerId }: { customerId: string }): React.Reac
             <tbody>
               {data.given.map((g) => (
                 <tr key={g.id} className="border-t border-[var(--color-border)]">
-                  <td className="px-3 py-2">{g.refereeName}</td>
+                  <td className="px-3 py-2">
+                    <Link
+                      to={`/customers/${g.refereeId}`}
+                      aria-label={`Open referred customer ${g.refereeId}`}
+                      className="text-[var(--color-secondary)] hover:underline"
+                    >
+                      {g.refereeName}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2 text-right">{fmtCentavos(g.referrerBonus)}</td>
                   <td className="px-3 py-2">
                     <Badge
@@ -1142,7 +1287,15 @@ export function ReferralsTab({ customerId }: { customerId: string }): React.Reac
                     />
                   </td>
                   <td className="px-3 py-2 text-xs font-mono text-[var(--color-text-secondary)]">
-                    {g.qualifyingBookingId ? g.qualifyingBookingId.slice(0, 8) + '…' : '—'}
+                    {g.qualifyingBookingId ? (
+                      <Link
+                        to={`/bookings/${g.qualifyingBookingId}`}
+                        aria-label={`Open qualifying booking ${g.qualifyingBookingId}`}
+                        className="text-[var(--color-secondary)] hover:underline"
+                      >
+                        {g.qualifyingBookingId.slice(0, 8)}…
+                      </Link>
+                    ) : '—'}
                   </td>
                   <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">
                     {fmtDate(g.createdAt)}
@@ -1160,7 +1313,7 @@ export function ReferralsTab({ customerId }: { customerId: string }): React.Reac
 
 // ─── ActivityTab ──────────────────────────────────────────────────────────
 
-function ActivityTab({ customerId }: { customerId: string }): React.ReactElement {
+export function ActivityTab({ customerId }: { customerId: string }): React.ReactElement {
   const [limit, setLimit] = useState(50);
   const q = useQuery({
     queryKey: ['admin-customer-activity', customerId, limit],
@@ -1200,9 +1353,11 @@ function ActivityTab({ customerId }: { customerId: string }): React.ReactElement
               <thead className="text-xs text-[var(--color-text-secondary)] uppercase">
                 <tr>
                   <th className="px-3 py-2 text-left">Source</th>
+                  <th className="px-3 py-2 text-left">Actor</th>
                   <th className="px-3 py-2 text-left">Action</th>
                   <th className="px-3 py-2 text-left">Detail</th>
                   <th className="px-3 py-2 text-left">IP</th>
+                  <th className="px-3 py-2 text-left">Device / client</th>
                   <th className="px-3 py-2 text-left">When</th>
                 </tr>
               </thead>
@@ -1221,11 +1376,22 @@ function ActivityTab({ customerId }: { customerId: string }): React.ReactElement
                         }
                       />
                     </td>
+                    <td className="px-3 py-2 text-xs">
+                      <p className="font-medium text-[var(--color-text)]">
+                        {r.actor?.name ?? (r.actor?.kind === 'system' ? 'System' : 'Unknown user')}
+                      </p>
+                      <p className="text-[var(--color-text-secondary)]">
+                        {r.actor?.kind ?? 'unknown'}{r.actor?.id ? ` · ${r.actor.id.slice(0, 8)}…` : ''}
+                      </p>
+                    </td>
                     <td className="px-3 py-2">{r.action}</td>
                     <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">
                       {r.detail ?? '—'}
                     </td>
                     <td className="px-3 py-2 text-xs font-mono">{r.ipAddress ?? '—'}</td>
+                    <td className="max-w-xs px-3 py-2 text-xs text-[var(--color-text-secondary)] break-words">
+                      {r.userAgent ?? '—'}
+                    </td>
                     <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">
                       {fmtDate(r.createdAt)}
                     </td>

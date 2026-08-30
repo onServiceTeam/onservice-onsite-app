@@ -10,7 +10,7 @@ jest.mock('../src/utils/logger', () => ({
 
 import { updateCustomerStatus } from '../src/services/customer-admin.service';
 
-it('MED-N15 — fraud review writes its canonical audit action without changing customer activation', async () => {
+it('Bug UX-451 — internal customer-enforcement evidence is audited but not exposed in the customer notification', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   transactionMock.mockImplementationOnce(async (callback: unknown) => {
     const client = {
@@ -27,18 +27,14 @@ it('MED-N15 — fraud review writes its canonical audit action without changing 
     };
     return (callback as (value: typeof client) => Promise<unknown>)(client);
   });
+  const internalReason = 'Device fingerprint linked to confidential case OS-529.';
 
-  const result = await updateCustomerStatus(
-    'customer-1',
-    'flag_fraud',
-    'Five linked no-refund disputes require support review.',
-    'admin-1',
-  );
+  await updateCustomerStatus('customer-1', 'suspend', internalReason, 'admin-1');
 
-  expect(result).toEqual({ isActive: true });
-  expect(calls.some((call) => /UPDATE users SET is_active/.test(call.sql))).toBe(false);
-  expect(calls.some((call) => /UPDATE users SET is_flagged_fraud = TRUE/.test(call.sql))).toBe(true);
   const audit = calls.find((call) => /INSERT INTO admin_actions/.test(call.sql));
-  expect(audit?.params[1]).toBe('customer_flagged_fraud');
-  expect(audit?.params[4]).toBe('Five linked no-refund disputes require support review.');
+  expect(audit?.params[4]).toBe(internalReason);
+  const notification = calls.find((call) => /INSERT INTO notifications/.test(call.sql));
+  expect(notification?.params[3]).not.toContain(internalReason);
+  expect(String(notification?.params[4])).not.toContain(internalReason);
+  expect(JSON.parse(String(notification?.params[4]))).toEqual({ accountStatus: 'suspended' });
 });
