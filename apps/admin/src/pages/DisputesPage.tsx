@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
-import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { DataTable, Badge, Pagination, useConfirmationDialog, type Column } from '@/components/ui';
 import { useAdminSocketEvent } from '@/lib/use-admin-socket';
 import { useAuthStore } from '@/stores/auth.store';
 
@@ -55,6 +55,7 @@ function formatType(t: string): string {
 
 export default function DisputesPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const { confirm, confirmationDialog } = useConfirmationDialog();
   // Phase 200 fix — resolve/escalate are super_admin-only on the server
   // (dispute.routes.ts rbacMiddleware('super_admin')). Pre-fix the buttons
   // rendered for every admin, so a regular admin hit a guaranteed 403. The
@@ -64,6 +65,10 @@ export default function DisputesPage(): React.ReactElement {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') ?? '');
   const [tierFilter, setTierFilter] = useState(() => searchParams.get('tier') ?? '');
+  const [viewFilter, setViewFilter] = useState(() => {
+    const value = searchParams.get('view');
+    return value === 'active' || value === 'stale' ? value : '';
+  });
   const [searchInput, setSearchInput] = useState(() => searchParams.get('search') ?? '');
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
 
@@ -88,10 +93,12 @@ export default function DisputesPage(): React.ReactElement {
     setSearchInput(nextSearch);
     setStatusFilter(searchParams.get('status') ?? '');
     setTierFilter(searchParams.get('tier') ?? '');
+    const nextView = searchParams.get('view');
+    setViewFilter(nextView === 'active' || nextView === 'stale' ? nextView : '');
     setPage(1);
   }, [searchParams]);
 
-  const updateUrlFilters = (next: { search?: string; status?: string; tier?: string }): void => {
+  const updateUrlFilters = (next: { search?: string; status?: string; tier?: string; view?: string }): void => {
     const params = new URLSearchParams(searchParams);
     for (const [key, value] of Object.entries(next)) {
       if (value) params.set(key, value);
@@ -101,11 +108,12 @@ export default function DisputesPage(): React.ReactElement {
   };
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['adminDisputes', page, statusFilter, tierFilter, search],
+    queryKey: ['adminDisputes', page, statusFilter, tierFilter, viewFilter, search],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (statusFilter) params.status = statusFilter;
       if (tierFilter) params.tier = tierFilter;
+      if (viewFilter) params.view = viewFilter;
       if (search) params.search = search;
       const res = await api.get<PaginatedResult>('/api/v1/disputes', { params });
       return res.data;
@@ -153,6 +161,21 @@ export default function DisputesPage(): React.ReactElement {
   function openEscalate(d: Dispute): void {
     setSelectedDispute(d);
     setActionType('escalate');
+  }
+
+  async function confirmDisputeAction(): Promise<void> {
+    if (!selectedDispute || !actionType) return;
+
+    const accepted = await confirm({
+      title: actionType === 'resolve' ? 'Apply dispute resolution?' : 'Escalate this dispute?',
+      description: actionType === 'resolve'
+        ? `This applies ${formatType(resolutionType)} to dispute ${selectedDispute.id.slice(0, 8)}. Refund outcomes can move held funds and update the booking. Confirm only after reviewing the evidence and decision notes.`
+        : `This moves dispute ${selectedDispute.id.slice(0, 8)} to the next review tier. It does not resolve the case or move funds.`,
+      confirmLabel: actionType === 'resolve' ? 'Apply resolution' : 'Escalate dispute',
+      tone: actionType === 'resolve' ? 'destructive' : 'default',
+    });
+
+    if (accepted) resolveMutation.mutate();
   }
 
   const handleSearch = (e: FormEvent): void => {
@@ -283,24 +306,44 @@ export default function DisputesPage(): React.ReactElement {
       </div>
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <form onSubmit={handleSearch} className="flex gap-2">
+        <form onSubmit={handleSearch} className="flex w-full gap-2 sm:w-auto">
           <input
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search by dispute or booking ID..."
             aria-label="Search disputes by dispute or booking ID"
-            className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm w-72 focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+            className="h-11 min-w-0 flex-1 px-3 border border-[var(--color-border)] rounded-lg text-sm sm:w-72 focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
           />
-          <button type="submit" className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-lg hover:opacity-90 transition-opacity">
+          <button type="submit" className="h-11 px-4 bg-[var(--color-primary)] text-white text-sm rounded-lg hover:opacity-90 transition-opacity">
             Search
           </button>
         </form>
         <select
+          value={viewFilter}
+          onChange={(e) => {
+            setViewFilter(e.target.value);
+            setStatusFilter('');
+            setPage(1);
+            updateUrlFilters({ view: e.target.value, status: '' });
+          }}
+          aria-label="Filter disputes by operational view"
+          className="h-11 px-3 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+        >
+          <option value="">All dispute records</option>
+          <option value="active">Active queue</option>
+          <option value="stale">Open 48h+ attention</option>
+        </select>
+        <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); updateUrlFilters({ status: e.target.value }); }}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setViewFilter('');
+            setPage(1);
+            updateUrlFilters({ status: e.target.value, view: '' });
+          }}
           aria-label="Filter disputes by status"
-          className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+          className="h-11 px-3 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Statuses</option>
           <option value="open">Open</option>
@@ -312,7 +355,7 @@ export default function DisputesPage(): React.ReactElement {
           value={tierFilter}
           onChange={(e) => { setTierFilter(e.target.value); setPage(1); updateUrlFilters({ tier: e.target.value }); }}
           aria-label="Filter disputes by tier"
-          className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+          className="h-11 px-3 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Tiers</option>
           <option value="1">Tier 1</option>
@@ -435,11 +478,7 @@ export default function DisputesPage(): React.ReactElement {
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  if (window.confirm(actionType === 'resolve' ? 'Resolve this dispute and apply the selected outcome?' : 'Escalate this dispute?')) {
-                    resolveMutation.mutate();
-                  }
-                }}
+                onClick={() => void confirmDisputeAction()}
                 disabled={
                   resolveMutation.isPending ||
                   !decisionNotes.trim() ||
@@ -456,6 +495,7 @@ export default function DisputesPage(): React.ReactElement {
           </div>
         </div>
       )}
+      {confirmationDialog}
     </div>
   );
 }

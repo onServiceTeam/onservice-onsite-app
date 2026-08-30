@@ -32,7 +32,7 @@ it('Bug UX-337 — dashboard labels identify platform-fee revenue, real refresh 
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText('Platform fee revenue')).toBeInTheDocument();
+  expect(await screen.findByText(/Platform fee revenue/)).toHaveTextContent('Platform fee revenue · Today');
   expect(screen.getByText(/Core metrics refreshed at/)).toHaveTextContent(/acquisition refreshes every 5 minutes/);
   expect(screen.getByText(/internal attention threshold/)).toHaveTextContent(/not a promised resolution SLA/);
   expect(screen.queryByText('Live operations')).not.toBeInTheDocument();

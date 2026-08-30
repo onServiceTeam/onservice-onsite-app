@@ -644,7 +644,7 @@ and lifted this limitation:
 
 Primary behavioral coverage is in
 `packages/api/__tests__/d27-hourly.test.ts`,
-`packages/api/__tests__/services/booking/pricing.service.test.ts`, and the
+`packages/api/__tests__/services/booking/booking-pricing-resolution.test.ts`, and the
 customer/provider linkage tests under `apps/mobile/__tests__/bug-ux-046-*` and
 `bug-ux-048-*`.
 

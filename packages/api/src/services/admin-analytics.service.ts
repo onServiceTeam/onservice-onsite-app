@@ -934,9 +934,14 @@ export interface DashboardKpis {
   revenue: number;
   revenueTrendPct: number;
   activeBookings: number;
+  paidUnassignedBookings: number;
   pendingDisputes: number;
   newSignups: number;
   pendingApprovals: number;
+  openSupportCases: number;
+  unassignedSupportCases: number;
+  urgentSupportCases: number;
+  newFeedback: number;
   todayBookings: number;
   escalatedDisputes: number;
   staleDisputes: number;
@@ -1065,20 +1070,34 @@ export async function getDashboardKpis(range: DashboardRange): Promise<Dashboard
          AND created_at >= ${prev.start}`,
     ),
     db.query<{
-      active_bookings: string;
-      pending_disputes: string;
-      new_signups: string;
-      pending_approvals: string;
-      today_bookings: string;
+       active_bookings: string;
+       paid_unassigned_bookings: string;
+       pending_disputes: string;
+       new_signups: string;
+       pending_approvals: string;
+       open_support_cases: string;
+       unassigned_support_cases: string;
+       urgent_support_cases: string;
+       new_feedback: string;
+       today_bookings: string;
       escalated_disputes: string;
       stale_disputes: string;
     }>(
       `SELECT
          (SELECT COUNT(*) FROM bookings
-            WHERE status NOT IN ('cancelled_by_customer','cancelled_by_provider','cancelled_by_admin','paid_out','confirmed','resolved'))::text AS active_bookings,
+             WHERE status NOT IN ('cancelled_by_customer','cancelled_by_provider','cancelled_by_admin','paid_out','confirmed','resolved'))::text AS active_bookings,
+         (SELECT COUNT(*) FROM bookings
+            WHERE status = 'paid' AND provider_id IS NULL)::text AS paid_unassigned_bookings,
          (SELECT COUNT(*) FROM disputes WHERE status IN ('open','under_review','escalated'))::text AS pending_disputes,
          (SELECT COUNT(*) FROM users WHERE created_at >= ${startSql})::text AS new_signups,
          (SELECT COUNT(*) FROM providers WHERE status = 'pending')::text AS pending_approvals,
+         (SELECT COUNT(*) FROM support_tickets
+            WHERE status NOT IN ('resolved','closed'))::text AS open_support_cases,
+         (SELECT COUNT(*) FROM support_tickets
+            WHERE status NOT IN ('resolved','closed') AND assigned_agent_id IS NULL)::text AS unassigned_support_cases,
+         (SELECT COUNT(*) FROM support_tickets
+            WHERE status NOT IN ('resolved','closed') AND priority = 'urgent')::text AS urgent_support_cases,
+         (SELECT COUNT(*) FROM feedback_submissions WHERE status = 'new')::text AS new_feedback,
          (SELECT COUNT(*) FROM bookings WHERE created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila')::text AS today_bookings,
          (SELECT COUNT(*) FROM disputes WHERE status = 'escalated')::text AS escalated_disputes,
          (SELECT COUNT(*) FROM disputes WHERE status = 'open' AND created_at < NOW() - INTERVAL '48 hours')::text AS stale_disputes`,
@@ -1117,9 +1136,14 @@ export async function getDashboardKpis(range: DashboardRange): Promise<Dashboard
     revenue: current,
     revenueTrendPct: pctChange(current, previous),
     activeBookings: Number(c.active_bookings),
+    paidUnassignedBookings: Number(c.paid_unassigned_bookings),
     pendingDisputes: Number(c.pending_disputes),
     newSignups: Number(c.new_signups),
     pendingApprovals: Number(c.pending_approvals),
+    openSupportCases: Number(c.open_support_cases),
+    unassignedSupportCases: Number(c.unassigned_support_cases),
+    urgentSupportCases: Number(c.urgent_support_cases),
+    newFeedback: Number(c.new_feedback),
     todayBookings: Number(c.today_bookings),
     escalatedDisputes: Number(c.escalated_disputes),
     staleDisputes: Number(c.stale_disputes),
@@ -1131,7 +1155,7 @@ export async function getDashboardKpis(range: DashboardRange): Promise<Dashboard
 }
 
 export async function getRevenueTrend(days: number): Promise<RevenueTrendPoint[]> {
-  const n = clampDays(days, 1, 365);
+  const n = clampDays(days, 1, 366);
   // BUG-PHASE137-01 fix — pre-fix the series + bucketing both used
   // bare DATE_TRUNC('day', NOW()) / DATE_TRUNC('day', created_at)
   // which truncate at session TZ (UTC). A bucket labeled "2026-05-01"
@@ -1183,7 +1207,7 @@ export async function getRevenueTrend(days: number): Promise<RevenueTrendPoint[]
 }
 
 export async function getBookingVolumeByCategory(days: number): Promise<BookingVolumePoint[]> {
-  const n = clampDays(days, 1, 365);
+  const n = clampDays(days, 1, 366);
   const rows = await db.query<{ category: string; count: string }>(
     `SELECT COALESCE(c.name, 'Uncategorized') AS category,
             COUNT(b.id)::text AS count
@@ -1200,7 +1224,7 @@ export async function getBookingVolumeByCategory(days: number): Promise<BookingV
 }
 
 export async function getCustomerAcquisitionFunnel(days: number): Promise<AcquisitionFunnel> {
-  const n = clampDays(days, 1, 365);
+  const n = clampDays(days, 1, 366);
   const result = await db.query<{
     registered: string;
     first_booking: string;
@@ -1343,11 +1367,20 @@ export async function getOperationalAlerts(): Promise<DashboardAlert[]> {
     ),
     // 6. Active service area with <5 active providers
     db.query<{ id: string; name: string; active_provider_count: number }>(
-      `SELECT id, name, active_provider_count
-         FROM service_areas
-        WHERE status = 'active'
-          AND active_provider_count < 5
-        ORDER BY active_provider_count ASC, name ASC
+      `SELECT sa.id, sa.name,
+              (SELECT COUNT(*)::int
+                 FROM provider_service_areas psa
+                 JOIN providers p ON p.id = psa.provider_id
+                WHERE psa.service_area_id = sa.id
+                  AND p.status = 'approved') AS active_provider_count
+         FROM service_areas sa
+        WHERE sa.status = 'active'
+          AND (SELECT COUNT(*)
+                 FROM provider_service_areas psa
+                 JOIN providers p ON p.id = psa.provider_id
+                WHERE psa.service_area_id = sa.id
+                  AND p.status = 'approved') < 5
+        ORDER BY active_provider_count ASC, sa.name ASC
         LIMIT 25`,
     ),
     // 7. Guarantee fund balance below 30% of monthly claim burn
@@ -1435,7 +1468,7 @@ export async function getOperationalAlerts(): Promise<DashboardAlert[]> {
       severity: 'info',
       title: `${r.name}: only ${r.active_provider_count} active providers`,
       description: 'Active service area has fewer than 5 active providers. Consider recruitment campaign.',
-      action_url: `/service-areas/${r.id}`,
+      action_url: `/service-areas?search=${encodeURIComponent(r.name)}`,
       created_at: new Date(),
     });
   }
@@ -1451,7 +1484,7 @@ export async function getOperationalAlerts(): Promise<DashboardAlert[]> {
         severity: 'danger',
         title: 'Guarantee fund below 30% of monthly claim burn',
         description: `Balance ₱${(balance / 100).toFixed(2)} vs 30-day burn ₱${(burn / 100).toFixed(2)}. Replenishment needed.`,
-        action_url: '/financials/wallets',
+        action_url: '/financials?tab=guarantee',
         created_at: new Date(),
       });
     }
@@ -1546,19 +1579,23 @@ export async function getCitiesPerformance(): Promise<CityPerformance[]> {
     id: string;
     name: string;
     status: string;
-    active_provider_count: number;
+    active_provider_count: string;
     today_bookings: string;
   }>(
     `SELECT sa.id,
             sa.name,
             sa.status,
-            sa.active_provider_count,
+            (SELECT COUNT(*)
+               FROM provider_service_areas psa
+               JOIN providers p ON p.id = psa.provider_id
+              WHERE psa.service_area_id = sa.id
+                AND p.status = 'approved')::text AS active_provider_count,
             COALESCE((
               SELECT COUNT(*)
                 FROM bookings b
-                JOIN provider_service_areas psa ON psa.provider_id = b.provider_id
-               WHERE psa.service_area_id = sa.id
-                 AND b.created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila'
+               WHERE LOWER(TRIM(b.city)) = LOWER(TRIM(sa.city))
+                 AND LOWER(TRIM(b.province)) = LOWER(TRIM(sa.province))
+                  AND b.created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila'
             ), 0)::text AS today_bookings
        FROM service_areas sa
       WHERE sa.status IN ('active', 'soft_launch', 'recruiting', 'planned')

@@ -824,7 +824,14 @@ export async function getDisputeEvidence(disputeId: string): Promise<EvidenceRow
 }
 
 export async function listDisputes(
-  filters: { status?: string; tier?: number; search?: string; page: number; pageSize: number },
+  filters: {
+    status?: string;
+    tier?: number;
+    search?: string;
+    view?: 'active' | 'stale';
+    page: number;
+    pageSize: number;
+  },
 ): Promise<{ disputes: DisputeRow[]; total: number }> {
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -833,6 +840,11 @@ export async function listDisputes(
   if (filters.status) {
     conditions.push(`d.status = $${paramIdx++}`);
     params.push(filters.status);
+  }
+  if (filters.view === 'active') {
+    conditions.push(`d.status IN ('open', 'under_review', 'escalated')`);
+  } else if (filters.view === 'stale') {
+    conditions.push(`d.status = 'open' AND d.created_at < NOW() - INTERVAL '48 hours'`);
   }
   if (filters.tier != null) {
     conditions.push(`d.tier = $${paramIdx++}`);

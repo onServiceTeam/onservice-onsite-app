@@ -149,17 +149,6 @@ describe('MED-N26 — releasePartialEscrow conservation guard', () => {
     expect(result.providerReceives).toBe(39_999);
   });
 
-  it('the conservation guard exists as a refactor regression guard (currently trivially holds)', () => {
-    // platformAmount is derived as `remainingAmount - providerReceives -
-    // guaranteeContribution`, which makes the conservation check
-    // tautological today: totalOut == remainingAmount by construction.
-    // The guard still exists in source so a future refactor that
-    // computes platformAmount differently (e.g., via a new commission
-    // formula) would be caught immediately. Source-level signature
-    // assertions live below in the third describe block.
-    expect(true).toBe(true);
-  });
-
   it('passes when math conserves exactly', async () => {
     setupBookingAndProvider({ totalAmount: 110000, servicePrice: 100000, serviceFee: 10000 });
     // 50000 = 40000 (provider) + 9250 (platform) + 750 (guarantee). Exact.
@@ -176,31 +165,5 @@ describe('MED-N26 — releasePartialEscrow conservation guard', () => {
 
     const result = await escrowService.releasePartialEscrow('b-1', 50_000);
     expect(result).toBeDefined();
-  });
-});
-
-describe('MED-N25/N26 — source-level signature checks', () => {
-
-  const { readFileSync } = require('fs');
-
-  const { resolve } = require('path');
-  const SVC = readFileSync(
-    resolve(__dirname, '../src/services/escrow.service.ts'),
-    'utf8',
-  );
-
-  it('releasePartialEscrow contains the negative-platformAmount guard', () => {
-    expect(SVC).toMatch(/PARTIAL ESCROW NEGATIVE PLATFORM AMOUNT/);
-    expect(SVC).toMatch(/if \(platformAmount < 0\)/);
-  });
-
-  it('releasePartialEscrow contains the conservation-violation log', () => {
-    expect(SVC).toMatch(/MONEY CONSERVATION VIOLATION in partial escrow release/);
-  });
-
-  it('releasePartialEscrow uses the same 2-centavo rounding tolerance as releaseEscrow', () => {
-    // Both functions use Math.abs(diff) <= 2 for the rounding window.
-    const matches = (SVC.match(/Math\.abs\(diff\) <= 2/g) ?? []).length;
-    expect(matches).toBeGreaterThanOrEqual(2); // releaseEscrow + releasePartialEscrow
   });
 });

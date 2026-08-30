@@ -92,7 +92,7 @@ You will encounter ambiguity. When ambiguity hits, in order of preference:
 ## Communication norms with Ken
 
 - **Speak in human English, not engineer English.** Ken is a non-developer. Translate technical concepts.
-- **Be specific.** "I fixed the booking flow" is not specific. "I closed Bug 176 by replacing client-trusted addon prices with server-canonical lookup; the test at packages/api/__tests__/services/booking/pricing.service.test.ts:bug-176 verifies the fix" is specific.
+- **Be specific.** "I fixed the booking flow" is not specific. "I closed Bug 176 by replacing client-trusted addon prices with server-canonical lookup; the test at packages/api/__tests__/services/booking/booking-pricing-resolution.test.ts:bug-176 verifies the fix" is specific.
 - **No marketing copy.** Drop "comprehensive," "robust," "powerful," "seamless." Use plain language.
 - **No em dashes in informal writing.** Ken has stated this preference repeatedly.
 - **Lead with the bad news.** If something didn't work, say so first.

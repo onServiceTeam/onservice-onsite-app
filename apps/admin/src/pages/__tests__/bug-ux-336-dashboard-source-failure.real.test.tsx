@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
 
 const apiGet = vi.hoisted(() => vi.fn());
+vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
 vi.mock('@/lib/api', () => ({ default: { get: apiGet } }));
 vi.mock('@/lib/use-admin-socket', () => ({ useAdminSocketEvent: vi.fn() }));
 
@@ -36,6 +37,6 @@ it('Bug UX-336 — a failed privacy-deadline source appears as an actionable das
   );
 
   expect(await screen.findByText('Data-rights deadline source unavailable')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /^View$/ }).closest('a')).toHaveAttribute('to', '/data-protection-log');
+  expect(screen.getByRole('button', { name: /^View$/ }).closest('a')).toHaveAttribute('href', '/data-protection-log');
   expect(screen.queryByText('All systems healthy. Nothing requires intervention right now.')).not.toBeInTheDocument();
 });

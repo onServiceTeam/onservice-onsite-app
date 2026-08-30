@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { useAdminSocketEvent } from '@/lib/use-admin-socket';
@@ -40,6 +40,8 @@ import {
   RefreshCw,
   ChevronRight,
   BarChart3,
+  Ticket,
+  MessageSquare,
 } from '@/components/icons';
 
 type DateRange = 'today' | '7d' | '30d' | '90d' | 'ytd';
@@ -48,9 +50,14 @@ interface DashboardKpis {
   revenue: number;
   revenueTrendPct: number;
   activeBookings: number;
+  paidUnassignedBookings?: number;
   pendingDisputes: number;
   newSignups: number;
   pendingApprovals: number;
+  openSupportCases?: number;
+  unassignedSupportCases?: number;
+  urgentSupportCases?: number;
+  newFeedback?: number;
   todayBookings: number;
   escalatedDisputes: number;
   staleDisputes: number;
@@ -101,7 +108,11 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.data.data;
 }
 
-function rangeToDays(range: DateRange): number {
+function isDateRange(value: string | null): value is DateRange {
+  return value === 'today' || value === '7d' || value === '30d' || value === '90d' || value === 'ytd';
+}
+
+function rangeToDays(range: DateRange, now = new Date()): number {
   switch (range) {
     case 'today':
       return 1;
@@ -112,9 +123,17 @@ function rangeToDays(range: DateRange): number {
     case '90d':
       return 90;
     case 'ytd': {
-      const now = new Date();
-      const startOfYear = new Date(now.getFullYear(), 0, 1);
-      return Math.max(1, Math.ceil((now.getTime() - startOfYear.getTime()) / 86_400_000));
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).formatToParts(now);
+      const year = Number(parts.find((part) => part.type === 'year')?.value);
+      const month = Number(parts.find((part) => part.type === 'month')?.value);
+      const day = Number(parts.find((part) => part.type === 'day')?.value);
+      if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return 1;
+      return Math.floor((Date.UTC(year, month - 1, day) - Date.UTC(year, 0, 1)) / 86_400_000) + 1;
     }
     default:
       return 30;
@@ -140,8 +159,19 @@ function rangeLabel(range: DateRange): string {
 
 export default function DashboardPage(): React.ReactElement {
   const queryClient = useQueryClient();
-  const [range, setRange] = useState<DateRange>('today');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rangeParam = searchParams.get('range');
+  const range: DateRange = isDateRange(rangeParam) ? rangeParam : 'today';
   const rangeDays = rangeToDays(range);
+
+  const setRange = (nextRange: DateRange): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (nextRange === 'today') next.delete('range');
+      else next.set('range', nextRange);
+      return next;
+    }, { replace: true });
+  };
 
   useAdminSocketEvent<{ id: string }>('alert:new', () => {
     void queryClient.invalidateQueries({ queryKey: ['dashboard-alerts'] });
@@ -205,7 +235,7 @@ export default function DashboardPage(): React.ReactElement {
       severity: d.isOverdue ? 'danger' : 'warning',
       title: `DSR ${d.requestType} ${d.isOverdue ? 'OVERDUE' : 'due soon'}`,
       description: `${d.userEmail ?? 'user'} — due ${new Date(d.dueAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' })} (${d.daysUntilDue}d)`,
-      action_url: '/compliance',
+      action_url: '/data-protection-log',
       created_at: new Date().toISOString(),
     }));
     const unavailableRows: OperationalAlert[] = [];
@@ -275,6 +305,59 @@ export default function DashboardPage(): React.ReactElement {
   }
 
   const k = kpis.data;
+  const secondaryQueries = [revenueTrend, bookingVolume, funnel, alerts, dsrAlerts, cities, qualityWatch];
+  const sourceFailureCount = secondaryQueries.filter((query) => query.isError).length;
+  const isRefreshing = [kpis, ...secondaryQueries].some((query) => query.isFetching);
+  const actionQueues = [
+    {
+      title: 'Paid needs assignment',
+      value: k.paidUnassignedBookings ?? 0,
+      to: '/bookings?view=unassigned',
+      icon: <ClipboardList size={20} className="text-red-700" />,
+    },
+    {
+      title: 'Unassigned support',
+      value: k.unassignedSupportCases ?? 0,
+      to: '/support-tickets?unassigned=1&active=1',
+      icon: <Ticket size={20} className="text-red-700" />,
+    },
+    {
+      title: 'Urgent support',
+      value: k.urgentSupportCases ?? 0,
+      to: '/support-tickets?priority=urgent&active=1',
+      icon: <MessageSquare size={20} className="text-red-700" />,
+    },
+    {
+      title: 'Provider approvals',
+      value: k.pendingApprovals,
+      to: '/providers?status=pending',
+      icon: <Wrench size={20} className="text-amber-700" />,
+    },
+    {
+      title: 'Active disputes',
+      value: k.pendingDisputes,
+      to: '/disputes?view=active',
+      icon: <AlertTriangle size={20} className="text-red-700" />,
+    },
+    {
+      title: 'Escalated disputes',
+      value: k.escalatedDisputes,
+      to: '/disputes?status=escalated',
+      icon: <AlertCircle size={20} className="text-red-700" />,
+    },
+    {
+      title: 'Open disputes (48h+)',
+      value: k.staleDisputes,
+      to: '/disputes?view=stale',
+      icon: <Clock size={20} className="text-amber-700" />,
+    },
+    {
+      title: 'New tester feedback',
+      value: k.newFeedback ?? 0,
+      to: '/feedback',
+      icon: <MessageSquare size={20} className="text-blue-700" />,
+    },
+  ];
   const refreshedAt = new Date(kpis.dataUpdatedAt).toLocaleTimeString('en-PH', {
     timeZone: 'Asia/Manila',
     hour: '2-digit',
@@ -287,9 +370,20 @@ export default function DashboardPage(): React.ReactElement {
       {/* Header */}
       <header className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-            <span className="h-2 w-2 rounded-full bg-emerald-600" aria-hidden="true" />
-            Operational data
+          <div
+            className={`mb-2 inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-semibold ${
+              sourceFailureCount > 0
+                ? 'border-amber-300 bg-amber-50 text-amber-900'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+            }`}
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${sourceFailureCount > 0 ? 'bg-amber-600' : 'bg-emerald-600'}`}
+              aria-hidden="true"
+            />
+            {sourceFailureCount > 0
+              ? `${sourceFailureCount} source${sourceFailureCount === 1 ? '' : 's'} unavailable`
+              : 'Operational sources checked'}
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-[var(--color-text)]">
             Command Center
@@ -303,7 +397,7 @@ export default function DashboardPage(): React.ReactElement {
           <select
             value={range}
             onChange={(e) => setRange(e.target.value as DateRange)}
-            className="border border-[var(--color-border)] rounded px-3 py-1.5 text-sm bg-white"
+            className="h-11 border border-[var(--color-border)] rounded px-3 text-sm bg-white"
             aria-label="Date range"
           >
             <option value="today">Today</option>
@@ -312,8 +406,9 @@ export default function DashboardPage(): React.ReactElement {
             <option value="90d">Last 90 days</option>
             <option value="ytd">Year to date</option>
           </select>
-          <Button variant="outline" size="sm" onClick={refreshAll}>
-            <RefreshCw size={14} /> Refresh
+          <Button variant="outline" size="sm" onClick={refreshAll} disabled={isRefreshing}>
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            {isRefreshing ? 'Refreshing' : 'Refresh'}
           </Button>
         </div>
       </header>
@@ -326,66 +421,21 @@ export default function DashboardPage(): React.ReactElement {
               Action queues
             </h2>
             <p className="text-sm text-[var(--color-text-secondary)]">
-              Open the queue and take the next case.
+              Open the exact queue and take the next case. {k.openSupportCases ?? 0} support cases are currently open.
             </p>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Link
-            to="/providers?status=pending"
-            className="block rounded-lg focus-visible:outline-offset-4"
-          >
-            <KpiCard
-              title="Provider approvals"
-              value={k.pendingApprovals}
-              icon={<Wrench size={20} className="text-[var(--color-primary)]" />}
-            />
-          </Link>
-          <Link
-            to="/disputes?status=open"
-            className="block rounded-lg focus-visible:outline-offset-4"
-          >
-            <KpiCard
-              title="Pending disputes"
-              value={k.pendingDisputes}
-              icon={
-                <AlertTriangle
-                  size={20}
-                  className={k.pendingDisputes > 0 ? 'text-red-700' : 'text-slate-500'}
-                />
-              }
-            />
-          </Link>
-          <Link
-            to="/disputes?status=escalated"
-            className="block rounded-lg focus-visible:outline-offset-4"
-          >
-            <KpiCard
-              title="Escalated disputes"
-              value={k.escalatedDisputes}
-              icon={
-                <AlertCircle
-                  size={20}
-                  className={k.escalatedDisputes > 0 ? 'text-red-700' : 'text-slate-500'}
-                />
-              }
-            />
-          </Link>
-          <Link
-            to="/disputes?stale=true"
-            className="block rounded-lg focus-visible:outline-offset-4"
-          >
-            <KpiCard
-              title="Open disputes (48h+)"
-              value={k.staleDisputes}
-              icon={
-                <Clock
-                  size={20}
-                  className={k.staleDisputes > 0 ? 'text-amber-700' : 'text-slate-500'}
-                />
-              }
-            />
-          </Link>
+          {actionQueues.map((queue) => (
+            <Link
+              key={queue.title}
+              to={queue.to}
+              aria-label={`Open ${queue.title} queue`}
+              className="block rounded-lg focus-visible:outline-offset-4"
+            >
+              <KpiCard title={queue.title} value={queue.value} icon={queue.icon} />
+            </Link>
+          ))}
         </div>
         <p className="mt-2 text-xs text-[var(--color-text-secondary)]">
           The 48-hour dispute card is an internal attention threshold, not a promised resolution SLA.
@@ -402,23 +452,23 @@ export default function DashboardPage(): React.ReactElement {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
-            title="Platform fee revenue"
+            title={`Platform fee revenue · ${rangeLabel(range)}`}
             value={formatCurrency(k.revenue)}
             icon={<Coins size={20} className="text-emerald-600" />}
             trendPct={k.revenueTrendPct}
           />
           <KpiCard
-            title="Active Bookings"
+            title="Active bookings · current"
             value={k.activeBookings}
             icon={<ClipboardList size={20} className="text-blue-600" />}
           />
           <KpiCard
-            title="New Signups"
+            title={`New platform accounts · ${rangeLabel(range)}`}
             value={k.newSignups}
             icon={<UserPlus size={20} className="text-blue-600" />}
           />
           <KpiCard
-            title="Today's Bookings"
+            title="Bookings created today · Manila"
             value={k.todayBookings}
             icon={<Calendar size={20} className="text-blue-600" />}
           />
@@ -437,7 +487,11 @@ export default function DashboardPage(): React.ReactElement {
                 (fresh launch, low traffic, mocked dev env). Looked
                 like the chart was broken. Post-fix: explicit empty
                 state with friendly text. */}
-            {(revenueTrend.data ?? []).length === 0 ? (
+            {revenueTrend.isLoading ? (
+              <LoadingState label="Loading revenue trend..." />
+            ) : revenueTrend.isError ? (
+              <SourceError label="Revenue trend" onRetry={() => void revenueTrend.refetch()} />
+            ) : (revenueTrend.data ?? []).length === 0 ? (
               <div className="h-[240px] flex flex-col items-center justify-center text-center">
                 <BarChart3 size={28} className="text-slate-400 mb-2" />
                 <p className="text-sm text-[var(--color-text-secondary)]">No revenue data yet</p>
@@ -451,7 +505,7 @@ export default function DashboardPage(): React.ReactElement {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={(d: string) => new Date(d).getDate().toString()}
+                    tickFormatter={(d: string) => d.slice(5).replace('-', '/')}
                   />
                   <YAxis tickFormatter={(v: number) => `₱${(v / 100000).toFixed(0)}K`} />
                   <ChartTooltip formatter={(v) => formatCurrency(Number(v))} />
@@ -484,7 +538,11 @@ export default function DashboardPage(): React.ReactElement {
           </CardHeader>
           <CardContent>
             {/* BUG-PHASE38-01 fix — same empty-state guard as Revenue Trend. */}
-            {(bookingVolume.data ?? []).length === 0 ? (
+            {bookingVolume.isLoading ? (
+              <LoadingState label="Loading booking volume..." />
+            ) : bookingVolume.isError ? (
+              <SourceError label="Booking volume" onRetry={() => void bookingVolume.refetch()} />
+            ) : (bookingVolume.data ?? []).length === 0 ? (
               <div className="h-[240px] flex flex-col items-center justify-center text-center">
                 <ClipboardList size={28} className="text-slate-400 mb-2" />
                 <p className="text-sm text-[var(--color-text-secondary)]">No bookings yet</p>
@@ -511,7 +569,9 @@ export default function DashboardPage(): React.ReactElement {
             <CardTitle>Acquisition Funnel ({rangeLabel(range)})</CardTitle>
           </CardHeader>
           <CardContent>
-            {funnel.isError ? (
+            {funnel.isLoading ? (
+              <LoadingState label="Loading acquisition funnel..." />
+            ) : funnel.isError ? (
               <div className="py-4 text-center">
                 <p className="text-sm text-red-600">Failed to load funnel.</p>
                 <Button
@@ -545,9 +605,7 @@ export default function DashboardPage(): React.ReactElement {
                   }
                 />
               </div>
-            ) : (
-              <p className="text-sm text-[var(--color-text-secondary)]">Loading funnel...</p>
-            )}
+            ) : null}
           </CardContent>
         </Card>
       </div>
@@ -559,7 +617,9 @@ export default function DashboardPage(): React.ReactElement {
             <CardTitle>Operational Alerts</CardTitle>
           </CardHeader>
           <CardContent>
-            {mergedAlerts.length === 0 ? (
+            {alerts.isLoading || dsrAlerts.isLoading ? (
+              <LoadingState label="Checking operational alerts..." />
+            ) : mergedAlerts.length === 0 ? (
               <EmptyState
                 title="No detected alerts"
                 description="The currently available alert sources returned no actionable records. This is not a full system-health guarantee."
@@ -604,19 +664,19 @@ export default function DashboardPage(): React.ReactElement {
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Link to="/providers?status=pending" className="block">
+            <Link to="/dispatch" className="block">
               <Button variant="outline" className="w-full justify-between">
-                <span>Approve Pending Providers ({k.pendingApprovals})</span>
+                <span>Open Dispatch Console</span>
                 <ChevronRight size={14} />
               </Button>
             </Link>
-            <Link to="/disputes?status=open" className="block">
+            <Link to="/support-tickets?active=1" className="block">
               <Button variant="outline" className="w-full justify-between">
-                <span>Review Disputes ({k.pendingDisputes})</span>
+                <span>Open Support Queue ({k.openSupportCases ?? 0})</span>
                 <ChevronRight size={14} />
               </Button>
             </Link>
-            <Link to="/financials" className="block">
+            <Link to="/financials?tab=overview" className="block">
               <Button variant="outline" className="w-full justify-between">
                 <span>Review Financial Reports</span>
                 <ChevronRight size={14} />
@@ -680,29 +740,49 @@ export default function DashboardPage(): React.ReactElement {
       </Card>
 
       {/* Wallets Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <WalletCard title="Platform Escrow" amount={k.escrowBalance} description="Held in escrow" />
-        <WalletCard
-          title="Platform Revenue"
-          amount={k.platformRevenue}
-          description="Commission + fees"
-          valueColor="text-emerald-600"
-        />
+      <section aria-labelledby="money-snapshots-title">
+        <h2 id="money-snapshots-title" className="text-lg font-bold text-[var(--color-text)]">
+          Current money snapshots
+        </h2>
+        <p className="mb-3 text-sm text-[var(--color-text-secondary)]">
+          Current wallet balances. The selected reporting range does not change these amounts.
+        </p>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Link to="/financials?tab=escrow" className="block rounded-xl focus-visible:outline-offset-4">
+            <WalletCard
+              title="Platform Escrow"
+              amount={k.escrowBalance}
+              description="Current pending balance in the platform escrow wallet"
+            />
+          </Link>
+          <Link to="/financials?tab=overview" className="block rounded-xl focus-visible:outline-offset-4">
+            <WalletCard
+              title="Platform Revenue"
+              amount={k.platformRevenue}
+              description="Current available balance, not selected-range revenue"
+              valueColor="text-emerald-600"
+            />
+          </Link>
         {/* BUG-PHASE38-02 fix — pre-fix this triggered the
             "Replenishment recommended" warning even when the fund was
             simply unconfigured (amount=0, runway=0). The warning made
             sense for an UNDER-funded production deployment but was
             noise on a fresh install. Now: warning only fires when the
             fund is non-zero AND runway < 3 months. */}
-        <WalletCard
-          title="Guarantee Fund"
-          amount={k.guaranteeFund}
-          description={
-            k.guaranteeFund > 0 ? `${k.guaranteeFundRunwayMonths} months runway` : 'Not yet funded'
-          }
-          warning={k.guaranteeFund > 0 && k.guaranteeFundRunwayMonths < 3}
-        />
-      </div>
+          <Link to="/financials?tab=guarantee" className="block rounded-xl focus-visible:outline-offset-4">
+            <WalletCard
+              title="Guarantee Fund"
+              amount={k.guaranteeFund}
+              description={
+                k.guaranteeFund > 0
+                  ? `${k.guaranteeFundRunwayMonths} months against recorded 30-day claim burn`
+                  : 'No available guarantee-fund balance recorded'
+              }
+              warning={k.guaranteeFund > 0 && k.guaranteeFundRunwayMonths < 3}
+            />
+          </Link>
+        </div>
+      </section>
 
       {/* Cities Row */}
       <Card>
@@ -710,7 +790,11 @@ export default function DashboardPage(): React.ReactElement {
           <CardTitle>Cities</CardTitle>
         </CardHeader>
         <CardContent>
-          {(cities.data ?? []).length === 0 ? (
+          {cities.isLoading ? (
+            <LoadingState label="Loading service-area performance..." />
+          ) : cities.isError ? (
+            <SourceError label="Service-area performance" onRetry={() => void cities.refetch()} />
+          ) : (cities.data ?? []).length === 0 ? (
             <EmptyState
               title="No service areas"
               description="No service areas have been configured yet."
@@ -719,7 +803,11 @@ export default function DashboardPage(): React.ReactElement {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {(cities.data ?? []).map((city) => (
-                <Link key={city.id} to="/service-areas" className="block">
+                <Link
+                  key={city.id}
+                  to={`/service-areas?search=${encodeURIComponent(city.name)}`}
+                  className="block"
+                >
                   <Card className="hover:border-[var(--color-secondary)] transition-colors cursor-pointer">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
@@ -731,12 +819,12 @@ export default function DashboardPage(): React.ReactElement {
                         </div>
                         <MapPin size={16} className="text-slate-400" />
                       </div>
-                      <div className="mt-3 flex justify-between text-sm text-[var(--color-text)]">
+                      <div className="mt-3 flex flex-wrap justify-between gap-2 text-sm text-[var(--color-text)]">
                         <span>
-                          <strong>{city.activeProviders}</strong> providers
+                          <strong>{city.activeProviders}</strong> approved providers
                         </span>
                         <span>
-                          <strong>{city.todayBookings}</strong> today
+                          <strong>{city.todayBookings}</strong> bookings today
                         </span>
                       </div>
                     </CardContent>
@@ -747,6 +835,21 @@ export default function DashboardPage(): React.ReactElement {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function SourceError({ label, onRetry }: { label: string; onRetry: () => void }): React.ReactElement {
+  return (
+    <div role="alert" className="flex min-h-40 flex-col items-center justify-center text-center">
+      <AlertCircle size={26} className="mb-2 text-red-600" />
+      <p className="text-sm font-semibold text-red-700">{label} source unavailable</p>
+      <p className="mt-1 max-w-md text-xs text-[var(--color-text-secondary)]">
+        No empty or zero result is being inferred from this failure.
+      </p>
+      <Button variant="outline" size="sm" className="mt-3" onClick={onRetry}>
+        Retry source
+      </Button>
     </div>
   );
 }

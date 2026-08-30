@@ -231,8 +231,19 @@ router.get(
       const status = typeof req.query.status === 'string' ? req.query.status : undefined;
       const tier = req.query.tier ? Number(req.query.tier) : undefined;
       const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+      const viewRaw = typeof req.query.view === 'string' ? req.query.view : undefined;
+      if (viewRaw !== undefined && viewRaw !== 'active' && viewRaw !== 'stale') {
+        throw createAppError('Invalid dispute view. Allowed: active, stale.', 400);
+      }
 
-      const { disputes, total } = await disputeService.listDisputes({ status, tier, search, page, pageSize });
+      const { disputes, total } = await disputeService.listDisputes({
+        status,
+        tier,
+        search,
+        view: viewRaw,
+        page,
+        pageSize,
+      });
 
       res.json({
         success: true,

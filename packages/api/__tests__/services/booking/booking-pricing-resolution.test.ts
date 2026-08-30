@@ -107,7 +107,7 @@ function setupQueries(...stubs: QueryStub[]) {
         };
       }
     }
-    throw new Error(`pricing.service.test: unexpected query: ${text}`);
+    throw new Error(`booking-pricing-resolution.test: unexpected query: ${text}`);
   }) as never);
 }
 

@@ -44,9 +44,14 @@ describe('getDashboardKpis', () => {
         rows([
           {
             active_bookings: '4',
+            paid_unassigned_bookings: '1',
             pending_disputes: '2',
             new_signups: '12',
             pending_approvals: '3',
+            open_support_cases: '5',
+            unassigned_support_cases: '2',
+            urgent_support_cases: '1',
+            new_feedback: '4',
             today_bookings: '7',
             escalated_disputes: '1',
             stale_disputes: '0',
@@ -63,6 +68,7 @@ describe('getDashboardKpis', () => {
     expect(result.revenue).toBe(50000);
     expect(result.revenueTrendPct).toBe(100); // (50000-25000)/25000*100
     expect(result.activeBookings).toBe(4);
+    expect(result.paidUnassignedBookings).toBe(1);
     expect(result.pendingDisputes).toBe(2);
     expect(result.newSignups).toBe(12);
     expect(result.pendingApprovals).toBe(3);
@@ -83,9 +89,14 @@ describe('getDashboardKpis', () => {
         rows([
           {
             active_bookings: '0',
+            paid_unassigned_bookings: '0',
             pending_disputes: '0',
             new_signups: '0',
             pending_approvals: '0',
+            open_support_cases: '0',
+            unassigned_support_cases: '0',
+            urgent_support_cases: '0',
+            new_feedback: '0',
             today_bookings: '0',
             escalated_disputes: '0',
             stale_disputes: '0',
@@ -107,9 +118,14 @@ describe('getDashboardKpis', () => {
         rows([
           {
             active_bookings: '0',
+            paid_unassigned_bookings: '0',
             pending_disputes: '0',
             new_signups: '0',
             pending_approvals: '0',
+            open_support_cases: '0',
+            unassigned_support_cases: '0',
+            urgent_support_cases: '0',
+            new_feedback: '0',
             today_bookings: '0',
             escalated_disputes: '0',
             stale_disputes: '0',
@@ -132,9 +148,14 @@ describe('getDashboardKpis', () => {
           rows([
             {
               active_bookings: '0',
+              paid_unassigned_bookings: '0',
               pending_disputes: '0',
               new_signups: '0',
               pending_approvals: '0',
+              open_support_cases: '0',
+              unassigned_support_cases: '0',
+              urgent_support_cases: '0',
+              new_feedback: '0',
               today_bookings: '0',
               escalated_disputes: '0',
               stale_disputes: '0',
@@ -151,7 +172,7 @@ describe('getDashboardKpis', () => {
 });
 
 describe('getRevenueTrend', () => {
-  it('clamps days to [1,365] and returns mapped points', async () => {
+  it('clamps days to [1,366] and returns mapped points', async () => {
     dbQueryMock.mockResolvedValueOnce(
       rows([
         { date: '2026-01-01', gmv: '10000', revenue: '1000' },
@@ -174,10 +195,10 @@ describe('getRevenueTrend', () => {
     expect(dbQueryMock).toHaveBeenCalledWith(expect.any(String), [1]);
   });
 
-  it('clamps days >365 to 365', async () => {
+  it('clamps days above a leap year to 366', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([]));
     await analytics.getRevenueTrend(9999);
-    expect(dbQueryMock).toHaveBeenCalledWith(expect.any(String), [365]);
+    expect(dbQueryMock).toHaveBeenCalledWith(expect.any(String), [366]);
   });
 
   it('clamps NaN to 1', async () => {
@@ -270,7 +291,7 @@ describe('getOperationalAlerts', () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.type).toBe('guarantee_fund_low');
     expect(result[0]?.severity).toBe('danger');
-    expect(result[0]?.action_url).toBe('/financials/wallets');
+    expect(result[0]?.action_url).toBe('/financials?tab=guarantee');
   });
 
   it('does NOT emit guarantee fund alert when balance >= 30% burn', async () => {
@@ -313,7 +334,7 @@ describe('getOperationalAlerts', () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.severity).toBe('info');
     expect(result[0]?.type).toBe('city_low_provider_count');
-    expect(result[0]?.action_url).toBe('/service-areas/sa-1');
+    expect(result[0]?.action_url).toBe('/service-areas?search=Cebu');
   });
 
   it('sorts alerts by created_at descending', async () => {
