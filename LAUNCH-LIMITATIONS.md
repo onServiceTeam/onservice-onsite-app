@@ -1631,3 +1631,29 @@ Keep `DISPUTE_PARTY_SETTLEMENT_ENABLED=0`. The environment value cannot bypass
 the code hold. Removing containment requires the locked/idempotent settlement,
 gateway retry, concurrent money tests, and the E18 timing decision described in
 `.ai-coder/escalations/E24-direct-dispute-settlement-concurrency-2026-08-24.md`.
+
+---
+
+## 50. Fixed-price creation can start provider offers before verified payment
+
+E03 approved the instant-pay order: create the fixed-price booking, verify
+payment into held escrow, then begin provider matching. The payment-success
+paths call the dispatcher after that committed state, but the booking-creation
+route can also start the offer cycle immediately when `auto_dispatch_enabled`
+is on. The cycle currently accepts pre-payment states and can notify or assign
+a provider before funds are verified.
+
+This is a work-authorization and money-trust launch blocker. An offer,
+notification, `requested`, `matched`, or `payment_pending` state must not be
+treated as payment evidence. The W8 Booking queue contains the read-only signal
+to verified-paid unassigned records only; it does not change an offer, booking,
+payment, escrow, or setting.
+
+E32 currently prevents the required read-only production inspection, so the
+live setting and any affected offer rows are unknown. Do not mutate the setting
+or repair records without a verified server session, backup, and exact impact
+check. The correction must use the money-path topic-branch/PR discipline,
+remove create-time fixed-price dispatch, independently enforce paid/held at
+every automatic and manual dispatch boundary, and execute create/payment/
+webhook/duplicate/acceptance/notification regressions. See
+`.ai-coder/escalations/E33-fixed-price-prepayment-auto-dispatch-regression-2026-08-30.md`.

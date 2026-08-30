@@ -10,13 +10,15 @@ Related docs: `06-customer-support-sop.md`, `07-provider-support-sop.md`, `09-tr
 
 A booking must reach dispatch only after the server records it paid with held escrow. So when you watch a real dispatch row, verify the paid/held state and then focus on finding a provider fast. Treat every unmatched, verified-paid booking as a clock that is already running. A pending browser payment attempt is not a dispatch booking.
 
-> ACCURACY NOTE: E03 fixed the booking/escrow ordering, so only verified payment may produce a paid/held dispatch record. E14 still blocks the current external hosted PayMongo authorization link. Dispatchers must not promote a pending attempt into dispatch or tell a customer to retry that link; see `.ai-coder/escalations/E14-paymongo-hosted-checkout-flow-2026-08-24.md`.
+> ACCURACY NOTE: E03 approved the booking/escrow ordering, so only verified payment may authorize fixed-price dispatch. E33 found that the current create-time path can nevertheless start provider offers before payment when auto-dispatch is enabled. An offer, notification, or assigned provider is therefore not proof of funding. Verify `paid` plus held escrow before any assignment action or provider outreach. Do not change the production setting or booking/payment state as a workaround. E14 separately blocks the current external hosted PayMongo authorization link.
 
 ---
 
 ## 2. Auto-dispatch in plain language
 
-When a fixed-price booking is created with a valid location and the admin setting `auto_dispatch_enabled` is on, the system tries to find a provider for it automatically. Quote-based bookings do NOT auto-dispatch. They use the quote flow instead (providers send quotes, customer picks one).
+The approved fixed-price sequence is verified payment into held escrow, followed by provider matching. Quote-based bookings use the separate quote flow instead (providers send quotes, customer picks one).
+
+The offer-cycle mechanics below describe what the current dispatcher does after it starts. They do not prove that its start was authorized. E33 records the current contradiction: booking creation can call the cycle too early. Until the money-path correction is implemented and production is checked, operators must independently verify `status='paid'` and held escrow before treating a fixed-price offer or assignment as real work.
 
 How the auto-offer works, step by step:
 

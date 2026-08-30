@@ -184,9 +184,9 @@ Closers:
 
 ## 8. Playbooks (most common scenarios)
 
-Each playbook is numbered steps. The intended instant-pay order is customer payment into escrow followed by provider matching. Only a server-verified paid/held state proves that happened.
+Each playbook is numbered steps. The approved instant-pay order is customer payment into escrow followed by provider matching. Only a server-verified paid/held state proves that happened. E33 records that the current create-time auto-dispatch path can start an offer before payment, so an offer, provider notification, or assignment is not payment evidence.
 
-ACCURACY NOTE for everyone: E03 fixed the internal booking/escrow ordering. E14 remains a launch blocker for the current external hosted PayMongo link, which is invalid. Do not ask customers to retry card/GCash/Maya/QR Ph or wallet top-up with real money through that link. Preserve the booking/top-up identifier and follow playbook 8.5.
+ACCURACY NOTE for everyone: E03 approved pay first, then match. E33 holds the conflicting create-time offer behavior for a dedicated money-path correction; do not manually change booking/payment state or the production setting as a workaround. E14 remains a launch blocker for the current external hosted PayMongo link, which is invalid. Do not ask customers to retry card/GCash/Maya/QR Ph or wallet top-up with real money through that link. Preserve the booking/top-up identifier and follow playbook 8.5.
 
 ### 8.1 Booking help (how do I book / I can't finish a booking)
 
@@ -256,7 +256,7 @@ Steps:
    - For an external attempt in `awaiting_payment`, `payment_pending`, or failed state, do not infer a charge and do not ask the customer to retry the current hosted link. E14 proves that link is invalid. Escalate as `payment_issue`, preserve the gateway identifier, and verify the customer's real statement before saying whether money moved.
    - For an internal-wallet attempt, use the wallet transaction and booking/escrow records as the authority. If no debit exists, the customer was not charged; if a debit exists without the matching booking/escrow transition, treat it as P1.
 3. Minimum payment is ₱100. If they tried to pay less than that, that is the block. Explain it.
-4. "I paid but no provider came yet": first verify `paid` plus held escrow. Only then explain that matching follows payment and check that an offer cycle is actually running. If payment is merely pending, do not say money is held.
+4. "I paid but no provider came yet": first verify `paid` plus held escrow. Only then explain that matching follows payment and check that an offer cycle is actually running. If payment is merely pending, do not say money is held. An existing offer or provider assignment does not override this check while E33 is open.
 5. Double charge or charged-but-no-booking: P1. The webhook checks for amount mismatches and will not apply a tampered or mismatched payment, but a real double charge gets escalated to super-admin for a refund immediately. Do not make the customer wait on a P1 money issue.
 6. Wallet top-up questions: top-up minimum ₱100, max ₱50,000 per transaction. All 12 production attempts inspected for E14 remained `awaiting_payment`. Check the attempt and escalate; do not manually credit the wallet or send the customer back through the invalid link.
 

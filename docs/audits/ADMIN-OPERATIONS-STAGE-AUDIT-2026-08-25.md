@@ -4,7 +4,7 @@
 
 This is the durable route-by-route control ledger for the admin overhaul requested by Ken. It is intentionally incomplete. `W1` means the current stage inspected and changed the named surface with rendered behavior tests. It does not mean every state on that page has been manually exercised. `NEXT` means the page remains in the active screen-by-screen pass. `HOLD` means money, compliance, legal, or policy behavior cannot be changed autonomously even though safe visual and accessibility work may continue.
 
-Current audited code checkpoint: `ddcfdc44d05fb2807389192cb9cbe4f69760eea5`.
+Current audited code checkpoint: `27331cef517e3361b18ccc484609498719087685`.
 The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its documentation and production-evidence checkpoint was `cc15c61b7cacad2911e6bae97fe48d4e43179df7`.
 
 ## Shared admin contract established in W1
@@ -30,7 +30,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/providers/:id` | Provider 360 | W3+W5 PARTIAL/HOLD | Approval, staff, notes, certifications, Jobs, Financials, Reviews, Disputes, and Activity now form a linked case workspace. Review moderation/public responses and certification decisions are provider-scoped and transactionally audited; staff audit verbs are now admitted by the database. E29/D31 still holds automatic handling of bookings assigned to suspended staff, and E31/D33 still holds wallet-adjustment limits/dual control. Authenticated visual-state review remains open. |
 | `/customers` | Customer queue | W7 PARTIAL | Ordinary-admin contacts are masked; account state and fraud review are separate signals; search covers full name, phone, email, and customer ID; whole-queue totals and support/dispute/active-booking workload are visible; and rows open Customer 360, filtered bookings, or a user-bound support workspace. Saved views, named ownership, and authenticated wide-state evidence remain open. |
 | `/customers/:id` | Customer 360 | W4 PARTIAL/HOLD | Suspension/reactivation are reasoned, audited, session-revoking, generic-notice workflows. Booking/payment/dispute/provider/referral records link to canonical workspaces; activity identifies actors and client evidence; fraud analytics use configured window and no-refund semantics. E30/D32 holds fraud-review clearance. E31/D33 holds unbounded single-operator wallet adjustments. Continue wallet-control, complete chronology, and authenticated visual-state review. |
-| `/bookings` | Booking operations queue | W6 PARTIAL | Search now covers booking, customer, provider, service, and city; customer/provider names open their canonical 360 records; unassigned state is explicit. Saved views, ownership, and authenticated tablet table evidence remain open. |
+| `/bookings` | Booking operations queue | W6+W8 PARTIAL | The responsive row-grid exposes URL-bound operational views/sorts, whole-queue exception counts, specific service/city/schedule context, Customer/Provider 360 exits, linked support ownership, open disputes, and gross booking value. Only verified-paid unassigned work is labelled **Paid needs assignment**. Named booking ownership is deliberately not duplicated outside support cases; authenticated wide-state evidence remains open. |
 | `/bookings/:id` | Booking 360 and evidence | W6 PARTIAL/HOLD | Conversation and support-case exits, partial-address truth, gateway/wallet/retained-sales money chronology, and rendered action confirmations are connected. Cancellation requires explicit live money inputs but E09 still holds policy/runtime authority; escrow release, refund, cancellation, and force-complete semantics remain money-path controlled. |
 | `/catalog` | Customer bookable scope and provider fulfillment contract | W1 | Service/add-on deactivation now requires audit reason and states customer impact. Continue modal and all pricing-type state visuals. |
 | `/projects` | Larger-work planning oversight | NEXT | Preserve D28 and milestone escrow holds while checking customer/provider linkage and honest capability boundaries. |
@@ -144,9 +144,24 @@ the intended records. They do not change account mutation, fraud-review,
 wallet, payment, refund, escrow, dispute-resolution, or support-case lifecycle
 semantics.
 
-## Remaining browser-native confirmations after W6
+## W8 booking-queue operations contract
 
-W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. W3 removed two Provider 360 prompts. W4 removed the two Customer 360 prompts. W6 removed four Booking 360 prompts and two Dispatch prompts, leaving 21. They are deliberately visible here rather than being hidden by a false completion claim.
+- The queue is now a bounded, responsive operational row-grid rather than a wide table with a second hidden mobile DOM. Phone, tablet, and desktop layouts preserve one copy of each booking and keep 44-pixel controls.
+- Whole-queue cards expose total, active, verified-paid unassigned, open-support, open-dispute, and past-scheduled workload. Card actions apply the matching server view instead of filtering only the current page.
+- Shareable URL state preserves search, status, view, sort, and page for handoffs. Server validation rejects unknown status, view, and sort values.
+- Attention ordering prioritizes urgent support, unassigned support cases, open disputes, verified-paid unassigned bookings, past-scheduled records, and other open support work before routine bookings. Scheduled, newest, and gross-value alternatives remain available.
+- Booking ownership follows the linked support case and its assigned administrator. The queue shows owner names, urgent/unassigned support signals, and canonical Support, Customer 360, Provider 360, and Booking 360 exits without inventing a competing booking-owner field.
+- Service search and display use the booked subcategory name, falling back to the broad category only when the specific record is absent. This prevents operators from seeing a generic category where the booked service is known.
+- Gross booking value remains explicitly gross. Payment, wallet, gateway, refund, escrow, and net-money conclusions belong in Booking 360.
+- E33 records a critical existing contradiction: fixed-price creation can start provider offers before verified payment when auto-dispatch is enabled, despite E03's approved pay-first contract. W8 does not change dispatch or payment semantics. It only labels `provider_id IS NULL AND status='paid'` as assignment-ready; `requested`, `matched`, and `payment_pending` are never counted as paid assignment exceptions.
+
+These changes are Bugs UX-495 through UX-503. They do not change booking,
+offer, payment, escrow, refund, cancellation, payout, dispute, or support-case
+lifecycle semantics.
+
+## Remaining browser-native confirmations after W8
+
+W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. W3 removed two Provider 360 prompts. W4 removed the two Customer 360 prompts. W6 removed four Booking 360 prompts and two Dispatch prompts, leaving 21. W7 and W8 changed read-only queue surfaces and did not alter that count. The remaining prompts are deliberately visible here rather than being hidden by a false completion claim.
 
 | Screen | Count | Current hold or remaining design work |
 | --- | ---: | --- |
@@ -241,3 +256,12 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 - Admin and API TypeScript passed. Repository and admin lint passed. Admin and API production builds passed; admin transformed 2,839 modules. `git diff --check` passed.
 - Code checkpoint `ddcfdc44d05fb2807389192cb9cbe4f69760eea5` was pushed to `master`. GitHub Gates run `33310413687` passed. CI run `33310413661` passed Mobile, API, Admin, and the API Docker image build plus liveness boot check.
 - Authenticated Customer queue browser evidence remains rendered-test evidence rather than a false signed-in production claim. Production backup, fast-forward, deployment, hashes, nginx validation, and live API checks remain blocked by E32; no production synchronization is claimed.
+
+## W8 local and GitHub verification
+
+- Admin: 145 test files passed, 1 skipped; 255 tests passed, 3 explicit todos. API: 486 locally runnable suites passed, 1 suite remained intentionally skipped; 3,094 tests passed and 1 test remained intentionally skipped. The separate Docker-dependent generated-certificate nginx suite was excluded locally and is not counted as a pass.
+- Focused rendered admin tests execute the responsive operations workspace, participant/support exits, URL-bound queue state, and compatibility with an older additive response. Focused API tests execute the filter allowlists, whole-queue summary, operational views, attention ordering, support-case ownership, UUID search, active-booking compatibility, and specific-service projection.
+- Admin and API TypeScript passed. Repository and admin lint passed; the API workspace has no separate lint script. Admin and API production builds passed; admin transformed 2,839 modules. The mandatory API smoke passed 13/13 and the environment contract passed all 81 safe-default checks. `git diff --check` passed.
+- Gate A passed all 10 blocking fragments through Git Bash, Gate C passed all 6 blocking articles, and all 6 gate self-tests passed locally. The first Gate A attempt used Windows' WSL `bash.exe`, where Node was unavailable; that environment failure is not counted as a gate result.
+- Code checkpoint `27331cef517e3361b18ccc484609498719087685` was pushed to `master`. GitHub Gates run `33311697387` and CI run `33311697383` passed, including Mobile, API, Admin, and the API Docker image build plus liveness boot check.
+- Authenticated Booking queue browser evidence remains rendered-test evidence rather than a false signed-in production claim. Production backup, fast-forward, deployment, hashes, nginx validation, and live API/data checks remain blocked by E32. E33 also requires a read-only production setting/offer inspection before any dispatch-semantic correction; no production synchronization or E33 production conclusion is claimed.
