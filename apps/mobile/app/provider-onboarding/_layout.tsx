@@ -11,28 +11,34 @@ import React from 'react';
 // as deprecated in its header comment.
 import { Stack } from 'expo-router';
 import { colors } from '@/config/theme';
+import { RoleRouteGuard } from '@/components/RoleRouteGuard';
+import { ProviderOnboardingDraftGuard } from '@/components/ProviderOnboardingDraftGuard';
 
 export default function ProviderOnboardingLayout(): React.ReactElement {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        animation: 'slide_from_right',
-        headerStyle: { backgroundColor: colors.surfaceMuted },
-        headerTintColor: colors.text,
-        headerTitleStyle: { color: colors.text },
-        headerShadowVisible: false,
-      }}
-    >
-      <Stack.Screen name="role-select" />
-      <Stack.Screen name="categories" />
-      <Stack.Screen name="service-area" />
-      <Stack.Screen name="vetting" />
-      <Stack.Screen name="documents" />
-      <Stack.Screen name="selfie" />
-      <Stack.Screen name="terms" />
-      <Stack.Screen name="review-pending" />
-      <Stack.Screen name="background-check-status" />
-    </Stack>
+    <RoleRouteGuard allowedRoles={['customer']}>
+      <ProviderOnboardingDraftGuard>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: 'slide_from_right',
+            headerStyle: { backgroundColor: colors.surfaceMuted },
+            headerTintColor: colors.text,
+            headerTitleStyle: { color: colors.text },
+            headerShadowVisible: false,
+          }}
+        >
+          <Stack.Screen name="role-select" />
+          <Stack.Screen name="categories" />
+          <Stack.Screen name="service-area" />
+          <Stack.Screen name="vetting" />
+          <Stack.Screen name="documents" />
+          <Stack.Screen name="selfie" />
+          <Stack.Screen name="terms" />
+          <Stack.Screen name="review-pending" />
+          <Stack.Screen name="background-check-status" />
+        </Stack>
+      </ProviderOnboardingDraftGuard>
+    </RoleRouteGuard>
   );
 }

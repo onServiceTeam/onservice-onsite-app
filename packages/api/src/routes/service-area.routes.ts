@@ -49,6 +49,25 @@ router.get(
   },
 );
 
+// Provider applications need the admin-configured recruiting markets as well
+// as customer-bookable areas. Keep this separate from GET / so recruiting
+// markets never appear as customer coverage.
+router.get(
+  '/provider-markets',
+  cacheMiddleware(CacheTTL.SERVICE_AREAS),
+  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const areas = await serviceAreaService.getProviderApplicationAreas();
+      res.json({
+        success: true,
+        data: areas.map(serviceAreaService.formatServiceArea),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 router.get(
   '/check',
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {

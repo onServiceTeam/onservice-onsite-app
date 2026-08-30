@@ -267,6 +267,7 @@ export async function setSchedule(
 export interface ProviderApplicationInput {
   businessName: string;
   categoryIds: string[];
+  serviceAreaId?: string;
   serviceRadiusKm: number;
   latitude: number;
   longitude: number;
@@ -299,6 +300,31 @@ export interface ProviderApplicationInput {
     resumeUrl?: string;
     references?: Array<{ name: string; contact: string; relation?: string }>;
   };
+}
+
+interface ProviderApplicationAreaRow {
+  id: string;
+  name: string;
+  city: string;
+  province: string;
+  status: 'active' | 'soft_launch' | 'recruiting';
+  center_lat: string;
+  center_lng: string;
+  radius_km: number;
+}
+
+function providerApplicationDistanceKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const toRad = (degrees: number): number => degrees * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function normalizeOwnedOnboardingReference(
@@ -357,6 +383,35 @@ export async function createProviderApplication(
   );
 
   return db.transaction(async (client) => {
+    const areaCandidates = await client.query<ProviderApplicationAreaRow>(
+      `SELECT id, name, city, province, status, center_lat, center_lng, radius_km
+         FROM service_areas
+        WHERE status IN ('active', 'soft_launch', 'recruiting')
+          AND ($1::uuid IS NULL OR id = $1::uuid)
+        ORDER BY
+          CASE status WHEN 'active' THEN 1 WHEN 'soft_launch' THEN 2 ELSE 3 END,
+          is_default DESC,
+          name ASC
+        FOR SHARE`,
+      [input.serviceAreaId ?? null],
+    );
+    const applicationArea = areaCandidates.rows.find((area) =>
+      providerApplicationDistanceKm(
+        input.latitude,
+        input.longitude,
+        Number(area.center_lat),
+        Number(area.center_lng),
+      ) <= area.radius_km,
+    );
+    if (!applicationArea) {
+      throw createAppError(
+        input.serviceAreaId
+          ? 'Your exact operating location is outside the selected provider market.'
+          : 'Your exact operating location is outside the configured provider markets.',
+        400,
+      );
+    }
+
     // Phase K MED-K07: optional nbi_expiry_date + government_id_number.
     // Both columns nullable so legacy clients (or admins backfilling
     // later) still work. The 42703 fallback handles deployments where
@@ -382,7 +437,7 @@ export async function createProviderApplication(
         RETURNING *`,
         [
           userId, input.businessName, input.serviceRadiusKm,
-          input.latitude, input.longitude, input.city, input.province,
+          input.latitude, input.longitude, applicationArea.city, applicationArea.province,
           governmentIdFrontKey, governmentIdBackKey,
           nbiClearanceKey, selfieKey,
           input.nbiExpiryDate ?? null,
@@ -405,7 +460,7 @@ export async function createProviderApplication(
           RETURNING *`,
           [
             userId, input.businessName, input.serviceRadiusKm,
-            input.latitude, input.longitude, input.city, input.province,
+            input.latitude, input.longitude, applicationArea.city, applicationArea.province,
             governmentIdFrontKey, governmentIdBackKey,
             nbiClearanceKey, selfieKey,
           ],
@@ -415,6 +470,14 @@ export async function createProviderApplication(
       }
     }
     const provider = providerResult.rows[0]!;
+
+    await client.query(
+      `INSERT INTO provider_service_areas (provider_id, service_area_id, is_primary)
+       VALUES ($1, $2, TRUE)
+       ON CONFLICT (provider_id, service_area_id)
+       DO UPDATE SET is_primary = TRUE`,
+      [provider.id, applicationArea.id],
+    );
 
     for (const catId of input.categoryIds) {
       await client.query(

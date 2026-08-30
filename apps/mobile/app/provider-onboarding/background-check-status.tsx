@@ -42,7 +42,7 @@ interface BackgroundCheckState {
 }
 
 interface BackgroundCheckHookResult {
-  data: BackgroundCheckState;
+  data: BackgroundCheckState | null;
   loading: boolean;
   error: boolean;
   refetch: () => Promise<void>;
@@ -61,9 +61,7 @@ function mapServerStatus(serverStatus: string): CheckStatus {
 }
 
 function useBackgroundCheckStatus(): BackgroundCheckHookResult {
-  const [data, setData] = useState<BackgroundCheckState>({
-    status: 'pending',
-  });
+  const [data, setData] = useState<BackgroundCheckState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -76,7 +74,7 @@ function useBackgroundCheckStatus(): BackgroundCheckHookResult {
       );
       const body = res.data.data;
       if (!body) {
-        setData({ status: 'pending' });
+        setData(null);
         return;
       }
       const mapped: BackgroundCheckState = {
@@ -144,11 +142,58 @@ export default function BackgroundCheckStatusScreen(): React.ReactElement {
   const [delayedExpanded, setDelayedExpanded] = useState(false);
   const { isPhone } = useResponsive();
 
-  const badge = statusBadgeStyle(data.status);
-
   const activateProviderAccess = (): void => {
     router.replace(Routes.PROVIDER_ONBOARDING.REVIEW_PENDING);
   };
+
+  if (loading && !data) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.loadingState} accessibilityRole="progressbar">
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingStateText}>Checking application status…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!data) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.emptyState} accessibilityRole={error ? 'alert' : 'summary'}>
+          <AlertCircle size={36} color={error ? colors.error : colors.textTertiary} />
+          <Text style={styles.emptyStateTitle}>{error ? 'Status unavailable' : 'No provider application found'}</Text>
+          <Text style={styles.emptyStateBody}>
+            {error
+              ? 'We could not check your application status. No pending decision is being inferred.'
+              : 'This account has not submitted a provider application. Start the reviewed application when you are ready.'}
+          </Text>
+          {error ? (
+            <TouchableOpacity style={styles.primaryBtn} onPress={() => { void refetch(); }} accessibilityRole="button">
+              <Text style={styles.primaryBtnText}>Try Again</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={() => router.replace(Routes.PROVIDER_ONBOARDING.ROLE_SELECT)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.primaryBtnText}>Start Provider Application</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            onPress={() => router.replace(Routes.TABS.HOME)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryBtnText}>Go to Customer Home</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const badge = statusBadgeStyle(data.status);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -269,6 +314,27 @@ export default function BackgroundCheckStatusScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
+  loadingState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
+  loadingStateText: { ...typography.body, color: colors.textSecondary },
+  emptyState: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 620,
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  emptyStateTitle: { ...typography.h2, color: colors.text, textAlign: 'center', marginTop: spacing.md },
+  emptyStateBody: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 22, marginTop: spacing.sm },
+  secondaryBtn: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+  },
+  secondaryBtnText: { ...typography.button, color: colors.primary },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

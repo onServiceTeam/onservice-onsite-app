@@ -39,6 +39,9 @@ router.post(
   validationMiddleware(providerApplicationSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
+      if (req.user!.role !== 'customer') {
+        throw createAppError('Only customer accounts can submit a provider application.', 403);
+      }
       const maxServiceRadiusKm = await settingsService.getMaxProviderServiceRadiusKm();
       if (req.body.serviceRadiusKm > maxServiceRadiusKm) {
         throw createAppError(
@@ -49,6 +52,7 @@ router.post(
       const provider = await providerService.createProviderApplication(req.user!.userId, {
         businessName: req.body.businessName,
         categoryIds: req.body.categoryIds,
+        serviceAreaId: req.body.serviceAreaId,
         serviceRadiusKm: req.body.serviceRadiusKm,
         latitude: req.body.latitude,
         longitude: req.body.longitude,

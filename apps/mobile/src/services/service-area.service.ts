@@ -97,6 +97,11 @@ export async function getActiveServiceAreas(): Promise<ServiceArea[]> {
   return res.data.data;
 }
 
+export async function getProviderApplicationAreas(): Promise<ServiceArea[]> {
+  const res = await api.get<ApiResponse<ServiceArea[]>>('/api/v1/service-areas/provider-markets');
+  return res.data.data;
+}
+
 export async function checkCoverage(
   lat: number,
   lng: number,

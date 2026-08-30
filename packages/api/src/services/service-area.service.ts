@@ -261,6 +261,23 @@ export async function getActiveServiceAreas(): Promise<ServiceAreaRow[]> {
   return result.rows;
 }
 
+export async function getProviderApplicationAreas(): Promise<ServiceAreaRow[]> {
+  const result = await db.query<ServiceAreaRow>(
+    `SELECT *
+       FROM service_areas
+      WHERE status IN ('active', 'soft_launch', 'recruiting')
+      ORDER BY
+        CASE status
+          WHEN 'active' THEN 1
+          WHEN 'soft_launch' THEN 2
+          ELSE 3
+        END,
+        is_default DESC,
+        name ASC`,
+  );
+  return result.rows;
+}
+
 export async function updateServiceArea(
   areaId: string,
   updates: UpdateServiceAreaParams,

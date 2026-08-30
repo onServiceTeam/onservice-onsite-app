@@ -113,7 +113,7 @@ export default function DocumentsScreen(): React.ReactElement {
           onPress={() => router.back()}
           style={styles.backBtn}
           accessibilityRole="button"
-          accessibilityLabel="Back to provider onboarding categories"
+          accessibilityLabel="Back to provider vetting"
         >
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>

@@ -6,40 +6,37 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useOnboardingStore } from '@/stores/onboarding.store';
-import { Button, Input } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { MapPin } from '@/components/icons';
+import { AlertTriangle, MapPin } from '@/components/icons';
 import { getConfig } from '@/services/config.service';
+import { getProviderApplicationAreas, type ServiceArea } from '@/services/service-area.service';
 
 import { Routes } from '@/config/navigation';
 const BASE_RADIUS_OPTIONS = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
 
-// Phase 200 (Cebu launch) — Metro Cebu is the launch market, so the four
-// Cebu cities are listed FIRST (the nearest-match geocode and the first
-// suggestions shown should favour the launch metro). Other PH cities remain
-// so the app still works for nationwide address entry and future expansion.
-const PH_REGIONS: { city: string; province: string; lat: number; lng: number }[] = [
-  { city: 'Cebu City', province: 'Cebu', lat: 10.3157, lng: 123.8854 },
-  { city: 'Mandaue', province: 'Cebu', lat: 10.3236, lng: 123.9223 },
-  { city: 'Lapu-Lapu', province: 'Cebu', lat: 10.3103, lng: 123.9494 },
-  { city: 'Talisay', province: 'Cebu', lat: 10.2447, lng: 123.8494 },
-  { city: 'Quezon City', province: 'Metro Manila', lat: 14.6760, lng: 121.0437 },
-  { city: 'Manila', province: 'Metro Manila', lat: 14.5995, lng: 120.9842 },
-  { city: 'Makati', province: 'Metro Manila', lat: 14.5547, lng: 121.0244 },
-  { city: 'Davao City', province: 'Davao del Sur', lat: 7.1907, lng: 125.4553 },
-  { city: 'Pasig', province: 'Metro Manila', lat: 14.5764, lng: 121.0851 },
-  { city: 'Taguig', province: 'Metro Manila', lat: 14.5176, lng: 121.0509 },
-  { city: 'Iloilo City', province: 'Iloilo', lat: 10.7202, lng: 122.5621 },
-  { city: 'Boracay', province: 'Aklan', lat: 11.9685, lng: 121.9162 },
-];
+function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (degrees: number): number => degrees * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function marketStatusLabel(status: ServiceArea['status']): string {
+  if (status === 'active') return 'Active market';
+  if (status === 'soft_launch') return 'Soft launch';
+  return 'Recruiting providers';
+}
 
 export default function ServiceAreaScreen(): React.ReactElement {
   const router = useRouter();
@@ -51,27 +48,46 @@ export default function ServiceAreaScreen(): React.ReactElement {
     ...BASE_RADIUS_OPTIONS.filter((value) => value <= maxServiceRadiusKm),
     maxServiceRadiusKm,
   ])).sort((a, b) => a - b);
+  const areasQuery = useQuery({
+    queryKey: ['provider-application-areas'],
+    queryFn: getProviderApplicationAreas,
+    staleTime: 5 * 60 * 1000,
+  });
+  const areas = areasQuery.data ?? [];
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(store.serviceAreaId);
   const [radius, setRadius] = useState(Math.min(store.serviceRadiusKm, maxServiceRadiusKm));
-  const [city, setCity] = useState(store.city);
-  const [province, setProvince] = useState(store.province);
   const [lat, setLat] = useState<number | null>(store.latitude);
   const [lng, setLng] = useState<number | null>(store.longitude);
-  // BUG-PHASE62-02 fix — pre-fix the K06 alert told the user to
-  // "Tap 'Use My Current Location'" but no such button existed on
-  // this screen. Provider got an actionable-sounding error pointing
-  // to an affordance that wasn't there. Now: real GPS button using
-  // expo-location, populates lat/lng + mirrors to a basic city/
-  // province display so the user can verify before proceeding.
+  const [notice, setNotice] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const selectedArea = areas.find((area) => area.id === selectedAreaId) ?? null;
   const [locating, setLocating] = useState(false);
+
+  const selectArea = (area: ServiceArea): void => {
+    if (area.id !== selectedAreaId) {
+      setLat(null);
+      setLng(null);
+    }
+    setSelectedAreaId(area.id);
+    setNotice({
+      tone: 'info',
+      text: `Selected ${area.name}. Capture your actual operating location before continuing.`,
+    });
+  };
+
   const useCurrentLocation = async (): Promise<void> => {
+    if (!selectedArea) {
+      setNotice({ tone: 'error', text: 'Select the provider market you want to serve first.' });
+      return;
+    }
     setLocating(true);
+    setNotice(null);
     try {
       const perm = await Location.requestForegroundPermissionsAsync();
       if (perm.status !== 'granted') {
-        Alert.alert(
-          'Permission denied',
-          'Allow location access in your device settings to use this feature.',
-        );
+        setNotice({
+          tone: 'error',
+          text: 'Location permission is required because matching uses your real operating base, not a city-center estimate.',
+        });
         return;
       }
       const loc = await Location.getCurrentPositionAsync({
@@ -79,70 +95,49 @@ export default function ServiceAreaScreen(): React.ReactElement {
       });
       setLat(loc.coords.latitude);
       setLng(loc.coords.longitude);
-      // Best-effort reverse geocode to populate city/province text.
-      try {
-        const places = await Location.reverseGeocodeAsync({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
-        const place = places[0];
-        if (place) {
-          if (!city.trim() && place.city) setCity(place.city);
-          if (!province.trim() && place.region) setProvince(place.region);
-        }
-      } catch { /* reverse geocode best-effort */ }
-      Alert.alert('Got it', 'Location captured. You can adjust the city/province fields if needed.');
+      const inside = distanceKm(
+        loc.coords.latitude,
+        loc.coords.longitude,
+        selectedArea.centerLat,
+        selectedArea.centerLng,
+      ) <= selectedArea.radiusKm;
+      setNotice(inside
+        ? { tone: 'success', text: `Exact operating location captured inside ${selectedArea.name}.` }
+        : { tone: 'error', text: `That location is outside ${selectedArea.name}. Select the correct market or recapture from your operating base.` });
     } catch {
-      Alert.alert('Location unavailable', 'Could not get your current location on this device.');
+      setNotice({
+        tone: 'error',
+        text: 'Could not capture your location. Check browser or device location settings and try again.',
+      });
     } finally {
       setLocating(false);
     }
   };
 
-  const selectCity = (item: typeof PH_REGIONS[0]): void => {
-    setCity(item.city);
-    setProvince(item.province);
-    setLat(item.lat);
-    setLng(item.lng);
-  };
-
   const handleNext = (): void => {
-    if (city.trim().length < 1 || province.trim().length < 1) {
-      Alert.alert('Required', 'City and province are required.');
+    if (!selectedArea) {
+      setNotice({ tone: 'error', text: 'Select an admin-configured provider market to continue.' });
+      return;
+    }
+    if (lat == null || lng == null) {
+      setNotice({ tone: 'error', text: 'Capture your exact operating location before continuing.' });
+      return;
+    }
+    if (distanceKm(lat, lng, selectedArea.centerLat, selectedArea.centerLng) > selectedArea.radiusKm) {
+      setNotice({
+        tone: 'error',
+        text: `Your captured base is outside ${selectedArea.name}. Select the correct market or recapture your location.`,
+      });
       return;
     }
 
-    let finalLat = lat;
-    let finalLng = lng;
-    if (!finalLat || !finalLng) {
-      const match = PH_REGIONS.find((r) => r.city.toLowerCase() === city.trim().toLowerCase());
-      if (match) {
-        finalLat = match.lat;
-        finalLng = match.lng;
-      } else {
-        // Phase K MED-K06 fix — pre-fix unknown cities defaulted to
-        // Manila (14.5995, 120.9842), so a Boracay / Cebu / Davao
-        // applicant whose city wasn't in the small PH_REGIONS list
-        // silently submitted Manila coordinates and the matching
-        // service then rejected them as out-of-range. Post-fix:
-        // refuse to submit; ask the user to use the GPS pin so the
-        // device-level coordinates are captured. The server-side
-        // PH lat/lng band check (validators/ph-coords.ts) will then
-        // accept anywhere within the country, not just Metro Manila.
-        Alert.alert(
-          'Pin your location',
-          `We don't have map data for "${city.trim()}". Tap "Use My Current Location" so we can capture your coordinates accurately. (You can still type the city + province above; we just need the GPS pin too.)`,
-        );
-        return;
-      }
-    }
-
     store.setServiceArea({
+      areaId: selectedArea.id,
       radiusKm: radius,
-      lat: finalLat,
-      lng: finalLng,
-      city: city.trim(),
-      province: province.trim(),
+      lat,
+      lng,
+      city: selectedArea.city,
+      province: selectedArea.province,
     });
     router.push(Routes.PROVIDER_ONBOARDING.VETTING);
   };
@@ -176,44 +171,72 @@ export default function ServiceAreaScreen(): React.ReactElement {
             accessibilityLabel={isWide ? 'Tablet and desktop provider onboarding service area workspace' : undefined}
           >
             <View style={[styles.panel, isWide && styles.panelWide]}>
-              <Text style={styles.panelEyebrow}>Operating location</Text>
-              <Text style={styles.cityPickerLabel}>Select your city</Text>
-              <View style={styles.cityGrid}>
-                {PH_REGIONS.map((item) => (
+              <Text style={styles.panelEyebrow}>Provider market</Text>
+              <Text style={styles.cityPickerLabel}>Choose an admin-configured market</Text>
+              {areasQuery.isLoading ? (
+                <View style={styles.marketState} accessibilityRole="progressbar">
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.marketStateText}>Loading provider markets…</Text>
+                </View>
+              ) : areasQuery.isError ? (
+                <View style={styles.marketState} accessibilityRole="alert">
+                  <AlertTriangle size={20} color={colors.error} />
+                  <Text style={styles.marketStateText}>Provider markets could not be loaded.</Text>
                   <TouchableOpacity
-                    key={`${item.city}-${item.province}`}
-                    style={[styles.cityChip, city === item.city && styles.cityChipActive]}
-                    onPress={() => selectCity(item)}
-                    activeOpacity={0.7}
+                    style={styles.retryButton}
+                    onPress={() => { void areasQuery.refetch(); }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry provider markets"
                   >
-                    <Text style={[styles.cityChipText, city === item.city && styles.cityChipTextActive]}>
-                      {item.city}
-                    </Text>
+                    <Text style={styles.retryButtonText}>Retry</Text>
                   </TouchableOpacity>
-                ))}
-              </View>
+                </View>
+              ) : areas.length === 0 ? (
+                <View style={styles.marketState} accessibilityRole="alert">
+                  <Text style={styles.marketStateText}>No markets are currently open for provider applications.</Text>
+                </View>
+              ) : (
+                <View style={styles.cityGrid} accessibilityRole="radiogroup">
+                  {areas.map((area) => {
+                    const selected = area.id === selectedAreaId;
+                    return (
+                      <TouchableOpacity
+                        key={area.id}
+                        style={[styles.cityChip, selected && styles.cityChipActive]}
+                        onPress={() => selectArea(area)}
+                        activeOpacity={0.7}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: selected }}
+                        accessibilityLabel={`${area.name}, ${marketStatusLabel(area.status)}`}
+                      >
+                        <Text style={[styles.cityChipText, selected && styles.cityChipTextActive]}>
+                          {area.name}
+                        </Text>
+                        <Text style={styles.marketStatus}>{marketStatusLabel(area.status)}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
 
-              {/* BUG-PHASE149-01 fix — pre-fix City + Province inputs had
-                  no maxLength. Server's providerApplicationSchema caps both
-                  at max(100) (provider.validators.ts:29-30). Same fix shape
-                  as Phase 148 (customer addresses). */}
-              <Input label="City" placeholder="e.g. Quezon City" value={city} onChangeText={(v) => { setCity(v); setLat(null); setLng(null); }} maxLength={100} />
-              <Input label="Province" placeholder="e.g. Metro Manila" value={province} onChangeText={setProvince} maxLength={100} />
-
-              {/* BUG-PHASE62-02 — real "Use My Current Location" button
-                  matching the K06 alert message. */}
+              <Text style={styles.locationInstruction}>
+                Matching uses your actual operating base. A market center is never saved as your location.
+              </Text>
               <TouchableOpacity
                 style={styles.locateBtn}
                 onPress={() => { void useCurrentLocation(); }}
-                disabled={locating}
+                disabled={locating || !selectedArea}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Capture exact provider operating location"
+                accessibilityState={{ disabled: locating || !selectedArea, busy: locating }}
               >
                 {locating ? (
                   <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
                   <>
                     <MapPin size={18} color={colors.primary} style={{ marginRight: spacing.xs }} />
-                    <Text style={styles.locateBtnText}>Use My Current Location</Text>
+                    <Text style={styles.locateBtnText}>Capture My Operating Location</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -221,6 +244,18 @@ export default function ServiceAreaScreen(): React.ReactElement {
                 <Text style={styles.locateHint}>
                   GPS captured: {lat.toFixed(4)}, {lng.toFixed(4)}
                 </Text>
+              )}
+              {notice && (
+                <View
+                  style={[
+                    styles.notice,
+                    notice.tone === 'error' && styles.noticeError,
+                    notice.tone === 'success' && styles.noticeSuccess,
+                  ]}
+                  accessibilityRole={notice.tone === 'error' ? 'alert' : 'summary'}
+                >
+                  <Text style={styles.noticeText}>{notice.text}</Text>
+                </View>
               )}
             </View>
 
@@ -246,7 +281,7 @@ export default function ServiceAreaScreen(): React.ReactElement {
               </Text>
               <View style={styles.reviewNotice}>
                 <Text style={styles.reviewNoticeTitle}>Reviewed before approval</Text>
-                <Text style={styles.reviewNoticeText}>Operations checks that your pin and travel radius fit an active market before your provider account is approved.</Text>
+                <Text style={styles.reviewNoticeText}>Operations sees this same market, exact pin, and travel radius in Provider 360 before approval.</Text>
               </View>
             </View>
           </View>
@@ -255,7 +290,11 @@ export default function ServiceAreaScreen(): React.ReactElement {
 
       <View style={styles.footer}>
         <View style={styles.footerInner}>
-          <Button title="Next" onPress={handleNext} disabled={!city.trim() || !province.trim()} />
+          <Button
+            title="Next"
+            onPress={handleNext}
+            disabled={!selectedArea || lat == null || lng == null || areasQuery.isError || areasQuery.isLoading}
+          />
         </View>
       </View>
     </SafeAreaView>
@@ -310,6 +349,19 @@ const styles = StyleSheet.create({
   panelWide: { flex: 1 },
   panelEyebrow: { ...typography.caption, color: colors.primary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
   cityPickerLabel: { ...typography.body, fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
+  marketState: {
+    minHeight: 96,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+  },
+  marketStateText: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center' },
+  retryButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.base },
+  retryButtonText: { ...typography.button, color: colors.primary },
   cityGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.sm },
   cityChip: {
     paddingHorizontal: spacing.md,
@@ -322,6 +374,8 @@ const styles = StyleSheet.create({
   cityChipActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   cityChipText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
   cityChipTextActive: { color: colors.primary },
+  marketStatus: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
+  locationInstruction: { ...typography.caption, color: colors.textSecondary, lineHeight: 18, marginTop: spacing.sm },
   radiusLabel: { ...typography.body, fontWeight: '600', color: colors.text, marginTop: spacing.sm },
   radiusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
   radiusChip: {
@@ -354,6 +408,17 @@ const styles = StyleSheet.create({
   },
   locateBtnText: { ...typography.body, color: colors.primary, fontWeight: '700' },
   locateHint: { ...typography.caption, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xs },
+  notice: {
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.info,
+    backgroundColor: colors.infoLight,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+  },
+  noticeError: { borderColor: colors.error, backgroundColor: colors.errorLight },
+  noticeSuccess: { borderColor: colors.success, backgroundColor: colors.successLight },
+  noticeText: { ...typography.bodySmall, color: colors.text, lineHeight: 19 },
   footer: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,

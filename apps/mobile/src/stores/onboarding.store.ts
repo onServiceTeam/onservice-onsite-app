@@ -45,6 +45,7 @@ export interface OnboardingState {
   selectedRole: 'customer' | 'provider' | null;
   businessName: string;
   categoryIds: string[];
+  serviceAreaId: string | null;
   serviceRadiusKm: number;
   latitude: number | null;
   longitude: number | null;
@@ -70,7 +71,7 @@ export interface OnboardingState {
   setRole: (role: 'customer' | 'provider') => void;
   setBusinessName: (name: string) => void;
   setCategories: (ids: string[]) => void;
-  setServiceArea: (area: { radiusKm: number; lat: number; lng: number; city: string; province: string }) => void;
+  setServiceArea: (area: { areaId: string; radiusKm: number; lat: number; lng: number; city: string; province: string }) => void;
   setDocument: (field: 'governmentIdFrontUri' | 'governmentIdBackUri' | 'nbiClearanceUri' | 'selfieUri', uri: string) => void;
   setIcAgreed: (agreed: boolean) => void;
   setNbiExpiryDate: (date: string | null) => void;
@@ -83,6 +84,7 @@ const initialState = {
   selectedRole: null as OnboardingState['selectedRole'],
   businessName: '',
   categoryIds: [] as string[],
+  serviceAreaId: null as string | null,
   serviceRadiusKm: 10,
   latitude: null as number | null,
   longitude: null as number | null,
@@ -108,6 +110,7 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   setBusinessName: (name) => set({ businessName: name }),
   setCategories: (ids) => set({ categoryIds: ids }),
   setServiceArea: (area) => set({
+    serviceAreaId: area.areaId,
     serviceRadiusKm: area.radiusKm,
     latitude: area.lat,
     longitude: area.lng,

@@ -9,6 +9,33 @@ jest.mock('react-native', () => ({
 const mockPush = jest.fn();
 const mockSetServiceArea = jest.fn();
 
+const mockCebuArea = {
+  id: '11111111-1111-4111-8111-111111111111',
+  name: 'Metro Cebu',
+  slug: 'metro-cebu',
+  city: 'Cebu City',
+  province: 'Cebu',
+  region: 'Central Visayas',
+  zipCodes: [],
+  centerLat: 10.3157,
+  centerLng: 123.8854,
+  radiusKm: 35,
+  status: 'active',
+  launchDate: null,
+  launchedAt: null,
+  minProvidersToLaunch: 5,
+  activeProviderCount: 0,
+  activeCustomerCount: 0,
+  totalBookings: 0,
+  isDefault: true,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+jest.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: [mockCebuArea], isLoading: false, isError: false, refetch: jest.fn() }),
+}));
+
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: jest.fn() }),
 }));
@@ -26,6 +53,7 @@ jest.mock('@/services/config.service', () => ({
 
 jest.mock('@/stores/onboarding.store', () => ({
   useOnboardingStore: () => ({
+    serviceAreaId: mockCebuArea.id,
     serviceRadiusKm: 50,
     city: 'Cebu City',
     province: 'Cebu',
@@ -33,6 +61,10 @@ jest.mock('@/stores/onboarding.store', () => ({
     longitude: 123.8854,
     setServiceArea: mockSetServiceArea,
   }),
+}));
+
+jest.mock('@/services/service-area.service', () => ({
+  getProviderApplicationAreas: jest.fn(),
 }));
 
 import ProviderOnboardingServiceAreaScreen from '../app/provider-onboarding/service-area';
@@ -46,6 +78,6 @@ it('Bug UX-266 — provider onboarding uses a bounded wide workspace and submits
   expect(screen.queryByText(/^50 km$/)).toBeNull();
 
   fireEvent.click(screen.getByText('Next'));
-  expect(mockSetServiceArea).toHaveBeenCalledWith(expect.objectContaining({ radiusKm: 30 }));
+  expect(mockSetServiceArea).toHaveBeenCalledWith(expect.objectContaining({ areaId: mockCebuArea.id, radiusKm: 30 }));
   expect(mockPush).toHaveBeenCalledWith('/provider-onboarding/vetting');
 });

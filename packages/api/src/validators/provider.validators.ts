@@ -130,6 +130,10 @@ export const providerCertificationReviewSchema = z.object({
 export const providerApplicationSchema = z.object({
   businessName: z.string().min(2, 'Business name must be at least 2 characters').max(200),
   categoryIds: z.array(z.string().uuid()).min(1, 'Select at least one service category').max(10),
+  // New clients send the selected admin-configured market. Optional only for
+  // older pre-launch builds; the service safely infers a containing eligible
+  // market from their exact coordinates when this field is absent.
+  serviceAreaId: z.string().uuid().optional(),
   // 100km is the database/admin envelope. The live platform maximum is
   // enforced after parsing by settings.service so changing the Admin control
   // does not require a deploy.

@@ -69,9 +69,21 @@ describe('Phase K MED-K07 — providerApplicationSchema accepts optional fields'
 describe('Phase K MED-K07 — createProviderApplication persists optional fields', () => {
   const USER_ID = '22222222-2222-2222-2222-222222222222';
   const PROVIDER_ID = '11111111-1111-1111-1111-111111111111';
+  const SERVICE_AREA_ID = '44444444-4444-4444-8444-444444444444';
+  const APPLICATION_AREA = {
+    id: SERVICE_AREA_ID,
+    name: 'Boracay',
+    city: 'Boracay',
+    province: 'Aklan',
+    status: 'active',
+    center_lat: '11.9685',
+    center_lng: '121.9162',
+    radius_km: 25,
+  };
   const BASE_INPUT = {
     businessName: 'Cleaning Co',
     categoryIds: ['33333333-3333-3333-3333-333333333333'],
+    serviceAreaId: SERVICE_AREA_ID,
     serviceRadiusKm: 10,
     latitude: 11.9685,
     longitude: 121.9162,
@@ -86,8 +98,12 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
   it('K07 — INSERT carries nbi_expiry_date + government_id_number when provided', async () => {
     // existence check returns empty (no prior application)
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    // selected provider market contains the exact operating location
+    dbQueryMock.mockResolvedValueOnce({ rows: [APPLICATION_AREA], rowCount: 1 });
     // INSERT returns provider row
     dbQueryMock.mockResolvedValueOnce({ rows: [{ id: PROVIDER_ID }], rowCount: 1 });
+    // provider_service_areas insert
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     // provider_services insert
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
@@ -97,8 +113,8 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
       governmentIdNumber: 'AB-12345-678',
     });
 
-    // The 2nd call is the providers INSERT (after the existence check).
-    const insertCall = dbQueryMock.mock.calls[1]!;
+    // The 3rd call is the providers INSERT (after existence + area checks).
+    const insertCall = dbQueryMock.mock.calls[2]!;
     const sql = insertCall[0] as string;
     const params = insertCall[1] as unknown[];
     expect(sql).toMatch(/nbi_expiry_date/);
@@ -109,12 +125,14 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
 
   it('K07 — INSERT passes null for missing optional fields', async () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [APPLICATION_AREA], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [{ id: PROVIDER_ID }], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
     await svc.createProviderApplication(USER_ID, BASE_INPUT);
 
-    const insertCall = dbQueryMock.mock.calls[1]!;
+    const insertCall = dbQueryMock.mock.calls[2]!;
     const params = insertCall[1] as unknown[];
     // nbi_expiry_date + government_id_number params are at positions 11 + 12.
     expect(params[11]).toBeNull();
@@ -123,12 +141,14 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
 
   it('K07 — falls back to legacy 11-column INSERT on 42703 (column missing)', async () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [APPLICATION_AREA], rowCount: 1 });
     // First INSERT throws 42703
     const err = new Error('column "nbi_expiry_date" does not exist') as Error & { code: string };
     err.code = '42703';
     dbQueryMock.mockRejectedValueOnce(err);
     // Retry succeeds
     dbQueryMock.mockResolvedValueOnce({ rows: [{ id: PROVIDER_ID }], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
     await svc.createProviderApplication(USER_ID, {
@@ -137,10 +157,10 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
       governmentIdNumber: 'X',
     });
 
-    // Verify a retry happened (existence, INSERT-fail, INSERT-legacy,
-    // provider_services).
-    expect(dbQueryMock.mock.calls.length).toBeGreaterThanOrEqual(4);
-    const retryCall = dbQueryMock.mock.calls[2]!;
+    // Verify a retry happened (existence, area, INSERT-fail, INSERT-legacy,
+    // provider-area linkage, provider service).
+    expect(dbQueryMock.mock.calls.length).toBeGreaterThanOrEqual(6);
+    const retryCall = dbQueryMock.mock.calls[3]!;
     const retrySql = retryCall[0] as string;
     expect(retrySql).not.toMatch(/nbi_expiry_date/);
     expect(retrySql).not.toMatch(/government_id_number/);

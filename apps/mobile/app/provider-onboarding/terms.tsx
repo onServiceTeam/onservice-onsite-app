@@ -31,6 +31,7 @@ export default function TermsScreen(): React.ReactElement {
       const res = await api.post<{ success: boolean; data: unknown }>('/api/v1/providers/apply', {
         businessName: store.businessName,
         categoryIds: store.categoryIds,
+        serviceAreaId: store.serviceAreaId,
         serviceRadiusKm: store.serviceRadiusKm,
         latitude: store.latitude,
         longitude: store.longitude,
