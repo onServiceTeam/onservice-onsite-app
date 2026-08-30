@@ -4,10 +4,10 @@
 
 This is the durable route-by-route control ledger for the admin overhaul requested by Ken. It is intentionally incomplete. `W1` means the current stage inspected and changed the named surface with rendered behavior tests. It does not mean every state on that page has been manually exercised. `NEXT` means the page remains in the active screen-by-screen pass. `HOLD` means money, compliance, legal, or policy behavior cannot be changed autonomously even though safe visual and accessibility work may continue.
 
-Current audited code checkpoint: `5c47977844fcd7be604674d2d3fc8ddddf891d40`.
+Current audited code checkpoint: `f4e6dda640497c1c26e280da395390289c0201e4`.
 The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its documentation and production-evidence checkpoint was `cc15c61b7cacad2911e6bae97fe48d4e43179df7`.
 
-## Shared admin contract established in W1 and extended through W10
+## Shared admin contract established in W1 and extended through W12
 
 - The shell now has a bounded 1,600-pixel workspace, route and record breadcrumbs, collapsible desktop navigation, mobile navigation without decorative shadow, truthful production/staging/development labeling, Philippine time, keyboard page search, and a reachable account menu at phone through desktop widths.
 - Search preserves page/workspace destinations and now adds bounded server-backed record search for customers, providers, bookings, support tickets, disputes, and payouts. Every result opens a canonical workspace, customer/provider contact remains masked, and DPO accounts remain page-only while E34 is unresolved.
@@ -44,7 +44,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/business-accounts/:id` | Enterprise account 360 | NEXT | Recheck members, contracts, invoices, bookings, account owner/manager, and support linkage. |
 | `/service-areas` | Market, coverage, and provider-capacity control | W1+W11 | Activation/default/pause/create decisions state cross-role effects. The same active, soft-launch, and recruiting area records now drive provider market selection, boundary validation, and the primary-area link at application time. Continue create/edit responsive layout and provider-request decision states. |
 | `/analytics` | Decision support | W1 | A/B and quality actions are accessible and explicit; retention and commission remain truth-labeled. Continue complete tab state visuals. |
-| `/audit-log` | Operator accountability | W6 PARTIAL | Booking support messages now use participant-neutral language instead of falsely saying customer-only. Actor, target, before/after detail, filters, export, and global source-record links still need the dedicated pass. |
+| `/audit-log` | Operator accountability | W12 PARTIAL/HOLD | The page and masked CSV now share the same `audit_log` plus `admin_actions` source/filter contract; action, entity type, exact record, exact actor, source, and date filters are validated and URL-bound; every supported record type has a canonical exit; and one responsive timeline becomes cards below desktop width. E37 holds any claim of a global request trace: the dormant middleware is not mounted, `request_id` is not populated, and many mutations have no writer. Authenticated visual-state evidence remains open. |
 | `/support-tickets` | Support case queue | W2 | Queue-wide active signals, unassigned filtering, persona-correct waiting states, reopening, required workflow notes, success feedback, and visible append-only manual status history are implemented. No SLA is invented. |
 | `/staff` | Company access and responsibility | NEXT | Recheck role truth, candidate selection, DPO segregation, account status, and support-team workflow. |
 | `/settings` | Platform configuration | HOLD/NEXT | Live, held, and unconnected classifications exist. Money/security settings need source-specific review and rollback preview. |
@@ -187,6 +187,19 @@ dispatch, dispute-resolution, or compliance authorization semantics.
 These changes are Bugs UX-515 through UX-522. They do not change account,
 booking, support, dispute, payment, payout, or compliance lifecycle semantics.
 
+## W12 Audit Log operations contract
+
+- The page is now an operations timeline rather than a raw event table. Applied filters are URL-bound and separate from draft values, so a copied URL recreates the same action, entity type, exact entity ID, exact actor ID, source, and date window.
+- The list and CSV export read the same ordered union of explicit `audit_log` events and `admin_actions`. Both use exact record/source filtering and deterministic `created_at DESC, id DESC` ordering.
+- Customer/provider contact, IP addresses, user agents, decision reasons, and nested old/new JSON are masked for every admin role in this bulk index and export. Full operational context remains in the relevant controlled record workflow, not a downloadable super-admin exception.
+- Timeline rows use human-readable action names, identify System event versus Admin decision, expose expandable before/after detail, and link supported booking, customer, provider, dispute, payout, support, business, service-area, pricing, marketing, template, staff, and settings records to their canonical workspaces.
+- The desktop timeline becomes bounded cards for phone and tablet browsers, preserving record and actor actions without a horizontal table dependency.
+- E37 records the limit that cannot be fixed by mounting the old middleware. It is unused, writes after the response, has no durable outcome/correlation contract, can duplicate explicit domain events, and cannot prove that all cross-role mutations were captured. The visible workspace states this boundary.
+
+These changes are Bugs UX-531 through UX-540. They do not claim global request
+correlation, complete mutation evidence, immutable storage, or production data
+coverage, and they do not change any lifecycle, money, legal, or role authority.
+
 ## Remaining browser-native confirmations after W9
 
 W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. W3 removed two Provider 360 prompts. W4 removed the two Customer 360 prompts. W6 removed four Booking 360 prompts and two Dispatch prompts, leaving 21. W7 and W8 changed read-only queue surfaces. W9 replaced the Disputes-list resolution prompt, leaving 20. The remaining prompts are deliberately visible here rather than being hidden by a false completion claim.
@@ -315,3 +328,13 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 - All workspace TypeScript checks, repository lint, API/Admin production builds, API smoke 13/13, environment contract 81/81, Gate A 10/10, Gate C 6/6, all six gate self-tests, the no-N+1 scanner, strict phantom-test scan, production Expo web export, and `git diff --check` passed.
 - Code checkpoint `5c47977844fcd7be604674d2d3fc8ddddf891d40` was pushed to `master`. GitHub Gates run `33318263459` and CI run `33318263468` passed, including Mobile, API, Admin, and API image build/liveness.
 - E35 records the unresolved duplicate onboarding state model, memory-only draft, KYC snapshot privacy risk, and rejected-provider resubmission gap. E36 records the separate ID-back approval-enforcement gap. Their required aggregate production inspections and synchronization remain blocked by E32; no production deployment is claimed.
+
+## W12 local and GitHub verification
+
+- Admin passed 155 test files and 265 assertions, with one skipped file and three explicit todos. API passed 499 locally runnable suites and 3,098 assertions, with one intentional suite/test skip. Mobile passed 412 suites and 791 assertions with 84 explicit device-baseline todos.
+- The Docker-dependent generated-certificate nginx suite could not reach Docker Desktop locally and is not counted as a local pass. GitHub independently built and booted the API image.
+- Focused executed tests cover strict filter parsing, exact IDs, calendar dates, list/export source parity, deterministic ordering, always-masked bulk output, rendered filtering, source labels, responsive timeline composition, canonical exits, and honest E37 coverage language. Stale source-regex checks were replaced with parser or rendered behavior.
+- All workspace TypeScript checks, repository lint, API/Admin production builds, API smoke 13/13, environment contract 81/81, Gate A 10/10, Gate C 6/6, all six gate self-tests, the no-N+1 scanner, strict phantom-test scan, and `git diff --check` passed.
+- The local browser reached the real Stitch admin login at the Audit Log destination and correctly stopped at authentication. No credential bypass was used, so authenticated live visual evidence is not claimed.
+- Code checkpoint `f4e6dda640497c1c26e280da395390289c0201e4` was pushed to `master`. GitHub Gates run `33321028025` and CI run `33321028028` passed, including Mobile, API, Admin, and API image build/liveness.
+- E37 holds global audit-stream architecture and E32 blocks production inspection and synchronization. No production deployment or production audit-coverage claim is made.
