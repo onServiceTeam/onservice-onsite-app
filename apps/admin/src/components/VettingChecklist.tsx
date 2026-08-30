@@ -6,8 +6,9 @@ import { Textarea } from '@/components/ui/Textarea';
 //
 // The company's vetting rubric, baked into the approval flow. An admin must
 // confirm every item AND write a >=10-char rationale before a pending provider
-// can be approved. On approve, the parent records the rationale plus the
-// one-line checklist summary (see buildChecklistSummary) as a 'quality' note.
+// can be approved. On approve, the parent sends the rationale plus the
+// one-line checklist summary (see buildChecklistSummary) into the same audited
+// server transaction that changes the provider's status.
 
 export interface VettingItem {
   key: string;
@@ -67,7 +68,7 @@ export function VettingChecklist({ onChange }: VettingChecklistProps): React.Rea
     <div className="space-y-3">
       <p className="text-sm font-medium text-[var(--color-text)]">Vetting checklist</p>
       <p className="text-xs text-[var(--color-text-secondary)]">
-        Confirm each item before approving. The rationale and a checklist summary are saved as an internal quality note.
+        Confirm each item before approving. The rationale and checklist summary are saved with the approval audit record.
       </p>
 
       <ul className="space-y-2">

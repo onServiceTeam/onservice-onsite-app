@@ -365,6 +365,14 @@ export async function setStaffSuspension(params: {
   suspend: boolean;
   reason?: string;
 }): Promise<ProviderStaffRow> {
+  const reason = (params.reason ?? '').trim();
+  if (reason.length < 10) {
+    throw createAppError('reason must be at least 10 characters.', 400);
+  }
+  if (reason.length > 1000) {
+    throw createAppError('reason must be ≤ 1000 characters.', 400);
+  }
+
   return db.transaction(async (client) => {
     const current = await client.query<ProviderStaffRow>(
       `SELECT * FROM provider_staff WHERE id = $1 FOR UPDATE`,
@@ -383,13 +391,15 @@ export async function setStaffSuspension(params: {
       [nextStatus, params.staffId],
     );
     await client.query(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, $2, 'provider_staff', $3, $4::jsonb)`,
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, $2, 'provider_staff', $3, $4::jsonb, $5, $6)`,
       [
         params.adminId,
         params.suspend ? 'provider_staff_suspended' : 'provider_staff_reactivated',
         params.staffId,
-        JSON.stringify({ reason: params.reason ?? null }),
+        JSON.stringify({ previousStatus: row.status, nextStatus }),
+        reason.slice(0, 500),
+        reason,
       ],
     );
     return updated.rows[0]!;

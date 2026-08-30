@@ -175,7 +175,11 @@ router.put(
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Provider ID is required.', 400);
 
-      await adminService.approveProvider(id, req.user!.userId);
+      await adminService.approveProvider(id, req.user!.userId, {
+        reason: req.body?.reason,
+        checklistConfirmed: req.body?.checklistConfirmed,
+        checklistSummary: req.body?.checklistSummary,
+      });
       res.json({ success: true, data: { message: 'Provider approved.' } });
     } catch (error) {
       next(error);
@@ -222,13 +226,14 @@ router.put(
 router.put(
   '/providers/:id/reactivate',
   authMiddleware,
+  validationMiddleware(suspendProviderSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Provider ID is required.', 400);
 
-      await adminService.reactivateProvider(id, req.user!.userId);
+      await adminService.reactivateProvider(id, req.user!.userId, req.body.reason);
       res.json({ success: true, data: { message: 'Provider reactivated.' } });
     } catch (error) {
       next(error);

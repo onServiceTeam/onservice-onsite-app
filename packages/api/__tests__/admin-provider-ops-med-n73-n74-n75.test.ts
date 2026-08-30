@@ -28,6 +28,12 @@ jest.mock('../src/utils/logger', () => ({
 
 import * as adminService from '../src/services/admin.service';
 
+const APPROVAL_REVIEW = {
+  reason: 'All provider identity and qualification checks passed.',
+  checklistConfirmed: true,
+  checklistSummary: 'Vetting checklist confirmed (10/10): all required review items passed.',
+};
+
 describe('MED-N75 — approveProvider refuses approval when KYC docs are missing', () => {
   beforeEach(() => {
     dbQueryMock.mockReset();
@@ -42,7 +48,7 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
         selfie_url: 'https://s3/selfie.png',
       }],
     });
-    await expect(adminService.approveProvider('p-1', 'admin-1'))
+    await expect(adminService.approveProvider('p-1', 'admin-1', APPROVAL_REVIEW))
       .rejects.toMatchObject({
         statusCode: 400,
         message: expect.stringMatching(/missing KYC documents.*nbi_clearance_url/),
@@ -59,7 +65,7 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
         selfie_url: null,
       }],
     });
-    await expect(adminService.approveProvider('p-1', 'admin-1'))
+    await expect(adminService.approveProvider('p-1', 'admin-1', APPROVAL_REVIEW))
       .rejects.toMatchObject({
         statusCode: 400,
         message: expect.stringContaining('nbi_clearance_url, government_id_front_url, selfie_url'),
@@ -84,13 +90,13 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
       return (cb as any)({ query: clientQuery });
     });
 
-    await expect(adminService.approveProvider('p-1', 'admin-1')).resolves.toBeUndefined();
+    await expect(adminService.approveProvider('p-1', 'admin-1', APPROVAL_REVIEW)).resolves.toBeUndefined();
     expect(dbTransactionMock).toHaveBeenCalled();
   });
 
   it('throws 404 when provider does not exist', async () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [] });
-    await expect(adminService.approveProvider('does-not-exist', 'admin-1'))
+    await expect(adminService.approveProvider('does-not-exist', 'admin-1', APPROVAL_REVIEW))
       .rejects.toMatchObject({ statusCode: 404 });
   });
 });
@@ -148,7 +154,7 @@ describe('MED-N73 — suspendProvider flags in-flight bookings', () => {
     dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
       const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
         txCalls.push({ sql, params });
-        if (/UPDATE providers/.test(sql)) return { rows: [{ id: 'p-1' }], rowCount: 1 };
+        if (/UPDATE providers/.test(sql)) return { rows: [{ id: 'p-1', user_id: 'u-1' }], rowCount: 1 };
         if (/UPDATE bookings/.test(sql)) return { rows: [{ id: 'b-1' }, { id: 'b-2' }], rowCount: 2 };
         return { rows: [], rowCount: 1 };
       });
@@ -156,7 +162,7 @@ describe('MED-N73 — suspendProvider flags in-flight bookings', () => {
       return (cb as any)({ query: clientQuery });
     });
 
-    await adminService.suspendProvider('p-1', 'admin-1', 'fraud');
+    await adminService.suspendProvider('p-1', 'admin-1', 'Documented fraud review finding');
 
     const flagUpdate = txCalls.find((c) =>
       /UPDATE bookings/.test(c.sql) && /provider_suspended_during_booking_at/.test(c.sql),

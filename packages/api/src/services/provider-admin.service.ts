@@ -1158,6 +1158,9 @@ export async function deleteProviderNote(
     }
 
     const trimmedReason = (reason ?? '').trim();
+    if (trimmedReason.length < 10) {
+      throw createAppError('reason must be at least 10 characters.', 400);
+    }
     // BUG-PHASE164-01 fix — pre-fix the trimmed reason had no length
     // cap. Column is TEXT (deleted_reason; migration 076), unbounded.
     // Same defense-in-depth pattern as Phase 152-163. Cap at 1000.

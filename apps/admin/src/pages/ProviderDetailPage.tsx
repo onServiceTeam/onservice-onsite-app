@@ -35,6 +35,7 @@ import KpiCard from '@/components/ui/KpiCard';
 import Pagination from '@/components/ui/Pagination';
 import { Textarea } from '@/components/ui/Textarea';
 import { Checkbox } from '@/components/ui/Checkbox';
+import { useReasonDialog } from '@/components/ui/ReasonDialog';
 import { VettingChecklist, buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
 import { useAuthStore } from '@/stores/auth.store';
 
@@ -483,11 +484,10 @@ function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactE
 // For pending providers the admin reviews the documents on the Profile tab,
 // then confirms the vetting rubric here. The Approve button stays disabled
 // until every checklist item is ticked AND the rationale is filled. On
-// approve we call the existing approve endpoint, then record the rationale +
-// a one-line checklist summary as a 'quality' provider note via the existing
-// notes API.
+// approve the rationale + one-line checklist summary are committed in the same
+// server transaction as the status change and approval notification.
 
-function ApprovalPanel({ profile }: { profile: ProviderProfile }): React.ReactElement {
+export function ApprovalPanel({ profile }: { profile: ProviderProfile }): React.ReactElement {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [vetting, setVetting] = useState<VettingState>({ isComplete: false, rationale: '' });
@@ -495,26 +495,17 @@ function ApprovalPanel({ profile }: { profile: ProviderProfile }): React.ReactEl
 
   const approve = useMutation({
     mutationFn: async () => {
-      await api.put(`/api/v1/admin/providers/${profile.id}/approve`);
-      // Record the vetting rationale + checklist summary as an internal
-      // 'quality' note. Best-effort: the approval already committed, so a
-      // note failure shouldn't surface as an approval failure.
-      try {
-        await api.post(`/api/v1/admin/providers/${profile.id}/notes`, {
-          body: `Approval rationale: ${vetting.rationale}\n\n${buildChecklistSummary()}`,
-          category: 'quality',
-          pinned: false,
-        });
-      } catch {
-        // swallow — approval succeeded; the note is a secondary record.
-      }
+      await api.put(`/api/v1/admin/providers/${profile.id}/approve`, {
+        reason: vetting.rationale,
+        checklistConfirmed: true,
+        checklistSummary: buildChecklistSummary(),
+      });
     },
     onSuccess: () => {
       setError('');
       setOpen(false);
       setVetting({ isComplete: false, rationale: '' });
       void queryClient.invalidateQueries({ queryKey: ['admin-provider-profile', profile.id] });
-      void queryClient.invalidateQueries({ queryKey: ['admin-provider-notes', profile.id] });
     },
     onError: (err) => setError(getErrorMessage(err)),
   });
@@ -1433,6 +1424,7 @@ const STAFF_STATUS_BADGE: Record<StaffMember['status'], 'success' | 'warning' | 
 export function StaffTab({ providerId }: { providerId: string }): React.ReactElement {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState('');
+  const { requestReason, reasonDialog } = useReasonDialog();
   const [reviewDialog, setReviewDialog] = useState<{
     staff: StaffMember;
     decision: 'rejected' | 'sent_back';
@@ -1470,7 +1462,7 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
   });
 
   const suspend = useMutation({
-    mutationFn: async (vars: { staffId: string; suspend: boolean; reason?: string }) => {
+    mutationFn: async (vars: { staffId: string; suspend: boolean; reason: string }) => {
       await api.post(`/api/v1/admin/providers/${providerId}/staff/${vars.staffId}/suspend`, {
         suspend: vars.suspend,
         reason: vars.reason,
@@ -1496,9 +1488,24 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
     setReviewReason('');
     setReviewDialog({ staff: s, decision: 'sent_back' });
   }
-  function setSuspend(s: StaffMember, doSuspend: boolean): void {
-    if (doSuspend && !window.confirm(`Suspend ${s.userName || s.roleTitle || 'this member'}? They will not be assignable to jobs.`)) return;
-    suspend.mutate({ staffId: s.id, suspend: doSuspend });
+  async function setSuspend(s: StaffMember, doSuspend: boolean): Promise<void> {
+    setActionError('');
+    const memberName = s.userName || s.roleTitle || 'this team member';
+    const reason = await requestReason({
+      title: doSuspend ? `Suspend ${memberName}?` : `Reactivate ${memberName}?`,
+      description: doSuspend
+        ? 'Suspension immediately blocks this member from opening or updating assigned jobs. The provider must take over or reassign any current work.'
+        : 'Reactivation returns this member to the provider’s approved assignment list.',
+      confirmLabel: doSuspend ? 'Suspend member' : 'Reactivate member',
+      reasonLabel: doSuspend ? 'Suspension reason' : 'Reactivation reason',
+      placeholder: doSuspend
+        ? 'Record the evidence or support case that requires suspension.'
+        : 'Record what was reviewed before restoring assignment access.',
+      minLength: 10,
+      maxLength: 1000,
+      tone: doSuspend ? 'destructive' : 'default',
+    });
+    if (reason) suspend.mutate({ staffId: s.id, suspend: doSuspend, reason });
   }
 
   return (
@@ -1547,10 +1554,10 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
                   </>
                 )}
                 {s.status === 'approved' && (
-                  <Button size="sm" variant="outline" onClick={() => setSuspend(s, true)} disabled={busy}>Suspend</Button>
+                  <Button size="sm" variant="outline" onClick={() => void setSuspend(s, true)} disabled={busy}>Suspend</Button>
                 )}
                 {s.status === 'suspended' && (
-                  <Button size="sm" onClick={() => setSuspend(s, false)} disabled={busy}>Reactivate</Button>
+                  <Button size="sm" onClick={() => void setSuspend(s, false)} disabled={busy}>Reactivate</Button>
                 )}
               </div>
             </div>
@@ -1612,15 +1619,17 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
           </div>
         </div>
       )}
+      {reasonDialog}
     </div>
   );
 }
 
-function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
+export function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
   const queryClient = useQueryClient();
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
   const myUserId = useAuthStore((s) => s.user?.id);
+  const { requestReason, reasonDialog } = useReasonDialog();
 
   const q = useQuery({
     queryKey: ['admin-provider-notes', providerId],
@@ -1636,6 +1645,7 @@ function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
   const [category, setCategory] = useState<'general' | 'quality' | 'financial' | 'legal'>('general');
   const [pinned, setPinned] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [removeError, setRemoveError] = useState('');
 
   const create = useMutation({
     mutationFn: async () => {
@@ -1659,11 +1669,33 @@ function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
   });
 
   const remove = useMutation({
-    mutationFn: async (noteId: string) => {
-      await api.delete(`/api/v1/admin/providers/${providerId}/notes/${noteId}`);
+    mutationFn: async ({ noteId, reason }: { noteId: string; reason: string }) => {
+      await api.delete(`/api/v1/admin/providers/${providerId}/notes/${noteId}`, {
+        body: { reason },
+      });
     },
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin-provider-notes', providerId] }),
+    onSuccess: () => {
+      setRemoveError('');
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-notes', providerId] });
+    },
+    onError: (error) => setRemoveError(getErrorMessage(error)),
   });
+
+  async function requestNoteDeletion(noteId: string): Promise<void> {
+    setRemoveError('');
+    const reason = await requestReason({
+      title: 'Delete internal note?',
+      description:
+        'The note will be hidden from Provider 360. Its deletion, operator, and reason remain in the audit record.',
+      confirmLabel: 'Delete note',
+      reasonLabel: 'Deletion reason',
+      placeholder: 'Explain why this support record should be removed from the active provider file.',
+      minLength: 10,
+      maxLength: 1000,
+      tone: 'destructive',
+    });
+    if (reason) remove.mutate({ noteId, reason });
+  }
 
   if (q.isLoading) return <LoadingState label="Loading notes…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
@@ -1700,6 +1732,8 @@ function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
         </div>
       </Card>
 
+      {removeError && <p role="alert" className="text-sm text-[var(--color-danger)]">{removeError}</p>}
+
       {notes.length === 0 ? (
         <EmptyState title="No notes yet" description="Add the first internal note above." />
       ) : (
@@ -1725,9 +1759,7 @@ function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        if (window.confirm('Delete this internal note?')) remove.mutate(n.id);
-                      }}
+                      onClick={() => void requestNoteDeletion(n.id)}
                       disabled={remove.isPending}
                     >
                       <Trash2 size={12} /> Delete
@@ -1739,6 +1771,7 @@ function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
           );
         })
       )}
+      {reasonDialog}
     </div>
   );
 }

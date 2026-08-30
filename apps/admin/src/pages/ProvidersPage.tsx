@@ -103,26 +103,17 @@ export default function ProvidersPage(): React.ReactElement {
       if (!actionModal) return;
       const { type, provider } = actionModal;
       if (type === 'approve') {
-        await api.put(`/api/v1/admin/providers/${provider.id}/approve`);
-        // Record the vetting rationale + checklist summary as an internal
-        // 'quality' note via the existing provider notes API. Best-effort:
-        // the approval already committed, so a note failure shouldn't surface
-        // as an approval failure.
-        try {
-          await api.post(`/api/v1/admin/providers/${provider.id}/notes`, {
-            body: `Approval rationale: ${vetting.rationale}\n\n${buildChecklistSummary()}`,
-            category: 'quality',
-            pinned: false,
-          });
-        } catch {
-          // swallow — approval succeeded; the note is a secondary record.
-        }
+        await api.put(`/api/v1/admin/providers/${provider.id}/approve`, {
+          reason: vetting.rationale,
+          checklistConfirmed: true,
+          checklistSummary: buildChecklistSummary(),
+        });
       } else if (type === 'reject') {
         await api.put(`/api/v1/admin/providers/${provider.id}/reject`, { reason: actionReason });
       } else if (type === 'suspend') {
         await api.put(`/api/v1/admin/providers/${provider.id}/suspend`, { reason: actionReason });
       } else if (type === 'reactivate') {
-        await api.put(`/api/v1/admin/providers/${provider.id}/reactivate`);
+        await api.put(`/api/v1/admin/providers/${provider.id}/reactivate`, { reason: actionReason });
       } else if (type === 'tier') {
         await api.put(`/api/v1/admin/providers/${provider.id}/tier`, { tier: actionTier, reason: actionReason });
       }
@@ -313,13 +304,25 @@ export default function ProvidersPage(): React.ReactElement {
               {actionModal.provider.phone}
             </p>
 
+            {actionModal.type === 'reactivate' && (
+              <p className="mb-4 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-sm text-[var(--color-text-secondary)]">
+                Reactivation restores future discovery, matching, and job acceptance. It does not clear review holds on bookings that were active when the provider was suspended.
+              </p>
+            )}
+
+            {actionModal.type === 'suspend' && (
+              <p className="mb-4 rounded-md border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] p-3 text-sm text-[var(--color-text-secondary)]">
+                Suspension removes the provider from future matching and flags in-progress work for admin review before escrow can be released.
+              </p>
+            )}
+
             {actionError && (
               <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {actionError}
               </div>
             )}
 
-            {(actionModal.type === 'reject' || actionModal.type === 'suspend' || actionModal.type === 'tier') && (
+            {(actionModal.type === 'reject' || actionModal.type === 'suspend' || actionModal.type === 'reactivate' || actionModal.type === 'tier') && (
               <div className="mb-4">
                 <label htmlFor="provider-action-reason" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Reason</label>
                 <textarea
@@ -330,7 +333,9 @@ export default function ProvidersPage(): React.ReactElement {
                   rows={3}
                   className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                 />
-                <p className="mt-1 text-xs text-[var(--color-text-secondary)]">At least 10 characters required.</p>
+                <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                  At least 10 characters required. Saved to the audit record; account-status reasons are sent to the provider.
+                </p>
               </div>
             )}
 
@@ -370,7 +375,7 @@ export default function ProvidersPage(): React.ReactElement {
                 onClick={() => actionMutation.mutate()}
                 disabled={
                   actionMutation.isPending ||
-                  ((actionModal.type === 'suspend' || actionModal.type === 'reject' || actionModal.type === 'tier') && actionReason.trim().length < 10) ||
+                  ((actionModal.type === 'suspend' || actionModal.type === 'reactivate' || actionModal.type === 'reject' || actionModal.type === 'tier') && actionReason.trim().length < 10) ||
                   (actionModal.type === 'approve' && !vetting.isComplete)
                 }
                 className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"

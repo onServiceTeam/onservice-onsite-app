@@ -37,7 +37,11 @@ it('BUG-UX-111 — admin approval grants provider role in the approval transacti
     return (cb as (client: typeof client) => Promise<unknown>)(client);
   });
 
-  await approveProvider('provider-1', 'admin-1');
+  await approveProvider('provider-1', 'admin-1', {
+    reason: 'All provider identity and qualification checks passed.',
+    checklistConfirmed: true,
+    checklistSummary: 'Vetting checklist confirmed (10/10): all required review items passed.',
+  });
 
   const providerUpdateIndex = transactionSql.findIndex((sql) => /UPDATE providers/i.test(sql));
   const roleUpdateIndex = transactionSql.findIndex((sql) => /UPDATE users SET role = 'provider'/i.test(sql));

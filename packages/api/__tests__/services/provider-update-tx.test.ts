@@ -236,7 +236,7 @@ describe('Bug 80 — deleteProviderNote soft delete transactional + audit', () =
     ]));
 
     await expect(
-      deleteProviderNote(NOTE_ID, ADMIN_ID, false, 'reason'),
+      deleteProviderNote(NOTE_ID, ADMIN_ID, false, 'document cleanup'),
     ).rejects.toThrow(/simulated audit failure/);
   });
 });

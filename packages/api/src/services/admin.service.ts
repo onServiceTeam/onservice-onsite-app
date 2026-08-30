@@ -207,7 +207,34 @@ const REQUIRED_KYC_FIELDS = [
   'selfie_url',
 ] as const;
 
-export async function approveProvider(providerId: string, adminId: string): Promise<void> {
+export interface ProviderApprovalReview {
+  reason?: unknown;
+  checklistConfirmed?: unknown;
+  checklistSummary?: unknown;
+}
+
+export async function approveProvider(
+  providerId: string,
+  adminId: string,
+  review: ProviderApprovalReview,
+): Promise<void> {
+  const reason = typeof review.reason === 'string' ? review.reason.trim() : '';
+  if (reason.length < 10) {
+    throw createAppError('Approval rationale must be at least 10 characters.', 400);
+  }
+  if (reason.length > 2000) {
+    throw createAppError('Approval rationale must be ≤ 2000 characters.', 400);
+  }
+  if (review.checklistConfirmed !== true) {
+    throw createAppError('The provider vetting checklist must be confirmed.', 400);
+  }
+  const checklistSummary = typeof review.checklistSummary === 'string'
+    ? review.checklistSummary.trim()
+    : '';
+  if (checklistSummary.length < 20 || checklistSummary.length > 5000) {
+    throw createAppError('A valid provider vetting checklist summary is required.', 400);
+  }
+
   // MED-N75: pre-approval KYC check. SELECT outside the transaction
   // so we can give a clean 400 error without rolling back any work.
   interface KycRow {
@@ -250,9 +277,15 @@ export async function approveProvider(providerId: string, adminId: string): Prom
     );
 
     await client.query(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, 'provider_approved', 'provider', $2, '{"action":"approved"}'::jsonb)`,
-      [adminId, providerId],
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'provider_approved', 'provider', $2, $3::jsonb, $4, $5)`,
+      [
+        adminId,
+        providerId,
+        JSON.stringify({ action: 'approved', checklistConfirmed: true, checklistSummary }),
+        reason.slice(0, 500),
+        `Approval rationale: ${reason}\n\n${checklistSummary}`,
+      ],
     );
 
     // MED-N71 fix — pre-fix used type='tier_upgrade' which is the
@@ -310,6 +343,10 @@ export async function rejectProvider(providerId: string, adminId: string, reason
 }
 
 export async function suspendProvider(providerId: string, adminId: string, reason: string): Promise<void> {
+  const trimmedReason = reason.trim();
+  if (trimmedReason.length < 10 || trimmedReason.length > 1000) {
+    throw createAppError('Suspension reason must be between 10 and 1000 characters.', 400);
+  }
   // MED-N73 fix: when a provider is suspended, in-flight bookings
   // (provider_en_route, provider_arrived, in_progress,
   // completed_by_provider) need to be flagged for admin review
@@ -321,8 +358,8 @@ export async function suspendProvider(providerId: string, adminId: string, reaso
   // flag and the status flip are atomic.
   let flaggedCount = 0;
   await db.transaction(async (client) => {
-    const result = await client.query(
-      `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1 AND status IN ('approved', 'pending') RETURNING id`,
+    const result = await client.query<{ id: string; user_id: string }>(
+      `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1 AND status IN ('approved', 'pending') RETURNING id, user_id`,
       [providerId],
     );
     if (result.rowCount === 0) throw createAppError('Provider not found or already suspended.', 404);
@@ -342,25 +379,49 @@ export async function suspendProvider(providerId: string, adminId: string, reaso
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
        VALUES ($1, 'provider_suspended', 'provider', $2, $3, $4)`,
-      [adminId, providerId, JSON.stringify({ action: 'suspended', inFlightBookingsFlagged: flaggedCount }), reason],
+      [adminId, providerId, JSON.stringify({ action: 'suspended', inFlightBookingsFlagged: flaggedCount }), trimmedReason],
+    );
+
+    await client.query(
+      `INSERT INTO notifications (user_id, type, title, body, data)
+       VALUES ($1, 'provider_suspended', 'Provider account suspended', $2, $3::jsonb)`,
+      [
+        result.rows[0]!.user_id,
+        `Your provider account has been suspended. Reason: ${trimmedReason}`,
+        JSON.stringify({ providerId, reason: trimmedReason }),
+      ],
     );
   });
 
-  logger.info('Provider suspended', { providerId, adminId, reason, inFlightBookingsFlagged: flaggedCount });
+  logger.info('Provider suspended', { providerId, adminId, inFlightBookingsFlagged: flaggedCount });
 }
 
-export async function reactivateProvider(providerId: string, adminId: string): Promise<void> {
+export async function reactivateProvider(providerId: string, adminId: string, reason: string): Promise<void> {
+  const trimmedReason = reason.trim();
+  if (trimmedReason.length < 10 || trimmedReason.length > 1000) {
+    throw createAppError('Reactivation reason must be between 10 and 1000 characters.', 400);
+  }
   await db.transaction(async (client) => {
-    const result = await client.query(
-      `UPDATE providers SET status = 'approved', updated_at = NOW() WHERE id = $1 AND status = 'suspended' RETURNING id`,
+    const result = await client.query<{ id: string; user_id: string }>(
+      `UPDATE providers SET status = 'approved', updated_at = NOW() WHERE id = $1 AND status = 'suspended' RETURNING id, user_id`,
       [providerId],
     );
     if (result.rowCount === 0) throw createAppError('Provider not found or not suspended.', 404);
 
     await client.query(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, 'provider_reactivated', 'provider', $2, '{"action":"reactivated"}'::jsonb)`,
-      [adminId, providerId],
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'provider_reactivated', 'provider', $2, '{"action":"reactivated"}'::jsonb, $3, $4)`,
+      [adminId, providerId, trimmedReason.slice(0, 500), trimmedReason],
+    );
+
+    await client.query(
+      `INSERT INTO notifications (user_id, type, title, body, data)
+       VALUES ($1, 'provider_reactivated', 'Provider account reactivated', $2, $3::jsonb)`,
+      [
+        result.rows[0]!.user_id,
+        `Your provider account has been reactivated. Reason: ${trimmedReason}`,
+        JSON.stringify({ providerId, reason: trimmedReason }),
+      ],
     );
   });
 

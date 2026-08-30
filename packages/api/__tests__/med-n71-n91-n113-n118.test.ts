@@ -31,6 +31,7 @@ jest.mock('../src/services/settings.service', () => ({
 }));
 
 import { pricingPreviewSchema } from '../src/validators/booking.validators';
+import { approveProvider } from '../src/services/admin.service';
 import { updateRecurringPrice } from '../src/services/recurring.service';
 import { checkOverdueInvoices } from '../src/services/invoice.service';
 
@@ -47,22 +48,40 @@ beforeEach(() => {
   });
 });
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
-const ADMIN_SVC = readFileSync(
-  resolve(__dirname, '../src/services/admin.service.ts'),
-  'utf8',
-);
-
 describe('MED-N71 — approveProvider notification type is provider_approved', () => {
-  it('MED-N71 — INSERT notifications uses provider_approved (not tier_upgrade)', () => {
-    const anchor = ADMIN_SVC.indexOf('approveProvider');
-    expect(anchor).toBeGreaterThan(0);
-    const block = ADMIN_SVC.slice(anchor, anchor + 3000);
-    expect(block).toMatch(/'provider_approved', 'Account Approved'/);
-    // Old tier_upgrade type must NOT be the notification type any more
-    // for the approval message.
-    expect(block).not.toMatch(/'tier_upgrade', 'Account Approved'/);
+  it('MED-N71 — approval writes a provider_approved notification in the approval transaction', async () => {
+    dbQueryMock.mockResolvedValueOnce({
+      rows: [{
+        nbi_clearance_url: 'onboarding/user-1/nbi.jpg',
+        government_id_front_url: 'onboarding/user-1/front.jpg',
+        selfie_url: 'onboarding/user-1/selfie.jpg',
+      }],
+      rowCount: 1,
+    });
+    const transactionCalls: Array<{ sql: string; params: unknown[] }> = [];
+    dbTransactionMock.mockImplementationOnce(async (callback: unknown) => {
+      const client = {
+        query: jest.fn(async (sql: string, params: unknown[] = []) => {
+          transactionCalls.push({ sql, params });
+          if (/UPDATE providers/.test(sql)) {
+            return { rows: [{ id: 'provider-1', user_id: 'user-1' }], rowCount: 1 };
+          }
+          return { rows: [], rowCount: 1 };
+        }),
+      };
+      return (callback as (value: typeof client) => Promise<void>)(client);
+    });
+
+    await approveProvider('provider-1', 'admin-1', {
+      reason: 'All provider identity and qualification checks passed.',
+      checklistConfirmed: true,
+      checklistSummary: 'Vetting checklist confirmed (10/10): all required review items passed.',
+    });
+
+    const notification = transactionCalls.find((call) => /INSERT INTO notifications/.test(call.sql));
+    expect(notification?.sql).toContain("'provider_approved'");
+    expect(notification?.sql).not.toContain("'tier_upgrade'");
+    expect(notification?.params[0]).toBe('user-1');
   });
 });
 
