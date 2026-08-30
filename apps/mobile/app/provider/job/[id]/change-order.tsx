@@ -14,6 +14,7 @@ import { platformConfig } from '@/config/platform.config';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
 import { useResponsive } from '@/hooks/useResponsive';
+import { ErrorState } from '@/components/ui';
 
 // D27 Phase 3 — a parts/materials/labor line the provider adds to itemize a
 // change order. unitPrice is centavos; the row's total is qty × unitPrice.
@@ -361,12 +362,26 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
             </View>
           )}
           {bookingQuery.isError && (
-            <TouchableOpacity onPress={() => void bookingQuery.refetch()} accessibilityRole="button">
-              <Text style={styles.minWarn}>Could not load the original job price. Tap to retry before submitting.</Text>
-            </TouchableOpacity>
+            <ErrorState
+              compact
+              title="Original job price unavailable"
+              message="We couldn't verify the 50% change-order limit, so submission remains disabled."
+              onRetry={() => void bookingQuery.refetch()}
+            />
+          )}
+          {amountCentavos > 0 && providerMeQuery.isLoading && (
+            <View style={styles.commissionLoading} accessibilityLabel="Loading live commission rate">
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.hint}>Loading live commission rate…</Text>
+            </View>
           )}
           {amountCentavos > 0 && providerMeQuery.isError && (
-            <Text style={styles.hint}>Commission preview unavailable. Refresh before relying on a net estimate.</Text>
+            <ErrorState
+              compact
+              title="Commission preview unavailable"
+              message="The additional customer charge is accurate, but your net earnings cannot be confirmed yet."
+              onRetry={() => void providerMeQuery.refetch()}
+            />
           )}
         </View>
 
@@ -449,6 +464,7 @@ const styles = StyleSheet.create({
   section: { marginBottom: spacing.lg },
   sectionTitle: { ...typography.body, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
   hint: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.sm },
+  commissionLoading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.md },
   textArea: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.md + 2, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text, minHeight: 100 },
   charCount: { fontSize: 12, marginTop: spacing.xs, textAlign: 'right' },
   charRed: { color: colors.error },

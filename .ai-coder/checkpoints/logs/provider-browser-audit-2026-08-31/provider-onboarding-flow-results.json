@@ -1,0 +1,299 @@
+[
+  {
+    "width": 768,
+    "failed": false,
+    "pageErrors": [],
+    "consoleErrors": [],
+    "unmatchedApi": [],
+    "results": [
+      {
+        "width": 768,
+        "step": "01-role-select",
+        "expectedText": "How would you like to use onService?",
+        "actualPath": "/provider-onboarding/role-select",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "CHOOSE YOUR WORKSPACE How would you like to use onService? Book services now, or begin the reviewed provider application while keeping customer access during review. I need services Book trusted professionals for cleaning, plumbing, electrical, and more. → I provide services Register as a service pr",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\768\\01-role-select.png"
+      },
+      {
+        "width": 768,
+        "step": "02-categories",
+        "expectedText": "Your Services",
+        "actualPath": "/provider-onboarding/categories",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 1 / 6 Your Services Enter your business name and select the services you offer. Business / Professional Name Air Conditioning 1 selected Next",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\768\\02-categories.png"
+      },
+      {
+        "width": 768,
+        "step": "03-service-area",
+        "expectedText": "Service Area",
+        "actualPath": "/provider-onboarding/service-area",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 2 / 6 Service Area Set the operating location and travel radius that the review team will verify with your application. PROVIDER MARKET Choose an admin-configured market Metro Cebu Active market Matching uses your actual operating base. A market center is never saved as your location. Capture My O",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\768\\03-service-area.png"
+      },
+      {
+        "width": 768,
+        "step": "04-vetting",
+        "expectedText": "Your business & experience",
+        "actualPath": "/provider-onboarding/vetting",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 3 / 6 Your business & experience The more you share, the faster we can vet you and the more trust customers give you. Required fields are marked; everything else is optional but helps. Experience Years of experience * How long have you done this kind of work? (0 to 60) Main skills / specialties * ",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\768\\04-vetting.png"
+      },
+      {
+        "width": 768,
+        "step": "05-documents",
+        "expectedText": "Verification Documents",
+        "actualPath": "/provider-onboarding/documents",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 4 / 6 Verification Documents Upload your government ID and NBI clearance for identity verification. These files stay in the private verification area and are available only through authorized review. 3 / 3 documents ready Ready for the next step Review has not started. Your application is submitte",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\768\\05-documents.png"
+      },
+      {
+        "width": 768,
+        "step": "06-selfie",
+        "expectedText": "Selfie Verification",
+        "actualPath": "/provider-onboarding/selfie",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 5 / 6 Selfie Verification Take a clear selfie of your face. This will be compared with your government ID to verify your identity. Make sure your face is well-lit and clearly visible. Replace Selfie Tips for a good selfie • Face the camera directly, no angles • Remove sunglasses and hats • Use goo",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\768\\06-selfie.png"
+      },
+      {
+        "width": 768,
+        "step": "07-agreement",
+        "expectedText": "Independent Contractor Agreement",
+        "actualPath": "/provider-onboarding/terms",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 6 / 6 Independent Contractor Agreement Please review and accept the agreement below before submitting your application. Key Terms 1. Independent Contractor Relationship You register as an independent contractor — not an employee, agent, or partner of onService. You control how, when, and where you",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\768\\07-agreement.png"
+      },
+      {
+        "width": 768,
+        "step": "08-review-pending",
+        "expectedText": "Application Under Review",
+        "actualPath": "/provider-onboarding/review-pending",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "Application Under Review Your documents were submitted for manual review. You can keep using the customer side while the review is pending. Application submitted Complete Manual document review In review Decision Not decided We will notify you when an admin records a decision. This screen checks for",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\768\\08-review-pending.png"
+      },
+      {
+        "width": 768,
+        "step": "09-background-check-status",
+        "expectedText": "Application Review",
+        "actualPath": "/provider-onboarding/background-check-status",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "Application Review PENDING Your provider application is under review. The app checks the recorded status automatically. What happens next 1 Application review An authorized reviewer checks the identity, clearance, and provider details you submitted. 2 Decision recorded The app shows the recorded dec",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\768\\09-background-check-status.png"
+      }
+    ]
+  },
+  {
+    "width": 1024,
+    "failed": false,
+    "pageErrors": [],
+    "consoleErrors": [],
+    "unmatchedApi": [],
+    "results": [
+      {
+        "width": 1024,
+        "step": "01-role-select",
+        "expectedText": "How would you like to use onService?",
+        "actualPath": "/provider-onboarding/role-select",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "CHOOSE YOUR WORKSPACE How would you like to use onService? Book services now, or begin the reviewed provider application while keeping customer access during review. I need services Book trusted professionals for cleaning, plumbing, electrical, and more. → I provide services Register as a service pr",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1024\\01-role-select.png"
+      },
+      {
+        "width": 1024,
+        "step": "02-categories",
+        "expectedText": "Your Services",
+        "actualPath": "/provider-onboarding/categories",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 1 / 6 Your Services Enter your business name and select the services you offer. Business / Professional Name Air Conditioning 1 selected Next",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1024\\02-categories.png"
+      },
+      {
+        "width": 1024,
+        "step": "03-service-area",
+        "expectedText": "Service Area",
+        "actualPath": "/provider-onboarding/service-area",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 2 / 6 Service Area Set the operating location and travel radius that the review team will verify with your application. PROVIDER MARKET Choose an admin-configured market Metro Cebu Active market Matching uses your actual operating base. A market center is never saved as your location. Capture My O",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1024\\03-service-area.png"
+      },
+      {
+        "width": 1024,
+        "step": "04-vetting",
+        "expectedText": "Your business & experience",
+        "actualPath": "/provider-onboarding/vetting",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 3 / 6 Your business & experience The more you share, the faster we can vet you and the more trust customers give you. Required fields are marked; everything else is optional but helps. Experience Years of experience * How long have you done this kind of work? (0 to 60) Main skills / specialties * ",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1024\\04-vetting.png"
+      },
+      {
+        "width": 1024,
+        "step": "05-documents",
+        "expectedText": "Verification Documents",
+        "actualPath": "/provider-onboarding/documents",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 4 / 6 Verification Documents Upload your government ID and NBI clearance for identity verification. These files stay in the private verification area and are available only through authorized review. 3 / 3 documents ready Ready for the next step Review has not started. Your application is submitte",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1024\\05-documents.png"
+      },
+      {
+        "width": 1024,
+        "step": "06-selfie",
+        "expectedText": "Selfie Verification",
+        "actualPath": "/provider-onboarding/selfie",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 5 / 6 Selfie Verification Take a clear selfie of your face. This will be compared with your government ID to verify your identity. Make sure your face is well-lit and clearly visible. Replace Selfie Tips for a good selfie • Face the camera directly, no angles • Remove sunglasses and hats • Use goo",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1024\\06-selfie.png"
+      },
+      {
+        "width": 1024,
+        "step": "07-agreement",
+        "expectedText": "Independent Contractor Agreement",
+        "actualPath": "/provider-onboarding/terms",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 6 / 6 Independent Contractor Agreement Please review and accept the agreement below before submitting your application. Key Terms 1. Independent Contractor Relationship You register as an independent contractor — not an employee, agent, or partner of onService. You control how, when, and where you",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1024\\07-agreement.png"
+      },
+      {
+        "width": 1024,
+        "step": "08-review-pending",
+        "expectedText": "Application Under Review",
+        "actualPath": "/provider-onboarding/review-pending",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "Application Under Review Your documents were submitted for manual review. You can keep using the customer side while the review is pending. Application submitted Complete Manual document review In review Decision Not decided We will notify you when an admin records a decision. This screen checks for",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1024\\08-review-pending.png"
+      },
+      {
+        "width": 1024,
+        "step": "09-background-check-status",
+        "expectedText": "Application Review",
+        "actualPath": "/provider-onboarding/background-check-status",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "Application Review PENDING Your provider application is under review. The app checks the recorded status automatically. What happens next 1 Application review An authorized reviewer checks the identity, clearance, and provider details you submitted. 2 Decision recorded The app shows the recorded dec",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1024\\09-background-check-status.png"
+      }
+    ]
+  },
+  {
+    "width": 1366,
+    "failed": false,
+    "pageErrors": [],
+    "consoleErrors": [],
+    "unmatchedApi": [],
+    "results": [
+      {
+        "width": 1366,
+        "step": "01-role-select",
+        "expectedText": "How would you like to use onService?",
+        "actualPath": "/provider-onboarding/role-select",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "CHOOSE YOUR WORKSPACE How would you like to use onService? Book services now, or begin the reviewed provider application while keeping customer access during review. I need services Book trusted professionals for cleaning, plumbing, electrical, and more. → I provide services Register as a service pr",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1366\\01-role-select.png"
+      },
+      {
+        "width": 1366,
+        "step": "02-categories",
+        "expectedText": "Your Services",
+        "actualPath": "/provider-onboarding/categories",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 1 / 6 Your Services Enter your business name and select the services you offer. Business / Professional Name Air Conditioning 1 selected Next",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1366\\02-categories.png"
+      },
+      {
+        "width": 1366,
+        "step": "03-service-area",
+        "expectedText": "Service Area",
+        "actualPath": "/provider-onboarding/service-area",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 2 / 6 Service Area Set the operating location and travel radius that the review team will verify with your application. PROVIDER MARKET Choose an admin-configured market Metro Cebu Active market Matching uses your actual operating base. A market center is never saved as your location. Capture My O",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1366\\03-service-area.png"
+      },
+      {
+        "width": 1366,
+        "step": "04-vetting",
+        "expectedText": "Your business & experience",
+        "actualPath": "/provider-onboarding/vetting",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 3 / 6 Your business & experience The more you share, the faster we can vet you and the more trust customers give you. Required fields are marked; everything else is optional but helps. Experience Years of experience * How long have you done this kind of work? (0 to 60) Main skills / specialties * ",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1366\\04-vetting.png"
+      },
+      {
+        "width": 1366,
+        "step": "05-documents",
+        "expectedText": "Verification Documents",
+        "actualPath": "/provider-onboarding/documents",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 4 / 6 Verification Documents Upload your government ID and NBI clearance for identity verification. These files stay in the private verification area and are available only through authorized review. 3 / 3 documents ready Ready for the next step Review has not started. Your application is submitte",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1366\\05-documents.png"
+      },
+      {
+        "width": 1366,
+        "step": "06-selfie",
+        "expectedText": "Selfie Verification",
+        "actualPath": "/provider-onboarding/selfie",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 5 / 6 Selfie Verification Take a clear selfie of your face. This will be compared with your government ID to verify your identity. Make sure your face is well-lit and clearly visible. Replace Selfie Tips for a good selfie • Face the camera directly, no angles • Remove sunglasses and hats • Use goo",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1366\\06-selfie.png"
+      },
+      {
+        "width": 1366,
+        "step": "07-agreement",
+        "expectedText": "Independent Contractor Agreement",
+        "actualPath": "/provider-onboarding/terms",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "← 6 / 6 Independent Contractor Agreement Please review and accept the agreement below before submitting your application. Key Terms 1. Independent Contractor Relationship You register as an independent contractor — not an employee, agent, or partner of onService. You control how, when, and where you",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1366\\07-agreement.png"
+      },
+      {
+        "width": 1366,
+        "step": "08-review-pending",
+        "expectedText": "Application Under Review",
+        "actualPath": "/provider-onboarding/review-pending",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "Application Under Review Your documents were submitted for manual review. You can keep using the customer side while the review is pending. Application submitted Complete Manual document review In review Decision Not decided We will notify you when an admin records a decision. This screen checks for",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1366\\08-review-pending.png"
+      },
+      {
+        "width": 1366,
+        "step": "09-background-check-status",
+        "expectedText": "Application Review",
+        "actualPath": "/provider-onboarding/background-check-status",
+        "markerMissing": false,
+        "overflow": 0,
+        "textPreview": "Application Review PENDING Your provider application is under review. The app checks the recorded status automatically. What happens next 1 Application review An authorized reviewer checks the identity, clearance, and provider details you submitted. 2 Decision recorded The app shows the recorded dec",
+        "screenshot": "C:\\Users\\kmoul\\.codex\\worktrees\\onservice-onsite-app-e38-e39\\.ai-coder\\checkpoints\\logs\\provider-browser-audit-2026-08-31\\onboarding-flow-screenshots\\1366\\09-background-check-status.png"
+      }
+    ]
+  }
+]

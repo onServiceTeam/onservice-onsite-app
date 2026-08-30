@@ -51,6 +51,10 @@ export default function SelfieScreen(): React.ReactElement {
     router.push(Routes.PROVIDER_ONBOARDING.TERMS);
   };
 
+  const captureButtonLabel = selfieUri
+    ? isCameraCaptureAvailable() ? 'Retake Selfie' : 'Replace Selfie'
+    : isCameraCaptureAvailable() ? 'Take Selfie' : 'Upload Selfie';
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -102,12 +106,11 @@ export default function SelfieScreen(): React.ReactElement {
           onPress={takeSelfie}
           activeOpacity={0.7}
           disabled={uploading}
+          accessibilityRole="button"
+          accessibilityLabel={captureButtonLabel}
+          accessibilityState={{ disabled: uploading, busy: uploading }}
         >
-          <Text style={styles.captureBtnText}>
-            {selfieUri
-              ? isCameraCaptureAvailable() ? 'Retake Selfie' : 'Replace Selfie'
-              : isCameraCaptureAvailable() ? 'Take Selfie' : 'Upload Selfie'}
-          </Text>
+          <Text style={styles.captureBtnText}>{captureButtonLabel}</Text>
         </TouchableOpacity>
 
         <View style={styles.tipsCard}>

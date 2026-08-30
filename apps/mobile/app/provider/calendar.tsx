@@ -15,8 +15,8 @@ import { useQuery } from '@tanstack/react-query';
 import { getCalendarData, type CalendarJob, type AvailabilityOverride } from '@/services/provider-api.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Calendar, Settings, ChevronLeft, ChevronRight } from '@/components/icons';
-// A7 — shared empty state for the selected-day job list.
-import { EmptyState } from '@/components/ui';
+// A7 — shared states for the calendar and selected-day job list.
+import { EmptyState, ErrorState } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { useResponsive } from '@/hooks/useResponsive';
 
@@ -90,7 +90,7 @@ export default function ProviderCalendarScreen(): React.ReactElement {
 
   const { from, to } = useMemo(() => getMonthRange(viewYear, viewMonth), [viewYear, viewMonth]);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['provider-calendar', from, to],
     queryFn: () => getCalendarData(from, to),
   });
@@ -166,6 +166,17 @@ export default function ProviderCalendarScreen(): React.ReactElement {
         ]}
         accessibilityLabel={isPhone ? 'Provider calendar' : 'Provider calendar workspace'}
       >
+      {isError ? (
+        <View style={styles.calendarError}>
+          <ErrorState
+            compact
+            title="Calendar unavailable"
+            message="We couldn't load your jobs or availability for this month. No empty schedule is being assumed."
+            onRetry={() => void refetch()}
+          />
+        </View>
+      ) : (
+      <>
       <View style={[styles.calendarPanel, !isPhone && styles.calendarPanelWide]} accessibilityLabel="Monthly calendar grid">
       <View style={styles.monthNav}>
         <TouchableOpacity onPress={(): void => { navigateMonth(-1); }} style={styles.navBtn} accessibilityRole="button" accessibilityLabel="Previous month">
@@ -237,11 +248,6 @@ export default function ProviderCalendarScreen(): React.ReactElement {
         </View>
       )}
 
-      {isError && (
-        <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginHorizontal: 16, marginBottom: 8 }}>
-          <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load calendar data. Pull to refresh.</Text>
-        </View>
-      )}
       </View>
 
       <ScrollView
@@ -269,7 +275,9 @@ export default function ProviderCalendarScreen(): React.ReactElement {
           </View>
         )}
 
-        {selectedJobs.length === 0 ? (
+        {isLoading ? (
+          <ActivityIndicator size="small" color={colors.secondary} style={styles.detailLoader} />
+        ) : selectedJobs.length === 0 ? (
           <EmptyState
             icon={<Calendar size={48} color={colors.textTertiary} />}
             title="No jobs scheduled"
@@ -302,6 +310,8 @@ export default function ProviderCalendarScreen(): React.ReactElement {
           ))
         )}
       </ScrollView>
+      </>
+      )}
       </View>
     </View>
   );
@@ -342,6 +352,7 @@ const styles = StyleSheet.create({
     gap: spacing.base,
   },
   calendarWorkspaceDesktop: { padding: spacing.lg, gap: spacing.lg },
+  calendarError: { flex: 1, justifyContent: 'center' },
   calendarPanel: { backgroundColor: colors.surface },
   calendarPanelWide: {
     flex: 1,
@@ -395,6 +406,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   dayCellWide: { height: 72 },
+  detailLoader: { marginVertical: spacing.xl },
   todayCell: {
     backgroundColor: colors.primaryLight,
     borderRadius: borderRadius.sm,

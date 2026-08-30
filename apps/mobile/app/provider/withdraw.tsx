@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getWalletBalance } from '@/services/payment.service';
 import api from '@/services/api';
-import { Button, Input } from '@/components/ui';
+import { Button, ErrorState, Input } from '@/components/ui';
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
@@ -207,6 +207,15 @@ export default function WithdrawScreen(): React.ReactElement {
           )}
         </View>
 
+        {payoutPreferencesQuery.isError && (
+          <ErrorState
+            compact
+            title="Saved payout details unavailable"
+            message="We couldn't prefill your saved destination. You can retry or enter the details manually below."
+            onRetry={() => void payoutPreferencesQuery.refetch()}
+          />
+        )}
+
         {/* Phase E CRIT-113 fix — EarningsChart now driven by REAL
              7-day /trends data (was 7 identical bars of avail/7). */}
         {(trendsQuery.data?.length ?? 0) > 0 && (
@@ -218,6 +227,14 @@ export default function WithdrawScreen(): React.ReactElement {
               }))}
             />
           </View>
+        )}
+        {trendsQuery.isError && (
+          <ErrorState
+            compact
+            title="Recent earnings unavailable"
+            message="We couldn't load the seven-day earnings context for this withdrawal."
+            onRetry={() => void trendsQuery.refetch()}
+          />
         )}
 
         <Text style={styles.sectionTitle}>Amount ({platformConfig.currencySymbol})</Text>

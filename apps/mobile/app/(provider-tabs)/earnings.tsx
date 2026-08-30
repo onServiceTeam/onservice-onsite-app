@@ -36,7 +36,6 @@ import {
   Gift,
   Repeat,
   Coins,
-  TrendingDown,
 } from '@/components/icons';
 import type { ComponentType } from 'react';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -138,7 +137,7 @@ export default function EarningsScreen(): React.ReactElement {
   });
 
   const isRefreshing = walletQuery.isRefetching || summaryQuery.isRefetching || transactionsQuery.isRefetching || trendsQuery.isRefetching;
-  const isError = walletQuery.isError || transactionsQuery.isError;
+  const isError = walletQuery.isError;
   const onRefresh = useCallback(() => {
     void walletQuery.refetch();
     void summaryQuery.refetch();
@@ -216,14 +215,22 @@ export default function EarningsScreen(): React.ReactElement {
               <Lock size={22} color={colors.accent} style={styles.infoIconImg} />
               <Text style={styles.infoLabel}>Pending job earnings</Text>
               <Text style={styles.infoValue}>
-                {summaryQuery.isError ? 'Unavailable' : formatPHP(summary?.pendingEscrow ?? 0)}
+                {summaryQuery.isLoading
+                  ? 'Loading…'
+                  : summaryQuery.isError
+                    ? 'Unavailable'
+                    : formatPHP(summary?.pendingEscrow ?? 0)}
               </Text>
             </View>
             <View style={styles.infoCard}>
               <BarChart3 size={22} color={colors.primary} style={styles.infoIconImg} />
               <Text style={styles.infoLabel}>This month</Text>
               <Text style={styles.infoValue}>
-                {summaryQuery.isError ? 'Unavailable' : formatPHP(summary?.earnedThisMonth ?? 0)}
+                {summaryQuery.isLoading
+                  ? 'Loading…'
+                  : summaryQuery.isError
+                    ? 'Unavailable'
+                    : formatPHP(summary?.earnedThisMonth ?? 0)}
               </Text>
             </View>
             <View style={styles.infoCard}>
@@ -243,10 +250,11 @@ export default function EarningsScreen(): React.ReactElement {
             {trendsQuery.isLoading ? (
               <SkeletonCard />
             ) : trendsQuery.isError ? (
-              <EmptyState
-                icon={<TrendingDown size={48} color={colors.textTertiary} />}
-                title="Couldn't load earnings trend"
-                description="Pull to refresh to try again."
+              <ErrorState
+                compact
+                title="Earnings trend unavailable"
+                message="We couldn't load your seven-day earnings trend. Try again without leaving this page."
+                onRetry={() => void trendsQuery.refetch()}
               />
             ) : trendsQuery.data && trendsQuery.data.length > 0 ? (
               <EarningsChart
@@ -365,6 +373,13 @@ export default function EarningsScreen(): React.ReactElement {
                 <SkeletonCard />
                 <SkeletonCard />
               </View>
+            ) : transactionsQuery.isError ? (
+              <ErrorState
+                compact
+                title="Transaction history unavailable"
+                message="Your balance and earnings summary are still available above."
+                onRetry={() => void transactionsQuery.refetch()}
+              />
             ) : (
               <EmptyState
                 icon={<Banknote size={48} color={colors.textTertiary} />}

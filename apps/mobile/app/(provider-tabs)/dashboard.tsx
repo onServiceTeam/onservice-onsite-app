@@ -276,7 +276,18 @@ export default function ProviderDashboardScreen(): React.ReactElement {
               </TouchableOpacity>
             </View>
 
-            {activeJobs.length === 0 ? (
+            {activeJobsQuery.isLoading ? (
+              <View accessibilityLabel="Loading active jobs">
+                <SkeletonCard />
+              </View>
+            ) : activeJobsQuery.isError ? (
+              <ErrorState
+                compact
+                title="Active jobs unavailable"
+                message="We couldn't load your active jobs. Your provider account and other tools are still available."
+                onRetry={() => void activeJobsQuery.refetch()}
+              />
+            ) : activeJobs.length === 0 ? (
               <EmptyState
                 icon={<Inbox size={48} color={colors.textTertiary} />}
                 title="No active jobs right now"

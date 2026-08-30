@@ -37,7 +37,7 @@ import {
   emitMarkRead,
 } from '@/services/socket.service';
 import { uploadImages } from '@/services/upload.service';
-import { LazyImage, StatusBadge } from '@/components/ui';
+import { ErrorState, LazyImage, StatusBadge } from '@/components/ui';
 import { formatDateTime, formatTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { MessageSquare, Camera, Check, CheckCheck, Send, ChevronLeft } from '@/components/icons';
@@ -357,18 +357,24 @@ export default function ProviderChatScreen(): React.ReactElement {
             tintColor={colors.secondary}
           />
         }
-        ListHeaderComponent={
-          messagesQuery.isError ? (
-            <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, margin: 16, marginBottom: 0 }}>
-              <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load messages. Pull down to refresh.</Text>
-            </View>
-          ) : null
-        }
         ListEmptyComponent={
-          <View style={styles.emptyChat}>
-            <MessageSquare size={48} color={colors.textTertiary} style={styles.emptyChatIcon} />
-            <Text style={styles.emptyChatText}>Start the conversation</Text>
-          </View>
+          messagesQuery.isLoading ? (
+            <View style={styles.messageState} accessibilityLabel="Loading conversation history">
+              <ActivityIndicator size="small" color={colors.secondary} />
+            </View>
+          ) : messagesQuery.isError ? (
+            <ErrorState
+              compact
+              title="Conversation history unavailable"
+              message="We couldn't load earlier messages. You can retry here before relying on this job conversation."
+              onRetry={() => void messagesQuery.refetch()}
+            />
+          ) : (
+            <View style={styles.emptyChat}>
+              <MessageSquare size={48} color={colors.textTertiary} style={styles.emptyChatIcon} />
+              <Text style={styles.emptyChatText}>Start the conversation</Text>
+            </View>
+          )
         }
       />
 
@@ -442,10 +448,20 @@ export default function ProviderChatScreen(): React.ReactElement {
                 <Text style={styles.contextActionText}>Open job details</Text>
               </TouchableOpacity>
             </>
+          ) : bookingQuery.isError ? (
+            <View accessibilityRole="alert">
+              <Text style={styles.contextUnavailable}>Job context is unavailable. You can still use this conversation.</Text>
+              <TouchableOpacity
+                style={styles.contextRetry}
+                onPress={() => void bookingQuery.refetch()}
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading job context"
+              >
+                <Text style={styles.contextRetryText}>Try again</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
-            <Text style={styles.contextUnavailable}>
-              {bookingQuery.isError ? 'Job context is unavailable. You can still use this conversation.' : 'Loading job context...'}
-            </Text>
+            <Text style={styles.contextUnavailable}>Loading job context...</Text>
           )}
         </View>
       )}
@@ -489,6 +505,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   messageFeed: { flex: 1 },
+  messageState: { paddingVertical: spacing.xxl, alignItems: 'center', justifyContent: 'center' },
   contextPanel: {
     width: 320,
     backgroundColor: colors.surface,
@@ -504,6 +521,8 @@ const styles = StyleSheet.create({
   contextLabel: { ...typography.caption, color: colors.textTertiary, fontWeight: '600', textTransform: 'uppercase' },
   contextValue: { ...typography.body, color: colors.text },
   contextUnavailable: { ...typography.body, color: colors.textSecondary },
+  contextRetry: { alignSelf: 'flex-start', marginTop: spacing.sm, minHeight: 44, justifyContent: 'center' },
+  contextRetryText: { ...typography.body, color: colors.secondary, fontWeight: '700' },
   contextAction: {
     minHeight: 44,
     borderRadius: borderRadius.md,

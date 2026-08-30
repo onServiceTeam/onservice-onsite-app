@@ -50,7 +50,7 @@ export default function ActiveJobScreen(): React.ReactElement {
   });
 
   // D23 — approved team members the provider can assign this job to.
-  const { data: staff } = useQuery({
+  const { data: staff, isLoading: staffLoading, isError: staffError, refetch: refetchStaff } = useQuery({
     queryKey: ['providerStaff'],
     queryFn: getMyStaff,
     staleTime: 60 * 1000,
@@ -244,7 +244,20 @@ export default function ActiveJobScreen(): React.ReactElement {
           <Text style={styles.chatText}>Chat with Customer</Text>
         </TouchableOpacity>
 
-        {approvedStaff.length > 0 && (
+        {staffLoading ? (
+          <View style={styles.assignSection}>
+            <SkeletonCard />
+          </View>
+        ) : staffError ? (
+          <View style={styles.assignSection}>
+            <ErrorState
+              compact
+              title="Team assignment unavailable"
+              message="We couldn't load the approved team members who can perform this job."
+              onRetry={() => void refetchStaff()}
+            />
+          </View>
+        ) : approvedStaff.length > 0 && (
           <View style={styles.assignSection}>
             <Text style={styles.assignLabel}>Who is doing this job?</Text>
             <View style={styles.assignChips}>
