@@ -64,15 +64,48 @@ The left sidebar lists the pages in this order. The version label at the bottom 
 
 ### 2.1 Dashboard (`/`)
 
-Platform overview and the start of every shift. Pick a date range (Today / 7d / 30d / 90d / YTD). It auto-refreshes every 60 seconds.
+This is the operations intake and the start of every shift. Pick Today, 7d,
+30d, 90d, or YTD. The range is preserved in the URL for handoff and the page
+auto-refreshes every 60 seconds.
 
-KPI cards: Revenue, Active Bookings, Pending Disputes, New Signups, Provider Approvals, Today's Bookings, Escalated Disputes, Stale Disputes (48h+). Charts: revenue trend, booking volume, acquisition funnel. There is an Operational Alerts list (including overdue/near-due DSR rows), Quick Actions to jump to pending providers/disputes/financials/audit, three platform wallet cards (Escrow, Revenue, Guarantee Fund with a runway warning), and a cities grid.
+Work the action queues before reading trends:
+
+- **Paid needs assignment** means exactly a `paid` booking with no assigned
+  provider. An offer, `requested`, `matched`, or `payment_pending` record is not
+  payment evidence; E33 records the existing prepayment-dispatch defect.
+- **Unassigned support** and **Urgent support** are active support cases with
+  those exact conditions. **Open support** is the whole active support count.
+- **Provider approvals**, **Active disputes**, **Escalated disputes**, **Stale
+  disputes**, and **Tester feedback** open their matching operational queues.
+
+The marketplace pulse separates period and current state. Platform-fee revenue,
+new accounts, and chart points follow the selected range. Active bookings and
+the Escrow, Revenue, and Guarantee Fund wallet balances are current snapshots,
+not range totals. Today's Bookings uses the Manila calendar. City demand comes
+from the booking city/province, including unassigned work; provider capacity
+counts approved providers with live coverage in that service area.
+
+The source badge says either **Operational sources checked** or names how many
+sources are unavailable. Unavailable is not zero and must never be treated as
+an all-clear. Revenue, booking-volume, city, and alert panels distinguish
+loading, retryable failure, genuine empty state, and populated state. DSR alerts
+open the Data Protection Log; city and money alerts open their canonical
+filtered workspaces.
 
 How to start a shift:
-1. Set the range to Today.
-2. Read Pending Disputes, Stale Disputes, and Provider Approvals first. These are the things waiting on a human.
-3. Glance at the Guarantee Fund card. If it shows a replenishment warning, flag it to a super_admin.
-4. Click a Quick Action to go where the work is.
+
+1. Set the range to Today and check whether any source is unavailable.
+2. Work paid assignment gaps, unassigned/urgent support, stale/escalated
+   disputes, and provider approvals.
+3. Inspect Guarantee Fund warnings and escalate any money decision to a
+   `super_admin`.
+4. Use the charts and city grid for context only after the action queues are
+   owned.
+
+E34 records an unresolved DPO access contradiction. Until that dedicated access
+wave is complete, treat the Dashboard command center as an `admin`/
+`super_admin` workspace; do not infer broader DPO access from the sidebar or
+privacy role name.
 
 ### 2.2 Providers (`/providers`)
 
@@ -203,9 +236,18 @@ Surge/multiplier rules of three types: `rush`, `holiday`, `peak_hours`. Each has
 
 ### 2.11 Disputes (`/disputes`)
 
-The dispute queue. Search by dispute or booking ID. Filter by status (`open`, `under_review`, `escalated`, `resolved`) and tier (1/2/3). Live-updates when a dispute is filed.
+The dispute queue. Search by dispute or booking ID. Filter by status (`open`,
+`under_review`, `escalated`, `resolved`) and tier (1/2/3). The **Active** view
+means every unresolved case. The **Stale** view applies the server's existing
+age predicate; it is an attention view, not an invented support-SLA countdown.
+The selected view is preserved in the URL and enforced against the whole queue.
+The page live-updates when a dispute is filed.
 
-Super_admin actions: Resolve (choose a resolution type) and Escalate (reason at least 10, only when tier < 3). Plain admins see a read-only banner.
+Super_admin actions: Resolve (choose a resolution type) and Escalate (reason at
+least 10, only when tier < 3). Plain admins see a read-only banner. Resolve now
+opens an in-app confirmation that names the customer-refund/provider-funds
+impact before sending the existing request. The confirmation is not proof that
+money moved; verify the resulting Money and Audit records.
 
 Resolution types and what they mean:
 
@@ -219,7 +261,10 @@ Resolution types and what they mean:
 | `no_refund` | 0% | Full escrow released to provider. |
 | `free_redo` | 0% | No refund; provider redoes the job. |
 
-Resolution decision notes must be at least 20 characters. Follow the decision tree in `09-trust-safety-and-disputes.md`. Do not improvise refund percentages.
+Resolution decision notes must be at least 20 characters. Follow the decision
+tree in `09-trust-safety-and-disputes.md`. Do not improvise refund percentages.
+E18/E24 still hold unsafe settlement paths; the queue redesign did not change
+escrow, refund, filing-window, or direct participant-settlement behavior.
 
 ### 2.12 Dispute detail / Dispute 360 (`/disputes/:id`)
 

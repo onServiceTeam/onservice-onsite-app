@@ -4,7 +4,7 @@
 
 This is the durable route-by-route control ledger for the admin overhaul requested by Ken. It is intentionally incomplete. `W1` means the current stage inspected and changed the named surface with rendered behavior tests. It does not mean every state on that page has been manually exercised. `NEXT` means the page remains in the active screen-by-screen pass. `HOLD` means money, compliance, legal, or policy behavior cannot be changed autonomously even though safe visual and accessibility work may continue.
 
-Current audited code checkpoint: `27331cef517e3361b18ccc484609498719087685`.
+Current audited code checkpoint: `b5e2dbdc775a9962db73f1576fdca74362ca5033`.
 The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its documentation and production-evidence checkpoint was `cc15c61b7cacad2911e6bae97fe48d4e43179df7`.
 
 ## Shared admin contract established in W1
@@ -25,7 +25,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | --- | --- | --- | --- |
 | `/login` | Admin authentication | W2 | A first-time visit without the readable admin session hint now settles signed out without generating expected `/auth/me` and refresh 401s. Returning sessions still hydrate normally. |
 | `/change-password` | Credential rotation | W1/PREVIOUS | Account menu now reaches it at all widths. Existing forced-rotation behavior remains unchanged. |
-| `/` | Command center | NEXT | Re-audit every queue, metric definition, source failure, and cross-link after shell release. |
+| `/` | Command center | W9 PARTIAL | Exact action queues now expose verified-paid unassigned bookings, unassigned/urgent/all open support, provider approvals, active/escalated/stale disputes, and tester feedback. Range state is URL-bound; failed sources, current wallet snapshots, period metrics, city booking attribution, provider capacity, and downstream links are labelled truthfully. Authenticated live visual evidence and broader analytics definitions remain open; DPO access is held under E34. |
 | `/providers` | Provider queue | W3 PARTIAL | Queue approval now uses the same atomic rationale/checklist contract as Provider 360. Suspension and reactivation require reasons, preserve the audit record, state active-booking effects, and notify the provider. Recheck filters, bulk support workflow, capacity context, and Provider 360 exits. |
 | `/providers/:id` | Provider 360 | W3+W5 PARTIAL/HOLD | Approval, staff, notes, certifications, Jobs, Financials, Reviews, Disputes, and Activity now form a linked case workspace. Review moderation/public responses and certification decisions are provider-scoped and transactionally audited; staff audit verbs are now admitted by the database. E29/D31 still holds automatic handling of bookings assigned to suspended staff, and E31/D33 still holds wallet-adjustment limits/dual control. Authenticated visual-state review remains open. |
 | `/customers` | Customer queue | W7 PARTIAL | Ordinary-admin contacts are masked; account state and fraud review are separate signals; search covers full name, phone, email, and customer ID; whole-queue totals and support/dispute/active-booking workload are visible; and rows open Customer 360, filtered bookings, or a user-bound support workspace. Saved views, named ownership, and authenticated wide-state evidence remain open. |
@@ -34,7 +34,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/bookings/:id` | Booking 360 and evidence | W6 PARTIAL/HOLD | Conversation and support-case exits, partial-address truth, gateway/wallet/retained-sales money chronology, and rendered action confirmations are connected. Cancellation requires explicit live money inputs but E09 still holds policy/runtime authority; escrow release, refund, cancellation, and force-complete semantics remain money-path controlled. |
 | `/catalog` | Customer bookable scope and provider fulfillment contract | W1 | Service/add-on deactivation now requires audit reason and states customer impact. Continue modal and all pricing-type state visuals. |
 | `/projects` | Larger-work planning oversight | NEXT | Preserve D28 and milestone escrow holds while checking customer/provider linkage and honest capability boundaries. |
-| `/disputes` | Trust queue | HOLD/NEXT | Safe case layout can continue. Resolution outcome changes remain under E18/E24 money-path holds. |
+| `/disputes` | Trust queue | W9 PARTIAL/HOLD | Exact active and stale whole-queue views are URL-bound and enforced by the API, and list resolution now uses an in-app impact confirmation. Resolution/settlement behavior is unchanged and remains under E18/E24; no unsupported SLA countdown was added. |
 | `/disputes/:id` | Dispute 360 | HOLD/NEXT | Recheck evidence chronology and role exits. Settlement/reopen semantics remain held. |
 | `/financials` | Payments, escrow, tax workpapers, reconciliation | HOLD | No money/tax mutation behavior changed in W1. Requires dedicated finance audit and decision-safe tests. |
 | `/payouts` | Provider withdrawal decisions | HOLD | Existing internal large-payout review is not described as statutory AML. Transfer and decision behavior remain money-path controlled. |
@@ -159,9 +159,25 @@ These changes are Bugs UX-495 through UX-503. They do not change booking,
 offer, payment, escrow, refund, cancellation, payout, dispute, or support-case
 lifecycle semantics.
 
-## Remaining browser-native confirmations after W8
+## W9 dashboard and dispute-queue operations contract
 
-W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. W3 removed two Provider 360 prompts. W4 removed the two Customer 360 prompts. W6 removed four Booking 360 prompts and two Dispatch prompts, leaving 21. W7 and W8 changed read-only queue surfaces and did not alter that count. The remaining prompts are deliberately visible here rather than being hidden by a false completion claim.
+- Dashboard action queues are backed by canonical predicates and exact links: verified-paid unassigned bookings, unassigned active support, urgent active support, all open support, pending provider approvals, active/escalated/stale disputes, and untriaged tester feedback. A count is never inferred from a chart or the current page.
+- Date range is shareable in the URL. Today, 7d, 30d, 90d, and Manila-calendar YTD use validated server ranges; YTD supports a 366-day leap year without silently truncating January 1.
+- A failed operational source is named as unavailable rather than represented as zero or an all-clear. Revenue, booking-volume, city, and alert panels preserve loading, retry, failure, and genuine-empty states separately.
+- Period metrics and current snapshots are not mixed. Platform fee revenue and acquisition counts follow the selected range; active bookings and platform wallet balances are current operational state and say so.
+- City demand uses the booking's normalized city/province, including unassigned bookings. Provider capacity uses approved providers with live service-area membership. City and guarantee-fund alerts open their canonical filtered workspaces, and DSR alerts open the Data Protection Log.
+- The Disputes queue accepts exact `active` and `stale` views in both the URL and API. Active means unresolved; stale applies the existing age predicate. The list-level Resolve action now opens a rendered confirmation that names the refund/funds impact before sending the existing resolution request.
+- No dispute outcome, refund calculation, escrow movement, filing window, SLA, or participant-settlement contract changed. E18 and E24 remain the money-path authorities.
+- E34 records a separate access contradiction: the D15 privacy-only DPO doctrine does not match the current admin navigation, client routing, Dashboard API, DSR permissions, or mixed Compliance page. W9 deliberately does not broaden DPO access or general-admin privacy authority.
+- The stale source-regex coverage for BUG-PHASE136-01 was replaced by an executed service test. Four tautological/source-read escrow assertions were removed rather than counted as behavior, and the strict phantom-test scanner reports zero findings.
+
+These changes are Bugs UX-504 through UX-514 plus the real-behavior correction
+for BUG-PHASE136-01. They do not change payment, escrow, refund, payout,
+dispatch, dispute-resolution, or compliance authorization semantics.
+
+## Remaining browser-native confirmations after W9
+
+W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. W3 removed two Provider 360 prompts. W4 removed the two Customer 360 prompts. W6 removed four Booking 360 prompts and two Dispatch prompts, leaving 21. W7 and W8 changed read-only queue surfaces. W9 replaced the Disputes-list resolution prompt, leaving 20. The remaining prompts are deliberately visible here rather than being hidden by a false completion claim.
 
 | Screen | Count | Current hold or remaining design work |
 | --- | ---: | --- |
@@ -169,7 +185,6 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 | Consent Versions | 1 | Legal publication lifecycle |
 | Data Protection | 4 | DSR completion, information request, rejection, and NPC escalation |
 | Dispute 360 | 2 | Escalation/reopen tied to dispute lifecycle |
-| Disputes queue | 1 | Resolution outcome can apply money effects |
 | Financials | 5 | Reconciliation and tax workpaper operations |
 | Payouts | 1 | Provider-money decision |
 | Pricing Rules | 1 | Live charge/revenue-share rule toggle under E28 |
@@ -265,3 +280,11 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 - Gate A passed all 10 blocking fragments through Git Bash, Gate C passed all 6 blocking articles, and all 6 gate self-tests passed locally. The first Gate A attempt used Windows' WSL `bash.exe`, where Node was unavailable; that environment failure is not counted as a gate result.
 - Code checkpoint `27331cef517e3361b18ccc484609498719087685` was pushed to `master`. GitHub Gates run `33311697387` and CI run `33311697383` passed, including Mobile, API, Admin, and the API Docker image build plus liveness boot check.
 - Authenticated Booking queue browser evidence remains rendered-test evidence rather than a false signed-in production claim. Production backup, fast-forward, deployment, hashes, nginx validation, and live API/data checks remain blocked by E32. E33 also requires a read-only production setting/offer inspection before any dispatch-semantic correction; no production synchronization or E33 production conclusion is claimed.
+
+## W9 local and GitHub verification
+
+- Admin: 151 test files passed, 1 skipped; 261 tests passed and 3 explicit todos remained. API: 491 locally runnable suites passed, 1 suite remained intentionally skipped; 3,089 tests passed. The separate Docker-dependent generated-certificate nginx suite was excluded locally and is not counted as a pass.
+- Focused rendered admin tests execute exact dashboard queue links/counts, URL-bound ranges, source states, city attribution, DSR and financial destinations, active/stale dispute views, and the in-app resolution confirmation. Focused API tests execute canonical dashboard KPI predicates, city/provider-capacity attribution, range validation, and exact dispute-view filtering.
+- Admin, Mobile, and API TypeScript passed. Repository/admin/API lint passed. Admin and API production builds passed. Gate A passed all 10 blocking fragments, Gate C passed all 6 blocking articles, all 6 gate self-tests passed, the no-N+1 scanner passed with its 30 existing annotated patterns, and `git diff --check` passed.
+- The local Docker-only nginx test could not reach Docker Desktop and is not counted as a pass. GitHub independently passed Gates run `33314152712` and CI run `33314152714`, including Mobile, API, Admin, and API image build plus liveness boot.
+- Code checkpoint `b5e2dbdc775a9962db73f1576fdca74362ca5033` was pushed to `master`. Authenticated Dashboard/Disputes browser evidence remains rendered-test evidence, not a claimed production session. E32 blocks production synchronization, E33 blocks dispatch/payment correction, and E34 blocks inferred DPO authorization changes.

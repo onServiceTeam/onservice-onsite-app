@@ -19,6 +19,30 @@ This wave closes misleading operational claims and unsafe governance inputs with
 - The D15 DPO management screen that the runbook promised but the app lacked is now present. It uses named active-admin candidates, requires reasoned assignment/handover, and serializes a single active DPO seat.
 - Active operations documents now call the payout state an internal large-payout review hold. Legacy database fields, API paths, and status identifiers containing `aml` remain unchanged for compatibility. The hold remains in place and is not represented as a legal AMLA classification or filing.
 
+## W9 command-center continuation
+
+The later W9 pass re-opened Dashboard rather than inheriting completion from
+the first card-level correction:
+
+- action queues now use canonical whole-queue counts and exact destinations for
+  paid assignment gaps, unassigned/urgent/all active support, provider
+  approvals, active/escalated/stale disputes, and tester feedback;
+- Today, 7d, 30d, 90d, and Manila-calendar YTD are validated and URL-bound;
+- failed sources, loading, retry, genuine empty state, and populated state are
+  distinct, so source failure cannot become zero or an all-clear;
+- platform-fee revenue/acquisition are period metrics, while active bookings
+  and platform wallet balances are labelled current snapshots;
+- city demand follows normalized booking city/province, including unassigned
+  work, while provider capacity follows approved live service-area membership;
+- Disputes gained exact active/stale views and a rendered list-resolution
+  funds-impact confirmation without changing E18/E24 settlement behavior.
+
+The same pass found that the DPO workspace is not an end-to-end access model.
+E34 supersedes any interpretation that the single-seat management screen made
+DPO routing complete: privacy-only doctrine conflicts with navigation, client
+guards, Dashboard API access, DSR permissions, consent permissions, and the
+mixed Compliance page. No role middleware was broadened in W9.
+
 ## Production read-only evidence
 
 The production check read aggregate counts only:
@@ -79,7 +103,7 @@ Behavior tests cover:
 
 ## Remaining admin priorities
 
-1. Define fine-grained admin authorization before treating role-profile permission labels as executable policy.
-2. Add global entity search only after searchable fields and ordinary-admin PII visibility are defined.
-3. Continue page-by-page command, money, destructive-action, metric-source, freshness, and case-linkage review.
-4. Keep DPO registration and external appointment records in the launch runbook; the app does not perform NPC registration.
+1. Add safe global entity search using an explicit searchable-field and ordinary-admin PII matrix.
+2. Resolve E34 as one DPO route/API/action design rather than piecemeal middleware exceptions; keep NPC registration and external appointment records in the launch runbook.
+3. Define fine-grained admin authorization before treating role-profile permission labels as executable policy.
+4. Continue page-by-page command, money, destructive-action, metric-source, freshness, and case-linkage review.

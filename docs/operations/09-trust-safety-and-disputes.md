@@ -57,13 +57,21 @@ The API contains provider **Accept**, **Partial offer**, and customer partial-ac
 
 ### 2.5 Standard dispute workflow (numbered SOP)
 
-1. Dispute lands in the **Disputes** admin page (`/disputes`) via socket. Tickets sort by tier and age.
+1. Dispute lands in the **Disputes** admin page (`/disputes`) via socket. Use
+   **Active** for all unresolved cases and **Stale** for the server-defined age
+   attention set; both views apply to the whole queue and persist in the URL.
+   Stale is not a contractual SLA countdown. Tickets otherwise sort by tier and
+   age.
 2. **Triage within target SLA** (see section 6). Open the **Dispute detail** page (`/disputes/:id`, "Dispute 360"). Read the customer claim and provider response side by side.
 3. **Collect and review evidence** (section 3). Check the customer and provider 90-day history cards for the risk pattern flag (`OK` / `REVIEW_REQUIRED` / `AT_RISK`).
 4. If you need more time or a specialist, **Assign to admin** (by UUID) and/or **Escalate** (reason 10+ chars, only when tier < 3).
 5. **Message parties** if facts are missing (customer / provider / both, 5-2000 chars). Give a clear deadline.
 6. **Decide** using the escrow/refund decision tree (section 4).
-7. **Resolve and notify** (super-admin only). Pick the resolution type, set refund % for partial/split, write decision notes (20+ chars). The page shows an estimated-refund preview and a confirm step.
+7. **Resolve and notify** (super-admin only). Pick the resolution type, set
+   refund % for partial/split, and write decision notes (20+ chars). The page
+   shows an estimated-refund preview and an in-app confirmation that names the
+   refund/provider-funds impact. That confirmation authorizes an attempt; verify
+   the resulting Money and Audit records before saying funds moved.
 8. The system records the booking and escrow outcome, moves any valid internal held funds, and notifies both parties. A verified historical external PayMongo payment may also require a gateway refund; only say it was submitted after checking the real gateway result/reference. E14 blocks new hosted external authorization and does not make a browser attempt refundable money. Gateway failures are queued in `gateway_retry_queue`, but a queued item is not a completed refund.
 9. If new facts surface after a resolution, a super-admin can **Reopen** (reason 20+ chars).
 

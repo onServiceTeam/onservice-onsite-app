@@ -1657,3 +1657,26 @@ remove create-time fixed-price dispatch, independently enforce paid/held at
 every automatic and manual dispatch boundary, and execute create/payment/
 webhook/duplicate/acceptance/notification regressions. See
 `.ai-coder/escalations/E33-fixed-price-prepayment-auto-dispatch-regression-2026-08-30.md`.
+
+---
+
+## 51. DPO admin-route segregation is incomplete
+
+D15 and the operating doctrine define the DPO as an independent privacy-only
+role. The current application does not enforce that boundary consistently. The
+shared admin navigation exposes general operations pages to DPO sessions, there
+is no complete client route guard, DPO login lands on Dashboard even though its
+API excludes the role, consent administration accepts DPO while most DSR list
+and action routes do not, and the Compliance page mixes privacy work with BIR
+and general-admin material.
+
+This is an access-governance and privacy launch blocker, not permission to make
+one middleware allowlist wider. W9 leaves authorization unchanged. A dedicated
+wave must produce an explicit route/API/action matrix, a privacy-only DPO home,
+consistent DSR and consent ownership, general-admin boundaries, navigation and
+deep-link guards, migration/backward-compatibility treatment, and executed
+tests for all three admin-tier roles.
+
+Production synchronization and live role evidence are separately blocked by
+E32 until the server identity is established. See
+`.ai-coder/escalations/E34-dpo-admin-route-segregation-is-incomplete-2026-08-30.md`.
