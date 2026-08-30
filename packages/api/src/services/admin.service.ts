@@ -1,7 +1,8 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
-import { ACTIVE_BOOKING_STATUSES } from '../types/booking.types';
+import { ACTIVE_BOOKING_STATUSES, COMPLETED_BOOKING_STATUSES } from '../types/booking.types';
+import { maskEmail, maskPhilippinePhone, type ActorRole } from '../utils/pii-mask';
 
 interface KpiRow {
   today_revenue: string;
@@ -51,7 +52,24 @@ interface CustomerAdminRow {
   updated_at: Date;
   total_bookings: string;
   total_spent: string;
+  active_bookings: string;
   total_disputes: string;
+  open_disputes: string;
+  open_support_tickets: string;
+}
+
+interface CustomerQueueSummaryRow {
+  total_customers: string;
+  active_accounts: string;
+  inactive_accounts: string;
+  fraud_flagged: string;
+}
+
+export interface CustomerQueueSummary {
+  totalCustomers: number;
+  activeAccounts: number;
+  inactiveAccounts: number;
+  fraudFlagged: number;
 }
 
 interface BookingAdminRow {
@@ -470,51 +488,98 @@ export async function changeProviderTier(
 }
 
 export async function listCustomers(
-  filters: { search?: string; status?: string; page: number; pageSize: number },
-): Promise<{ customers: CustomerAdminRow[]; total: number }> {
+  filters: { search?: string; status?: string; sort?: string; page: number; pageSize: number },
+): Promise<{ customers: CustomerAdminRow[]; total: number; summary: CustomerQueueSummary }> {
   const conditions: string[] = [`u.role = 'customer'`];
   const params: unknown[] = [];
   let paramIdx = 1;
 
+  const allowedStatuses = new Set(['active', 'inactive', 'flag_fraud']);
+  if (filters.status && !allowedStatuses.has(filters.status)) {
+    throw createAppError('Invalid customer status. Allowed: active, inactive, flag_fraud.', 400);
+  }
+  const sort = filters.sort ?? 'attention';
+  const allowedSorts = new Set(['attention', 'newest', 'active_work', 'completed_value']);
+  if (!allowedSorts.has(sort)) {
+    throw createAppError('Invalid customer sort. Allowed: attention, newest, active_work, completed_value.', 400);
+  }
+
   if (filters.search) {
-    conditions.push(`(u.first_name ILIKE $${paramIdx} OR u.last_name ILIKE $${paramIdx} OR u.phone ILIKE $${paramIdx} OR u.email ILIKE $${paramIdx})`);
+    conditions.push(`(
+      CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${paramIdx}
+      OR u.phone ILIKE $${paramIdx}
+      OR COALESCE(u.email, '') ILIKE $${paramIdx}
+      OR u.id::text ILIKE $${paramIdx}
+    )`);
     params.push(`%${filters.search}%`);
     paramIdx++;
   }
   if (filters.status) {
-    // Map the four UI filter values to the underlying flags. 'suspended' and
-    // 'inactive' are the same state (is_active=false); 'flag_fraud' keys on the
-    // fraud flag regardless of active state.
     if (filters.status === 'flag_fraud') {
       conditions.push(`u.is_flagged_fraud = TRUE`);
     } else if (filters.status === 'active') {
-      conditions.push(`u.is_active = TRUE AND u.is_flagged_fraud = FALSE`);
-    } else if (filters.status === 'inactive' || filters.status === 'suspended') {
+      conditions.push(`u.is_active = TRUE`);
+    } else if (filters.status === 'inactive') {
       conditions.push(`u.is_active = FALSE`);
     }
   }
 
   const whereClause = `WHERE ${conditions.join(' AND ')}`;
-
-  const countResult = await db.query<CountRow>(
-    `SELECT COUNT(*)::text as count FROM users u ${whereClause}`,
-    params,
-  );
-
   const offset = (filters.page - 1) * filters.pageSize;
-  const dataResult = await db.query<CustomerAdminRow>(
-    `SELECT u.id, u.phone, u.email, u.first_name, u.last_name, u.role, u.is_active, u.is_flagged_fraud, u.created_at, u.updated_at,
-       (SELECT COUNT(*) FROM bookings WHERE customer_id = u.id)::text AS total_bookings,
-       COALESCE((SELECT SUM(total_amount) FROM bookings WHERE customer_id = u.id AND status IN ('confirmed', 'payout_ready', 'paid_out')), 0)::text AS total_spent,
-       (SELECT COUNT(*) FROM disputes WHERE filed_by = u.id)::text AS total_disputes
-     FROM users u
-     ${whereClause}
-     ORDER BY u.created_at DESC
-     LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
-    [...params, filters.pageSize, offset],
-  );
+  const activeBookingStatuses = ACTIVE_BOOKING_STATUSES.map((status) => `'${status}'`).join(', ');
+  const completedBookingStatuses = COMPLETED_BOOKING_STATUSES.map((status) => `'${status}'`).join(', ');
+  const openSupportCountSql = `(SELECT COUNT(*) FROM support_tickets st WHERE st.user_id = u.id AND st.status NOT IN ('resolved', 'closed'))`;
+  const openDisputeCountSql = `(SELECT COUNT(*) FROM disputes d JOIN bookings b ON b.id = d.booking_id WHERE b.customer_id = u.id AND d.status IN ('open', 'under_review', 'escalated'))`;
+  const activeBookingCountSql = `(SELECT COUNT(*) FROM bookings b WHERE b.customer_id = u.id AND b.status IN (${activeBookingStatuses}))`;
+  const completedValueSql = `COALESCE((SELECT SUM(b.total_amount) FROM bookings b WHERE b.customer_id = u.id AND b.status IN (${completedBookingStatuses})), 0)`;
+  const orderClause = sort === 'newest'
+    ? 'u.created_at DESC'
+    : sort === 'active_work'
+      ? `${activeBookingCountSql} DESC, u.created_at DESC`
+      : sort === 'completed_value'
+        ? `${completedValueSql} DESC, u.created_at DESC`
+        : `u.is_flagged_fraud DESC, ${openSupportCountSql} DESC, ${openDisputeCountSql} DESC, ${activeBookingCountSql} DESC, u.created_at DESC`;
 
-  return { customers: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
+  const [countResult, summaryResult, dataResult] = await Promise.all([
+    db.query<CountRow>(
+      `SELECT COUNT(*)::text as count FROM users u ${whereClause}`,
+      params,
+    ),
+    db.query<CustomerQueueSummaryRow>(
+      `SELECT COUNT(*)::text AS total_customers,
+              COUNT(*) FILTER (WHERE is_active = TRUE)::text AS active_accounts,
+              COUNT(*) FILTER (WHERE is_active = FALSE)::text AS inactive_accounts,
+              COUNT(*) FILTER (WHERE is_flagged_fraud = TRUE)::text AS fraud_flagged
+         FROM users
+        WHERE role = 'customer'`,
+    ),
+    db.query<CustomerAdminRow>(
+      `SELECT u.id, u.phone, u.email, u.first_name, u.last_name, u.role, u.is_active, u.is_flagged_fraud, u.created_at, u.updated_at,
+         (SELECT COUNT(*) FROM bookings b WHERE b.customer_id = u.id)::text AS total_bookings,
+         ${completedValueSql}::text AS total_spent,
+         ${activeBookingCountSql}::text AS active_bookings,
+         (SELECT COUNT(*) FROM disputes d JOIN bookings b ON b.id = d.booking_id WHERE b.customer_id = u.id)::text AS total_disputes,
+         ${openDisputeCountSql}::text AS open_disputes,
+         ${openSupportCountSql}::text AS open_support_tickets
+       FROM users u
+       ${whereClause}
+       ORDER BY ${orderClause}
+       LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
+      [...params, filters.pageSize, offset],
+    ),
+  ]);
+
+  const summaryRow = summaryResult.rows[0];
+  return {
+    customers: dataResult.rows,
+    total: Number(countResult.rows[0]?.count ?? 0),
+    summary: {
+      totalCustomers: Number(summaryRow?.total_customers ?? 0),
+      activeAccounts: Number(summaryRow?.active_accounts ?? 0),
+      inactiveAccounts: Number(summaryRow?.inactive_accounts ?? 0),
+      fraudFlagged: Number(summaryRow?.fraud_flagged ?? 0),
+    },
+  };
 }
 
 export async function listBookingsAdmin(
@@ -543,6 +608,8 @@ export async function listBookingsAdmin(
   if (filters.search) {
     conditions.push(`(
       b.id::text ILIKE $${paramIdx}
+      OR b.customer_id::text ILIKE $${paramIdx}
+      OR COALESCE(b.provider_id::text, '') ILIKE $${paramIdx}
       OR COALESCE(b.city, '') ILIKE $${paramIdx}
       OR CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${paramIdx}
       OR u.phone ILIKE $${paramIdx}
@@ -700,17 +767,27 @@ export function formatProvider(p: ProviderAdminRow): Record<string, unknown> {
   };
 }
 
-export function formatCustomer(c: CustomerAdminRow): Record<string, unknown> {
+export function formatCustomer(
+  c: CustomerAdminRow,
+  actorRole: ActorRole = 'admin',
+): Record<string, unknown> {
+  const contactMasked = actorRole !== 'super_admin';
   return {
     id: c.id,
-    phone: c.phone,
-    email: c.email,
+    phone: contactMasked ? maskPhilippinePhone(c.phone) : c.phone,
+    email: contactMasked ? (c.email ? maskEmail(c.email) : null) : c.email,
     firstName: c.first_name,
     lastName: c.last_name,
     status: c.is_flagged_fraud ? 'flag_fraud' : (c.is_active ? 'active' : 'inactive'),
+    isActive: c.is_active,
+    isFlaggedFraud: c.is_flagged_fraud,
+    contactMasked,
     totalBookings: Number(c.total_bookings),
     totalSpent: Number(c.total_spent),
+    activeBookings: Number(c.active_bookings),
     totalDisputes: Number(c.total_disputes),
+    openDisputes: Number(c.open_disputes),
+    openSupportTickets: Number(c.open_support_tickets),
     createdAt: c.created_at,
   };
 }

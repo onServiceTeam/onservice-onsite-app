@@ -269,12 +269,14 @@ router.get(
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
       const search = typeof req.query.search === 'string' ? req.query.search : undefined;
       const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+      const sort = typeof req.query.sort === 'string' ? req.query.sort : undefined;
 
-      const { customers, total } = await adminService.listCustomers({ search, status, page, pageSize });
+      const { customers, total, summary } = await adminService.listCustomers({ search, status, sort, page, pageSize });
 
       res.json({
         success: true,
-        data: customers.map(adminService.formatCustomer),
+        data: customers.map((customer) => adminService.formatCustomer(customer, req.user!.role)),
+        summary,
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
       });
     } catch (error) {
