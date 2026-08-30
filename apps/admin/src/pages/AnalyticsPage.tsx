@@ -4,7 +4,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
-import { Label, Input, Textarea, useConfirmationDialog } from '@/components/ui';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  Input,
+  Label,
+  LoadingState,
+  Textarea,
+  useConfirmationDialog,
+} from '@/components/ui';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 
 type TabId = 'ab-tests' | 'cohorts' | 'churn' | 'quality' | 'commission';
@@ -270,7 +279,7 @@ function CohortTab(): React.ReactElement {
     });
   }
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin', 'cohorts', months, metric],
     queryFn: async () => {
       const res = await api.get('/api/v1/admin/analytics/cohorts', { params: { months, metric } });
@@ -290,8 +299,14 @@ function CohortTab(): React.ReactElement {
         </select>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load cohort data. Please try again.</p> : (data?.length ?? 0) === 0 ? (
-        <p className="text-sm text-slate-500 py-4">No cohort data for this period.</p>
+      {isLoading ? <LoadingState label="Loading cohort analysis…" /> : isError ? (
+        <ErrorState
+          title="Cohort analysis unavailable"
+          description={`${getErrorMessage(error)} Retention and revenue figures are not available.`}
+          action={<Button onClick={(): void => { void refetch(); }}>Retry cohort analysis</Button>}
+        />
+      ) : (data?.length ?? 0) === 0 ? (
+        <EmptyState title="No cohort data" description="No retention or revenue cohort records match this period." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">

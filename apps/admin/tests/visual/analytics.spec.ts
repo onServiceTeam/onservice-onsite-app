@@ -6,7 +6,7 @@
 //   pnpm exec playwright test tests/visual/analytics.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
-import { test, expect } from './_fixtures';
+import { test, expect, waitForVisualSettled } from './_fixtures';
 
 const ROUTE = '/analytics';
 
@@ -17,6 +17,7 @@ test.describe('AnalyticsPage', () => {
 
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`analytics-default-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -29,12 +30,7 @@ test.describe('AnalyticsPage', () => {
           void route;
         });
         await page.goto(ROUTE);
-        // Operator wires the right test-id selector when the screen's
-        // skeleton mounts. Default to a forgiving locator that should
-        // match the canonical Skeleton component.
-        await expect(page.locator('[data-testid="skeleton"], .skeleton').first()).toBeVisible({
-          timeout: 2000,
-        }).catch(() => {});
+        await expect(page.getByText('Loading cohort analysis…')).toBeVisible();
         await expect(page).toHaveScreenshot(`analytics-loading-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -55,6 +51,8 @@ test.describe('AnalyticsPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
+        await expect(page.getByText('No cohort data')).toBeVisible();
         await expect(page).toHaveScreenshot(`analytics-empty-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -75,6 +73,8 @@ test.describe('AnalyticsPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
+        await expect(page.getByText('Cohort analysis unavailable')).toBeVisible();
         await expect(page).toHaveScreenshot(`analytics-error-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,

@@ -6,7 +6,7 @@
 //   pnpm exec playwright test tests/visual/customers.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
-import { test, expect } from './_fixtures';
+import { test, expect, waitForVisualSettled } from './_fixtures';
 
 const ROUTE = '/customers';
 
@@ -17,6 +17,7 @@ test.describe('CustomersPage', () => {
 
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`customers-default-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -55,6 +56,7 @@ test.describe('CustomersPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`customers-empty-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -75,6 +77,7 @@ test.describe('CustomersPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`customers-error-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,

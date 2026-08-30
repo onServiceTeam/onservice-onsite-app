@@ -6,7 +6,7 @@
 //   pnpm exec playwright test tests/visual/financials.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
-import { test, expect } from './_fixtures';
+import { test, expect, waitForVisualSettled } from './_fixtures';
 
 const ROUTE = '/financials';
 
@@ -17,6 +17,7 @@ test.describe('FinancialsPage', () => {
 
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`financials-default-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -55,6 +56,7 @@ test.describe('FinancialsPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`financials-empty-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -75,6 +77,7 @@ test.describe('FinancialsPage', () => {
           }
         });
         await page.goto(ROUTE);
+        await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`financials-error-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -83,11 +86,18 @@ test.describe('FinancialsPage', () => {
 
       // Phase 38c — explicit per-tab captures so visual-diff catches
       // regressions on the Escrow / Payouts / Guarantee Fund /
-      // Reconciliation / BIR Reports / Receipts tabs (the original
+      // Reconciliation / held tax-workpaper / legacy-sales-record tabs (the original
       // "default render" only captured the Overview tab). Only at 1280
       // to keep the baseline set manageable.
       if (width === 1280) {
-        for (const tab of ['Escrow', 'Payouts', 'Guarantee Fund', 'Reconciliation', 'BIR Reports', 'Receipts']) {
+        for (const tab of [
+          'Escrow',
+          'Payouts',
+          'Guarantee Fund',
+          'Reconciliation',
+          'Tax Workpapers (Held)',
+          'Legacy Sales Records',
+        ]) {
           test(`tab: ${tab}`, async ({ page }) => {
             await page.goto(ROUTE);
             // Tabs are role="tab" inside an inline-flex tab strip

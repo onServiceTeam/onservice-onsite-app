@@ -79,13 +79,17 @@ test.describe('CommunicationsPage', () => {
       });
 
       test('loading state', async ({ page }) => {
-        await page.route('**/api/v1/admin/conversations/**', (route) => {
+        await page.route('**/api/v1/admin/conversations/stats', (route) => {
+          void route;
+        });
+        await page.route('**/api/v1/admin/conversations/queue?**', (route) => {
           void route;
         });
         await page.goto(ROUTE);
+        await expect(page.getByText('Loading…')).toBeVisible();
         await expect(page).toHaveScreenshot(`communications-loading-${width}.png`, {
           fullPage: true,
-          maxDiffPixelRatio: 0.01,
+          maxDiffPixelRatio: 0.001,
         });
       });
 
@@ -97,14 +101,18 @@ test.describe('CommunicationsPage', () => {
           fulfill(route, { success: true, messages: [], total: 0 });
         });
         await page.goto(ROUTE);
+        await expect(page.getByText('Queue is clear')).toBeVisible();
         await expect(page).toHaveScreenshot(`communications-empty-${width}.png`, {
           fullPage: true,
-          maxDiffPixelRatio: 0.01,
+          maxDiffPixelRatio: 0.001,
         });
       });
 
       test('error state', async ({ page }) => {
-        await page.route('**/api/v1/admin/conversations/**', (route) => {
+        await page.route('**/api/v1/admin/conversations/stats', (route) => {
+          fulfill(route, { success: true, data: { openFlagged: 0, openReported: 0 } });
+        });
+        await page.route('**/api/v1/admin/conversations/queue?**', (route) => {
           void route.fulfill({
             status: 500,
             contentType: 'application/json',
@@ -112,9 +120,11 @@ test.describe('CommunicationsPage', () => {
           });
         });
         await page.goto(ROUTE);
+        await expect(page.getByRole('alert')).toContainText('Failed to load', { timeout: 15_000 });
+        await expect(page.getByText('Loading…')).toHaveCount(0);
         await expect(page).toHaveScreenshot(`communications-error-${width}.png`, {
           fullPage: true,
-          maxDiffPixelRatio: 0.01,
+          maxDiffPixelRatio: 0.001,
         });
       });
     });

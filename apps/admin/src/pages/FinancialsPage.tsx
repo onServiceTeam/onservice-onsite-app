@@ -329,29 +329,34 @@ function OverviewPanel(): React.ReactElement {
 
       {overviewQ.isError && (
         <div className="mb-4">
-          <ErrorState description={getErrorMessage(overviewQ.error)} />
+          <ErrorState
+            title="Financial overview unavailable"
+            description={`${getErrorMessage(overviewQ.error)} Do not treat missing figures as zero.`}
+          />
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
-        {overviewQ.isLoading
-          ? Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-xl border border-[var(--color-border)] bg-white p-5 animate-pulse">
-                <div className="h-4 bg-slate-200 rounded w-2/3 mb-3" />
-                <div className="h-7 bg-slate-200 rounded w-1/2" />
-              </div>
-            ))
-          : (
-            <>
-              <KpiCard title="GMV" value={formatCurrency(o?.gmv ?? 0)} icon={null} />
-              <KpiCard title="Revenue" value={formatCurrency(o?.revenue ?? 0)} icon={null} />
-              <KpiCard title="Refunds" value={formatCurrency(o?.refunds ?? 0)} icon={null} />
-              <KpiCard title="Net Revenue" value={formatCurrency(o?.netRevenue ?? 0)} icon={null} />
-              <KpiCard title="Bookings Completed" value={String(o?.bookingsCompleted ?? 0)} icon={null} />
-              <KpiCard title="Average Ticket" value={formatCurrency(o?.averageTicket ?? 0)} icon={null} />
-            </>
-          )}
-      </div>
+      {!overviewQ.isError && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+          {overviewQ.isLoading
+            ? Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-[var(--color-border)] bg-white p-5 animate-pulse">
+                  <div className="h-4 bg-slate-200 rounded w-2/3 mb-3" />
+                  <div className="h-7 bg-slate-200 rounded w-1/2" />
+                </div>
+              ))
+            : (
+              <>
+                <KpiCard title="GMV" value={formatCurrency(o?.gmv ?? 0)} icon={null} />
+                <KpiCard title="Revenue" value={formatCurrency(o?.revenue ?? 0)} icon={null} />
+                <KpiCard title="Refunds" value={formatCurrency(o?.refunds ?? 0)} icon={null} />
+                <KpiCard title="Net Revenue" value={formatCurrency(o?.netRevenue ?? 0)} icon={null} />
+                <KpiCard title="Bookings Completed" value={String(o?.bookingsCompleted ?? 0)} icon={null} />
+                <KpiCard title="Average Ticket" value={formatCurrency(o?.averageTicket ?? 0)} icon={null} />
+              </>
+            )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <HorizontalBars

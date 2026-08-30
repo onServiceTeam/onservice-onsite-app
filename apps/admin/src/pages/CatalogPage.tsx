@@ -3,7 +3,7 @@ import React, { useState, Fragment, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
-import { Badge, Label, Input, Textarea, useReasonDialog } from '@/components/ui';
+import { Badge, ErrorState, Label, LoadingState, Input, Textarea, useReasonDialog } from '@/components/ui';
 import { ChevronDown, ChevronRight, Package } from '@/components/icons';
 import { IntakeFieldsManager } from '@/components/IntakeFieldsManager';
 import { useAuthStore } from '@/stores/auth.store';
@@ -85,7 +85,7 @@ export default function CatalogPage(): React.ReactElement {
   // D27 Phase 4b — hourly rate.
   const [hourlyRate, setHourlyRate] = useState('');
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error: catalogError, refetch: refetchCatalog } = useQuery({
     queryKey: ['adminCatalog'],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: Category[] }>('/api/v1/catalog/full');
@@ -402,15 +402,25 @@ export default function CatalogPage(): React.ReactElement {
     : categories;
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin h-8 w-8 border-4 border-[var(--color-secondary)] border-t-transparent rounded-full" />
-      </div>
-    );
+    return <LoadingState label="Loading the service catalog…" className="min-h-72" />;
   }
 
   if (isError) {
-    return <p className="text-sm text-red-600 py-10 text-center">Failed to load catalog. Please try again.</p>;
+    return (
+      <ErrorState
+        title="Service catalog unavailable"
+        description={`${getErrorMessage(catalogError)} Published booking scope and pricing cannot be verified.`}
+        action={
+          <button
+            type="button"
+            onClick={(): void => { void refetchCatalog(); }}
+            className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white"
+          >
+            Retry catalog
+          </button>
+        }
+      />
+    );
   }
 
   return (

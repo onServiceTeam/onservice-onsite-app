@@ -17,9 +17,11 @@ test.describe('ProviderDetailPage', () => {
 
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
+        await expect(page.getByRole('heading', { name: 'Cebu Home Care' })).toBeVisible();
+        await expect(page.getByText('Cebu City, Cebu', { exact: true })).toBeVisible();
         await expect(page).toHaveScreenshot(`provider-detail-default-${width}.png`, {
           fullPage: true,
-          maxDiffPixelRatio: 0.01,
+          maxDiffPixelRatio: 0.001,
         });
       });
 
@@ -40,15 +42,10 @@ test.describe('ProviderDetailPage', () => {
           void route;
         });
         await page.goto(ROUTE);
-        // Operator wires the right test-id selector when the screen's
-        // skeleton mounts. Default to a forgiving locator that should
-        // match the canonical Skeleton component.
-        await expect(page.locator('[data-testid="skeleton"], .skeleton').first()).toBeVisible({
-          timeout: 2000,
-        }).catch(() => {});
+        await expect(page.getByRole('status')).toContainText('Loading provider…');
         await expect(page).toHaveScreenshot(`provider-detail-loading-${width}.png`, {
           fullPage: true,
-          maxDiffPixelRatio: 0.01,
+          maxDiffPixelRatio: 0.001,
         });
       });
 

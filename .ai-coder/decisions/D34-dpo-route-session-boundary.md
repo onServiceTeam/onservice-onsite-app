@@ -1,7 +1,7 @@
 # D34 - DPO route and session boundary
 
-**Date:** 2026-08-31  
-**Status:** APPROVED by Ken's standing instruction to make the recommended decision and continue  
+**Date:** 2026-08-31
+**Status:** APPROVED by Ken's standing instruction to make the recommended decision and continue
 **Resolves:** E34 and E38 when the implementation and behavioral gates below are complete
 
 ## Problem
