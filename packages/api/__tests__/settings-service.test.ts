@@ -74,6 +74,46 @@ beforeEach(() => {
   redisKeysMock.mockResolvedValue([]);
 });
 
+it('Bug UX-797 — every live cancellation refund knob is frozen under the E09 cross-source hold', () => {
+  const keys = [
+    'cancel_refund_over_24h',
+    'cancel_refund_2_to_24h',
+    'cancel_refund_1_to_2h',
+    'cancel_refund_30min_to_1h',
+    'cancel_refund_under_30min',
+    'cancel_refund_provider_arrived',
+    'cancel_refund_customer_noshow',
+  ];
+
+  for (const key of keys) {
+    expect(settingsService.getSettingRuntimeControl(key)).toMatchObject({
+      status: 'held',
+      label: 'Launch hold',
+      editable: false,
+    });
+  }
+});
+
+it('Bug UX-800 — a forged cancellation setting update is rejected before any money control changes', async () => {
+  dbQueryMock.mockResolvedValue({
+    rows: [fakeRow({
+      category: 'cancellation',
+      key: 'cancel_refund_2_to_24h',
+      value: '100',
+      default_value: '100',
+      unit: '%',
+    })],
+  });
+
+  await expect(settingsService.updateSetting(
+    'cancel_refund_2_to_24h',
+    '75',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'Attempt to align the customer wording.',
+  )).rejects.toMatchObject({ statusCode: 409 });
+  expect(dbTransactionMock).not.toHaveBeenCalled();
+});
+
 describe('SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants)', () => {
   // Every value below must match the active setting's migration-seeded
   // default. Stryker mutates each string literal and these assertions kill

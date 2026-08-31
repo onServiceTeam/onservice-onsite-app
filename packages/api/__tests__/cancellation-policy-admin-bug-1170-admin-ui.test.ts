@@ -1,16 +1,7 @@
 // Bug 1170-admin-ui fix verified.
-// Phase 14 Dispatch 02 — admin editor backend.
-//
-// Covers:
-//   - Zod schema rejects gaps, overlaps, sum-to-100 violations,
-//     hours-not-descending, missing top-tier-null, missing bottom-tier
-//     post-scheduled coverage.
-//   - PUT 1-hour edit window enforcement (logic test against the time
-//     comparison the route uses).
-//   - Super-admin permission gating (logic test against rbacMiddleware
-//     wiring on the admin router — a structural assertion).
-//   - Audit logging — assert the route file relies on the audit middleware
-//     pattern present elsewhere (regression guard).
+// Retains executed validation coverage for the dormant versioned-policy
+// payload contract. E09 route and UI behavior is covered by real request and
+// render tests; obsolete source-content assertions were removed.
 
 import {
   createCancellationPolicySchema,
@@ -138,69 +129,5 @@ describe('Bug 1170-admin-ui fix verified — Zod validator', () => {
   it('rejects intro_text shorter than 10 characters', () => {
     const result = createCancellationPolicySchema.safeParse({ ...validInput, intro_text: 'short' });
     expect(result.success).toBe(false);
-  });
-});
-
-describe('Bug 1170-admin-ui fix verified — PUT 1-hour edit window', () => {
-  // The route logic: ageMs = Date.now() - row.created_at.getTime();
-  // if (ageMs > 60 * 60 * 1000) reject.
-  it('accepts edit when policy is 30 minutes old', () => {
-    const createdAt = new Date(Date.now() - 30 * 60 * 1000);
-    const ageMs = Date.now() - createdAt.getTime();
-    expect(ageMs).toBeLessThan(60 * 60 * 1000);
-  });
-
-  it('rejects edit when policy is 61 minutes old', () => {
-    const createdAt = new Date(Date.now() - 61 * 60 * 1000);
-    const ageMs = Date.now() - createdAt.getTime();
-    expect(ageMs).toBeGreaterThan(60 * 60 * 1000);
-  });
-});
-
-describe('Bug 1170-admin-ui fix verified — admin route is super_admin-only', () => {
-  it('admin route file applies rbacMiddleware("super_admin")', async () => {
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const file = fs.readFileSync(
-      path.join(__dirname, '..', 'src/routes/cancellation-policy-admin.routes.ts'),
-      'utf8',
-    );
-    expect(file).toMatch(/rbacMiddleware\(['"]super_admin['"]\)/);
-    expect(file).toMatch(/router\.use\(authMiddleware\)/);
-  });
-
-  it('admin route file applies validation middleware on POST and PUT', async () => {
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const file = fs.readFileSync(
-      path.join(__dirname, '..', 'src/routes/cancellation-policy-admin.routes.ts'),
-      'utf8',
-    );
-    expect(file).toMatch(/validationMiddleware\(createCancellationPolicySchema\)/);
-    expect(file).toMatch(/validationMiddleware\(updateCancellationPolicySchema\)/);
-  });
-
-  it('admin route file busts the policy cache on POST and PUT', async () => {
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const file = fs.readFileSync(
-      path.join(__dirname, '..', 'src/routes/cancellation-policy-admin.routes.ts'),
-      'utf8',
-    );
-    const bustCount = (file.match(/bustActivePolicyCache\(\)/g) ?? []).length;
-    expect(bustCount).toBeGreaterThanOrEqual(2);
-  });
-});
-
-describe('Bug 1170-admin-ui fix verified — server.ts wires the routes', () => {
-  it('mounts admin router under /api/v1/admin/cancellation-policies', async () => {
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const file = fs.readFileSync(
-      path.join(__dirname, '..', 'src/server.ts'),
-      'utf8',
-    );
-    expect(file).toMatch(/\/api\/v1\/admin\/cancellation-policies['"],?\s*cancellationPolicyAdminRoutes/);
-    expect(file).toMatch(/\/api\/v1\/settings['"],?\s*cancellationPolicyPublicRoutes/);
   });
 });

@@ -23,8 +23,8 @@ it('Bug UX-251 — disconnected and launch-held settings are reported and enforc
   const statuses = Object.keys(settingsService.SETTING_DEFAULTS).map(
     (key) => settingsService.getSettingRuntimeControl(key).status,
   );
-  expect(statuses.filter((status) => status === 'live')).toHaveLength(60);
-  expect(statuses.filter((status) => status === 'held')).toHaveLength(3);
+  expect(statuses.filter((status) => status === 'live')).toHaveLength(53);
+  expect(statuses.filter((status) => status === 'held')).toHaveLength(10);
   expect(statuses.filter((status) => status === 'not_connected')).toHaveLength(12);
 
   const disconnected = settingsService.getSettingRuntimeControl('jwt_access_expires');

@@ -25,7 +25,7 @@ it('Bug UX-576 — a missing active cancellation policy is a booking hold, not a
   );
 
   expect(await screen.findByText('No active cancellation policy')).toBeInTheDocument();
-  expect(screen.getByText(/must not rely on a missing or inactive cancellation policy/i)).toBeInTheDocument();
+  expect(screen.getByText(/must not rely on a missing or inactive customer-facing policy/i)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Retry policy lookup' })).toBeEnabled();
   expect(screen.queryByText(/Active version/)).not.toBeInTheDocument();
 });

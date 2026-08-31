@@ -424,9 +424,11 @@ How to change a setting (super_admin): find it by category, confirm the **Live c
 
 ### 2.28 Cancellation Policy (`/settings/cancellation-policy`)
 
-Super_admin only. Edits the customer-facing cancellation policy (refund tiers, intro text, legal disclaimer, provider-no-show credit), with versioning. The mobile app's Help screen and Terms read this live.
+Admin and super_admin can read this comparison workspace. It shows System A, the seven Settings percentages consumed by the live escrow cancellation path, beside System B, the versioned customer-facing table read by mobile Help and Terms. It also keeps the customer-facing version history visible for case research.
 
-Honest caveat to flag in support: this displayed policy is NOT the same set of numbers that actually moves the refund money. The live refund math runs off the `cancel_refund_*` knobs in Settings, and the brackets differ from what this page shows. Until the two systems are reconciled (a known open issue), quote the live refund money-path numbers to customers, not the policy page. If a customer quotes the policy page back at you and the refund does not match, do not argue, escalate it. See `09-trust-safety-and-disputes.md` and `13-policies-codes-and-templates.md`.
+E09 is an active money-policy hold because the systems disagree. Both mutation surfaces are now read-only, including for super_admin: versioned-policy POST/PUT requests return 409 and all seven `cancel_refund_*` rows show **Launch hold** in Settings. This containment prevents an operator from widening the mismatch; it does not choose the final policy or change any current refund.
+
+For support, verify the booking's payment, timing, arrival/no-show evidence, and server-calculated outcome. Quote that case-specific outcome, never infer the refund from System B. If a customer quotes Help or Terms and the outcome differs, record the discrepancy and escalate it. Do not improvise a percentage or promise a gateway refund before the gateway confirms it. See `09-trust-safety-and-disputes.md` and `13-policies-codes-and-templates.md`.
 
 ### 2.29 Change Password (`/change-password`) and 404
 

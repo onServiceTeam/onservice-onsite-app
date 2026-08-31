@@ -247,6 +247,13 @@ const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   'feature_flag.promo_redemption_enabled': 'Promo redemption is deferred until its complete customer and settlement pipeline is launched.',
   'feature_flag.ab_testing_enabled': 'A/B assignment is deferred until exposure assignment and reporting are launched.',
   recurring_auto_charge_max_consecutive_failures: 'Recurring bookings remain manual-payment-only while escalation E20 is open.',
+  cancel_refund_over_24h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
+  cancel_refund_2_to_24h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
+  cancel_refund_1_to_2h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
+  cancel_refund_30min_to_1h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
+  cancel_refund_under_30min: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
+  cancel_refund_provider_arrived: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
+  cancel_refund_customer_noshow: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
 };
 
 const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {

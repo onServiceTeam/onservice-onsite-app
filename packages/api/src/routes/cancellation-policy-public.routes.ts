@@ -5,9 +5,8 @@
 //
 // Public read endpoint mounted at /api/v1/settings/cancellation-policy.
 // No authentication required — the policy is shown on customer terms +
-// help screens before login. Cached aggressively in the service layer
-// (5-min Redis TTL); admin save handlers bust the cache so a tuning
-// change is visible within seconds.
+// help screens before login. This is the customer-display source, not the
+// live escrow refund source while E09 remains open. Cached for 5 minutes.
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { getActivePolicy } from '../services/pricing/cancellation.service';

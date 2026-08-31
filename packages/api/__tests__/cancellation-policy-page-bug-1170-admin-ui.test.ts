@@ -1,14 +1,5 @@
-// Bug 1170-admin-ui fix verified.
-// Phase 14 Dispatch 02 — admin editor client-side validation + page wiring.
-//
-// Tests the validation library in apps/admin/src/lib/ that the page imports,
-// plus structural assertions on the page itself (uses the api fetch wrapper,
-// guards super_admin, mounts the route in App.tsx).
-//
-// Full @testing-library/react rendering of the page is deferred — the page
-// uses Vite-only @/ aliases that ts-jest doesn't resolve cleanly without
-// a separate config. The validation logic is what catches user mistakes
-// before submit; that is exercised in full here.
+// Executed behavior coverage for the dormant client-side tier helpers.
+// The current E09 page is covered by the admin Vitest render suite.
 
 import {
   validateTiers,
@@ -102,7 +93,6 @@ describe('Bug 1170-admin-ui fix verified — validateTiers (admin UI surfacing)'
     expect(out.summary).toMatch(/At least one tier/);
   });
 });
-
 describe('Bug 1170-admin-ui fix verified — findTier + previewOutcome (preview pane math)', () => {
   it('preview at 20h on a ₱1000 booking returns 4-24 tier with ₱750 refund', () => {
     const out = previewOutcome(20, 100000, VALID_TIERS);
@@ -130,52 +120,5 @@ describe('Bug 1170-admin-ui fix verified — findTier + previewOutcome (preview 
     // hoursBefore = -100 (i.e., 100h after scheduled): falls in the bottom tier
     // because the sentinel min_hours_before = -999 covers post-scheduled values.
     expect(findTier(-100, VALID_TIERS)).toEqual(VALID_TIERS[3]);
-  });
-});
-
-describe('Bug 1170-admin-ui fix verified — page module structural assertions', () => {
-  it('CancellationPolicyPage uses the lib + the existing api fetch wrapper + super_admin guard', async () => {
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const file = fs.readFileSync(
-      path.join(__dirname, '../../../apps/admin/src/pages/settings/CancellationPolicyPage.tsx'),
-      'utf8',
-    );
-    // Imports the shared validation lib — UI math matches server math.
-    expect(file).toMatch(/from '@\/lib\/cancellation-policy-validation'/);
-    // Uses the existing api fetch wrapper from PR #7 (Bug 1271) — no axios.
-    expect(file).toMatch(/from '@\/lib\/api'/);
-    expect(file).not.toMatch(/import\s+axios/);
-    // Super-admin guard.
-    expect(file).toMatch(/role !== ['"]super_admin['"]/);
-    // POST/PUT against the admin endpoints.
-    expect(file).toMatch(/\/api\/v1\/admin\/cancellation-policies/);
-    // Save button gate on validation.ok.
-    expect(file).toMatch(/disabled=\{[^}]*!validation\.ok/);
-    // Preview pane.
-    expect(file).toMatch(/SAMPLE_BOOKING_PHP/);
-  });
-
-  it('shared admin navigation hides the link from non-super-admin', async () => {
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const file = fs.readFileSync(
-      path.join(__dirname, '../../../apps/admin/src/config/admin-navigation.ts'),
-      'utf8',
-    );
-    expect(file).toMatch(/roles: \[['"]super_admin['"]\]/);
-    expect(file).toMatch(/item\.roles\.includes\(role\)/);
-    expect(file).toMatch(/\/settings\/cancellation-policy/);
-  });
-
-  it('App.tsx mounts the route', async () => {
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const file = fs.readFileSync(
-      path.join(__dirname, '../../../apps/admin/src/App.tsx'),
-      'utf8',
-    );
-    expect(file).toMatch(/path="\/settings\/cancellation-policy"/);
-    expect(file).toMatch(/CancellationPolicyPage/);
   });
 });

@@ -11,14 +11,16 @@ import { test, expect, waitForVisualSettled } from './_fixtures';
 const ROUTE = '/settings/cancellation-policy';
 
 test.describe('CancellationPolicyPage', () => {
-  for (const width of [1280, 1440, 1920]) {
+  for (const width of [820, 1024, 1280, 1440, 1920]) {
     test.describe(`@${width}`, () => {
       test.use({ viewport: { width, height: 800 } });
 
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
         await waitForVisualSettled(page);
-        await expect(page.getByText('Active version (v3)')).toBeVisible();
+        await expect(page.getByText('E09 money-policy mismatch: changes are frozen')).toBeVisible();
+        await expect(page.getByText('System A: actual refund engine')).toBeVisible();
+        await expect(page.getByText('System B: customer-displayed policy v3')).toBeVisible();
         await expect(page.getByText('24 hours or more')).toBeVisible();
         await expect(page).toHaveScreenshot(`cancellation-policy-default-${width}.png`, {
           fullPage: true,

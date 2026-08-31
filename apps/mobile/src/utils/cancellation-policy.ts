@@ -3,9 +3,8 @@
 // Bug 1170 / 1198 fix verified.
 // Phase 14 Dispatch 02 — mobile fetches the cancellation policy from the
 // public server endpoint instead of hardcoding tier values.
-// Render-side helpers used by terms.tsx and help.tsx so both surfaces show
-// the SAME text (the four-place drift Bug 1170 was filed for is now
-// structurally impossible).
+// Render-side helpers keep Terms and Help on the same customer-facing text.
+// E09 records that this display source does not yet control live refund math.
 
 import api from '@/services/api';
 
