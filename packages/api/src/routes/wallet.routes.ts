@@ -167,7 +167,7 @@ router.get(
 
       res.json({
         success: true,
-        data: payouts.map(payoutService.formatPayout),
+        data: payouts.map((payout) => payoutService.formatPayout(payout)),
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
       });
     } catch (error) {

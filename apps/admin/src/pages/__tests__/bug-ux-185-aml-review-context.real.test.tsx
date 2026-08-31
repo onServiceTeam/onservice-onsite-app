@@ -39,7 +39,7 @@ it('BUG-UX-185 — AML review shows the captured threshold and does not imply a 
   );
 
   expect(await screen.findByText(/Internal review hold at ₱500,000.00/)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: /clear compliance review for payout payout-aml-1/i }));
+  fireEvent.click(screen.getByRole('button', { name: /clear internal review hold for payout payout-aml-1/i }));
   expect(screen.getByText(/does not state that a legal report was filed or required/i)).toBeTruthy();
   expect(screen.getByText(/Threshold captured when requested: ₱500,000.00/)).toBeTruthy();
 });

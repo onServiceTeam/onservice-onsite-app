@@ -1359,8 +1359,14 @@ describe('financial-admin.service.getPayoutsSummary', () => {
     dbQueryMock.mockResolvedValueOnce(rows([{ exists: null }]));
     const out = await financialAdminService.getPayoutsSummary();
     expect(out).toEqual({
+      available: false,
+      message: 'Payout reporting is unavailable because the payouts table is missing.',
       pendingCount: 0,
       pendingTotalCentavos: 0,
+      internalReviewCount: 0,
+      awaitingApprovalCount: 0,
+      approvedAwaitingTransferCount: 0,
+      processingCount: 0,
       todayCompletedCount: 0,
       todayCompletedCentavos: 0,
       failedCount: 0,

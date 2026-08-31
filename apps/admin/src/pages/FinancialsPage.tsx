@@ -21,6 +21,7 @@ import {
   KpiCard,
   Label,
   LoadingState,
+  Pagination,
   Textarea,
 } from '@/components/ui';
 
@@ -31,6 +32,7 @@ import {
 type TabKey =
   | 'overview'
   | 'escrow'
+  | 'payments'
   | 'payouts'
   | 'guarantee'
   | 'reconciliation'
@@ -45,6 +47,7 @@ interface ApiEnvelope<T> {
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'escrow', label: 'Escrow' },
+  { key: 'payments', label: 'Payments & Refunds' },
   { key: 'payouts', label: 'Payouts' },
   { key: 'guarantee', label: 'Guarantee Fund' },
   { key: 'reconciliation', label: 'Reconciliation' },
@@ -129,12 +132,14 @@ function HorizontalBars({
   loading,
   error,
   emptyText,
+  onRetry,
 }: {
   title: string;
   rows: BreakdownRow[];
   loading: boolean;
   error: unknown;
   emptyText: string;
+  onRetry: () => void;
 }): React.ReactElement {
   const max = Math.max(1, ...rows.map((r) => r.revenue));
   return (
@@ -143,7 +148,12 @@ function HorizontalBars({
       {loading ? (
         <div className="text-sm text-[var(--color-text-secondary)] py-6 text-center">Loading…</div>
       ) : error ? (
-        <div className="text-sm text-red-600 py-6 text-center">{getErrorMessage(error)}</div>
+        <div className="py-6 text-center">
+          <p className="text-sm text-red-600">{getErrorMessage(error)}</p>
+          <Button variant="outline" size="sm" className="mt-3 min-h-11" onClick={onRetry}>
+            Retry
+          </Button>
+        </div>
       ) : rows.length === 0 ? (
         <div className="text-sm text-[var(--color-text-secondary)] py-6 text-center">{emptyText}</div>
       ) : (
@@ -235,6 +245,11 @@ function normalizeBreakdown(items: BreakdownItem[] | undefined, key: keyof Break
 function OverviewPanel(): React.ReactElement {
   const [from, setFrom] = useState(daysAgoIso(30));
   const [to, setTo] = useState(todayIso());
+  const dateError = !from || !to
+    ? 'Choose both a start and end date.'
+    : from > to
+      ? 'Start date cannot be after end date.'
+      : '';
 
   const overviewQ = useQuery({
     queryKey: ['fin-overview', from, to],
@@ -245,6 +260,7 @@ function OverviewPanel(): React.ReactElement {
       );
       return normalizeOverview(res.data.data);
     },
+    enabled: dateError === '',
   });
 
   const byCategoryQ = useQuery({
@@ -256,6 +272,7 @@ function OverviewPanel(): React.ReactElement {
       );
       return res.data.data;
     },
+    enabled: dateError === '',
   });
 
   const byCityQ = useQuery({
@@ -267,6 +284,7 @@ function OverviewPanel(): React.ReactElement {
       );
       return res.data.data;
     },
+    enabled: dateError === '',
   });
 
   const byTierQ = useQuery({
@@ -278,6 +296,7 @@ function OverviewPanel(): React.ReactElement {
       );
       return res.data.data;
     },
+    enabled: dateError === '',
   });
 
   // MED-N11 / PROGRESS.md follow-up — by-payment endpoint returns a
@@ -297,6 +316,7 @@ function OverviewPanel(): React.ReactElement {
       );
       return res.data.data;
     },
+    enabled: dateError === '',
   });
 
   const o = overviewQ.data;
@@ -312,7 +332,7 @@ function OverviewPanel(): React.ReactElement {
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="mt-1 w-40"
+            className="mt-1 min-h-11 w-40"
           />
         </div>
         <div>
@@ -322,16 +342,19 @@ function OverviewPanel(): React.ReactElement {
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="mt-1 w-40"
+            className="mt-1 min-h-11 w-40"
           />
         </div>
       </div>
+
+      {dateError && <p role="alert" className="mb-4 text-sm text-red-600">{dateError}</p>}
 
       {overviewQ.isError && (
         <div className="mb-4">
           <ErrorState
             title="Financial overview unavailable"
             description={`${getErrorMessage(overviewQ.error)} Do not treat missing figures as zero.`}
+            action={<Button variant="outline" className="min-h-11" onClick={() => { void overviewQ.refetch(); }}>Retry overview</Button>}
           />
         </div>
       )}
@@ -365,6 +388,7 @@ function OverviewPanel(): React.ReactElement {
           loading={byCategoryQ.isLoading}
           error={byCategoryQ.isError ? byCategoryQ.error : null}
           emptyText="No category revenue in this range."
+          onRetry={() => { void byCategoryQ.refetch(); }}
         />
         <HorizontalBars
           title="Revenue by City (Top 10)"
@@ -372,6 +396,7 @@ function OverviewPanel(): React.ReactElement {
           loading={byCityQ.isLoading}
           error={byCityQ.isError ? byCityQ.error : null}
           emptyText="No city revenue in this range."
+          onRetry={() => { void byCityQ.refetch(); }}
         />
         <HorizontalBars
           title="Revenue by Tier"
@@ -379,6 +404,7 @@ function OverviewPanel(): React.ReactElement {
           loading={byTierQ.isLoading}
           error={byTierQ.isError ? byTierQ.error : null}
           emptyText="No tier revenue in this range."
+          onRetry={() => { void byTierQ.refetch(); }}
         />
         <div>
           {byPaymentQ.data?.degraded && byPaymentQ.data.message && (
@@ -400,6 +426,7 @@ function OverviewPanel(): React.ReactElement {
                 ? 'Payment-method tracking unavailable.'
                 : 'No payment-method revenue in this range.'
             }
+            onRetry={() => { void byPaymentQ.refetch(); }}
           />
         </div>
       </div>
@@ -430,6 +457,7 @@ interface EscrowPending {
 interface EscrowData {
   totalInEscrow: number;
   totalInEscrowCentavos?: number;
+  pendingReleaseCount: number;
   aging: EscrowAging[];
   agingBuckets?: EscrowAging[];
   pendingReleaseList: EscrowPending[];
@@ -438,6 +466,7 @@ interface EscrowData {
 interface ApiEscrowData {
   totalInEscrow?: number;
   totalInEscrowCentavos?: number;
+  pendingReleaseCount?: number;
   aging?: EscrowAging[];
   agingBuckets?: EscrowAging[];
   pendingReleaseList?: EscrowPending[];
@@ -446,6 +475,7 @@ interface ApiEscrowData {
 function normalizeEscrow(data: ApiEscrowData): EscrowData {
   return {
     totalInEscrow: Number(data.totalInEscrow ?? data.totalInEscrowCentavos ?? 0),
+    pendingReleaseCount: Number(data.pendingReleaseCount ?? data.pendingReleaseList?.length ?? 0),
     aging: (data.aging ?? data.agingBuckets ?? []).map((row) => ({
       bucket: row.bucket,
       count: Number(row.count ?? 0),
@@ -468,25 +498,38 @@ const AGING_BUCKETS: { key: string; label: string }[] = [
   { key: '168h+', label: '168h+' },
 ];
 
-function EscrowPanel(): React.ReactElement {
+export function EscrowPanel(): React.ReactElement {
+  const pageSize = 50;
+  const [page, setPage] = useState(1);
   const q = useQuery({
-    queryKey: ['fin-escrow'],
+    queryKey: ['fin-escrow', page],
     queryFn: async () => {
-      const res = await api.get<ApiEnvelope<ApiEscrowData>>('/api/v1/admin/financials/escrow');
+      const res = await api.get<ApiEnvelope<ApiEscrowData>>('/api/v1/admin/financials/escrow', {
+        params: { limit: pageSize, offset: (page - 1) * pageSize },
+      });
       return normalizeEscrow(res.data.data);
     },
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) return (
+    <ErrorState
+      title="Escrow summary unavailable"
+      description={`${getErrorMessage(q.error)} Do not infer that held funds or pending releases are zero.`}
+      action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry escrow</Button>}
+    />
+  );
   const data = q.data;
   if (!data) return <EmptyState title="No escrow data" description="Nothing to display." />;
 
   const agingByKey = new Map(data.aging.map((a) => [a.bucket, a]));
+  const totalPages = Math.ceil(data.pendingReleaseCount / pageSize);
+  const pageStart = data.pendingReleaseCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const pageEnd = Math.min(page * pageSize, data.pendingReleaseCount);
 
   return (
     <div>
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <KpiCard title="Total in Escrow" value={formatCurrency(data.totalInEscrow)} icon={null} />
         {AGING_BUCKETS.map((b) => {
           const row = agingByKey.get(b.key);
@@ -506,7 +549,14 @@ function EscrowPanel(): React.ReactElement {
       </div>
 
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-5">
-        <h2 className="text-base font-semibold text-[var(--color-text)] mb-4">Pending Release</h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-[var(--color-text)]">Pending Releases</h2>
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            {data.pendingReleaseCount === 0
+              ? '0 pending releases'
+              : `Showing ${pageStart}–${pageEnd} of ${data.pendingReleaseCount}`}
+          </p>
+        </div>
         {data.pendingReleaseList.length === 0 ? (
           <EmptyState title="No pending releases" />
         ) : (
@@ -550,13 +600,215 @@ function EscrowPanel(): React.ReactElement {
             </table>
           </div>
         )}
+        {totalPages > 1 && (
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={data.pendingReleaseCount}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
+        )}
       </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tab 3: Payouts
+// Tab 3: Payments and refunds
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PaymentOperationsData {
+  paymentIntentsAvailable: boolean;
+  gatewayRetriesAvailable: boolean;
+  totalAttempts: number;
+  awaitingPaymentCount: number;
+  processingCount: number;
+  succeededCount: number;
+  failedCount: number;
+  refundedCount: number;
+  partiallyRefundedCount: number;
+  pendingGatewayRetries: number;
+  inProgressGatewayRetries: number;
+  permanentGatewayFailures: number;
+  recentIntents: Array<{
+    id: string;
+    bookingId: string | null;
+    topupId: string | null;
+    customerName: string | null;
+    amountCentavos: number;
+    refundedAmountCentavos: number;
+    paymentMethod: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  gatewayRetries: Array<{
+    id: string;
+    bookingId: string;
+    disputeId: string | null;
+    actionType: string;
+    amountCentavos: number | null;
+    status: string;
+    attempts: number;
+    maxAttempts: number;
+    nextRetryAt: string;
+    lastAttemptedAt: string | null;
+    lastError: string | null;
+  }>;
+}
+
+function paymentStatusVariant(status: string): 'success' | 'warning' | 'danger' | 'info' | 'default' {
+  if (status === 'succeeded' || status === 'refunded') return 'success';
+  if (status === 'failed' || status === 'failed_permanent') return 'danger';
+  if (status === 'processing' || status === 'in_progress') return 'info';
+  if (status === 'pending' || status === 'awaiting_payment' || status === 'partially_refunded') return 'warning';
+  return 'default';
+}
+
+function PaymentsPanel(): React.ReactElement {
+  const retryPageSize = 25;
+  const [retryPage, setRetryPage] = useState(1);
+  const q = useQuery({
+    queryKey: ['fin-payments', retryPage],
+    queryFn: async () => {
+      const res = await api.get<ApiEnvelope<PaymentOperationsData>>('/api/v1/admin/financials/payments', {
+        params: { retryLimit: retryPageSize, retryOffset: (retryPage - 1) * retryPageSize },
+      });
+      return res.data.data;
+    },
+  });
+
+  if (q.isLoading) return <LoadingState />;
+  if (q.isError) return (
+    <ErrorState
+      title="Payment operations unavailable"
+      description={`${getErrorMessage(q.error)} Payment and refund backlogs cannot be assessed.`}
+      action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry payments</Button>}
+    />
+  );
+  const data = q.data;
+  if (!data) return <EmptyState title="No payment operations data" />;
+  const totalGatewayRetries = data.pendingGatewayRetries
+    + data.inProgressGatewayRetries
+    + data.permanentGatewayFailures;
+  const retryTotalPages = Math.ceil(totalGatewayRetries / retryPageSize);
+  const retryPageStart = totalGatewayRetries === 0 ? 0 : (retryPage - 1) * retryPageSize + 1;
+  const retryPageEnd = Math.min(retryPage * retryPageSize, totalGatewayRetries);
+
+  return (
+    <div className="space-y-6">
+      <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+        <p className="font-semibold">External checkout remains on launch hold (E14).</p>
+        <p className="mt-1">
+          Payment intent records show internal attempt state. An awaiting-payment row or redirect is not proof that customer money was collected. A refund retry is incomplete until its recorded gateway action succeeds.
+        </p>
+      </div>
+
+      {!data.paymentIntentsAvailable && (
+        <ErrorState title="Payment intent reporting unavailable" description="The payment-intents source is missing. Counts below are not available." />
+      )}
+      {data.paymentIntentsAvailable && (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            <KpiCard title="All Attempts" value={String(data.totalAttempts)} icon={null} />
+            <KpiCard title="Awaiting Customer" value={String(data.awaitingPaymentCount)} icon={null} />
+            <KpiCard title="Processing" value={String(data.processingCount)} icon={null} />
+            <KpiCard title="Succeeded" value={String(data.succeededCount)} icon={null} />
+            <KpiCard title="Failed" value={String(data.failedCount)} icon={null} />
+            <KpiCard title="Refunded" value={String(data.refundedCount)} icon={null} />
+            <KpiCard title="Partially Refunded" value={String(data.partiallyRefundedCount)} icon={null} />
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-[var(--color-border)] bg-white p-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-[var(--color-text)]">Latest 50 Payment Attempts</h2>
+              <span className="text-xs text-[var(--color-text-secondary)]">Most recently updated first</span>
+            </div>
+            {data.recentIntents.length === 0 ? <EmptyState title="No payment attempts recorded" /> : (
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-[var(--color-border)]">
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Work / Customer</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium uppercase text-[var(--color-text-secondary)]">Amount</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium uppercase text-[var(--color-text-secondary)]">Refunded</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Method</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Status</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Updated</th>
+                </tr></thead>
+                <tbody>{data.recentIntents.map((row) => (
+                  <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
+                    <td className="px-3 py-2">
+                      {row.bookingId ? <Link className="font-medium text-[var(--color-primary)] hover:underline" to={`/bookings/${row.bookingId}`}>Booking {row.bookingId.slice(0, 8)}</Link> : <span className="font-medium">Wallet top-up</span>}
+                      <p className="text-xs text-[var(--color-text-secondary)]">{row.customerName ?? (row.topupId ? 'Customer not linked in this record' : 'Unlinked attempt')}</p>
+                    </td>
+                    <td className="px-3 py-2 text-right font-medium">{formatCurrency(row.amountCentavos)}</td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(row.refundedAmountCentavos)}</td>
+                    <td className="px-3 py-2 uppercase">{row.paymentMethod.replace(/_/g, ' ')}</td>
+                    <td className="px-3 py-2"><Badge label={row.status.replace(/_/g, ' ')} variant={paymentStatusVariant(row.status)} /></td>
+                    <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">{formatDateTime(row.updatedAt)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
+
+      <div className="rounded-xl border border-[var(--color-border)] bg-white p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-[var(--color-text)]">Refund and Release Retry Queue</h2>
+          {data.gatewayRetriesAvailable && (
+            <span className="text-xs text-[var(--color-text-secondary)]">
+              {data.pendingGatewayRetries} pending · {data.inProgressGatewayRetries} running · {data.permanentGatewayFailures} permanent
+              {totalGatewayRetries > 0 && ` · Showing ${retryPageStart}–${retryPageEnd} of ${totalGatewayRetries}`}
+            </span>
+          )}
+        </div>
+        {!data.gatewayRetriesAvailable ? (
+          <ErrorState title="Gateway retry reporting unavailable" description="The gateway retry source is missing. Do not assume that the backlog is empty." />
+        ) : data.gatewayRetries.length === 0 ? (
+          <EmptyState title="No active or permanently failed gateway retries" />
+        ) : (
+          <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead><tr className="border-b border-[var(--color-border)]">
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Booking</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Action</th>
+              <th className="px-3 py-2 text-right text-xs font-medium uppercase text-[var(--color-text-secondary)]">Amount</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Status</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Attempts</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Next / Error</th>
+            </tr></thead>
+            <tbody>{data.gatewayRetries.map((row) => (
+              <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
+                <td className="px-3 py-2"><Link className="text-[var(--color-primary)] hover:underline" to={`/bookings/${row.bookingId}`}>{row.bookingId.slice(0, 8)}</Link></td>
+                <td className="px-3 py-2">{row.actionType.replace(/_/g, ' ')}</td>
+                <td className="px-3 py-2 text-right">{row.amountCentavos == null ? '—' : formatCurrency(row.amountCentavos)}</td>
+                <td className="px-3 py-2"><Badge label={row.status.replace(/_/g, ' ')} variant={paymentStatusVariant(row.status)} /></td>
+                <td className="px-3 py-2">{row.attempts} / {row.maxAttempts}</td>
+                <td className="max-w-[320px] px-3 py-2 text-xs">
+                  <p className="text-[var(--color-text-secondary)]">{row.status === 'failed_permanent' ? 'Manual investigation required' : `Next ${formatDateTime(row.nextRetryAt)}`}</p>
+                  {row.lastError && <p className="mt-1 line-clamp-2 text-red-700" title={row.lastError}>{row.lastError}</p>}
+                </td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        )}
+        {data.gatewayRetriesAvailable && retryTotalPages > 1 && (
+          <Pagination
+            page={retryPage}
+            pageSize={retryPageSize}
+            total={totalGatewayRetries}
+            totalPages={retryTotalPages}
+            onPageChange={setRetryPage}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab 4: Payouts
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface PayoutFailed {
@@ -569,9 +821,15 @@ interface PayoutFailed {
 }
 
 interface PayoutsData {
+  available: boolean;
+  message: string | null;
   pendingCount: number;
   pendingTotal: number;
   pendingTotalCentavos?: number;
+  internalReviewCount: number;
+  awaitingApprovalCount: number;
+  approvedAwaitingTransferCount: number;
+  processingCount: number;
   todayCompletedCount: number;
   todayCompletedTotal: number;
   todayCompletedCentavos?: number;
@@ -581,8 +839,14 @@ interface PayoutsData {
 
 function normalizePayouts(data: PayoutsData): PayoutsData {
   return {
+    available: data.available !== false,
+    message: data.message ?? null,
     pendingCount: Number(data.pendingCount ?? 0),
     pendingTotal: Number(data.pendingTotal ?? data.pendingTotalCentavos ?? 0),
+    internalReviewCount: Number(data.internalReviewCount ?? 0),
+    awaitingApprovalCount: Number(data.awaitingApprovalCount ?? 0),
+    approvedAwaitingTransferCount: Number(data.approvedAwaitingTransferCount ?? 0),
+    processingCount: Number(data.processingCount ?? 0),
     todayCompletedCount: Number(data.todayCompletedCount ?? 0),
     todayCompletedTotal: Number(data.todayCompletedTotal ?? data.todayCompletedCentavos ?? 0),
     failedCount: Number(data.failedCount ?? 0),
@@ -606,9 +870,16 @@ export function PayoutsPanel(): React.ReactElement {
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) return (
+    <ErrorState
+      title="Payout summary unavailable"
+      description={`${getErrorMessage(q.error)} Do not infer that the provider withdrawal queue is empty.`}
+      action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry payout summary</Button>}
+    />
+  );
   const d = q.data;
   if (!d) return <EmptyState title="No payouts data" />;
+  if (!d.available) return <ErrorState title="Payout reporting unavailable" description={d.message ?? 'The payout source is unavailable.'} />;
 
   return (
     <div>
@@ -620,12 +891,19 @@ export function PayoutsPanel(): React.ReactElement {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
-        <KpiCard title="Pending (count)" value={String(d.pendingCount)} icon={null} />
-        <KpiCard title="Pending (total)" value={formatCurrency(d.pendingTotal)} icon={null} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4 mb-6">
+        <KpiCard title="Open Requests" value={String(d.pendingCount)} icon={null} />
+        <KpiCard title="Open Total" value={formatCurrency(d.pendingTotal)} icon={null} />
+        <KpiCard title="Internal Review" value={String(d.internalReviewCount)} icon={null} />
+        <KpiCard title="Awaiting Approval" value={String(d.awaitingApprovalCount)} icon={null} />
+        <KpiCard title="Approved / Send" value={String(d.approvedAwaitingTransferCount)} icon={null} />
+        <KpiCard title="Legacy Processing" value={String(d.processingCount)} icon={null} />
         <KpiCard title="Today Completed (count)" value={String(d.todayCompletedCount)} icon={null} />
-        <KpiCard title="Today Completed (total)" value={formatCurrency(d.todayCompletedTotal)} icon={null} />
-        <KpiCard title="Failed" value={String(d.failedCount)} icon={null} />
+      </div>
+      <div className="mb-6 flex flex-wrap gap-3 text-sm">
+        <span className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900">Sent today: {formatCurrency(d.todayCompletedTotal)}</span>
+        <span className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-800">Failed backlog: {d.failedCount}</span>
+        <Link to="/payouts" className="min-h-11 rounded-md bg-[var(--color-primary)] px-4 py-3 font-medium text-white hover:opacity-90">Open Payout Management</Link>
       </div>
 
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-5">
@@ -714,7 +992,13 @@ function GuaranteeFundPanel(): React.ReactElement {
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) return (
+    <ErrorState
+      title="Guarantee-fund summary unavailable"
+      description={`${getErrorMessage(q.error)} Do not infer a balance or runway from missing data.`}
+      action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry guarantee fund</Button>}
+    />
+  );
   const d = q.data;
   if (!d) return <EmptyState title="No guarantee-fund data" />;
 
@@ -753,7 +1037,7 @@ function GuaranteeFundPanel(): React.ReactElement {
 interface ReconciliationRow {
   id: string;
   snapshotDate: string;
-  paymongoBalance: number;
+  paymongoBalance: number | null;
   paymongoBalanceCentavos?: number | null;
   expectedTotal: number;
   expectedTotalCentavos?: number;
@@ -767,11 +1051,21 @@ function normalizeReconciliationRow(row: ReconciliationRow): ReconciliationRow {
   return {
     id: row.id,
     snapshotDate: row.snapshotDate,
-    paymongoBalance: Number(row.paymongoBalance ?? row.paymongoBalanceCentavos ?? 0),
+    paymongoBalance: row.paymongoBalance == null && row.paymongoBalanceCentavos == null
+      ? null
+      : Number(row.paymongoBalance ?? row.paymongoBalanceCentavos),
     expectedTotal: Number(row.expectedTotal ?? row.expectedTotalCentavos ?? 0),
     discrepancy: Number(row.discrepancy ?? row.discrepancyCentavos ?? 0),
     alertSent: Boolean(row.alertSent ?? row.discrepancyAlertSent ?? false),
   };
+}
+
+function phpInputToCentavos(raw: string): number | null {
+  const value = raw.trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return null;
+  const [pesoPart = '0', decimalPart = ''] = value.split('.');
+  const centavos = Number(pesoPart) * 100 + Number(decimalPart.padEnd(2, '0'));
+  return Number.isSafeInteger(centavos) ? centavos : null;
 }
 
 function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactElement {
@@ -834,15 +1128,17 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
   });
 
   const submitRun = (): void => {
-    const payload: { paymongoBalance?: number; notes?: string } = {};
-    if (runBalance.trim() !== '') {
-      const n = Number(runBalance);
-      if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
-        toast.warning('PayMongo balance must be a non-negative integer in centavos.');
-        return;
-      }
-      payload.paymongoBalance = n;
+    const payload: { paymongoBalance: number; notes?: string } = { paymongoBalance: 0 };
+    if (runBalance.trim() === '') {
+      toast.warning('Enter the verified PayMongo balance before running reconciliation.');
+      return;
     }
+    const n = phpInputToCentavos(runBalance);
+    if (n === null) {
+      toast.warning('PayMongo balance must be a non-negative PHP amount with no more than two decimal places.');
+      return;
+    }
+    payload.paymongoBalance = n;
     if (runNotes.trim() !== '') payload.notes = runNotes.trim();
     if (!window.confirm('Run a new reconciliation snapshot now?')) return;
     runMut.mutate(payload);
@@ -871,7 +1167,11 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       {q.isLoading ? (
         <LoadingState />
       ) : q.isError ? (
-        <ErrorState description={getErrorMessage(q.error)} />
+        <ErrorState
+          title="Reconciliation history unavailable"
+          description={`${getErrorMessage(q.error)} Do not infer that discrepancies are clear.`}
+          action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry reconciliation</Button>}
+        />
       ) : !q.data || q.data.length === 0 ? (
         <EmptyState title="No reconciliation snapshots yet" />
       ) : (
@@ -891,13 +1191,15 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
               {q.data.map((row) => (
                 <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
                   <td className="py-2 px-3 text-[var(--color-text)]">{formatDate(row.snapshotDate)}</td>
-                  <td className="py-2 px-3 text-right font-medium">{formatCurrency(row.paymongoBalance)}</td>
+                  <td className="py-2 px-3 text-right font-medium">{row.paymongoBalance == null ? 'Not supplied' : formatCurrency(row.paymongoBalance)}</td>
                   <td className="py-2 px-3 text-right">{formatCurrency(row.expectedTotal)}</td>
                   <td className={`py-2 px-3 text-right font-semibold ${row.discrepancy === 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {formatCurrency(row.discrepancy)}
+                    {row.paymongoBalance == null ? 'Not compared' : formatCurrency(row.discrepancy)}
                   </td>
                   <td className="py-2 px-3 text-center">
-                    {row.alertSent ? (
+                    {row.paymongoBalance == null ? (
+                      <Badge label="EXPECTED ONLY" variant="warning" />
+                    ) : row.alertSent ? (
                       <Badge label="ALERT" variant="danger" />
                     ) : (
                       <Badge label="OK" variant="success" />
@@ -931,18 +1233,22 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
           <DialogHeader>
             <DialogTitle>Run Reconciliation</DialogTitle>
             <DialogDescription>
-              Trigger a new reconciliation snapshot. Both fields are optional.
+              Compare the verified PayMongo balance with all internal wallet buckets. The balance is required; notes are optional.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label htmlFor="run-balance">PayMongo Balance (centavos)</Label>
+              <Label htmlFor="run-balance">Verified PayMongo Balance (PHP)</Label>
               <Input
                 id="run-balance"
+                type="number"
                 value={runBalance}
                 onChange={(e) => setRunBalance(e.target.value)}
-                placeholder="e.g. 12345678"
-                inputMode="numeric"
+                placeholder="e.g. 123456.78"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                className="min-h-11"
               />
             </div>
             <div>
@@ -952,6 +1258,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
                 value={runNotes}
                 onChange={(e) => setRunNotes(e.target.value)}
                 placeholder="Optional notes…"
+                maxLength={1000}
               />
             </div>
           </div>
@@ -959,7 +1266,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
             <Button variant="outline" onClick={() => setShowRun(false)} disabled={runMut.isPending}>
               Cancel
             </Button>
-            <Button onClick={submitRun} disabled={runMut.isPending}>
+            <Button onClick={submitRun} disabled={runMut.isPending || runBalance.trim() === ''}>
               {runMut.isPending ? 'Running…' : 'Run Now'}
             </Button>
           </DialogFooter>
@@ -984,6 +1291,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
               onChange={(e) => setAckNote(e.target.value)}
               placeholder="Explain investigation / resolution…"
               rows={5}
+              maxLength={1000}
             />
             <p className="text-xs text-[var(--color-text-secondary)] mt-1">{ackNote.length} / 1000</p>
           </div>
@@ -1077,7 +1385,7 @@ function normalizeBirOverview(data: BirOverviewData): BirOverviewData {
 
 export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactElement {
   const qc = useQueryClient();
-  const currentYear = new Date().getFullYear();
+  const currentYear = Number(todayIso().slice(0, 4));
   const [year, setYear] = useState<number>(currentYear);
   const [expandedQuarter, setExpandedQuarter] = useState<number | null>(null);
 
@@ -1155,7 +1463,13 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
   const yearOptions = [currentYear - 2, currentYear - 1, currentYear];
 
   if (overviewQ.isLoading) return <LoadingState />;
-  if (overviewQ.isError) return <ErrorState description={getErrorMessage(overviewQ.error)} />;
+  if (overviewQ.isError) return (
+    <ErrorState
+      title="Tax workpapers unavailable"
+      description={`${getErrorMessage(overviewQ.error)} Do not infer that filing or withholding work is complete.`}
+      action={<Button variant="outline" className="min-h-11" onClick={() => { void overviewQ.refetch(); }}>Retry workpapers</Button>}
+    />
+  );
   const d = overviewQ.data;
   if (!d) return <EmptyState title="No BIR data" />;
 
@@ -1179,7 +1493,7 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
             id="bir-year"
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="mt-1 h-9 px-3 border border-slate-300 rounded-md text-sm bg-white"
+            className="mt-1 min-h-11 px-3 border border-slate-300 rounded-md text-sm bg-white"
           >
             {yearOptions.map((y) => (
               <option key={y} value={y}>{y}</option>
@@ -1393,19 +1707,22 @@ interface ReceiptSearchEnvelope {
   total: number;
 }
 
-function normalizeReceiptRows(data: ReceiptRow[] | ReceiptSearchEnvelope): ReceiptRow[] {
+function normalizeReceiptRows(data: ReceiptRow[] | ReceiptSearchEnvelope): ReceiptSearchEnvelope {
   const rows = Array.isArray(data) ? data : data.rows;
-  return rows.map((row) => ({
-    id: row.id,
-    orNumber: row.orNumber,
-    customerName: row.customerName,
-    providerName: row.providerName,
-    issuedAt: row.issuedAt,
-    gross: Number(row.gross ?? row.grossCentavos ?? 0),
-    vat: Number(row.vat ?? row.vatCentavos ?? 0),
-    isCancellation: Boolean(row.isCancellation),
-    pdfUrl: row.pdfUrl,
-  }));
+  return {
+    rows: rows.map((row) => ({
+      id: row.id,
+      orNumber: row.orNumber,
+      customerName: row.customerName,
+      providerName: row.providerName,
+      issuedAt: row.issuedAt,
+      gross: Number(row.gross ?? row.grossCentavos ?? 0),
+      vat: Number(row.vat ?? row.vatCentavos ?? 0),
+      isCancellation: Boolean(row.isCancellation),
+      pdfUrl: row.pdfUrl,
+    })),
+    total: Array.isArray(data) ? data.length : Number(data.total ?? 0),
+  };
 }
 
 interface ReceiptSearchParams {
@@ -1428,12 +1745,16 @@ export function ReceiptsPanel(): React.ReactElement {
   });
   const [submitted, setSubmitted] = useState<ReceiptSearchParams | null>(null);
   const [receiptError, setReceiptError] = useState('');
+  const [receiptPage, setReceiptPage] = useState(1);
 
   const q = useQuery({
-    queryKey: ['fin-receipts', submitted],
+    queryKey: ['fin-receipts', submitted, receiptPage],
     queryFn: async () => {
-      if (!submitted) return [];
-      const params: Record<string, string | number> = { limit: submitted.limit };
+      if (!submitted) return { rows: [], total: 0 } as ReceiptSearchEnvelope;
+      const params: Record<string, string | number> = {
+        limit: submitted.limit,
+        offset: (receiptPage - 1) * submitted.limit,
+      };
       if (submitted.orNumber) params.orNumber = submitted.orNumber;
       if (submitted.customerName) params.customerName = submitted.customerName;
       if (submitted.providerName) params.providerName = submitted.providerName;
@@ -1470,6 +1791,7 @@ export function ReceiptsPanel(): React.ReactElement {
       return;
     }
     setReceiptError('');
+    setReceiptPage(1);
     setSubmitted({
       ...draft,
       orNumber: draft.orNumber.trim(),
@@ -1572,12 +1894,20 @@ export function ReceiptsPanel(): React.ReactElement {
       ) : q.isLoading ? (
         <LoadingState />
       ) : q.isError ? (
-        <ErrorState description={getErrorMessage(q.error)} />
-      ) : !q.data || q.data.length === 0 ? (
+        <ErrorState
+          title="Legacy sales-record search failed"
+          description={getErrorMessage(q.error)}
+          action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry search</Button>}
+        />
+      ) : !q.data || q.data.rows.length === 0 ? (
         <EmptyState title="No legacy sales records match your search" />
       ) : (
-        <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="bg-white border border-[var(--color-border)] rounded-xl p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--color-text-secondary)]">
+            <span>Showing {(receiptPage - 1) * submitted.limit + 1}–{Math.min(receiptPage * submitted.limit, q.data.total)} of {q.data.total} retained records</span>
+            <span>Results are ordered by issue time, newest first.</span>
+          </div>
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--color-border)]">
                 <th className="text-left py-2 px-3 text-xs font-medium text-[var(--color-text-secondary)] uppercase">OR #</th>
@@ -1591,7 +1921,7 @@ export function ReceiptsPanel(): React.ReactElement {
               </tr>
             </thead>
             <tbody>
-              {q.data.map((row) => (
+              {q.data.rows.map((row) => (
                 <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
                   <td className="py-2 px-3 font-mono text-xs">
                     {row.pdfUrl ? (
@@ -1608,7 +1938,7 @@ export function ReceiptsPanel(): React.ReactElement {
                     )}
                   </td>
                   <td className="py-2 px-3 text-[var(--color-text)]">{row.customerName}</td>
-                  <td className="py-2 px-3 text-[var(--color-text)]">{row.providerName}</td>
+                  <td className="py-2 px-3 text-[var(--color-text)]">{row.providerName ?? '—'}</td>
                   <td className="py-2 px-3 text-[var(--color-text-secondary)] text-xs">
                     {formatDateTime(row.issuedAt)}
                   </td>
@@ -1638,7 +1968,18 @@ export function ReceiptsPanel(): React.ReactElement {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
+          {Math.ceil(q.data.total / submitted.limit) > 1 && (
+            <div className="mt-4">
+              <Pagination
+                page={receiptPage}
+                pageSize={submitted.limit}
+                total={q.data.total}
+                totalPages={Math.ceil(q.data.total / submitted.limit)}
+                onPageChange={setReceiptPage}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1672,7 +2013,7 @@ export default function FinancialsPage(): React.ReactElement {
       <div className="mb-6">
         <h1 className="text-xl font-bold text-[var(--color-text)]">Financials</h1>
         <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
-          Revenue, escrow, payouts, internal tax workpapers and reconciliation.
+          Revenue, payment attempts, refunds, escrow, payouts, reconciliation and internal tax workpapers.
         </p>
       </div>
 
@@ -1680,7 +2021,7 @@ export default function FinancialsPage(): React.ReactElement {
       <div
         role="tablist"
         aria-label="Financials sections"
-        className="inline-flex flex-wrap items-center gap-1 rounded-lg bg-slate-100 p-1 mb-6"
+        className="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 md:grid-cols-4 2xl:grid-cols-8"
       >
         {TABS.map((t) => {
           const active = tab === t.key;
@@ -1691,7 +2032,7 @@ export default function FinancialsPage(): React.ReactElement {
               aria-selected={active}
               type="button"
               onClick={() => selectTab(t.key)}
-              className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`inline-flex min-h-11 items-center justify-center rounded-md px-3 py-2 text-center text-sm font-medium transition-colors ${
                 active
                   ? 'bg-white text-slate-900 shadow'
                   : 'text-slate-600 hover:text-slate-900'
@@ -1705,6 +2046,7 @@ export default function FinancialsPage(): React.ReactElement {
 
       {tab === 'overview' && <OverviewPanel />}
       {tab === 'escrow' && <EscrowPanel />}
+      {tab === 'payments' && <PaymentsPanel />}
       {tab === 'payouts' && <PayoutsPanel />}
       {tab === 'guarantee' && <GuaranteeFundPanel />}
       {tab === 'reconciliation' && <ReconciliationPanel isSuperAdmin={isSuperAdmin} />}

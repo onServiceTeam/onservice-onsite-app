@@ -39,7 +39,7 @@ it('Bug UX-127 — AML-held payout is visible and offers the existing super-admi
   );
 
   expect(await screen.findByText(/Internal review hold/)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: /clear compliance review for payout payout-aml-1/i }));
-  expect(screen.getByRole('dialog', { name: 'Clear Compliance Review' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: /clear internal review hold for payout payout-aml-1/i }));
+  expect(screen.getByRole('dialog', { name: 'Clear Internal Review Hold' })).toBeTruthy();
   expect(screen.getByText(/moves the request to Pending/i)).toBeTruthy();
 });

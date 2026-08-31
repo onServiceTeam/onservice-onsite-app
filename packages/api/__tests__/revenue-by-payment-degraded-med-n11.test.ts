@@ -53,7 +53,7 @@ describe('MED-N11 — getRevenueByPaymentMethod success path', () => {
     });
   });
 
-  it('null payment_method maps to "unknown" dimension with "Unknown" label', async () => {
+  it('null payment_method maps to an explicitly unattributed revenue label', async () => {
     dbQueryMock.mockResolvedValueOnce({
       rows: [
         { method: null, revenue: '100000', bookings: '1' },
@@ -61,7 +61,7 @@ describe('MED-N11 — getRevenueByPaymentMethod success path', () => {
     });
     const out = await svc.getRevenueByPaymentMethod('2026-04-01', '2026-04-30');
     expect(out.rows[0]!.dimension).toBe('unknown');
-    expect(out.rows[0]!.label).toBe('Unknown');
+    expect(out.rows[0]!.label).toBe('Unattributed');
   });
 });
 

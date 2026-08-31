@@ -90,7 +90,7 @@ Admin actions (Payouts page, super_admin only):
 1. Review the request, provider, amount, method, destination account, wallet reservation, and prior payout state.
 2. If it is internally held, complete the review. Record either a clearance reason of at least 10 characters (moves it to pending without approving/sending) or a rejection reason (atomically returns the reserved amount).
 3. Approve (reason 10+ chars) or Reject (reason 10+ chars; the transaction returns the full reserved amount to available balance or rolls back without changing either record).
-4. After sending the money externally, mark Complete with a reason of at least 10 characters and optionally record the PayMongo transfer ID. Completion refuses to proceed if the payout is not approved or the wallet reservation is short.
+4. After sending the money externally, mark Complete with a reason of at least 10 characters and optionally record the external bank, wallet, or gateway transfer reference. Completion refuses to proceed if the payout is not approved or the wallet reservation is short.
 
 > **Set (editable):** the actual external transfer (sending pesos to the provider's GCash or bank) is a manual step at launch; "Complete" in admin only records that it happened, it does not itself move money. Maintain a runbook naming who logs into PayMongo or the bank and sends each batch. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
@@ -138,9 +138,13 @@ How a future external payment is allowed to complete: a valid PayMongo flow coll
 
 Reconciliation (admin Financials -> Reconciliation, super_admin):
 
-1. Run reconciliation (compares PayMongo balance vs our expected balance).
+1. Obtain the verified PayMongo balance, enter the PHP amount exactly as shown (up to two decimal places), and run reconciliation. The admin client converts it to integer centavos; the balance is required for a new manual snapshot.
 2. Review any discrepancy alerts.
 3. Acknowledge each discrepancy with a note explaining the cause.
+
+Historical snapshots without an external PayMongo balance are internal expected-balance captures only. Admin labels them **Expected only / Not compared**. Do not interpret their stored zero discrepancy as proof that PayMongo and the internal ledger agreed.
+
+The Payments & Refunds tab is the finance triage surface for payment-intent state and `gateway_retry_queue`. The unresolved retry queue is paginated, so continue beyond the first page until every active or permanently failed item is accounted for. An `awaiting_payment` attempt is not collection evidence. A `pending` or `in_progress` retry is incomplete; `failed_permanent` requires manual investigation and confirmation of the real customer/provider outcome.
 
 Run reconciliation at least weekly during launch, then settle into the month-end checklist (section 9).
 
@@ -255,7 +259,7 @@ Consent versions: when the DPO publishes a new material consent version (admin C
 Run this in the first 3 business days of each month for the prior month. Owner: Ken or finance lead; super_admin actions noted.
 
 - [ ] Run PayMongo reconciliation (admin Financials -> Reconciliation). Acknowledge or explain every discrepancy.
-- [ ] Review escrow aging buckets (Financials -> Escrow). Investigate anything stuck in 48h+ or 168h+. These are usually suspended-provider holds or failed releases.
+- [ ] Review escrow aging buckets and paginate through the pending-release queue (Financials -> Escrow). Investigate anything stuck in 48h+ or 168h+. These are usually suspended-provider holds or failed releases.
 - [ ] Clear the `gateway_retry_queue` backlog (failed refunds/releases). Confirm none are silently stuck.
 - [ ] Review failed payouts (Financials -> Payouts). Re-issue or refund as needed.
 - [ ] Export the prior month's internal VAT reconciliation workpaper for the

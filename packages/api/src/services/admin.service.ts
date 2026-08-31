@@ -846,7 +846,7 @@ export async function getRevenueReport(
        ${trunc}::date::text AS date,
        COALESCE(SUM(CASE WHEN wt.type = 'commission' THEN wt.amount ELSE 0 END), 0)::text AS total_commission,
        COALESCE(SUM(CASE WHEN wt.type = 'service_fee' THEN wt.amount ELSE 0 END), 0)::text AS total_service_fees,
-       COALESCE(SUM(CASE WHEN wt.type = 'refund' THEN ABS(wt.amount) ELSE 0 END), 0)::text AS total_refunds,
+       COALESCE(SUM(CASE WHEN wt.type = 'refund' AND wt.amount < 0 THEN -wt.amount ELSE 0 END), 0)::text AS total_refunds,
        COUNT(DISTINCT wt.booking_id)::text AS booking_count
      FROM wallet_transactions wt
      WHERE wt.created_at >= NOW() - make_interval(days => $1)

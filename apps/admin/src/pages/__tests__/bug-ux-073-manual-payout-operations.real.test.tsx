@@ -12,6 +12,10 @@ it('Bug UX-073 — admin financials identify manual payout operations without a 
       data: {
         pendingCount: 2,
         pendingTotalCentavos: 150_000,
+        internalReviewCount: 1,
+        awaitingApprovalCount: 1,
+        approvedAwaitingTransferCount: 0,
+        processingCount: 0,
         todayCompletedCount: 1,
         todayCompletedCentavos: 50_000,
         failedCount: 0,
@@ -29,5 +33,5 @@ it('Bug UX-073 — admin financials identify manual payout operations without a 
   expect(await screen.findByText('Manual withdrawals only')).toBeTruthy();
   expect(screen.getByText(/authorized staff review each request/i)).toBeTruthy();
   expect(screen.queryByText('Upcoming Scheduled')).toBeNull();
-  expect(screen.getByText('Pending (count)')).toBeTruthy();
+  expect(screen.getByText('Open Requests')).toBeTruthy();
 });

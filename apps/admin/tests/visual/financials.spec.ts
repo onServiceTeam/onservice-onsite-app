@@ -1,8 +1,8 @@
 // Phase 14 Remediation #4 — visual baseline spec for FinancialsPage
 // Page: apps/admin/src/pages/FinancialsPage.tsx
 //
-// Captures 4 states (loading, empty, error, success) at 3 viewport
-// widths (1280, 1440, 1920). Operator runs
+// Captures 4 states (loading, empty, error, success) at tablet and desktop
+// widths (820, 1024, 1280, 1440, 1920). Operator runs
 //   pnpm exec playwright test tests/visual/financials.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
@@ -11,7 +11,7 @@ import { test, expect, waitForVisualSettled } from './_fixtures';
 const ROUTE = '/financials';
 
 test.describe('FinancialsPage', () => {
-  for (const width of [1280, 1440, 1920]) {
+  for (const width of [820, 1024, 1280, 1440, 1920]) {
     test.describe(`@${width}`, () => {
       test.use({ viewport: { width, height: 800 } });
 
@@ -87,11 +87,12 @@ test.describe('FinancialsPage', () => {
       // Phase 38c — explicit per-tab captures so visual-diff catches
       // regressions on the Escrow / Payouts / Guarantee Fund /
       // Reconciliation / held tax-workpaper / legacy-sales-record tabs (the original
-      // "default render" only captured the Overview tab). Only at 1280
-      // to keep the baseline set manageable.
-      if (width === 1280) {
+      // "default render" only captured the Overview tab). Tablet captures prove
+      // every financial workspace remains reachable and legible in a browser.
+      if ([820, 1024, 1280].includes(width)) {
         for (const tab of [
           'Escrow',
+          'Payments & Refunds',
           'Payouts',
           'Guarantee Fund',
           'Reconciliation',
