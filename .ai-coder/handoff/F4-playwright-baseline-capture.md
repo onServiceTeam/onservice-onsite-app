@@ -1,12 +1,11 @@
 # F4 Handoff — Admin Playwright visual baseline capture
 
-**Status:** DONE (2026-06-10). 354 baselines (29 pages × 4 states × 3 widths)
-are committed under `apps/admin/tests/visual/*-snapshots/` and validated
-against a live admin dev server: 348 passed as-is; the 6 provider-detail
-baselines were re-captured after legitimate UI drift (Phase 200 era added
-Staff/Disputes/Activity/Notes tabs, a Selfie verification-document row, and
-the Service Areas sidebar entry) and now pass. Gate D promotion still waits
-on the F#3 mobile half per MODES.json.
+**Status:** DONE (captured 2026-06-10; inventory refreshed 2026-08-31).
+The current tree contains 411 committed baselines across 32 admin specs under
+`apps/admin/tests/visual/*-snapshots/`. Most specs cover four states at 1280,
+1440, and 1920 pixels. Booking 360 and Dispatch additionally cover 820 and
+1024 pixel tablet browsers; several older expanded specs have extra scenarios.
+Gate D promotion still waits on the F#3 mobile half per MODES.json.
 **Owner after handoff:** Ken / contractor / CI on hosted runner with Chromium.
 **Estimated time:** 1-2 operator-hours.
 **Estimated cost:** Free (your laptop is enough — Playwright runs in headless Chromium).
@@ -15,13 +14,13 @@ on the F#3 mobile half per MODES.json.
 
 ## What's already done (no action needed)
 
-- 29 Playwright spec files committed under `apps/admin/tests/visual/<page-slug>.spec.ts`, one per admin page in `apps/admin/src/pages/`.
-- Each spec exercises 4 states (default/loading/empty/error) at 3 viewport widths (1280, 1440, 1920) = **12 screenshots per page** = **348 total screenshots** when fully captured.
+- 32 Playwright spec files are committed under `apps/admin/tests/visual/<page-slug>.spec.ts`.
+- The common contract is 4 states (default/loading/empty/error) at 3 viewport widths (1280, 1440, 1920). Booking 360 and Dispatch also run at 820 and 1024 pixels, and expanded specs cover additional scenarios. The checked-in inventory is **411 screenshots**.
 - API mocks via `page.route('**/api/v1/admin/**', ...)` are wired so each spec triggers the right state without needing a fixture-loaded backend.
 - The existing `apps/admin/playwright.config.ts` is already set up (baseURL points at `localhost:5173` or `STAGING_ADMIN_URL`).
 - **Generator script** (`scripts/dev/generate-playwright-specs.py`) so the scaffolding can be regenerated when new admin pages land.
 
-The specs compile and run against Playwright as-is. What's missing is the captured baseline PNGs.
+The specs and baseline PNGs are present. New or intentionally changed UI still requires a local capture, human image review, and a no-update comparison run before commit.
 
 ---
 
@@ -72,8 +71,8 @@ pnpm exec playwright test tests/visual --update-snapshots
 ```
 
 Expected output:
-- 29 spec files × 12 screenshots each = up to 348 PNGs
-- All written under `apps/admin/tests/visual/<page-slug>.spec.ts-snapshots/` (Playwright's default snapshot location).
+- 32 current spec files and 411 current PNGs; the total increases when new states or widths are deliberately added.
+- All snapshots are written under `apps/admin/tests/visual/<page-slug>.spec.ts-snapshots/` (Playwright's default snapshot location).
 
 If a spec fails (e.g., page doesn't exist, route mismatch, auth redirect), Playwright reports it. Fix the mismatch (route or auth) and re-run with `--update-snapshots`.
 
@@ -91,7 +90,7 @@ Visually inspect each. Reject any with rendering bugs (clipped text, unexpected 
 ```bash
 git add apps/admin/tests/visual/*-snapshots/
 git status   # verify LFS pointer files
-git commit -m "test(r4): Playwright visual baselines for 29 admin pages (4 states × 3 viewports)"
+git commit -m "test(admin): refresh reviewed Playwright visual baselines"
 git push
 ```
 
@@ -104,7 +103,7 @@ Edit `scripts/gates/MODES.json` `gate_d_state` rationale to mention admin baseli
   "mode": "BLOCKING",
   "owning_dispatch": "D14r-3+D14r-4",
   "promoted_in": "D14r-4-baselines",
-  "rationale": "Promoted to BLOCKING after F#3 (84 mobile flows) + F#4 (29 admin specs) baselines were captured. Gate D now compares each PR's screenshot output against these baselines and fails on visual regression."
+  "rationale": "Promoted to BLOCKING after F#3 mobile flows and F#4 admin specs were captured. Gate D compares each PR's screenshot output against these baselines and fails on visual regression."
 }
 ```
 
@@ -138,10 +137,9 @@ If the CI step is missing, add it to `.github/workflows/ci.yml` under a new `adm
 
 ---
 
-## What `v0.14.1-remediation-4` represents when tagged
+## What `v0.14.1-remediation-4` represented when tagged
 
-- 29 Playwright spec files committed.
-- Up to 348 baseline PNGs committed via LFS (or fewer if you only do default state for v1.0).
+- The original 29 Playwright spec files and their first baseline set were committed. The tag is historical; current master has 32 specs and 411 PNGs.
 - Gate D promoted to BLOCKING (combined with R3).
 - Future PRs that change admin UI render output get caught by visual diff.
 

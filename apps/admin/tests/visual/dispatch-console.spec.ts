@@ -32,7 +32,7 @@ test.describe('DispatchConsolePage', () => {
     await stabilizeLeaflet(page);
   });
 
-  for (const width of [1280, 1440, 1920]) {
+  for (const width of [820, 1024, 1280, 1440, 1920]) {
     test.describe(`@${width}`, () => {
       test.use({ viewport: { width, height: 800 } });
 

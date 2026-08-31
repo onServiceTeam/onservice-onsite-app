@@ -17,6 +17,20 @@ import * as bookingProofService from '../services/booking-proof.service';
 import * as bookingService from '../services/booking.service';
 
 const router = Router();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateBookingId(
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction,
+): void {
+  const bookingId = req.params.id;
+  if (typeof bookingId !== 'string' || !UUID_REGEX.test(bookingId)) {
+    next(createAppError('Booking ID must be a valid UUID.', 400));
+    return;
+  }
+  next();
+}
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
@@ -35,10 +49,14 @@ function requireSuperAdmin(req: AuthenticatedRequest): void {
 router.get(
   '/:id',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const data = await bookingAdminService.getBookingDetail((req.params.id as string));
+      const data = await bookingAdminService.getBookingDetail(
+        req.params.id as string,
+        req.user!.role,
+      );
       res.json({ success: true, data });
     } catch (error) { next(error); }
   },
@@ -47,6 +65,7 @@ router.get(
 router.get(
   '/:id/timeline',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -63,6 +82,7 @@ router.get(
 router.get(
   '/:id/quotes',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -79,6 +99,7 @@ router.get(
 router.get(
   '/:id/evidence',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -95,6 +116,7 @@ router.get(
 router.get(
   '/:id/proof-summary',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -107,6 +129,7 @@ router.get(
 router.get(
   '/:id/dispute',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -119,6 +142,7 @@ router.get(
 router.get(
   '/:id/money',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -133,6 +157,7 @@ router.get(
 router.post(
   '/:id/escrow/release',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
@@ -152,6 +177,7 @@ router.post(
 router.post(
   '/:id/escrow/refund',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
@@ -172,12 +198,16 @@ router.post(
 router.post(
   '/:id/reassign',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
       const { newProviderId, reason } = req.body ?? {};
       if (!newProviderId || typeof newProviderId !== 'string') {
         throw createAppError('newProviderId is required.', 400);
+      }
+      if (!UUID_REGEX.test(newProviderId)) {
+        throw createAppError('newProviderId must be a valid UUID.', 400);
       }
       const data = await bookingAdminService.reassignBookingProvider(
         (req.params.id as string),
@@ -195,6 +225,7 @@ router.post(
 router.post(
   '/:id/cancel',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
@@ -222,6 +253,7 @@ router.post(
 router.post(
   '/:id/force-complete',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
@@ -241,6 +273,7 @@ router.post(
 router.post(
   '/:id/message',
   authMiddleware,
+  validateBookingId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);

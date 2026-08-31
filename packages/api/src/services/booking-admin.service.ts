@@ -21,6 +21,9 @@ import * as orService from './or.service';
 import * as paymentService from './payment.service';
 import * as gatewayRetryService from './gateway-retry.service';
 import * as socketService from './socket.service';
+import * as matchingService from './matching.service';
+import { maskEmail, maskPhilippinePhone, type ActorRole } from '../utils/pii-mask';
+import { canTransition, type BookingStatus } from '../types/booking.types';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -191,12 +194,6 @@ const TERMINAL_REASSIGN_BLOCKED = new Set<string>([
   'payout_ready',
 ]);
 
-const TERMINAL_CANCELLED = new Set<string>([
-  'cancelled_by_customer',
-  'cancelled_by_provider',
-  'cancelled_by_admin',
-]);
-
 const FORCE_COMPLETE_ALLOWED = new Set<string>([
   'in_progress',
   'completed_by_provider',
@@ -228,7 +225,10 @@ function requireReason(reason: string, minLength: number): string {
 // 1) Booking detail (overview tab)
 // ─────────────────────────────────────────────────────────────────
 
-export async function getBookingDetail(bookingId: string): Promise<BookingDetail> {
+export async function getBookingDetail(
+  bookingId: string,
+  actorRole: ActorRole = 'admin',
+): Promise<BookingDetail> {
   const result = await db.query<{
     id: string;
     status: string;
@@ -331,12 +331,13 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
       }
     : null;
 
+  const contactMasked = actorRole !== 'super_admin';
   const customer = row.customer_id
     ? {
         id: row.customer_id,
         fullName: `${row.customer_first_name ?? ''} ${row.customer_last_name ?? ''}`.trim(),
-        phone: row.customer_phone ?? '',
-        email: row.customer_email,
+        phone: contactMasked ? maskPhilippinePhone(row.customer_phone) : (row.customer_phone ?? ''),
+        email: contactMasked && row.customer_email ? maskEmail(row.customer_email) : row.customer_email,
         avatarUrl: row.customer_avatar,
         lifetimeBookings,
         averageRatingGiven,
@@ -350,7 +351,7 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
         businessName: row.provider_business_name ?? '',
         tier: row.provider_tier ?? 'new',
         fullName: `${row.provider_first_name ?? ''} ${row.provider_last_name ?? ''}`.trim(),
-        phone: row.provider_phone ?? '',
+        phone: contactMasked ? maskPhilippinePhone(row.provider_phone) : (row.provider_phone ?? ''),
         avatarUrl: row.provider_avatar,
         rating: row.provider_rating !== null ? Number(row.provider_rating) : null,
         lifetimeJobs: Number(row.provider_total_jobs ?? 0),
@@ -945,9 +946,10 @@ export async function reassignBookingProvider(
       subcategory_id: string | null;
       latitude: string | null;
       longitude: string | null;
+      scheduled_at: Date | null;
     }>(
       `SELECT id, status, customer_id, provider_id, performer_staff_id,
-              category_id, subcategory_id, latitude, longitude,
+              category_id, subcategory_id, latitude, longitude, scheduled_at,
               (SELECT user_id FROM providers WHERE id = bookings.provider_id) AS old_provider_user_id
          FROM bookings WHERE id = $1 FOR UPDATE`,
       [bookingId],
@@ -1029,6 +1031,21 @@ export async function reassignBookingProvider(
     }
     if (!provider.in_range) {
       throw createAppError('Booking is outside the new provider\'s service radius.', 409);
+    }
+
+    if (booking.scheduled_at) {
+      const hasConflict = await matchingService.hasBookingConflict(
+        newProviderId,
+        booking.scheduled_at,
+        undefined,
+        bookingId,
+      );
+      if (hasConflict) {
+        throw createAppError(
+          'New provider already has an overlapping booking. Choose another provider or reschedule the job.',
+          409,
+        );
+      }
     }
 
     await client.query(
@@ -1174,9 +1191,9 @@ export async function cancelBookingAsAdmin(
   );
   const booking = bookingResult.rows[0];
   if (!booking) throw createAppError('Booking not found.', 404);
-  if (TERMINAL_CANCELLED.has(booking.status)) {
+  if (!canTransition(booking.status as BookingStatus, 'cancelled_by_admin')) {
     throw createAppError(
-      `Booking is already cancelled (status: ${booking.status}).`,
+      `Cannot cancel booking in status "${booking.status}". Use the canonical dispute or settlement workflow for completed money states.`,
       409,
     );
   }

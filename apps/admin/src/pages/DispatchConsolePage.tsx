@@ -120,6 +120,12 @@ interface DispatchProvider {
 interface ListEnvelope<T> {
   rows?: T[];
   data?: T[];
+  pagination?: { total?: number };
+}
+
+interface PagedRows<T> {
+  rows: T[];
+  total: number;
 }
 
 interface BookingCreatedPayload {
@@ -210,20 +216,23 @@ function unwrap<T>(payload: ListEnvelope<T> | undefined): T[] {
   return [];
 }
 
-async function fetchBookings(): Promise<DispatchBooking[]> {
+async function fetchBookings(): Promise<PagedRows<DispatchBooking>> {
   const res = await api.get<ListEnvelope<DispatchBooking>>(
     '/api/v1/admin/bookings?status=active&pageSize=100',
   );
-  return unwrap(res.data);
+  const rows = unwrap(res.data);
+  return { rows, total: res.data.pagination?.total ?? rows.length };
 }
 
-async function fetchProviders(): Promise<DispatchProvider[]> {
+async function fetchProviders(search = ''): Promise<PagedRows<DispatchProvider>> {
   // `online=true` is the historical API name. Server semantics are approved
   // + accepting work; coordinates are the saved service base, not live GPS.
+  const searchParam = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
   const res = await api.get<ListEnvelope<DispatchProvider>>(
-    '/api/v1/admin/providers?online=true&pageSize=100',
+    `/api/v1/admin/providers?online=true&pageSize=100${searchParam}`,
   );
-  return unwrap(res.data);
+  const rows = unwrap(res.data);
+  return { rows, total: res.data.pagination?.total ?? rows.length };
 }
 
 interface DispatchServiceArea {
@@ -310,6 +319,25 @@ function StatusBadge({ status }: { status: AdminSocketStatus }): React.ReactElem
   );
 }
 
+function FeedFailure({
+  label,
+  retryLabel,
+  onRetry,
+}: {
+  label: string;
+  retryLabel: string;
+  onRetry: () => void;
+}): React.ReactElement {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <span>{label}</span>
+      <button type="button" className="min-h-11 shrink-0 rounded border border-red-300 bg-white px-3 font-semibold" onClick={onRetry}>
+        {retryLabel}
+      </button>
+    </div>
+  );
+}
+
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function DispatchConsolePage(): React.ReactElement {
@@ -327,7 +355,7 @@ export default function DispatchConsolePage(): React.ReactElement {
   });
   const providersQuery = useQuery({
     queryKey: ['dispatch', 'providers'],
-    queryFn: fetchProviders,
+    queryFn: () => fetchProviders(),
     refetchInterval: 60_000,
   });
   const serviceAreasQuery = useQuery({
@@ -350,11 +378,11 @@ export default function DispatchConsolePage(): React.ReactElement {
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
   const allBookings: DispatchBooking[] = useMemo(
-    () => bookingsQuery.data ?? [],
+    () => bookingsQuery.data?.rows ?? [],
     [bookingsQuery.data],
   );
   const allProviders: DispatchProvider[] = useMemo(
-    () => providersQuery.data ?? [],
+    () => providersQuery.data?.rows ?? [],
     [providersQuery.data],
   );
 
@@ -398,9 +426,9 @@ export default function DispatchConsolePage(): React.ReactElement {
   // ─── Live event subscriptions ───────────────────────────────────────────
 
   useAdminSocketEvent<BookingCreatedPayload>('booking:created', (payload) => {
-    queryClient.setQueryData<DispatchBooking[]>(['dispatch', 'bookings'], (prev) => {
-      const list = prev ?? [];
-      if (list.some((b) => b.id === payload.id)) return list;
+    queryClient.setQueryData<PagedRows<DispatchBooking>>(['dispatch', 'bookings'], (prev) => {
+      const list = prev?.rows ?? [];
+      if (list.some((b) => b.id === payload.id)) return prev;
       const stub: DispatchBooking = {
         id: payload.id,
         status: payload.status,
@@ -415,17 +443,22 @@ export default function DispatchConsolePage(): React.ReactElement {
         longitude: null,
         scheduledAt: null,
       };
-      return [stub, ...list];
+      return { rows: [stub, ...list], total: (prev?.total ?? list.length) + 1 };
     });
   });
 
   useAdminSocketEvent<BookingStatusChangedPayload>('booking:status_changed', (payload) => {
-    queryClient.setQueryData<DispatchBooking[]>(['dispatch', 'bookings'], (prev) => {
+    queryClient.setQueryData<PagedRows<DispatchBooking>>(['dispatch', 'bookings'], (prev) => {
       if (!prev) return prev;
       if (!ACTIVE_DISPATCH_STATUSES.has(payload.newStatus)) {
-        return prev.filter((booking) => booking.id !== payload.id);
+        const nextRows = prev.rows.filter((booking) => booking.id !== payload.id);
+        const removed = nextRows.length !== prev.rows.length;
+        return { rows: nextRows, total: Math.max(0, prev.total - (removed ? 1 : 0)) };
       }
-      return prev.map((b) => (b.id === payload.id ? { ...b, status: payload.newStatus } : b));
+      return {
+        ...prev,
+        rows: prev.rows.map((b) => (b.id === payload.id ? { ...b, status: payload.newStatus } : b)),
+      };
     });
   });
 
@@ -436,6 +469,8 @@ export default function DispatchConsolePage(): React.ReactElement {
   // ─── Live counters ──────────────────────────────────────────────────────
   const activeBookingCount = filteredBookings.length;
   const availableProviderCount = visibleProviders.length;
+  const bookingsAreFiltered = Boolean(cityFilter || statusFilter || serviceFilter);
+  const providersAreFiltered = Boolean(cityFilter);
 
   const mapCenter = useMemo<[number, number]>(() => {
     const areas = serviceAreasQuery.data ?? [];
@@ -503,7 +538,21 @@ export default function DispatchConsolePage(): React.ReactElement {
   // ─── Action handlers (dialogs) ──────────────────────────────────
   const [reassignTarget, setReassignTarget] = useState<DispatchBooking | null>(null);
   const [reassignProviderId, setReassignProviderId] = useState<string>('');
+  const [reassignProviderSearch, setReassignProviderSearch] = useState<string>('');
   const [reassignReason, setReassignReason] = useState<string>('');
+
+  const searchedProvidersQuery = useQuery({
+    queryKey: ['dispatch', 'provider-search', reassignProviderSearch.trim()],
+    queryFn: () => fetchProviders(reassignProviderSearch),
+    enabled: reassignTarget !== null && reassignProviderSearch.trim().length >= 2,
+    staleTime: 30_000,
+  });
+  const reassignProviderPool = reassignProviderSearch.trim().length >= 2
+    ? (searchedProvidersQuery.data?.rows ?? [])
+    : allProviders;
+  const reassignProviderChoices = reassignProviderPool.filter(
+    (provider) => provider.id !== reassignTarget?.providerId,
+  );
 
   const [messageTarget, setMessageTarget] = useState<DispatchBooking | null>(null);
   const [messageBody, setMessageBody] = useState<string>('');
@@ -522,6 +571,7 @@ export default function DispatchConsolePage(): React.ReactElement {
       toast.success('Booking reassigned.');
       setReassignTarget(null);
       setReassignProviderId('');
+      setReassignProviderSearch('');
       setReassignReason('');
       void queryClient.invalidateQueries({ queryKey: ['dispatch', 'bookings'] });
     },
@@ -545,6 +595,7 @@ export default function DispatchConsolePage(): React.ReactElement {
   function handleReassign(b: DispatchBooking): void {
     setReassignTarget(b);
     setReassignProviderId('');
+    setReassignProviderSearch('');
     setReassignReason('');
   }
   function handleMessage(b: DispatchBooking): void {
@@ -594,7 +645,7 @@ export default function DispatchConsolePage(): React.ReactElement {
   }, []);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] gap-3 p-4">
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col gap-3 p-4">
       {/* ── Header ──────────────────────────────────────────────────── */}
       <header className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-white px-4 py-3">
         <div className="flex items-center gap-3">
@@ -602,9 +653,9 @@ export default function DispatchConsolePage(): React.ReactElement {
           <div>
             <h1 className="text-lg font-semibold text-slate-900">Dispatch Console</h1>
             <div className="flex items-center gap-3 text-xs text-slate-600">
-              <span><strong>{activeBookingCount}</strong> active bookings</span>
+              <span><strong>{bookingsQuery.isLoading ? '…' : bookingsQuery.isError ? 'Unavailable' : activeBookingCount}</strong> loaded active bookings{!bookingsAreFiltered && !bookingsQuery.isError && (bookingsQuery.data?.total ?? 0) > allBookings.length ? ` of ${bookingsQuery.data?.total}` : ''}</span>
               <span>·</span>
-              <span><strong>{availableProviderCount}</strong> providers accepting work</span>
+              <span><strong>{providersQuery.isLoading ? '…' : providersQuery.isError ? 'Unavailable' : availableProviderCount}</strong> loaded providers accepting work{!providersAreFiltered && !providersQuery.isError && (providersQuery.data?.total ?? 0) > allProviders.length ? ` of ${providersQuery.data?.total}` : ''}</span>
               <span>·</span>
               <StatusBadge status={socketStatus} />
             </div>
@@ -616,7 +667,7 @@ export default function DispatchConsolePage(): React.ReactElement {
             aria-label="Filter by city"
             value={cityFilter}
             onChange={(e) => setCityFilter(e.target.value)}
-            className="text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
+            className="min-h-11 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
           >
             <option value="">All cities</option>
             {cityOptions.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -625,7 +676,7 @@ export default function DispatchConsolePage(): React.ReactElement {
             aria-label="Filter by status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
+            className="min-h-11 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
           >
             <option value="">All statuses</option>
             {statusOptions.map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
@@ -634,7 +685,7 @@ export default function DispatchConsolePage(): React.ReactElement {
             aria-label="Filter by service"
             value={serviceFilter}
             onChange={(e) => setServiceFilter(e.target.value)}
-            className="text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
+            className="min-h-11 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
           >
             <option value="">All services</option>
             {serviceOptions.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -643,7 +694,7 @@ export default function DispatchConsolePage(): React.ReactElement {
             type="button"
             onClick={handleRefresh}
             disabled={bookingsQuery.isFetching || providersQuery.isFetching}
-            className="inline-flex items-center gap-1.5 text-sm border border-slate-300 rounded px-3 py-1.5 bg-white hover:bg-slate-50"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
           >
             <RefreshCw size={14} />
             {bookingsQuery.isFetching || providersQuery.isFetching ? 'Refreshing…' : 'Refresh'}
@@ -652,15 +703,21 @@ export default function DispatchConsolePage(): React.ReactElement {
       </header>
 
       {(bookingsQuery.isError || providersQuery.isError || serviceAreasQuery.isError) && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {bookingsQuery.isError && `Active bookings feed failed: ${getErrorMessage(bookingsQuery.error)} `}
-          {providersQuery.isError && `Accepting-work provider feed failed: ${getErrorMessage(providersQuery.error)}`}
-          {serviceAreasQuery.isError && ` Service-area feed failed: ${getErrorMessage(serviceAreasQuery.error)} Map is using its fallback center.`}
+        <div role="alert" className="space-y-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {bookingsQuery.isError && <FeedFailure label={`Active bookings feed failed: ${getErrorMessage(bookingsQuery.error)}`} retryLabel="Retry active bookings" onRetry={() => void bookingsQuery.refetch()} />}
+          {providersQuery.isError && <FeedFailure label={`Accepting-work provider feed failed: ${getErrorMessage(providersQuery.error)}`} retryLabel="Retry accepting-work providers" onRetry={() => void providersQuery.refetch()} />}
+          {serviceAreasQuery.isError && <FeedFailure label={`Service-area feed failed: ${getErrorMessage(serviceAreasQuery.error)} Map is using its fallback center.`} retryLabel="Retry service areas" onRetry={() => void serviceAreasQuery.refetch()} />}
+        </div>
+      )}
+
+      {!providersQuery.isError && (providersQuery.data?.total ?? 0) > allProviders.length && (
+        <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+          The map shows the first {allProviders.length} of {providersQuery.data?.total} providers accepting work. Use provider search in Reassign to reach providers outside this loaded map page.
         </div>
       )}
 
       {/* ── Map ─────────────────────────────────────────────────────── */}
-      <section className="min-h-[280px] flex-1 overflow-hidden rounded-lg border border-[var(--color-border)] bg-white">
+      <section className="h-[320px] min-h-[280px] flex-none overflow-hidden rounded-lg border border-[var(--color-border)] bg-white lg:flex-1">
         {mapKey === null ? (
           <div className="h-full w-full flex items-center justify-center text-sm text-slate-500">
             Loading map…
@@ -719,9 +776,9 @@ export default function DispatchConsolePage(): React.ReactElement {
       </section>
 
       {/* ── Bottom panels ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 h-[260px]">
+      <div className="grid grid-cols-1 gap-3 lg:h-[300px] lg:grid-cols-3">
         {/* Active bookings list */}
-        <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-white lg:col-span-2">
+        <div className="flex min-h-[280px] flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-white lg:col-span-2 lg:min-h-0">
           <div className="px-4 py-2 border-b border-slate-200 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-700">Active Bookings</h2>
             <span className="text-xs text-slate-500">
@@ -732,9 +789,13 @@ export default function DispatchConsolePage(): React.ReactElement {
             {bookingsQuery.isLoading && (
               <div className="p-4 text-sm text-slate-500">Loading bookings…</div>
             )}
-            {!bookingsQuery.isLoading && visibleBookings.length === 0 && (
+            {bookingsQuery.isError && (
+              <div className="p-4 text-sm text-red-700">Active bookings are unavailable. Use “Retry active bookings” before making a dispatch decision.</div>
+            )}
+            {!bookingsQuery.isLoading && !bookingsQuery.isError && visibleBookings.length === 0 && (
               <div className="p-4 text-sm text-slate-500">No active bookings.</div>
             )}
+            {!bookingsQuery.isLoading && !bookingsQuery.isError && (
             <table className="w-full text-xs">
               <thead className="bg-slate-50 sticky top-0">
                 <tr className="text-left text-slate-500">
@@ -839,18 +900,21 @@ export default function DispatchConsolePage(): React.ReactElement {
                 ))}
               </tbody>
             </table>
+            )}
           </div>
         </div>
 
         {/* Derived operational attention queue */}
-        <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-white">
+        <div className="flex min-h-[280px] flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-white lg:min-h-0">
           <div className="px-4 py-2 border-b border-slate-200 flex items-center gap-2">
             <AlertCircle size={14} className="text-amber-500" />
             <h2 className="text-sm font-semibold text-slate-700">Dispatch Attention</h2>
-            <span className="ml-auto text-xs text-slate-500">{attentionItems.length}</span>
+            <span className="ml-auto text-xs text-slate-500">{bookingsQuery.isError ? 'Unavailable' : attentionItems.length}</span>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {attentionItems.length === 0 && (
+            {bookingsQuery.isError ? (
+              <div className="p-4 text-xs text-red-700">Dispatch attention cannot be derived while the active-booking feed is unavailable.</div>
+            ) : attentionItems.length === 0 && (
               <div className="p-4 text-xs text-slate-500">No loaded booking currently needs dispatch attention.</div>
             )}
             <ul>
@@ -925,7 +989,7 @@ export default function DispatchConsolePage(): React.ReactElement {
       {/* ── Reassign dialog ─────────────────────────────────────────── */}
       <Dialog
         open={reassignTarget !== null}
-        onOpenChange={(open) => { if (!open) setReassignTarget(null); }}
+        onOpenChange={(open) => { if (!open) { setReassignTarget(null); setReassignProviderSearch(''); } }}
       >
         <DialogContent>
           <DialogHeader>
@@ -938,25 +1002,47 @@ export default function DispatchConsolePage(): React.ReactElement {
           </DialogHeader>
           <div className="space-y-3">
             <div>
+              <Label htmlFor="reassign-provider-search">Search providers</Label>
+              <input
+                id="reassign-provider-search"
+                type="search"
+                value={reassignProviderSearch}
+                onChange={(event) => {
+                  setReassignProviderSearch(event.target.value);
+                  setReassignProviderId('');
+                }}
+                placeholder="Business name, phone, or email"
+                className="mb-2 min-h-11 w-full rounded border border-slate-300 bg-white px-3 text-sm"
+              />
               <Label htmlFor="reassign-provider">New provider</Label>
               <select
                 id="reassign-provider"
                 value={reassignProviderId}
                 onChange={(e) => setReassignProviderId(e.target.value)}
-                className="w-full text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
+                disabled={searchedProvidersQuery.isLoading || searchedProvidersQuery.isError}
+                className="min-h-11 w-full text-sm border border-slate-300 rounded px-2 py-1.5 bg-white"
               >
-                <option value="">Select an accepting-work provider…</option>
-                {allProviders.map((p) => (
+                <option value="">{searchedProvidersQuery.isLoading ? 'Searching accepting-work providers…' : 'Select an accepting-work provider…'}</option>
+                {reassignProviderChoices.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.businessName ?? p.id}{p.city ? ` — ${p.city}` : ''}
                   </option>
                 ))}
               </select>
-              {allProviders.length === 0 && (
+              {searchedProvidersQuery.isError && (
+                <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-xs text-red-700">
+                  <span>Provider search failed. No searched result can be selected.</span>
+                  <Button variant="outline" onClick={() => void searchedProvidersQuery.refetch()}>Retry provider search</Button>
+                </div>
+              )}
+              {!searchedProvidersQuery.isLoading && !searchedProvidersQuery.isError && reassignProviderChoices.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">
-                  No providers accepting work were loaded. Refresh the feed and retry.
+                  {reassignProviderSearch.trim().length >= 2
+                    ? 'No alternative accepting-work provider matched this search.'
+                    : 'No other provider is present in the loaded map page. Search by name or contact to query the full provider directory.'}
                 </p>
               )}
+              <p className="mt-1 text-xs text-slate-500">The server rechecks account approval, accepting-work state, service capability, service radius, and double-booking conflicts when the job is scheduled.</p>
             </div>
             <div>
               <Label htmlFor="reassign-reason">Reason</Label>
