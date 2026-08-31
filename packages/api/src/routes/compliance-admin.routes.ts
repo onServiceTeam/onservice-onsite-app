@@ -12,8 +12,14 @@ import { createAppError } from '../middleware/error.middleware';
 import * as compliance from '../services/compliance.service';
 import * as complianceAdmin from '../services/compliance-admin.service';
 import { parseAuditTimelineExportQuery } from '../validators/admin-audit-log.validators';
+import { CONSENT_TYPES, normalizeIssuedNpcReference } from '../types/compliance.types';
 
 const router = Router();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DSR_STATUSES: ReadonlySet<string> = new Set(['received', 'in_progress', 'completed', 'rejected']);
+const DSR_REQUEST_TYPES: ReadonlySet<string> = new Set([
+  'access', 'erasure', 'correction', 'portability', 'restriction', 'objection',
+]);
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
@@ -23,6 +29,50 @@ function requireAdmin(req: AuthenticatedRequest): void {
 
 function parseString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function requireUuid(value: unknown, fieldLabel: string): string {
+  if (typeof value !== 'string' || !UUID_REGEX.test(value)) {
+    throw createAppError(`${fieldLabel} must be a valid UUID.`, 400);
+  }
+  return value;
+}
+
+function parseOptionalEnum<T extends string>(
+  value: unknown,
+  allowed: ReadonlySet<string>,
+  fieldLabel: string,
+): T | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !allowed.has(value)) {
+    throw createAppError(`${fieldLabel} is invalid.`, 400);
+  }
+  return value as T;
+}
+
+function parseOptionalBoolean(value: unknown, fieldLabel: string): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw createAppError(`${fieldLabel} must be true or false.`, 400);
+}
+
+function parseBoundedInteger(
+  value: unknown,
+  fieldLabel: string,
+  defaultValue: number,
+  min: number,
+  max: number,
+): number {
+  if (value === undefined) return defaultValue;
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) {
+    throw createAppError(`${fieldLabel} must be a whole number.`, 400);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) {
+    throw createAppError(`${fieldLabel} must be between ${min} and ${max}.`, 400);
+  }
+  return parsed;
 }
 
 // BUG-PHASE180-01 fix — pre-fix the DSR action routes (request-info,
@@ -49,12 +99,6 @@ function parseInt32(value: unknown): number | undefined {
   return Number.isFinite(n) ? Math.trunc(n) : undefined;
 }
 
-function parseBool(value: unknown): boolean | undefined {
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  return undefined;
-}
-
 // ─── Consent ────────────────────────────────────────────────────────────────
 
 // Phase 14 Dispatch 08 — Bug 402: searchConsent must be DPO-only.
@@ -67,8 +111,10 @@ router.get(
   requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
+      const requestedUserId = parseString(req.query.userId);
+      if (requestedUserId) requireUuid(requestedUserId, 'userId');
       const data = await compliance.searchConsent({
-        userId: parseString(req.query.userId),
+        userId: requestedUserId,
         consentType: parseString(req.query.consentType),
         version: parseString(req.query.version),
         limit: parseInt32(req.query.limit),
@@ -119,7 +165,8 @@ router.get(
   requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const data = await compliance.listConsentForUser(req.params.userId as string);
+      const userId = requireUuid(req.params.userId, 'User ID');
+      const data = await compliance.listConsentForUser(userId);
       res.json({ success: true, data });
     } catch (error) { next(error); }
   },
@@ -133,12 +180,22 @@ router.get(
   requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const status = parseString(req.query.status) as compliance.DsrStatus | undefined;
+      const status = parseOptionalEnum<compliance.DsrStatus>(
+        req.query.status,
+        DSR_STATUSES,
+        'status',
+      );
+      const requestType = parseOptionalEnum<compliance.DsrRequestType>(
+        req.query.requestType,
+        DSR_REQUEST_TYPES,
+        'requestType',
+      );
       const data = await compliance.listDsrs({
         status,
-        overdueOnly: parseBool(req.query.overdueOnly),
-        limit: parseInt32(req.query.limit),
-        offset: parseInt32(req.query.offset),
+        requestType,
+        overdueOnly: parseOptionalBoolean(req.query.overdueOnly, 'overdueOnly'),
+        limit: parseBoundedInteger(req.query.limit, 'limit', 50, 1, 200),
+        offset: parseBoundedInteger(req.query.offset, 'offset', 0, 0, 1_000_000),
       });
       res.json({ success: true, data });
     } catch (error) { next(error); }
@@ -151,7 +208,8 @@ router.get(
   requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const data = await compliance.getDsr(req.params.id as string);
+      const dsrId = requireUuid(req.params.id, 'DSR ID');
+      const data = await compliance.getDsr(dsrId);
       if (!data) throw createAppError('Data subject request not found.', 404);
       res.json({ success: true, data });
     } catch (error) { next(error); }
@@ -164,20 +222,11 @@ router.patch(
   requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const body = (req.body ?? {}) as Record<string, unknown>;
-      const newStatus = body.newStatus;
-      if (typeof newStatus !== 'string') {
-        throw createAppError('newStatus is required.', 400);
-      }
-      const data = await compliance.updateDsrStatus({
-        id: req.params.id as string,
-        adminId: req.user!.userId,
-        newStatus: newStatus as compliance.DsrStatus,
-        adminNotes: typeof body.adminNotes === 'string' ? body.adminNotes : undefined,
-        rejectionReason: typeof body.rejectionReason === 'string' ? body.rejectionReason : undefined,
-        responsePayloadUrl: typeof body.responsePayloadUrl === 'string' ? body.responsePayloadUrl : undefined,
-      });
-      res.json({ success: true, data });
+      requireUuid(req.params.id, 'DSR ID');
+      throw createAppError(
+        'Generic DSR status updates are retired. Use the dedicated complete, request-info, reject, or escalate action.',
+        410,
+      );
     } catch (error) { next(error); }
   },
 );
@@ -271,14 +320,35 @@ router.get(
 // ─── Phase 13 Dispatch C: dedicated DPO action endpoints ────────────────────
 
 router.post(
+  '/dsr/:id/start-review',
+  authMiddleware,
+  requireDpoRole,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const dsrId = requireUuid(req.params.id, 'DSR ID');
+      const reviewNote = typeof body.reviewNote === 'string' ? body.reviewNote : '';
+      validateDsrText(reviewNote, 'reviewNote');
+      const data = await complianceAdmin.startDsrReview({
+        dsrId,
+        adminUserId: req.user!.userId,
+        reviewNote,
+      });
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
   '/dsr/:id/complete',
   authMiddleware,
   requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
+      const dsrId = requireUuid(req.params.id, 'DSR ID');
       const data = await complianceAdmin.markDsrComplete({
-        dsrId: req.params.id as string,
+        dsrId,
         adminUserId: req.user!.userId,
         responsePayloadUrl: typeof body.responsePayloadUrl === 'string'
           ? body.responsePayloadUrl : undefined,
@@ -295,10 +365,11 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
+      const dsrId = requireUuid(req.params.id, 'DSR ID');
       const infoNeeded = typeof body.infoNeeded === 'string' ? body.infoNeeded : '';
       validateDsrText(infoNeeded, 'infoNeeded');
       const data = await complianceAdmin.requestDsrMoreInfo({
-        dsrId: req.params.id as string,
+        dsrId,
         adminUserId: req.user!.userId,
         infoNeeded,
       });
@@ -314,10 +385,11 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
+      const dsrId = requireUuid(req.params.id, 'DSR ID');
       const reason = typeof body.reason === 'string' ? body.reason : '';
       validateDsrText(reason, 'reason');
       const data = await complianceAdmin.rejectDsr({
-        dsrId: req.params.id as string,
+        dsrId,
         adminUserId: req.user!.userId,
         reason,
       });
@@ -333,16 +405,16 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
+      const dsrId = requireUuid(req.params.id, 'DSR ID');
       const npcReference = typeof body.npcReference === 'string' ? body.npcReference : '';
-      // npcReference is just an external case ID — keep it short.
-      if (npcReference.length > 200) {
+      if (!normalizeIssuedNpcReference(npcReference)) {
         throw createAppError(
-          'npcReference cannot exceed 200 characters.',
+          'npcReference must be the 3-100 character reference issued by NPC and cannot contain control characters.',
           400,
         );
       }
       const data = await complianceAdmin.escalateDsrToNpc({
-        dsrId: req.params.id as string,
+        dsrId,
         adminUserId: req.user!.userId,
         npcReference,
       });
@@ -363,7 +435,10 @@ router.get(
           consentType: parseString(req.query.consentType),
         }),
       ]);
-      res.json({ success: true, data: { summaries, published } });
+      res.json({
+        success: true,
+        data: { summaries, published, allowedConsentTypes: CONSENT_TYPES },
+      });
     } catch (error) { next(error); }
   },
 );

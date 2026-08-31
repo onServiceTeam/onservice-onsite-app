@@ -19,6 +19,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { neutralizeCsvFormula } from '../utils/csv';
 import { maskPiiInObject, maskPiiInString, type Json } from '../utils/pii-mask';
+import { CONSENT_TYPES, isConsentType, type ConsentType } from '../types/compliance.types';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -32,7 +33,7 @@ export type DsrStatus = 'received' | 'in_progress' | 'completed' | 'rejected';
 export interface ConsentRecord {
   id: string;
   userId: string;
-  consentType: string;
+  consentType: ConsentType;
   version: string;
   granted: boolean;
   grantedAt: string;
@@ -45,6 +46,8 @@ export interface DsrRecord {
   id: string;
   userId: string;
   userEmail: string | null;
+  userRole: string | null;
+  providerProfileId: string | null;
   requestType: DsrRequestType;
   status: DsrStatus;
   receivedAt: string;
@@ -59,10 +62,30 @@ export interface DsrRecord {
   isOverdue: boolean;
 }
 
+/**
+ * Customer/provider-facing DSR projection. Internal handler identity, case
+ * notes, subject email, and cross-account identifiers must never leave the
+ * privacy operations boundary through `/compliance/my-requests`.
+ */
+export type DsrPublicRecord = Pick<
+  DsrRecord,
+  | 'id'
+  | 'requestType'
+  | 'status'
+  | 'receivedAt'
+  | 'dueAt'
+  | 'completedAt'
+  | 'userMessage'
+  | 'responsePayloadUrl'
+  | 'rejectionReason'
+  | 'daysUntilDue'
+  | 'isOverdue'
+>;
+
 interface ConsentRow {
   id: string;
   user_id: string;
-  consent_type: string;
+  consent_type: ConsentType;
   version: string;
   granted: boolean;
   granted_at: Date;
@@ -75,6 +98,8 @@ interface DsrRow {
   id: string;
   user_id: string;
   user_email: string | null;
+  user_role?: string | null;
+  provider_profile_id?: string | null;
   request_type: DsrRequestType;
   status: DsrStatus;
   received_at: Date;
@@ -130,6 +155,7 @@ const DSR_COLS = `id, user_id, request_type, status,
        user_message, admin_notes, response_payload_url, rejection_reason`;
 
 const DSR_COLS_WITH_USER = `dsr.id, dsr.user_id, u.email AS user_email,
+       u.role AS user_role, p.id AS provider_profile_id,
        dsr.request_type, dsr.status,
        dsr.received_at, dsr.due_at, dsr.completed_at, dsr.handled_by,
        dsr.user_message, dsr.admin_notes, dsr.response_payload_url, dsr.rejection_reason`;
@@ -161,6 +187,8 @@ function mapDsr(r: DsrRow, now: Date = new Date()): DsrRecord {
     id: r.id,
     userId: r.user_id,
     userEmail: r.user_email,
+    userRole: r.user_role ?? null,
+    providerProfileId: r.provider_profile_id ?? null,
     requestType: r.request_type,
     status: r.status,
     receivedAt: r.received_at.toISOString(),
@@ -173,6 +201,22 @@ function mapDsr(r: DsrRow, now: Date = new Date()): DsrRecord {
     rejectionReason: r.rejection_reason,
     daysUntilDue,
     isOverdue: !isTerminal && diffMs < 0,
+  };
+}
+
+export function toPublicDsr(record: DsrRecord): DsrPublicRecord {
+  return {
+    id: record.id,
+    requestType: record.requestType,
+    status: record.status,
+    receivedAt: record.receivedAt,
+    dueAt: record.dueAt,
+    completedAt: record.completedAt,
+    userMessage: record.userMessage,
+    responsePayloadUrl: record.responsePayloadUrl,
+    rejectionReason: record.rejectionReason,
+    daysUntilDue: record.daysUntilDue,
+    isOverdue: record.isOverdue,
   };
 }
 
@@ -219,16 +263,6 @@ async function writeAudit(
 // generic "unexpected error" message. Mirror the DB CHECK in the
 // service so callers get a clean 400 with an actionable list.
 // Keep this in sync with migration 080 if new types are added.
-const VALID_CONSENT_TYPES: ReadonlySet<string> = new Set([
-  'privacy_policy',
-  'terms_of_service',
-  'marketing_consent',
-  'ic_agreement',
-  'cookie_policy',
-  'data_processing',
-  'biometric_consent',
-]);
-
 export async function recordConsent(input: {
   userId: string;
   consentType: string;
@@ -244,9 +278,9 @@ export async function recordConsent(input: {
       || input.consentType.length > 50) {
     throw createAppError('consentType is required (1-50 chars).', 400);
   }
-  if (!VALID_CONSENT_TYPES.has(input.consentType)) {
+  if (!isConsentType(input.consentType)) {
     throw createAppError(
-      `consentType must be one of: ${[...VALID_CONSENT_TYPES].join(', ')}.`,
+      `consentType must be one of: ${CONSENT_TYPES.join(', ')}.`,
       400,
     );
   }
@@ -412,11 +446,12 @@ export async function createDsr(input: {
   // with status='received'. Post-fix we kick off requestAccountDeletion
   // best-effort so the cooling-off + processing pipeline starts
   // immediately. We swallow specific known errors (already-pending
-  // deletion request, blocking bookings) and surface them via the
-  // DSR's user_message log so the DPO sees what happened — failure
-  // here must NOT roll back the DSR insert (the customer still has
-  // the right to a 15-day NPC SLA response even if the auto-kickoff
-  // can't proceed for procedural reasons).
+  // deletion request, blocking bookings). The warning is retained in the
+  // service log for operations review; failure
+  // here must NOT roll back the DSR insert. The request and its current
+  // internal 15-day target remain visible even if the auto-kickoff cannot
+  // proceed. E40 prohibits describing that target as an NPC-mandated
+  // completion deadline.
   if (input.requestType === 'erasure') {
     try {
       // Lazy require to avoid an import cycle (data-management ←
@@ -453,6 +488,7 @@ export async function createDsr(input: {
 
 export async function listDsrs(filter: {
   status?: DsrStatus;
+  requestType?: DsrRequestType;
   overdueOnly?: boolean;
   limit?: number;
   offset?: number;
@@ -463,6 +499,10 @@ export async function listDsrs(filter: {
   if (filter.status) {
     params.push(filter.status);
     where.push(`dsr.status = $${params.length}`);
+  }
+  if (filter.requestType) {
+    params.push(filter.requestType);
+    where.push(`dsr.request_type = $${params.length}`);
   }
   if (filter.overdueOnly) {
     where.push(`dsr.status IN ('received', 'in_progress') AND dsr.due_at < NOW()`);
@@ -484,6 +524,7 @@ export async function listDsrs(filter: {
     `SELECT ${DSR_COLS_WITH_USER}
        FROM data_subject_requests dsr
        LEFT JOIN users u ON u.id = dsr.user_id
+       LEFT JOIN providers p ON p.user_id = dsr.user_id
        ${whereSql}
       ORDER BY dsr.due_at ASC, dsr.received_at DESC
       LIMIT ${limit} OFFSET ${offset}`,
@@ -629,7 +670,7 @@ export async function getPendingMaterialConsents(
 // caller's DSR history (most recent first). Filtered by user_id at the
 // service layer so a malicious caller can't enumerate other users'
 // requests by passing a forged param.
-export async function listMyDsrs(userId: string, limit = 50): Promise<DsrRecord[]> {
+export async function listMyDsrs(userId: string, limit = 50): Promise<DsrPublicRecord[]> {
   if (typeof userId !== 'string' || userId.length === 0) {
     throw createAppError('userId is required.', 400);
   }
@@ -642,7 +683,7 @@ export async function listMyDsrs(userId: string, limit = 50): Promise<DsrRecord[
       LIMIT ${safeLimit}`,
     [userId],
   );
-  return result.rows.map((r) => mapDsr(r));
+  return result.rows.map((r) => toPublicDsr(mapDsr(r)));
 }
 
 export async function getDsr(id: string): Promise<DsrRecord | null> {
@@ -650,6 +691,7 @@ export async function getDsr(id: string): Promise<DsrRecord | null> {
     `SELECT ${DSR_COLS_WITH_USER}
        FROM data_subject_requests dsr
        LEFT JOIN users u ON u.id = dsr.user_id
+       LEFT JOIN providers p ON p.user_id = dsr.user_id
       WHERE dsr.id = $1`,
     [id],
   );
@@ -670,6 +712,7 @@ export async function updateDsrStatus(input: {
     `SELECT ${DSR_COLS_WITH_USER}
        FROM data_subject_requests dsr
        LEFT JOIN users u ON u.id = dsr.user_id
+       LEFT JOIN providers p ON p.user_id = dsr.user_id
       WHERE dsr.id = $1`,
     [input.id],
   );
@@ -997,6 +1040,7 @@ export async function getDsrAlerts(): Promise<DsrRecord[]> {
     `SELECT ${DSR_COLS_WITH_USER}
        FROM data_subject_requests dsr
        LEFT JOIN users u ON u.id = dsr.user_id
+       LEFT JOIN providers p ON p.user_id = dsr.user_id
       WHERE dsr.status IN ('received', 'in_progress')
         AND dsr.due_at - NOW() <= INTERVAL '2 days'
       ORDER BY dsr.due_at ASC`,

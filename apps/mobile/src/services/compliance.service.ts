@@ -16,16 +16,12 @@ export type DsrStatus = 'received' | 'in_progress' | 'completed' | 'rejected';
 
 export interface DsrRecord {
   id: string;
-  userId: string;
-  userEmail: string | null;
   requestType: DsrRequestType;
   status: DsrStatus;
   receivedAt: string;
   dueAt: string;
   completedAt: string | null;
-  handledBy: string | null;
   userMessage: string | null;
-  adminNotes: string | null;
   responsePayloadUrl: string | null;
   rejectionReason: string | null;
   daysUntilDue: number;

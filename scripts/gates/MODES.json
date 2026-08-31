@@ -9,7 +9,7 @@
       "mode": "BLOCKING",
       "owning_dispatch": "D02",
       "promoted_in": "D02",
-      "rationale": "Bug 1170/1198 fixed; cancellation_policies table is the single source of truth."
+      "rationale": "The gate prevents customer display-tier drift across clients. E09 freezes both the display-policy editor and the separate live refund-setting controls; this gate does not certify that the two money-policy sources are unified."
     },
     "a-cross-source-brand-color": {
       "mode": "BLOCKING",

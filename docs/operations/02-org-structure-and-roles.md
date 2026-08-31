@@ -130,22 +130,22 @@ Pay bands are indicative Cebu monthly starting ranges to confirm against current
 - **Purpose:** Keep the money clean and the company legal. Reconciliation, payouts oversight, BIR, NPC, PayMongo.
 - **Admin permission:** `super_admin` for money actions (the Staff & Roles `finance` label covers financials/payouts/audit/analytics, but the actual money buttons are super_admin-gated). Compliance/privacy work uses the `dpo` role for consent records and DSRs.
 - **Daily responsibilities:** Run **Financials → Reconciliation** (PayMongo vs expected balance) and acknowledge discrepancies. Oversee the payout queue (target 3 business days to process) and clear or reject internal large-transaction holds with written evidence. Watch the internal **Guarantee Fund** accounting balance without promising a claim outcome; E10/F#10 requires counsel before any cap, eligibility, clawback, or customer-facing protection rule. Generate/finalize **BIR Reports** only under the accountant-approved process. Track the launch-cutover compliance items (NPC DPO registration, BIR ATP, storage retention/PITR). See `10-money-and-compliance-ops.md`.
-- **KPIs:** reconciliation discrepancies (target: zero unexplained), payout SLA (3 business days), guarantee-fund runway (target: stays above replenishment threshold), BIR filings on time, DSR acknowledged within 2 days and fulfilled within the NPC-required window.
+- **KPIs:** reconciliation discrepancies (target: zero unexplained), payout SLA (3 business days), guarantee-fund runway (target: stays above replenishment threshold), BIR filings on time, DSR acknowledged within the internal 2-business-day target and handled by the stored internal response target. E40 holds the final legal-deadline wording.
 - **Pay band (editable):** ₱30,000 to ₱45,000/month. Starting range to confirm.
 
 ### 4.8 DPO (Data Protection Officer)
 
 - **Purpose:** NPC compliance under RA 10173. Independent authority required by law, so this is a distinct role, not aliased to super_admin.
-- **Admin permission:** `dpo`. Can search consent records (restricted to super_admin/dpo) and work the **Compliance** / **Data Protection Log** / **Consent Versions** surfaces (DSR queue, publish consent versions, escalate to NPC).
-- **Daily responsibilities:** Work the Data Subject Request queue (access/correction/erasure); acknowledge within 2 days and fulfil within the NPC-required window. Publish new consent versions. Handle breach notification (72-hour NPC notice). Keep the privacy policy and DPO contact (`dpo@onservice.ph`) current.
-- **KPIs:** DSR SLA compliance (acknowledged within 2 days, fulfilled within the NPC window, zero overdue), consent-version coverage, breach-notice timeliness.
+- **Admin permission:** `dpo`. Can search consent records and work the segregated **Privacy Workspace** / **Data Protection Log** / **Consent Versions** surfaces. **Compliance** is the company-wide hold-and-evidence index, not a duplicate DSR editor.
+- **Daily responsibilities:** Work the Data Subject Request queue (access/correction/erasure); acknowledge within the internal 2-business-day target and work against the stored internal response date without calling it an NPC completion SLA. Publish supported consent versions. Contain and assess suspected privacy incidents, preserving evidence for a counsel-approved notification determination. Keep the privacy policy and DPO contact (`dpo@onservice.ph`) current.
+- **KPIs:** internal DSR target performance (acknowledgement and response, with overdue cases investigated), consent-version coverage, incident-assessment timeliness, and counsel-approved breach-notice measures once E40 is closed.
 
 > **Set (editable):** At launch the DPO function can be Ken or a fractional/outsourced DPO (the launch-cutover runbook allows a fractional DPO). It does not need a full-time hire on day 1, but the `dpo` admin account must exist and stay separate from any super_admin operator for NPC segregation of duties. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ### 4.9 Admin / super_admin (the account itself)
 
 - **Purpose:** Not a job title, a permission level. `super_admin` is the master key. Give it to the fewest people who genuinely need money/destructive actions. At launch that is Ken plus one Operations Lead; the Finance & Compliance Lead gets it when that role is filled. Everyone else is `admin` or `dpo`.
-- **Discipline:** Every privileged action writes an audited `admin_actions` row with a typed reason (minimums: most actions ≥10 chars, force-complete ≥20, dispute resolve/reopen ≥20). Mandatory TOTP 2FA on every admin login. Never share a super_admin account between people; the **Audit Log** is only useful if one login equals one person.
+- **Discipline:** Use only the supported privileged actions and supply the typed reason each action requires (minimums: most actions ≥10 chars, force-complete ≥20, dispute resolve/reopen ≥20). Those decisions are intended to produce attributable evidence, but E37 means the Audit Log is not a complete record of every request or mutation. Mandatory TOTP 2FA applies to every admin login. Never share a super_admin account between people; attribution is useful only when one login equals one person.
 
 > **Set (editable):** Super-admin accounts at launch are Ken plus one Operations Lead only. Add the Finance & Compliance Lead when hired. _Recommended default. To change it, edit here and anywhere this value is referenced._
 

@@ -451,6 +451,7 @@ const AUDIT_RECORD = {
 };
 const DSR_RECORD = {
   id: 'DSR-0001', userId: 'CU-0001', userEmail: 'visual@onservice.test',
+  userRole: 'customer', providerProfileId: null,
   requestType: 'access', status: 'in_progress',
   receivedAt: '2026-08-25T04:00:00.000Z', dueAt: '2026-09-09T04:00:00.000Z',
   completedAt: null, handledBy: FAKE_ADMIN.id,
@@ -459,6 +460,10 @@ const DSR_RECORD = {
   responsePayloadUrl: null, rejectionReason: null, daysUntilDue: 9, isOverdue: false,
 };
 const CONSENT_VERSION_BUNDLE = {
+  allowedConsentTypes: [
+    'privacy_policy', 'terms_of_service', 'marketing_consent', 'ic_agreement',
+    'cookie_policy', 'data_processing', 'biometric_consent',
+  ],
   summaries: [{
     consentType: 'privacy_policy', version: '2026.08',
     effectiveDate: '2026-08-01', activeUsers: 842, totalRecords: 917,

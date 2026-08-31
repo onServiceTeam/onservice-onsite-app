@@ -183,7 +183,7 @@ describe('MED-N125 — publishConsentVersion translates 23505 race to 409', () =
     await expect(
       publishConsentVersion({
         adminUserId: 'admin-1',
-        consentType: 'marketing',
+        consentType: 'marketing_consent',
         version: '2.0.0',
         effectiveAt: new Date().toISOString(),
         changeSummary: 'Reworded data-use clause for clarity',
@@ -198,7 +198,7 @@ describe('MED-N125 — publishConsentVersion translates 23505 race to 409', () =
     await expect(
       publishConsentVersion({
         adminUserId: 'admin-1',
-        consentType: 'marketing',
+        consentType: 'marketing_consent',
         version: '2.0.0',
         effectiveAt: new Date().toISOString(),
         changeSummary: 'Reworded data-use clause for clarity',

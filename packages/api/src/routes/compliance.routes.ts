@@ -55,7 +55,7 @@ router.post(
         userMessage: typeof body.userMessage === 'string' ? body.userMessage : null,
         ipAddress: req.ip ?? null,
       });
-      res.status(201).json({ success: true, data });
+      res.status(201).json({ success: true, data: compliance.toPublicDsr(data) });
     } catch (error) { next(error); }
   },
 );

@@ -25,7 +25,7 @@ CREATE TABLE breach_log (
     occurred_at TIMESTAMPTZ NOT NULL,
     discovered_at TIMESTAMPTZ NOT NULL,
     npc_notified_at TIMESTAMPTZ,
-    npc_reference TEXT,                        -- NPC-YYYY-XXXXXX format
+    npc_reference TEXT,                        -- exact reference issued by NPC
     status TEXT NOT NULL CHECK (status IN (
         'investigating', 'mitigating', 'reported', 'closed'
     )),

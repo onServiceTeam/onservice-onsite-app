@@ -1,12 +1,14 @@
 /**
  * Phase 14 Dispatch 08 — Bug 1366.
- * Breach log service. NPC RA 10173 §38 requires data controllers to notify
- * the NPC within 72 hours of becoming aware of a personal data breach.
+ * Breach log service. The persisted `sla72h_*` fields are a conservative
+ * internal incident-response timer retained for API compatibility. E40 owns
+ * the unresolved legal wording and reportability/classification decision;
+ * this service must not imply that every incident row is NPC-reportable.
  *
  * The service handles:
  * - createBreach: log a new breach (admin Compliance page)
  * - listBreaches: list with sla72h_expired + sla72h_remaining_hours computed
- * - markNpcNotified: set npc_notified_at + npc_reference (NPC-YYYY-XXXXXX)
+ * - markNpcNotified: set npc_notified_at + the exact regulator-issued reference
  * - updateBreachStatus: investigating → mitigating → reported → closed
  *
  * The cron job (jobs/breach-sla-checker.ts) handles 60h-warning and
@@ -16,6 +18,7 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { normalizeIssuedNpcReference } from '../types/compliance.types';
 
 export type BreachType =
   | 'unauthorized_access'
@@ -33,14 +36,6 @@ const BREACH_TYPES = new Set<BreachType>([
 const BREACH_STATUSES = new Set<BreachStatus>([
   'investigating', 'mitigating', 'reported', 'closed',
 ]);
-
-// MED-N79 fix: NPC reference number format per NPC documentation
-// (https://privacy.gov.ph) is `NPC-YYYY-XXXXXX` — exactly 6 alpha-
-// numeric chars after the year. Pre-fix regex used `{6,}` which
-// allowed unbounded suffix length and would have accepted obviously-
-// malformed references (e.g., a paste of an entire NPC URL ending
-// in "...NPC-2026-ABC123XYZ_garbage"). Tightened to exactly 6.
-const NPC_REF_REGEX = /^NPC-\d{4}-[A-Z0-9]{6}$/;
 
 export interface BreachLogRow {
   id: string;
@@ -201,10 +196,10 @@ export async function markNpcNotified(input: {
   npcReference: string;
   adminUserId: string;
 }): Promise<BreachLogRow> {
-  const ref = (input.npcReference ?? '').trim();
-  if (!NPC_REF_REGEX.test(ref)) {
+  const ref = normalizeIssuedNpcReference(input.npcReference ?? '');
+  if (!ref) {
     throw createAppError(
-      'npcReference must match NPC-YYYY-XXXXXX format (e.g., NPC-2026-A1B2C3).',
+      'npcReference must be the 3-100 character reference issued by NPC and cannot contain control characters.',
       400,
     );
   }

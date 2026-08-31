@@ -1,11 +1,13 @@
 /**
  * Phase 13 Dispatch C — Admin DPO actions on Data Subject Requests + consent versions.
  *
- * All state-changing functions write a paired admin_actions row using the
- * verbs added in migration 058. Audit inserts are wrapped so a failure
- * never aborts the main write (logger.warn only).
+ * All DSR state-changing functions lock the current case and commit their
+ * paired admin_actions row in the same transaction. A missing audit write
+ * rolls the privacy decision back instead of leaving an unaudited outcome.
  *
  * Status semantics:
+ *   - startDsrReview      : claims a received case, sets status='in_progress',
+ *                           and records the initial review note.
  *   - markDsrComplete    : sets status='completed', completed_at=NOW().
  *                          Idempotent guard: rejects with 409 if already completed.
  *   - requestDsrMoreInfo : moves status to 'in_progress' (if 'received'),
@@ -24,6 +26,11 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as notificationService from './notification.service';
+import {
+  CONSENT_TYPES,
+  isConsentType,
+  normalizeIssuedNpcReference,
+} from '../types/compliance.types';
 
 interface DsrRow {
   id: string;
@@ -64,51 +71,92 @@ function mapDsr(r: DsrAfterRow): DsrActionResult {
   };
 }
 
-async function loadDsr(dsrId: string): Promise<DsrRow> {
-  const result = await db.query<DsrRow>(
-    `SELECT id, user_id, status, admin_notes, completed_at
-       FROM data_subject_requests
-      WHERE id = $1`,
-    [dsrId],
-  );
-  const row = result.rows[0];
-  if (!row) throw createAppError('Data subject request not found.', 404);
-  return row;
-}
-
-async function writeAdminAction(
-  adminId: string,
-  actionType:
-    | 'dsr_marked_complete'
-    | 'dsr_more_info_requested'
-    | 'dsr_rejected'
-    | 'dsr_escalated_to_npc'
-    | 'consent_version_published',
-  targetType: 'dsr_request' | 'consent_version',
-  targetId: string,
-  details: Record<string, unknown>,
-  reason?: string,
-): Promise<void> {
-  // gate-c-allowed: best-effort-audit-only — generic compliance audit helper; try/catch with logger.warn so failures don't block DSR/consent flows
-  try {
-    await db.query(
-      `INSERT INTO admin_actions
-         (admin_id, action_type, target_type, target_id, details, reason)
-       VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
-      [adminId, actionType, targetType, targetId, JSON.stringify(details), reason ?? null],
-    );
-  } catch (err) {
-    logger.warn('audit_log insert failed', { err: String(err), actionType, targetId });
-  }
-}
-
 function appendNote(existing: string | null, line: string): string {
   const stamp = new Date().toISOString();
   const entry = `[${stamp}] ${line}`;
   return existing && existing.length > 0 ? `${existing}\n${entry}` : entry;
 }
 
+function normalizeResponsePayloadUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.length > 2000) {
+    throw createAppError('responsePayloadUrl cannot exceed 2000 characters.', 400);
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw createAppError('responsePayloadUrl must be a valid HTTPS URL.', 400);
+  }
+  if (parsed.protocol !== 'https:') {
+    throw createAppError('responsePayloadUrl must use HTTPS.', 400);
+  }
+  return trimmed;
+}
+
 // ─── DSR actions ──────────────────────────────────────────────────────────
+
+export async function startDsrReview(input: {
+  dsrId: string;
+  adminUserId: string;
+  reviewNote: string;
+}): Promise<DsrActionResult> {
+  if (!input.dsrId) throw createAppError('dsrId is required.', 400);
+  if (!input.adminUserId) throw createAppError('adminUserId is required.', 400);
+  const reviewNote = input.reviewNote?.trim();
+  if (!reviewNote || reviewNote.length < 10) {
+    throw createAppError('reviewNote must be at least 10 characters.', 400);
+  }
+  if (reviewNote.length > 5000) {
+    throw createAppError('reviewNote cannot exceed 5000 characters.', 400);
+  }
+
+  const updated = await db.transaction(async (client) => {
+    const currentResult = await client.query<DsrRow>(
+      `SELECT id, user_id, status, admin_notes, completed_at
+         FROM data_subject_requests
+        WHERE id = $1
+        FOR UPDATE`,
+      [input.dsrId],
+    );
+    const current = currentResult.rows[0];
+    if (!current) throw createAppError('Data subject request not found.', 404);
+    if (current.status !== 'received') {
+      throw createAppError(`Cannot start review on a ${current.status} request.`, 409);
+    }
+
+    const newNotes = appendNote(current.admin_notes, `Review started: ${reviewNote}`);
+    const updateResult = await client.query<DsrAfterRow>(
+      `UPDATE data_subject_requests
+          SET status = 'in_progress',
+              handled_by = $1,
+              admin_notes = $2
+        WHERE id = $3
+        RETURNING id, user_id, status, request_type, received_at, due_at,
+                  completed_at, handled_by, admin_notes, rejection_reason,
+                  response_payload_url`,
+      [input.adminUserId, newNotes, input.dsrId],
+    );
+    const row = updateResult.rows[0];
+    if (!row) throw createAppError('Data subject request not found.', 404);
+
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'dsr_review_started', 'dsr_request', $2, $3::jsonb)`,
+      [
+        input.adminUserId,
+        input.dsrId,
+        JSON.stringify({ previousStatus: current.status, reviewNote }),
+      ],
+    );
+    return row;
+  });
+
+  logger.info('DSR review started', { dsrId: input.dsrId, adminUserId: input.adminUserId });
+  return mapDsr(updated);
+}
 
 export async function markDsrComplete(input: {
   dsrId: string;
@@ -117,40 +165,58 @@ export async function markDsrComplete(input: {
 }): Promise<DsrActionResult> {
   if (!input.dsrId) throw createAppError('dsrId is required.', 400);
   if (!input.adminUserId) throw createAppError('adminUserId is required.', 400);
+  const responsePayloadUrl = normalizeResponsePayloadUrl(input.responsePayloadUrl);
 
-  const current = await loadDsr(input.dsrId);
-  if (current.status === 'completed') {
-    throw createAppError('Data subject request already completed.', 409);
-  }
-  if (current.status === 'rejected') {
-    throw createAppError('Cannot complete a rejected request.', 409);
-  }
+  const updated = await db.transaction(async (client) => {
+    const currentResult = await client.query<DsrRow>(
+      `SELECT id, user_id, status, admin_notes, completed_at
+         FROM data_subject_requests
+        WHERE id = $1
+        FOR UPDATE`,
+      [input.dsrId],
+    );
+    const current = currentResult.rows[0];
+    if (!current) throw createAppError('Data subject request not found.', 404);
+    if (current.status === 'completed') {
+      throw createAppError('Data subject request already completed.', 409);
+    }
+    if (current.status === 'rejected') {
+      throw createAppError('Cannot complete a rejected request.', 409);
+    }
+    if (current.status !== 'in_progress') {
+      throw createAppError('Start review before completing a received request.', 409);
+    }
 
-  const updateResult = await db.query<DsrAfterRow>(
-    `UPDATE data_subject_requests
-        SET status = 'completed',
-            completed_at = NOW(),
-            handled_by = $1,
-            response_payload_url = COALESCE($2, response_payload_url)
-      WHERE id = $3
-      RETURNING id, user_id, status, request_type, received_at, due_at,
-                completed_at, handled_by, admin_notes, rejection_reason,
-                response_payload_url`,
-    [input.adminUserId, input.responsePayloadUrl ?? null, input.dsrId],
-  );
-  const updated = updateResult.rows[0];
-  if (!updated) throw createAppError('Data subject request not found.', 404);
+    const updateResult = await client.query<DsrAfterRow>(
+      `UPDATE data_subject_requests
+          SET status = 'completed',
+              completed_at = NOW(),
+              handled_by = $1,
+              response_payload_url = COALESCE($2, response_payload_url)
+        WHERE id = $3
+        RETURNING id, user_id, status, request_type, received_at, due_at,
+                  completed_at, handled_by, admin_notes, rejection_reason,
+                  response_payload_url`,
+      [input.adminUserId, responsePayloadUrl ?? null, input.dsrId],
+    );
+    const row = updateResult.rows[0];
+    if (!row) throw createAppError('Data subject request not found.', 404);
 
-  await writeAdminAction(
-    input.adminUserId,
-    'dsr_marked_complete',
-    'dsr_request',
-    input.dsrId,
-    {
-      previousStatus: current.status,
-      responsePayloadUrl: input.responsePayloadUrl ?? null,
-    },
-  );
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'dsr_marked_complete', 'dsr_request', $2, $3::jsonb)`,
+      [
+        input.adminUserId,
+        input.dsrId,
+        JSON.stringify({
+          previousStatus: current.status,
+          responsePayloadUrl: responsePayloadUrl ?? null,
+        }),
+      ],
+    );
+    return row;
+  });
 
   logger.info('DSR marked complete', { dsrId: input.dsrId, adminUserId: input.adminUserId });
   return mapDsr(updated);
@@ -167,21 +233,25 @@ export async function requestDsrMoreInfo(input: {
     throw createAppError('infoNeeded must be at least 10 characters.', 400);
   }
 
-  const current = await loadDsr(input.dsrId);
-  if (current.status === 'completed' || current.status === 'rejected') {
-    throw createAppError(`Cannot request info on a ${current.status} request.`, 409);
-  }
+  // The current case row is locked before deciding the next state. This keeps
+  // simultaneous complete/reject/request-info actions from overwriting one
+  // another after each actor read the same stale status.
+  const result = await db.transaction(async (client) => {
+    const currentResult = await client.query<DsrRow>(
+      `SELECT id, user_id, status, admin_notes, completed_at
+         FROM data_subject_requests
+        WHERE id = $1
+        FOR UPDATE`,
+      [input.dsrId],
+    );
+    const current = currentResult.rows[0];
+    if (!current) throw createAppError('Data subject request not found.', 404);
+    if (current.status === 'completed' || current.status === 'rejected') {
+      throw createAppError(`Cannot request info on a ${current.status} request.`, 409);
+    }
 
-  const newNotes = appendNote(current.admin_notes, `More info requested: ${input.infoNeeded.trim()}`);
-  const nextStatus = current.status === 'received' ? 'in_progress' : current.status;
-
-  // MED-N122 fix — UPDATE + audit row in a single transaction. Pre-fix
-  // the audit was a separate top-level query; if it failed after the
-  // UPDATE committed, the DSR status changed without an audit record
-  // (NPC RA 10173 §28 evidentiary requirement). The notification is
-  // best-effort outside the trx (failure is recoverable; we don't roll
-  // back the DSR state for a missed push).
-  const updated = await db.transaction(async (client) => {
+    const newNotes = appendNote(current.admin_notes, `More info requested: ${input.infoNeeded.trim()}`);
+    const nextStatus = current.status === 'received' ? 'in_progress' : current.status;
     const updateResult = await client.query<DsrAfterRow>(
       `UPDATE data_subject_requests
           SET admin_notes = $1,
@@ -206,13 +276,13 @@ export async function requestDsrMoreInfo(input: {
         JSON.stringify({ infoNeeded: input.infoNeeded.trim() }),
       ],
     );
-    return row;
+    return { updated: row, subjectUserId: current.user_id };
   });
 
   // Best-effort post-commit notification.
   try {
     await notificationService.createPushNotification({
-      userId: current.user_id,
+      userId: result.subjectUserId,
       type: 'dsr_info_requested',
       title: 'More information needed for your data request',
       body: input.infoNeeded.trim().slice(0, 500),
@@ -226,7 +296,7 @@ export async function requestDsrMoreInfo(input: {
   }
 
   logger.info('DSR more info requested', { dsrId: input.dsrId });
-  return mapDsr(updated);
+  return mapDsr(result.updated);
 }
 
 export async function rejectDsr(input: {
@@ -236,18 +306,10 @@ export async function rejectDsr(input: {
 }): Promise<DsrActionResult> {
   if (!input.dsrId) throw createAppError('dsrId is required.', 400);
   if (!input.adminUserId) throw createAppError('adminUserId is required.', 400);
-  // Phase 14 Dispatch 08 — Bug 397. Tightened from 20 → 30 chars per
-  // NPC RA 10173 audit-trail requirements.
+  // Phase 14 Dispatch 08 — Bug 397. The 30-character minimum is an
+  // internal evidence-quality safeguard, not a claim about a statutory mask.
   if (!input.reason || input.reason.trim().length < 30) {
     throw createAppError('Rejection reason must be at least 30 characters.', 400);
-  }
-
-  const current = await loadDsr(input.dsrId);
-  if (current.status === 'completed') {
-    throw createAppError('Cannot reject a completed request.', 409);
-  }
-  if (current.status === 'rejected') {
-    throw createAppError('Data subject request already rejected.', 409);
   }
 
   // MED-N124 fix — rejected ≠ completed. Pre-fix this also set
@@ -261,6 +323,22 @@ export async function rejectDsr(input: {
   //
   // MED-N122 fix — UPDATE + audit in single transaction.
   const updated = await db.transaction(async (client) => {
+    const currentResult = await client.query<DsrRow>(
+      `SELECT id, user_id, status, admin_notes, completed_at
+         FROM data_subject_requests
+        WHERE id = $1
+        FOR UPDATE`,
+      [input.dsrId],
+    );
+    const current = currentResult.rows[0];
+    if (!current) throw createAppError('Data subject request not found.', 404);
+    if (current.status === 'completed') {
+      throw createAppError('Cannot reject a completed request.', 409);
+    }
+    if (current.status === 'rejected') {
+      throw createAppError('Data subject request already rejected.', 409);
+    }
+
     const updateResult = await client.query<DsrAfterRow>(
       `UPDATE data_subject_requests
           SET status = 'rejected',
@@ -300,53 +378,58 @@ export async function escalateDsrToNpc(input: {
 }): Promise<DsrActionResult> {
   if (!input.dsrId) throw createAppError('dsrId is required.', 400);
   if (!input.adminUserId) throw createAppError('adminUserId is required.', 400);
-  // Phase 14 Dispatch 08 — Bug 398. NPC complaint references in PH
-  // follow `NPC-YYYY-XXXXXX` format (NPC-2026-A1B2C3 etc.). Without a
-  // valid format, escalation is just a status flip with no follow-
-  // through capability.
-  //
-  // MED-N123 fix — bound the suffix length. Pre-fix `[A-Z0-9]{6,}`
-  // accepted arbitrarily long input (DOS / log-pollution risk if a
-  // 1MB string gets stored verbatim in admin_notes). Post-fix: 6-12
-  // chars matches NPC's published spec.
-  const npcRefTrimmed = (input.npcReference ?? '').trim();
-  if (!/^NPC-\d{4}-[A-Z0-9]{6,12}$/.test(npcRefTrimmed)) {
+  const npcRefTrimmed = normalizeIssuedNpcReference(input.npcReference ?? '');
+  // Published NPC materials use more than one docket/reference family
+  // (for example "NPC 21-082", "NPC Case No. 19-258", and older CID
+  // references). Preserve the exact issued reference instead of enforcing an
+  // invented application-specific mask. Control characters remain forbidden
+  // because this value is also appended to case notes and audit evidence.
+  if (!npcRefTrimmed) {
     throw createAppError(
-      'npcReference must match NPC-YYYY-XXXXXX format with 6-12 alphanumeric suffix (e.g., NPC-2026-A1B2C3).',
+      'npcReference must be the 3-100 character reference issued by NPC and cannot contain control characters.',
       400,
     );
   }
 
-  const current = await loadDsr(input.dsrId);
-  if (current.status === 'completed' || current.status === 'rejected') {
-    throw createAppError(`Cannot escalate a ${current.status} request.`, 409);
-  }
-
   const ref = npcRefTrimmed;
-  const newNotes = appendNote(current.admin_notes, `Escalated to NPC: ${ref}`);
-  const nextStatus = current.status === 'received' ? 'in_progress' : current.status;
+  const updated = await db.transaction(async (client) => {
+    const currentResult = await client.query<DsrRow>(
+      `SELECT id, user_id, status, admin_notes, completed_at
+         FROM data_subject_requests
+        WHERE id = $1
+        FOR UPDATE`,
+      [input.dsrId],
+    );
+    const current = currentResult.rows[0];
+    if (!current) throw createAppError('Data subject request not found.', 404);
+    if (current.status === 'completed' || current.status === 'rejected') {
+      throw createAppError(`Cannot escalate a ${current.status} request.`, 409);
+    }
 
-  const updateResult = await db.query<DsrAfterRow>(
-    `UPDATE data_subject_requests
-        SET admin_notes = $1,
-            status = $2,
-            handled_by = $3
-      WHERE id = $4
-      RETURNING id, user_id, status, request_type, received_at, due_at,
-                completed_at, handled_by, admin_notes, rejection_reason,
-                response_payload_url`,
-    [newNotes, nextStatus, input.adminUserId, input.dsrId],
-  );
-  const updated = updateResult.rows[0];
-  if (!updated) throw createAppError('Data subject request not found.', 404);
+    const newNotes = appendNote(current.admin_notes, `Escalated to NPC: ${ref}`);
+    const nextStatus = current.status === 'received' ? 'in_progress' : current.status;
+    const updateResult = await client.query<DsrAfterRow>(
+      `UPDATE data_subject_requests
+          SET admin_notes = $1,
+              status = $2,
+              handled_by = $3
+        WHERE id = $4
+        RETURNING id, user_id, status, request_type, received_at, due_at,
+                  completed_at, handled_by, admin_notes, rejection_reason,
+                  response_payload_url`,
+      [newNotes, nextStatus, input.adminUserId, input.dsrId],
+    );
+    const row = updateResult.rows[0];
+    if (!row) throw createAppError('Data subject request not found.', 404);
 
-  await writeAdminAction(
-    input.adminUserId,
-    'dsr_escalated_to_npc',
-    'dsr_request',
-    input.dsrId,
-    { npcReference: ref },
-  );
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'dsr_escalated_to_npc', 'dsr_request', $2, $3::jsonb)`,
+      [input.adminUserId, input.dsrId, JSON.stringify({ npcReference: ref })],
+    );
+    return row;
+  });
 
   logger.info('DSR escalated to NPC', { dsrId: input.dsrId, npcReference: ref });
   return mapDsr(updated);
@@ -374,15 +457,31 @@ interface VersionRow {
 
 export async function listConsentVersions(): Promise<ConsentVersionSummary[]> {
   const result = await db.query<VersionRow>(
-    `SELECT consent_type,
-            version,
-            COUNT(*)::text AS total_records,
-            COUNT(*) FILTER (WHERE granted = TRUE AND revoked_at IS NULL)::text AS active_users,
-            MIN(granted_at) AS earliest_granted,
-            MAX(granted_at) AS latest_granted
-       FROM consent_records
-      GROUP BY consent_type, version
-      ORDER BY consent_type ASC, version DESC`,
+    `WITH latest_decision AS (
+       SELECT DISTINCT ON (user_id, consent_type)
+              user_id, consent_type, version, granted, revoked_at
+         FROM consent_records
+        ORDER BY user_id, consent_type, granted_at DESC, id DESC
+     ), version_totals AS (
+       SELECT consent_type, version,
+              COUNT(*)::text AS total_records,
+              MIN(granted_at) AS earliest_granted,
+              MAX(granted_at) AS latest_granted
+         FROM consent_records
+        GROUP BY consent_type, version
+     ), active_totals AS (
+       SELECT consent_type, version, COUNT(*)::text AS active_users
+         FROM latest_decision
+        WHERE granted = TRUE AND revoked_at IS NULL
+        GROUP BY consent_type, version
+     )
+     SELECT vt.consent_type, vt.version, vt.total_records,
+            COALESCE(at.active_users, '0') AS active_users,
+            vt.earliest_granted, vt.latest_granted
+       FROM version_totals vt
+       LEFT JOIN active_totals at
+         ON at.consent_type = vt.consent_type AND at.version = vt.version
+      ORDER BY vt.consent_type ASC, vt.version DESC`,
   );
 
   return result.rows.map((r) => ({
@@ -450,6 +549,12 @@ export async function publishConsentVersion(input: {
   if (!input.consentType || input.consentType.trim().length === 0
       || input.consentType.length > 50) {
     throw createAppError('consentType is required (1-50 chars).', 400);
+  }
+  if (!isConsentType(input.consentType.trim())) {
+    throw createAppError(
+      `consentType must be one of: ${CONSENT_TYPES.join(', ')}.`,
+      400,
+    );
   }
   if (!input.version || input.version.trim().length === 0 || input.version.length > 20) {
     throw createAppError('version is required (1-20 chars).', 400);

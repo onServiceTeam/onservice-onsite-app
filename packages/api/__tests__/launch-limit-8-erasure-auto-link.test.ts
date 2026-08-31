@@ -84,7 +84,7 @@ describe('LAUNCH-LIMITATIONS #8 — erasure DSR auto-links to account deletion',
       requestType: 'erasure',
     });
 
-    // The DSR is still returned — customer's NPC 15-day SLA preserved.
+    // The DSR is still returned and the current internal target is preserved.
     expect(result.id).toBe('dsr-1');
     expect(result.requestType).toBe('erasure');
   });

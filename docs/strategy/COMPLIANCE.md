@@ -9,6 +9,8 @@
 > E16, E22, and the compliance determination for large-payout review. Use
 > `docs/runbooks/launch-cutover.md` and `docs/operations/10-money-and-compliance-ops.md`
 > for current internal status, without treating either as professional advice.
+> E40 additionally holds the final DSR-deadline wording and breach-notification
+> classification workflow for Philippine privacy counsel.
 
 Planning outline of what may be required, who may need to help, and what must be
 confirmed for the real entity and each active service area.
@@ -94,8 +96,12 @@ counsel/accounting identify the current exposure for the actual entity and issue
 - Privacy notice (visible in app, mobile, admin) — Phase 09 builds the consent screen
 - Granular consent for: data collection, marketing, biometric (face capture for selfie verification)
 - Data subject rights — Phase 11 implements DSR queue: access, erasure, correction, portability, objection
-- 15-day SLA for DSR response
-- Breach notification (72 hours to NPC if breach)
+- A documented DSR workflow. The current product stores a 15-day internal
+  response target; E40 prohibits describing it as an NPC-mandated completion
+  SLA until counsel approves the operative wording.
+- A breach-assessment workflow that distinguishes suspected incidents from a
+  DPO determination that notification is required. E40 holds the final
+  classification fields, trigger, deadline wording, and filing workflow.
 - Reasonable security measures (encryption at rest, access logs, incident response)
 
 ### Penalties
@@ -106,7 +112,7 @@ counsel/accounting identify the current exposure for the actual entity and issue
 ### What your code must do
 - Don't log raw PII (phone numbers, OTPs, government ID numbers) — Phase 12 SEC-005
 - Encrypt government ID images at rest (S3 SSE) — Phase 12 SEC-004
-- Audit trail for every PII access (who looked at whose data, when, why) — already in audit log
+- Attributable evidence for sensitive PII access (who, whose record, when, and why). Selected DPO searches and decisions are recorded today, but E37 confirms the audit workspace is not yet a complete PII-access trail.
 - DSR fulfillment automation — Phase 11
 
 ---

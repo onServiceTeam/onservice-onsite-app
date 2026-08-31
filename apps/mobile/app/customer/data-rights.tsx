@@ -2,13 +2,13 @@
 // Phase 14 remediation — audited (D14r-9 markers pass)
  * Phase 13 Dispatch C — Customer Data Rights (DSR) screen.
  *
- * NPC-compliant customer-facing surface for the Data Privacy Act rights:
+ * Customer-facing surface for Data Privacy Act requests:
  *   - Download my data    (request_type='access')
  *   - Correct my info     (request_type='correction')
  *   - Delete my account   (request_type='erasure', requires typed "DELETE")
  *
  * Submission writes a data_subject_requests row server-side; the API computes
- * the 15-day SLA. The customer can review prior requests through the scoped
+ * the current internal 15-day response target. The customer can review prior requests through the scoped
  * /api/v1/compliance/my-requests endpoint. Form inputs include accessibility
  * labels.
  */
@@ -18,7 +18,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, RefreshControl,
+  StyleSheet, ActivityIndicator, RefreshControl, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -59,7 +59,7 @@ const FLOWS: FlowConfig[] = [
     title: 'Download My Data',
     shortDescription: 'Get a copy of the personal data we hold about you.',
     longDescription:
-      'You have the right under the Data Privacy Act (RA 10173) to access and receive a copy of your personal data. We will compile your profile, bookings, reviews, messages, and wallet history and update this request within 15 days. The DPO may contact you through your registered details if information or a secure delivery method is needed.',
+      'You have the right under the Data Privacy Act (RA 10173) to access and receive a copy of your personal data. Our current target is to update this request within 15 days. The DPO may contact you through your registered details if information or a secure delivery method is needed.',
     ctaLabel: 'Request my data',
     requireDeleteConfirmation: false,
   },
@@ -69,7 +69,7 @@ const FLOWS: FlowConfig[] = [
     title: 'Correct My Information',
     shortDescription: 'Fix inaccurate or incomplete personal data.',
     longDescription:
-      'If any of the personal data we hold about you is inaccurate or out of date, you have the right to have it corrected. Tell us what needs to be updated below — we will respond within 15 days.',
+      'If any of the personal data we hold about you is inaccurate or out of date, you have the right to have it corrected. Tell us what needs to be updated below. Our current response target is 15 days.',
     ctaLabel: 'Submit correction request',
     requireDeleteConfirmation: false,
   },
@@ -79,7 +79,7 @@ const FLOWS: FlowConfig[] = [
     title: 'Deactivate & Anonymize My Account',
     shortDescription: 'Deactivate your account and anonymize personal identifiers after a cooling-off period.',
     longDescription:
-      'You may request account deactivation and anonymization. A 30-day cooling-off period applies before processing. Some booking, payment, dispute, tax, and compliance records may be retained where required, while personal identifiers are removed where the current workflow supports it. We will respond within 15 days.',
+      'You may request account deactivation and anonymization. A 30-day cooling-off period applies before processing. Some booking, payment, dispute, tax, and compliance records may be retained where required, while personal identifiers are removed where the current workflow supports it. Our current response target is 15 days.',
     ctaLabel: 'Request deactivation',
     requireDeleteConfirmation: true,
   },
@@ -88,6 +88,15 @@ const FLOWS: FlowConfig[] = [
 interface SubmissionResult {
   flow: FlowKey;
   request: DsrRecord;
+}
+
+export function secureResponseUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).protocol === 'https:' ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function DataRightsScreen(): React.ReactElement {
@@ -258,8 +267,7 @@ export default function DataRightsScreen(): React.ReactElement {
           <Text style={styles.refValue}>{refNumber}</Text>
         </View>
         <Text style={styles.confirmBody}>
-          Our Data Protection Officer will respond by {dueDate} (within 15 days as required by the
-          Data Privacy Act). Track the request below; the DPO may also contact you through your
+          Our current target response date is {dueDate}. Track the request below; the DPO may also contact you through your
           registered details if more information or a secure delivery method is needed.
         </Text>
         <Text style={styles.confirmFootnote}>
@@ -317,7 +325,7 @@ export default function DataRightsScreen(): React.ReactElement {
           <Text style={styles.introBody}>
             Under the Philippine Data Privacy Act (RA 10173), you have the right to access, correct,
             and request the deletion of personal data we hold about you. Submit a request below and
-            our Data Protection Officer will respond within 15 days.
+            our current target is for the Data Protection Officer to respond within 15 days.
           </Text>
         </View>
 
@@ -438,31 +446,45 @@ export default function DataRightsScreen(): React.ReactElement {
               ) : (myRequestsQuery.data?.length ?? 0) === 0 ? (
                 <Text style={styles.historyEmpty}>
                   You have not submitted any data subject requests yet. When you do, they will
-                  appear here with their status and 15-day SLA date.
+                  appear here with their status and current target date.
                 </Text>
               ) : (
                 <View>
                   {(myRequestsQuery.data ?? []).map((req) => {
                     const due = new Date(req.dueAt);
-                    const dueLabel = due.toLocaleDateString();
+                    const dueLabel = due.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
+                    const safeResponseUrl = secureResponseUrl(req.responsePayloadUrl);
                     return (
                       <View key={req.id} style={styles.historyRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.historyTitle}>
-                            {req.requestType.charAt(0).toUpperCase() + req.requestType.slice(1)}
-                          </Text>
-                          <Text style={styles.historyMeta}>
-                            Submitted {new Date(req.receivedAt).toLocaleDateString()} · due {dueLabel}
+                        <View style={styles.historyRowTop}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.historyTitle}>
+                              {req.requestType.charAt(0).toUpperCase() + req.requestType.slice(1)}
+                            </Text>
+                            <Text style={styles.historyMeta}>
+                              Submitted {new Date(req.receivedAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })} · target {dueLabel}
+                            </Text>
+                          </View>
+                          <Text style={[
+                            styles.historyStatus,
+                            req.status === 'completed' ? { color: colors.success } :
+                            req.status === 'rejected' ? { color: colors.error } :
+                            { color: colors.primary },
+                          ]}>
+                            {req.status}
                           </Text>
                         </View>
-                        <Text style={[
-                          styles.historyStatus,
-                          req.status === 'completed' ? { color: colors.success } :
-                          req.status === 'rejected' ? { color: colors.error } :
-                          { color: colors.primary },
-                        ]}>
-                          {req.status}
-                        </Text>
+                        {req.rejectionReason ? <Text style={styles.historyDetail}>Reason: {req.rejectionReason}</Text> : null}
+                        {safeResponseUrl ? (
+                          <TouchableOpacity
+                            onPress={() => { void Linking.openURL(safeResponseUrl); }}
+                            accessibilityRole="link"
+                            accessibilityLabel={`Open response for ${req.requestType} request`}
+                            style={styles.historyLinkButton}
+                          >
+                            <Text style={styles.historyLink}>Open secure response</Text>
+                          </TouchableOpacity>
+                        ) : null}
                       </View>
                     );
                   })}
@@ -636,12 +658,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   historyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
+  historyRowTop: { flexDirection: 'row', alignItems: 'center' },
   historyTitle: {
     ...typography.body,
     color: colors.text,
@@ -656,6 +677,23 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     fontWeight: '600' as const,
     textTransform: 'uppercase' as const,
+  },
+  historyDetail: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    lineHeight: 18,
+  },
+  historyLinkButton: {
+    alignSelf: 'flex-start',
+    minHeight: 44,
+    justifyContent: 'center',
+    marginTop: spacing.xs,
+  },
+  historyLink: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: '700' as const,
   },
 
   // LAUNCH-LIMITATIONS #5 fix — pending material consent banner.

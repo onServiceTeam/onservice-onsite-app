@@ -36,14 +36,15 @@ function buildApp(): express.Express {
 
 it('Bug UX-560 — DSR and consent-version APIs admit DPO/super-admin and reject operations admin', async () => {
   const app = buildApp();
+  const dsrId = '11111111-1111-4111-8111-111111111111';
   mockState.currentRole = 'admin';
   expect((await request(app).get('/api/v1/admin/compliance/dsr')).status).toBe(403);
-  expect((await request(app).post('/api/v1/admin/compliance/dsr/dsr-1/complete').send({})).status).toBe(403);
+  expect((await request(app).post(`/api/v1/admin/compliance/dsr/${dsrId}/complete`).send({})).status).toBe(403);
   expect((await request(app).get('/api/v1/admin/compliance/consent-versions')).status).toBe(403);
 
   mockState.currentRole = 'dpo';
   expect((await request(app).get('/api/v1/admin/compliance/dsr')).status).toBe(200);
-  expect((await request(app).post('/api/v1/admin/compliance/dsr/dsr-1/complete').send({})).status).toBe(200);
+  expect((await request(app).post(`/api/v1/admin/compliance/dsr/${dsrId}/complete`).send({})).status).toBe(200);
   expect((await request(app).get('/api/v1/admin/compliance/consent-versions')).status).toBe(200);
 
   mockState.currentRole = 'super_admin';

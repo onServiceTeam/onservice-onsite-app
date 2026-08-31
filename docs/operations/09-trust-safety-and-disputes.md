@@ -273,7 +273,7 @@ Severity levels and response:
 5. **Collect evidence** (section 3) plus anything external (medical note, police blotter, photos).
 6. **Decide and document.** Resolve any attached dispute. Record the incident outcome and whether the provider is reinstated, kept suspended, or removed (set `deactivated` / leave suspended, there is no hard delete).
 7. **Escalate up the chain** for SEV-1: Ken decides on law-enforcement reporting, and on whether the guarantee fund pays out.
-8. **NPC angle:** if the incident involves a personal-data breach (leaked customer info, doxxing), loop the DPO. NPC breach notification is 72 hours. See `10-money-and-compliance-ops.md`.
+8. **NPC angle:** if the incident may involve leaked personal data, doxxing, or another privacy/security event, loop the DPO immediately and preserve the discovery timeline. E40 holds the notification-required classification and statutory-deadline wording; do not label every incident reportable. See `10-money-and-compliance-ops.md`.
 
 ### 7.4 Damage above the job price, and the guarantee fund
 

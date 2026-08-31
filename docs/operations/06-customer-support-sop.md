@@ -149,7 +149,7 @@ Support agents cannot move money or change account state. Those actions are supe
 | Dispute needs a decision | Gather evidence, set context | Super-admin (resolve dispute) | Dispute resolution is super-admin only, decision note min 20 chars. |
 | Provider behavior: rude, late pattern, suspicious | Document, flag | Trust & Safety / super-admin (suspend) | Suspend is super-admin and freezes that provider's in-flight escrow. |
 | Fraud suspicion on a customer | Document, flag | Trust & Safety / super-admin | "Flag for fraud review" is super-admin on the customer detail page. |
-| Data request (download, correct, delete) | Point to in-app flow, log | DPO (`dpo@onservice.ph`) | NPC data-subject SLA, DPO-owned. See section 9. |
+| Data request (download, correct, delete) | Point to in-app flow, log | DPO (`dpo@onservice.ph`) | Privacy case, DPO-owned. The displayed date is an internal target under E40. See section 9. |
 | App is broken (bug) | Reproduce, capture screenshots | Engineering via `app_bug` ticket | Code change, not a support fix. |
 | Legal / insurance question | Use approved wording only | Do not freelance | "Marketplace, not an insurer." Do not improvise legal language. |
 
@@ -293,7 +293,7 @@ If a customer asks to download, correct, or delete their data, that is an NPC da
 
 1. Point them to the in-app flow first: the Data & Privacy screen lets them download data, correct info, or delete their account self-serve (delete requires typing "DELETE"). There is also a separate "Account & Data" screen with export (JSON/CSV) and a 30-day cooling-off account deletion they can cancel themselves.
 2. If they want a human to handle it, route to `dpo@onservice.ph`. Do not action it from a support seat.
-3. Set the expectation: we acknowledge a data-subject request within 2 days and fulfill it within the NPC-required window (see `10-money-and-compliance-ops.md`). Note that some records (BIR financial receipts, kept about 10 years) survive deletion by law; personal identifiers are removed.
+3. Set the expectation: our current internal target is to acknowledge the request within 2 business days and respond by the target shown in the privacy case (currently 15 days). Do not call that target an NPC-mandated completion deadline while E40 is open. Some transaction, dispute, tax, security, or compliance evidence may need to be retained; do not quote a retention period or promise total deletion while the E21/E22 retention design is unresolved.
 4. Never resolve a data request by closing the support ticket as if support handled it. Log that it was routed to the DPO.
 
 ---
@@ -336,7 +336,7 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 
 ### M9 - Data / privacy request routing
 
-> Hi [name], you can handle this yourself in the app under Account & Data: download your data, correct it, or delete your account. If you would rather we process it, email dpo@onservice.ph and our Data Protection Officer will action it within the required window.
+> Hi [name], you can handle this yourself in the app under Account & Data: download your data, correct it, or request account deactivation and anonymization. If you would rather we process it, email dpo@onservice.ph. Our current target is to acknowledge the request within 2 business days and respond by the target recorded on the case.
 
 ### M10 - No-insurance / liability (interim E10/F#10 wording)
 

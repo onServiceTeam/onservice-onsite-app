@@ -1,880 +1,201 @@
-/**
- * Phase 11 — Admin Compliance Center.
- *
- * General operations compliance workspace: BIR Calendar, Audit Log, held tax
- * workpapers, and regulatory reports. D34 moved NPC privacy work to the
- * dedicated `/privacy` workspace.
- *
- * Mirrors MarketingPage.tsx layout: header + Tabs from @/components/ui.
- */
-
-import React, { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useSearchParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import api, { getErrorMessage } from '@/lib/api';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import {
-  Badge,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-  Button,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  Input,
-  Label,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-  Textarea,
-  LoadingState,
-  ErrorState,
-  EmptyState,
-} from '@/components/ui';
-import {
-  Shield,
-  FileText,
+  AlertTriangle,
+  ArrowRight,
   Calendar,
-  Download,
-  Search,
+  FileText,
+  Lock,
+  Shield,
 } from '@/components/icons';
 import { useAuthStore } from '@/stores/auth.store';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+type HoldTone = 'blocked' | 'held' | 'partial';
 
-type DsrStatus = 'received' | 'in_progress' | 'completed' | 'rejected';
-type ComplianceTab = 'npc' | 'bir' | 'audit' | 'tax' | 'reports';
-type DsrRequestType =
-  | 'access' | 'erasure' | 'correction' | 'portability' | 'restriction' | 'objection';
-
-interface DsrRecord {
-  id: string;
-  userId: string;
-  userEmail: string | null;
-  requestType: DsrRequestType;
-  status: DsrStatus;
-  receivedAt: string;
-  dueAt: string;
-  completedAt: string | null;
-  handledBy: string | null;
-  userMessage: string | null;
-  adminNotes: string | null;
-  responsePayloadUrl: string | null;
-  rejectionReason: string | null;
-  daysUntilDue: number;
-  isOverdue: boolean;
+interface GovernanceItem {
+  code: string;
+  title: string;
+  status: string;
+  tone: HoldTone;
+  summary: string;
+  operatorRule: string;
 }
 
-interface ConsentRecord {
-  id: string;
-  userId: string;
-  consentType: string;
-  version: string;
-  granted: boolean;
-  grantedAt: string;
-  revokedAt: string | null;
-  ipAddress: string | null;
-  userAgent: string | null;
-}
+const GOVERNANCE_ITEMS: GovernanceItem[] = [
+  {
+    code: 'E22',
+    title: 'BIR document issuance',
+    status: 'Held',
+    tone: 'held',
+    summary: 'The app retains internal tax workpapers and legacy sales records, but no accountant-approved principal-document design is in force.',
+    operatorRule: 'Do not issue, finalize, or describe an app record as a BIR filing or authorized invoice.',
+  },
+  {
+    code: 'E14',
+    title: 'External checkout',
+    status: 'Blocked',
+    tone: 'blocked',
+    summary: 'The internal payment state machine exists, but the current PayMongo hosted-authorization entry is not launch-ready.',
+    operatorRule: 'An awaiting-payment row or browser redirect is not proof that money was collected.',
+  },
+  {
+    code: 'E09',
+    title: 'Cancellation authority',
+    status: 'Held',
+    tone: 'held',
+    summary: 'The live refund engine and customer-displayed cancellation policy remain two different sources.',
+    operatorRule: 'Use the case-specific server-calculated outcome and escalate any conflict with customer wording.',
+  },
+  {
+    code: 'E40',
+    title: 'Privacy deadline and breach contract',
+    status: 'Counsel hold',
+    tone: 'held',
+    summary: 'The stored 15-day DSR date is an internal target. Breach notification still lacks a counsel-approved classification workflow.',
+    operatorRule: 'Do not call the target an NPC-mandated completion SLA or classify every incident as reportable.',
+  },
+  {
+    code: 'E37',
+    title: 'Audit coverage',
+    status: 'Partial evidence',
+    tone: 'partial',
+    summary: 'The evidence workspace combines selected admin decisions and selected system events. It is not a global request or mutation trail.',
+    operatorRule: 'Use it as an evidence index and verify the underlying customer, provider, booking, support, or money record.',
+  },
+];
 
-interface AuditEntry {
-  id: string;
-  userId: string | null;
-  userEmail: string | null;
-  userRole: string | null;
-  action: string;
-  entityType: string;
-  entityId: string | null;
-  oldValues: Record<string, unknown> | null;
-  newValues: Record<string, unknown> | null;
-  ipAddress: string | null;
-  userAgent: string | null;
-  createdAt: string;
-}
-
-interface AuditResponse {
-  data: AuditEntry[];
-  pagination: { page: number; pageSize: number; total: number; totalPages: number };
-}
-
-function fmtDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
-}
-
-const STATUS_LABEL: Record<DsrStatus, string> = {
-  received: 'Received',
-  in_progress: 'In progress',
-  completed: 'Completed',
-  rejected: 'Rejected',
+const TONE_CLASS: Record<HoldTone, string> = {
+  blocked: 'border-red-200 bg-red-50 text-red-800',
+  held: 'border-amber-200 bg-amber-50 text-amber-900',
+  partial: 'border-sky-200 bg-sky-50 text-sky-900',
 };
 
-const COMPLIANCE_TABS = new Set<ComplianceTab>(['bir', 'audit', 'tax', 'reports']);
-
-function parseTab(value: string | null): ComplianceTab {
-  return value && COMPLIANCE_TABS.has(value as ComplianceTab) ? value as ComplianceTab : 'audit';
+interface WorkspaceLink {
+  to: string;
+  title: string;
+  description: string;
+  Icon: typeof FileText;
 }
 
-// ─── Page ──────────────────────────────────────────────────────────────────
+const OPERATIONS_LINKS: WorkspaceLink[] = [
+  {
+    to: '/audit-log',
+    title: 'Audit evidence',
+    description: 'Search the two recorded evidence sources, open the exact record context, and export the same masked filter scope.',
+    Icon: FileText,
+  },
+  {
+    to: '/financials?tab=bir',
+    title: 'Tax workpapers (held)',
+    description: 'Review retained VAT workpapers, 2307 records, and legacy evidence without presenting them as approved filings.',
+    Icon: Calendar,
+  },
+  {
+    to: '/financials?tab=payments',
+    title: 'Payments and refunds',
+    description: 'Trace payment-attempt truth, unresolved gateway retries, customer outcomes, and the related booking record.',
+    Icon: FileText,
+  },
+  {
+    to: '/settings/cancellation-policy',
+    title: 'Cancellation comparison',
+    description: 'Compare the live refund settings with the customer-displayed policy while both mutation surfaces remain frozen.',
+    Icon: AlertTriangle,
+  },
+];
 
-export default function CompliancePage(): React.ReactElement {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = parseTab(searchParams.get('tab'));
-
-  function selectTab(tab: ComplianceTab): void {
-    setSearchParams((current) => {
-      const params = new URLSearchParams(current);
-      params.set('tab', tab);
-      return params;
-    });
-  }
-
+function GovernanceCard({ item }: { item: GovernanceItem }): React.ReactElement {
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-xl font-bold text-[var(--color-text)] flex items-center gap-2">
-          <Shield size={20} /> Compliance
-        </h1>
-        <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
-          Audit evidence, held BIR workpapers, and regulatory reports. Privacy
-          operations use the dedicated Privacy Workspace.
-        </p>
+    <article className="rounded-xl border border-[var(--color-border)] bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">{item.code}</p>
+          <h2 className="mt-1 font-semibold text-[var(--color-text)]">{item.title}</h2>
+        </div>
+        <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${TONE_CLASS[item.tone]}`}>
+          {item.status}
+        </span>
       </div>
-
-      <Tabs value={activeTab} onValueChange={(value) => selectTab(value as ComplianceTab)}>
-        <TabsList>
-          <TabsTrigger value="bir">BIR Hold</TabsTrigger>
-          <TabsTrigger value="audit">Audit Log</TabsTrigger>
-          <TabsTrigger value="tax">Tax Documents</TabsTrigger>
-          <TabsTrigger value="reports">Regulatory Reports</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="bir">
-          <BirTab />
-        </TabsContent>
-        <TabsContent value="audit">
-          <AuditTab />
-        </TabsContent>
-        <TabsContent value="tax">
-          <TaxTab />
-        </TabsContent>
-        <TabsContent value="reports">
-          <ReportsTab />
-        </TabsContent>
-      </Tabs>
-    </div>
+      <p className="mt-4 text-sm leading-6 text-[var(--color-text-secondary)]">{item.summary}</p>
+      <div className="mt-4 rounded-lg bg-[var(--color-surface-hover)] p-3 text-sm leading-5 text-[var(--color-text)]">
+        <span className="font-semibold">Operator rule: </span>{item.operatorRule}
+      </div>
+    </article>
   );
 }
 
-// ─── Held legacy NPC tab ───────────────────────────────────────────────────
-// E40: retained only as reference while privacy counsel settles the replacement
-// request/breach contract. It is deliberately not mounted in CompliancePage.
-
-function _NpcTab(): React.ReactElement {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const dsrStatusParam = searchParams.get('dsrStatus');
-  const statusFilter = dsrStatusParam === 'received' || dsrStatusParam === 'in_progress' || dsrStatusParam === 'completed' || dsrStatusParam === 'rejected'
-    ? dsrStatusParam
-    : 'all';
-  const overdueOnly = searchParams.get('overdueOnly') === 'true';
-  const [selected, setSelected] = useState<DsrRecord | null>(null);
-
-  function setStatusFilter(value: DsrStatus | 'all'): void {
-    setSearchParams((current) => {
-      const params = new URLSearchParams(current);
-      params.set('tab', 'npc');
-      if (value === 'all') params.delete('dsrStatus');
-      else params.set('dsrStatus', value);
-      return params;
-    });
-    setSelected(null);
-  }
-
-  function setOverdueOnly(value: boolean): void {
-    setSearchParams((current) => {
-      const params = new URLSearchParams(current);
-      params.set('tab', 'npc');
-      if (value) params.set('overdueOnly', 'true');
-      else params.delete('overdueOnly');
-      return params;
-    });
-    setSelected(null);
-  }
-
-  const dsrQuery = useQuery({
-    queryKey: ['compliance-dsr', statusFilter, overdueOnly],
-    queryFn: async () => {
-      const params: Record<string, string> = {};
-      if (statusFilter !== 'all') params.status = statusFilter;
-      if (overdueOnly) params.overdueOnly = 'true';
-      const res = await api.get<{ success: boolean; data: { rows: DsrRecord[]; total: number } }>(
-        '/api/v1/admin/compliance/dsr', { params },
-      );
-      return res.data.data;
-    },
-  });
+export default function CompliancePage(): React.ReactElement {
+  const role = useAuthStore((state) => state.user?.role);
+  const canOpenPrivacy = role === 'super_admin' || role === 'dpo';
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Data Subject Request Queue</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-3 mb-4">
-            <Select
-              value={statusFilter}
-              onValueChange={(v) => setStatusFilter(v as DsrStatus | 'all')}
-            >
-              <SelectTrigger aria-label="Filter DSR requests by status" className="w-48">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="received">Received</SelectItem>
-                <SelectItem value="in_progress">In progress</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-            <label htmlFor="filter-compliance-overdue-only" className="flex items-center gap-2 text-sm">
-              <input
-                id="filter-compliance-overdue-only"
-                type="checkbox"
-                checked={overdueOnly}
-                onChange={(e) => setOverdueOnly(e.target.checked)}
-              />
-              Overdue only
-            </label>
+      <section className="overflow-hidden rounded-2xl bg-[var(--color-primary)] px-5 py-6 text-white shadow-sm sm:px-7 lg:px-8">
+        <div className="max-w-3xl">
+          <div className="flex items-center gap-2 text-sm font-semibold text-white/80">
+            <Shield size={18} /> Company governance boundary
           </div>
+          <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Compliance Control Center</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-white/85 sm:text-base">
+            See what the platform can prove, what remains held, and which canonical workspace owns the underlying evidence.
+            This screen does not file with an agency or certify legal compliance.
+          </p>
+        </div>
+      </section>
 
-          {dsrQuery.isLoading ? (
-            <LoadingState label="Loading DSR queue..." />
-          ) : dsrQuery.isError ? (
-            <ErrorState
-              title="Failed to load DSR queue"
-              description={getErrorMessage(dsrQuery.error)}
-            />
-          ) : (dsrQuery.data?.rows ?? []).length === 0 ? (
-            <EmptyState
-              title="No data subject requests"
-              description="Nothing in the queue with these filters."
-              icon={<Shield size={28} className="text-slate-400" />}
-            />
-          ) : (
-            <div className="overflow-hidden rounded-lg border border-[var(--color-border)]">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--color-bg)]">
-                  <tr>
-                    <th className="text-left px-4 py-2 font-medium text-[var(--color-text-secondary)]">ID</th>
-                    <th className="text-left px-4 py-2 font-medium text-[var(--color-text-secondary)]">User</th>
-                    <th className="text-left px-4 py-2 font-medium text-[var(--color-text-secondary)]">Type</th>
-                    <th className="text-left px-4 py-2 font-medium text-[var(--color-text-secondary)]">Status</th>
-                    <th className="text-left px-4 py-2 font-medium text-[var(--color-text-secondary)]">Days until due</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(dsrQuery.data?.rows ?? []).map((r) => (
-                    <tr
-                      key={r.id}
-                      tabIndex={0}
-                      className="border-t border-[var(--color-border)] cursor-pointer hover:bg-[var(--color-bg)]"
-                      onClick={() => setSelected(r)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          setSelected(r);
-                        }
-                      }}
-                    >
-                      <td className="px-4 py-2 font-mono text-xs">{r.id.slice(0, 8)}</td>
-                      <td className="px-4 py-2">{r.userEmail ?? r.userId}</td>
-                      <td className="px-4 py-2">{r.requestType}</td>
-                      <td className="px-4 py-2"><Badge label={STATUS_LABEL[r.status]} /></td>
-                      <td className="px-4 py-2">
-                        {r.isOverdue ? (
-                          <Badge variant="danger" label={`Overdue (${Math.abs(r.daysUntilDue)}d)`} />
-                        ) : (
-                          `${r.daysUntilDue}d`
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <section aria-labelledby="governance-status-heading">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Current operating boundary</p>
+          <h2 id="governance-status-heading" className="mt-1 text-xl font-semibold text-[var(--color-text)]">Open holds and evidence limits</h2>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+          {GOVERNANCE_ITEMS.map((item) => <GovernanceCard key={item.code} item={item} />)}
+        </div>
+      </section>
 
-      {selected && (
-        <DsrDetailPanel
-          dsr={selected}
-          onClose={() => setSelected(null)}
-          onUpdated={() => { void dsrQuery.refetch(); setSelected(null); }}
-        />
-      )}
+      <section aria-labelledby="canonical-workspaces-heading">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Canonical records</p>
+          <h2 id="canonical-workspaces-heading" className="mt-1 text-xl font-semibold text-[var(--color-text)]">Continue the investigation</h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {OPERATIONS_LINKS.map(({ to, title, description, Icon }) => (
+            <Link
+              key={to}
+              to={to}
+              className="group rounded-xl border border-[var(--color-border)] bg-white p-5 shadow-sm transition hover:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            >
+              <Icon size={22} className="text-[var(--color-primary)]" />
+              <h3 className="mt-4 font-semibold text-[var(--color-text)]">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">{description}</p>
+              <span className="mt-4 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--color-primary)]">
+                Open workspace <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
 
-      <ConsentSearchCard />
-    </div>
-  );
-}
-
-function DsrDetailPanel(props: {
-  dsr: DsrRecord;
-  onClose: () => void;
-  onUpdated: () => void;
-}): React.ReactElement {
-  const { dsr, onClose, onUpdated } = props;
-  const queryClient = useQueryClient();
-  // Terminal DSR decisions (completed/rejected) are super_admin-only on the
-  // server (matching the dedicated /reject + /complete endpoints). Hide those
-  // options from a base admin so the UI never offers an action that 403s.
-  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
-  const [newStatus, setNewStatus] = useState<DsrStatus>(dsr.status);
-  const [adminNotes, setAdminNotes] = useState(dsr.adminNotes ?? '');
-  const [rejectionReason, setRejectionReason] = useState(dsr.rejectionReason ?? '');
-  const [responsePayloadUrl, setResponsePayloadUrl] = useState(dsr.responsePayloadUrl ?? '');
-  const [formError, setFormError] = useState('');
-
-  const updateMut = useMutation({
-    mutationFn: async () => {
-      const body: Record<string, unknown> = { newStatus };
-      if (adminNotes.trim()) body.adminNotes = adminNotes.trim();
-      if (rejectionReason.trim()) body.rejectionReason = rejectionReason.trim();
-      if (responsePayloadUrl.trim()) body.responsePayloadUrl = responsePayloadUrl.trim();
-      const res = await api.patch<{ success: boolean; data: DsrRecord }>(
-        `/api/v1/admin/compliance/dsr/${dsr.id}`, body,
-      );
-      return res.data.data;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['compliance-dsr'] });
-      onUpdated();
-    },
-  });
-
-  const handleSubmit = (e: FormEvent): void => {
-    e.preventDefault();
-    const trimmedReason = rejectionReason.trim();
-    const trimmedUrl = responsePayloadUrl.trim();
-    if (newStatus === 'rejected' && trimmedReason.length < 10) {
-      setFormError('Rejection reason must be at least 10 characters.');
-      return;
-    }
-    if (newStatus === 'completed' && !trimmedUrl) {
-      setFormError('Response payload URL is required when completing a DSR.');
-      return;
-    }
-    if (!window.confirm(`Update DSR ${dsr.id.slice(0, 8)} to ${STATUS_LABEL[newStatus]}?`)) return;
-    setFormError('');
-    updateMut.mutate();
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>DSR Detail — {dsr.id.slice(0, 8)}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-4">
-          <dt className="text-[var(--color-text-secondary)]">User</dt>
-          <dd>{dsr.userEmail ?? dsr.userId}</dd>
-          <dt className="text-[var(--color-text-secondary)]">Type</dt>
-          <dd>{dsr.requestType}</dd>
-          <dt className="text-[var(--color-text-secondary)]">Received</dt>
-          <dd>{fmtDateTime(dsr.receivedAt)}</dd>
-          <dt className="text-[var(--color-text-secondary)]">Due</dt>
-          <dd>{fmtDateTime(dsr.dueAt)}</dd>
-          <dt className="text-[var(--color-text-secondary)]">User message</dt>
-          <dd className="col-span-2 italic">{dsr.userMessage ?? '—'}</dd>
-        </dl>
-
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <Label htmlFor="dsr-status">New status</Label>
-            <Select value={newStatus} onValueChange={(v) => setNewStatus(v as DsrStatus)}>
-              <SelectTrigger id="dsr-status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="received">Received</SelectItem>
-                <SelectItem value="in_progress">In progress</SelectItem>
-                {isSuperAdmin && <SelectItem value="completed">Completed</SelectItem>}
-                {isSuperAdmin && <SelectItem value="rejected">Rejected</SelectItem>}
-              </SelectContent>
-            </Select>
-            {!isSuperAdmin && (
-              <p className="text-xs text-[var(--color-text-secondary)] mt-1">
-                Completing or rejecting a data-subject request requires a super admin.
+      <section className="rounded-xl border border-[var(--color-border)] bg-white p-5 sm:p-6">
+        <div className="flex items-start gap-3">
+          <Lock size={21} className="mt-0.5 shrink-0 text-[var(--color-primary)]" />
+          <div className="min-w-0">
+            <h2 className="font-semibold text-[var(--color-text)]">Privacy segregation</h2>
+            <p className="mt-1 text-sm leading-6 text-[var(--color-text-secondary)]">
+              Data-subject requests and consent records belong to the appointed DPO. Plain operations admins do not receive those records from this page.
+            </p>
+            {canOpenPrivacy ? (
+              <Link to="/privacy" className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--color-primary)]">
+                Open Privacy Workspace <ArrowRight size={16} />
+              </Link>
+            ) : (
+              <p className="mt-3 text-sm font-medium text-amber-800">
+                Escalate privacy cases to the DPO or super-admin fallback; do not copy personal data into a general support note.
               </p>
             )}
           </div>
-          <div>
-            <Label htmlFor="dsr-notes">Admin notes</Label>
-            <Textarea
-              id="dsr-notes"
-              value={adminNotes}
-              onChange={(e) => setAdminNotes(e.target.value)}
-              rows={3}
-            />
-          </div>
-          {newStatus === 'rejected' && (
-            <div>
-              <Label htmlFor="dsr-rej">Rejection reason</Label>
-              <Textarea
-                id="dsr-rej"
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                rows={2}
-              />
-            </div>
-          )}
-          {newStatus === 'completed' && (
-            <div>
-              <Label htmlFor="dsr-url">Response payload URL</Label>
-              <Input
-                id="dsr-url"
-                value={responsePayloadUrl}
-                onChange={(e) => setResponsePayloadUrl(e.target.value)}
-              />
-            </div>
-          )}
-          {updateMut.isError && (
-            <p role="alert" className="text-sm text-red-600">{getErrorMessage(updateMut.error)}</p>
-          )}
-          {formError && <p role="alert" className="text-sm text-red-600">{formError}</p>}
-          <div className="flex gap-2">
-            <Button type="submit" disabled={updateMut.isPending}>
-              {updateMut.isPending ? 'Saving...' : 'Save changes'}
-            </Button>
-            <Button type="button" variant="outline" onClick={onClose}>Close</Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ConsentSearchCard(): React.ReactElement {
-  // Phase 200 fix — the consent endpoint is gated requireDpoRole
-  // (super_admin or dpo) per NPC RA 10173 §21 least-privilege. Pre-fix the
-  // card showed for every admin role and the search silently 403'd (no
-  // error branch). Gate it to the roles the API allows.
-  const canSearchConsent = useAuthStore(
-    (s) => s.user?.role === 'super_admin' || s.user?.role === 'dpo',
-  );
-  const [userId, setUserId] = useState('');
-  const [consentType, setConsentType] = useState('');
-  const [version, setVersion] = useState('');
-  const [applied, setApplied] = useState({ userId: '', consentType: '', version: '' });
-
-  const consentQuery = useQuery({
-    queryKey: ['compliance-consent-search', applied],
-    queryFn: async () => {
-      const params: Record<string, string> = {};
-      if (applied.userId) params.userId = applied.userId;
-      if (applied.consentType) params.consentType = applied.consentType;
-      if (applied.version) params.version = applied.version;
-      const res = await api.get<{ success: boolean; data: { rows: ConsentRecord[]; total: number } }>(
-        '/api/v1/admin/compliance/consent', { params },
-      );
-      return res.data.data;
-    },
-    enabled: canSearchConsent && (applied.userId !== '' || applied.consentType !== '' || applied.version !== ''),
-  });
-
-  const handleSearch = (e: FormEvent): void => {
-    e.preventDefault();
-    setApplied({ userId: userId.trim(), consentType: consentType.trim(), version: version.trim() });
-  };
-
-  if (!canSearchConsent) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Consent Records Search</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Consent record search is restricted to the Data Protection Officer and super-admins under NPC
-            least-privilege rules (RA 10173 §21).
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Consent Records Search</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-          <div>
-            <Label htmlFor="cs-user">User ID</Label>
-            <Input id="cs-user" value={userId} onChange={(e) => setUserId(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="cs-type">Consent type</Label>
-            <Input id="cs-type" value={consentType} onChange={(e) => setConsentType(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="cs-ver">Version</Label>
-            <Input id="cs-ver" value={version} onChange={(e) => setVersion(e.target.value)} />
-          </div>
-          <div className="flex items-end">
-            <Button type="submit"><Search size={14} /> Search</Button>
-          </div>
-        </form>
-
-        {consentQuery.isFetching ? (
-          <LoadingState label="Searching..." />
-        ) : consentQuery.isError ? (
-          <ErrorState title="Consent search failed" description={getErrorMessage(consentQuery.error)} />
-        ) : (consentQuery.data?.rows ?? []).length === 0 ? (
-          applied.userId || applied.consentType || applied.version ? (
-            <EmptyState
-              title="No matching consent records"
-              description="No consent records match these filters."
-              icon={<Shield size={28} className="text-slate-400" />}
-            />
-          ) : (
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              Enter at least one filter and click Search.
-            </p>
-          )
-        ) : (
-          <div className="overflow-hidden rounded-lg border border-[var(--color-border)]">
-            <table className="w-full text-sm">
-              <thead className="bg-[var(--color-bg)]">
-                <tr>
-                  <th className="text-left px-4 py-2">User</th>
-                  <th className="text-left px-4 py-2">Type</th>
-                  <th className="text-left px-4 py-2">Version</th>
-                  <th className="text-left px-4 py-2">Granted</th>
-                  <th className="text-left px-4 py-2">At</th>
-                  <th className="text-left px-4 py-2">Revoked</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(consentQuery.data?.rows ?? []).map((c) => (
-                  <tr key={c.id} className="border-t border-[var(--color-border)]">
-                    <td className="px-4 py-2 font-mono text-xs">{c.userId.slice(0, 8)}</td>
-                    <td className="px-4 py-2">{c.consentType}</td>
-                    <td className="px-4 py-2">{c.version}</td>
-                    <td className="px-4 py-2">{c.granted ? 'Yes' : 'No'}</td>
-                    <td className="px-4 py-2">{fmtDateTime(c.grantedAt)}</td>
-                    <td className="px-4 py-2">{c.revokedAt ? fmtDateTime(c.revokedAt) : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── BIR tab ───────────────────────────────────────────────────────────────
-
-export function BirTab(): React.ReactElement {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar size={18} /> BIR Filing Calendar (Held)
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div
-          role="alert"
-          className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
-        >
-          The filing calendar is disabled until a Philippine accountant approves the company taxpayer
-          profile and current form schedule under escalation E22. Do not use old software dates for filing.
         </div>
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-4">
-          <p className="text-sm font-medium text-[var(--color-text)]">No filing dates are published in the app.</p>
-          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-            Staff must use the accountant-approved company filing calendar outside this screen until E22 is resolved.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Audit tab (extends AuditLogPage UI w/ extra controls + CSV export) ───
-
-function AuditTab(): React.ReactElement {
-  const [page, setPage] = useState(1);
-  const [actionFilter, setActionFilter] = useState('');
-  const [entityTypeFilter, setEntityTypeFilter] = useState('');
-  const [userIdFilter, setUserIdFilter] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
-  const [exporting, setExporting] = useState(false);
-
-  const pageSize = 50;
-
-  const auditQuery = useQuery({
-    queryKey: ['compliance-audit', page, actionFilter, entityTypeFilter, userIdFilter, from, to],
-    queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize };
-      if (actionFilter) params.action = actionFilter;
-      if (entityTypeFilter) params.entityType = entityTypeFilter;
-      if (userIdFilter) params.userId = userIdFilter;
-      if (from) params.from = from;
-      if (to) params.to = to;
-      const res = await api.get<AuditResponse>('/api/v1/admin/audit-log', { params });
-      return res.data;
-    },
-    placeholderData: (prev) => prev,
-  });
-
-  const handleExport = async (): Promise<void> => {
-    setExporting(true);
-    try {
-      const params: Record<string, string> = {};
-      if (actionFilter) params.action = actionFilter;
-      if (entityTypeFilter) params.entityType = entityTypeFilter;
-      if (userIdFilter) params.userId = userIdFilter;
-      if (from) params.from = from;
-      if (to) params.to = to;
-      const res = await api.get<Blob>('/api/v1/admin/compliance/audit-log/export.csv', {
-        params, responseType: 'blob',
-      });
-      const blob = res.data;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      // BUG-PHASE112-01 fix — pre-fix used toISOString().slice(0, 10),
-      // which is the UTC date. A compliance officer downloading this
-      // CSV at 00:30 Manila Thursday got a file named with the
-      // Wednesday UTC date — searching by filename for Thursday's
-      // export came up empty. Manila day matches the dashboard
-      // calendar the officer is filtering by.
-      a.download = `audit-log-${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const entries = auditQuery.data?.data ?? [];
-  const pagination = auditQuery.data?.pagination;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText size={18} /> Audit Log
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-          <Input
-            aria-label="Filter compliance audit by action"
-            placeholder="Action contains..."
-            value={actionFilter}
-            onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
-          />
-          <Input
-            aria-label="Filter compliance audit by entity type"
-            placeholder="Entity type"
-            value={entityTypeFilter}
-            onChange={(e) => { setEntityTypeFilter(e.target.value); setPage(1); }}
-          />
-          <Input
-            aria-label="Filter compliance audit by user ID"
-            placeholder="User ID"
-            value={userIdFilter}
-            onChange={(e) => { setUserIdFilter(e.target.value); setPage(1); }}
-          />
-          <Input
-            aria-label="Filter compliance audit from date"
-            type="date"
-            value={from}
-            onChange={(e) => { setFrom(e.target.value); setPage(1); }}
-          />
-          <Input
-            aria-label="Filter compliance audit to date"
-            type="date"
-            value={to}
-            onChange={(e) => { setTo(e.target.value); setPage(1); }}
-          />
-          <Button onClick={() => { if (window.confirm('Export the filtered compliance audit log as CSV?')) void handleExport(); }} disabled={exporting}>
-            <Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}
-          </Button>
-        </div>
-
-        {auditQuery.isLoading && !auditQuery.data ? (
-          <LoadingState label="Loading audit log..." />
-        ) : auditQuery.isError ? (
-          <ErrorState title="Failed to load audit log" description={getErrorMessage(auditQuery.error)} />
-        ) : entries.length === 0 ? (
-          <EmptyState
-            title="No audit entries"
-            description="Try adjusting filters."
-            icon={<FileText size={28} className="text-slate-400" />}
-          />
-        ) : (
-          <>
-            <div className="overflow-hidden rounded-lg border border-[var(--color-border)]">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--color-bg)]">
-                  <tr>
-                    <th className="text-left px-4 py-2">Timestamp</th>
-                    <th className="text-left px-4 py-2">User</th>
-                    <th className="text-left px-4 py-2">Action</th>
-                    <th className="text-left px-4 py-2">Entity</th>
-                    <th className="text-left px-4 py-2">IP</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((entry) => (
-                    <tr
-                      key={entry.id}
-                      tabIndex={0}
-                      className="border-t border-[var(--color-border)] cursor-pointer hover:bg-[var(--color-bg)]"
-                      onClick={() => setSelectedEntry(selectedEntry?.id === entry.id ? null : entry)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          setSelectedEntry(selectedEntry?.id === entry.id ? null : entry);
-                        }
-                      }}
-                    >
-                      <td className="px-4 py-2 whitespace-nowrap">{fmtDateTime(entry.createdAt)}</td>
-                      <td className="px-4 py-2">{entry.userEmail ?? 'System'}</td>
-                      <td className="px-4 py-2 font-mono text-xs">{entry.action}</td>
-                      <td className="px-4 py-2">{entry.entityType}</td>
-                      <td className="px-4 py-2 font-mono text-xs">{entry.ipAddress ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {selectedEntry && (selectedEntry.oldValues || selectedEntry.newValues) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-[var(--color-text-secondary)] mb-1">Old values</p>
-                  <pre className="bg-[var(--color-bg)] rounded p-3 text-xs font-mono overflow-auto max-h-64 border border-[var(--color-border)]">
-                    {selectedEntry.oldValues ? JSON.stringify(selectedEntry.oldValues, null, 2) : '—'}
-                  </pre>
-                </div>
-                <div>
-                  <p className="text-sm text-[var(--color-text-secondary)] mb-1">New values</p>
-                  <pre className="bg-[var(--color-bg)] rounded p-3 text-xs font-mono overflow-auto max-h-64 border border-[var(--color-border)]">
-                    {selectedEntry.newValues ? JSON.stringify(selectedEntry.newValues, null, 2) : '—'}
-                  </pre>
-                </div>
-              </div>
-            )}
-
-            {pagination && pagination.totalPages > 1 && (
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-[var(--color-text-secondary)]">
-                  Page {pagination.page} of {pagination.totalPages} · {pagination.total} entries
-                </p>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-                  <Button variant="outline" size="sm" disabled={page >= pagination.totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Tax Documents tab ─────────────────────────────────────────────────────
-//
-// BUG-PHASE98-01 fix — pre-fix this tab rendered a developer-marker
-// placeholder paragraph + dummy year/type pickers + an "unwired"
-// empty state. The /api/v1/admin/bir/* endpoints DO exist (mounted
-// in server.ts:46 from bir-admin.routes.ts) and the FinancialsPage
-// > held tax-workpaper tab actually wires the retained monthly VAT data and 2307 quarterly
-// batches, reconciliation, overview). The TaxTab here was a
-// duplicate stub left over from Phase 11 that leaked a placeholder
-// string into the admin UI.
-//
-// Now: redirect admins to the canonical surface in Financials. No
-// duplicate stub, no fake form.
-
-function TaxTab(): React.ReactElement {
-  const navigate = useNavigate();
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText size={18} /> Tax Documents Archive
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Internal VAT workpapers, retained 2307 batch records, and reconciliation
-          evidence are managed from the Financials page next to the underlying
-          escrow, payout, and commission ledgers. Generation is held under E22;
-          these records are not represented as accountant-approved BIR filings.
-        </p>
-        <Button onClick={() => navigate('/financials')}>
-          Open Financials → Tax Workpapers
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Regulatory Reports tab (stub) ─────────────────────────────────────────
-//
-// BUG-PHASE99-01 fix — pre-fix the Generate button toasted a
-// stale-by-the-time-anyone-clicks-it ETA promise pointing at a
-// long-shipped phase. Operators saw a date-stamped commitment to
-// a feature already past its quoted milestone. Per LAUNCH-
-// LIMITATIONS this report is a v1.1+ feature and not blocking the
-// v1.0 launch. Updated copy directs operators to the existing v1.0
-// surfaces (Audit Log + Financials → BIR Reports) rather than baking
-// in another date that will rot again.
-
-function ReportsTab(): React.ReactElement {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Regulatory Reports</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          One-click compliance posture reports for NPC, BIR, DTI, and SEC reviewers.
-          This view is reserved for v1.1+ — for the v1.0 launch the underlying
-          data is already exportable from the Audit Log and Financials → BIR
-          Reports tabs.
-        </p>
-        <Button
-          onClick={() => {
-            toast.info(
-              'Regulatory posture report is a v1.1+ feature. Pull the underlying data from Audit Log + Financials → BIR Reports for now.',
-            );
-          }}
-        >
-          Generate compliance posture report
-        </Button>
-      </CardContent>
-    </Card>
+      </section>
+    </div>
   );
 }

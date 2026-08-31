@@ -378,17 +378,33 @@ Booking conversation interventions appear as **Booking support message sent**. T
 
 ### 2.22 Compliance (`/compliance`)
 
-5 tabs: NPC Compliance (the Data Subject Request queue; filter by status and overdue-only; open a DSR to change status, add notes, set the response URL, or reject; Consent Records search is restricted to super_admin/dpo), BIR Calendar (held under E22 and not an authoritative filing schedule), Audit Log (same data as the Audit Log page plus CSV export), Tax Documents (redirects to held/internal Financials records), Regulatory Reports (a v1.1+ stub).
-
-DSRs have a 15-day SLA. Overdue ones show on the Dashboard alerts too. The DPO owns this work. See `10-money-and-compliance-ops.md`.
+The company governance index. It shows the current E09, E14, E22, E37, and E40
+operating boundaries and sends staff to the canonical Audit Log, Financials,
+and Cancellation comparison workspaces. It does not duplicate those editors,
+file with an agency, or generate a regulatory report. Privacy case records stay
+segregated: a plain admin sees escalation guidance, while the DPO or
+super-admin fallback opens the Privacy Workspace.
 
 ### 2.23 Data Protection Log (`/data-protection-log`)
 
-A DPO surface over Data Subject Requests: Mark complete (with a response URL), Request more info, Reject (reason at least 20, super_admin), Escalate to NPC (with an NPC reference, super_admin).
+A DPO/super-admin privacy case queue. Filter by status, request type, or requests
+past the stored internal target. Open **Review case** before acting so the
+subject message, internal evidence, handler, dates, response delivery, and
+Customer/Provider 360 link are visible. A newly received case can be claimed
+with **Start review** and a 10-character internal note. Other actions are
+**Request info** (10+ characters and an in-app notice), **Complete** (optional
+HTTPS response URL; erasure requires separate anonymization verification),
+**Reject** (30+ character reason shown in the subject's request history), and
+**Record NPC case** (only after NPC issued a real reference; this does not file
+anything). The stored 15-day date is onService's internal response target while
+E40 is open, not an NPC-mandated completion SLA.
 
 ### 2.24 Consent Versions (`/consent-versions`)
 
-A DPO surface listing current consent types and versions with active-user counts. The DPO can publish a new version, which is audited.
+A DPO surface listing supported consent types and versions. **Current grants**
+counts each user's latest decision, not every historical grant. The DPO can
+publish only a consent type the customer/provider clients can acknowledge; the
+publish action is audited.
 
 ### 2.25 Support Tickets (`/support-tickets`)
 
@@ -470,7 +486,7 @@ The goal of week 1 is read-only confidence: you can find anything, you understan
 | Day 4 | Support + Disputes | Work the Support Tickets queue with a senior reviewing your replies. Read 5 disputes in Dispute 360 and write (do not submit) a recommended resolution for each. Compare with the decision tree. |
 | Day 5 | Money + Compliance (observe only) | Walk Financials, Payouts, Settings, Compliance with a super_admin. Watch one payout run and one DSR handled. Do not touch money. Read `10-money-and-compliance-ops.md`. |
 
-Throughout the week: every privileged action you would have taken, say out loud what reason you would type and why. The reason field is permanent and the audit log is real.
+Throughout the week: for each supported privileged action you would have taken, say out loud what reason you would type and why. Treat the recorded reason as permanent evidence, then verify the canonical record because E37 means the Audit Log is not complete coverage.
 
 ---
 
@@ -503,7 +519,8 @@ Support and disputes
 Money and compliance (awareness, not access)
 - [ ] Can locate Escrow aging, the Payouts queue, and the DSR queue.
 - [ ] Knows which actions are super_admin only and never to attempt a money action without sign-off.
-- [ ] Knows the audit log records every privileged action with the typed reason.
+- [ ] Knows the audit log is a selected-event evidence index under E37, follows
+      canonical records, and does not claim every request or mutation was captured.
 
 Sign-off: ___________________________ (super_admin)    Date: ____________
 
@@ -516,10 +533,10 @@ Sign-off: ___________________________ (super_admin)    Date: ____________
 - All times Asia/Manila. Support hours are Monday to Saturday, 8:00 AM to 6:00 PM PHT. All money in pesos (centavos under the hood).
 - Reason fields are permanent and public-to-audit. Most need at least 10 chars; dispute resolve, reopen, and force-complete need at least 20.
 - "Accepting work" provider = approved AND `is_available = TRUE`; this is a provider-controlled availability setting, not proof of app presence or live location. Suspension removes a provider from matching instantly.
-- Current code auto-confirms/releases after 24h while dispute filing remains open for 48h. This is the E18 money-path contradiction: do not call it settled policy, change either timer independently, or assume a later accepted case still has held funds. DSR SLA is 15 days.
+- Current code auto-confirms/releases after 24h while dispute filing remains open for 48h. This is the E18 money-path contradiction: do not call it settled policy, change either timer independently, or assume a later accepted case still has held funds. The DSR date is an internal 15-day target under E40.
 - Waiting support tickets require manual follow-up. The proposed five-day auto-close and two reminders are not implemented.
 - If you are not super_admin and a money/destructive button is locked, that is correct. Escalate, do not work around it.
-- When unsure, stop and ask. The audit log remembers everything.
+- When unsure, stop and ask. Use the audit log as a selected-event index and verify the canonical record; E37 means it does not remember everything.
 
 ---
 
