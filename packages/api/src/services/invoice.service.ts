@@ -37,6 +37,12 @@ interface InvoiceItemRow {
   discount_amount: number;
   amount: number;
   created_at: Date;
+  booking_status?: string | null;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  provider_id?: string | null;
+  provider_name?: string | null;
+  service_name?: string | null;
 }
 
 interface BookingForInvoicing {
@@ -480,6 +486,38 @@ export async function getInvoicesAdmin(
   return { items: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
 }
 
+export async function getInvoiceDetailAdmin(
+  invoiceId: string,
+): Promise<{ invoice: InvoiceRow; items: InvoiceItemRow[] }> {
+  const invoice = await db.query<InvoiceRow>(
+    `SELECT * FROM business_invoices WHERE id = $1`,
+    [invoiceId],
+  );
+  if (invoice.rows.length === 0) {
+    throw createAppError('Invoice not found.', 404);
+  }
+
+  const items = await db.query<InvoiceItemRow>(
+    `SELECT bii.*,
+            b.status AS booking_status,
+            b.customer_id,
+            NULLIF(BTRIM(CONCAT_WS(' ', customer.first_name, customer.last_name)), '') AS customer_name,
+            b.provider_id,
+            provider.business_name AS provider_name,
+            COALESCE(subcategory.name, category.name) AS service_name
+       FROM business_invoice_items bii
+       LEFT JOIN bookings b ON b.id = bii.booking_id
+       LEFT JOIN users customer ON customer.id = b.customer_id
+       LEFT JOIN providers provider ON provider.id = b.provider_id
+       LEFT JOIN service_subcategories subcategory ON subcategory.id = b.subcategory_id
+       LEFT JOIN service_categories category ON category.id = b.category_id
+      WHERE bii.invoice_id = $1
+      ORDER BY bii.service_date ASC NULLS LAST, bii.created_at ASC, bii.id ASC`,
+    [invoiceId],
+  );
+  return { invoice: invoice.rows[0]!, items: items.rows };
+}
+
 export async function getInvoiceDetail(
   invoiceId: string,
   userId: string,
@@ -637,5 +675,11 @@ export function formatInvoiceItem(item: InvoiceItemRow): Record<string, unknown>
     discountAmount: item.discount_amount,
     amount: item.amount,
     createdAt: item.created_at,
+    bookingStatus: item.booking_status ?? null,
+    customerId: item.customer_id ?? null,
+    customerName: item.customer_name ?? null,
+    providerId: item.provider_id ?? null,
+    providerName: item.provider_name ?? null,
+    serviceName: item.service_name ?? null,
   };
 }

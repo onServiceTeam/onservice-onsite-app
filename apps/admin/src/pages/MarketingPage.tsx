@@ -1,7 +1,7 @@
 /**
  * Phase 09 — Admin Marketing page.
  *
- * Three tabs: Overview, Promo Codes, Campaigns.
+ * Four tabs: Overview, Home Banners, Promo Codes, Campaigns.
  *  - Overview: KPI cards + channel breakdown table with date filter.
  *  - Promo Codes: list + super-admin create/edit/deactivate dialogs.
  *  - Campaigns: list + super-admin create/edit dialogs.
@@ -42,6 +42,7 @@ import {
   Textarea,
   LoadingState,
   ErrorState,
+  Pagination,
   type Column,
 } from '@/components/ui';
 import {
@@ -56,6 +57,8 @@ import {
 } from '@/components/icons';
 import { useAuthStore } from '@/stores/auth.store';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
+import { adminConfig } from '@/config/admin.config';
+import PromotionBannersTab from '@/components/marketing/PromotionBannersTab';
 
 // ─── Types (mirror packages/api/src/services/marketing-admin.service.ts) ──
 
@@ -112,7 +115,7 @@ interface MarketingOverview {
   channelBreakdown: ChannelBreakdownRow[];
 }
 
-const CHANNEL_OPTIONS: Array<{ value: string; label: string }> = [
+const FALLBACK_CHANNEL_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'facebook_ads', label: 'Facebook Ads' },
   { value: 'google_ads', label: 'Google Ads' },
   { value: 'billboard', label: 'Billboard' },
@@ -130,7 +133,12 @@ function fmtDate(iso: string | null): string {
 }
 
 function channelLabel(value: string): string {
-  return CHANNEL_OPTIONS.find((o) => o.value === value)?.label ?? value;
+  return FALLBACK_CHANNEL_OPTIONS.find((o) => o.value === value)?.label
+    ?? value.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+}
+
+function toChannelOptions(channels: string[]): Array<{ value: string; label: string }> {
+  return channels.map((value) => ({ value, label: channelLabel(value) }));
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────
@@ -144,19 +152,23 @@ export default function MarketingPage(): React.ReactElement {
       <div>
         <h1 className="text-xl font-bold text-[var(--color-text)]">Marketing</h1>
         <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
-          Promo codes and marketing campaign tracking.
+          Customer home banners, staged promo codes, and campaign tracking.
         </p>
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList>
+        <TabsList className="h-auto w-full justify-start overflow-x-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="banners">Home Banners</TabsTrigger>
           <TabsTrigger value="promos">Promo Codes</TabsTrigger>
           <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
           <OverviewTab />
+        </TabsContent>
+        <TabsContent value="banners">
+          <PromotionBannersTab isSuperAdmin={isSuperAdmin} />
         </TabsContent>
         <TabsContent value="promos">
           <PromoCodesTab isSuperAdmin={isSuperAdmin} />
@@ -176,6 +188,7 @@ function OverviewTab(): React.ReactElement {
   const [to, setTo] = useState('');
   const [appliedFrom, setAppliedFrom] = useState('');
   const [appliedTo, setAppliedTo] = useState('');
+  const [dateError, setDateError] = useState('');
 
   const overviewQuery = useQuery({
     queryKey: ['admin-marketing-overview', appliedFrom, appliedTo],
@@ -193,6 +206,11 @@ function OverviewTab(): React.ReactElement {
 
   const handleApply = (e: FormEvent): void => {
     e.preventDefault();
+    if (from && to && from > to) {
+      setDateError('From date cannot be after To date.');
+      return;
+    }
+    setDateError('');
     setAppliedFrom(from);
     setAppliedTo(to);
   };
@@ -242,6 +260,7 @@ function OverviewTab(): React.ReactElement {
       <ErrorState
         title="Failed to load marketing overview"
         description={getErrorMessage(overviewQuery.error)}
+        action={<Button type="button" variant="outline" onClick={() => void overviewQuery.refetch()}>Try again</Button>}
       />
     );
   }
@@ -266,25 +285,32 @@ function OverviewTab(): React.ReactElement {
 
   return (
     <div className="space-y-6 mt-4">
-      <form onSubmit={handleApply} className="flex flex-wrap items-end gap-3">
-        <div>
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <p className="text-sm font-semibold text-amber-950">Manual attribution records</p>
+        <p className="mt-1 text-sm text-amber-800">
+          These totals come from campaign records entered by staff. They are not a messaging delivery report, payment ledger, or independently verified acquisition feed.
+        </p>
+      </div>
+
+      <form onSubmit={handleApply} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="w-full sm:w-auto">
           <Label htmlFor="from-date">From</Label>
           <Input
             id="from-date"
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="w-44"
+            className="w-full sm:w-44"
           />
         </div>
-        <div>
+        <div className="w-full sm:w-auto">
           <Label htmlFor="to-date">To</Label>
           <Input
             id="to-date"
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="w-44"
+            className="w-full sm:w-44"
           />
         </div>
         <Button type="submit" size="sm">Apply</Button>
@@ -298,26 +324,28 @@ function OverviewTab(): React.ReactElement {
               setTo('');
               setAppliedFrom('');
               setAppliedTo('');
+              setDateError('');
             }}
           >
             Reset
           </Button>
         )}
+        {dateError && <p role="alert" className="w-full text-sm text-red-700">{dateError}</p>}
       </form>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <KpiCard
-          title="Total Spend"
+          title="Recorded Spend"
           value={formatCurrency(o.totalSpendCentavos)}
           icon={<Coins size={18} />}
         />
         <KpiCard
-          title="Attributed Signups"
+          title="Reported Signups"
           value={o.totalSignups.toLocaleString()}
           icon={<Users size={18} />}
         />
         <KpiCard
-          title="Attributed Revenue"
+          title="Reported Revenue"
           value={formatCurrency(o.totalRevenueCentavos)}
           icon={<TrendingUp size={18} />}
         />
@@ -364,14 +392,18 @@ function PromoCodesTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.React
   const queryClient = useQueryClient();
   const flags = useFeatureFlags();
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [editPromo, setEditPromo] = useState<PromoCode | null>(null);
   const [deactivatePromo, setDeactivatePromoState] = useState<PromoCode | null>(null);
 
   const promosQuery = useQuery({
-    queryKey: ['admin-marketing-promos', activeFilter],
+    queryKey: ['admin-marketing-promos', activeFilter, page],
     queryFn: async () => {
-      const params: Record<string, string | number> = {};
+      const params: Record<string, string | number> = {
+        limit: adminConfig.defaultPageSize,
+        offset: (page - 1) * adminConfig.defaultPageSize,
+      };
       if (activeFilter !== 'all') params.active = activeFilter === 'active' ? 'true' : 'false';
       const res = await api.get<PromoListResponse>('/api/v1/admin/marketing/promos', {
         params,
@@ -451,7 +483,9 @@ function PromoCodesTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.React
     {
       key: 'status',
       header: 'Status',
-      render: (r) => (
+      render: (r) => !flags.promoRedemptionEnabled && r.active ? (
+        <Badge label="Staged · launch hold" variant="warning" />
+      ) : (
         <Badge label={r.active ? 'Active' : 'Inactive'} variant={r.active ? 'success' : 'danger'} />
       ),
     },
@@ -476,7 +510,7 @@ function PromoCodesTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.React
           </div>
         ) : null,
     },
-  ], [isSuperAdmin]);
+  ], [flags.promoRedemptionEnabled, isSuperAdmin]);
 
   return (
     <div className="space-y-4 mt-4">
@@ -489,11 +523,11 @@ function PromoCodesTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.React
           className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900"
           role="alert"
         >
-          <p className="font-semibold text-sm">Promo redemption is not wired in v1.0.</p>
+          <p className="font-semibold text-sm">Promo redemption is on a launch hold.</p>
           <p className="text-xs mt-1">
-            Codes you create here will be honored once Phase 14 v1.1 wires the
-            redemption pipeline (target: post-launch). Customers do not see a
-            promo input in checkout yet.
+            Customers cannot enter or redeem these codes. New rows are staged records only.
+            The complete redemption pipeline remains disabled. At launch, each code must still be
+            active, within its validity window, under its limits, and included in the reviewed promo cutover.
           </p>
         </div>
       )}
@@ -505,10 +539,11 @@ function PromoCodesTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.React
           <select
             id="promo-filter"
             value={activeFilter}
-            onChange={(e) =>
-              setActiveFilter(e.target.value as 'all' | 'active' | 'inactive')
-            }
-            className="h-9 rounded-md border border-slate-300 px-3 text-sm bg-white"
+            onChange={(e) => {
+              setActiveFilter(e.target.value as 'all' | 'active' | 'inactive');
+              setPage(1);
+            }}
+            className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
           >
             <option value="all">All</option>
             <option value="active">Active only</option>
@@ -527,11 +562,24 @@ function PromoCodesTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.React
         data={promosQuery.data?.rows ?? []}
         keyExtractor={(r) => r.id}
         isLoading={promosQuery.isLoading}
+        isError={promosQuery.isError}
+        errorMessage={getErrorMessage(promosQuery.error)}
         emptyMessage="No promo codes found."
       />
 
+      {(promosQuery.data?.total ?? 0) > adminConfig.defaultPageSize && (
+        <Pagination
+          page={page}
+          pageSize={adminConfig.defaultPageSize}
+          total={promosQuery.data?.total ?? 0}
+          totalPages={Math.ceil((promosQuery.data?.total ?? 0) / adminConfig.defaultPageSize)}
+          onPageChange={setPage}
+        />
+      )}
+
       {showCreate && (
         <CreatePromoDialog
+          redemptionEnabled={flags.promoRedemptionEnabled}
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             invalidate();
@@ -556,8 +604,9 @@ function PromoCodesTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.React
               <DialogTitle>Deactivate {deactivatePromo.code}?</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-slate-600">
-              This will immediately stop accepting the code. Existing redemptions are
-              not affected.
+              {flags.promoRedemptionEnabled
+                ? 'This will immediately stop accepting the code. Existing redemptions are not affected.'
+                : 'This staged code is already unavailable under the launch hold. Deactivation also keeps it out of a future cutover review.'}
             </p>
             {deactivateMutation.isError && (
               <p className="text-sm text-red-600">
@@ -588,15 +637,19 @@ interface CreatePromoForm {
   description: string;
   discountType: DiscountType;
   discountValue: string;
-  minimumOrderCentavos: string;
+  maxDiscountPesos: string;
+  minimumOrderPesos: string;
   usageLimitTotal: string;
+  usageLimitPerCustomer: string;
   validUntil: string;
 }
 
 function CreatePromoDialog({
+  redemptionEnabled,
   onClose,
   onCreated,
 }: {
+  redemptionEnabled: boolean;
   onClose: () => void;
   onCreated: () => void;
 }): React.ReactElement {
@@ -605,8 +658,10 @@ function CreatePromoDialog({
     description: '',
     discountType: 'percentage',
     discountValue: '',
-    minimumOrderCentavos: '',
+    maxDiscountPesos: '',
+    minimumOrderPesos: '',
     usageLimitTotal: '',
+    usageLimitPerCustomer: '1',
     validUntil: '',
   });
   const [error, setError] = useState<string | null>(null);
@@ -617,14 +672,20 @@ function CreatePromoDialog({
         code: input.code.trim().toUpperCase(),
         description: input.description.trim() || undefined,
         discountType: input.discountType,
-        discountValue: Number(input.discountValue),
+        discountValue: input.discountType === 'percentage'
+          ? Number(input.discountValue)
+          : Math.round(Number(input.discountValue) * 100),
       };
-      if (input.minimumOrderCentavos) {
-        body.minimumOrderCentavos = Number(input.minimumOrderCentavos);
+      if (input.maxDiscountPesos) {
+        body.maxDiscountCentavos = Math.round(Number(input.maxDiscountPesos) * 100);
+      }
+      if (input.minimumOrderPesos) {
+        body.minimumOrderCentavos = Math.round(Number(input.minimumOrderPesos) * 100);
       }
       if (input.usageLimitTotal) {
         body.usageLimitTotal = Number(input.usageLimitTotal);
       }
+      body.usageLimitPerCustomer = Number(input.usageLimitPerCustomer);
       if (input.validUntil) {
         // BUG-PHASE115-01 fix — pre-fix used UTC midnight ("...Z").
         // For a Manila admin entering "Valid until 2026-05-31", the
@@ -654,6 +715,11 @@ function CreatePromoDialog({
         <DialogHeader>
           <DialogTitle>Create promo code</DialogTitle>
         </DialogHeader>
+        {!redemptionEnabled && (
+          <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            This creates a staged record only. Customers cannot redeem it until the complete promo flow is launched and this code passes cutover review.
+          </div>
+        )}
         <form
           className="space-y-3"
           onSubmit={(e) => {
@@ -680,7 +746,7 @@ function CreatePromoDialog({
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <Label htmlFor="discount-type">Discount type</Label>
               <Select
@@ -694,17 +760,20 @@ function CreatePromoDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="percentage">Percentage</SelectItem>
-                  <SelectItem value="fixed_centavos">Fixed (centavos)</SelectItem>
+                  <SelectItem value="fixed_centavos">Fixed amount</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
               <Label htmlFor="discount-value">
-                {form.discountType === 'percentage' ? 'Percent (1-50)' : 'Centavos (>=100)'}
+                {form.discountType === 'percentage' ? 'Percent (1–50)' : 'Fixed discount (PHP)'}
               </Label>
               <Input
                 id="discount-value"
                 type="number"
+                min={form.discountType === 'percentage' ? 1 : 1}
+                max={form.discountType === 'percentage' ? 50 : undefined}
+                step={form.discountType === 'percentage' ? 1 : 0.01}
                 value={form.discountValue}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, discountValue: e.target.value }))
@@ -713,15 +782,31 @@ function CreatePromoDialog({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          {form.discountType === 'percentage' && (
             <div>
-              <Label htmlFor="min-order">Min order centavos</Label>
+              <Label htmlFor="max-discount">Maximum discount (PHP)</Label>
+              <Input
+                id="max-discount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={form.maxDiscountPesos}
+                onChange={(e) => setForm((f) => ({ ...f, maxDiscountPesos: e.target.value }))}
+                placeholder="Optional cap"
+              />
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="min-order">Minimum order (PHP)</Label>
               <Input
                 id="min-order"
                 type="number"
-                value={form.minimumOrderCentavos}
+                min="0"
+                step="0.01"
+                value={form.minimumOrderPesos}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, minimumOrderCentavos: e.target.value }))
+                  setForm((f) => ({ ...f, minimumOrderPesos: e.target.value }))
                 }
               />
             </div>
@@ -736,6 +821,18 @@ function CreatePromoDialog({
                 }
               />
             </div>
+          </div>
+          <div>
+            <Label htmlFor="usage-limit-customer">Usage limit per customer</Label>
+            <Input
+              id="usage-limit-customer"
+              type="number"
+              min="1"
+              step="1"
+              value={form.usageLimitPerCustomer}
+              onChange={(e) => setForm((f) => ({ ...f, usageLimitPerCustomer: e.target.value }))}
+              required
+            />
           </div>
           <div>
             <Label htmlFor="valid-until">Valid until</Label>
@@ -763,8 +860,9 @@ function CreatePromoDialog({
 
 interface EditPromoForm {
   description: string;
-  minimumOrderCentavos: string;
+  minimumOrderPesos: string;
   usageLimitTotal: string;
+  usageLimitPerCustomer: string;
   validUntil: string;
 }
 
@@ -779,8 +877,9 @@ function EditPromoDialog({
 }): React.ReactElement {
   const [form, setForm] = useState<EditPromoForm>({
     description: promo.description ?? '',
-    minimumOrderCentavos: String(promo.minimumOrderCentavos),
+    minimumOrderPesos: String(promo.minimumOrderCentavos / 100),
     usageLimitTotal: promo.usageLimitTotal !== null ? String(promo.usageLimitTotal) : '',
+    usageLimitPerCustomer: String(promo.usageLimitPerCustomer),
     validUntil: promo.validUntil ? promo.validUntil.slice(0, 10) : '',
   });
   const [error, setError] = useState<string | null>(null);
@@ -789,7 +888,8 @@ function EditPromoDialog({
     mutationFn: async () => {
       const body: Record<string, unknown> = {
         description: form.description,
-        minimumOrderCentavos: Number(form.minimumOrderCentavos || 0),
+        minimumOrderCentavos: Math.round(Number(form.minimumOrderPesos || 0) * 100),
+        usageLimitPerCustomer: Number(form.usageLimitPerCustomer),
       };
       body.usageLimitTotal = form.usageLimitTotal ? Number(form.usageLimitTotal) : null;
       // BUG-PHASE115-01 fix — same Manila-anchor as the create dialog.
@@ -826,15 +926,17 @@ function EditPromoDialog({
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor="edit-min-order">Min order centavos</Label>
+              <Label htmlFor="edit-min-order">Minimum order (PHP)</Label>
               <Input
                 id="edit-min-order"
                 type="number"
-                value={form.minimumOrderCentavos}
+                min="0"
+                step="0.01"
+                value={form.minimumOrderPesos}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, minimumOrderCentavos: e.target.value }))
+                  setForm((f) => ({ ...f, minimumOrderPesos: e.target.value }))
                 }
               />
             </div>
@@ -849,6 +951,18 @@ function EditPromoDialog({
                 }
               />
             </div>
+          </div>
+          <div>
+            <Label htmlFor="edit-usage-limit-customer">Usage limit per customer</Label>
+            <Input
+              id="edit-usage-limit-customer"
+              type="number"
+              min="1"
+              step="1"
+              value={form.usageLimitPerCustomer}
+              onChange={(e) => setForm((f) => ({ ...f, usageLimitPerCustomer: e.target.value }))}
+              required
+            />
           </div>
           <div>
             <Label htmlFor="edit-valid-until">Valid until</Label>
@@ -884,13 +998,26 @@ interface CampaignListResponse {
 function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactElement {
   const queryClient = useQueryClient();
   const [channelFilter, setChannelFilter] = useState('');
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [editCampaign, setEditCampaign] = useState<MarketingCampaign | null>(null);
 
-  const campaignsQuery = useQuery({
-    queryKey: ['admin-marketing-campaigns', channelFilter],
+  const channelsQuery = useQuery({
+    queryKey: ['admin-marketing-channels'],
     queryFn: async () => {
-      const params: Record<string, string> = {};
+      const res = await api.get<{ success: boolean; data: string[] }>('/api/v1/admin/marketing/channels');
+      return res.data.data;
+    },
+  });
+  const channelOptions = toChannelOptions(channelsQuery.data ?? []);
+
+  const campaignsQuery = useQuery({
+    queryKey: ['admin-marketing-campaigns', channelFilter, page],
+    queryFn: async () => {
+      const params: Record<string, string | number> = {
+        limit: adminConfig.defaultPageSize,
+        offset: (page - 1) * adminConfig.defaultPageSize,
+      };
       if (channelFilter) params.channel = channelFilter;
       const res = await api.get<CampaignListResponse>(
         '/api/v1/admin/marketing/campaigns',
@@ -933,13 +1060,18 @@ function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactE
     },
     {
       key: 'spend',
-      header: 'Spend',
+      header: 'Recorded spend',
       render: (r) => <span>{formatCurrency(r.spendCentavos)}</span>,
     },
     {
       key: 'signups',
-      header: 'Signups',
+      header: 'Reported signups',
       render: (r) => <span>{r.attributedSignups}</span>,
+    },
+    {
+      key: 'firstBookings',
+      header: 'Reported first bookings',
+      render: (r) => <span>{r.attributedFirstBookings}</span>,
     },
     {
       key: 'cpa',
@@ -949,7 +1081,7 @@ function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactE
     },
     {
       key: 'revenue',
-      header: 'Revenue',
+      header: 'Reported revenue',
       render: (r) => <span>{formatCurrency(r.attributedRevenueCentavos)}</span>,
     },
     {
@@ -976,6 +1108,19 @@ function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactE
 
   return (
     <div className="space-y-4 mt-4">
+      <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+        <p className="text-sm font-semibold text-sky-950">Tracking records only</p>
+        <p className="mt-1 text-sm text-sky-800">
+          A campaign row records staff-reported spend and attribution. It does not send SMS, email, push notifications, or select an audience. Any future sender must enforce recorded marketing consent by channel.
+        </p>
+      </div>
+      {channelsQuery.isError && (
+        <ErrorState
+          title="Configured marketing channels could not be loaded"
+          description="Campaigns remain visible, but creating a record is disabled to avoid saving a channel the server will reject."
+          action={<Button type="button" variant="outline" onClick={() => void channelsQuery.refetch()}>Try again</Button>}
+        />
+      )}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Label htmlFor="channel-filter" className="text-xs">
@@ -984,11 +1129,14 @@ function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactE
           <select
             id="channel-filter"
             value={channelFilter}
-            onChange={(e) => setChannelFilter(e.target.value)}
-            className="h-9 rounded-md border border-slate-300 px-3 text-sm bg-white"
+            onChange={(e) => {
+              setChannelFilter(e.target.value);
+              setPage(1);
+            }}
+            className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
           >
             <option value="">All</option>
-            {CHANNEL_OPTIONS.map((o) => (
+            {channelOptions.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -996,7 +1144,11 @@ function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactE
           </select>
         </div>
         {isSuperAdmin && (
-          <Button onClick={() => setShowCreate(true)} size="sm">
+          <Button
+            onClick={() => setShowCreate(true)}
+            size="sm"
+            disabled={channelsQuery.isLoading || channelsQuery.isError || channelOptions.length === 0}
+          >
             <Plus size={14} /> Create Campaign
           </Button>
         )}
@@ -1007,11 +1159,24 @@ function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactE
         data={campaignsQuery.data?.rows ?? []}
         keyExtractor={(r) => r.id}
         isLoading={campaignsQuery.isLoading}
+        isError={campaignsQuery.isError}
+        errorMessage={getErrorMessage(campaignsQuery.error)}
         emptyMessage="No campaigns found."
       />
 
+      {(campaignsQuery.data?.total ?? 0) > adminConfig.defaultPageSize && (
+        <Pagination
+          page={page}
+          pageSize={adminConfig.defaultPageSize}
+          total={campaignsQuery.data?.total ?? 0}
+          totalPages={Math.ceil((campaignsQuery.data?.total ?? 0) / adminConfig.defaultPageSize)}
+          onPageChange={setPage}
+        />
+      )}
+
       {showCreate && (
         <CreateCampaignDialog
+          channelOptions={channelOptions}
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             invalidate();
@@ -1038,23 +1203,25 @@ interface CreateCampaignForm {
   channel: string;
   startedAt: string;
   endedAt: string;
-  spendCentavos: string;
+  spendPesos: string;
   notes: string;
 }
 
 function CreateCampaignDialog({
+  channelOptions,
   onClose,
   onCreated,
 }: {
+  channelOptions: Array<{ value: string; label: string }>;
   onClose: () => void;
   onCreated: () => void;
 }): React.ReactElement {
   const [form, setForm] = useState<CreateCampaignForm>({
     name: '',
-    channel: 'facebook_ads',
+    channel: channelOptions[0]?.value ?? '',
     startedAt: '',
     endedAt: '',
-    spendCentavos: '',
+    spendPesos: '',
     notes: '',
   });
   const [error, setError] = useState<string | null>(null);
@@ -1067,7 +1234,7 @@ function CreateCampaignDialog({
         startedAt: form.startedAt,
       };
       if (form.endedAt) body.endedAt = form.endedAt;
-      if (form.spendCentavos) body.spendCentavos = Number(form.spendCentavos);
+      if (form.spendPesos) body.spendCentavos = Math.round(Number(form.spendPesos) * 100);
       if (form.notes.trim()) body.notes = form.notes.trim();
       const res = await api.post<{ success: boolean; data: MarketingCampaign }>(
         '/api/v1/admin/marketing/campaigns',
@@ -1112,7 +1279,7 @@ function CreateCampaignDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {CHANNEL_OPTIONS.map((o) => (
+                {channelOptions.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}
                   </SelectItem>
@@ -1120,7 +1287,7 @@ function CreateCampaignDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <Label htmlFor="c-start">Started at</Label>
               <Input
@@ -1142,12 +1309,14 @@ function CreateCampaignDialog({
             </div>
           </div>
           <div>
-            <Label htmlFor="c-spend">Spend (centavos)</Label>
+            <Label htmlFor="c-spend">Recorded spend (PHP)</Label>
             <Input
               id="c-spend"
               type="number"
-              value={form.spendCentavos}
-              onChange={(e) => setForm((f) => ({ ...f, spendCentavos: e.target.value }))}
+              min="0"
+              step="0.01"
+              value={form.spendPesos}
+              onChange={(e) => setForm((f) => ({ ...f, spendPesos: e.target.value }))}
             />
           </div>
           <div>
@@ -1176,10 +1345,7 @@ function CreateCampaignDialog({
 interface EditCampaignForm {
   name: string;
   endedAt: string;
-  spendCentavos: string;
-  attributedSignups: string;
-  attributedFirstBookings: string;
-  attributedRevenueCentavos: string;
+  spendPesos: string;
   notes: string;
 }
 
@@ -1195,10 +1361,7 @@ function EditCampaignDialog({
   const [form, setForm] = useState<EditCampaignForm>({
     name: campaign.name,
     endedAt: campaign.endedAt ? campaign.endedAt.slice(0, 10) : '',
-    spendCentavos: String(campaign.spendCentavos),
-    attributedSignups: String(campaign.attributedSignups),
-    attributedFirstBookings: String(campaign.attributedFirstBookings),
-    attributedRevenueCentavos: String(campaign.attributedRevenueCentavos),
+    spendPesos: String(campaign.spendCentavos / 100),
     notes: campaign.notes ?? '',
   });
   const [error, setError] = useState<string | null>(null);
@@ -1207,10 +1370,7 @@ function EditCampaignDialog({
     mutationFn: async () => {
       const body: Record<string, unknown> = {
         name: form.name.trim(),
-        spendCentavos: Number(form.spendCentavos || 0),
-        attributedSignups: Number(form.attributedSignups || 0),
-        attributedFirstBookings: Number(form.attributedFirstBookings || 0),
-        attributedRevenueCentavos: Number(form.attributedRevenueCentavos || 0),
+        spendCentavos: Math.round(Number(form.spendPesos || 0) * 100),
         notes: form.notes,
       };
       body.endedAt = form.endedAt || null;
@@ -1230,6 +1390,9 @@ function EditCampaignDialog({
         <DialogHeader>
           <DialogTitle>Edit {campaign.name}</DialogTitle>
         </DialogHeader>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          Reported signups, first bookings, and revenue cannot be overwritten here. Those values require an evidence-backed adjustment trail before staff editing can be enabled safely.
+        </div>
         <form
           className="space-y-3"
           onSubmit={(e) => {
@@ -1247,7 +1410,7 @@ function EditCampaignDialog({
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <Label htmlFor="e-end">Ended at</Label>
               <Input
@@ -1258,48 +1421,15 @@ function EditCampaignDialog({
               />
             </div>
             <div>
-              <Label htmlFor="e-spend">Spend (centavos)</Label>
+              <Label htmlFor="e-spend">Recorded spend (PHP)</Label>
               <Input
                 id="e-spend"
                 type="number"
-                value={form.spendCentavos}
+                min="0"
+                step="0.01"
+                value={form.spendPesos}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, spendCentavos: e.target.value }))
-                }
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label htmlFor="e-signups">Signups</Label>
-              <Input
-                id="e-signups"
-                type="number"
-                value={form.attributedSignups}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, attributedSignups: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="e-first">First bookings</Label>
-              <Input
-                id="e-first"
-                type="number"
-                value={form.attributedFirstBookings}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, attributedFirstBookings: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="e-revenue">Revenue (centavos)</Label>
-              <Input
-                id="e-revenue"
-                type="number"
-                value={form.attributedRevenueCentavos}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, attributedRevenueCentavos: e.target.value }))
+                  setForm((f) => ({ ...f, spendPesos: e.target.value }))
                 }
               />
             </div>

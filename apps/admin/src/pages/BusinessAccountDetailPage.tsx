@@ -108,6 +108,11 @@ interface BusinessMember {
 interface BusinessContract {
   id: string;
   categoryId: string;
+  categoryName: string | null;
+  subcategoryId: string | null;
+  subcategoryName: string | null;
+  providerId: string | null;
+  providerName: string | null;
   contractType: string;
   frequency: string;
   agreedRate: number | null; // centavos
@@ -134,6 +139,45 @@ interface BusinessInvoice {
   paidAt: string | null;
   paymentReference: string | null;
   createdAt: string;
+}
+
+interface BusinessBooking {
+  id: string;
+  customerId: string;
+  customerName: string;
+  providerId: string | null;
+  providerName: string | null;
+  categoryName: string;
+  status: string;
+  escrowStatus: string;
+  totalAmount: number;
+  scheduledAt: string | null;
+  createdAt: string;
+  contractId: string | null;
+  contractType: string | null;
+  invoiceId: string | null;
+  invoiceNumber: string | null;
+  invoiceStatus: string | null;
+  openSupportTickets: number;
+  openDisputes: number;
+}
+
+interface BusinessInvoiceItem {
+  id: string;
+  bookingId: string | null;
+  contractId: string | null;
+  description: string;
+  serviceDate: string | null;
+  quantity: number;
+  unitPrice: number;
+  discountAmount: number;
+  amount: number;
+  bookingStatus: string | null;
+  customerId: string | null;
+  customerName: string | null;
+  providerId: string | null;
+  providerName: string | null;
+  serviceName: string | null;
 }
 
 interface PageInfo {
@@ -163,7 +207,7 @@ interface AdminStaffOption {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
-type TabId = 'overview' | 'members' | 'contracts' | 'invoices';
+type TabId = 'overview' | 'members' | 'contracts' | 'bookings' | 'invoices';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'default' | 'info'> = {
   active: 'success',
@@ -196,6 +240,14 @@ function fmtPercent(pct: number): string {
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
+}
+
+function fmtDateTime(iso: string | null, fallback: string): string {
+  return new Date(iso ?? fallback).toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
 }
 
 function memberName(m: BusinessMember): string {
@@ -258,11 +310,12 @@ export default function BusinessAccountDetailPage(): React.ReactElement {
       <AccountHeader account={account} />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabId)}>
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="members">Members</TabsTrigger>
-          <TabsTrigger value="contracts">Contracts</TabsTrigger>
-          <TabsTrigger value="invoices">Invoices</TabsTrigger>
+        <TabsList className="h-auto max-w-full flex-wrap justify-start gap-1">
+          <TabsTrigger className="min-h-11" value="overview">Overview</TabsTrigger>
+          <TabsTrigger className="min-h-11" value="members">Members</TabsTrigger>
+          <TabsTrigger className="min-h-11" value="contracts">Contracts</TabsTrigger>
+          <TabsTrigger className="min-h-11" value="bookings">Bookings &amp; support</TabsTrigger>
+          <TabsTrigger className="min-h-11" value="invoices">Invoices</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -273,6 +326,9 @@ export default function BusinessAccountDetailPage(): React.ReactElement {
         </TabsContent>
         <TabsContent value="contracts">
           <ContractsTab accountId={accountId} />
+        </TabsContent>
+        <TabsContent value="bookings">
+          <BusinessBookingsTab accountId={accountId} />
         </TabsContent>
         <TabsContent value="invoices">
           <InvoicesTab accountId={accountId} />
@@ -637,7 +693,7 @@ function PermCheck({ on }: { on: boolean }): React.ReactElement {
   );
 }
 
-function MembersTab({ accountId }: { accountId: string }): React.ReactElement {
+export function MembersTab({ accountId }: { accountId: string }): React.ReactElement {
   const q = useQuery({
     queryKey: ['admin-business-account-members', accountId],
     queryFn: async () => {
@@ -658,7 +714,9 @@ function MembersTab({ accountId }: { accountId: string }): React.ReactElement {
       header: 'Name',
       render: (m) => (
         <div>
-          <span className="block font-medium text-sm text-[var(--color-text)]">{memberName(m)}</span>
+          <Link to={`/customers/${m.userId}`} className="block font-medium text-sm text-[var(--color-secondary)] hover:underline">
+            {memberName(m)}
+          </Link>
           <span className="text-xs text-[var(--color-text-secondary)]">{m.email ?? '—'}</span>
         </div>
       ),
@@ -706,7 +764,7 @@ function MembersTab({ accountId }: { accountId: string }): React.ReactElement {
 
 // ─── ContractsTab ────────────────────────────────────────────────────────────
 
-function ContractsTab({ accountId }: { accountId: string }): React.ReactElement {
+export function ContractsTab({ accountId }: { accountId: string }): React.ReactElement {
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
@@ -729,6 +787,16 @@ function ContractsTab({ accountId }: { accountId: string }): React.ReactElement 
 
   const columns: Column<BusinessContract>[] = [
     {
+      key: 'service',
+      header: 'Service scope',
+      render: (c) => (
+        <div>
+          <span className="block text-sm font-medium text-[var(--color-text)]">{c.subcategoryName ?? c.categoryName ?? 'Service unavailable'}</span>
+          {c.subcategoryName && c.categoryName ? <span className="text-xs text-[var(--color-text-secondary)]">{c.categoryName}</span> : null}
+        </div>
+      ),
+    },
+    {
       key: 'contractType',
       header: 'Type',
       render: (c) => (
@@ -737,6 +805,15 @@ function ContractsTab({ accountId }: { accountId: string }): React.ReactElement 
           {c.autoRenew && <span className="text-xs text-[var(--color-text-secondary)]">auto-renew</span>}
         </div>
       ),
+    },
+    {
+      key: 'provider',
+      header: 'Provider',
+      render: (c) => c.providerId ? (
+        <Link to={`/providers/${c.providerId}`} className="text-sm font-medium text-[var(--color-secondary)] hover:underline">
+          {c.providerName ?? 'Open provider'}
+        </Link>
+      ) : <span className="text-xs text-[var(--color-text-secondary)]">Open provider pool</span>,
     },
     {
       key: 'frequency',
@@ -801,6 +878,90 @@ function ContractsTab({ accountId }: { accountId: string }): React.ReactElement 
   );
 }
 
+// ─── Bookings and support ────────────────────────────────────────────────────
+
+export function BusinessBookingsTab({ accountId }: { accountId: string }): React.ReactElement {
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const q = useQuery({
+    queryKey: ['admin-business-account-bookings', accountId, page],
+    queryFn: async () => {
+      const res = await api.get<PaginatedResult<BusinessBooking>>('/api/v1/admin/bookings', {
+        params: { businessAccountId: accountId, page, pageSize, sort: 'attention', view: 'all' },
+      });
+      return res.data;
+    },
+  });
+
+  if (q.isLoading) return <LoadingState />;
+  if (q.isError) return <ErrorState title="Failed to load business bookings" description={getErrorMessage(q.error)} />;
+
+  const result = q.data!;
+  const bookings = result.data ?? [];
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-[var(--color-text)]">Commercial work and case linkage</h3>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Only bookings explicitly placed under this business account appear here. Payment and refund authority remains in Booking 360.</p>
+        </div>
+        <Link
+          to={`/bookings?businessAccountId=${encodeURIComponent(accountId)}`}
+          className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-slate-50"
+        >
+          Open full booking queue
+        </Link>
+      </div>
+
+      {bookings.length === 0 ? <EmptyState title="No bookings are linked to this business account." /> : (
+        <section aria-label="Business account bookings" className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-white">
+          {bookings.map((booking) => (
+            <article key={booking.id} className="grid gap-4 border-b border-[var(--color-border)] p-4 last:border-b-0 md:grid-cols-2 xl:grid-cols-[1.1fr_1fr_1fr_1fr]">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Work order</p>
+                <Link to={`/bookings/${booking.id}`} className="font-mono text-xs font-semibold text-[var(--color-primary)] hover:underline">{booking.id.slice(0, 8)}</Link>
+                <p className="mt-1 font-medium text-[var(--color-text)]">{booking.categoryName}</p>
+                <p className="text-xs text-[var(--color-text-secondary)]">{fmtDateTime(booking.scheduledAt, booking.createdAt)} PHT</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Customer and provider</p>
+                <Link to={`/customers/${booking.customerId}`} className="block truncate font-medium text-[var(--color-secondary)] hover:underline">{booking.customerName || 'Unnamed customer'}</Link>
+                {booking.providerId ? (
+                  <Link to={`/providers/${booking.providerId}`} className="mt-1 block truncate text-sm font-medium text-[var(--color-secondary)] hover:underline">{booking.providerName || 'Unnamed provider'}</Link>
+                ) : <p className="mt-1 text-xs font-medium text-amber-700">Provider not assigned</p>}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Work and support state</p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  <Badge label={fmtLabel(booking.status)} variant={statusVariant(booking.status)} />
+                  <Badge label={`Escrow: ${fmtLabel(booking.escrowStatus)}`} variant="info" />
+                </div>
+                <Link to={`/support-tickets?bookingId=${encodeURIComponent(booking.id)}`} className="mt-2 block text-xs font-semibold text-[var(--color-secondary)] hover:underline">{booking.openSupportTickets} open support case{booking.openSupportTickets === 1 ? '' : 's'}</Link>
+                <p className={`text-xs ${booking.openDisputes > 0 ? 'font-semibold text-red-700' : 'text-[var(--color-text-secondary)]'}`}>{booking.openDisputes} open dispute{booking.openDisputes === 1 ? '' : 's'}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Contract and billing</p>
+                <p className="font-semibold text-[var(--color-text)]">{formatCurrency(booking.totalAmount)}</p>
+                <p className="text-xs text-[var(--color-text-secondary)]">{booking.contractId ? `${fmtLabel(booking.contractType ?? 'contract')} contract` : 'No contract linked'}</p>
+                <p className="text-xs text-[var(--color-text-secondary)]">{booking.invoiceNumber ? `${booking.invoiceNumber} · ${fmtLabel(booking.invoiceStatus ?? 'unknown')}` : 'Not yet invoiced'}</p>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+      {result.pagination && result.pagination.totalPages > 1 ? (
+        <Pagination
+          page={result.pagination.page}
+          totalPages={result.pagination.totalPages}
+          total={result.pagination.total}
+          pageSize={result.pagination.pageSize}
+          onPageChange={setPage}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 // ─── InvoicesTab ─────────────────────────────────────────────────────────────
 
 export function InvoicesTab({ accountId }: { accountId: string }): React.ReactElement {
@@ -811,6 +972,7 @@ export function InvoicesTab({ accountId }: { accountId: string }): React.ReactEl
   const [actionInfo, setActionInfo] = useState('');
   const [markPaidTarget, setMarkPaidTarget] = useState<BusinessInvoice | null>(null);
   const [paymentReference, setPaymentReference] = useState('');
+  const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
 
   const q = useQuery({
     queryKey: ['admin-business-account-invoices', accountId, page],
@@ -880,7 +1042,16 @@ export function InvoicesTab({ accountId }: { accountId: string }): React.ReactEl
     {
       key: 'invoiceNumber',
       header: 'Invoice #',
-      render: (inv) => <span className="font-mono text-xs text-[var(--color-text)]">{inv.invoiceNumber}</span>,
+      render: (inv) => (
+        <button
+          type="button"
+          aria-expanded={expandedInvoiceId === inv.id}
+          onClick={() => setExpandedInvoiceId((current) => current === inv.id ? null : inv.id)}
+          className="min-h-11 font-mono text-xs font-semibold text-[var(--color-primary)] hover:underline"
+        >
+          {inv.invoiceNumber}
+        </button>
+      ),
     },
     {
       key: 'period',
@@ -910,6 +1081,11 @@ export function InvoicesTab({ accountId }: { accountId: string }): React.ReactEl
       key: 'paidAt',
       header: 'Paid',
       render: (inv) => <span className="text-xs text-[var(--color-text-secondary)]">{fmtDate(inv.paidAt)}</span>,
+    },
+    {
+      key: 'paymentReference',
+      header: 'Payment reference',
+      render: (inv) => <span className="text-xs text-[var(--color-text-secondary)]">{inv.paymentReference ?? '—'}</span>,
     },
     {
       key: 'actions',
@@ -958,6 +1134,7 @@ export function InvoicesTab({ accountId }: { accountId: string }): React.ReactEl
           emptyMessage="No invoices for this account."
         />
       )}
+      {expandedInvoiceId ? <InvoiceDetailPanel invoiceId={expandedInvoiceId} onClose={() => setExpandedInvoiceId(null)} /> : null}
       {pagination && pagination.totalPages > 1 && (
         <Pagination
           page={pagination.page}
@@ -1014,5 +1191,62 @@ export function InvoicesTab({ accountId }: { accountId: string }): React.ReactEl
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export function InvoiceDetailPanel({ invoiceId, onClose }: { invoiceId: string; onClose: () => void }): React.ReactElement {
+  const q = useQuery({
+    queryKey: ['admin-business-invoice-detail', invoiceId],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: { invoice: BusinessInvoice; items: BusinessInvoiceItem[] } }>(`/api/v1/admin/invoices/${invoiceId}`);
+      return res.data.data;
+    },
+  });
+
+  return (
+    <Card className="p-4" aria-label="Invoice booking detail">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-[var(--color-text)]">Invoice line items and work orders</h3>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">The invoice is a billing record. Open Booking 360 for payment, refund, escrow, dispute, and proof evidence.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+      </div>
+      {q.isLoading ? <div className="mt-4"><LoadingState /></div> : null}
+      {q.isError ? <div className="mt-4"><ErrorState title="Failed to load invoice line items" description={getErrorMessage(q.error)} /></div> : null}
+      {q.data ? (
+        <div className="mt-4 space-y-3">
+          <div className="grid gap-3 rounded-lg border border-[var(--color-border)] bg-slate-50/70 p-3 sm:grid-cols-3">
+            <InfoRow label="Invoice" value={q.data.invoice.invoiceNumber} mono />
+            <InfoRow label="Status" value={fmtLabel(q.data.invoice.status)} />
+            <InfoRow label="External reference" value={q.data.invoice.paymentReference ?? 'Not recorded'} mono />
+          </div>
+          {q.data.items.length === 0 ? <EmptyState title="This invoice has no line items." /> : (
+            <section aria-label="Invoice line items" className="overflow-hidden rounded-lg border border-[var(--color-border)]">
+              {q.data.items.map((item) => (
+                <article key={item.id} className="grid gap-3 border-b border-[var(--color-border)] bg-white p-3 last:border-b-0 md:grid-cols-[1.3fr_1fr_0.8fr]">
+                  <div className="min-w-0">
+                    <p className="font-medium text-[var(--color-text)]">{item.serviceName ?? item.description}</p>
+                    <p className="text-xs text-[var(--color-text-secondary)]">{item.description}</p>
+                    <p className="text-xs text-[var(--color-text-secondary)]">Service date: {fmtDate(item.serviceDate)}</p>
+                    {item.bookingId ? <Link to={`/bookings/${item.bookingId}`} className="mt-1 inline-block font-mono text-xs font-semibold text-[var(--color-primary)] hover:underline">Open booking {item.bookingId.slice(0, 8)}</Link> : <p className="mt-1 text-xs text-amber-700">No booking is linked to this line item.</p>}
+                  </div>
+                  <div className="min-w-0 text-sm">
+                    {item.customerId ? <Link to={`/customers/${item.customerId}`} className="block truncate font-medium text-[var(--color-secondary)] hover:underline">{item.customerName ?? 'Open customer'}</Link> : null}
+                    {item.providerId ? <Link to={`/providers/${item.providerId}`} className="mt-1 block truncate text-[var(--color-secondary)] hover:underline">{item.providerName ?? 'Open provider'}</Link> : <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Provider not linked</p>}
+                    {item.bookingStatus ? <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Booking: {fmtLabel(item.bookingStatus)}</p> : null}
+                  </div>
+                  <div className="text-sm md:text-right">
+                    <p className="font-semibold text-[var(--color-text)]">{formatCurrency(item.amount)}</p>
+                    <p className="text-xs text-[var(--color-text-secondary)]">{item.quantity} × {formatCurrency(item.unitPrice)}</p>
+                    {item.discountAmount > 0 ? <p className="text-xs text-emerald-700">Discount {formatCurrency(item.discountAmount)}</p> : null}
+                  </div>
+                </article>
+              ))}
+            </section>
+          )}
+        </div>
+      ) : null}
+    </Card>
   );
 }

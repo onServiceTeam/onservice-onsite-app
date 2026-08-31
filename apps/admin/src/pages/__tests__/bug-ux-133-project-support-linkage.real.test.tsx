@@ -29,5 +29,5 @@ it('Bug UX-133 — project oversight identifies the customer and provider record
   expect((await screen.findByText('Maria Santos')).closest('a')).toHaveAttribute('to', '/customers/customer-1');
   expect(screen.getByText('Cebu Home Works').closest('a')).toHaveAttribute('to', '/providers/provider-1');
   expect(screen.getByText(/Hiring, bookings, quotes, and money are managed in their own operational areas/i)).toBeTruthy();
-  expect(screen.getByRole('table', { name: 'Customer project planning records' })).toBeTruthy();
+  expect(screen.getByRole('region', { name: 'Customer project planning records' })).toBeTruthy();
 });

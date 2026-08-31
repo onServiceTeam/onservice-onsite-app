@@ -76,16 +76,50 @@ function validatePromoText(value: unknown, field: string, max: number, optional 
   }
 }
 
+function validatePromoDate(value: unknown, field: string, optional = true, nullable = false): void {
+  if (value === undefined) {
+    if (!optional) throw createAppError(`${field} is required.`, 400);
+    return;
+  }
+  if (value === null) {
+    if (nullable) return;
+    throw createAppError(`${field} cannot be null.`, 400);
+  }
+  if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) {
+    throw createAppError(`${field} must be a valid ISO date with a timezone.`, 400);
+  }
+  if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) {
+    throw createAppError(`${field} must include a timezone.`, 400);
+  }
+}
+
+function validatePromoCtaLink(value: unknown): void {
+  if (value === undefined || value === null || value === '') return;
+  if (typeof value !== 'string') throw createAppError('ctaLink must be a string.', 400);
+  const isInternal = value.startsWith('/') && !value.startsWith('//');
+  const isSecureExternal = /^https:\/\//i.test(value);
+  if (!isInternal && !isSecureExternal) {
+    throw createAppError('ctaLink must be an internal app path or an HTTPS URL.', 400);
+  }
+}
+
+function validateDisplayOrder(value: unknown): void {
+  if (value === undefined) return;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 10_000) {
+    throw createAppError('displayOrder must be an integer from 0 to 10000.', 400);
+  }
+}
+
 router.post(
   '/',
   authMiddleware,
   rbacMiddleware('admin', 'super_admin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { title, subtitle, imageUrl, badge, ctaText, ctaLink, targetAudience, startDate, endDate, displayOrder } = req.body as {
+      const { title, subtitle, imageUrl, badge, ctaText, ctaLink, targetAudience, startDate, endDate, displayOrder, isActive } = req.body as {
         title: string; subtitle?: string; imageUrl?: string; badge?: string;
         ctaText?: string; ctaLink?: string; targetAudience?: string;
-        startDate?: string; endDate?: string; displayOrder?: number;
+        startDate?: string; endDate?: string; displayOrder?: number; isActive?: boolean;
       };
       if (!title || typeof title !== 'string') throw createAppError('title is required.', 400);
       // BUG-PHASE153-01 fix — explicit length validation matches the
@@ -96,18 +130,29 @@ router.post(
       validatePromoText(badge, 'badge', PROMO_BADGE_MAX);
       validatePromoText(ctaText, 'ctaText', PROMO_CTA_TEXT_MAX);
       validatePromoText(ctaLink, 'ctaLink', PROMO_CTA_LINK_MAX);
+      validatePromoCtaLink(ctaLink);
+      validatePromoDate(startDate, 'startDate');
+      validatePromoDate(endDate, 'endDate', true, true);
       if (targetAudience !== undefined && !PROMO_TARGET_AUDIENCES.has(targetAudience)) {
         throw createAppError(
           `targetAudience must be one of: ${[...PROMO_TARGET_AUDIENCES].join(', ')}.`,
           400,
         );
       }
-      if (displayOrder !== undefined && (typeof displayOrder !== 'number' || !Number.isInteger(displayOrder))) {
-        throw createAppError('displayOrder must be an integer.', 400);
+      validateDisplayOrder(displayOrder);
+      if (isActive !== undefined && typeof isActive !== 'boolean') {
+        throw createAppError('isActive must be a boolean.', 400);
+      }
+      const effectiveStart = startDate ? Date.parse(startDate) : Date.now();
+      if (endDate && Date.parse(endDate) <= effectiveStart) {
+        throw createAppError('endDate must be after startDate.', 400);
       }
       const promo = await promotionService.createPromotion({
         title, subtitle, imageUrl, badge, ctaText, ctaLink,
         targetAudience, startDate, endDate, displayOrder,
+        // New customer-facing content is a draft unless an operator
+        // deliberately publishes it after reviewing the schedule and CTA.
+        isActive: isActive ?? false,
         createdBy: req.user!.userId,
       });
       res.status(201).json({ success: true, data: promotionService.formatPromotion(promo) });
@@ -134,11 +179,18 @@ router.put(
       validatePromoText(body['badge'], 'badge', PROMO_BADGE_MAX);
       validatePromoText(body['ctaText'], 'ctaText', PROMO_CTA_TEXT_MAX);
       validatePromoText(body['ctaLink'], 'ctaLink', PROMO_CTA_LINK_MAX);
+      validatePromoCtaLink(body['ctaLink']);
+      validatePromoDate(body['startDate'], 'startDate');
+      validatePromoDate(body['endDate'], 'endDate', true, true);
       if (body['targetAudience'] !== undefined && (typeof body['targetAudience'] !== 'string' || !PROMO_TARGET_AUDIENCES.has(body['targetAudience'] as string))) {
         throw createAppError(
           `targetAudience must be one of: ${[...PROMO_TARGET_AUDIENCES].join(', ')}.`,
           400,
         );
+      }
+      validateDisplayOrder(body['displayOrder']);
+      if (body['isActive'] !== undefined && typeof body['isActive'] !== 'boolean') {
+        throw createAppError('isActive must be a boolean.', 400);
       }
       // MED-N151 fix — pass actor for audit row.
       const promo = await promotionService.updatePromotion(id, {

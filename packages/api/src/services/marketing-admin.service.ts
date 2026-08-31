@@ -142,6 +142,10 @@ async function getAllowedChannels(): Promise<Set<string>> {
   return new Set<string>(FALLBACK_CHANNELS);
 }
 
+export async function listAllowedMarketingChannels(): Promise<string[]> {
+  return [...await getAllowedChannels()];
+}
+
 function validateCode(code: string): string {
   if (typeof code !== 'string' || !CODE_REGEX.test(code)) {
     throw createAppError(
@@ -426,6 +430,7 @@ export async function updatePromoCode(
     description: string;
     minimumOrderCentavos: number;
     usageLimitTotal: number | null;
+    usageLimitPerCustomer: number;
     validUntil: string | null;
     active: boolean;
   }>,
@@ -443,6 +448,11 @@ export async function updatePromoCode(
   ) {
     validateNonNegativeInt(patch.usageLimitTotal, 'usageLimitTotal');
   }
+  if (patch.usageLimitPerCustomer !== undefined) {
+    if (!Number.isInteger(patch.usageLimitPerCustomer) || patch.usageLimitPerCustomer < 1) {
+      throw createAppError('usageLimitPerCustomer must be a positive integer.', 400);
+    }
+  }
 
   const sets: string[] = [];
   const params: unknown[] = [];
@@ -457,6 +467,10 @@ export async function updatePromoCode(
   if (patch.usageLimitTotal !== undefined) {
     params.push(patch.usageLimitTotal);
     sets.push(`usage_limit_total = $${params.length}`);
+  }
+  if (patch.usageLimitPerCustomer !== undefined) {
+    params.push(patch.usageLimitPerCustomer);
+    sets.push(`usage_limit_per_customer = $${params.length}`);
   }
   if (patch.validUntil !== undefined) {
     params.push(patch.validUntil);

@@ -27,11 +27,13 @@
 
 import { db } from '../../models/db';
 import { createAppError } from '../../middleware/error.middleware';
+import * as settingsService from '../settings.service';
 
 export const PROMO_ERRORS = {
   promoInvalid: 'promo_invalid',
   promoMinOrderNotMet: 'promo_min_order_not_met',
   promoExhausted: 'promo_exhausted',
+  promoUnavailable: 'promo_redemption_unavailable',
 } as const;
 
 interface PromoRow {
@@ -63,6 +65,17 @@ export async function resolvePromo(input: {
   }
   if (!Number.isFinite(input.subtotalCents) || input.subtotalCents < 0) {
     throw createAppError(PROMO_ERRORS.promoInvalid, 400);
+  }
+
+  // D13 launch decision: redemption is pulled until the complete customer,
+  // receipt, cancellation, refund, and reporting flow is launched. The mobile
+  // field is hidden, but the API must enforce the same boundary so a direct
+  // booking request cannot bypass the launch hold and reduce a live price.
+  const redemptionEnabled = await settingsService.getSettingBoolean(
+    'feature_flag.promo_redemption_enabled',
+  );
+  if (!redemptionEnabled) {
+    throw createAppError(PROMO_ERRORS.promoUnavailable, 409);
   }
 
   const result = await db.query<PromoRow>(

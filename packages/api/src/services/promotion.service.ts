@@ -53,16 +53,30 @@ export async function getPromotionById(id: string): Promise<PromotionRow> {
 
 export interface CreatePromotionParams {
   title: string;
-  subtitle?: string;
-  imageUrl?: string;
-  badge?: string;
-  ctaText?: string;
-  ctaLink?: string;
+  subtitle?: string | null;
+  imageUrl?: string | null;
+  badge?: string | null;
+  ctaText?: string | null;
+  ctaLink?: string | null;
   targetAudience?: string;
   startDate?: string;
-  endDate?: string;
+  endDate?: string | null;
+  isActive?: boolean;
   displayOrder?: number;
   createdBy?: string;
+}
+
+function assertSchedule(startDate: Date, endDate: Date | null): void {
+  if (!Number.isFinite(startDate.getTime()) || (endDate && !Number.isFinite(endDate.getTime()))) {
+    throw createAppError('Promotion schedule contains an invalid date.', 400);
+  }
+  if (endDate && endDate.getTime() <= startDate.getTime()) {
+    throw createAppError('Promotion end date must be after its start date.', 400);
+  }
+}
+
+function supplied(data: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(data, key);
 }
 
 // MED-N150 + MED-N151 fix — promotions are admin-managed customer-
@@ -71,10 +85,13 @@ export interface CreatePromotionParams {
 // in a transaction that also writes an audit row of type
 // 'config_changed' with op + before/after snapshots in details.
 export async function createPromotion(params: CreatePromotionParams): Promise<PromotionRow> {
+  const startDate = params.startDate ? new Date(params.startDate) : new Date();
+  const endDate = params.endDate ? new Date(params.endDate) : null;
+  assertSchedule(startDate, endDate);
   return db.transaction(async (client) => {
     const result = await client.query<PromotionRow>(
-      `INSERT INTO promotions (title, subtitle, image_url, badge, cta_text, cta_link, target_audience, start_date, end_date, display_order, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamptz, NOW()), $9::timestamptz, COALESCE($10, 0), $11)
+      `INSERT INTO promotions (title, subtitle, image_url, badge, cta_text, cta_link, target_audience, start_date, end_date, is_active, display_order, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         params.title,
@@ -84,8 +101,9 @@ export async function createPromotion(params: CreatePromotionParams): Promise<Pr
         params.ctaText ?? null,
         params.ctaLink ?? null,
         params.targetAudience ?? 'all',
-        params.startDate ?? null,
-        params.endDate ?? null,
+        startDate,
+        endDate,
+        params.isActive ?? false,
         params.displayOrder ?? 0,
         params.createdBy ?? null,
       ],
@@ -103,8 +121,9 @@ export async function createPromotion(params: CreatePromotionParams): Promise<Pr
             op: 'create',
             title: params.title,
             targetAudience: params.targetAudience ?? 'all',
-            startDate: params.startDate ?? null,
-            endDate: params.endDate ?? null,
+            startDate: startDate.toISOString(),
+            endDate: endDate?.toISOString() ?? null,
+            isActive: params.isActive ?? false,
           }),
         ],
       );
@@ -125,6 +144,13 @@ export async function updatePromotion(
     );
     if (before.rows.length === 0) throw createAppError('Promotion not found.', 404);
     const existing = before.rows[0]!;
+    const nextStartDate = supplied(data, 'startDate')
+      ? new Date(data.startDate as string)
+      : existing.start_date;
+    const nextEndDate = supplied(data, 'endDate')
+      ? (data.endDate ? new Date(data.endDate) : null)
+      : existing.end_date;
+    assertSchedule(nextStartDate, nextEndDate);
 
     const result = await client.query<PromotionRow>(
       `UPDATE promotions SET
@@ -136,14 +162,14 @@ export async function updatePromotion(
       [
         id,
         data.title ?? existing.title,
-        data.subtitle ?? existing.subtitle,
-        data.imageUrl ?? existing.image_url,
-        data.badge ?? existing.badge,
-        data.ctaText ?? existing.cta_text,
-        data.ctaLink ?? existing.cta_link,
+        supplied(data, 'subtitle') ? data.subtitle ?? null : existing.subtitle,
+        supplied(data, 'imageUrl') ? data.imageUrl ?? null : existing.image_url,
+        supplied(data, 'badge') ? data.badge ?? null : existing.badge,
+        supplied(data, 'ctaText') ? data.ctaText ?? null : existing.cta_text,
+        supplied(data, 'ctaLink') ? data.ctaLink ?? null : existing.cta_link,
         data.targetAudience ?? existing.target_audience,
-        data.startDate ?? existing.start_date,
-        data.endDate ?? existing.end_date,
+        nextStartDate,
+        nextEndDate,
         data.isActive ?? existing.is_active,
         data.displayOrder ?? existing.display_order,
       ],
@@ -162,6 +188,10 @@ export async function updatePromotion(
             afterTitle: data.title ?? existing.title,
             beforeIsActive: existing.is_active,
             afterIsActive: data.isActive ?? existing.is_active,
+            beforeStartDate: existing.start_date,
+            afterStartDate: nextStartDate,
+            beforeEndDate: existing.end_date,
+            afterEndDate: nextEndDate,
           }),
         ],
       );
