@@ -953,6 +953,9 @@ decision document, A/B testing is **pulled for v1.0**:
 - Admin `AnalyticsPage.tsx` filters out the A/B Tests tab when the flag
   is OFF (the v1.0 default). Direct-link `/analytics?tab=ab-tests`
   falls through to the first visible tab.
+- Admin A/B list, create, results, and status routes independently return the
+  launch hold while the same flag is OFF, so a hidden tab cannot be bypassed
+  by a direct request.
 - The `ab_tests` + `ab_test_assignments` tables are NOT dropped — v1.1
   reads them as-is when the assignment service is wired.
 
@@ -1804,3 +1807,39 @@ determination/rationale, affected-subject notice evidence, NPC receipt, and
 follow-up-report tracking. The operative wording and policy require qualified
 Philippine privacy counsel. See
 `.ai-coder/escalations/E40-privacy-deadline-legal-language-and-breach-classification-2026-08-31.md`.
+
+---
+
+## 58. Legacy provider quality scoring conflicts with the approved operations scorecard
+
+The stored automated model weights rating 30%, completion 25%, completion
+within two hours of the scheduled start 20%, provider cancellation 15%, and
+quote response 10%. The approved monthly operations scorecard instead uses
+rating 35%, acceptance 20%, cancellation 20%, dispute 15%, and on-time arrival
+10%. Those are materially different inputs and the legacy completion-time
+proxy is not the approved arrival measure.
+
+Analytics now labels the stored rows as legacy evidence, exposes every
+component and snapshot period, and blocks recomputation at both the admin UI
+and API. Do not use the overall legacy number alone for discipline, tier,
+dispatch, or commission decisions. Re-enabling computation requires a written
+source-of-truth decision, a versioned score contract, input-quality rules,
+historical/backfill treatment, and executed boundary tests. See
+`.ai-coder/escalations/E47-provider-quality-score-source-conflict-2026-08-31.md`.
+
+---
+
+## 59. Automated commission-rate advice is not approved
+
+The former Analytics endpoint generated suggested provider commission rates
+from a small 90-day sample and the conflicted legacy quality score. A false
+recommendation could affect provider economics without an approved model,
+review workflow, impact simulation, or publication authority.
+
+The old advice route now returns the E48 hold. Its replacement is read-only
+evidence: current configured rates, approved-provider counts, completed-booking
+samples, gross booking face value, and legacy snapshot counts. It does not
+calculate provider earnings, approve a change, or write a setting. Any future
+rate decision requires an approved policy, minimum evidence standard, human
+approval and audit workflow, and rollback plan. See
+`.ai-coder/escalations/E48-automated-commission-rate-advice-not-approved-2026-08-31.md`.

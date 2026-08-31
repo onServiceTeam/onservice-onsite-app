@@ -3,7 +3,6 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 import { maskPhilippinePhone } from '../utils/pii-mask';
-import * as settingsService from './settings.service';
 
 // ────────────────────────────────────────────────────────────────────
 // 1. A/B TESTING FRAMEWORK
@@ -313,7 +312,7 @@ export async function getCohortAnalysis(
          COALESCE(SUM(b.total_amount), 0) AS total_revenue
        FROM cohort_users cu
        INNER JOIN bookings b ON b.customer_id = cu.id
-         AND b.status IN ('confirmed', 'payout_ready', 'paid_out')
+         AND b.status IN ('confirmed', 'resolved', 'payout_ready', 'paid_out')
          AND (DATE_TRUNC('month', b.created_at AT TIME ZONE 'Asia/Manila'))::date >= cu.cohort_month
        GROUP BY cu.cohort_month, EXTRACT(MONTH FROM AGE((DATE_TRUNC('month', b.created_at AT TIME ZONE 'Asia/Manila'))::date, cu.cohort_month))
      )
@@ -427,6 +426,7 @@ export async function getChurnPrediction(
       LEFT JOIN bookings b ON b.customer_id = u.id
         AND b.status NOT IN ('cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin')
       WHERE u.role = 'customer'
+        AND u.is_active = TRUE
       GROUP BY u.id, u.first_name, u.last_name, u.phone
     ),
     leveled AS (
@@ -566,10 +566,10 @@ export async function computeProviderQualityScores(
        p.id AS provider_id,
        COALESCE(p.rating, 0)::text AS avg_rating,
        COUNT(b.id)::text AS total_jobs,
-       COUNT(b.id) FILTER (WHERE b.status IN ('confirmed', 'payout_ready', 'paid_out'))::text AS completed_jobs,
+       COUNT(b.id) FILTER (WHERE b.status IN ('confirmed', 'resolved', 'payout_ready', 'paid_out'))::text AS completed_jobs,
        COUNT(b.id) FILTER (WHERE b.status = 'cancelled_by_provider')::text AS cancelled_by_provider,
        COUNT(b.id) FILTER (
-         WHERE b.status IN ('confirmed', 'payout_ready', 'paid_out')
+         WHERE b.status IN ('confirmed', 'resolved', 'payout_ready', 'paid_out')
            AND b.completed_at IS NOT NULL
            AND b.completed_at <= b.scheduled_at + INTERVAL '2 hours'
        )::text AS on_time_jobs,
@@ -686,7 +686,7 @@ export async function computeProviderQualityScores(
 export async function getProviderQualityScores(
   page = 1,
   pageSize = 20,
-  sortBy: 'overall' | 'rating' | 'completion' | 'timeliness' = 'overall',
+  sortBy: 'overall' | 'rating' | 'completion' | 'timeliness' | 'cancellation' | 'response' = 'overall',
 ): Promise<{
   items: Array<{
     providerId: string;
@@ -700,6 +700,8 @@ export async function getProviderQualityScores(
     cancellationScore: number;
     responseScore: number;
     totalJobsScored: number;
+    periodStart: string;
+    periodEnd: string;
     computedAt: string;
   }>;
   total: number;
@@ -712,6 +714,8 @@ export async function getProviderQualityScores(
     rating: 'pqs.rating_score',
     completion: 'pqs.completion_score',
     timeliness: 'pqs.timeliness_score',
+    cancellation: 'pqs.cancellation_score',
+    response: 'pqs.response_score',
   }[sortBy] ?? 'pqs.overall_score';
 
   const [dataResult, countResult] = await Promise.all([
@@ -747,6 +751,8 @@ export async function getProviderQualityScores(
       cancellationScore: Number(r.cancellation_score),
       responseScore: Number(r.response_score),
       totalJobsScored: r.total_jobs_scored,
+      periodStart: r.period_start.toISOString().slice(0, 10),
+      periodEnd: r.period_end.toISOString().slice(0, 10),
       computedAt: r.computed_at.toISOString(),
     })),
     total: Number(countResult.rows[0]?.count ?? 0),
@@ -754,45 +760,64 @@ export async function getProviderQualityScores(
 }
 
 // ────────────────────────────────────────────────────────────────────
-// 5. AUTOMATED COMMISSION RATE OPTIMIZATION
+// 5. COMMISSION EVIDENCE (READ-ONLY)
 // ────────────────────────────────────────────────────────────────────
 
-export async function getCommissionOptimizationSuggestions(): Promise<Array<{
+export async function getCommissionEvidence(): Promise<Array<{
   tier: string;
   currentRate: number;
-  suggestedRate: number;
   providerCount: number;
-  qualitySampleCount: number;
+  legacyQualitySampleCount: number;
   averageCompletedBookings: number;
-  avgQualityScore: number;
-  avgRevenue: number;
-  rationale: string;
+  averageCompletedBookingValue: number;
+  sampleStatus: 'insufficient' | 'available';
 }>> {
   const tiers = Object.keys(platformConfig.commissionRates);
   if (tiers.length === 0) {
     return [];
   }
 
-  // Phase 13 Dispatch E — was 4 sequential queries (one per tier).
-  // Now: ONE GROUP BY query that returns metrics for every tier in a
-  // single round-trip. Tiers with zero approved providers fall back to
-  // sentinel defaults to keep the response shape unchanged.
+  // Phase 13 Dispatch E — was one metrics query per tier. MED-N06 later
+  // added one settings lookup per tier. Keep both the operational sample
+  // and the authoritative live commission rates in this single read-only
+  // round-trip so the evidence panel cannot regress into an N+1 query.
   const aggregated = await db.query<{
     tier: string;
     provider_count: string;
     quality_sample_count: string;
-    avg_quality: string;
-    avg_revenue: string;
+    avg_booking_value: string;
     avg_bookings: string;
+    current_rate: string;
   }>(
-    `SELECT
-       p.tier,
+    `WITH tier_list AS (
+       SELECT *
+       FROM UNNEST($1::text[], $2::numeric[])
+         AS configured(tier, fallback_rate)
+     ), active_rates AS (
+       SELECT SUBSTRING(key FROM LENGTH('commission_rate_') + 1) AS tier,
+              MAX(value) AS value
+       FROM platform_settings
+       WHERE is_active = TRUE
+         AND key = ANY($3::text[])
+       GROUP BY key
+     )
+     SELECT
+       tl.tier,
        COUNT(DISTINCT p.id)::text AS provider_count,
        COUNT(pqs.overall_score)::text AS quality_sample_count,
-       COALESCE(AVG(pqs.overall_score), 0)::text AS avg_quality,
-       COALESCE(AVG(bm.total_revenue), 0)::text AS avg_revenue,
-       COALESCE(AVG(bm.booking_count), 0)::text AS avg_bookings
-     FROM providers p
+       COALESCE(AVG(COALESCE(bm.booking_count, 0)), 0)::text AS avg_bookings,
+       COALESCE(
+         SUM(COALESCE(bm.total_revenue, 0))::numeric
+           / NULLIF(SUM(COALESCE(bm.booking_count, 0)), 0),
+         0
+       )::text AS avg_booking_value,
+       (CASE
+          WHEN ar.value ~ '^[0-9]+([.][0-9]+)?$' THEN ar.value::numeric / 100
+          ELSE tl.fallback_rate
+        END)::text AS current_rate
+     FROM tier_list tl
+     LEFT JOIN providers p
+       ON p.tier = tl.tier AND p.status = 'approved'
      LEFT JOIN (
        SELECT provider_id, MAX(computed_at) AS latest
        FROM provider_quality_scores GROUP BY provider_id
@@ -804,99 +829,71 @@ export async function getCommissionOptimizationSuggestions(): Promise<Array<{
               SUM(total_amount)::bigint AS total_revenue,
               COUNT(*)::bigint AS booking_count
        FROM bookings
-       WHERE status IN ('confirmed', 'payout_ready', 'paid_out')
+       WHERE status IN ('confirmed', 'resolved', 'payout_ready', 'paid_out')
          AND confirmed_at >= NOW() - INTERVAL '90 days'
        GROUP BY provider_id
      ) bm ON bm.provider_id = p.id
-     WHERE p.tier = ANY($1::text[]) AND p.status = 'approved'
-     GROUP BY p.tier`,
-    [tiers],
+     LEFT JOIN active_rates ar ON ar.tier = tl.tier
+     GROUP BY tl.tier, tl.fallback_rate, ar.value`,
+    [
+      tiers,
+      tiers.map((tier) => platformConfig.commissionRates[tier]!),
+      tiers.map((tier) => `commission_rate_${tier}`),
+    ],
   );
 
   const byTier = new Map<string, {
     provider_count: string;
     quality_sample_count: string;
-    avg_quality: string;
-    avg_revenue: string;
+    avg_booking_value: string;
     avg_bookings: string;
+    current_rate: string;
   }>();
   for (const row of aggregated.rows) {
     byTier.set(row.tier, row);
   }
 
-  const suggestions: Array<{
+  const evidence: Array<{
     tier: string;
     currentRate: number;
-    suggestedRate: number;
     providerCount: number;
-    qualitySampleCount: number;
+    legacyQualitySampleCount: number;
     averageCompletedBookings: number;
-    avgQualityScore: number;
-    avgRevenue: number;
-    rationale: string;
+    averageCompletedBookingValue: number;
+    sampleStatus: 'insufficient' | 'available';
   }> = [];
 
   for (const tier of tiers) {
-    // MED-N06 fix: read live commission rate from platform_settings
-    // (admin-editable). Pre-fix this used platformConfig.commissionRates[tier]
-    // which is the in-process default constant — if admin tuned the
-    // rate via /admin/settings, the suggestion compared to the wrong
-    // starting point. settingsService.getCommissionRate falls back to
-    // platformConfig if the setting isn't present, so behavior is
-    // backward-compatible with deployments that never wrote to settings.
-    let currentRate: number;
-    try {
-      currentRate = await settingsService.getCommissionRate(tier);
-    } catch (err) {
-      logger.warn('Commission rate lookup failed; using platformConfig fallback', {
-        tier,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      currentRate = platformConfig.commissionRates[tier]!;
-    }
     const row = byTier.get(tier) ?? {
       provider_count: '0',
       quality_sample_count: '0',
-      avg_quality: '0',
-      avg_revenue: '0',
+      avg_booking_value: '0',
       avg_bookings: '0',
+      current_rate: String(platformConfig.commissionRates[tier]!),
     };
 
     const providerCount = Number(row.provider_count);
     const qualitySampleCount = Number(row.quality_sample_count);
     const averageCompletedBookings = Number(row.avg_bookings);
-    const avgQuality = Number(row.avg_quality);
-    const avgRevenue = Number(row.avg_revenue);
+    const averageCompletedBookingValue = Number(row.avg_booking_value);
+    const sampleStatus = providerCount >= 5
+      && qualitySampleCount >= 5
+      && averageCompletedBookings >= 5
+      ? 'available'
+      : 'insufficient';
 
-    let suggestedRate = currentRate;
-    let rationale = 'Current rate is appropriate.';
-
-    if (providerCount < 5 || qualitySampleCount < 5 || averageCompletedBookings < 5) {
-      rationale = `Insufficient sample for a rate signal (${providerCount} approved providers, ${qualitySampleCount} quality scores, ${averageCompletedBookings.toFixed(1)} average completed bookings).`;
-    } else if (avgQuality >= 85 && avgRevenue > 500000) {
-      suggestedRate = Math.max(currentRate - 0.02, 0.08);
-      rationale = `High quality (${avgQuality.toFixed(1)}) and strong revenue suggest a rate decrease to retain top providers.`;
-    } else if (avgQuality < 60) {
-      suggestedRate = Math.min(currentRate + 0.02, 0.25);
-      rationale = `Below-average quality (${avgQuality.toFixed(1)}) suggests increasing the rate to fund quality improvement programs.`;
-    }
-
-    suggestedRate = Math.round(suggestedRate * 100) / 100;
-
-    suggestions.push({
+    evidence.push({
       tier,
-      currentRate,
-      suggestedRate,
+      currentRate: Number(row.current_rate),
       providerCount,
-      qualitySampleCount,
+      legacyQualitySampleCount: qualitySampleCount,
       averageCompletedBookings,
-      avgQualityScore: Math.round(avgQuality * 100) / 100,
-      avgRevenue: Math.round(avgRevenue),
-      rationale,
+      averageCompletedBookingValue: Math.round(averageCompletedBookingValue),
+      sampleStatus,
     });
   }
 
-  return suggestions;
+  return evidence;
 }
 
 // ────────────────────────────────────────────────────────────────────

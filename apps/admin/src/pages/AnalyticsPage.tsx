@@ -25,13 +25,83 @@ const ALL_TABS: { id: TabId; label: string; flag?: keyof ReturnType<typeof useFe
   { id: 'ab-tests', label: 'A/B Tests', flag: 'abTestingEnabled' },
   { id: 'cohorts', label: 'Cohort Analysis' },
   { id: 'churn', label: 'Retention Signals' },
-  { id: 'quality', label: 'Quality Scores' },
-  { id: 'commission', label: 'Commission Signals' },
+  { id: 'quality', label: 'Quality Evidence' },
+  { id: 'commission', label: 'Commission Evidence' },
 ];
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function formatManilaDateTime(value: number | string | null | undefined): string {
+  if (!value) return 'Not available';
+  const date = typeof value === 'number' ? new Date(value) : new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not available';
+  return date.toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
+function SourceContract({
+  definition,
+  source,
+  freshness,
+  boundary,
+  tone = 'blue',
+}: {
+  definition: string;
+  source: string;
+  freshness: string;
+  boundary: string;
+  tone?: 'blue' | 'amber';
+}): React.ReactElement {
+  const colors = tone === 'amber'
+    ? 'border-amber-300 bg-amber-50 text-amber-950'
+    : 'border-blue-200 bg-blue-50 text-blue-950';
+  return (
+    <section aria-label="Metric definition and source" className={`rounded-md border p-4 ${colors}`}>
+      <div className="grid gap-3 text-sm lg:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Definition</p>
+          <p className="mt-1 leading-5">{definition}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Source</p>
+          <p className="mt-1 leading-5">{source}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Freshness</p>
+          <p className="mt-1 leading-5">{freshness}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Decision boundary</p>
+          <p className="mt-1 leading-5">{boundary}</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PageControls({
+  page,
+  totalPages,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}): React.ReactElement | null {
+  if (totalPages <= 1) return null;
+  return (
+    <nav aria-label="Analytics result pages" className="flex flex-wrap items-center justify-center gap-2">
+      <Button aria-label="Previous page" variant="outline" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Previous</Button>
+      <span className="px-2 text-sm text-slate-600">Page {page} of {totalPages}</span>
+      <Button aria-label="Next page" variant="outline" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next</Button>
+    </nav>
+  );
 }
 
 // ─── A/B Tests Tab ──────────────────────────────────────────────────
@@ -279,7 +349,7 @@ function CohortTab(): React.ReactElement {
     });
   }
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['admin', 'cohorts', months, metric],
     queryFn: async () => {
       const res = await api.get('/api/v1/admin/analytics/cohorts', { params: { months, metric } });
@@ -289,14 +359,30 @@ function CohortTab(): React.ReactElement {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <select aria-label="Cohort metric" className="px-3 py-1.5 border rounded text-sm" value={metric} onChange={(e) => setCohortMetric(e.target.value as 'retention' | 'revenue')}>
+      <SourceContract
+        definition={metric === 'retention'
+          ? 'Customers grouped by Manila signup month. Each M-period is the share with at least one booking created in that Manila month, excluding cancelled bookings.'
+          : 'Customers grouped by Manila signup month. Each M-period is the total recorded booking face value for confirmed, resolved, payout-ready, or paid-out bookings.'}
+        source="Customer account creation plus booking creation time, status, customer, and total amount. Queried from the operational database."
+        freshness={dataUpdatedAt ? `Generated ${formatManilaDateTime(dataUpdatedAt)} PHT.` : 'Waiting for the current query.'}
+        boundary={metric === 'retention'
+          ? 'Booking activity is not completed service, customer satisfaction, or payment settlement.'
+          : 'Recorded booking value is not recognized platform revenue, provider earnings, or proof of gateway settlement.'}
+      />
+      <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-white p-4 sm:flex-row sm:items-end">
+        <div className="space-y-1">
+          <Label htmlFor="cohort-metric">Measure</Label>
+          <select id="cohort-metric" aria-label="Cohort metric" className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm" value={metric} onChange={(e) => setCohortMetric(e.target.value as 'retention' | 'revenue')}>
           <option value="retention">Retention</option>
-          <option value="revenue">Revenue</option>
-        </select>
-        <select aria-label="Cohort month range" className="px-3 py-1.5 border rounded text-sm" value={months} onChange={(e) => setCohortMonths(Number(e.target.value))}>
+          <option value="revenue">Recorded booking value</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="cohort-range">Signup window</Label>
+          <select id="cohort-range" aria-label="Cohort month range" className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm" value={months} onChange={(e) => setCohortMonths(Number(e.target.value))}>
           {[3, 6, 9, 12].map((m) => <option key={m} value={m}>{m} months</option>)}
-        </select>
+          </select>
+        </div>
       </div>
 
       {isLoading ? <LoadingState label="Loading cohort analysis…" /> : isError ? (
@@ -306,31 +392,31 @@ function CohortTab(): React.ReactElement {
           action={<Button onClick={(): void => { void refetch(); }}>Retry cohort analysis</Button>}
         />
       ) : (data?.length ?? 0) === 0 ? (
-        <EmptyState title="No cohort data" description="No retention or revenue cohort records match this period." />
+        <EmptyState title="No cohort data" description="No customer signup cohorts match this window." />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
+        <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+          <table className="w-full min-w-[720px] border-collapse text-sm">
             <thead>
               <tr className="bg-slate-50">
-                <th className="px-3 py-2 text-left font-medium text-slate-600 border">Cohort</th>
-                <th className="px-3 py-2 text-center font-medium text-slate-600 border">Size</th>
+                <th className="border px-3 py-3 text-left font-medium text-slate-600">Signup cohort</th>
+                <th className="border px-3 py-3 text-center font-medium text-slate-600">Customers</th>
                 {Array.from({ length: Math.min(months, 12) }, (_, i) => (
-                  <th key={i} className="px-3 py-2 text-center font-medium text-slate-600 border">M{i}</th>
+                  <th key={i} className="border px-3 py-3 text-center font-medium text-slate-600">M{i}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {data?.map((row) => (
                 <tr key={row.cohort} className="border-t">
-                  <td className="px-3 py-1.5 font-medium border">{row.cohort}</td>
-                  <td className="px-3 py-1.5 text-center border">{row.cohortSize}</td>
+                  <td className="border px-3 py-3 font-medium">{row.cohort}</td>
+                  <td className="border px-3 py-3 text-center">{row.cohortSize}</td>
                   {Array.from({ length: Math.min(months, 12) }, (_, i) => {
                     const periods = Array.isArray(row.periods) ? row.periods : [];
                     const p = periods.find((pp) => pp.period === i);
                     const pct = p?.percentage ?? 0;
                     const opacity = metric === 'retention' ? Math.max(0.1, pct / 100) : Math.min(1, Math.max(0.1, pct / 10));
                     return (
-                      <td key={i} className="px-3 py-1.5 text-center border" style={{ backgroundColor: p ? `rgba(59,130,246,${opacity})` : undefined, color: p && opacity > 0.5 ? 'white' : undefined }}>
+                      <td key={i} className="border px-3 py-3 text-center" style={{ backgroundColor: p ? `rgba(59,130,246,${opacity})` : undefined, color: p && opacity > 0.5 ? 'white' : undefined }}>
                         {p ? (metric === 'retention' ? `${pct}%` : formatCurrency(p.value)) : '—'}
                       </td>
                     );
@@ -384,7 +470,7 @@ function ChurnTab(): React.ReactElement {
     });
   }
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['admin', 'churn', riskLevel, page],
     queryFn: async () => {
       const params: Record<string, unknown> = { page, pageSize: adminConfig.defaultPageSize };
@@ -403,28 +489,40 @@ function ChurnTab(): React.ReactElement {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
-        <p className="font-semibold">Deterministic retention attention signals</p>
-        <p className="mt-1 text-blue-900">
-          This is not a prediction model. The score only combines time since the latest non-cancelled booking,
-          non-cancelled booking count, and recorded booking value. Open Customer 360 before taking action.
-        </p>
-      </div>
-      <div className="flex items-center gap-4">
-        <select aria-label="Filter churn risk level" className="px-3 py-1.5 border rounded text-sm" value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)}>
-          <option value="">All Risk Levels</option>
+      <SourceContract
+        definition="A deterministic attention score from time since the latest non-cancelled booking, non-cancelled booking count, and recorded booking face value. Higher is more attention, not a probability."
+        source="Active customer accounts and their non-cancelled booking records. Ordinary-admin contact is masked by the API."
+        freshness={dataUpdatedAt ? `Generated ${formatManilaDateTime(dataUpdatedAt)} PHT.` : 'Waiting for the current query.'}
+        boundary="This is not churn prediction, outreach consent, service completion, or payment settlement. Open Customer 360 and the linked records before action."
+      />
+      <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-white p-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1">
+          <Label htmlFor="retention-signal-filter">Attention signal</Label>
+          <select id="retention-signal-filter" aria-label="Filter churn risk level" className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm" value={riskLevel} onChange={(e) => setRiskLevel(e.target.value)}>
+          <option value="">All attention levels</option>
           <option value="critical">Critical</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>
-        </select>
-        <span className="text-sm text-slate-500">{data?.pagination.total ?? 0} customers</span>
+          </select>
+        </div>
+        <span className="text-sm text-slate-500">
+          {data ? `${data.pagination.total} active customer accounts` : 'Customer count unavailable'}
+        </span>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load churn data. Please try again.</p> : (
+      {isLoading ? <LoadingState label="Loading retention attention signals…" /> : isError ? (
+        <ErrorState
+          title="Retention signals unavailable"
+          description={`${getErrorMessage(error)} No customer count or attention conclusion is available.`}
+          action={<Button onClick={() => { void refetch(); }}>Retry retention signals</Button>}
+        />
+      ) : (data?.data.length ?? 0) === 0 ? (
+        <EmptyState title="No matching customer signals" description="No active customer account matches this attention filter." />
+      ) : (
         <>
           <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="w-full min-w-[920px] text-sm">
+          <table className="w-full min-w-[760px] table-fixed text-sm">
             <thead className="bg-slate-50">
               <tr>
                 <th className="text-left px-3 py-2 font-medium text-slate-600">Customer account</th>
@@ -457,16 +555,7 @@ function ChurnTab(): React.ReactElement {
             </tbody>
           </table>
           </div>
-          {data?.data.length === 0 && (
-            <p className="text-sm text-slate-500 text-center py-8">No customers match this risk level.</p>
-          )}
-          {(data?.pagination.totalPages ?? 0) > 1 && (
-            <div className="flex justify-center gap-2">
-              <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1 text-sm border rounded disabled:opacity-30">Prev</button>
-              <span className="px-3 py-1 text-sm">{page} / {data?.pagination.totalPages}</span>
-              <button type="button" disabled={page >= (data?.pagination.totalPages ?? 1)} onClick={() => setPage(page + 1)} className="px-3 py-1 text-sm border rounded disabled:opacity-30">Next</button>
-            </div>
-          )}
+          <PageControls page={page} totalPages={data?.pagination.totalPages ?? 1} onPageChange={setPage} />
         </>
       )}
     </div>
@@ -487,178 +576,206 @@ interface QualityScore {
   cancellationScore: number;
   responseScore: number;
   totalJobsScored: number;
+  periodStart: string;
+  periodEnd: string;
   computedAt: string;
 }
 
 function QualityTab(): React.ReactElement {
-  const queryClient = useQueryClient();
-  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [searchParams, setSearchParams] = useSearchParams();
   const sortParam = searchParams.get('qualitySort');
-  const sortBy = ['overall', 'rating', 'completion', 'timeliness'].includes(sortParam ?? '') ? sortParam ?? 'overall' : 'overall';
-  const [actionError, setActionError] = useState('');
+  const sortBy = ['overall', 'rating', 'completion', 'timeliness', 'cancellation', 'response'].includes(sortParam ?? '')
+    ? sortParam ?? 'overall'
+    : 'overall';
+  const page = parsePositiveInt(searchParams.get('qualityPage'), 1);
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['admin', 'quality-scores', sortBy],
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['admin', 'quality-scores', sortBy, page],
     queryFn: async () => {
-      const res = await api.get('/api/v1/admin/analytics/quality-scores', { params: { sortBy, pageSize: 50 } });
-      return res.data as { data: QualityScore[]; pagination: { total: number } };
+      const res = await api.get('/api/v1/admin/analytics/quality-scores', { params: { sortBy, page, pageSize: 25 } });
+      return res.data as { data: QualityScore[]; pagination: { total: number; totalPages: number } };
     },
-  });
-
-  const computeMut = useMutation({
-    mutationFn: () => api.post('/api/v1/admin/analytics/quality-scores/compute', { periodDays: 90 }),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['admin', 'quality-scores'] }); setActionError(''); },
-    onError: (e) => setActionError(`Failed to recompute scores: ${getErrorMessage(e)}`),
   });
 
   function setSortBy(nextSortBy: string): void {
     setSearchParams((current) => {
       const params = new URLSearchParams(current);
       params.set('qualitySort', nextSortBy);
+      params.delete('qualityPage');
       return params;
     });
   }
 
-  async function recomputeScores(): Promise<void> {
-    const accepted = await confirm({
-      title: 'Recompute provider quality scores?',
-      description: 'Recalculate the last 90 days of rating, completion, timeliness, cancellation, and response evidence for every eligible provider. This replaces the current score snapshot.',
-      confirmLabel: 'Recompute scores',
+  function setPage(nextPage: number): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextPage <= 1) params.delete('qualityPage');
+      else params.set('qualityPage', String(nextPage));
+      return params;
     });
-    if (!accepted) return;
-    computeMut.mutate();
   }
-
-  const scoreColor = (score: number): string => {
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-yellow-600';
-    return 'text-red-600';
-  };
 
   return (
     <div className="space-y-4">
-      {actionError && <p role="alert" className="text-sm text-red-600 mb-2">{actionError}</p>}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-500">{data?.pagination.total ?? 0} scored providers</span>
-          <select aria-label="Sort provider quality scores" className="px-3 py-1.5 border rounded text-sm" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-            <option value="overall">Sort by Overall</option>
-            <option value="rating">Sort by Rating</option>
-            <option value="completion">Sort by Completion</option>
-            <option value="timeliness">Sort by Timeliness</option>
+      <SourceContract
+        tone="amber"
+        definition="Legacy automated index: rating 30%, completion 25%, completion within two hours of scheduled start 20%, provider cancellation 15%, and quote response time 10%."
+        source="Stored provider_quality_scores snapshots. The rating input is the provider aggregate; booking and quote inputs use the stored snapshot period."
+        freshness={data?.data[0]
+          ? `Newest visible snapshot calculated ${formatManilaDateTime(data.data[0].computedAt)} PHT.`
+          : 'No current snapshot is visible.'}
+        boundary="E47 holds recomputation because this model conflicts with the approved monthly operations scorecard. Do not use the overall number alone for discipline, tier, dispatch, or commission decisions."
+      />
+      <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-white p-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1">
+          <Label htmlFor="quality-sort">Order snapshots</Label>
+          <select id="quality-sort" aria-label="Sort provider quality scores" className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="overall">Legacy overall</option>
+            <option value="rating">Rating component</option>
+            <option value="completion">Completion component</option>
+            <option value="timeliness">Two-hour completion component</option>
+            <option value="cancellation">Cancellation component</option>
+            <option value="response">Quote response component</option>
           </select>
         </div>
-        <button type="button" onClick={() => void recomputeScores()} disabled={computeMut.isPending} className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-sm rounded-md disabled:opacity-50">
-          {computeMut.isPending ? 'Computing...' : 'Recompute Scores'}
-        </button>
+        <span className="text-sm text-slate-500">
+          {data ? `${data.pagination.total} provider snapshots` : 'Snapshot count unavailable'}
+        </span>
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load quality scores. Please try again.</p> : data?.data.length === 0 ? (
-        <p className="text-sm text-slate-500 py-4">No providers have quality scores yet. Click &ldquo;Recompute Scores&rdquo; to generate them.</p>
+      {isLoading ? <LoadingState label="Loading legacy quality snapshots…" /> : isError ? (
+        <ErrorState
+          title="Quality snapshots unavailable"
+          description={`${getErrorMessage(error)} No quality conclusion is available.`}
+          action={<Button onClick={() => { void refetch(); }}>Retry quality snapshots</Button>}
+        />
+      ) : data?.data.length === 0 ? (
+        <EmptyState title="No quality snapshots" description="No legacy automated provider score snapshots are stored." />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-[var(--color-border)]">
-        <table className="w-full min-w-[880px] text-sm">
+        <div className="overflow-x-auto rounded-md border border-[var(--color-border)] bg-white">
+        <table className="w-full min-w-[760px] table-fixed text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className="text-left px-3 py-2 font-medium text-slate-600">Provider</th>
-              <th className="text-left px-3 py-2 font-medium text-slate-600">Tier</th>
-              <th className="text-center px-3 py-2 font-medium text-slate-600">Overall</th>
-              <th className="text-center px-3 py-2 font-medium text-slate-600">Rating</th>
-              <th className="text-center px-3 py-2 font-medium text-slate-600">Completion</th>
-              <th className="text-center px-3 py-2 font-medium text-slate-600">Timeliness</th>
-              <th className="text-center px-3 py-2 font-medium text-slate-600">Cancel</th>
-              <th className="text-center px-3 py-2 font-medium text-slate-600">Jobs</th>
+              <th className="w-[18%] px-3 py-2 text-left font-medium text-slate-600">Provider</th>
+              <th className="w-[9%] px-3 py-2 text-left font-medium text-slate-600">Tier</th>
+              <th className="w-[10%] px-3 py-2 text-center font-medium text-slate-600">Legacy overall</th>
+              <th className="w-[34%] px-3 py-2 text-left font-medium text-slate-600">Component evidence</th>
+              <th className="w-[7%] px-3 py-2 text-center font-medium text-slate-600">Jobs</th>
+              <th className="w-[22%] px-3 py-2 text-left font-medium text-slate-600">Snapshot evidence</th>
             </tr>
           </thead>
           <tbody>
             {data?.data.map((s) => (
               <tr key={s.providerId} className="border-t">
                 <td className="px-3 py-2">
-                  <p className="font-medium">{s.providerName || s.businessName}</p>
+                  <Link to={`/providers/${s.providerId}`} className="font-medium text-[var(--color-primary)] hover:underline">
+                    {s.providerName || s.businessName || 'Open Provider 360'}
+                  </Link>
                   {s.businessName && s.providerName && <p className="text-xs text-slate-400">{s.businessName}</p>}
                 </td>
                 <td className="px-3 py-2"><span className="px-2 py-0.5 bg-slate-100 rounded text-xs">{s.tier}</span></td>
-                <td className={`px-3 py-2 text-center font-bold ${scoreColor(s.overallScore)}`}>{s.overallScore}</td>
-                <td className={`px-3 py-2 text-center ${scoreColor(s.ratingScore)}`}>{s.ratingScore}</td>
-                <td className={`px-3 py-2 text-center ${scoreColor(s.completionScore)}`}>{s.completionScore}</td>
-                <td className={`px-3 py-2 text-center ${scoreColor(s.timelinessScore)}`}>{s.timelinessScore}</td>
-                <td className={`px-3 py-2 text-center ${scoreColor(s.cancellationScore)}`}>{s.cancellationScore}</td>
+                <td className="px-3 py-2 text-center font-bold">{s.overallScore}</td>
+                <td className="px-3 py-2">
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Rating</dt><dd>{s.ratingScore}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Completion</dt><dd>{s.completionScore}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">2h completion</dt><dd>{s.timelinessScore}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Cancellation</dt><dd>{s.cancellationScore}</dd></div>
+                    <div className="flex justify-between gap-2"><dt className="text-slate-500">Quote response</dt><dd>{s.responseScore}</dd></div>
+                  </dl>
+                </td>
                 <td className="px-3 py-2 text-center text-slate-600">{s.totalJobsScored}</td>
+                <td className="px-3 py-2 text-xs text-slate-600">
+                  <p>{s.periodStart} to {s.periodEnd}</p>
+                  <p>Calculated {formatManilaDateTime(s.computedAt)} PHT</p>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
         </div>
       )}
-      {confirmationDialog}
+      <PageControls page={page} totalPages={data?.pagination.totalPages ?? 1} onPageChange={setPage} />
     </div>
   );
 }
 
-// ─── Commission Optimization Tab ────────────────────────────────────
+// ─── Commission Evidence Tab ────────────────────────────────────────
 
-interface CommissionSuggestion {
+interface CommissionEvidence {
   tier: string;
   currentRate: number;
-  suggestedRate: number;
   providerCount: number;
-  qualitySampleCount: number;
+  legacyQualitySampleCount: number;
   averageCompletedBookings: number;
-  avgQualityScore: number;
-  avgRevenue: number;
-  rationale: string;
+  averageCompletedBookingValue: number;
+  sampleStatus: 'insufficient' | 'available';
 }
 
 function CommissionTab(): React.ReactElement {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['admin', 'commission-optimization'],
+  const { data, isLoading, isError, error, refetch, dataUpdatedAt } = useQuery({
+    queryKey: ['admin', 'commission-evidence'],
     queryFn: async () => {
-      const res = await api.get('/api/v1/admin/analytics/commission-optimization');
-      return res.data.data as CommissionSuggestion[];
+      const res = await api.get('/api/v1/admin/analytics/commission-evidence');
+      return res.data.data as CommissionEvidence[];
     },
   });
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-        <p className="font-semibold">Read-only rule outputs, not approved pricing decisions</p>
-        <p className="mt-1 text-amber-900">
-          These cards compare the live tier rate with a simple 90-day heuristic. They do not change System
-          Settings, forecast provider behavior, or replace a documented rate decision and impact review.
-        </p>
-      </div>
-      {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : isError ? <p role="alert" className="text-sm text-red-600">Failed to load commission data. Please try again.</p> : (data?.length ?? 0) === 0 ? (
-        <p className="text-sm text-slate-500 py-4">No commission signal data available.</p>
+      <SourceContract
+        tone="amber"
+        definition="Read-only evidence by provider tier: current live commission rate, approved provider count, average completed bookings per approved provider, average gross face value per completed booking, and legacy quality snapshot count."
+        source="Live tier commission settings, approved provider profiles, current legacy quality snapshots, and confirmed/resolved/payout-ready/paid-out bookings from the last 90 days."
+        freshness={dataUpdatedAt ? `Generated ${formatManilaDateTime(dataUpdatedAt)} PHT.` : 'Waiting for the current query.'}
+        boundary="E48 removes automated rate advice. These figures do not forecast provider behavior, calculate provider earnings, approve a price change, or publish a setting."
+      />
+      {isLoading ? <LoadingState label="Loading commission evidence…" /> : isError ? (
+        <ErrorState
+          title="Commission evidence unavailable"
+          description={`${getErrorMessage(error)} No tier comparison or rate conclusion is available.`}
+          action={<Button onClick={() => { void refetch(); }}>Retry commission evidence</Button>}
+        />
+      ) : (data?.length ?? 0) === 0 ? (
+        <EmptyState title="No commission evidence" description="No configured provider tiers are available for comparison." />
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-4 xl:grid-cols-2">
           {data?.map((s) => {
-            const delta = s.suggestedRate - s.currentRate;
             return (
-              <div key={s.tier} className="bg-white border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
+              <article key={s.tier} className="rounded-md border border-slate-200 bg-white p-4">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h4 className="font-semibold capitalize">{s.tier} Tier</h4>
-                    <p className="text-xs text-slate-500">{s.providerCount} providers</p>
+                    <h4 className="font-semibold capitalize">{s.tier} tier</h4>
+                    <p className="mt-1 text-xs text-slate-500">90-day read-only evidence</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-slate-500">Current: <strong>{(s.currentRate * 100).toFixed(0)}%</strong></p>
-                    <p className={`text-sm font-medium ${delta < 0 ? 'text-green-600' : delta > 0 ? 'text-red-600' : 'text-slate-500'}`}>
-                      Rule output: <strong>{(s.suggestedRate * 100).toFixed(0)}%</strong>
-                      {delta !== 0 && <span className="ml-1">({delta > 0 ? '+' : ''}{(delta * 100).toFixed(0)}pp)</span>}
-                    </p>
+                  <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-900">
+                    Current live rate {(s.currentRate * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <dl className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-md bg-slate-50 p-3">
+                    <dt className="text-xs text-slate-500">Approved providers</dt>
+                    <dd className="mt-1 text-lg font-semibold">{s.providerCount}</dd>
                   </div>
+                  <div className="rounded-md bg-slate-50 p-3">
+                    <dt className="text-xs text-slate-500">Average completed bookings per approved provider</dt>
+                    <dd className="mt-1 text-lg font-semibold">{s.averageCompletedBookings.toFixed(1)}</dd>
+                  </div>
+                  <div className="rounded-md bg-slate-50 p-3">
+                    <dt className="text-xs text-slate-500">Average gross value per completed booking</dt>
+                    <dd className="mt-1 text-lg font-semibold">{formatCurrency(s.averageCompletedBookingValue)}</dd>
+                  </div>
+                  <div className="rounded-md bg-slate-50 p-3">
+                    <dt className="text-xs text-slate-500">Legacy quality snapshots</dt>
+                    <dd className="mt-1 text-lg font-semibold">{s.legacyQualitySampleCount}</dd>
+                  </div>
+                </dl>
+                <div className={`mt-4 rounded-md border p-3 text-sm ${s.sampleStatus === 'available' ? 'border-slate-200 bg-slate-50 text-slate-700' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+                  {s.sampleStatus === 'available'
+                    ? 'Evidence sample is available for a human review. No rate recommendation is generated.'
+                    : 'Evidence is too small for comparison: at least 5 approved providers, 5 legacy quality snapshots, and 5 average completed bookings are required.'}
                 </div>
-                <div className="flex gap-6 text-xs text-slate-500 mb-2">
-                  <span>Avg Quality: <strong className="text-slate-700">{s.avgQualityScore}</strong></span>
-                  <span>Avg 90-day completed value: <strong className="text-slate-700">{formatCurrency(s.avgRevenue)}</strong></span>
-                </div>
-                <p className="mb-2 text-xs text-slate-500">
-                  Sample: {s.providerCount} approved providers, {s.qualitySampleCount} current quality scores,
-                  {' '}{s.averageCompletedBookings.toFixed(1)} average completed bookings.
-                </p>
-                <p className="text-sm text-slate-600 bg-slate-50 p-2 rounded">{s.rationale}</p>
-              </div>
+              </article>
             );
           })}
         </div>
@@ -692,24 +809,30 @@ export default function AnalyticsPage(): React.ReactElement {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-3 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-xl font-bold">Analytics</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Decision support with visible definitions and source limits. Validate the linked case record before action.
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">Command</p>
+          <h2 className="mt-1 text-2xl font-bold text-slate-950">Operations analytics</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            Read definitions, source, freshness, and decision limits before using a number. Customer and provider rows open the canonical 360 record for investigation.
           </p>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+          Live queries and stored snapshots are labelled separately
         </div>
       </div>
 
-      <div role="tablist" aria-label="Analytics sections" className="mb-6 flex gap-1 overflow-x-auto border-b">
+      <div role="tablist" aria-label="Analytics sections" className="mb-6 flex gap-1 overflow-x-auto border-b border-slate-300">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
             role="tab"
+            id={`analytics-tab-${tab.id}`}
+            aria-controls={`analytics-panel-${tab.id}`}
             aria-selected={activeTab === tab.id}
             onClick={() => selectTab(tab.id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`min-h-11 whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -720,11 +843,17 @@ export default function AnalyticsPage(): React.ReactElement {
         ))}
       </div>
 
-      {activeTab === 'ab-tests' && <AbTestsTab />}
-      {activeTab === 'cohorts' && <CohortTab />}
-      {activeTab === 'churn' && <ChurnTab />}
-      {activeTab === 'quality' && <QualityTab />}
-      {activeTab === 'commission' && <CommissionTab />}
+      <section
+        id={`analytics-panel-${activeTab}`}
+        role="tabpanel"
+        aria-labelledby={`analytics-tab-${activeTab}`}
+      >
+        {activeTab === 'ab-tests' && <AbTestsTab />}
+        {activeTab === 'cohorts' && <CohortTab />}
+        {activeTab === 'churn' && <ChurnTab />}
+        {activeTab === 'quality' && <QualityTab />}
+        {activeTab === 'commission' && <CommissionTab />}
+      </section>
     </div>
   );
 }

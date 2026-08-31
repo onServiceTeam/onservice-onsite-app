@@ -32,6 +32,7 @@ import * as slotWaitlistService from '../services/slot-waitlist.service';
 import * as dataManagementService from '../services/data-management.service';
 import * as securityService from '../services/security.service';
 import * as adminAnalyticsService from '../services/admin-analytics.service';
+import * as settingsService from '../services/settings.service';
 import { parseAuditTimelineListQuery } from '../validators/admin-audit-log.validators';
 import {
   maskEmail,
@@ -67,6 +68,16 @@ function requireAdmin(req: AuthenticatedRequest): void {
 function requireSuperAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'super_admin') {
     throw createAppError('Super admin access required.', 403);
+  }
+}
+
+async function requireAbTestingEnabled(): Promise<void> {
+  const enabled = await settingsService.getSettingBoolean('feature_flag.ab_testing_enabled');
+  if (!enabled) {
+    throw createAppError(
+      'A/B testing is held until assignment and exposure reporting are launched.',
+      409,
+    );
   }
 }
 
@@ -1634,6 +1645,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
+      await requireAbTestingEnabled();
       const status = typeof req.query.status === 'string' ? req.query.status : undefined;
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
@@ -1655,6 +1667,7 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
+      await requireAbTestingEnabled();
       const { name, description, variantAName, variantBName, variantAConfig, variantBConfig, targetMetric, trafficSplit, startDate, endDate } = req.body;
       if (!name || typeof name !== 'string') throw createAppError('name is required.', 400);
       const test = await adminAnalyticsService.createAbTest({
@@ -1674,6 +1687,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
+      await requireAbTestingEnabled();
       const testId = req.params['testId'];
       if (!testId || typeof testId !== 'string') throw createAppError('testId is required.', 400);
       const results = await adminAnalyticsService.getAbTestResults(testId);
@@ -1699,6 +1713,7 @@ router.patch(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
+      await requireAbTestingEnabled();
       const testId = req.params['testId'];
       if (!testId || typeof testId !== 'string') throw createAppError('testId is required.', 400);
       const { status } = req.body as { status: string };
@@ -1773,8 +1788,8 @@ router.get(
       requireAdmin(req);
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
-      const sortBy = (typeof req.query.sortBy === 'string' && ['overall', 'rating', 'completion', 'timeliness'].includes(req.query.sortBy))
-        ? req.query.sortBy as 'overall' | 'rating' | 'completion' | 'timeliness'
+      const sortBy = (typeof req.query.sortBy === 'string' && ['overall', 'rating', 'completion', 'timeliness', 'cancellation', 'response'].includes(req.query.sortBy))
+        ? req.query.sortBy as 'overall' | 'rating' | 'completion' | 'timeliness' | 'cancellation' | 'response'
         : 'overall';
       const result = await adminAnalyticsService.getProviderQualityScores(page, pageSize, sortBy);
       res.json({
@@ -1793,10 +1808,11 @@ router.post(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const periodDays = Math.min(365, Math.max(7, Number(req.body.periodDays) || 90));
-      const count = await adminAnalyticsService.computeProviderQualityScores(periodDays);
-      res.json({ success: true, data: { computedCount: count, periodDays } });
+      requireSuperAdmin(req);
+      throw createAppError(
+        'Quality score recomputation is held while E47 resolves the conflicting score definitions.',
+        409,
+      );
     } catch (error) {
       next(error);
     }
@@ -1821,16 +1837,32 @@ router.get(
   },
 );
 
-// --- Commission Optimization ---
+// --- Commission Evidence (read-only) ---
 
 router.get(
-  '/analytics/commission-optimization',
+  '/analytics/commission-evidence',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const suggestions = await adminAnalyticsService.getCommissionOptimizationSuggestions();
-      res.json({ success: true, data: suggestions });
+      const evidence = await adminAnalyticsService.getCommissionEvidence();
+      res.json({ success: true, data: evidence });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/analytics/commission-optimization',
+  authMiddleware,
+  async (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      throw createAppError(
+        'Automated commission-rate advice is retired under E48. Use /analytics/commission-evidence.',
+        410,
+      );
     } catch (error) {
       next(error);
     }

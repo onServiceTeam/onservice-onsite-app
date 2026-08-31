@@ -645,6 +645,38 @@ export const test = base.extend<VisualFixtureOptions>({
             ],
           }],
         };
+      } else if (path === '/api/v1/admin/analytics/churn') {
+        body = {
+          success: true,
+          data: [{
+            userId: 'CU-0001', name: 'Ana Reyes', phone: '+63 9XX XXX 4567',
+            contactMasked: true, lastBookingDate: '2026-08-01T00:00:00.000Z',
+            daysSinceLastBooking: 30, totalBookings: 3, totalBookedValue: 250_000,
+            riskScore: 25, riskLevel: 'low',
+          }],
+          pagination: { total: 1, page: 1, pageSize: 25, totalPages: 1 },
+        };
+      } else if (path === '/api/v1/admin/analytics/quality-scores') {
+        body = {
+          success: true,
+          data: [{
+            providerId: 'PV-0001', providerName: 'Mia Santos', businessName: 'Mia Home Care',
+            tier: 'verified', overallScore: 81, ratingScore: 92, completionScore: 84,
+            timelinessScore: 71, cancellationScore: 88, responseScore: 67,
+            totalJobsScored: 19, periodStart: '2026-06-01', periodEnd: '2026-08-30',
+            computedAt: '2026-08-31T02:00:00.000Z',
+          }],
+          pagination: { total: 1, page: 1, pageSize: 25, totalPages: 1 },
+        };
+      } else if (path === '/api/v1/admin/analytics/commission-evidence') {
+        body = {
+          success: true,
+          data: [{
+            tier: 'verified', currentRate: 0.13, providerCount: 2,
+            legacyQualitySampleCount: 1, averageCompletedBookings: 1.5,
+            averageCompletedBookingValue: 125_000, sampleStatus: 'insufficient',
+          }],
+        };
       } else if (path === '/api/v1/admin/audit-log') {
         body = {
           success: true,

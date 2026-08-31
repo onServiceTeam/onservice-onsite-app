@@ -1,0 +1,30 @@
+packages/api/src/services/admin-analytics.service.ts:839:  for (const tier of tiers) {
+packages/api/src/services/booking.service.ts:1175:  const quoteIds = quotes.rows.map(q => q.id);
+packages/api/src/services/booking.service.ts:1637:    for (const row of expired.rows) {
+packages/api/src/services/booking.service.ts:1897:  const coIds = result.rows.map((co) => co.id);
+packages/api/src/services/booking.service.ts:261:    const addonIds = params.addons.map((a) => a.addonId);
+packages/api/src/services/booking/pricing.service.ts:220:    const addonIds = input.addons.map((a) => a.addonId);
+packages/api/src/services/compliance.service.ts:686:  return result.rows.map((r) => toPublicDsr(mapDsr(r)));
+packages/api/src/services/data-management.service.ts:478:    sections.push(headers.map(escapeCell).join(','));
+packages/api/src/services/data-management.service.ts:500:  for (const row of cleanup.rows) {
+packages/api/src/services/gateway-retry.service.ts:120:  for (const row of claimed.rows) {
+packages/api/src/services/invoice.service.ts:620:    for (const inv of result.rows) {
+packages/api/src/services/job-leads.service.ts:73:  for (const r of providers.rows) {
+packages/api/src/services/marketing-admin.service.ts:347:  return { rows: rowsResult.rows.map(mapPromo), total };
+packages/api/src/services/marketing-admin.service.ts:601:  return { rows: rowsResult.rows.map(mapCampaign), total };
+packages/api/src/services/messaging-admin.service.ts:328:  const messages = rows.rows.map((m) => ({
+packages/api/src/services/metrics.service.ts:51:    const completedList = COMPLETED_BOOKING_STATUSES.map((s) => `'${s}'`).join(',');
+packages/api/src/services/metrics.service.ts:52:    const cancelledList = CANCELLED_BOOKING_STATUSES.map((s) => `'${s}'`).join(',');
+packages/api/src/services/project.service.ts:226:  return r.rows.map(formatProject);
+packages/api/src/services/provider-crm.service.ts:134:  return r.rows.map(formatNote);
+packages/api/src/services/provider-crm.service.ts:240:  for (const row of due.rows) {
+packages/api/src/services/provider-crm.service.ts:293:  const ids = tpls.rows.map((t) => t.id);
+packages/api/src/services/provider-crm.service.ts:395:    items: input.items.map((it, order) => ({ ...it, itemType: it.itemType ?? 'labor', sortOrder: order })),
+packages/api/src/services/provider.service.ts:1126:    TIER_DEFINITIONS.map(async ({ tier }) => percentageFromDecimal(
+packages/api/src/services/push-retry.service.ts:117:  for (const row of claimed.rows) {
+packages/api/src/services/recurring.service.ts:601:  for (const rb of dueBookings.rows) {
+packages/api/src/services/security.service.ts:608:  const ips = suspicious.rows.map((r) => r.ip_address);
+packages/api/src/services/service-area.service.ts:666:  for (const entry of waitlistEntries.rows) {
+packages/api/src/services/settings.service.ts:685:  const keys = updates.map((u) => u.key);
+packages/api/src/services/slot-waitlist.service.ts:175:  const ids = waitlistEntries.rows.map((e) => e.id);
+packages/api/src/services/slot-waitlist.service.ts:183:  for (const entry of waitlistEntries.rows) {
