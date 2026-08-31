@@ -128,6 +128,10 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   otp_expiry_minutes: '5',
   otp_max_attempts: '3',
   otp_cooldown_seconds: '60',
+  auth_rate_limit_window_ms: '60000',
+  auth_rate_limit_max_requests: '10',
+  upload_rate_limit_window_ms: '60000',
+  upload_rate_limit_max_requests: '30',
   jwt_access_expires: '15m',
   jwt_refresh_expires: '30d',
   admin_session_timeout_hours: '8',
@@ -139,6 +143,11 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   quote_expiry_hours: '48',
   max_quotes_per_booking: '5',
   change_order_approval_expiry_hours: '24',
+
+  // Provider quality floor applied by the matching engine only after the
+  // provider has accumulated enough completed-job reviews.
+  matching_min_rating: '2.5',
+  matching_min_rating_reviews: '5',
 
   // Recurring bookings remain manual-payment-only while E20 is open. This
   // threshold is retained solely for compatibility with legacy audit rows.
@@ -213,13 +222,15 @@ export interface AuditRow {
   old_value: string | null;
   new_value: string;
   changed_by: string;
+  changed_by_name?: string | null;
+  changed_by_email?: string | null;
   change_reason: string | null;
   ip_address: string | null;
   user_agent: string | null;
   created_at: Date;
 }
 
-export type SettingRuntimeStatus = 'live' | 'held' | 'not_connected';
+export type SettingRuntimeStatus = 'live' | 'release_coupled' | 'held' | 'not_connected';
 
 export interface SettingRuntimeControl {
   status: SettingRuntimeStatus;
@@ -244,6 +255,13 @@ const NOT_CONNECTED_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
 };
 
 const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
+  guarantee_fund_rate: 'This rate moves live money, but E10 holds the guarantee policy, eligibility, cap, funding, and recovery model. Editing is blocked until that product and accounting design is approved.',
+  bir_filer_company_name: 'BIR-labelled document issuance is disabled under E22 until the taxpayer profile, document type, numbering authority, cancellation, retention, and filing model are approved.',
+  bir_filer_tin: 'BIR-labelled document issuance is disabled under E22 until the taxpayer profile, document type, numbering authority, cancellation, retention, and filing model are approved.',
+  bir_filer_address: 'BIR-labelled document issuance is disabled under E22 until the taxpayer profile, document type, numbering authority, cancellation, retention, and filing model are approved.',
+  bir_filer_ptu_number: 'BIR-labelled document issuance is disabled under E22 until the taxpayer profile, document type, numbering authority, cancellation, retention, and filing model are approved.',
+  bir_filer_vat_status: 'BIR-labelled document issuance is disabled under E22 until the taxpayer profile, document type, numbering authority, cancellation, retention, and filing model are approved.',
+  auto_dispatch_enabled: 'Automatic dispatch is frozen under E33 until fixed-price booking creation proves authoritative payment and held escrow before any provider offer can start.',
   'feature_flag.promo_redemption_enabled': 'Promo redemption is deferred until its complete customer and settlement pipeline is launched.',
   'feature_flag.ab_testing_enabled': 'A/B assignment is deferred until exposure assignment and reporting are launched.',
   recurring_auto_charge_max_consecutive_failures: 'Recurring bookings remain manual-payment-only while escalation E20 is open.',
@@ -254,6 +272,12 @@ const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   cancel_refund_under_30min: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
   cancel_refund_provider_arrived: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
   cancel_refund_customer_noshow: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
+};
+
+const RELEASE_COUPLED_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
+  brand_color_primary: 'The API publishes this color immediately, but installed mobile clients and the admin web use build-time theme values. Apply it only as part of a coordinated mobile release and admin redeploy.',
+  brand_color_secondary: 'The API publishes this color immediately, but installed mobile clients and the admin web use build-time theme values. Apply it only as part of a coordinated mobile release and admin redeploy.',
+  brand_color_accent: 'The API publishes this color immediately, but installed mobile clients and the admin web use build-time theme values. Apply it only as part of a coordinated mobile release and admin redeploy.',
 };
 
 const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
@@ -287,6 +311,16 @@ export function getSettingRuntimeControl(key: string): SettingRuntimeControl {
       label: 'Launch hold',
       summary: heldSummary,
       editable: false,
+    };
+  }
+
+  const releaseCoupledSummary = RELEASE_COUPLED_SETTING_SUMMARIES[key];
+  if (releaseCoupledSummary) {
+    return {
+      status: 'release_coupled',
+      label: 'Release required',
+      summary: releaseCoupledSummary,
+      editable: true,
     };
   }
 
@@ -573,6 +607,10 @@ export async function getCategories(): Promise<{ category: string; count: number
 export function validateSettingValue(setting: SettingRow, newValue: string): void {
   const { value_type, min_value, max_value, allowed_values, key } = setting;
 
+  if (newValue.length > 10_000) {
+    throw createAppError(`Setting "${key}" must be 10,000 characters or fewer.`, 400);
+  }
+
   if (value_type === 'number' || value_type === 'percent' || value_type === 'currency' || value_type === 'integer') {
     const num = Number(newValue);
     if (Number.isNaN(num)) {
@@ -596,6 +634,123 @@ export function validateSettingValue(setting: SettingRow, newValue: string): voi
   if (allowed_values && allowed_values.length > 0 && !allowed_values.includes(newValue)) {
     throw createAppError(`Setting "${key}" must be one of: ${allowed_values.join(', ')}`, 400);
   }
+
+  let parsedJson: unknown;
+  if (value_type === 'json') {
+    try {
+      parsedJson = JSON.parse(newValue) as unknown;
+    } catch {
+      throw createAppError(`Setting "${key}" requires valid JSON.`, 400);
+    }
+  }
+
+  if (key === 'marketing_channels') {
+    if (
+      !Array.isArray(parsedJson)
+      || parsedJson.length === 0
+      || parsedJson.length > 50
+      || !parsedJson.every((value) => typeof value === 'string' && /^[a-z0-9_-]{1,40}$/.test(value))
+      || new Set(parsedJson).size !== parsedJson.length
+    ) {
+      throw createAppError('Marketing channels must be 1–50 unique lowercase slugs.', 400);
+    }
+  }
+
+  if (key === 'matching_tier_bonus') {
+    const tiers = ['founding', 'new', 'verified', 'pro', 'elite'];
+    const record = parsedJson && typeof parsedJson === 'object' && !Array.isArray(parsedJson)
+      ? parsedJson as Record<string, unknown>
+      : null;
+    if (
+      !record
+      || Object.keys(record).length !== tiers.length
+      || !tiers.every((tier) => (
+        typeof record[tier] === 'number'
+        && Number.isFinite(record[tier])
+        && Number(record[tier]) >= -5
+        && Number(record[tier]) <= 5
+      ))
+    ) {
+      throw createAppError('Matching tier bonuses must define finite values from -5 to 5 for all five provider tiers.', 400);
+    }
+  }
+
+  if (key === 'suki_tiers') {
+    const tierNames = ['new', 'regular', 'suki', 'super_suki'];
+    const record = parsedJson && typeof parsedJson === 'object' && !Array.isArray(parsedJson)
+      ? parsedJson as Record<string, unknown>
+      : null;
+    const tiers = record
+      ? tierNames.map((name) => record[name]).filter((value): value is Record<string, unknown> => (
+        value !== null && typeof value === 'object' && !Array.isArray(value)
+      ))
+      : [];
+    const validTier = (tier: Record<string, unknown>): boolean => (
+      Number.isSafeInteger(tier.minBookings)
+      && Number(tier.minBookings) >= 0
+      && typeof tier.pointsPerPeso === 'number'
+      && Number.isFinite(tier.pointsPerPeso)
+      && Number(tier.pointsPerPeso) >= 0
+      && Number(tier.pointsPerPeso) <= 10
+      && typeof tier.discount === 'number'
+      && Number.isFinite(tier.discount)
+      && Number(tier.discount) >= 0
+      && Number(tier.discount) <= 100
+    );
+    const minimums = tiers.map((tier) => Number(tier.minBookings));
+    if (
+      !record
+      || Object.keys(record).length !== tierNames.length
+      || tiers.length !== tierNames.length
+      || !tiers.every(validTier)
+      || minimums[0] !== 0
+      || minimums.some((value, index) => index > 0 && value <= minimums[index - 1]!)
+    ) {
+      throw createAppError('Suki tiers must define new, regular, suki, and super_suki with increasing booking thresholds and valid reward values.', 400);
+    }
+  }
+
+  if (key.startsWith('brand_color_') && !/^#[0-9a-fA-F]{6}$/.test(newValue)) {
+    throw createAppError(`Setting "${key}" requires a six-digit hex color such as #003D9B.`, 400);
+  }
+
+  if (key === 'allowed_image_mime_types') {
+    const supported = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    const values = newValue.split(',').map((value) => value.trim()).filter(Boolean);
+    if (
+      values.length === 0
+      || values.length !== new Set(values).size
+      || values.some((value) => !supported.has(value))
+    ) {
+      throw createAppError('Allowed image types must be a unique comma-separated subset of image/jpeg, image/png, and image/webp.', 400);
+    }
+  }
+
+  if (key === 'map_tile_url') {
+    if (!newValue.includes('{z}') || !newValue.includes('{x}') || !newValue.includes('{y}')) {
+      throw createAppError('Map tile URL must include {z}, {x}, and {y} placeholders.', 400);
+    }
+    try {
+      const parsed = new URL(
+        newValue
+          .replaceAll('{s}', 'a')
+          .replaceAll('{z}', '1')
+          .replaceAll('{x}', '1')
+          .replaceAll('{y}', '1')
+          .replaceAll('{apiKey}', 'key'),
+      );
+      if (parsed.protocol !== 'https:') throw new Error('not https');
+    } catch {
+      throw createAppError('Map tile URL must be a valid HTTPS URL.', 400);
+    }
+  }
+
+  if (
+    key === 'map_tile_attribution'
+    && (newValue.length > 500 || /<script|\bon\w+\s*=|javascript:/i.test(newValue))
+  ) {
+    throw createAppError('Map attribution contains unsupported or unsafe markup.', 400);
+  }
 }
 
 // ── Write ──
@@ -609,6 +764,16 @@ export interface SettingMutationContext {
   expectedUpdatedAt: string;
   ipAddress?: string;
   userAgent?: string;
+}
+
+/** Warning window shared by provider status and the scheduled NBI notifier. */
+export async function getNbiExpiryWarningDays(): Promise<number> {
+  return boundedInteger(
+    await getSettingInteger('nbi_expiry_warning_days'),
+    7,
+    90,
+    30,
+  );
 }
 
 export interface BulkSettingUpdate {
@@ -625,6 +790,7 @@ function normalizeMutationReason(reason: string): string {
       400,
     );
   }
+
   if (normalized.length > MAX_SETTING_REASON_LENGTH) {
     throw createAppError(
       `Change reason must be ${MAX_SETTING_REASON_LENGTH} characters or fewer.`,
@@ -850,8 +1016,21 @@ export async function resetToDefault(
 
 export async function getSettingAuditHistory(key: string, limit = 50): Promise<AuditRow[]> {
   const result = await db.query<AuditRow>(
-    `SELECT sa.*
+    `SELECT sa.id,
+            sa.setting_id,
+            sa.setting_key,
+            CASE WHEN ps.is_sensitive THEN '[REDACTED]' ELSE sa.old_value END AS old_value,
+            CASE WHEN ps.is_sensitive THEN '[REDACTED]' ELSE sa.new_value END AS new_value,
+            sa.changed_by,
+            NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS changed_by_name,
+            u.email AS changed_by_email,
+            sa.change_reason,
+            sa.ip_address,
+            sa.user_agent,
+            sa.created_at
        FROM platform_settings_audit sa
+       JOIN platform_settings ps ON ps.id = sa.setting_id
+       LEFT JOIN users u ON u.id = sa.changed_by
       WHERE sa.setting_key = $1
       ORDER BY sa.created_at DESC
       LIMIT $2`,
@@ -1060,7 +1239,7 @@ export function formatSetting(s: SettingRow): {
     description: s.description,
     valueType: s.value_type,
     value: s.is_sensitive ? '\u2022\u2022\u2022\u2022\u2022\u2022' : s.value,
-    defaultValue: s.default_value,
+    defaultValue: s.is_sensitive ? '\u2022\u2022\u2022\u2022\u2022\u2022' : s.default_value,
     minValue: s.min_value !== null ? Number(s.min_value) : null,
     maxValue: s.max_value !== null ? Number(s.max_value) : null,
     allowedValues: s.allowed_values,

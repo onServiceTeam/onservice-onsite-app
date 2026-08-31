@@ -38,8 +38,6 @@ it('Bug UX-836 — saving a setting submits the exact loaded version so a stale 
     },
   });
   apiMocks.put.mockResolvedValue({ data: { data: { ...setting, value: '11' } } });
-  vi.spyOn(window, 'confirm').mockReturnValue(true);
-
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
@@ -54,7 +52,9 @@ it('Bug UX-836 — saving a setting submits the exact loaded version so a stale 
   fireEvent.change(screen.getByRole('textbox', { name: 'Audit reason for service_fee_rate' }), {
     target: { value: 'Approved customer fee adjustment.' },
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Review change' }));
+  expect(screen.getByRole('dialog', { name: 'Confirm this setting change' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm change' }));
 
   await waitFor(() => {
     expect(apiMocks.put).toHaveBeenCalledWith('/api/v1/admin/settings/service_fee_rate', {

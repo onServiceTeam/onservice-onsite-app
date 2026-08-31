@@ -23,21 +23,6 @@ const router = Router();
 router.use(authMiddleware);
 router.use(rbacMiddleware('admin', 'super_admin'));
 
-// POST /cache/flush — bust all settings cache (super_admin only — flushing
-// the cache forces every reader to re-fetch from DB; benign in isolation
-// but a cheap surface for an attacker to amplify a settings change).
-// Placed BEFORE :category to avoid shadowing.
-router.post(
-  '/cache/flush',
-  rbacMiddleware('super_admin'),
-  async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    try {
-      await settingsService.bustAllCache();
-      res.json({ success: true, message: 'Settings cache flushed.' });
-    } catch (err) { next(err); }
-  },
-);
-
 // GET / — all settings, grouped by category
 router.get('/', async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

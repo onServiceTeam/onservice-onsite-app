@@ -1,43 +1,39 @@
 /**
-// Phase 14 remediation — audited (D14r-9 markers pass)
- * Phase 03 — Categorized Platform Settings UI.
+ * System Settings operator workspace.
  *
- * Talks to /api/v1/admin/settings:
- *   GET    /                          → { categories, settings: { [cat]: Setting[] } }
- *   GET    /:category                 → Setting[]
- *   PUT    /:key   { value, reason, expectedUpdatedAt }  → Setting
- *   POST   /:key/reset { reason, expectedUpdatedAt }      → Setting
- *   GET    /:key/history              → AuditRow[]
- *   POST   /cache/flush               → { ok }
- *
- * No emoji literals — all glyphs come from `@/components/icons`.
+ * Every row reports its real runtime relationship. A stored database value is
+ * never presented as a live control unless an authoritative consumer has been
+ * audited. Mutations are super-admin only, version checked, reasoned, and
+ * reviewed before submission.
  */
 
 import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
 import {
+  AlertCircle,
+  Check,
   Coins,
   CreditCard,
+  History,
+  Key,
+  Lock,
+  MapPin,
+  Pencil,
+  RotateCcw,
+  Save,
+  Search,
+  Settings,
+  Shield,
+  User,
   Wallet,
   X,
-  Shield,
-  Key,
-  User,
-  Lock,
   Zap,
-  Save,
-  RefreshCw,
-  RotateCcw,
-  History,
-  Pencil,
-  Settings,
-  Check,
-  AlertCircle,
-  MapPin,
 } from '@/components/icons';
+
+type RuntimeStatus = 'live' | 'release_coupled' | 'held' | 'not_connected';
 
 interface PlatformSetting {
   id: string;
@@ -56,7 +52,7 @@ interface PlatformSetting {
   isSensitive: boolean;
   isDefault: boolean;
   requiresRestart: boolean;
-  runtimeStatus: 'live' | 'held' | 'not_connected';
+  runtimeStatus: RuntimeStatus;
   runtimeLabel: string;
   runtimeSummary: string;
   editable: boolean;
@@ -74,52 +70,97 @@ interface AuditEntry {
   old_value: string | null;
   new_value: string;
   changed_by: string;
+  changed_by_name?: string | null;
+  changed_by_email?: string | null;
   change_reason: string | null;
   created_at: string;
 }
 
-const CATEGORY_META: Record<string, { label: string; Icon: React.ComponentType<{ className?: string }> }> = {
-  commissions: { label: 'Commissions',  Icon: Coins       },
-  fees:        { label: 'Fees',         Icon: CreditCard  },
-  escrow:      { label: 'Escrow',       Icon: Wallet      },
-  cancellation:{ label: 'Cancellation', Icon: X           },
-  protection:  { label: 'Protection',   Icon: Shield      },
-  auth:        { label: 'Auth',         Icon: Key         },
-  provider:    { label: 'Provider',     Icon: User        },
-  security:    { label: 'Security',     Icon: Lock        },
-  cache:       { label: 'Cache',        Icon: Zap         },
-  dispatch:    { label: 'Dispatch & Map', Icon: MapPin     },
+interface PendingSave {
+  setting: PlatformSetting;
+  value: string;
+  reason: string;
+}
+
+type CategoryMeta = {
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
 };
 
-function metaFor(category: string): { label: string; Icon: React.ComponentType<{ className?: string }> } {
-  return CATEGORY_META[category] ?? { label: category, Icon: Settings };
+const CATEGORY_META: Record<string, CategoryMeta> = {
+  auth: { label: 'Authentication', Icon: Key },
+  bir: { label: 'Tax identity', Icon: Shield },
+  booking: { label: 'Booking controls', Icon: Settings },
+  branding: { label: 'Brand system', Icon: Settings },
+  cache: { label: 'Cache', Icon: Zap },
+  cancellation: { label: 'Cancellation', Icon: X },
+  catalog: { label: 'Business setup', Icon: Settings },
+  commissions: { label: 'Commissions', Icon: Coins },
+  compliance: { label: 'Compliance', Icon: Shield },
+  dispatch: { label: 'Dispatch & map', Icon: MapPin },
+  disputes: { label: 'Disputes', Icon: Shield },
+  escrow: { label: 'Escrow', Icon: Wallet },
+  feature_flags: { label: 'Launch flags', Icon: Shield },
+  fees: { label: 'Fees', Icon: CreditCard },
+  finance: { label: 'Finance', Icon: Wallet },
+  fraud: { label: 'Fraud controls', Icon: Shield },
+  loyalty: { label: 'Loyalty', Icon: User },
+  marketing: { label: 'Marketing', Icon: User },
+  matching: { label: 'Matching', Icon: User },
+  provider: { label: 'Provider', Icon: User },
+  security: { label: 'Security', Icon: Lock },
+};
+
+const STATUS_META: Record<RuntimeStatus, { label: string; classes: string }> = {
+  live: {
+    label: 'Live',
+    classes: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  },
+  release_coupled: {
+    label: 'Release required',
+    classes: 'border-blue-200 bg-blue-50 text-blue-800',
+  },
+  held: {
+    label: 'Launch hold',
+    classes: 'border-amber-200 bg-amber-50 text-amber-800',
+  },
+  not_connected: {
+    label: 'Not connected',
+    classes: 'border-slate-300 bg-slate-100 text-slate-700',
+  },
+};
+
+function humanize(value: string): string {
+  return value
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function metaFor(category: string): CategoryMeta {
+  return CATEGORY_META[category] ?? { label: humanize(category), Icon: Settings };
+}
+
+function describeActor(entry: AuditEntry): string {
+  return entry.changed_by_name
+    || entry.changed_by_email
+    || entry.changed_by;
 }
 
 export default function SystemSettingsPage(): React.ReactElement {
   const queryClient = useQueryClient();
-  // Phase 200 fix — every mutation (PUT setting, reset, cache flush) is
-  // super_admin-only on the server (settings.routes.ts). Pre-fix the
-  // Edit/Reset/Flush controls rendered for any admin and always 403'd.
-  // Gate them; plain admins keep read-only + change-history access.
-  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
+  const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState<string>('');
-  const [editReason, setEditReason] = useState<string>('');
+  const [editValue, setEditValue] = useState('');
+  const [editReason, setEditReason] = useState('');
   const [historyKey, setHistoryKey] = useState<string | null>(null);
-  const [banner, setBanner] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
-  // BUG-PHASE75-01 fix — pre-fix the "Reset to default" button fired
-  // resetMutation immediately on tap. These settings tune commissions,
-  // escrow windows, fee caps — production money knobs. A misclick on
-  // commission_rate_elite (currently 9% via admin override, default
-  // 12%) silently rolls every elite provider to the default rate at
-  // their next payout. Now: clicking Reset opens a confirmation modal
-  // showing the current → default values + a reason field that maps
-  // to admin_actions.reason for the audit trail. Same pattern as the
-  // edit-value flow already uses (editReason).
+  const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
   const [pendingReset, setPendingReset] = useState<PlatformSetting | null>(null);
-  const [resetReason, setResetReason] = useState<string>('');
+  const [resetReason, setResetReason] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState<RuntimeStatus | 'all'>('all');
+  const [banner, setBanner] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   const allQuery = useQuery<{
     categories: CategoryEntry[];
@@ -127,74 +168,103 @@ export default function SystemSettingsPage(): React.ReactElement {
   }>({
     queryKey: ['admin-settings-all'],
     queryFn: async () => {
-      const res = await api.get('/api/v1/admin/settings');
-      return res.data.data;
+      const response = await api.get('/api/v1/admin/settings');
+      return response.data.data;
     },
   });
 
   const categories = allQuery.data?.categories ?? [];
   const groupedSettings = allQuery.data?.settings ?? {};
-
   const requestedCategory = searchParams.get('category');
   const currentCategory = categories.some((entry) => entry.category === requestedCategory)
     ? requestedCategory
     : categories[0]?.category ?? null;
-  const currentSettings = useMemo(
-    () => (currentCategory ? groupedSettings[currentCategory] ?? [] : []),
-    [currentCategory, groupedSettings],
+
+  const allSettings = useMemo(
+    () => Object.values(groupedSettings).flat(),
+    [groupedSettings],
   );
+  const statusCounts = useMemo(() => {
+    const counts: Record<RuntimeStatus, number> = {
+      live: 0,
+      release_coupled: 0,
+      held: 0,
+      not_connected: 0,
+    };
+    for (const setting of allSettings) counts[setting.runtimeStatus] += 1;
+    return counts;
+  }, [allSettings]);
+
+  const currentSettings = useMemo(() => {
+    const source = currentCategory ? groupedSettings[currentCategory] ?? [] : [];
+    const query = searchText.trim().toLowerCase();
+    return source.filter((setting) => {
+      if (statusFilter !== 'all' && setting.runtimeStatus !== statusFilter) return false;
+      if (!query) return true;
+      return [
+        setting.label,
+        setting.key,
+        setting.description ?? '',
+        setting.runtimeSummary,
+        setting.subcategory ?? '',
+      ].some((value) => value.toLowerCase().includes(query));
+    });
+  }, [currentCategory, groupedSettings, searchText, statusFilter]);
 
   const updateMutation = useMutation({
-    mutationFn: async (input: { key: string; value: string; reason: string; expectedUpdatedAt: string }) => {
-      const res = await api.put(`/api/v1/admin/settings/${input.key}`, {
+    mutationFn: async (input: {
+      key: string;
+      value: string;
+      reason: string;
+      expectedUpdatedAt: string;
+    }) => {
+      const response = await api.put(`/api/v1/admin/settings/${input.key}`, {
         value: input.value,
         reason: input.reason,
         expectedUpdatedAt: input.expectedUpdatedAt,
       });
-      return res.data.data as PlatformSetting;
+      return response.data.data as PlatformSetting;
     },
     onSuccess: (_data, variables) => {
-      setBanner({ kind: 'ok', text: `Saved "${variables.key}".` });
+      setBanner({ kind: 'ok', text: `Saved “${variables.key}”. Runtime impact is shown on its control card.` });
+      setPendingSave(null);
       setEditingKey(null);
       setEditValue('');
       setEditReason('');
       void queryClient.invalidateQueries({ queryKey: ['admin-settings-all'] });
+      if (historyKey === variables.key) {
+        void queryClient.invalidateQueries({ queryKey: ['admin-settings-history', variables.key] });
+      }
     },
-    onError: (err) => {
-      setBanner({ kind: 'err', text: getErrorMessage(err) });
+    onError: (error) => {
+      setPendingSave(null);
+      setBanner({ kind: 'err', text: getErrorMessage(error) });
     },
   });
 
   const resetMutation = useMutation({
-    mutationFn: async (input: { key: string; reason: string; expectedUpdatedAt: string }) => {
-      const res = await api.post(`/api/v1/admin/settings/${input.key}/reset`, {
+    mutationFn: async (input: {
+      key: string;
+      reason: string;
+      expectedUpdatedAt: string;
+    }) => {
+      const response = await api.post(`/api/v1/admin/settings/${input.key}/reset`, {
         reason: input.reason,
         expectedUpdatedAt: input.expectedUpdatedAt,
       });
-      return res.data.data as PlatformSetting;
+      return response.data.data as PlatformSetting;
     },
     onSuccess: (_data, input) => {
-      setBanner({ kind: 'ok', text: `Reset "${input.key}" to default.` });
+      setBanner({ kind: 'ok', text: `Reset “${input.key}” to its approved default.` });
       setPendingReset(null);
       setResetReason('');
       void queryClient.invalidateQueries({ queryKey: ['admin-settings-all'] });
+      if (historyKey === input.key) {
+        void queryClient.invalidateQueries({ queryKey: ['admin-settings-history', input.key] });
+      }
     },
-    onError: (err) => {
-      setBanner({ kind: 'err', text: getErrorMessage(err) });
-    },
-  });
-
-  const cacheFlushMutation = useMutation({
-    mutationFn: async () => {
-      const res = await api.post('/api/v1/admin/settings/cache/flush');
-      return res.data;
-    },
-    onSuccess: () => {
-      setBanner({ kind: 'ok', text: 'Settings cache flushed.' });
-      void queryClient.invalidateQueries({ queryKey: ['admin-settings-all'] });
-    },
-    onError: (err) => {
-      setBanner({ kind: 'err', text: getErrorMessage(err) });
+    onError: (error) => {
+      setBanner({ kind: 'err', text: getErrorMessage(error) });
     },
   });
 
@@ -202,21 +272,10 @@ export default function SystemSettingsPage(): React.ReactElement {
     queryKey: ['admin-settings-history', historyKey],
     enabled: historyKey !== null,
     queryFn: async () => {
-      const res = await api.get(`/api/v1/admin/settings/${historyKey}/history`);
-      return res.data.data;
+      const response = await api.get(`/api/v1/admin/settings/${historyKey}/history`);
+      return response.data.data;
     },
   });
-
-  function startEdit(s: PlatformSetting): void {
-    if (!s.editable) {
-      setBanner({ kind: 'err', text: `${s.label} is read-only. ${s.runtimeSummary}` });
-      return;
-    }
-    setEditingKey(s.key);
-    setEditValue(s.value);
-    setEditReason('');
-    setBanner(null);
-  }
 
   function cancelEdit(): void {
     setEditingKey(null);
@@ -226,35 +285,62 @@ export default function SystemSettingsPage(): React.ReactElement {
 
   function selectCategory(category: string): void {
     setSearchParams((current) => {
-      const params = new URLSearchParams(current);
-      params.set('category', category);
-      return params;
+      const next = new URLSearchParams(current);
+      next.set('category', category);
+      return next;
     });
     setHistoryKey(null);
     cancelEdit();
     setBanner(null);
   }
 
-  function validateSettingValue(setting: PlatformSetting, value: string): string | null {
-    if (!value) return 'Enter a value before saving.';
+  function startEdit(setting: PlatformSetting): void {
+    if (!setting.editable) {
+      setBanner({ kind: 'err', text: `${setting.label} is read-only. ${setting.runtimeSummary}` });
+      return;
+    }
+    setEditingKey(setting.key);
+    setEditValue(setting.isSensitive ? '' : setting.value);
+    setEditReason('');
+    setBanner(null);
+  }
+
+  function validateValue(setting: PlatformSetting, value: string): string | null {
+    if (!value && setting.key !== 'map_tile_api_key') return 'Enter a value before continuing.';
     if (setting.allowedValues && !setting.allowedValues.includes(value)) {
       return `Choose one of: ${setting.allowedValues.join(', ')}.`;
     }
-    if (setting.valueType === 'number' || setting.valueType === 'integer' || setting.minValue !== null || setting.maxValue !== null) {
+    if (setting.valueType === 'json') {
+      try {
+        JSON.parse(value);
+      } catch {
+        return 'Enter valid JSON before continuing.';
+      }
+    }
+    if (
+      ['number', 'integer', 'percent', 'currency'].includes(setting.valueType)
+      || setting.minValue !== null
+      || setting.maxValue !== null
+    ) {
       const numericValue = Number(value);
       if (!Number.isFinite(numericValue)) return 'Enter a valid number.';
-      if (setting.valueType === 'integer' && !Number.isInteger(numericValue)) return 'Enter a whole number.';
-      if (setting.minValue !== null && numericValue < setting.minValue) return `Value must be at least ${setting.minValue}.`;
-      if (setting.maxValue !== null && numericValue > setting.maxValue) return `Value must be at most ${setting.maxValue}.`;
+      if (setting.valueType === 'integer' && !Number.isInteger(numericValue)) {
+        return 'Enter a whole number.';
+      }
+      if (setting.minValue !== null && numericValue < setting.minValue) {
+        return `Value must be at least ${setting.minValue}.`;
+      }
+      if (setting.maxValue !== null && numericValue > setting.maxValue) {
+        return `Value must be at most ${setting.maxValue}.`;
+      }
     }
     return null;
   }
 
-  function saveEdit(setting: PlatformSetting): void {
-    if (!editingKey) return;
+  function requestSave(setting: PlatformSetting): void {
     const value = editValue.trim();
     const reason = editReason.trim();
-    const validationError = validateSettingValue(setting, value);
+    const validationError = validateValue(setting, value);
     if (validationError) {
       setBanner({ kind: 'err', text: validationError });
       return;
@@ -263,38 +349,38 @@ export default function SystemSettingsPage(): React.ReactElement {
       setBanner({ kind: 'err', text: 'Enter an audit reason with at least 10 characters.' });
       return;
     }
-    if (!window.confirm(`Save ${setting.key} as ${value}?`)) return;
-    updateMutation.mutate({
-      key: editingKey,
-      value,
-      reason,
-      expectedUpdatedAt: setting.updatedAt,
-    });
-  }
-
-  function formatValue(s: PlatformSetting): string {
-    if (s.isSensitive) return s.value;
-    if (s.unit === '%') return `${s.value}%`;
-    if (s.unit === 'centavos') {
-      const pesos = Number(s.value) / 100;
-      return `\u20B1${pesos.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+    if (reason.length > 500) {
+      setBanner({ kind: 'err', text: 'The audit reason must be 500 characters or fewer.' });
+      return;
     }
-    if (s.unit) return `${s.value} ${s.unit}`;
-    return s.value;
+    setPendingSave({ setting, value, reason });
+    setBanner(null);
   }
 
-  function renderValueEditor(s: PlatformSetting): React.ReactElement {
-    const commonClass = 'w-full sm:w-52 px-2 py-1.5 border border-[var(--color-primary)] rounded text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]';
-    const ariaLabel = `Value for ${s.key}`;
+  function formatValue(setting: PlatformSetting, value = setting.value): string {
+    if (setting.isSensitive) return '••••••';
+    if (setting.unit === '%') return `${value}%`;
+    if (setting.unit === 'centavos') {
+      const pesos = Number(value) / 100;
+      return `₱${pesos.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+    }
+    if (setting.unit) return `${value} ${setting.unit}`;
+    if (setting.valueType === 'boolean') return value === 'true' ? 'Enabled' : 'Disabled';
+    return value || 'Not set';
+  }
 
-    if (s.valueType === 'boolean') {
+  function renderValueEditor(setting: PlatformSetting): React.ReactElement {
+    const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--color-primary)] bg-[var(--color-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] sm:w-72';
+    const ariaLabel = `Value for ${setting.key}`;
+
+    if (setting.valueType === 'boolean') {
       return (
         <select
-          id={`setting-value-${s.key}`}
+          id={`setting-value-${setting.key}`}
           value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
+          onChange={(event) => setEditValue(event.target.value)}
           aria-label={ariaLabel}
-          className={commonClass}
+          className={inputClass}
           autoFocus
         >
           <option value="true">Enabled</option>
@@ -303,289 +389,407 @@ export default function SystemSettingsPage(): React.ReactElement {
       );
     }
 
-    if (s.allowedValues && s.allowedValues.length > 0) {
+    if (setting.allowedValues && setting.allowedValues.length > 0) {
       return (
         <select
-          id={`setting-value-${s.key}`}
+          id={`setting-value-${setting.key}`}
           value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
+          onChange={(event) => setEditValue(event.target.value)}
           aria-label={ariaLabel}
-          className={commonClass}
+          className={inputClass}
           autoFocus
         >
-          {s.allowedValues.map((value) => <option key={value} value={value}>{value}</option>)}
+          {setting.allowedValues.map((value) => (
+            <option key={value} value={value}>{value}</option>
+          ))}
         </select>
       );
     }
 
-    if (s.valueType === 'json') {
+    if (setting.valueType === 'json') {
       return (
         <textarea
-          id={`setting-value-${s.key}`}
+          id={`setting-value-${setting.key}`}
           value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
+          onChange={(event) => setEditValue(event.target.value)}
           aria-label={ariaLabel}
-          rows={5}
-          className={`${commonClass} sm:w-96 font-mono`}
+          rows={7}
+          className={`${inputClass} font-mono sm:w-[32rem]`}
           autoFocus
         />
       );
     }
 
-    const numeric = ['number', 'integer', 'percent', 'currency'].includes(s.valueType);
+    const numeric = ['number', 'integer', 'percent', 'currency'].includes(setting.valueType);
     return (
       <input
-        id={`setting-value-${s.key}`}
-        type={numeric ? 'number' : 'text'}
-        min={numeric && s.minValue !== null ? s.minValue : undefined}
-        max={numeric && s.maxValue !== null ? s.maxValue : undefined}
-        step={s.valueType === 'integer' ? 1 : numeric ? 'any' : undefined}
+        id={`setting-value-${setting.key}`}
+        type={setting.isSensitive ? 'password' : numeric ? 'number' : 'text'}
+        min={numeric && setting.minValue !== null ? setting.minValue : undefined}
+        max={numeric && setting.maxValue !== null ? setting.maxValue : undefined}
+        step={setting.valueType === 'integer' ? 1 : numeric ? 'any' : undefined}
         value={editValue}
-        onChange={(e) => setEditValue(e.target.value)}
+        onChange={(event) => setEditValue(event.target.value)}
         aria-label={ariaLabel}
-        className={commonClass}
+        placeholder={setting.isSensitive ? 'Enter a replacement value' : undefined}
+        autoComplete={setting.isSensitive ? 'new-password' : undefined}
+        className={inputClass}
         autoFocus
       />
     );
   }
 
   if (allQuery.isLoading) {
-    return <div className="p-6 text-[var(--color-text-secondary)]">Loading settings…</div>;
+    return (
+      <div className="mx-auto max-w-screen-2xl p-4 sm:p-6" aria-label="Loading system settings">
+        <div className="h-8 w-64 animate-pulse rounded bg-slate-200" />
+        <div className="mt-3 h-4 w-full max-w-2xl animate-pulse rounded bg-slate-100" />
+        <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((item) => (
+            <div key={item} className="h-24 animate-pulse rounded-xl border border-slate-200 bg-white" />
+          ))}
+        </div>
+        <div className="mt-6 h-80 animate-pulse rounded-xl border border-slate-200 bg-white" />
+      </div>
+    );
   }
+
   if (allQuery.isError) {
     return (
-      <div className="p-6">
-        <div role="alert" className="bg-red-50 border border-red-200 rounded p-4 text-red-700">
-          Failed to load platform settings: {getErrorMessage(allQuery.error)}
+      <div className="mx-auto max-w-3xl p-4 sm:p-6">
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-800">
+          <h1 className="text-lg font-semibold">System Settings could not load</h1>
+          <p className="mt-1 text-sm">{getErrorMessage(allQuery.error)}</p>
+          <button
+            type="button"
+            onClick={() => void allQuery.refetch()}
+            className="mt-4 min-h-11 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800"
+          >
+            Try again
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <header className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-[var(--color-text)] flex items-center gap-2">
-            <Settings className="w-6 h-6 text-[var(--color-primary)]" />
-            Platform Settings
-          </h1>
-          <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            Every control shows whether it is live, intentionally held, or not yet connected to authoritative runtime behavior.
+    <div className="mx-auto max-w-screen-2xl p-4 sm:p-6">
+      <header className="flex flex-col gap-4 border-b border-[var(--color-border)] pb-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="max-w-3xl">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--color-info-bg)] text-[var(--color-primary)]">
+              <Settings className="h-6 w-6" />
+            </span>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-primary)]">
+                Operator control plane
+              </p>
+              <h1 className="text-2xl font-semibold text-[var(--color-text)] sm:text-3xl">
+                System Settings
+              </h1>
+            </div>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-[var(--color-text-secondary)]">
+            Review what each value controls before changing it. Live controls affect new operations after cache refresh;
+            launch-held controls cannot be edited; release-required controls need coordinated deployment.
           </p>
-          {!isSuperAdmin && (
-            <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 inline-block">
-              You have read-only access. Editing, resetting, and flushing settings requires a super-admin account.
-            </p>
-          )}
         </div>
-        {isSuperAdmin && (
-          <button
-            type="button"
-            onClick={() => {
-              if (!window.confirm('Flush the settings cache now?')) return;
-              cacheFlushMutation.mutate();
-            }}
-            disabled={cacheFlushMutation.isPending}
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-[var(--color-surface-hover)] hover:bg-[var(--color-border)] text-[var(--color-text-secondary)] rounded border border-[var(--color-border)] disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${cacheFlushMutation.isPending ? 'animate-spin' : ''}`} />
-            Flush cache
-          </button>
-        )}
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text-secondary)] lg:max-w-sm">
+          <p className="font-medium text-[var(--color-text)]">
+            {isSuperAdmin ? 'Super-admin change access' : 'Read-only operator access'}
+          </p>
+          <p className="mt-1 text-xs leading-5">
+            {isSuperAdmin
+              ? 'Every save requires a reason and a final impact review. Concurrent changes are rejected.'
+              : 'You can inspect values and history. Money, policy, and security changes require a super-admin.'}
+          </p>
+        </div>
       </header>
+
+      <section aria-label="Runtime control summary" className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {(Object.keys(STATUS_META) as RuntimeStatus[]).map((status) => (
+          <button
+            key={status}
+            type="button"
+            onClick={() => setStatusFilter((current) => current === status ? 'all' : status)}
+            aria-pressed={statusFilter === status}
+            className={`min-h-24 rounded-xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${STATUS_META[status].classes} ${statusFilter === status ? 'ring-2 ring-[var(--color-primary)] ring-offset-2' : ''}`}
+          >
+            <span className="text-2xl font-semibold">{statusCounts[status]}</span>
+            <span className="mt-1 block text-xs font-semibold uppercase tracking-wide">
+              {STATUS_META[status].label}
+            </span>
+          </button>
+        ))}
+      </section>
 
       {banner && (
         <div
-          className={`mb-4 rounded border p-3 text-sm flex items-center gap-2 ${
-            banner.kind === 'ok'
-              ? 'bg-green-50 border-green-200 text-green-700'
-              : 'bg-red-50 border-red-200 text-red-700'
-          }`}
           role={banner.kind === 'err' ? 'alert' : 'status'}
+          className={`mt-4 flex items-start gap-2 rounded-xl border p-3 text-sm ${banner.kind === 'ok'
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+            : 'border-red-200 bg-red-50 text-red-800'}`}
         >
-          {banner.kind === 'ok' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          {banner.kind === 'ok'
+            ? <Check className="mt-0.5 h-4 w-4 shrink-0" />
+            : <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />}
           <span>{banner.text}</span>
         </div>
       )}
 
-      <div className="grid grid-cols-12 gap-6">
-        {/* Sidebar */}
-        <nav className="col-span-12 md:col-span-3 lg:col-span-2">
-          <ul className="space-y-1">
-            {categories.map((c) => {
-              const meta = metaFor(c.category);
-              const Icon = meta.Icon;
-              const active = c.category === currentCategory;
-              return (
-                <li key={c.category}>
-                  <button
-                    type="button"
-                    onClick={() => selectCategory(c.category)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded text-sm transition ${
-                      active
-                        ? 'bg-[var(--color-info-bg)] text-[var(--color-primary)] font-medium border border-[var(--color-secondary)]'
-                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] border border-transparent'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span className="flex-1 text-left capitalize">{meta.label}</span>
-                    <span className="text-xs text-[var(--color-text-tertiary)]">{c.count}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+      <div className="mt-6 grid grid-cols-12 gap-5">
+        <nav aria-label="Settings categories" className="col-span-12 lg:col-span-3 xl:col-span-2">
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
+            <p className="px-2 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-tertiary)]">
+              Categories
+            </p>
+            <ul className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-1">
+              {categories.map((entry) => {
+                const meta = metaFor(entry.category);
+                const Icon = meta.Icon;
+                const active = entry.category === currentCategory;
+                return (
+                  <li key={entry.category}>
+                    <button
+                      type="button"
+                      onClick={() => selectCategory(entry.category)}
+                      className={`flex min-h-11 w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${active
+                        ? 'border-[var(--color-secondary)] bg-[var(--color-info-bg)] font-medium text-[var(--color-primary)]'
+                        : 'border-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'}`}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate text-left">{meta.label}</span>
+                      <span className="text-xs text-[var(--color-text-tertiary)]">{entry.count}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </nav>
 
-        {/* Settings panel */}
-        <section className="col-span-12 md:col-span-9 lg:col-span-10">
-          <div className="bg-[var(--color-surface)] rounded-lg border border-[var(--color-border)] overflow-hidden">
-            <div className="bg-[var(--color-bg)] px-4 py-3 border-b border-[var(--color-border)] flex items-center gap-2">
-              {currentCategory && React.createElement(metaFor(currentCategory).Icon, { className: 'w-4 h-4 text-[var(--color-text-secondary)]' })}
-              <h2 className="font-semibold text-[var(--color-text)] capitalize">
-                {currentCategory ? metaFor(currentCategory).label : 'Settings'}
-              </h2>
+        <section className="col-span-12 lg:col-span-9 xl:col-span-10">
+          <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+            <div className="border-b border-[var(--color-border)] bg-[var(--color-bg)] p-4">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex items-center gap-2">
+                  {currentCategory && React.createElement(metaFor(currentCategory).Icon, {
+                    className: 'h-5 w-5 text-[var(--color-primary)]',
+                  })}
+                  <div>
+                    <h2 className="font-semibold text-[var(--color-text)]">
+                      {currentCategory ? metaFor(currentCategory).label : 'Settings'}
+                    </h2>
+                    <p className="text-xs text-[var(--color-text-secondary)]">
+                      {currentSettings.length} visible of {currentCategory ? groupedSettings[currentCategory]?.length ?? 0 : 0}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <label className="relative block">
+                    <span className="sr-only">Search current settings category</span>
+                    <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[var(--color-text-tertiary)]" />
+                    <input
+                      type="search"
+                      value={searchText}
+                      onChange={(event) => setSearchText(event.target.value)}
+                      placeholder="Search label, key, or impact"
+                      className="min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] pl-9 pr-3 text-sm sm:w-72"
+                    />
+                  </label>
+                  <select
+                    aria-label="Filter settings by runtime status"
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value as RuntimeStatus | 'all')}
+                    className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
+                  >
+                    <option value="all">All runtime states</option>
+                    {(Object.keys(STATUS_META) as RuntimeStatus[]).map((status) => (
+                      <option key={status} value={status}>{STATUS_META[status].label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
             {currentSettings.length === 0 ? (
-              <div className="p-6 text-[var(--color-text-secondary)] text-sm">No settings in this category.</div>
+              <div className="p-8 text-center">
+                <Settings className="mx-auto h-7 w-7 text-[var(--color-text-tertiary)]" />
+                <p className="mt-2 font-medium text-[var(--color-text)]">No controls match this view</p>
+                <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+                  Clear the search or runtime-state filter to see this category.
+                </p>
+              </div>
             ) : (
               <ul className="divide-y divide-[var(--color-border)]">
-                {currentSettings.map((s) => {
-                  const isEditing = editingKey === s.key;
+                {currentSettings.map((setting) => {
+                  const isEditing = editingKey === setting.key;
                   return (
-                    <li key={s.id} className="px-4 py-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-[var(--color-text)] text-sm">{s.label}</p>
-                          <p className="text-xs text-[var(--color-text-secondary)] font-mono">{s.key}</p>
-                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                            <span
-                              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-                                s.runtimeStatus === 'live'
-                                  ? 'border-green-200 bg-green-50 text-green-700'
-                                  : s.runtimeStatus === 'held'
-                                    ? 'border-amber-200 bg-amber-50 text-amber-700'
-                                    : 'border-slate-300 bg-slate-100 text-slate-700'
-                              }`}
-                            >
-                              {s.runtimeLabel}
+                    <li key={setting.id} className="p-4 sm:p-5">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-medium text-[var(--color-text)]">{setting.label}</h3>
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_META[setting.runtimeStatus].classes}`}>
+                              {setting.runtimeLabel}
                             </span>
-                            <span className="text-xs text-[var(--color-text-tertiary)]">{s.runtimeSummary}</span>
+                            {!setting.isDefault && (
+                              <span className="inline-flex rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-800">
+                                Customized
+                              </span>
+                            )}
+                            {setting.requiresRestart && (
+                              <span className="inline-flex rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-800">
+                                Restart required
+                              </span>
+                            )}
                           </div>
-                          {s.description && (
-                            <p className="text-xs text-[var(--color-text-secondary)] mt-1">{s.description}</p>
+                          <p className="mt-1 break-all font-mono text-xs text-[var(--color-text-tertiary)]">{setting.key}</p>
+                          {setting.description && (
+                            <p className="mt-2 text-sm leading-5 text-[var(--color-text-secondary)]">{setting.description}</p>
                           )}
-                          {(s.minValue !== null || s.maxValue !== null) && (
-                            <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
-                              Range: {s.minValue ?? '—'} – {s.maxValue ?? '—'}
-                              {s.unit ? ` ${s.unit}` : ''}
+                          <div className={`mt-3 rounded-lg border p-3 text-xs leading-5 ${STATUS_META[setting.runtimeStatus].classes}`}>
+                            <span className="font-semibold">Operational effect: </span>
+                            {setting.runtimeSummary}
+                          </div>
+                          {(setting.minValue !== null || setting.maxValue !== null) && (
+                            <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">
+                              Allowed range: {setting.minValue ?? 'no minimum'} to {setting.maxValue ?? 'no maximum'}
+                              {setting.unit ? ` ${setting.unit}` : ''}
                             </p>
                           )}
                         </div>
 
                         {isEditing ? (
-                          <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
-                            <div className="flex flex-wrap items-center justify-end gap-2">
-                              <label htmlFor={`setting-value-${s.key}`} className="sr-only">Value for {s.key}</label>
-                              {renderValueEditor(s)}
-                              <button
-                                type="button"
-                                onClick={() => saveEdit(s)}
-                                disabled={updateMutation.isPending}
-                                className="inline-flex items-center gap-1 px-3 py-1 bg-[var(--color-primary)] hover:opacity-90 text-white rounded text-sm disabled:opacity-50"
-                              >
-                                <Save className="w-3.5 h-3.5" />
-                                Save
-                              </button>
+                          <div className="w-full rounded-xl border border-[var(--color-primary)] bg-[var(--color-info-bg)] p-3 xl:max-w-2xl">
+                            <label htmlFor={`setting-value-${setting.key}`} className="mb-1 block text-xs font-semibold text-[var(--color-text-secondary)]">
+                              New value
+                            </label>
+                            {renderValueEditor(setting)}
+                            {setting.isSensitive && (
+                              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                                The stored secret is never returned. Enter a complete replacement value.
+                              </p>
+                            )}
+                            <label htmlFor={`setting-reason-${setting.key}`} className="mb-1 mt-3 block text-xs font-semibold text-[var(--color-text-secondary)]">
+                              Audit reason
+                            </label>
+                            <textarea
+                              id={`setting-reason-${setting.key}`}
+                              value={editReason}
+                              onChange={(event) => setEditReason(event.target.value)}
+                              placeholder="Explain the business reason and intended effect"
+                              aria-label={`Audit reason for ${setting.key}`}
+                              rows={3}
+                              maxLength={500}
+                              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+                            />
+                            <div className="mt-3 flex flex-wrap justify-end gap-2">
                               <button
                                 type="button"
                                 onClick={cancelEdit}
-                                className="px-3 py-1 bg-[var(--color-surface-hover)] hover:bg-[var(--color-border)] text-[var(--color-text-secondary)] rounded text-sm"
+                                className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]"
                               >
                                 Cancel
                               </button>
-                            </div>
-                            <input
-                              id={`setting-reason-${s.key}`}
-                              type="text"
-                              value={editReason}
-                              onChange={(e) => setEditReason(e.target.value)}
-                              placeholder="Change reason (required, audited)"
-                              aria-label={`Audit reason for ${s.key}`}
-                              className="w-full px-2 py-1.5 border border-[var(--color-border)] rounded text-xs sm:w-80"
-                            />
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-3 shrink-0">
-                            <span className="font-mono text-sm bg-[var(--color-surface-hover)] px-2 py-1 rounded">
-                              {formatValue(s)}
-                            </span>
-                            {!s.isDefault && (
-                              <span className="text-xs text-amber-600">customized</span>
-                            )}
-                            {isSuperAdmin && s.editable && (
                               <button
                                 type="button"
-                                onClick={() => startEdit(s)}
-                                title="Edit"
-                                aria-label={`Edit setting ${s.key}`}
-                                className="p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] rounded"
+                                onClick={() => requestSave(setting)}
+                                disabled={updateMutation.isPending}
+                                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
                               >
-                                <Pencil className="w-4 h-4" />
+                                <Save className="h-4 w-4" />
+                                Review change
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex w-full flex-wrap items-center gap-2 xl:w-auto xl:max-w-sm xl:justify-end">
+                            <span className="min-h-11 min-w-28 rounded-lg bg-[var(--color-surface-hover)] px-3 py-2.5 text-right font-mono text-sm text-[var(--color-text)]">
+                              {formatValue(setting)}
+                            </span>
+                            {isSuperAdmin && setting.editable && (
+                              <button
+                                type="button"
+                                onClick={() => startEdit(setting)}
+                                aria-label={`Edit setting ${setting.key}`}
+                                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]"
+                              >
+                                <Pencil className="h-4 w-4" />
                               </button>
                             )}
                             <button
                               type="button"
-                              onClick={() => setHistoryKey(historyKey === s.key ? null : s.key)}
-                              title="History"
-                              aria-label={`View change history for ${s.key}`}
-                              className="p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] rounded"
+                              onClick={() => setHistoryKey(historyKey === setting.key ? null : setting.key)}
+                              aria-label={`View change history for ${setting.key}`}
+                              aria-expanded={historyKey === setting.key}
+                              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]"
                             >
-                              <History className="w-4 h-4" />
+                              <History className="h-4 w-4" />
                             </button>
-                            {isSuperAdmin && s.editable && (
+                            {isSuperAdmin && setting.editable && (
                               <button
                                 type="button"
-                                disabled={s.isDefault || resetMutation.isPending}
-                                onClick={() => { setPendingReset(s); setResetReason(''); }}
-                                title="Reset to default"
-                                aria-label={`Reset ${s.key} to default`}
-                                className="p-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] rounded disabled:opacity-30 disabled:hover:bg-transparent"
+                                disabled={setting.isDefault || resetMutation.isPending}
+                                onClick={() => {
+                                  setPendingReset(setting);
+                                  setResetReason('');
+                                  setBanner(null);
+                                }}
+                                aria-label={`Reset ${setting.key} to default`}
+                                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-30"
                               >
-                                <RotateCcw className="w-4 h-4" />
+                                <RotateCcw className="h-4 w-4" />
                               </button>
                             )}
                           </div>
                         )}
                       </div>
 
-                      {historyKey === s.key && (
-                        <div className="mt-3 ml-4 border-l-2 border-[var(--color-border)] pl-3">
-                          <p className="text-xs font-semibold text-[var(--color-text-secondary)] mb-1">Recent changes</p>
+                      {historyKey === setting.key && (
+                        <section aria-label={`Change history for ${setting.key}`} className="mt-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className="text-sm font-semibold text-[var(--color-text)]">Recent changes</h4>
+                            <span className="text-xs text-[var(--color-text-tertiary)]">Manila time</span>
+                          </div>
                           {historyQuery.isLoading && (
-                            <p className="text-xs text-[var(--color-text-secondary)]">Loading…</p>
+                            <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Loading change history…</p>
                           )}
-                          {historyQuery.data && historyQuery.data.length === 0 && (
-                            <p className="text-xs text-[var(--color-text-secondary)]">No prior changes recorded.</p>
+                          {historyQuery.isError && (
+                            <div role="alert" className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                              <span>History could not load: {getErrorMessage(historyQuery.error)}</span>
+                              <button
+                                type="button"
+                                onClick={() => void historyQuery.refetch()}
+                                className="min-h-11 rounded-lg border border-red-300 px-3 py-2 font-medium"
+                              >
+                                Try again
+                              </button>
+                            </div>
+                          )}
+                          {historyQuery.data?.length === 0 && (
+                            <p className="mt-2 text-sm text-[var(--color-text-secondary)]">No prior changes are recorded.</p>
                           )}
                           {historyQuery.data && historyQuery.data.length > 0 && (
-                            <ul className="space-y-1">
-                              {historyQuery.data.slice(0, 10).map((h) => (
-                                <li key={h.id} className="text-xs text-[var(--color-text-secondary)]">
-                                  <span className="font-mono">{h.old_value ?? '∅'}</span>
-                                  {' → '}
-                                  <span className="font-mono">{h.new_value}</span>
-                                  <span className="text-[var(--color-text-tertiary)]">
-                                    {' · '}{new Date(h.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}
-                                    {' · '}{h.change_reason ?? 'no reason'}
-                                  </span>
+                            <ol className="mt-3 space-y-3">
+                              {historyQuery.data.slice(0, 10).map((entry) => (
+                                <li key={entry.id} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs">
+                                  <div className="flex flex-wrap items-center gap-1 text-[var(--color-text-secondary)]">
+                                    <span className="font-mono text-[var(--color-text)]">{entry.old_value ?? 'No prior value'}</span>
+                                    <span aria-hidden="true">→</span>
+                                    <span className="font-mono text-[var(--color-text)]">{entry.new_value}</span>
+                                  </div>
+                                  <p className="mt-1 font-medium text-[var(--color-text)]">
+                                    {entry.change_reason ?? 'Legacy change without a recorded reason'}
+                                  </p>
+                                  <p className="mt-1 text-[var(--color-text-tertiary)]">
+                                    {describeActor(entry)} · {new Date(entry.created_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}
+                                  </p>
                                 </li>
                               ))}
-                            </ul>
+                            </ol>
                           )}
-                        </div>
+                        </section>
                       )}
                     </li>
                   );
@@ -596,51 +800,122 @@ export default function SystemSettingsPage(): React.ReactElement {
         </section>
       </div>
 
-      {/* BUG-PHASE75-01 fix — confirm-reset modal */}
-      {pendingReset && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="reset-confirm-title"
-        >
-          <div className="bg-[var(--color-surface)] rounded-lg max-w-md w-full p-5">
-            <h3 id="reset-confirm-title" className="text-lg font-semibold text-[var(--color-text)] mb-1">
-              Reset to default?
-            </h3>
-            <p className="text-sm text-[var(--color-text-secondary)] mb-3">
-              This will overwrite the current value of <code className="font-mono bg-[var(--color-surface-hover)] px-1 rounded">{pendingReset.key}</code> with its built-in default. {pendingReset.runtimeSummary}
+      {pendingSave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="save-review-title"
+            className="w-full max-w-lg rounded-2xl bg-[var(--color-surface)] p-5 shadow-xl"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]">Final review</p>
+            <h2 id="save-review-title" className="mt-1 text-xl font-semibold text-[var(--color-text)]">
+              Confirm this setting change
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">
+              A stale browser version will be rejected. This action is stored with your identity, reason, network address, and browser details.
             </p>
-            <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded p-3 mb-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-[var(--color-text-secondary)]">Current</span>
-                <span className="font-mono">{formatValue(pendingReset)}</span>
+            <dl className="mt-4 divide-y divide-[var(--color-border)] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4">
+              <div className="py-3">
+                <dt className="text-xs text-[var(--color-text-tertiary)]">Control</dt>
+                <dd className="mt-1 font-medium text-[var(--color-text)]">{pendingSave.setting.label}</dd>
+                <dd className="font-mono text-xs text-[var(--color-text-secondary)]">{pendingSave.setting.key}</dd>
               </div>
-              <div className="flex justify-between mt-1">
-                <span className="text-[var(--color-text-secondary)]">Default</span>
-                <span className="font-mono">
-                  {formatValue({ ...pendingReset, value: pendingReset.defaultValue })}
-                </span>
+              <div className="grid grid-cols-2 gap-4 py-3">
+                <div>
+                  <dt className="text-xs text-[var(--color-text-tertiary)]">Current</dt>
+                  <dd className="mt-1 break-all font-mono text-sm">{formatValue(pendingSave.setting)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[var(--color-text-tertiary)]">Proposed</dt>
+                  <dd className="mt-1 break-all font-mono text-sm">
+                    {pendingSave.setting.isSensitive ? 'New secret value' : formatValue(pendingSave.setting, pendingSave.value)}
+                  </dd>
+                </div>
               </div>
-            </div>
-            <label htmlFor="reset-reason" className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
-              Reason (audited)
-            </label>
-            <input
-              id="reset-reason"
-              type="text"
-              value={resetReason}
-              onChange={(e) => setResetReason(e.target.value)}
-              placeholder="Why are you resetting this?"
-              className="w-full px-3 py-2 border border-[var(--color-border)] rounded text-sm mb-4"
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
+              <div className="py-3">
+                <dt className="text-xs text-[var(--color-text-tertiary)]">Operational effect</dt>
+                <dd className="mt-1 text-sm leading-5 text-[var(--color-text)]">{pendingSave.setting.runtimeSummary}</dd>
+              </div>
+              <div className="py-3">
+                <dt className="text-xs text-[var(--color-text-tertiary)]">Audit reason</dt>
+                <dd className="mt-1 text-sm text-[var(--color-text)]">{pendingSave.reason}</dd>
+              </div>
+            </dl>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
-                onClick={() => { setPendingReset(null); setResetReason(''); }}
+                onClick={() => setPendingSave(null)}
+                disabled={updateMutation.isPending}
+                className="min-h-11 rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)]"
+              >
+                Go back
+              </button>
+              <button
+                type="button"
+                onClick={() => updateMutation.mutate({
+                  key: pendingSave.setting.key,
+                  value: pendingSave.value,
+                  reason: pendingSave.reason,
+                  expectedUpdatedAt: pendingSave.setting.updatedAt,
+                })}
+                disabled={updateMutation.isPending}
+                className="min-h-11 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {updateMutation.isPending ? 'Saving…' : 'Confirm change'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingReset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-confirm-title"
+            className="w-full max-w-lg rounded-2xl bg-[var(--color-surface)] p-5 shadow-xl"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-red-700">Destructive configuration action</p>
+            <h2 id="reset-confirm-title" className="mt-1 text-xl font-semibold text-[var(--color-text)]">
+              Reset to the approved default?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">
+              This replaces the current value of <code className="font-mono">{pendingReset.key}</code>. {pendingReset.runtimeSummary}
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 text-sm">
+              <div>
+                <p className="text-xs text-[var(--color-text-tertiary)]">Current</p>
+                <p className="mt-1 break-all font-mono">{formatValue(pendingReset)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-text-tertiary)]">Default</p>
+                <p className="mt-1 break-all font-mono">{formatValue(pendingReset, pendingReset.defaultValue)}</p>
+              </div>
+            </div>
+            <label htmlFor="reset-reason" className="mb-1 mt-4 block text-xs font-semibold text-[var(--color-text-secondary)]">
+              Audit reason
+            </label>
+            <textarea
+              id="reset-reason"
+              value={resetReason}
+              onChange={(event) => setResetReason(event.target.value)}
+              placeholder="Explain why the approved default should be restored"
+              rows={3}
+              maxLength={500}
+              className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
+              autoFocus
+            />
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingReset(null);
+                  setResetReason('');
+                }}
                 disabled={resetMutation.isPending}
-                className="px-3 py-2 bg-[var(--color-surface-hover)] hover:bg-[var(--color-border)] text-[var(--color-text-secondary)] rounded text-sm disabled:opacity-50"
+                className="min-h-11 rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)]"
               >
                 Cancel
               </button>
@@ -652,7 +927,6 @@ export default function SystemSettingsPage(): React.ReactElement {
                     setBanner({ kind: 'err', text: 'Enter a reset reason with at least 10 characters.' });
                     return;
                   }
-                  if (!window.confirm(`Reset ${pendingReset.key} to its default value?`)) return;
                   resetMutation.mutate({
                     key: pendingReset.key,
                     reason,
@@ -660,9 +934,9 @@ export default function SystemSettingsPage(): React.ReactElement {
                   });
                 }}
                 disabled={resetMutation.isPending || resetReason.trim().length < 10}
-                className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm disabled:opacity-50"
+                className="min-h-11 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
               >
-                {resetMutation.isPending ? 'Resetting…' : 'Reset to default'}
+                {resetMutation.isPending ? 'Resetting…' : 'Confirm reset'}
               </button>
             </div>
           </div>

@@ -1251,7 +1251,7 @@ export async function getTierProgression(providerId: string): Promise<TierProgre
 // 002. Banner classification thresholds:
 //   missing  → no clearance URL on file
 //   expired  → expiry_date is past today
-//   expiring → expiry_date within `provider.nbi_expiry_warning_days`
+//   expiring → expiry_date within `nbi_expiry_warning_days`
 //              (admin-tunable platform_setting; default 30)
 //   valid    → expiry_date more than threshold away
 export async function getProviderNbiStatus(
@@ -1276,17 +1276,9 @@ export async function getProviderNbiStatus(
     return { status: 'missing', expiresAt: null };
   }
 
-  // Read the warning-days threshold lazily via require() to avoid
-  // an import cycle (settings.service consults provider.service for
-  // some helpers in adjacent codepaths).
   let warningDays = 30;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const settings = require('./settings.service') as {
-      getSettingNumber: (key: string) => Promise<number>;
-    };
-    const fromSettings = await settings.getSettingNumber('provider.nbi_expiry_warning_days');
-    if (Number.isFinite(fromSettings) && fromSettings > 0) warningDays = fromSettings;
+    warningDays = await settingsService.getNbiExpiryWarningDays();
   } catch {
     // settings.service or the row may not be present — fall back to 30.
   }
