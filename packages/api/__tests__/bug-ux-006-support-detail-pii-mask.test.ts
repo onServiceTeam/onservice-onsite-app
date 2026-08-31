@@ -5,6 +5,7 @@ const maskTicketForRoleMock = jest.fn((ticket: Record<string, unknown>) => ({
   ...ticket,
   user_email: 'j***@example.com',
 }));
+const TICKET_ID = '11111111-1111-4111-8111-111111111111';
 
 jest.mock('../src/middleware/auth.middleware', () => ({
   authMiddleware: (
@@ -28,7 +29,7 @@ jest.mock('../src/services/support-ticket.service', () => ({
     maskTicketForRoleMock(...(args as [Record<string, unknown>])),
   listAssignableAgents: jest.fn(),
   listMyTickets: jest.fn(),
-  getTicketById: jest.fn().mockResolvedValue({ id: 'ticket-1', user_email: 'jane@example.com' }),
+  getTicketById: jest.fn().mockResolvedValue({ id: TICKET_ID, user_email: 'jane@example.com' }),
   getTicketMessages: jest.fn().mockResolvedValue([{ id: 'message-1', message: 'Help' }]),
   createTicket: jest.fn(),
   addMessage: jest.fn(),
@@ -43,11 +44,11 @@ it('Bug UX-006 — masks customer contact data in the admin support case respons
   app.use(express.json());
   app.use('/support-tickets', supportRouter);
 
-  const response = await request(app).get('/support-tickets/ticket-1');
+  const response = await request(app).get(`/support-tickets/${TICKET_ID}`);
 
   expect(response.status).toBe(200);
   expect(maskTicketForRoleMock).toHaveBeenCalledWith(
-    expect.objectContaining({ id: 'ticket-1' }),
+    expect.objectContaining({ id: TICKET_ID }),
     'admin',
   );
   expect(response.body.data.user_email).toBe('j***@example.com');

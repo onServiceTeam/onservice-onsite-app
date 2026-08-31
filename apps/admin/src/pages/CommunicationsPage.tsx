@@ -21,6 +21,7 @@ interface ConversationSummary {
   customerId: string;
   customerName: string;
   providerId: string;
+  providerProfileId: string | null;
   providerName: string;
   isActive: boolean;
   messageCount: number;
@@ -58,6 +59,7 @@ interface Thread {
   customerId: string;
   customerName: string;
   providerId: string;
+  providerProfileId: string | null;
   providerName: string;
   isActive: boolean;
   messages: AdminMessage[];
@@ -115,12 +117,12 @@ export default function CommunicationsPage(): React.ReactElement {
       </div>
 
       {bookingFilter && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm">
-          <div>
+        <div className="flex flex-col gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <span className="font-semibold text-[var(--color-text)]">Booking conversation</span>
-            <span className="ml-2 font-mono text-xs text-[var(--color-text-secondary)]">{bookingFilter}</span>
+            <span className="mt-1 block break-all font-mono text-xs text-[var(--color-text-secondary)] sm:ml-2 sm:mt-0 sm:inline">{bookingFilter}</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Link to={`/bookings/${bookingFilter}`} className="font-semibold text-[var(--color-secondary)] hover:underline">
               Booking 360
             </Link>
@@ -144,23 +146,32 @@ export default function CommunicationsPage(): React.ReactElement {
       )}
 
       {/* Stats */}
-      <div className="flex gap-3 flex-wrap">
-        <StatChip
-          label="Flagged, awaiting review"
-          value={statsQuery.data?.openFlagged ?? 0}
-          tone="warning"
-          icon={<Flag size={14} />}
-        />
-        <StatChip
-          label="Reported by users, awaiting review"
-          value={statsQuery.data?.openReported ?? 0}
-          tone="danger"
-          icon={<AlertTriangle size={14} />}
-        />
-      </div>
+      {statsQuery.isError ? (
+        <div role="alert" className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900 sm:flex-row sm:items-center sm:justify-between">
+          <span>Moderation queue counts could not be loaded. The queue below remains available.</span>
+          <Button type="button" size="sm" variant="outline" onClick={() => void statsQuery.refetch()}>Retry counts</Button>
+        </div>
+      ) : statsQuery.isLoading ? (
+        <p role="status" className="text-sm text-[var(--color-text-secondary)]">Loading moderation queue counts…</p>
+      ) : (
+        <div className="flex gap-3 flex-wrap">
+          <StatChip
+            label="Flagged, awaiting review"
+            value={statsQuery.data?.openFlagged ?? 0}
+            tone="warning"
+            icon={<Flag size={14} />}
+          />
+          <StatChip
+            label="Reported by users, awaiting review"
+            value={statsQuery.data?.openReported ?? 0}
+            tone="danger"
+            icon={<AlertTriangle size={14} />}
+          />
+        </div>
+      )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-[var(--color-border)]">
+      <div className="flex gap-1 overflow-x-auto border-b border-[var(--color-border)]">
         {([
           ['queue', 'Review queue'],
           ['all', 'All conversations'],
@@ -171,7 +182,7 @@ export default function CommunicationsPage(): React.ReactElement {
             key={id}
             type="button"
             onClick={() => { setTab(id); setPage(1); setSelectedId(null); setSelectedMessageId(null); }}
-            className={`px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${
+            className={`min-h-11 shrink-0 px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${
               tab === id
                 ? 'border-[var(--color-secondary)] text-[var(--color-text)] font-medium'
                 : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
@@ -299,7 +310,13 @@ function ConversationList({
   }, [autoSelectBookingId, conversations, onSelect, selectedId]);
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState title="Failed to load" description={getErrorMessage(q.error)} />;
+  if (q.isError) return (
+    <ErrorState
+      title="Failed to load conversations"
+      description={getErrorMessage(q.error)}
+      action={<Button type="button" variant="outline" onClick={() => void q.refetch()}>Try again</Button>}
+    />
+  );
 
   if (conversations.length === 0) {
     return (
@@ -376,7 +393,13 @@ function QueueList({
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState title="Failed to load" description={getErrorMessage(q.error)} />;
+  if (q.isError) return (
+    <ErrorState
+      title="Failed to load moderation queue"
+      description={getErrorMessage(q.error)}
+      action={<Button type="button" variant="outline" onClick={() => void q.refetch()}>Try again</Button>}
+    />
+  );
   const messages = q.data?.messages ?? [];
   if (messages.length === 0) {
     return (
@@ -497,7 +520,13 @@ function ConversationThread({
   }, [focusMessageId, q.data]);
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError || !q.data) return <ErrorState title="Failed to load thread" description={getErrorMessage(q.error)} />;
+  if (q.isError || !q.data) return (
+    <ErrorState
+      title="Failed to load thread"
+      description={getErrorMessage(q.error)}
+      action={<Button type="button" variant="outline" onClick={() => void q.refetch()}>Try again</Button>}
+    />
+  );
 
   const thread = q.data;
 
@@ -509,9 +538,13 @@ function ConversationThread({
             {thread.customerName}
           </Link>
           <span className="text-[var(--color-text-tertiary)]">&harr;</span>
-          <Link className="text-[var(--color-secondary)] hover:underline" to={`/providers/${thread.providerId}`}>
-            {thread.providerName}
-          </Link>
+          {thread.providerProfileId ? (
+            <Link className="text-[var(--color-secondary)] hover:underline" to={`/providers/${thread.providerProfileId}`}>
+              {thread.providerName}
+            </Link>
+          ) : (
+            <span title="Provider profile is missing">{thread.providerName}</span>
+          )}
         </div>
         <p className="text-xs text-[var(--color-text-secondary)]">
           <Link className="font-medium text-[var(--color-secondary)] hover:underline" to={`/bookings/${thread.bookingId}`}>

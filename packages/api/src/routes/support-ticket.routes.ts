@@ -10,7 +10,9 @@ import {
   createSupportTicketSchema,
   mySupportTicketListQuerySchema,
   supportTicketListQuerySchema,
+  supportTicketIdParamsSchema,
   supportTicketMessageSchema,
+  updateSupportTicketPrioritySchema,
   updateSupportTicketStatusSchema,
 } from '../validators/support-ticket.validators';
 
@@ -158,6 +160,7 @@ router.get(
 router.get(
   '/mine/:id',
   authMiddleware,
+  validationMiddleware({ params: supportTicketIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = getParamId(req);
@@ -181,6 +184,7 @@ router.get(
   '/:id/history',
   authMiddleware,
   rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware({ params: supportTicketIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const data = await supportTicketService.getTicketStatusHistory(getParamId(req));
@@ -195,6 +199,7 @@ router.get(
   '/:id',
   authMiddleware,
   rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware({ params: supportTicketIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = getParamId(req);
@@ -236,7 +241,7 @@ router.post(
 router.post(
   '/:id/messages',
   authMiddleware,
-  validationMiddleware(supportTicketMessageSchema),
+  validationMiddleware({ params: supportTicketIdParamsSchema, body: supportTicketMessageSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { message, isInternalNote } = req.body;
@@ -277,7 +282,7 @@ router.patch(
   '/:id/status',
   authMiddleware,
   rbacMiddleware('admin', 'super_admin'),
-  validationMiddleware(updateSupportTicketStatusSchema),
+  validationMiddleware({ params: supportTicketIdParamsSchema, body: updateSupportTicketStatusSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { status, resolutionNotes, workflowNote } = req.body;
@@ -294,12 +299,32 @@ router.patch(
   },
 );
 
+router.patch(
+  '/:id/priority',
+  authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware({ params: supportTicketIdParamsSchema, body: updateSupportTicketPrioritySchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const { priority, workflowNote } = req.body;
+      const ticket = await supportTicketService.updateTicketPriority(
+        getParamId(req),
+        priority,
+        { adminId: req.user!.userId, workflowNote },
+      );
+      res.json({ success: true, data: ticket });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 // Assign ticket to agent
 router.patch(
   '/:id/assign',
   authMiddleware,
   rbacMiddleware('admin', 'super_admin'),
-  validationMiddleware(assignSupportTicketSchema),
+  validationMiddleware({ params: supportTicketIdParamsSchema, body: assignSupportTicketSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { agentId } = req.body;

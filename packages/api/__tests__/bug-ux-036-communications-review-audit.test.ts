@@ -28,7 +28,12 @@ it('Bug UX-036 — reviewing a message requires and atomically audits the suppor
   expect(dbTransactionMock).not.toHaveBeenCalled();
 
   dbQueryMock
-    .mockResolvedValueOnce({ rows: [{ booking_id: BOOKING_ID }], rowCount: 1 })
+    .mockResolvedValueOnce({ rows: [{
+      booking_id: BOOKING_ID,
+      is_flagged: true,
+      reported_at: null,
+      flag_reviewed_at: null,
+    }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })
     .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 

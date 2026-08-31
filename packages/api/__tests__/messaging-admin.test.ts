@@ -56,6 +56,7 @@ describe('listConversationsForAdmin', () => {
           booking_id: BOOKING_ID,
           customer_id: CUSTOMER_ID,
           provider_id: PROVIDER_ID,
+          provider_profile_id: '77777777-7777-4777-8777-777777777777',
           is_active: true,
           created_at: new Date('2026-01-01T00:00:00Z'),
           updated_at: new Date('2026-01-02T00:00:00Z'),
@@ -114,6 +115,7 @@ describe('getConversationThreadForAdmin', () => {
             booking_id: BOOKING_ID,
             customer_id: CUSTOMER_ID,
             provider_id: PROVIDER_ID,
+            provider_profile_id: '77777777-7777-4777-8777-777777777777',
             is_active: true,
             created_at: new Date('2026-01-01T00:00:00Z'),
             updated_at: new Date('2026-01-02T00:00:00Z'),
@@ -262,7 +264,12 @@ describe('reviewFlag', () => {
 
   it('marks the flag reviewed and writes a message_flag_reviewed audit row', async () => {
     dbQueryMock
-      .mockResolvedValueOnce(rows([{ booking_id: BOOKING_ID }]))
+      .mockResolvedValueOnce(rows([{
+        booking_id: BOOKING_ID,
+        is_flagged: true,
+        reported_at: null,
+        flag_reviewed_at: null,
+      }]))
       .mockResolvedValueOnce(rows([]))
       .mockResolvedValueOnce(rows([]));
     const out = await adminSvc.reviewFlag(MSG_ID, ADMIN_ID, 'no violation found');

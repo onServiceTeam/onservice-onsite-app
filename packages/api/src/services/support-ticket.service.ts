@@ -130,9 +130,12 @@ export interface SupportTicketStatusHistoryEntry {
   adminName: string;
   adminRole: string | null;
   previousStatus: string | null;
-  nextStatus: string;
+  nextStatus: string | null;
+  previousPriority: string | null;
+  nextPriority: string | null;
   workflowNote: string;
   resolutionNotes: string | null;
+  decisionSource: 'admin_status_change' | 'participant_reply' | 'admin_priority_change';
 }
 
 export async function listTickets(
@@ -270,23 +273,32 @@ export async function getTicketStatusHistory(
     admin_last_name: string | null;
     admin_role: string | null;
     previous_status: string | null;
-    next_status: string;
+    next_status: string | null;
+    previous_priority: string | null;
+    next_priority: string | null;
+    action: string;
     workflow_note: string | null;
     resolution_notes: string | null;
   }>(
-    `SELECT al.id, al.created_at,
+    `SELECT al.id, al.created_at, al.action,
             actor.first_name AS admin_first_name,
             actor.last_name AS admin_last_name,
             actor.role AS admin_role,
             al.old_values->>'status' AS previous_status,
             al.new_values->>'status' AS next_status,
+            al.old_values->>'priority' AS previous_priority,
+            al.new_values->>'priority' AS next_priority,
             al.new_values->>'workflowNote' AS workflow_note,
             al.new_values->>'resolutionNotes' AS resolution_notes
        FROM audit_log al
        LEFT JOIN users actor ON actor.id = al.user_id
       WHERE al.entity_type = 'support_ticket'
         AND al.entity_id = $1
-        AND al.action = 'support_ticket_status_updated'
+        AND al.action IN (
+          'support_ticket_status_updated',
+          'support_ticket_status_resumed_by_reply',
+          'support_ticket_priority_updated'
+        )
       ORDER BY al.created_at DESC
       LIMIT 100`,
     [ticketId],
@@ -298,8 +310,15 @@ export async function getTicketStatusHistory(
     adminRole: row.admin_role,
     previousStatus: row.previous_status,
     nextStatus: row.next_status,
+    previousPriority: row.previous_priority,
+    nextPriority: row.next_priority,
     workflowNote: row.workflow_note ?? '',
     resolutionNotes: row.resolution_notes,
+    decisionSource: row.action === 'support_ticket_status_resumed_by_reply'
+      ? 'participant_reply'
+      : row.action === 'support_ticket_priority_updated'
+        ? 'admin_priority_change'
+        : 'admin_status_change',
   }));
 }
 
@@ -551,9 +570,12 @@ export async function addMessage(params: {
     if (!ticket) throw createAppError('Ticket not found.', 404);
 
     const isUserReply = params.senderRole === 'customer' || params.senderRole === 'provider';
-    if (isUserReply && (ticket.status === 'resolved' || ticket.status === 'closed')) {
+    const isTerminal = ticket.status === 'resolved' || ticket.status === 'closed';
+    if (isTerminal && (isUserReply || !params.isInternalNote)) {
       throw createAppError(
-        'This support request is closed. Start a new request if you still need help.',
+        isUserReply
+          ? 'This support request is closed. Start a new request if you still need help.'
+          : 'Reopen this support request before sending a participant-visible reply.',
         409,
       );
     }
@@ -574,11 +596,27 @@ export async function addMessage(params: {
       isUserReply &&
       (ticket.status === 'waiting_on_customer' || ticket.status === 'waiting_on_provider');
     if (shouldResume) {
+      const nextStatus = ticket.assigned_agent_id ? 'in_progress' : 'open';
       await client.query(
         `UPDATE support_tickets
             SET status = $2, updated_at = NOW()
           WHERE id = $1`,
-        [params.ticketId, ticket.assigned_agent_id ? 'in_progress' : 'open'],
+        [params.ticketId, nextStatus],
+      );
+      await client.query(
+        `INSERT INTO audit_log
+           (user_id, action, entity_type, entity_id, old_values, new_values)
+         VALUES ($1, 'support_ticket_status_resumed_by_reply', 'support_ticket', $2, $3::jsonb, $4::jsonb)`,
+        [
+          params.senderId,
+          params.ticketId,
+          JSON.stringify({ status: ticket.status, assignedAgentId: ticket.assigned_agent_id }),
+          JSON.stringify({
+            status: nextStatus,
+            assignedAgentId: ticket.assigned_agent_id,
+            workflowNote: `${params.senderRole} reply resumed the support case.`,
+          }),
+        ],
       );
     } else {
       await client.query(`UPDATE support_tickets SET updated_at = NOW() WHERE id = $1`, [
@@ -709,12 +747,88 @@ export async function updateTicketStatus(
   return ticket;
 }
 
+export async function updateTicketPriority(
+  ticketId: string,
+  priority: string,
+  audit: { adminId: string; workflowNote: string },
+): Promise<SupportTicket> {
+  if (!VALID_PRIORITIES.includes(priority as (typeof VALID_PRIORITIES)[number])) {
+    throw createAppError(`Invalid ticket priority: ${priority}`, 400);
+  }
+  const workflowNote = audit.workflowNote.trim();
+  if (workflowNote.length < 10 || workflowNote.length > 5000) {
+    throw createAppError('Priority workflow note must be 10 to 5000 characters.', 400);
+  }
+
+  const ticket = await db.transaction(async (client) => {
+    const currentResult = await client.query<{ priority: string; status: string }>(
+      `SELECT priority, status
+         FROM support_tickets
+        WHERE id = $1
+        FOR UPDATE`,
+      [ticketId],
+    );
+    const current = currentResult.rows[0];
+    if (!current) throw createAppError('Ticket not found.', 404);
+    if (current.status === 'resolved' || current.status === 'closed') {
+      throw createAppError('Reopen this support request before changing its priority.', 409);
+    }
+    if (current.priority === priority) {
+      throw createAppError('Ticket already has that priority.', 409);
+    }
+
+    const updated = await client.query<SupportTicket>(
+      `UPDATE support_tickets
+          SET priority = $2, updated_at = NOW()
+        WHERE id = $1
+        RETURNING *`,
+      [ticketId, priority],
+    );
+    const row = updated.rows[0];
+    if (!row) throw createAppError('Ticket not found.', 404);
+
+    await client.query(
+      `INSERT INTO audit_log
+         (user_id, action, entity_type, entity_id, old_values, new_values)
+       VALUES ($1, 'support_ticket_priority_updated', 'support_ticket', $2, $3::jsonb, $4::jsonb)`,
+      [
+        audit.adminId,
+        ticketId,
+        JSON.stringify({ priority: current.priority }),
+        JSON.stringify({ priority, workflowNote }),
+      ],
+    );
+    return row;
+  });
+  logger.info('Support ticket priority updated', { ticketId, priority, adminId: audit.adminId });
+  return ticket;
+}
+
 export async function assignTicket(
   ticketId: string,
   agentId: string,
   assignedByAdminId: string,
 ): Promise<SupportTicket> {
   return db.transaction(async (client) => {
+    const currentResult = await client.query<{
+      assigned_agent_id: string | null;
+      status: string;
+    }>(
+      `SELECT assigned_agent_id, status
+         FROM support_tickets
+        WHERE id = $1
+        FOR UPDATE`,
+      [ticketId],
+    );
+    const current = currentResult.rows[0];
+    if (!current) throw createAppError('Ticket not found.', 404);
+    if (current.status === 'resolved' || current.status === 'closed') {
+      throw createAppError('Reopen this support request before changing its owner.', 409);
+    }
+    if (current.assigned_agent_id === agentId) {
+      throw createAppError('This support request is already assigned to that agent.', 409);
+    }
+
     const agent = await client.query<{ id: string }>(
       `SELECT id FROM users
         WHERE id = $1
@@ -743,7 +857,13 @@ export async function assignTicket(
       [
         assignedByAdminId,
         ticketId,
-        JSON.stringify({ op: 'support_ticket_assigned', assignedAgentId: agentId }),
+        JSON.stringify({
+          op: 'support_ticket_assigned',
+          previousAgentId: current.assigned_agent_id,
+          assignedAgentId: agentId,
+          previousStatus: current.status,
+          nextStatus: current.status === 'open' ? 'in_progress' : current.status,
+        }),
       ],
     );
 

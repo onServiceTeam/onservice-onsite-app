@@ -19,6 +19,7 @@ import { assignTicket } from '../src/services/support-ticket.service';
 
 it('Bug UX-007 — validates and audit-logs a named support-agent assignment atomically', async () => {
   queryMock
+    .mockResolvedValueOnce({ rows: [{ assigned_agent_id: null, status: 'open' }] })
     .mockResolvedValueOnce({ rows: [{ id: 'agent-1' }] })
     .mockResolvedValueOnce({
       rows: [{ id: 'ticket-1', assigned_agent_id: 'agent-1', status: 'in_progress' }],
@@ -29,11 +30,18 @@ it('Bug UX-007 — validates and audit-logs a named support-agent assignment ato
 
   expect(result.assigned_agent_id).toBe('agent-1');
   expect(transactionMock).toHaveBeenCalledTimes(1);
-  expect(queryMock.mock.calls[0]?.[0]).toMatch(/role IN \('admin', 'super_admin'\)/);
-  expect(queryMock.mock.calls[2]?.[0]).toMatch(/INSERT INTO admin_actions/);
-  expect(queryMock.mock.calls[2]?.[1]).toEqual([
+  expect(queryMock.mock.calls[0]?.[0]).toMatch(/FOR UPDATE/);
+  expect(queryMock.mock.calls[1]?.[0]).toMatch(/role IN \('admin', 'super_admin'\)/);
+  expect(queryMock.mock.calls[3]?.[0]).toMatch(/INSERT INTO admin_actions/);
+  expect(queryMock.mock.calls[3]?.[1]).toEqual([
     'admin-1',
     'ticket-1',
-    JSON.stringify({ op: 'support_ticket_assigned', assignedAgentId: 'agent-1' }),
+    JSON.stringify({
+      op: 'support_ticket_assigned',
+      previousAgentId: null,
+      assignedAgentId: 'agent-1',
+      previousStatus: 'open',
+      nextStatus: 'in_progress',
+    }),
   ]);
 });

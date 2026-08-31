@@ -9,15 +9,19 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { createAppError } from '../middleware/error.middleware';
+import { validationMiddleware } from '../middleware/validation.middleware';
+import { rbacMiddleware } from '../middleware/rbac.middleware';
 import * as messagingAdminService from '../services/messaging-admin.service';
+import {
+  conversationIdParamsSchema,
+  conversationListQuerySchema,
+  messageIdParamsSchema,
+  moderationQueueQuerySchema,
+  redactMessageSchema,
+  reviewMessageSchema,
+} from '../validators/messaging-admin.validators';
 
 const router = Router();
-
-function requireAdmin(req: AuthenticatedRequest): void {
-  if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
-    throw createAppError('Admin access required.', 403);
-  }
-}
 
 function getParamId(req: AuthenticatedRequest, name = 'id'): string {
   const id = req.params[name];
@@ -30,17 +34,15 @@ function getParamId(req: AuthenticatedRequest, name = 'id'): string {
 router.get(
   '/',
   authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware({ query: conversationListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const filter = req.query.filter === 'flagged' || req.query.filter === 'reported'
-        ? req.query.filter
-        : 'all';
       const data = await messagingAdminService.listConversationsForAdmin({
-        filter,
+        filter: req.query.filter as 'all' | 'flagged' | 'reported',
         search: typeof req.query.search === 'string' ? req.query.search : undefined,
-        page: Number(req.query.page ?? 1),
-        pageSize: Number(req.query.pageSize ?? 25),
+        page: req.query.page as unknown as number,
+        pageSize: req.query.pageSize as unknown as number,
       });
       res.json({ success: true, ...data });
     } catch (error) {
@@ -52,9 +54,9 @@ router.get(
 router.get(
   '/stats',
   authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const data = await messagingAdminService.getModerationStats();
       res.json({ success: true, data });
     } catch (error) {
@@ -66,16 +68,14 @@ router.get(
 router.get(
   '/queue',
   authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware({ query: moderationQueueQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const scope = req.query.scope === 'flagged' || req.query.scope === 'reported'
-        ? req.query.scope
-        : 'all';
       const data = await messagingAdminService.listModerationQueue({
-        scope,
-        page: Number(req.query.page ?? 1),
-        pageSize: Number(req.query.pageSize ?? 25),
+        scope: req.query.scope as 'all' | 'flagged' | 'reported',
+        page: req.query.page as unknown as number,
+        pageSize: req.query.pageSize as unknown as number,
       });
       res.json({ success: true, ...data });
     } catch (error) {
@@ -89,14 +89,15 @@ router.get(
 router.post(
   '/messages/:messageId/redact',
   authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware({ params: messageIdParamsSchema, body: redactMessageSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const messageId = getParamId(req, 'messageId');
       const data = await messagingAdminService.redactMessage(
         messageId,
         req.user!.userId,
-        String(req.body?.reason ?? ''),
+        req.body.reason as string,
       );
       res.json({ success: true, data });
     } catch (error) {
@@ -108,14 +109,15 @@ router.post(
 router.post(
   '/messages/:messageId/review',
   authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware({ params: messageIdParamsSchema, body: reviewMessageSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const messageId = getParamId(req, 'messageId');
       const data = await messagingAdminService.reviewFlag(
         messageId,
         req.user!.userId,
-        String(req.body?.reviewNote ?? ''),
+        req.body.reviewNote as string,
       );
       res.json({ success: true, data });
     } catch (error) {
@@ -129,9 +131,10 @@ router.post(
 router.get(
   '/:id',
   authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware({ params: conversationIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
       const data = await messagingAdminService.getConversationThreadForAdmin(
         getParamId(req),
         req.user!.userId,
