@@ -175,16 +175,20 @@ Every report is downloadable as PDF or CSV.
 - Monthly consolidated invoicing
 - Per-account special pricing
 
-## Module 14 — Analytics (existing, 511 lines — verify substance)
+## Module 14 — Analytics (implemented boundary and roadmap)
 
-- Cohort retention curves (week-over-week, month-over-month)
-- Repeat booking rate (% within 30/60/90 days)
-- Provider activation funnel
-- Service category mix shift over time
-- City performance comparison
-- Marketing channel attribution (Phase 09e brings real data)
-- LTV / CAC by channel
-- NPS dashboard
+Implemented today:
+
+- Manila-month customer cohort booking activity and recorded gross booking face value, with explicit source/freshness/decision boundaries.
+- Active-customer retention attention signals with Customer 360 linkage. This is a deterministic index, not churn prediction.
+- Read-only legacy provider quality snapshots with every stored component, period, calculated time, pagination, and Provider 360 linkage. E47 blocks recomputation until the approved score model is reconciled.
+- Read-only provider-tier commission evidence using the current configured rate and 90-day operational samples. E48 prohibits automated rate advice or writes from this module.
+- A/B controls remain hidden while assignment and exposure reporting are held.
+
+Roadmap, not current capability: repeat-booking windows, provider activation
+funnel, category/city trends, channel LTV/CAC, and NPS reporting. Marketing and
+Dashboard may expose adjacent data, but those pages do not make these Analytics
+reports implemented.
 
 ## Module 15 — Audit Log (existing 250 lines + Phase 11 depth)
 

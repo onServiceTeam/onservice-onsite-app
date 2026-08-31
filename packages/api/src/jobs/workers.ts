@@ -10,7 +10,6 @@ import * as invoiceService from '../services/invoice.service';
 import * as slotWaitlistService from '../services/slot-waitlist.service';
 import * as dataManagementService from '../services/data-management.service';
 import * as securityService from '../services/security.service';
-import * as adminAnalyticsService from '../services/admin-analytics.service';
 import * as disputeService from '../services/dispute.service';
 import * as gatewayRetryService from '../services/gateway-retry.service';
 import * as bookingService from '../services/booking.service';
@@ -473,7 +472,12 @@ const schedulerWorker = new Worker(
         results.loginAttemptsDeleted = await securityService.cleanupOldLoginAttempts();
         break;
       case 'quality-score-compute':
-        results.qualityScoresComputed = await adminAnalyticsService.computeProviderQualityScores(90);
+        // Bug UX-830 / E47: retain the processor branch so already queued
+        // jobs finish safely, but never write a snapshot while the quality
+        // score source-of-truth conflict is open.
+        results.qualityScoresComputed = 0;
+        results.qualityScoreHold = 'E47';
+        logger.warn('Provider quality score computation held under E47');
         break;
       case 'dispute-escalate':
         results.disputesEscalated = await disputeService.autoEscalateStaleDisputes();
@@ -592,12 +596,6 @@ export async function initScheduledJobs(): Promise<void> {
 
   await schedulerQueue.add('security-cleanup', {}, {
     repeat: { pattern: '0 19 1 * *' },
-    removeOnComplete: 10,
-    removeOnFail: 10,
-  });
-
-  await schedulerQueue.add('quality-score-compute', {}, {
-    repeat: { pattern: '0 20 * * 0' },
     removeOnComplete: 10,
     removeOnFail: 10,
   });

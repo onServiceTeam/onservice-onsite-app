@@ -348,11 +348,58 @@ Latest local verification after the accuracy pass:
 - The strict 60-screenshot comparison passed again on the final local code with no baseline updates.
 - Gate A's exact Node emoji scan and exact tracked-source brand-color scan passed under the Windows runtimes. The Bash aggregate is intentionally not claimed locally because WSL cannot resolve this linked-worktree `.git` pointer and has no WSL Node runtime. The other eight fragments passed earlier; protected CI remains the authoritative aggregate gate.
 
+## Checkpoint L — Analytics evidence and decision boundaries
+
+Analytics mixed live queries, stored snapshots, and unsupported conclusions
+without telling an employee which was which. Cohort values did not define
+booking activity or distinguish gross booking face value from revenue.
+Retention presented a deterministic score as churn prediction, included
+inactive accounts, and showed a false zero while data was unavailable. Provider
+quality hid one score component and its period, stopped after the first 50
+rows, and exposed a recompute action even though its legacy weighting conflicts
+with the approved monthly operations scorecard. Commission analytics generated
+an unapproved suggested rate from that conflicted quality model. Completed
+analytics also omitted the canonical `resolved` booking state.
+
+Remediation landed as Bugs UX-823 through UX-832:
+
+- UX-823: every visible cohort number now carries definition, source, freshness, and a decision boundary; gross booking face value is not labelled revenue.
+- UX-824: provider evidence exposes every stored component, snapshot period, calculated time, and a direct Provider 360 exit.
+- UX-825: quality results paginate with URL-bound state, labelled controls, and tablet-visible evidence instead of silently clipping later columns.
+- UX-826: the conflicting quality recomputation route now returns the explicit E47 hold and never calls the legacy computation service.
+- UX-827: automated commission-rate advice is retired; the replacement endpoint returns current settings and operational evidence only, while the old advice route returns the E48 hold.
+- UX-828: retention attention signals are limited to active customer accounts.
+- UX-829: `resolved` work remains in cohort booking value, quality completion, and commission evidence.
+- UX-830: the weekly scheduler no longer enqueues quality recomputation, and any already queued job exits under E47 without writing a snapshot.
+- UX-831: the disabled A/B launch flag now blocks list, create, result, and status routes server-side instead of relying on a hidden browser tab.
+- UX-832: commission sampling now averages completed-booking counts across every approved provider, including zero-work providers, and averages gross face value per completed booking instead of mislabelling each provider's 90-day total.
+
+E47 and E48 remain open governance decisions. Existing quality snapshots are
+read-only evidence and no recomputation is allowed. Commission evidence cannot
+change a rate, forecast behavior, or stand in for provider earnings. No live
+commission setting, provider tier, booking, payout, or production row changed.
+
+The old Phase 138, 140, 185, and D13 source-content checks were replaced by
+executed query, date-boundary, flag, and rendered-tab behavior. Focused
+verification passed 6 Admin behavior tests, the focused Analytics API behavior
+suite, both Admin/API TypeScript checks, and 35 visual states. The visual contract covers
+Cohort default/loading/empty/error plus Retention, Quality, and Commission at
+820, 1024, 1280, 1440, and 1920 pixels. Baselines were generated for this
+intentional redesign, manually inspected, and the tablet tables were compacted
+after that inspection exposed hidden evidence columns.
+
+Final checkpoint verification passed:
+
+- Admin: 234 test files passed, 1 skipped; 326 tests passed and 3 remain explicit `todo` items.
+- API after the final aggregate-query correction: 617 locally runnable suites passed, 1 skipped; 3,132 tests passed and 1 skipped. The Docker-dependent certificate-revocation test is not counted as locally verified because Docker Desktop is unavailable; protected CI remains its execution gate.
+- Full repository ESLint, Admin/Mobile/API TypeScript checks, API and Admin production builds, Gate A, Gate C, all six gate self-tests, the phantom-test scan, and the strict 35-screenshot follow-up passed. The final service edit also passed targeted ESLint, API typecheck, and API production build.
+- The commission evidence endpoint now reads all five live commission settings and correctly defined tier samples in one database query. The N+1 heuristic dropped from 30 to 29 reviewed locations, contains no Analytics finding, and reports no unjustified marker.
+
 ## Next admin/company audit queue
 
 The next continuous loop starts from the admin navigation inventory and rechecks each remaining page against the operating questions above. Priority order is:
 
-1. Analytics, settings, roles, and every remaining configuration field and lifecycle action.
+1. System Settings, then Staff & Roles, including every field, runtime owner, permission, lifecycle action, and audit effect.
 2. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
 
 Existing legal, money, production-data, and privileged-identity escalation boundaries still apply. A page-local visual improvement is not permission to invent legal wording, mutate production money, or bypass those controls.

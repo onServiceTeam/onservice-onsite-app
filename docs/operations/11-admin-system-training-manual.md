@@ -368,7 +368,19 @@ Waitlist notification is in-app only. On activation, registered waitlist phone n
 
 ### 2.20 Analytics (`/analytics`)
 
-5 tabs: A/B Tests (hidden by default in v1.0), Cohort Analysis, Churn Prediction, Quality Scores, Commission. Read-only reporting. See `12-quality-standards-and-kpis.md` for which numbers we actually track.
+Four visible read-only workspaces: Cohort Analysis, Retention Signals, Quality
+Evidence, and Commission Evidence. A/B Tests remains hidden while assignment
+and exposure reporting are held. Read the definition, source, freshness, and
+decision boundary before using a number.
+
+Retention Signals is a deterministic attention score over active customer
+accounts, not a churn probability or outreach permission. Open Customer 360
+before action. Quality Evidence contains legacy stored snapshots only; E47
+blocks recomputation because their weighting conflicts with the approved
+monthly scorecard. Commission Evidence shows the live configured rate and
+operational samples, but E48 removes automated rate advice. It cannot publish a
+rate, calculate provider earnings, or replace the Financials and Payout records.
+See `12-quality-standards-and-kpis.md` for the approved human review cadence.
 
 ### 2.21 Audit Log (`/audit-log`)
 

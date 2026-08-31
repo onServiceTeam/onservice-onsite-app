@@ -30,10 +30,11 @@ it('Bug UX-339 — retention analytics names its deterministic inputs truthfully
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText('Deterministic retention attention signals')).toBeInTheDocument();
+  expect(await screen.findByText(/A deterministic attention score/)).toBeInTheDocument();
+  expect(screen.getByText(/This is not churn prediction/)).toBeInTheDocument();
   expect(await screen.findByText('Recorded booking value')).toBeInTheDocument();
   expect(screen.getByText('Attention score')).toBeInTheDocument();
   expect(screen.queryByText('Total Spent')).not.toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Ana Reyes' })).toHaveAttribute('href', '/customers/customer-1');
-  expect(screen.getByText(/masked/)).toBeInTheDocument();
+  expect(await screen.findByRole('link', { name: 'Ana Reyes' })).toHaveAttribute('href', '/customers/customer-1');
+  expect(screen.getAllByText(/masked/).length).toBeGreaterThan(0);
 });

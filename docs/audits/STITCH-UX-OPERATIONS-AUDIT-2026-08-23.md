@@ -254,7 +254,7 @@ Admin findings:
 - Open high under E36: mobile collects and Provider 360 displays the government ID back image, but the provider approval API does not require it. Operations must manually enforce all four evidence files until the production-safe correction is designed.
 - Open high: several admin pages remain collections of local cards and tabs rather than linked case workspaces.
 - Open: operational SLA deadlines are not modeled, so the support UI must not invent countdowns.
-- Open: Analytics still needs a complete metric-definition, comparison-period, source, and freshness pass. The audited Dashboard W9 sources now carry those distinctions; that does not make every Analytics tab complete.
+- Fixed in Analytics checkpoint L: every visible tab states definition, source, freshness, and decision boundary; cohort value is separated from revenue; retention is labelled as deterministic attention; customer/provider rows open the canonical 360 record; and tablet tables keep all evidence visible. E47 still holds the conflicting legacy quality recomputation model and E48 still prohibits automated commission-rate advice.
 - Open: destructive or money-affecting actions need consistent reason capture, preview, server authorization, and audit display.
 - Fixed in the follow-up hardening batch: explicit React, UI, data, chart, and map vendor chunks reduced the former 540.39 kB main entry to approximately 271 kB. The production build passes with the shared libraries separated for browser caching.
 

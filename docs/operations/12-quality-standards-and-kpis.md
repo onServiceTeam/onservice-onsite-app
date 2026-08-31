@@ -255,12 +255,20 @@ Attendees:
 | Money + GMV + reconciliation | Financials `/financials` | Overview, Escrow, Payouts, Guarantee Fund, Reconciliation |
 | Payout queue | Payouts `/payouts` | Status filter |
 | Support | Support Tickets `/support-tickets` | Status, priority, assignment |
-| Quality analytics | Analytics `/analytics` | Quality Scores, Cohort, Churn, Commission tabs |
+| Quality analytics | Analytics `/analytics` | Cohort Analysis, Retention Signals, Quality Evidence, Commission Evidence |
 | Company compliance holds | Compliance `/compliance` | Current governance holds and canonical evidence-workspace links |
 | Privacy / DSR | Data Protection Log `/data-protection-log` | DPO queue, case review, audited actions, internal target |
 | Who did what | Audit Log `/audit-log` | Request + admin-op rows |
 
-Note: the Analytics page has "Quality Scores" and "Churn Prediction" tabs, but metric definitions, source labels, comparison periods, and freshness remain open audit work. Dashboard and Financials summaries need the same verification. Use the underlying booking, dispute, payout, support, and audit records for an operational decision until a metric's definition and freshness are shown in the UI.
+Analytics now shows definition, source, freshness, and a decision boundary for
+every visible surface. Retention Signals is a deterministic attention index,
+not a churn probability. E47 holds legacy quality recomputation because its
+weights and timeliness definition conflict with the monthly operations
+scorecard in this document. E48 retires automated commission-rate advice.
+Until those decisions close, use Quality Evidence only as historical component
+evidence and use Provider 360, bookings, disputes, payouts, support, and audit
+records for an operational decision. Dashboard and Financials remain subject
+to their own displayed source and period boundaries.
 
 ---
 

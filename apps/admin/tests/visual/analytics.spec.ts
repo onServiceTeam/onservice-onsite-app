@@ -1,8 +1,8 @@
 // Phase 14 Remediation #4 — visual baseline spec for AnalyticsPage
 // Page: apps/admin/src/pages/AnalyticsPage.tsx
 //
-// Captures 4 states (loading, empty, error, success) at 3 viewport
-// widths (1280, 1440, 1920). Operator runs
+// Captures the default cohort states plus each linked evidence surface at
+// tablet and desktop widths (820, 1024, 1280, 1440, 1920). Operator runs
 //   pnpm exec playwright test tests/visual/analytics.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
@@ -11,7 +11,7 @@ import { test, expect, waitForVisualSettled } from './_fixtures';
 const ROUTE = '/analytics';
 
 test.describe('AnalyticsPage', () => {
-  for (const width of [1280, 1440, 1920]) {
+  for (const width of [820, 1024, 1280, 1440, 1920]) {
     test.describe(`@${width}`, () => {
       test.use({ viewport: { width, height: 800 } });
 
@@ -76,6 +76,36 @@ test.describe('AnalyticsPage', () => {
         await waitForVisualSettled(page);
         await expect(page.getByText('Cohort analysis unavailable')).toBeVisible();
         await expect(page).toHaveScreenshot(`analytics-error-${width}.png`, {
+          fullPage: true,
+          maxDiffPixelRatio: 0.01,
+        });
+      });
+
+      test('retention evidence', async ({ page }) => {
+        await page.goto(`${ROUTE}?tab=churn`);
+        await waitForVisualSettled(page);
+        await expect(page.getByRole('link', { name: 'Ana Reyes' })).toBeVisible();
+        await expect(page).toHaveScreenshot(`analytics-retention-${width}.png`, {
+          fullPage: true,
+          maxDiffPixelRatio: 0.01,
+        });
+      });
+
+      test('quality evidence', async ({ page }) => {
+        await page.goto(`${ROUTE}?tab=quality`);
+        await waitForVisualSettled(page);
+        await expect(page.getByRole('link', { name: 'Mia Santos' })).toBeVisible();
+        await expect(page).toHaveScreenshot(`analytics-quality-${width}.png`, {
+          fullPage: true,
+          maxDiffPixelRatio: 0.01,
+        });
+      });
+
+      test('commission evidence', async ({ page }) => {
+        await page.goto(`${ROUTE}?tab=commission`);
+        await waitForVisualSettled(page);
+        await expect(page.getByText('Current live rate 13%')).toBeVisible();
+        await expect(page).toHaveScreenshot(`analytics-commission-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
         });

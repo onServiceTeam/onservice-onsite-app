@@ -2,6 +2,13 @@
 
 159 raw findings, 37 filtered. Confirmed: 26 high, 89 med, 7 low.
 
+> Authority note (2026-08-31): this is a point-in-time backlog, not the current
+> implementation plan. Recheck every item against the continuous audit and
+> active escalation/decision records. In particular, M5 is superseded by E47:
+> legacy quality recomputation is held at UI, API, and scheduler boundaries.
+> M6 is superseded by E48: automated commission advice and any apply-suggestion
+> workflow are explicitly prohibited; Analytics exposes read-only evidence.
+
 ## HIGH (26)
 
 ### H1. DataProtectionLogPage — correctness (small)
@@ -158,11 +165,13 @@
 - **Evidence:** AnalyticsPage.tsx line 386: formatDate applied but backend integration not verified for timezone handling. Compare to AuditLogPage.tsx line 72-81 which correctly applies 'Asia/Manila' timeZone in toLocaleString.
 
 ### M5. AnalyticsPage - Quality Scores Tab — ux-friction (small)
+- **Current resolution (2026-08-31):** Superseded by E47. The recompute action and weekly schedule are removed/held; already queued jobs exit without writes. Do not implement progress or restart computation until the score source of truth is approved.
 - **Observation:** The 'Recompute Scores' button triggers a long-running operation (recomputes 90 days of provider quality metrics) but provides no progress feedback, ETA, or UI indication of how long the job will take. Operator clicks 'Computing...' and must wait with no visibility into completion.
 - **Fix:** 1. Import sonner toast at the top of AnalyticsPage.tsx. 2. In the computeMutation's onSuccess callback, add: `toast.success(\`Quality scores updated for \${count} providers\`)` (extract count from the response). 3. Optionally enhance the QualityTab UI to show a "Last computed: <timestamp>" footer by querying the database for the max(computed_at) from provider_quality_scores and displaying it in the component. This gives operators immediate confirmation of completion and visibility into when scores were last updated.
 - **Evidence:** AnalyticsPage.tsx lines 443-447: computeMutation fires POST to `/api/v1/admin/analytics/quality-scores/compute` with no progress indication. Line 481-483 button shows 'Computing...' but no timeline or feedback.
 
 ### M6. AnalyticsPage - Commission Tab — missing-feature (small)
+- **Current resolution (2026-08-31):** Superseded by E48. The unapproved suggested-rate output and old endpoint are retired. No Apply Suggestion action may be added; the replacement workspace is evidence-only.
 - **Observation:** The Commission Optimization tab displays read-only suggestions (current rate, suggested rate, rationale) but offers no action button to apply the suggestions. An operator cannot directly update provider tier commission rates from this page; they must manually navigate elsewhere or contact backend team.
 - **Fix:** Add an "Apply Suggestion" button to each CommissionTab tier card (next to current rate display). Clicking opens a confirmation modal showing current→suggested values. On confirm, mutate with a dedicated hook (or extend existing API) to call `PUT /api/v1/admin/settings/commission_rate_{tier} { value: suggestedRate, reason: "Commission optimization suggestion applied" }`. Invalidate the commission-optimization query afterward. Bonus: allow bulk apply (checkboxes + Apply All button) for multi-tier adjustments in one transaction.
 - **Evidence:** AnalyticsPage.tsx lines 537-580 (CommissionTab): displays suggestions in cards (lines 552-576) but renders no action buttons. Backend admin.routes.ts has no commission-update endpoint exposed; only tier-change (line 241) but that's for provider tier level, not commission rate.

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
@@ -30,7 +30,7 @@ describe('provider quality recomputation', () => {
     vi.mocked(api.post).mockReset().mockResolvedValue({ data: { success: true } } as never);
   });
 
-  it('Bug UX-413 — score recomputation identifies every replaced evidence dimension before mutation', async () => {
+  it('Bug UX-413 — conflicting quality definitions hold recomputation instead of replacing provider snapshots', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
@@ -40,19 +40,9 @@ describe('provider quality recomputation', () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Recompute Scores' }));
-    expect(screen.getByRole('dialog')).toBeTruthy();
-    expect(
-      screen.getByText(/rating, completion, timeliness, cancellation, and response evidence/i),
-    ).toBeTruthy();
+    expect(await screen.findByText(/E47 holds recomputation/)).toBeInTheDocument();
+    expect(screen.getByText(/rating 30%, completion 25%/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /recompute/i })).not.toBeInTheDocument();
     expect(api.post).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Recompute scores' }));
-    await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith(
-        '/api/v1/admin/analytics/quality-scores/compute',
-        { periodDays: 90 },
-      );
-    });
   });
 });

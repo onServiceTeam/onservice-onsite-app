@@ -17,11 +17,11 @@ vi.mock('react-router-dom', async () => {
 
 import AnalyticsPage from '../AnalyticsPage';
 
-it('Bug UX-341 — commission analytics presents a read-only rule output with sample size instead of an approved recommendation', async () => {
+it('Bug UX-341 — commission analytics presents evidence without an automated rate recommendation', async () => {
   apiGet.mockResolvedValueOnce({ data: { data: [{
-    tier: 'verified', currentRate: 0.13, suggestedRate: 0.13, providerCount: 2,
-    qualitySampleCount: 1, averageCompletedBookings: 1.5, avgQualityScore: 72,
-    avgRevenue: 125000, rationale: 'Insufficient sample for a rate signal.',
+    tier: 'verified', currentRate: 0.13, providerCount: 2,
+    legacyQualitySampleCount: 1, averageCompletedBookings: 1.5,
+    averageCompletedBookingValue: 125000, sampleStatus: 'insufficient',
   }] } });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -30,8 +30,9 @@ it('Bug UX-341 — commission analytics presents a read-only rule output with sa
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText('Read-only rule outputs, not approved pricing decisions')).toBeInTheDocument();
-  expect(await screen.findByText(/Rule output:/)).toBeInTheDocument();
-  expect(await screen.findByText(/Sample: 2 approved providers, 1 current quality scores/)).toBeInTheDocument();
+  expect(screen.getByText(/E48 removes automated rate advice/)).toBeInTheDocument();
+  expect(await screen.findByText('Current live rate 13%')).toBeInTheDocument();
+  expect(screen.getByText(/Evidence is too small for comparison/)).toBeInTheDocument();
+  expect(screen.queryByText(/Rule output:/)).not.toBeInTheDocument();
   expect(screen.queryByText(/Suggested:/)).not.toBeInTheDocument();
 });
