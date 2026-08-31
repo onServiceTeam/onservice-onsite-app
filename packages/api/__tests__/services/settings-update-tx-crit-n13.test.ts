@@ -62,18 +62,28 @@ const SETTING_ROW = {
   is_active: true,
   requires_restart: false,
   updated_by: null,
-  updated_at: new Date(),
-  created_at: new Date(),
+  updated_at: new Date('2026-01-01T00:00:00.000Z'),
+  created_at: new Date('2026-01-01T00:00:00.000Z'),
 };
+
+function mutationContext() {
+  return {
+    changedBy: 'admin-user-1',
+    reason: 'Approved fee increase.',
+    expectedUpdatedAt: SETTING_ROW.updated_at.toISOString(),
+    ipAddress: '127.0.0.1',
+    userAgent: 'JestAgent/1.0',
+  };
+}
 
 describe('CRIT-N13 — settings.updateSetting wraps update + audit in transaction', () => {
   it('CRIT-N13 — happy path: UPDATE + audit INSERT both run inside one transaction', async () => {
-    // 1. SELECT existing setting (outside the trx — read-only).
-    dbQueryMock.mockResolvedValueOnce({ rows: [SETTING_ROW], rowCount: 1 });
-
     const txCalls: Array<{ sql: string; params: unknown[] }> = [];
     const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
       txCalls.push({ sql, params });
+      if (/SELECT \*/.test(sql) && /FOR UPDATE/.test(sql)) {
+        return { rows: [SETTING_ROW], rowCount: 1 };
+      }
       if (/UPDATE platform_settings/.test(sql)) {
         return { rows: [{ ...SETTING_ROW, value: '12' }], rowCount: 1 };
       }
@@ -90,30 +100,28 @@ describe('CRIT-N13 — settings.updateSetting wraps update + audit in transactio
     const result = await updateSetting(
       'service_fee_rate',
       '12',
-      'admin-user-1',
-      'increase fee',
-      '127.0.0.1',
-      'JestAgent/1.0',
+      mutationContext(),
     );
 
     expect(result.value).toBe('12');
     expect(dbTransactionMock).toHaveBeenCalledTimes(1);
-    expect(txCalls).toHaveLength(2);
-    expect(txCalls[0]!.sql).toMatch(/UPDATE platform_settings/);
-    expect(txCalls[1]!.sql).toMatch(/INSERT INTO platform_settings_audit/);
-    expect(txCalls[1]!.params[2]).toBe('10'); // old_value
-    expect(txCalls[1]!.params[3]).toBe('12'); // new_value
-    expect(txCalls[1]!.params[4]).toBe('admin-user-1'); // changed_by
-    expect(txCalls[1]!.params[5]).toBe('increase fee'); // change_reason
+    expect(txCalls).toHaveLength(3);
+    expect(txCalls[0]!.sql).toMatch(/FOR UPDATE/);
+    expect(txCalls[1]!.sql).toMatch(/UPDATE platform_settings/);
+    expect(txCalls[2]!.sql).toMatch(/INSERT INTO platform_settings_audit/);
+    expect(txCalls[2]!.params[2]).toBe('10'); // old_value
+    expect(txCalls[2]!.params[3]).toBe('12'); // new_value
+    expect(txCalls[2]!.params[4]).toBe('admin-user-1'); // changed_by
+    expect(txCalls[2]!.params[5]).toBe('Approved fee increase.'); // change_reason
   });
 
   it('CRIT-N13 — audit insert failure rolls back the value UPDATE (transaction unit)', async () => {
-    // 1. SELECT existing setting.
-    dbQueryMock.mockResolvedValueOnce({ rows: [SETTING_ROW], rowCount: 1 });
-
     const txCalls: Array<{ sql: string; params: unknown[] }> = [];
     const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
       txCalls.push({ sql, params });
+      if (/SELECT \*/.test(sql) && /FOR UPDATE/.test(sql)) {
+        return { rows: [SETTING_ROW], rowCount: 1 };
+      }
       if (/UPDATE platform_settings/.test(sql)) {
         return { rows: [{ ...SETTING_ROW, value: '12' }], rowCount: 1 };
       }
@@ -132,7 +140,7 @@ describe('CRIT-N13 — settings.updateSetting wraps update + audit in transactio
     });
 
     await expect(
-      updateSetting('service_fee_rate', '12', 'admin-user-1'),
+      updateSetting('service_fee_rate', '12', mutationContext()),
     ).rejects.toThrow('audit insert failed');
 
     // Both queries were ATTEMPTED inside the same transaction — but the
@@ -140,15 +148,14 @@ describe('CRIT-N13 — settings.updateSetting wraps update + audit in transactio
     // outside this test's scope. Key invariant: both calls happened on
     // the SAME client (proven by single trx invocation).
     expect(dbTransactionMock).toHaveBeenCalledTimes(1);
-    expect(txCalls).toHaveLength(2); // UPDATE then audit insert
+    expect(txCalls).toHaveLength(3); // locked SELECT, UPDATE, then audit insert
   });
 
   it('CRIT-N13 — does NOT use db.query for UPDATE + audit (must use db.transaction)', async () => {
-    // Defensive: ensures the legacy non-transactional pattern (two
-    // top-level db.query calls) is gone.
-    dbQueryMock.mockResolvedValueOnce({ rows: [SETTING_ROW], rowCount: 1 });
-
     const clientQuery = jest.fn(async (sql: string) => {
+      if (/SELECT \*/.test(sql) && /FOR UPDATE/.test(sql)) {
+        return { rows: [SETTING_ROW], rowCount: 1 };
+      }
       if (/UPDATE platform_settings/.test(sql)) {
         return { rows: [{ ...SETTING_ROW, value: '12' }], rowCount: 1 };
       }
@@ -159,16 +166,10 @@ describe('CRIT-N13 — settings.updateSetting wraps update + audit in transactio
       return (cb as any)({ query: clientQuery });
     });
 
-    await updateSetting('service_fee_rate', '12', 'admin-user-1');
+    await updateSetting('service_fee_rate', '12', mutationContext());
 
-    // db.query was used ONCE — the SELECT for the existing setting.
-    // (We accept one outside-trx db.query for the read since it's
-    // idempotent and read-only.)
-    expect(dbQueryMock).toHaveBeenCalledTimes(1);
-    const [readSql] = dbQueryMock.mock.calls[0]!;
-    expect(readSql).toMatch(/SELECT \* FROM platform_settings WHERE key = \$1/);
-
-    // The trx ran exactly once.
+    expect(dbQueryMock).not.toHaveBeenCalled();
     expect(dbTransactionMock).toHaveBeenCalledTimes(1);
+    expect(clientQuery.mock.calls[0]![0]).toMatch(/FOR UPDATE/);
   });
 });

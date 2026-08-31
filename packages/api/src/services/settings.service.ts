@@ -600,45 +600,96 @@ export function validateSettingValue(setting: SettingRow, newValue: string): voi
 
 // ── Write ──
 
-export async function updateSetting(
-  key: string,
-  newValue: string,
-  changedBy: string,
-  reason?: string,
-  ipAddress?: string,
-  userAgent?: string,
-): Promise<SettingRow> {
-  // CRIT-N13 fix: UPDATE platform_settings + INSERT platform_settings_audit
-  // are now wrapped in a single transaction. Pre-fix: two separate
-  // db.query calls — if the audit INSERT failed after the value UPDATE
-  // committed, the platform setting changed without an audit row.
-  // platform_settings is the source of truth for every money knob, so
-  // an unaudited mutation is a compliance gap.
-  const current = await db.query<SettingRow>(
-    `SELECT * FROM platform_settings WHERE key = $1`,
-    [key],
-  );
-  if (current.rows.length === 0) {
-    throw createAppError(`Setting "${key}" not found.`, 404);
+const MIN_SETTING_REASON_LENGTH = 10;
+const MAX_SETTING_REASON_LENGTH = 500;
+
+export interface SettingMutationContext {
+  changedBy: string;
+  reason: string;
+  expectedUpdatedAt: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+export interface BulkSettingUpdate {
+  key: string;
+  value: string;
+  expectedUpdatedAt: string;
+}
+
+function normalizeMutationReason(reason: string): string {
+  const normalized = typeof reason === 'string' ? reason.trim() : '';
+  if (normalized.length < MIN_SETTING_REASON_LENGTH) {
+    throw createAppError(
+      `A change reason with at least ${MIN_SETTING_REASON_LENGTH} characters is required.`,
+      400,
+    );
   }
-  const setting = current.rows[0]!;
+  if (normalized.length > MAX_SETTING_REASON_LENGTH) {
+    throw createAppError(
+      `Change reason must be ${MAX_SETTING_REASON_LENGTH} characters or fewer.`,
+      400,
+    );
+  }
+  return normalized;
+}
 
-  assertSettingEditable(key);
-  validateSettingValue(setting, newValue);
+function normalizeExpectedUpdatedAt(expectedUpdatedAt: string): number {
+  const timestamp = Date.parse(expectedUpdatedAt);
+  if (!Number.isFinite(timestamp)) {
+    throw createAppError('The setting version is missing or invalid. Reload settings and try again.', 400);
+  }
+  return timestamp;
+}
 
-  const oldValue = setting.value;
+function assertSettingVersion(setting: SettingRow, expectedTimestamp: number): void {
+  if (new Date(setting.updated_at).getTime() !== expectedTimestamp) {
+    throw createAppError(
+      `Setting "${setting.key}" changed after this screen was loaded. Reload settings and review the newer value before trying again.`,
+      409,
+    );
+  }
+}
 
-  const updated = await db.transaction(async (client) => {
+async function updateLockedSetting(
+  key: string,
+  resolveNewValue: (setting: SettingRow) => string,
+  context: SettingMutationContext,
+  auditReason: string,
+): Promise<SettingRow> {
+  if (Object.prototype.hasOwnProperty.call(SETTING_DEFAULTS, key)) {
+    assertSettingEditable(key);
+  }
+  const expectedTimestamp = normalizeExpectedUpdatedAt(context.expectedUpdatedAt);
+
+  const mutation = await db.transaction(async (client) => {
+    const current = await client.query<SettingRow>(
+      `SELECT *
+         FROM platform_settings
+        WHERE key = $1
+        FOR UPDATE`,
+      [key],
+    );
+    if (current.rows.length === 0) {
+      throw createAppError(`Setting "${key}" not found.`, 404);
+    }
+
+    const setting = current.rows[0]!;
+    assertSettingEditable(key);
+    assertSettingVersion(setting, expectedTimestamp);
+    const newValue = resolveNewValue(setting);
+    validateSettingValue(setting, newValue);
+
     const updResult = await client.query<SettingRow>(
       `UPDATE platform_settings
-         SET value = $1, updated_by = $2, updated_at = NOW()
-       WHERE key = $3
-       RETURNING *`,
-      [newValue, changedBy, key],
+          SET value = $1,
+              updated_by = $2,
+              updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 millisecond')
+        WHERE id = $3
+        RETURNING *`,
+      [newValue, context.changedBy, setting.id],
     );
     if (updResult.rows.length === 0) {
-      // Concurrent delete race — should not happen given the SELECT above,
-      // but defensive throw rolls back any partial state.
       throw createAppError(`Setting "${key}" not found.`, 404);
     }
 
@@ -646,32 +697,46 @@ export async function updateSetting(
       `INSERT INTO platform_settings_audit
          (setting_id, setting_key, old_value, new_value, changed_by, change_reason, ip_address, user_agent)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [setting.id, key, oldValue, newValue, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
+      [
+        setting.id,
+        key,
+        setting.value,
+        newValue,
+        context.changedBy,
+        auditReason,
+        context.ipAddress ?? null,
+        context.userAgent ?? null,
+      ],
     );
 
-    return updResult.rows[0]!;
+    return { previous: setting, updated: updResult.rows[0]! };
   });
 
-  // Cache bust + log are post-commit (idempotent + non-blocking).
   await bustCache(key);
 
   logger.info('Platform setting updated', {
     key,
-    oldValue: setting.is_sensitive ? '[REDACTED]' : oldValue,
-    newValue: setting.is_sensitive ? '[REDACTED]' : newValue,
-    changedBy,
-    reason,
+    oldValue: mutation.previous.is_sensitive ? '[REDACTED]' : mutation.previous.value,
+    newValue: mutation.previous.is_sensitive ? '[REDACTED]' : mutation.updated.value,
+    changedBy: context.changedBy,
+    reason: auditReason,
   });
 
-  return updated;
+  return mutation.updated;
+}
+
+export async function updateSetting(
+  key: string,
+  newValue: string,
+  context: SettingMutationContext,
+): Promise<SettingRow> {
+  const auditReason = normalizeMutationReason(context.reason);
+  return updateLockedSetting(key, () => newValue, context, auditReason);
 }
 
 export async function bulkUpdateSettings(
-  updates: Array<{ key: string; value: string }>,
-  changedBy: string,
-  reason?: string,
-  ipAddress?: string,
-  userAgent?: string,
+  updates: BulkSettingUpdate[],
+  context: Omit<SettingMutationContext, 'expectedUpdatedAt'>,
 ): Promise<SettingRow[]> {
   // MED-N106 fix — atomic bulk update. Pre-fix: the loop called
   // updateSetting per key; if the 5th of 10 succeeded but the 6th
@@ -681,21 +746,39 @@ export async function bulkUpdateSettings(
   // every key; any failure rolls back the whole batch.
   if (updates.length === 0) return [];
 
-  // Pre-validate all keys exist before any write so failure is clean.
+  const auditReason = normalizeMutationReason(context.reason);
   const keys = updates.map((u) => u.key);
-  const existing = await db.query<SettingRow>(
-    `SELECT * FROM platform_settings WHERE key = ANY($1::text[])`,
-    [keys],
+  if (new Set(keys).size !== keys.length) {
+    throw createAppError('A bulk settings request cannot contain the same key more than once.', 400);
+  }
+  const expectedByKey = new Map(
+    updates.map((update) => [update.key, normalizeExpectedUpdatedAt(update.expectedUpdatedAt)]),
   );
-  const byKey = new Map(existing.rows.map((r) => [r.key, r]));
+
   for (const u of updates) {
-    const setting = byKey.get(u.key);
-    if (!setting) throw createAppError(`Setting "${u.key}" not found.`, 404);
-    assertSettingEditable(u.key);
-    validateSettingValue(setting, u.value);
+    if (Object.prototype.hasOwnProperty.call(SETTING_DEFAULTS, u.key)) {
+      assertSettingEditable(u.key);
+    }
   }
 
   const results = await db.transaction(async (client) => {
+    const existing = await client.query<SettingRow>(
+      `SELECT *
+         FROM platform_settings
+        WHERE key = ANY($1::text[])
+        ORDER BY key
+        FOR UPDATE`,
+      [[...keys].sort()],
+    );
+    const byKey = new Map(existing.rows.map((row) => [row.key, row]));
+    for (const update of updates) {
+      const setting = byKey.get(update.key);
+      if (!setting) throw createAppError(`Setting "${update.key}" not found.`, 404);
+      assertSettingEditable(update.key);
+      assertSettingVersion(setting, expectedByKey.get(update.key)!);
+      validateSettingValue(setting, update.value);
+    }
+
     const out: SettingRow[] = [];
     // SAFE-N+1: bulk admin write, capped at 50 keys (route-enforced); per-key audit + cache-bust required.
     // Sequential while-loop (not for-of) to avoid harness N+1 false-positive on iteration form.
@@ -706,10 +789,12 @@ export async function bulkUpdateSettings(
       const oldValue = setting.value;
       const updRes = await client.query<SettingRow>(
         `UPDATE platform_settings
-           SET value = $1, updated_by = $2, updated_at = NOW()
-         WHERE key = $3
+            SET value = $1,
+                updated_by = $2,
+                updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 millisecond')
+          WHERE id = $3
          RETURNING *`,
-        [u.value, changedBy, u.key],
+        [u.value, context.changedBy, setting.id],
       );
       if (updRes.rows.length === 0) {
         throw createAppError(`Setting "${u.key}" not found.`, 404);
@@ -723,7 +808,16 @@ export async function bulkUpdateSettings(
         `INSERT INTO platform_settings_audit
            (setting_id, setting_key, old_value, new_value, changed_by, change_reason, ip_address, user_agent)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [setting.id, u.key, oldValue, u.value, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
+        [
+          setting.id,
+          u.key,
+          oldValue,
+          u.value,
+          context.changedBy,
+          auditReason,
+          context.ipAddress ?? null,
+          context.userAgent ?? null,
+        ],
       );
       out.push(updRes.rows[0]!);
       idx += 1;
@@ -747,20 +841,11 @@ export async function bulkUpdateSettings(
 // preferred when present; the hardcoded string is only the fallback.
 export async function resetToDefault(
   key: string,
-  changedBy: string,
-  reason?: string,
+  context: SettingMutationContext,
 ): Promise<SettingRow> {
-  const current = await db.query<SettingRow>(
-    `SELECT * FROM platform_settings WHERE key = $1`,
-    [key],
-  );
-  if (current.rows.length === 0) {
-    throw createAppError(`Setting "${key}" not found.`, 404);
-  }
-  const auditReason = reason && reason.trim().length > 0
-    ? `Reset to default: ${reason.trim()}`
-    : 'Reset to default';
-  return updateSetting(key, current.rows[0]!.default_value, changedBy, auditReason);
+  const reason = normalizeMutationReason(context.reason);
+  const auditReason = `Reset to default: ${reason}`;
+  return updateLockedSetting(key, (setting) => setting.default_value, context, auditReason);
 }
 
 export async function getSettingAuditHistory(key: string, limit = 50): Promise<AuditRow[]> {

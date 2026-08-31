@@ -5,8 +5,8 @@
  * Talks to /api/v1/admin/settings:
  *   GET    /                          → { categories, settings: { [cat]: Setting[] } }
  *   GET    /:category                 → Setting[]
- *   PUT    /:key   { value, reason }  → Setting
- *   POST   /:key/reset                → Setting
+ *   PUT    /:key   { value, reason, expectedUpdatedAt }  → Setting
+ *   POST   /:key/reset { reason, expectedUpdatedAt }      → Setting
  *   GET    /:key/history              → AuditRow[]
  *   POST   /cache/flush               → { ok }
  *
@@ -145,10 +145,11 @@ export default function SystemSettingsPage(): React.ReactElement {
   );
 
   const updateMutation = useMutation({
-    mutationFn: async (input: { key: string; value: string; reason?: string }) => {
+    mutationFn: async (input: { key: string; value: string; reason: string; expectedUpdatedAt: string }) => {
       const res = await api.put(`/api/v1/admin/settings/${input.key}`, {
         value: input.value,
-        reason: input.reason ?? undefined,
+        reason: input.reason,
+        expectedUpdatedAt: input.expectedUpdatedAt,
       });
       return res.data.data as PlatformSetting;
     },
@@ -165,9 +166,10 @@ export default function SystemSettingsPage(): React.ReactElement {
   });
 
   const resetMutation = useMutation({
-    mutationFn: async (input: { key: string; reason?: string }) => {
+    mutationFn: async (input: { key: string; reason: string; expectedUpdatedAt: string }) => {
       const res = await api.post(`/api/v1/admin/settings/${input.key}/reset`, {
-        reason: input.reason ?? undefined,
+        reason: input.reason,
+        expectedUpdatedAt: input.expectedUpdatedAt,
       });
       return res.data.data as PlatformSetting;
     },
@@ -262,7 +264,12 @@ export default function SystemSettingsPage(): React.ReactElement {
       return;
     }
     if (!window.confirm(`Save ${setting.key} as ${value}?`)) return;
-    updateMutation.mutate({ key: editingKey, value, reason });
+    updateMutation.mutate({
+      key: editingKey,
+      value,
+      reason,
+      expectedUpdatedAt: setting.updatedAt,
+    });
   }
 
   function formatValue(s: PlatformSetting): string {
@@ -646,7 +653,11 @@ export default function SystemSettingsPage(): React.ReactElement {
                     return;
                   }
                   if (!window.confirm(`Reset ${pendingReset.key} to its default value?`)) return;
-                  resetMutation.mutate({ key: pendingReset.key, reason });
+                  resetMutation.mutate({
+                    key: pendingReset.key,
+                    reason,
+                    expectedUpdatedAt: pendingReset.updatedAt,
+                  });
                 }}
                 disabled={resetMutation.isPending || resetReason.trim().length < 10}
                 className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm disabled:opacity-50"

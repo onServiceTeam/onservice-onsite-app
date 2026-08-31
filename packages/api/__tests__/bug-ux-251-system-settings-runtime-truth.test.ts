@@ -46,7 +46,11 @@ it('Bug UX-251 — disconnected and launch-held settings are reported and enforc
   });
 
   await expect(
-    settingsService.updateSetting('jwt_access_expires', '30m', 'admin-1'),
+    settingsService.updateSetting('jwt_access_expires', '30m', {
+      changedBy: 'admin-1',
+      reason: 'Approved token lifetime change.',
+      expectedUpdatedAt: '2026-01-01T00:00:00.000Z',
+    }),
   ).rejects.toMatchObject({ statusCode: 409 });
   expect(dbTransactionMock).not.toHaveBeenCalled();
 });
