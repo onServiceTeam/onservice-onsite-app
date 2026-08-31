@@ -4,7 +4,7 @@
  * Mocks db.query and logger; no real SQL. Asserts:
  *   1. Customer DSR submission (access, erasure, correction) routes through
  *      svc.createDsr with the correct request_type.
- *   2. createDsr SQL includes the 15-day SLA expression.
+ *   2. createDsr SQL includes the current 15-day internal target expression.
  *   3. Admin can list DSRs (svc.listDsrs).
  *   4. Admin markDsrComplete writes admin_actions verb 'dsr_marked_complete'
  *      against target_type 'dsr_request'.
@@ -18,8 +18,8 @@
  *      mobile UI; here we assert createDsr rejects unknown request_type.
  *   9. markDsrComplete on already-completed DSR rejects with 409.
  *  10. Audit verbs all map to allowlist defined in migration 058.
- *  11. Reject requires reason ≥ 20 chars; escalate requires npcReference.
- *  12. Admin actions never throw the main path on audit insert failure.
+ *  11. Reject requires reason ≥ 30 chars; escalate requires npcReference.
+ *  12. DSR decisions roll back when their required admin-action evidence fails.
  */
 
 const dbQueryMock = jest.fn();
@@ -154,7 +154,7 @@ describe('createDsr (customer)', () => {
     expect(out.requestType).toBe('correction');
   });
 
-  it('computes a 15-day SLA in SQL', async () => {
+  it('computes the current 15-day internal response target in SQL', async () => {
     dbQueryMock
       .mockResolvedValueOnce(rows([makeDsrRow()]))
       .mockResolvedValueOnce(rows([]));
@@ -218,14 +218,17 @@ describe('markDsrComplete', () => {
 
     expect(out.status).toBe('completed');
     expect(out.completedAt).toBeTruthy();
-    const auditCall = dbQueryMock.mock.calls[2];
-    const auditSql = auditCall[0] as string;
-    const auditParams = auditCall[1] as unknown[];
+    const auditCall = dbQueryMock.mock.calls.find(
+      ([sql]) => /INSERT INTO admin_actions/.test(sql as string),
+    );
+    expect(auditCall).toBeDefined();
+    const auditSql = auditCall![0] as string;
+    const auditParams = auditCall![1] as unknown[];
     expect(auditSql).toMatch(/INSERT INTO admin_actions/);
-    expect(auditParams[1]).toBe('dsr_marked_complete');
-    expect(auditParams[2]).toBe('dsr_request');
-    expect(auditParams[3]).toBe(DSR_ID);
-    expect(PHASE13_DSR_VERBS.has(auditParams[1] as string)).toBe(true);
+    expect(auditSql).toMatch(/'dsr_marked_complete'/);
+    expect(auditSql).toMatch(/'dsr_request'/);
+    expect(auditParams[1]).toBe(DSR_ID);
+    expect(PHASE13_DSR_VERBS.has('dsr_marked_complete')).toBe(true);
   });
 
   it('rejects already-completed DSR with 409', async () => {
@@ -239,10 +242,10 @@ describe('markDsrComplete', () => {
     })).rejects.toMatchObject({ statusCode: 409 });
   });
 
-  it('still resolves when audit insert throws (warn logged)', async () => {
+  it('Bug UX-803 — completion locks the case and rolls back when required audit evidence fails', async () => {
     dbQueryMock
       .mockResolvedValueOnce(rows([{
-        id: DSR_ID, user_id: USER_ID, status: 'received',
+        id: DSR_ID, user_id: USER_ID, status: 'in_progress',
         admin_notes: null, completed_at: null,
       }]))
       .mockResolvedValueOnce(rows([makeDsrRow({
@@ -250,14 +253,10 @@ describe('markDsrComplete', () => {
       })]))
       .mockRejectedValueOnce(new Error('audit boom'));
 
-    const out = await adminSvc.markDsrComplete({
+    await expect(adminSvc.markDsrComplete({
       dsrId: DSR_ID, adminUserId: ADMIN_ID,
-    });
-    expect(out.status).toBe('completed');
-    expect(loggerWarn).toHaveBeenCalledWith(
-      'audit_log insert failed',
-      expect.objectContaining({ actionType: 'dsr_marked_complete' }),
-    );
+    })).rejects.toThrow('audit boom');
+    expect(dbQueryMock.mock.calls[0][0]).toMatch(/FOR UPDATE/);
   });
 });
 
@@ -406,11 +405,14 @@ describe('escalateDsrToNpc', () => {
     });
 
     expect(out.status).toBe('in_progress');
-    const auditCall = dbQueryMock.mock.calls[2];
-    const auditParams = auditCall[1] as unknown[];
-    expect(auditParams[1]).toBe('dsr_escalated_to_npc');
-    expect(auditParams[2]).toBe('dsr_request');
-    const detailsJson = JSON.parse(auditParams[4] as string) as Record<string, unknown>;
+    const auditCall = dbQueryMock.mock.calls.find(
+      ([sql]) => /INSERT INTO admin_actions/.test(sql as string),
+    );
+    expect(auditCall).toBeDefined();
+    expect(auditCall![0]).toMatch(/'dsr_escalated_to_npc'/);
+    expect(auditCall![0]).toMatch(/'dsr_request'/);
+    const auditParams = auditCall![1] as unknown[];
+    const detailsJson = JSON.parse(auditParams[2] as string) as Record<string, unknown>;
     expect(detailsJson.npcReference).toBe('NPC-2026-A1B2C3');
   });
 

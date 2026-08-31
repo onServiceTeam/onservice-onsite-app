@@ -4,7 +4,7 @@
 -- Pre-D08 the table had a single `promotions` BOOLEAN; the marketing
 -- worker didn't query it. This migration:
 -- 1. Adds explicit per-channel flags (push/SMS/email).
--- 2. Adds marketing_consent_acknowledged_at + version for NPC traceability.
+-- 2. Adds marketing_consent_acknowledged_at + version as durable internal consent evidence.
 -- 3. Backfills the new flags from the existing `promotions` boolean.
 --
 -- The marketing service (sendMarketingPush/Sms/Email) checks BOTH the

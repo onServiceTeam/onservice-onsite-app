@@ -9,7 +9,7 @@
  * All form inputs include aria-* attributes; all feedback uses sonner toasts.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -27,8 +27,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  EmptyState,
+  ErrorState,
   Input,
   Label,
+  LoadingState,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -64,7 +72,11 @@ interface PublishedConsentVersion {
 }
 
 interface ConsentVersionsResponse {
-  data: { summaries: ConsentVersionSummary[]; published: PublishedConsentVersion[] };
+  data: {
+    summaries: ConsentVersionSummary[];
+    published: PublishedConsentVersion[];
+    allowedConsentTypes: string[];
+  };
 }
 
 type ConsentTab = 'current' | 'history';
@@ -81,12 +93,18 @@ function fmtDate(iso: string): string {
 // which returns the UTC date. For an admin in Manila publishing late
 // at night (e.g., 00:30 Manila Thursday = 16:30 UTC Wednesday), the
 // effectiveDate defaulted to 'Wednesday' even though the admin saw
-// the screen on 'Thursday'. The effectiveDate is a legally relevant
-// field — it determines when a consent version is in force for the
-// active-users count. Now we extract Manila day via toLocaleDateString
+// the screen on 'Thursday'. The effectiveDate determines the platform's
+// recorded in-force day and acknowledgement behavior. Now we extract the
+// Manila day via toLocaleDateString
 // with `en-CA` (which produces the same YYYY-MM-DD shape).
-function todayLocalIso(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+export function todayLocalIso(now: Date = new Date()): string {
+  return now.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+}
+
+export function manilaDateToIso(value: string, now: Date = new Date()): string {
+  return value.trim()
+    ? new Date(`${value.trim()}T00:00:00+08:00`).toISOString()
+    : now.toISOString();
 }
 
 export default function ConsentVersionsPage(): React.ReactElement {
@@ -116,19 +134,12 @@ export default function ConsentVersionsPage(): React.ReactElement {
 
   const versionsQuery = useQuery({
     queryKey: ['adminConsentVersions'],
-    queryFn: async (): Promise<{ summaries: ConsentVersionSummary[]; published: PublishedConsentVersion[] }> => {
+    queryFn: async (): Promise<ConsentVersionsResponse['data']> => {
       const res = await api.get<ConsentVersionsResponse>('/api/v1/admin/compliance/consent-versions');
       return res.data.data;
     },
     staleTime: 30 * 1000,
   });
-
-  const knownTypes = useMemo(() => {
-    const set = new Set<string>();
-    (versionsQuery.data?.summaries ?? []).forEach((s) => set.add(s.consentType));
-    (versionsQuery.data?.published ?? []).forEach((p) => { if (p.consentType) set.add(p.consentType); });
-    return Array.from(set).sort();
-  }, [versionsQuery.data]);
 
   const publishMutation = useMutation({
     mutationFn: async (input: {
@@ -181,8 +192,8 @@ export default function ConsentVersionsPage(): React.ReactElement {
     publishMutation.mutate({
       consentType: trimmedConsentType,
       version: trimmedVersion,
-      // Anchor the legal effective day to Manila midnight, not UTC midnight.
-      effectiveAt: effectiveDate.trim() ? new Date(effectiveDate + 'T00:00:00+08:00').toISOString() : new Date().toISOString(),
+      // Anchor the selected operational effective day to Manila midnight.
+      effectiveAt: manilaDateToIso(effectiveDate),
       changeSummary: trimmedSummary,
       material,
     });
@@ -198,7 +209,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
     { key: 'effective', header: 'First seen', render: (r) => fmtDate(r.effectiveDate) },
     {
       key: 'activeUsers',
-      header: 'Active users',
+      header: 'Current grants',
       render: (r) => <span className="font-medium">{r.activeUsers.toLocaleString('en-PH')}</span>,
     },
     {
@@ -243,29 +254,35 @@ export default function ConsentVersionsPage(): React.ReactElement {
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <Shield size={22} className="text-[var(--color-secondary)]" />
-            Consent Versions
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Track NPC-relevant consent surfaces and publish new versions when policies change.
-          </p>
+    <div className="space-y-6">
+      <section className="overflow-hidden rounded-2xl bg-[var(--color-primary)] px-5 py-6 text-white shadow-sm sm:px-7 lg:px-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <div className="flex items-center gap-2 text-sm font-semibold text-white/80"><Shield size={18} /> Consent evidence operations</div>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Consent Versions</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/85 sm:text-base">
+              Review the latest recorded user decisions, retained history, and the audited version events that the customer and provider clients can acknowledge.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="min-h-11 shrink-0 self-start border-white bg-white text-slate-900 hover:bg-white/90 lg:self-auto"
+            onClick={() => setPublishOpen(true)}
+            aria-label="Publish a new consent version"
+          >
+            Publish new version
+          </Button>
         </div>
-        <Button
-          onClick={() => setPublishOpen(true)}
-          aria-label="Publish a new consent version"
-        >
-          Publish new version
-        </Button>
-      </div>
+      </section>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as 'current' | 'history')}>
-        <TabsList>
-          <TabsTrigger value="current">Current versions</TabsTrigger>
-          <TabsTrigger value="history">Audit trail</TabsTrigger>
+      <section role="note" className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950">
+        This workspace records platform evidence. Publishing does not certify legal compliance or file anything with the NPC. A material flag tells the apps to require a fresh acknowledgement for that consent type.
+      </section>
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as ConsentTab)}>
+        <TabsList className="grid min-h-11 w-full grid-cols-2 sm:w-fit">
+          <TabsTrigger className="min-h-11" value="current">Current versions</TabsTrigger>
+          <TabsTrigger className="min-h-11" value="history">Audit trail</TabsTrigger>
         </TabsList>
         <TabsContent value="current">
           <Card>
@@ -273,31 +290,77 @@ export default function ConsentVersionsPage(): React.ReactElement {
               <CardTitle className="text-base">Versions currently in use</CardTitle>
             </CardHeader>
             <CardContent>
-              <DataTable
-                columns={summaryColumns}
-                data={versionsQuery.data?.summaries ?? []}
-                keyExtractor={(r) => `${r.consentType}__${r.version}`}
-                isLoading={versionsQuery.isLoading}
-                emptyMessage={versionsQuery.isError
-                  ? 'Failed to load consent versions.'
-                  : 'No consent records have been recorded yet.'}
-              />
+              <p className="mb-4 text-sm leading-6 text-[var(--color-text-secondary)]">
+                Current grants count each user only at their latest recorded decision for that consent type. Historical decisions remain in total records.
+              </p>
+              {versionsQuery.isLoading ? (
+                <LoadingState label="Loading consent evidence…" />
+              ) : versionsQuery.isError ? (
+                <ErrorState
+                  title="Consent evidence unavailable"
+                  description={getErrorMessage(versionsQuery.error)}
+                  action={<Button variant="outline" onClick={() => void versionsQuery.refetch()}>Retry consent evidence</Button>}
+                />
+              ) : (versionsQuery.data?.summaries?.length ?? 0) === 0 ? (
+                <EmptyState title="No consent records yet" description="No supported consent type has a recorded user decision." icon={<Shield size={28} />} />
+              ) : (
+                <>
+                  <section aria-label="Current consent version cards" className="space-y-3 lg:hidden">
+                    {versionsQuery.data?.summaries?.map((record) => (
+                      <article key={`${record.consentType}__${record.version}`} className="rounded-xl border border-[var(--color-border)] p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0"><p className="break-all font-mono text-xs font-semibold text-[var(--color-primary)]">{record.consentType}</p><p className="mt-1 text-lg font-semibold">Version {record.version}</p></div>
+                          <div className="rounded-lg bg-[var(--color-surface-hover)] px-3 py-2 text-right"><p className="text-xs uppercase text-[var(--color-text-tertiary)]">Current grants</p><p className="font-semibold">{record.activeUsers.toLocaleString('en-PH')}</p></div>
+                        </div>
+                        <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                          <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Total records</dt><dd className="mt-1">{record.totalRecords.toLocaleString('en-PH')}</dd></div>
+                          <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">First seen</dt><dd className="mt-1">{fmtDate(record.effectiveDate)}</dd></div>
+                          <div className="col-span-2"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Last decision recorded</dt><dd className="mt-1">{fmtDate(record.lastUpdated)}</dd></div>
+                        </dl>
+                      </article>
+                    ))}
+                  </section>
+                  <div className="hidden lg:block"><DataTable columns={summaryColumns} data={versionsQuery.data?.summaries ?? []} keyExtractor={(r) => `${r.consentType}__${r.version}`} /></div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="history">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Published-version audit trail</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-base">Published-version audit trail</CardTitle></CardHeader>
             <CardContent>
-              <DataTable
-                columns={publishedColumns}
-                data={versionsQuery.data?.published ?? []}
-                keyExtractor={(r) => r.id}
-                isLoading={versionsQuery.isLoading}
-                emptyMessage="No consent versions have been published yet."
-              />
+              {versionsQuery.isLoading ? (
+                <LoadingState label="Loading publish history…" />
+              ) : versionsQuery.isError ? (
+                <ErrorState
+                  title="Publish history unavailable"
+                  description={getErrorMessage(versionsQuery.error)}
+                  action={<Button variant="outline" onClick={() => void versionsQuery.refetch()}>Retry consent evidence</Button>}
+                />
+              ) : (versionsQuery.data?.published?.length ?? 0) === 0 ? (
+                <EmptyState title="No published versions yet" description="No audited publish event has been recorded." icon={<Shield size={28} />} />
+              ) : (
+                <>
+                  <section aria-label="Published consent version cards" className="space-y-3 lg:hidden">
+                    {versionsQuery.data?.published?.map((record) => (
+                      <article key={record.id} className="rounded-xl border border-[var(--color-border)] p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0"><p className="break-all font-mono text-xs font-semibold text-[var(--color-primary)]">{record.consentType}</p><p className="mt-1 text-lg font-semibold">Version {record.version}</p></div>
+                          {record.material ? <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">Material</span> : <span className="text-xs text-[var(--color-text-tertiary)]">Routine</span>}
+                        </div>
+                        <p className="mt-4 text-sm leading-6 text-[var(--color-text-secondary)]">{record.changeSummary}</p>
+                        <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                          <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Effective</dt><dd className="mt-1">{fmtDate(record.effectiveAt)}</dd></div>
+                          <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published</dt><dd className="mt-1">{fmtDate(record.publishedAt)}</dd></div>
+                          <div className="col-span-2"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published by</dt><dd className="mt-1 font-mono text-xs">{record.publishedBy ?? 'Not recorded'}</dd></div>
+                        </dl>
+                      </article>
+                    ))}
+                  </section>
+                  <div className="hidden lg:block"><DataTable columns={publishedColumns} data={versionsQuery.data?.published ?? []} keyExtractor={(r) => r.id} /></div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -312,31 +375,27 @@ export default function ConsentVersionsPage(): React.ReactElement {
           <DialogHeader>
             <DialogTitle>Publish a new consent version</DialogTitle>
             <DialogDescription>
-              Records a new policy version for NPC traceability. Tick the
-              "material change" box only when the change is significant
-              enough that every user with a prior grant must re-acknowledge
-              before continuing — that flag is what drives the customer
-              re-consent prompt.
+              Creates an audited platform version for a client-supported
+              consent type. The material flag makes the customer and provider
+              apps require fresh acknowledgement for prior grants. Apply it
+              only after the approved policy review establishes that outcome.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
               <Label htmlFor="cv-type">Consent type</Label>
-              <Input
-                id="cv-type"
-                list="cv-known-types"
-                value={consentType}
-                onChange={(e) => setConsentType(e.target.value)}
-                placeholder="e.g., privacy_policy"
-                aria-required="true"
-                aria-describedby="cv-type-help"
-                maxLength={50}
-              />
-              <datalist id="cv-known-types">
-                {knownTypes.map((t) => <option key={t} value={t} />)}
-              </datalist>
+              <Select value={consentType} onValueChange={setConsentType}>
+                <SelectTrigger id="cv-type" className="min-h-11" aria-label="Consent type">
+                  <SelectValue placeholder="Choose a supported consent type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(versionsQuery.data?.allowedConsentTypes ?? []).map((type) => (
+                    <SelectItem key={type} value={type}>{type.replace(/_/g, ' ')}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p id="cv-type-help" className="text-xs text-slate-500 mt-1">
-                Existing types: {knownTypes.length > 0 ? knownTypes.join(', ') : '(none yet)'}.
+                The server rejects unknown types because customer/provider clients cannot acknowledge them.
               </p>
             </div>
             <div>
@@ -393,11 +452,10 @@ export default function ConsentVersionsPage(): React.ReactElement {
                     id="cv-material-help"
                     className="block text-xs text-amber-800 mt-1"
                   >
-                    Every user with a prior grant of this consent type
-                    will see a re-consent prompt at next interaction.
-                    Use only for changes large enough to require
-                    explicit fresh acknowledgement (new processing
-                    purposes, expanded data sharing, etc.).
+                    The apps will treat every prior grant of this consent type
+                    as needing fresh acknowledgement at the next supported
+                    interaction. Confirm the approved policy decision before
+                    enabling this platform behavior.
                   </span>
                 </span>
               </label>

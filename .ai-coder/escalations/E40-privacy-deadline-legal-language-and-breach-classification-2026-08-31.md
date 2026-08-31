@@ -39,20 +39,49 @@ determination that the stored facts do not establish.
 - Data Privacy Act Implementing Rules and Regulations, Rule IX §38:
   https://privacy.gov.ph/implementing-rules-regulations-data-privacy-act-2012/
 
-## Current affected surfaces
+## Surfaces affected when this escalation was raised
+
+This is the point-in-time discovery record. The containment section below
+records which presentation and workflow defects have since been removed.
 
 - `packages/api/src/services/compliance.service.ts` creates every DSR with
   `due_at = NOW() + INTERVAL '15 days'`.
-- `apps/admin/src/pages/DataProtectionLogPage.tsx` calls this the "15-day NPC
-  SLA".
+- `apps/admin/src/pages/DataProtectionLogPage.tsx` called this the "15-day NPC
+  SLA" at discovery time.
 - `docs/strategy/COMPLIANCE.md`, `docs/operations/10-money-and-compliance-ops.md`,
   `docs/operations/11-admin-system-training-manual.md`, and architecture/audit
   records repeat the legal-window claim.
 - `packages/api/src/services/breach-log.service.ts` starts a 72-hour timer for
   every incident and has only `npc_notified_at` / `npc_reference` as the
   notification outcome.
-- `apps/admin/src/pages/BreachLogPage.tsx` labels every unnotified incident
-  "NPC notice pending".
+- The retired `apps/admin/src/pages/BreachLogPage.tsx` labelled every unnotified
+  incident "NPC notice pending".
+
+## Safe containment completed 2026-08-31
+
+The legal decision remains open, but the audit removed claims and unsafe
+operator affordances that did not require choosing a new legal policy:
+
+- Customer and admin DSR copy now calls the stored date an internal response
+  target, not an NPC-mandated completion SLA.
+- The canonical DSR queue moved to the segregated Data Protection Log. It now
+  has server-side filters, case review, exact customer/provider linkage,
+  explicit start-review evidence, aligned action validation, and usable
+  response/rejection outcomes.
+- DSR writes lock the case and commit their admin-action evidence in the same
+  transaction. The generic unaudited patch route now returns 410.
+- Public customer DSR responses exclude handler, admin-note, subject-identity,
+  and other internal fields.
+- Operations, training, support, quality, incident, architecture, and strategy
+  docs now repeat the E40 boundary instead of the old universal deadline claim.
+- The legacy breach API remains DPO-scoped, but the replacement breach UI and
+  notification-classification schema remain held. No code in this containment
+  decides whether an incident is reportable.
+- DSR and breach evidence preserve the exact NPC-issued reference instead of
+  enforcing the previously invented `NPC-YYYY-XXXXXX` mask.
+
+This containment does not close E40 and does not approve the recommended legal
+interpretation below.
 
 ## Recommended product decision for counsel to approve
 

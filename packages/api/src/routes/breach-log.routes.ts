@@ -31,7 +31,7 @@ router.get('/', authMiddleware, requireDpoRole, async (req: AuthenticatedRequest
 // the attack surface but doesn't eliminate it — same defense-in-
 // depth pattern as Phase 152-157. Caps:
 //   scope: 2000 chars (free-form description of affected data)
-//   npcReference: 100 chars (NPC-YYYY-XXXXXX format is ~16 chars; allow slack)
+//   npcReference: 100 chars (preserve the exact regulator-issued reference)
 //   remediationSummary: 5000 chars (free-form post-incident report)
 const BREACH_SCOPE_MAX = 2000;
 const BREACH_NPC_REFERENCE_MAX = 100;

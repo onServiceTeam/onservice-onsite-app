@@ -189,7 +189,7 @@ Escrow is an active money ledger. The retained guarantee-fund wallet is an inter
 | Reconciliation discrepancies | Zero unacknowledged | Financials Reconciliation tab |
 | Failed payouts | Zero left unresolved | Financials Payouts tab; Payouts queue |
 | PayMongo webhook failures | Zero | `paymongo_webhook_failure` admin alert |
-| DSR on-time rate | 100% within the NPC-required window | Compliance DSR queue; Dashboard overdue/near-due rows |
+| DSR internal-target rate | 100% acknowledged and handled against the stored internal target, with misses investigated; E40 holds legal-deadline wording | Data Protection Log; Dashboard overdue/near-due rows |
 
 The release formula allocates 1.5% of the customer service fee to the guarantee wallet. The current customer service fee is 0%, so the current fee-derived contribution is zero. Guarantee terms remain subject to E10/F#10; do not describe it as insurance or invent coverage wording.
 
@@ -256,7 +256,8 @@ Attendees:
 | Payout queue | Payouts `/payouts` | Status filter |
 | Support | Support Tickets `/support-tickets` | Status, priority, assignment |
 | Quality analytics | Analytics `/analytics` | Quality Scores, Cohort, Churn, Commission tabs |
-| Compliance / DSR | Compliance `/compliance` | DSR queue and audit; BIR calendar remains held and non-authoritative under E22 |
+| Company compliance holds | Compliance `/compliance` | Current governance holds and canonical evidence-workspace links |
+| Privacy / DSR | Data Protection Log `/data-protection-log` | DPO queue, case review, audited actions, internal target |
 | Who did what | Audit Log `/audit-log` | Request + admin-op rows |
 
 Note: the Analytics page has "Quality Scores" and "Churn Prediction" tabs, but metric definitions, source labels, comparison periods, and freshness remain open audit work. Dashboard and Financials summaries need the same verification. Use the underlying booking, dispute, payout, support, and audit records for an operational decision until a metric's definition and freshness are shown in the UI.

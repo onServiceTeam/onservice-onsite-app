@@ -1,4 +1,5 @@
-// MED-N116 / MED-N119 / MED-N121 / MED-N122 / MED-N123 / MED-N124 / MED-N132 fixes verified.
+// MED-N116 / MED-N119 / MED-N121 / MED-N122 / MED-N124 / MED-N132 fixes verified.
+// MED-N123's single-mask NPC-reference assumption is superseded by UX-811.
 
 const dbQueryMock = jest.fn();
 const dbTransactionMock = jest.fn();
@@ -143,17 +144,6 @@ describe('MED-N122 — DSR mutations wrap UPDATE + audit in single trx', () => {
     expect(body).not.toBe('');
     expect(body).toMatch(/db\.transaction\(async \(client\)/);
     expect(body).toMatch(/INSERT INTO admin_actions/);
-  });
-});
-
-describe('MED-N123 — NPC reference regex bounds the suffix', () => {
-  it('MED-N123 — suffix length is 6-12 chars (not unbounded)', () => {
-    expect(COMPLIANCE_SVC).toMatch(/NPC-\\d\{4\}-\[A-Z0-9\]\{6,12\}/);
-    expect(COMPLIANCE_SVC).not.toMatch(/NPC-\\d\{4\}-\[A-Z0-9\]\{6,\}\$/);
-  });
-
-  it('MED-N123 — error message mentions the bound', () => {
-    expect(COMPLIANCE_SVC).toMatch(/6-12 alphanumeric/);
   });
 });
 

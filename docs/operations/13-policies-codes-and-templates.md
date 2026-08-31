@@ -283,12 +283,14 @@ FOLLOW-UPS / OWNERS:
 [ ]
 
 COMPLIANCE FLAGS:
-NPC breach (personal data)? [Y/N - if Y, 72h notice clock starts]
+Suspected personal-data incident? [Y/N - if Y, notify DPO and preserve evidence]
+DPO notification assessment: [not started / assessing / counsel decision recorded]
+NPC / affected-subject reference, if actually issued: [ ]
 BIR / money discrepancy? [Y/N]
 Needs Ken? [Y/N - money/compliance/legal/architecture hard stop]
 ```
 
-Reminder: a personal-data breach starts a 72-hour NPC notification clock, and money or compliance risk is a hard stop that goes to Ken. See `10-money-and-compliance-ops.md`.
+Reminder: suspected privacy incidents are contained and sent to the DPO immediately. E40 holds the product's notification-required classification and deadline wording; do not mark every incident reportable or start a statutory countdown from this template. Money or compliance risk remains a hard stop that goes to Ken. See `10-money-and-compliance-ops.md`.
 
 ### 6.10 Onboarding checklists
 

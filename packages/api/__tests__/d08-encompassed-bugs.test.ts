@@ -152,13 +152,8 @@ describe('Bug 397 — DSR rejection reason ≥30 chars', () => {
   });
 });
 
-describe('Bug 398 — escalateDsrToNpc NPC reference format', () => {
-  it('compliance-admin.service enforces NPC-YYYY-XXXXXX regex', () => {
-    expect(COMPLIANCE_SVC).toMatch(/Bug 398/);
-    // MED-N123 fix — bound the suffix length (was {6,}, now {6,12}).
-    expect(COMPLIANCE_SVC).toMatch(/NPC-\\d\{4\}-\[A-Z0-9\]\{6,12\}/);
-  });
-});
+// Bug 398's invented NPC reference mask was superseded by UX-811.
+// Executed behavior lives in bug-ux-811-npc-reference-format.test.ts.
 
 describe('Bug 399 — publishConsentVersion changeSummary ≥30 chars', () => {
   it('compliance-admin.service.publishConsentVersion enforces 30-char minimum', () => {

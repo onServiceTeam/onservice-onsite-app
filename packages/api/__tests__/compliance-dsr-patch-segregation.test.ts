@@ -1,4 +1,4 @@
-// Segregation of duties for the generic DSR status PATCH.
+// Retirement and segregation of duties for the generic DSR status PATCH.
 // D34 makes the dedicated DPO role (plus super-admin fallback) the owner of
 // every DSR read and transition. Plain operations admins never receive a
 // partially writable DSR surface.
@@ -58,10 +58,13 @@ describe('DSR PATCH — segregation of duties', () => {
     expect(updateMock).not.toHaveBeenCalled();
   });
 
-  it('allows the appointed DPO to set the terminal completed status', async () => {
+  it('Bug UX-802 — generic DPO mutation is retired so dedicated audited actions cannot be bypassed', async () => {
     CURRENT_USER = { userId: 'dpo-1', role: 'dpo' };
-    const res = await request(buildApp()).patch('/api/v1/admin/compliance/dsr/d1').send({ newStatus: 'completed' });
-    expect(res.status).toBe(200);
-    expect(updateMock).toHaveBeenCalled();
+    const res = await request(buildApp())
+      .patch('/api/v1/admin/compliance/dsr/00000000-0000-0000-0000-000000000001')
+      .send({ newStatus: 'completed' });
+    expect(res.status).toBe(410);
+    expect(res.body.error.message).toMatch(/dedicated complete, request-info, reject, or escalate/i);
+    expect(updateMock).not.toHaveBeenCalled();
   });
 });

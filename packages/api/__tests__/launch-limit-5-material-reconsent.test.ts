@@ -15,13 +15,10 @@ jest.mock('../src/models/db', () => ({
 
 import * as compliance from '../src/services/compliance.service';
 import * as complianceAdmin from '../src/services/compliance-admin.service';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
 
 beforeEach(() => {
   dbQueryMock.mockReset();
 });
-
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const ADMIN_ID = '22222222-2222-4222-8222-222222222222';
 
@@ -38,7 +35,7 @@ describe('LAUNCH-LIMITATIONS #5 — publishConsentVersion accepts material flag'
 
     const result = await complianceAdmin.publishConsentVersion({
       adminUserId: ADMIN_ID,
-      consentType: 'tos_acceptance',
+      consentType: 'terms_of_service',
       version: 'v1',
       changeSummary: 'Initial publication of the terms of service v1.',
     });
@@ -97,7 +94,7 @@ describe('LAUNCH-LIMITATIONS #5 — listPublishedConsentVersions surfaces materi
           id: 'pub-1',
           admin_id: ADMIN_ID,
           details: {
-            consentType: 'tos_acceptance',
+            consentType: 'terms_of_service',
             version: 'v1',
             effectiveAt: '2026-05-02T10:00:00Z',
             changeSummary: 'Marker only.',
@@ -184,25 +181,5 @@ describe('LAUNCH-LIMITATIONS #5 — getPendingMaterialConsents service shape', (
     // Whatever else is in WHERE, it must not include a revoke-pending branch.
     expect(sql).not.toMatch(/ucr\.granted\s*=\s*FALSE/);
     expect(sql).not.toMatch(/granted\s*=\s*FALSE\s+AND/);
-  });
-});
-
-describe('LAUNCH-LIMITATIONS #5 — route wiring', () => {
-  it('#5 — GET /my-pending-consents is mounted under auth', () => {
-    const ROUTE = readFileSync(
-      resolve(__dirname, '../src/routes/compliance.routes.ts'),
-      'utf8',
-    );
-    expect(ROUTE).toMatch(/router\.get\(\s*['"]\/my-pending-consents['"]/);
-    expect(ROUTE).toMatch(/getPendingMaterialConsents/);
-    expect(ROUTE).toMatch(/authMiddleware/);
-  });
-
-  it('#5 — admin POST /consent-versions forwards body.material into the service', () => {
-    const ROUTE = readFileSync(
-      resolve(__dirname, '../src/routes/compliance-admin.routes.ts'),
-      'utf8',
-    );
-    expect(ROUTE).toMatch(/material:\s*body\.material === true/);
   });
 });

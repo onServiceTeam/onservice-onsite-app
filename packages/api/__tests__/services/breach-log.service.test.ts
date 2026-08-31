@@ -108,59 +108,14 @@ describe('Bug 1366 — createBreach', () => {
 });
 
 describe('Bug 1366 — markNpcNotified', () => {
-  it('rejects malformed NPC reference', async () => {
+  it('rejects an NPC reference outside the evidence boundary', async () => {
     await expect(
       svc.markNpcNotified({
         breachId: BREACH_ID,
-        npcReference: 'INVALID-FORMAT',
+        npcReference: 'x',
         adminUserId: ADMIN_ID,
       }),
     ).rejects.toMatchObject({ statusCode: 400 });
-  });
-
-  it('accepts valid NPC-YYYY-XXXXXX reference', async () => {
-    const now = new Date('2026-04-30T08:00:00Z');
-    setTxQueryImpl(makeRouter([
-      { match: /SELECT \* FROM breach_log WHERE id = \$1 FOR UPDATE/, rows: [{
-        id: BREACH_ID,
-        type: 'unauthorized_access',
-        scope: 'X',
-        affected_user_count: null,
-        occurred_at: now,
-        discovered_at: now,
-        npc_notified_at: null,
-        npc_reference: null,
-        status: 'investigating',
-        reported_by: ADMIN_ID,
-        remediation_summary: null,
-        created_at: now,
-        updated_at: now,
-      }], rowCount: 1 },
-      { match: /UPDATE breach_log/, rows: [{
-        id: BREACH_ID,
-        type: 'unauthorized_access',
-        scope: 'X',
-        affected_user_count: null,
-        occurred_at: now,
-        discovered_at: now,
-        npc_notified_at: now,
-        npc_reference: 'NPC-2026-A1B2C3',
-        status: 'reported',
-        reported_by: ADMIN_ID,
-        remediation_summary: null,
-        created_at: now,
-        updated_at: now,
-      }], rowCount: 1 },
-      { match: /INSERT INTO admin_actions/, rowCount: 1 },
-    ]));
-
-    const result = await svc.markNpcNotified({
-      breachId: BREACH_ID,
-      npcReference: 'NPC-2026-A1B2C3',
-      adminUserId: ADMIN_ID,
-    });
-    expect(result.npcReference).toBe('NPC-2026-A1B2C3');
-    expect(result.status).toBe('reported');
   });
 
   it('rejects 409 when breach already notified', async () => {

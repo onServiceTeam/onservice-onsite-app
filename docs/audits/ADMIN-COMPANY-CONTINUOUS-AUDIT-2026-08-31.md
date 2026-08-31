@@ -293,11 +293,66 @@ This checkpoint is containment, not resolution. Selecting the canonical source a
 - Gate A passed all 10 blocking fragments, Gate C passed all 6 blocking articles, all six gate self-tests passed, and the no-phantom-test scan passed. The N+1 heuristic retained 30 reviewed/justified locations and passed.
 - Production remains unclaimed under E32. No production data, policy value, refund amount, legal text, or server deployment was changed.
 
+## Checkpoint K — compliance, privacy requests, and consent contracts
+
+The compliance page was not a control center. It duplicated the Audit Log,
+kept unreachable legacy NPC/BIR code, redirected one tab, and exposed a report
+button that only displayed a toast. The DSR queue mixed legal claims, client-
+side filtering, hidden case evidence, inconsistent validation, non-atomic
+actions, an unaudited generic patch, and no canonical subject link. Public DSR
+history also returned internal DPO fields. Consent publishing accepted types
+the role apps could never acknowledge, and current-grant counts included stale
+historical grants.
+
+Remediation landed as Bugs UX-801 through UX-822:
+
+- UX-801: strict server-side DSR queue scope, pagination, and request-type filter.
+- UX-802: generic DSR patch retired in favor of dedicated actions.
+- UX-803: DSR outcome and audit evidence now commit atomically under a row lock.
+- UX-804: customer DSR responses use a public projection with internal fields removed.
+- UX-805: responsive DPO case review exposes the subject request, evidence, outcome, and 360 link before action.
+- UX-806: consent publication is limited to the seven client-supported consent types.
+- UX-807: current grants count each user's latest decision rather than old unrevoked grants.
+- UX-808: Compliance is now a truthful hold-and-evidence index with canonical workspace links and no fake report generator.
+- UX-809: customers can open an HTTPS response and understand a rejection reason without false SLA wording.
+- UX-810: a received request has an explicit, audited Start review claim action instead of abusing Request info.
+- UX-811: NPC references preserve the actual issued docket/reference family instead of enforcing an invented mask.
+- UX-812: breach-notification evidence follows the same exact-reference contract instead of retaining a second invented mask.
+- UX-813: consent-source failure is a visible, recoverable error rather than a false empty history; the manager now uses tablet evidence cards, desktop tables, and factual material-change consequences.
+- UX-814: the DSR completion dialog validates a complete HTTPS URL instead of enabling submission for an unusable `https://` prefix.
+- UX-815: a partial successful DSR response fails closed to the empty-state contract instead of crashing the privacy workspace.
+- UX-816: the DPO role can open its segregated Privacy Workspace directly from the Compliance control center.
+- UX-817: operations admins see the privacy restriction without a misleading empty queue or inactive filters.
+- UX-818: the server rejects completion of a received request until a Start review action has moved it into review.
+- UX-819: the admin case dialog matches that lifecycle and does not offer completion before review starts.
+- UX-820: malformed legacy response URLs are not presented to customers as secure response links.
+- UX-821: pending material-consent route coverage now executes authentication and user scoping instead of inspecting source text.
+- UX-822: material consent-publication coverage now executes the admin route and verifies the service input instead of inspecting source text.
+
+E40 remains open. The 15-day date is contained as an internal target, and the
+replacement breach-classification workflow remains held for Philippine privacy
+counsel. No universal notification determination or deadline was invented.
+
+Manual visual review covered the Compliance Control Center, DSR queue and case
+review, both consent tabs, the publish dialog, and loading/empty/error contracts.
+The strict follow-up run passed 60 screenshots at 820, 1024, 1280, 1440, and
+1920 pixels without baseline updates. Nine obsolete fake loading/empty/error
+snapshots were removed from the static Compliance screen.
+
+Latest local verification after the accuracy pass:
+
+- Admin: 230 test files passed, 1 skipped; 322 tests passed and 3 remain explicit `todo` items.
+- API: 604 test suites passed, 1 skipped; 3,169 tests passed and 1 skipped. The Docker-dependent certificate-revocation test is not counted as locally verified because Docker Desktop is unavailable; protected CI must run it.
+- Mobile: 497 test suites passed; 876 tests passed and 84 remain explicit `todo` items.
+- Admin, Mobile, and API TypeScript checks passed. Full repository ESLint, API production build, and the Admin production build passed; the Admin build transformed 2,840 modules.
+- The strict 60-screenshot comparison passed again on the final local code with no baseline updates.
+- Gate A's exact Node emoji scan and exact tracked-source brand-color scan passed under the Windows runtimes. The Bash aggregate is intentionally not claimed locally because WSL cannot resolve this linked-worktree `.git` pointer and has no WSL Node runtime. The other eight fragments passed earlier; protected CI remains the authoritative aggregate gate.
+
 ## Next admin/company audit queue
 
 The next continuous loop starts from the admin navigation inventory and rechecks each remaining page against the operating questions above. Priority order is:
 
-1. Compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
+1. Analytics, settings, roles, and every remaining configuration field and lifecycle action.
 2. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
 
 Existing legal, money, production-data, and privileged-identity escalation boundaries still apply. A page-local visual improvement is not permission to invent legal wording, mutate production money, or bypass those controls.

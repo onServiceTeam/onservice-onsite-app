@@ -1276,7 +1276,9 @@ Under RA 10173 (Data Privacy Act of 2012) and NPC Circular 2023-06:
 4. Data minimization: don't collect more than needed
 5. Storage limitation: delete data when no longer needed (define retention periods)
 6. Security: encryption at rest and in transit, access controls, audit logs
-7. Breach notification: 72 hours to notify NPC of any data breach
+7. Breach response: contain and assess every suspected incident immediately.
+   E40 holds the product's notification-required classification and deadline
+   wording; do not treat every incident as automatically reportable.
 8. Data subject rights: right to access, correct, delete, port their data
 9. Annual Security Incident Report (ASIR): submit to NPC by March 31 each year
 10. Appoint a Data Protection Officer

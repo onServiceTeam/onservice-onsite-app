@@ -224,31 +224,58 @@ Launch-cutover Item 1 (NPC DPO registration, Ken or fractional DPO, allow 14 to 
 
 ### 8.1 Data-subject requests (DSRs)
 
-Customers submit DSRs in-app (Download My Data, Correct My Info, Delete My Account). The SLA shown to the user is 15 days. There is also a parallel "Account & Data" self-service export/delete flow with a 30-day cooling-off on deletion.
+Customers submit DSRs in-app (Download My Data, Correct My Info, Deactivate &
+Anonymize My Account). The case stores a 15-day internal response target. E40
+prohibits staff and product copy from describing that date as an NPC-mandated
+completion SLA until Philippine privacy counsel approves the operative policy.
+There is also a parallel "Account & Data" self-service export/deactivation flow
+with a 30-day cooling-off period.
 
-DSR handling (admin Compliance -> NPC Compliance, or Data Protection Log; DPO/super_admin):
+DSR handling (admin Privacy Workspace -> Data Protection Log; DPO/super_admin fallback):
 
 1. Watch the DSR queue. The Dashboard flags overdue and near-due DSRs.
-2. Open the request, set status to `in_progress`.
-3. For an access/export request: attach the response payload URL on complete.
-4. For a correction: make the change, note it, complete.
-5. For an erasure: confirm active bookings are closed and the wallet is zero, then complete. Personal identifiers are removed; BIR receipts (10-year retention) survive.
-6. To reject: provide a reason (20+ chars, super_admin).
-7. To escalate to NPC: record the NPC reference (super_admin).
+2. Open **Review case** and read the subject message, handler, existing notes,
+   dates, and linked Customer/Provider 360 record before acting.
+3. For a newly received request, choose **Start review** and write a specific
+   10+ character internal note. This claims the case without notifying the
+   subject.
+4. If identity or scope evidence is missing, use **Request info** with the exact
+   10+ character request. The subject receives an in-app notice.
+5. For an access/export request, complete only after the response is ready; add
+   an HTTPS delivery URL when one exists and verify the subject can use it.
+6. For a correction, make and verify the change, record the evidence, then
+   complete.
+7. For an erasure request, verify the separate deactivation/anonymization work
+   before typing the completion confirmation. Closing the DSR record does not
+   itself erase backend data. Do not invent retention periods while E21/E22
+   remain unresolved.
+8. To reject, provide a case-specific 30+ character factual and approved legal
+   basis. The subject can see the rejection reason in request history.
+9. Use **Record NPC case** only after NPC issued a real reference. Preserve the
+   exact reference; this action records evidence and does not submit a filing.
 
-> **Set (editable):** acknowledge a data-subject request within 2 business days and fulfil it within the NPC-required window (the 15-day legal window, with several days of buffer). _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Set (editable):** acknowledge a data-subject request within 2 business days and work toward the stored 15-day internal response target. A missed target is investigated and escalated. E40 holds any claim that this is an NPC-mandated completion deadline. _Recommended internal target; legal wording is not editable by operations while E40 is open._
 
 ### 8.2 Breach response
 
-> **Set (editable):** NPC requires breach notification within 72 hours of knowledge of a notifiable breach; have the DPO and a PH lawyer confirm the threshold and the exact NPC filing path before an incident, not during one. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Legal/product hold (E40):** contain and assess every suspected privacy
+> incident immediately, but do not classify every incident as reportable or
+> present a statutory countdown in the product. The schema does not yet record
+> a counsel-approved notification determination, basis, postponement, affected-
+> subject notice, or follow-up report. Philippine privacy counsel must approve
+> that contract before the breach admin workflow is replaced.
 
 Starting breach runbook (tune with the DPO):
 
 1. Contain. Rotate keys, revoke sessions, isolate the affected system.
 2. Assess scope. What data, how many subjects, sensitive or not.
 3. Notify the DPO immediately. The DPO owns the NPC decision.
-4. If notifiable, file with NPC within 72 hours and notify affected data subjects.
-5. Log the incident, root cause, and fix. See `09-trust-safety-and-disputes.md` for incident handling.
+4. Preserve discovery/knowledge times and the evidence needed for the DPO and
+   counsel to determine whether notification is required. Do not use the legacy
+   breach screen to make that determination while E40 is open.
+5. If counsel/DPO determines notification is required, follow the approved NPC
+   and affected-subject procedure and record the actual references and evidence.
+6. Log the incident, root cause, and fix. See `09-trust-safety-and-disputes.md` for incident handling.
 
 Consent versions: when the DPO publishes a new material consent version (admin Consent Versions page), affected users re-grant inline at next use.
 
@@ -296,7 +323,7 @@ DSR acknowledgement (email reply, support handles manually):
 Subject: Your data request (Ref {{ref}})
 Hi {{name}},
 We received your request to {{access/correct/delete}} your data on {{date}}.
-Under the Data Privacy Act we will respond by {{dueDate}} (15 days).
+Our current response target is {{dueDate}}. We will record any identity or scope information we need from you on this request.
 If we need anything from you to verify your identity, we will reach out.
 - onService Data Protection
 dpo@onservice.ph
@@ -338,5 +365,5 @@ All money is in centavos in the database; the admin and apps display pesos. Ever
 - Collect provider TIN before first payout; confirm on file before ₱500,000 YTD. (editable)
 - A PH accountant owns BIR filing and correctness; the app only generates the numbers. (editable)
 - Replace placeholder entity name and `privacy@onservice.ph` once NPC registration is done. (editable)
-- Acknowledge a DSR within 2 business days; fulfil within the NPC-required 15-day window. (editable)
-- File a notifiable breach with NPC within 72 hours; DPO and PH lawyer confirm threshold and path in advance. (editable)
+- Acknowledge a DSR within 2 business days and work toward the stored 15-day internal target. E40 holds legal-deadline wording. (internal target)
+- Contain and assess suspected privacy incidents immediately. E40 holds the notification-classification schema, statutory trigger/deadline wording, and replacement admin workflow pending Philippine privacy counsel. (not editable by operations)

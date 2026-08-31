@@ -99,7 +99,7 @@ See `phases/PHASE-04-admin-dashboard.md` for full layout. Key requirements:
 - Customer + provider history with pattern detection
 - Resolution form: 6 outcome options, reason required, internal notes
 - Confirm modal showing money movement before resolve
-- Audit log entry on every action
+- Paired audit evidence for the supported resolution, escalation, reopen, and participant-message actions; E37 tracks incomplete global mutation coverage
 
 ## Module 6 — Service Catalog (Phase 09e refines)
 
@@ -237,12 +237,15 @@ Real-time view of every active booking with provider locations on a map. See `ph
 
 ## Module 21 — Compliance Center (NEW, Phase 11)
 
-- DSR queue with 15-day SLA timer
+- Compliance control center for open holds, evidence boundaries, and links to
+  canonical operational workspaces
+- DSR queue in the segregated Data Protection Log, using the stored 15-day
+  date as an internal response target while E40 remains open
 - Consent log search
 - DPO action log
 - Consent version manager
-- BIR filing calendar
-- Tax documents archive
+- Held BIR workpaper link; no authoritative filing calendar or document
+  issuance while E22 remains open
 
 ---
 
@@ -280,7 +283,7 @@ Every list view has:
 - Cursor-based for tables >10K rows
 
 ### Audit trail
-Every state-changing action writes to `audit_log`:
+Target contract: every privileged state-changing action must be attributable through `audit_log`, `admin_actions`, or a canonical domain event. Current coverage is partial under E37 and must not be described as a global request or mutation trail. Recorded evidence should include:
 - Actor (admin user ID)
 - Entity (table + ID)
 - Action (verb)
