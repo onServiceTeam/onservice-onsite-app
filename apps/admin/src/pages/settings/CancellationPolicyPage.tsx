@@ -1,35 +1,21 @@
-/**
- * Bug 1170 / 1198 + Bug 1170-admin-ui fix verified.
- * Phase 14 Dispatch 02 — admin editor for the cancellation policy.
- *
- * Server-canonical (table cancellation_policies, migration 071); this is the
- * only mutation surface. Talks to /api/v1/admin/cancellation-policies.
- * Public consumers (mobile terms.tsx, help.tsx) read /api/v1/settings/cancellation-policy.
- *
- * super_admin role only (server enforces; the client also hides the link
- * when role !== 'super_admin').
- */
-
-import React, { useMemo, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import api, { getErrorMessage } from '@/lib/api';
 import {
   Button,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
-  Input,
-  Label,
-  Textarea,
   EmptyState,
-  LoadingState,
   ErrorState,
+  LoadingState,
 } from '@/components/ui';
-import { Plus, Trash2, Save, RefreshCw } from '@/components/icons';
+import { AlertTriangle, ExternalLink, RefreshCw } from '@/components/icons';
 import { useAuthStore } from '@/stores/auth.store';
-import { Tier, validateTiers, findTier } from '@/lib/cancellation-policy-validation';
+import type { Tier } from '@/lib/cancellation-policy-validation';
 
 interface ActivePolicy {
   id: string;
@@ -59,10 +45,32 @@ interface VersionListItem {
   intro_text_preview: string;
 }
 
-const SAMPLE_BOOKING_PHP = 1000;
+interface LiveCancellationSetting {
+  key: string;
+  label: string;
+  value: string;
+  unit: string | null;
+  runtimeStatus: 'live' | 'held' | 'not_connected';
+  runtimeLabel: string;
+  runtimeSummary: string;
+  editable: boolean;
+}
+
+const LIVE_REFUND_RULES: ReadonlyArray<{ key: string; label: string }> = [
+  { key: 'cancel_refund_over_24h', label: 'More than 24 hours before' },
+  { key: 'cancel_refund_2_to_24h', label: '2 to 24 hours before' },
+  { key: 'cancel_refund_1_to_2h', label: '1 to 2 hours before' },
+  { key: 'cancel_refund_30min_to_1h', label: '30 minutes to 1 hour before' },
+  { key: 'cancel_refund_under_30min', label: 'Under 30 minutes before' },
+  { key: 'cancel_refund_provider_arrived', label: 'Provider already arrived' },
+  { key: 'cancel_refund_customer_noshow', label: 'Customer no-show' },
+];
 
 function formatPHP(centavos: number): string {
-  return `₱${(centavos / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₱${(centavos / 100).toLocaleString('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function formatPHT(value: string): string {
@@ -76,165 +84,74 @@ function formatPHT(value: string): string {
   }).format(new Date(value));
 }
 
-interface EditorState {
-  tiers: Tier[];
-  intro_text: string;
-  legal_disclaimer: string;
-  provider_no_show_credit_php: number;
-}
-
 export default function CancellationPolicyPage(): React.ReactElement {
-  const role = useAuthStore((s) => s.user?.role);
-  const queryClient = useQueryClient();
-  const [editing, setEditing] = useState<EditorState | null>(null);
-  const [previewHours, setPreviewHours] = useState<number>(20);
-  const [submitError, setSubmitError] = useState<string>('');
-  const [editMode, setEditMode] = useState<'new-version' | 'in-place' | null>(null);
+  const role = useAuthStore((state) => state.user?.role);
+  const canRead = role === 'admin' || role === 'super_admin';
 
   const versionsQuery = useQuery({
     queryKey: ['cancellation-policies', 'list'],
     queryFn: async () => {
-      const res = await api.get<{ data: VersionListItem[] }>('/api/v1/admin/cancellation-policies');
-      return res.data.data;
+      const response = await api.get<{ data: VersionListItem[] }>('/api/v1/admin/cancellation-policies');
+      return response.data.data;
     },
-    enabled: role === 'super_admin',
+    enabled: canRead,
   });
 
-  const activeVersion = versionsQuery.data?.find((v) => v.is_active) ?? null;
+  const activeVersion = versionsQuery.data?.find((version) => version.is_active) ?? null;
 
   const activePolicyQuery = useQuery({
     queryKey: ['cancellation-policies', 'active', activeVersion?.version],
     queryFn: async () => {
-      const res = await api.get<{ data: ActivePolicy }>(
+      const response = await api.get<{ data: ActivePolicy }>(
         `/api/v1/admin/cancellation-policies/${activeVersion!.version}`,
       );
-      return res.data.data;
+      return response.data.data;
     },
-    enabled: !!activeVersion,
+    enabled: canRead && activeVersion !== null,
   });
 
-  const saveMutation = useMutation({
-    mutationFn: async (payload: { mode: 'new-version' | 'in-place'; version?: number; body: EditorState }) => {
-      if (payload.mode === 'in-place' && payload.version !== undefined) {
-        const res = await api.put(`/api/v1/admin/cancellation-policies/${payload.version}`, payload.body);
-        return res.data;
-      }
-      const res = await api.post('/api/v1/admin/cancellation-policies', payload.body);
-      return res.data;
+  const liveSettingsQuery = useQuery({
+    queryKey: ['admin-settings', 'cancellation', 'effective-refunds'],
+    queryFn: async () => {
+      const response = await api.get<{ data: LiveCancellationSetting[] }>(
+        '/api/v1/admin/settings/cancellation',
+      );
+      return response.data.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cancellation-policies'] });
-      setEditing(null);
-      setEditMode(null);
-      setSubmitError('');
-    },
-    onError: (err) => {
-      setSubmitError(getErrorMessage(err));
-    },
+    enabled: canRead,
   });
 
-  const startNewVersion = (): void => {
-    if (!activePolicyQuery.data) return;
-    setEditing({
-      tiers: activePolicyQuery.data.tiers.map((t) => ({ ...t })),
-      intro_text: activePolicyQuery.data.intro_text,
-      legal_disclaimer: activePolicyQuery.data.legal_disclaimer ?? '',
-      provider_no_show_credit_php: activePolicyQuery.data.provider_no_show_credit_php,
-    });
-    setEditMode('new-version');
-    setSubmitError('');
-  };
+  const liveSettingsByKey = useMemo(
+    () => new Map((liveSettingsQuery.data ?? []).map((setting) => [setting.key, setting])),
+    [liveSettingsQuery.data],
+  );
 
-  const startInPlaceEdit = (): void => {
-    if (!activePolicyQuery.data) return;
-    setEditing({
-      tiers: activePolicyQuery.data.tiers.map((t) => ({ ...t })),
-      intro_text: activePolicyQuery.data.intro_text,
-      legal_disclaimer: activePolicyQuery.data.legal_disclaimer ?? '',
-      provider_no_show_credit_php: activePolicyQuery.data.provider_no_show_credit_php,
-    });
-    setEditMode('in-place');
-    setSubmitError('');
-  };
-
-  const validation = useMemo(() => {
-    if (!editing) return { ok: true, errors: {}, summary: null };
-    return validateTiers(editing.tiers);
-  }, [editing]);
-
-  const previewResult = useMemo(() => {
-    const tiers = editing?.tiers ?? activePolicyQuery.data?.tiers ?? [];
-    const tier = findTier(previewHours, tiers);
-    if (!tier) return { tier: null, refund: 0, fee: SAMPLE_BOOKING_PHP * 100 };
-    const refund = Math.floor((SAMPLE_BOOKING_PHP * 100 * tier.refund_percent) / 100);
-    return { tier, refund, fee: SAMPLE_BOOKING_PHP * 100 - refund };
-  }, [previewHours, editing, activePolicyQuery.data]);
-
-  const inPlaceWindowOpen = useMemo(() => {
-    if (!activePolicyQuery.data) return false;
-    const ageMs = Date.now() - new Date(activePolicyQuery.data.created_at).getTime();
-    return ageMs < 60 * 60 * 1000;
-  }, [activePolicyQuery.data]);
-
-  function validateEditorState(payload: EditorState): string | null {
-    // Mirror the server's Zod limits so the admin gets a clear message instead
-    // of an opaque server validation error on save.
-    if (payload.intro_text.trim().length < 10) return 'Intro text must be at least 10 characters.';
-    if (payload.legal_disclaimer.trim().length < 10) return 'Legal disclaimer must be at least 10 characters.';
-    if (
-      !Number.isFinite(payload.provider_no_show_credit_php) ||
-      payload.provider_no_show_credit_php < 0 ||
-      payload.provider_no_show_credit_php > 10000
-    ) {
-      return 'Provider no-show credit must be between 0 and 10,000 pesos.';
-    }
-    return null;
-  }
-
-  function savePolicy(): void {
-    if (!editing || !editMode) return;
-    const validationError = validateEditorState(editing);
-    if (validationError) {
-      setSubmitError(validationError);
-      return;
-    }
-    const body: EditorState = {
-      ...editing,
-      intro_text: editing.intro_text.trim(),
-      legal_disclaimer: editing.legal_disclaimer.trim(),
-    };
-    const action = editMode === 'in-place' ? 'save changes to the active version' : 'publish a new cancellation policy version';
-    if (!window.confirm(`Confirm ${action}?`)) return;
-    saveMutation.mutate({
-      mode: editMode,
-      version: editMode === 'in-place' ? activePolicyQuery.data?.version : undefined,
-      body,
-    });
-  }
-
-  if (role !== 'super_admin') {
+  if (!canRead) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <EmptyState
-          title="Super-admin access required"
-          description="Cancellation policy editing is restricted to super_admin accounts."
+          title="Admin access required"
+          description="Cancellation policy review is available to admin and super-admin accounts."
         />
       </div>
     );
   }
 
-  if (versionsQuery.isLoading || activePolicyQuery.isLoading) {
-    return <div className="p-6"><LoadingState /></div>;
+  if (versionsQuery.isLoading || (activeVersion && activePolicyQuery.isLoading)) {
+    return <div className="p-4 sm:p-6"><LoadingState /></div>;
   }
 
   if (versionsQuery.isError || activePolicyQuery.isError) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <ErrorState
           title="Failed to load cancellation policy"
           description={getErrorMessage(versionsQuery.error ?? activePolicyQuery.error)}
           action={
-            <Button onClick={(): void => { void versionsQuery.refetch(); void activePolicyQuery.refetch(); }}>
+            <Button onClick={(): void => {
+              void versionsQuery.refetch();
+              if (activeVersion) void activePolicyQuery.refetch();
+            }}>
               Retry
             </Button>
           }
@@ -245,310 +162,194 @@ export default function CancellationPolicyPage(): React.ReactElement {
 
   if (!activeVersion) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <ErrorState
           title="No active cancellation policy"
-          description="Bookings must not rely on a missing or inactive cancellation policy. Restore and verify a server-canonical policy before accepting new work."
+          description="Bookings must not rely on a missing or inactive customer-facing policy. Restore and verify a policy before accepting new work."
           action={<Button onClick={(): void => { void versionsQuery.refetch(); }}>Retry policy lookup</Button>}
         />
       </div>
     );
   }
 
-  const editPayload = editing;
+  const activePolicy = activePolicyQuery.data;
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--color-text)]">Cancellation policy</h1>
-        <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-          Server-canonical, admin-editable. The active version is read by every client and every server pricing path.
+    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
+      <header>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">Money governance</p>
+        <h1 className="mt-1 text-2xl font-bold text-[var(--color-text)] sm:text-3xl">Cancellation policy review</h1>
+        <p className="mt-2 max-w-3xl text-sm text-[var(--color-text-secondary)]">
+          Compare the refund engine with the wording customers currently see. This workspace is read-only while E09 is open.
         </p>
+      </header>
+
+      <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 sm:p-5">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+          <div>
+            <h2 className="font-semibold">E09 money-policy mismatch: changes are frozen</h2>
+            <p className="mt-1 text-sm leading-6">
+              The refund engine uses System Settings below. Customer Help and Terms use the separate versioned table. They do not match.
+              Until one source and final percentages are approved, neither surface can be edited. Support must quote the calculated outcome on the booking record, not the customer-facing tier table.
+            </p>
+          </div>
+        </div>
       </div>
 
-      {activePolicyQuery.data && !editing && (
+      <div className="grid gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Active version (v{activePolicyQuery.data.version})</CardTitle>
+            <CardTitle>System A: actual refund engine</CardTitle>
             <CardDescription>
-              Effective {formatPHT(activePolicyQuery.data.effective_from)} —
-              {' '}created by {activePolicyQuery.data.creator_name ?? 'unknown'}.
-              {' '}{inPlaceWindowOpen ? 'In-place edit window: open (within 1 hour of creation).' : 'In-place edit window closed; new version required.'}
+              These percentages are read by the escrow cancellation path. They apply to the service-price portion; service-fee handling is separate.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs text-[var(--color-text-secondary)] uppercase">
+            {liveSettingsQuery.isLoading ? <LoadingState /> : null}
+            {liveSettingsQuery.isError ? (
+              <ErrorState
+                title="Actual refund settings unavailable"
+                description="Do not infer live percentages from the customer-facing policy."
+                action={
+                  <Button variant="outline" onClick={(): void => { void liveSettingsQuery.refetch(); }}>
+                    <RefreshCw className="mr-2 h-4 w-4" /> Retry
+                  </Button>
+                }
+              />
+            ) : null}
+            {liveSettingsQuery.isSuccess ? (
+              <div className="divide-y divide-[var(--color-border)]">
+                {LIVE_REFUND_RULES.map((rule) => {
+                  const setting = liveSettingsByKey.get(rule.key);
+                  return (
+                    <div
+                      key={rule.key}
+                      aria-label={`${rule.label} actual refund rule`}
+                      className="flex min-h-12 items-center justify-between gap-4 py-3"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-[var(--color-text)]">{rule.label}</p>
+                        <p className="font-mono text-[11px] text-[var(--color-text-tertiary)]">{rule.key}</p>
+                      </div>
+                      <span className="shrink-0 text-base font-semibold text-[var(--color-text)]">
+                        {setting ? `${setting.value}% refund` : 'Unavailable'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+            <Link
+              to="/settings?category=cancellation"
+              className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-surface-hover)] sm:w-auto"
+            >
+              View setting history <ExternalLink className="ml-2 h-4 w-4" />
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>System B: customer-displayed policy v{activePolicy?.version}</CardTitle>
+            <CardDescription>
+              Help and Terms render this table. It does not control the refund engine.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {activePolicy ? (
+              <>
+                <p className="mb-4 text-sm leading-6 text-[var(--color-text-secondary)]">{activePolicy.intro_text}</p>
+                <div className="divide-y divide-[var(--color-border)]">
+                  {activePolicy.tiers.map((tier, index) => (
+                    <div
+                      key={`${tier.label}-${index}`}
+                      aria-label={`${tier.label} customer-displayed refund rule`}
+                      className="flex min-h-12 items-center justify-between gap-4 py-3"
+                    >
+                      <p className="text-sm font-medium text-[var(--color-text)]">{tier.label}</p>
+                      <span className="shrink-0 text-base font-semibold text-[var(--color-text)]">{tier.refund_percent}% refund</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 rounded-lg bg-[var(--color-bg)] p-3 text-sm text-[var(--color-text-secondary)]">
+                  <strong className="text-[var(--color-text)]">Displayed provider no-show promise:</strong>{' '}
+                  full refund plus {formatPHP(activePolicy.provider_no_show_credit_php * 100)} platform-funded credit.
+                </div>
+                <p className="mt-4 text-xs leading-5 text-[var(--color-text-tertiary)]">
+                  Effective {formatPHT(activePolicy.effective_from)}. Created by {activePolicy.creator_name ?? 'unknown'}.
+                </p>
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Support handling</CardTitle>
+          <CardDescription>Use the booking record as the case-specific source while the mismatch is held.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
+          <div className="rounded-lg border border-[var(--color-border)] p-4">
+            <p className="font-semibold text-[var(--color-text)]">1. Verify the booking</p>
+            <p className="mt-1 text-[var(--color-text-secondary)]">Confirm payment, scheduled time, arrival, no-show, and cancellation evidence.</p>
+          </div>
+          <div className="rounded-lg border border-[var(--color-border)] p-4">
+            <p className="font-semibold text-[var(--color-text)]">2. Use the calculated outcome</p>
+            <p className="mt-1 text-[var(--color-text-secondary)]">Quote the server-calculated refund and provider compensation shown on the case.</p>
+          </div>
+          <div className="rounded-lg border border-[var(--color-border)] p-4">
+            <p className="font-semibold text-[var(--color-text)]">3. Escalate disagreement</p>
+            <p className="mt-1 text-[var(--color-text-secondary)]">Do not improvise a percentage or promise a gateway refund before it is confirmed.</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Customer-facing version history</CardTitle>
+          <CardDescription>Historical display versions, newest first. These records are not proof of money moved.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3 xl:hidden">
+            {(versionsQuery.data ?? []).map((version) => (
+              <div key={version.id} className="rounded-lg border border-[var(--color-border)] p-4 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <strong>Version {version.version}</strong>
+                  <span>{version.is_active ? 'Active display' : 'Historical'}</span>
+                </div>
+                <p className="mt-2 text-[var(--color-text-secondary)]">{formatPHT(version.effective_from)} · {version.tier_count} tiers</p>
+                <p className="mt-1 text-[var(--color-text-secondary)]">Created by {version.creator_name ?? 'unknown'}</p>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto xl:block">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead className="text-left text-xs uppercase text-[var(--color-text-secondary)]">
                 <tr>
-                  <th className="py-2">Label</th>
-                  <th>Min hours</th>
-                  <th>Max hours</th>
-                  <th>Refund %</th>
-                  <th>Fee %</th>
+                  <th className="py-2">Version</th>
+                  <th>Effective from</th>
+                  <th>Effective to</th>
+                  <th>Tiers</th>
+                  <th>No-show credit</th>
+                  <th>Created by</th>
                 </tr>
               </thead>
               <tbody>
-                {activePolicyQuery.data.tiers.map((t, i) => (
-                  <tr key={i} className="border-t border-[var(--color-border)]">
-                    <td className="py-2">{t.label}</td>
-                    <td>{t.min_hours_before}</td>
-                    <td>{t.max_hours_before ?? '∞'}</td>
-                    <td>{t.refund_percent}</td>
-                    <td>{t.fee_percent}</td>
+                {(versionsQuery.data ?? []).map((version) => (
+                  <tr key={version.id} className="border-t border-[var(--color-border)]">
+                    <td className="py-3">{version.version}{version.is_active ? ' (active display)' : ''}</td>
+                    <td>{formatPHT(version.effective_from)}</td>
+                    <td>{version.effective_to ? formatPHT(version.effective_to) : '—'}</td>
+                    <td>{version.tier_count}</td>
+                    <td>{formatPHP(version.provider_no_show_credit_php * 100)}</td>
+                    <td>{version.creator_name ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="mt-4 text-sm">
-              <strong>Provider no-show credit:</strong> {formatPHP(activePolicyQuery.data.provider_no_show_credit_php * 100)}
-              {' '}(platform-funded apology credit)
-            </div>
-            <div className="mt-4 flex gap-2">
-              <Button onClick={startNewVersion}>
-                <Plus className="w-4 h-4 mr-1" /> Save as new version
-              </Button>
-              <Button variant="outline" onClick={startInPlaceEdit} disabled={!inPlaceWindowOpen}>
-                Edit this version (1h window)
-              </Button>
-              <Button variant="ghost" onClick={(): void => { void versionsQuery.refetch(); void activePolicyQuery.refetch(); }}>
-                <RefreshCw className="w-4 h-4 mr-1" /> Refresh
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {editPayload && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{editMode === 'in-place' ? 'Edit current version (in place)' : 'Save as new version'}</CardTitle>
-            <CardDescription>
-              {validation.ok
-                ? <span className="text-green-600">All validations pass.</span>
-                : <span className="text-red-600">{validation.summary}</span>}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-left text-xs text-[var(--color-text-secondary)] uppercase">
-                  <tr>
-                    <th className="py-2 w-1/4">Label</th>
-                    <th>Min hrs</th>
-                    <th>Max hrs (blank = ∞)</th>
-                    <th>Refund %</th>
-                    <th>Fee %</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {editPayload.tiers.map((t, i) => {
-                    const rowError = validation.errors[i];
-                    return (
-                      <React.Fragment key={i}>
-                        <tr className="border-t border-[var(--color-border)] align-top">
-                          <td className="py-2 pr-2">
-                            <Input
-                              aria-label={`Tier ${i + 1} label`}
-                              value={t.label}
-                              onChange={(e): void => {
-                                const next = editPayload.tiers.slice();
-                                next[i] = { ...next[i]!, label: e.target.value };
-                                setEditing({ ...editPayload, tiers: next });
-                              }}
-                            />
-                          </td>
-                          <td className="pr-2">
-                            <Input
-                              aria-label={`Tier ${i + 1} minimum hours before booking`}
-                              type="number"
-                              value={t.min_hours_before}
-                              onChange={(e): void => {
-                                const next = editPayload.tiers.slice();
-                                next[i] = { ...next[i]!, min_hours_before: Number(e.target.value) };
-                                setEditing({ ...editPayload, tiers: next });
-                              }}
-                            />
-                          </td>
-                          <td className="pr-2">
-                            <Input
-                              aria-label={`Tier ${i + 1} maximum hours before booking`}
-                              type="number"
-                              value={t.max_hours_before ?? ''}
-                              placeholder="∞"
-                              onChange={(e): void => {
-                                const next = editPayload.tiers.slice();
-                                next[i] = { ...next[i]!, max_hours_before: e.target.value === '' ? null : Number(e.target.value) };
-                                setEditing({ ...editPayload, tiers: next });
-                              }}
-                            />
-                          </td>
-                          <td className="pr-2">
-                            <Input
-                              aria-label={`Tier ${i + 1} refund percent`}
-                              type="number"
-                              value={t.refund_percent}
-                              onChange={(e): void => {
-                                const refund = Number(e.target.value);
-                                const next = editPayload.tiers.slice();
-                                next[i] = { ...next[i]!, refund_percent: refund, fee_percent: 100 - refund };
-                                setEditing({ ...editPayload, tiers: next });
-                              }}
-                            />
-                          </td>
-                          <td className="pr-2">
-                            <Input aria-label={`Tier ${i + 1} fee percent`} type="number" value={t.fee_percent} disabled />
-                          </td>
-                          <td>
-                            <Button
-                              variant="ghost"
-                              onClick={(): void => {
-                                const next = editPayload.tiers.slice();
-                                next.splice(i, 1);
-                                setEditing({ ...editPayload, tiers: next });
-                              }}
-                              aria-label={`Remove tier ${i + 1}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                        {rowError && (
-                          <tr>
-                            <td colSpan={6} className="text-xs text-red-600 pb-2">{rowError}</td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={(): void => {
-                const last = editPayload.tiers[editPayload.tiers.length - 1];
-                const newRow: Tier = {
-                  min_hours_before: last ? Math.max(0, last.min_hours_before - 1) : 0,
-                  max_hours_before: last ? last.min_hours_before : 0,
-                  refund_percent: 0,
-                  fee_percent: 100,
-                  label: 'New tier',
-                };
-                setEditing({ ...editPayload, tiers: [...editPayload.tiers, newRow] });
-              }}
-            >
-              <Plus className="w-4 h-4 mr-1" /> Add tier
-            </Button>
-
-            <div>
-              <Label htmlFor="intro_text">Intro text (shown above the tier table on customer screens)</Label>
-              <Textarea
-                id="intro_text"
-                value={editPayload.intro_text}
-                onChange={(e): void => setEditing({ ...editPayload, intro_text: e.target.value })}
-                rows={3}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="legal_disclaimer">Legal disclaimer</Label>
-              <Textarea
-                id="legal_disclaimer"
-                value={editPayload.legal_disclaimer}
-                onChange={(e): void => setEditing({ ...editPayload, legal_disclaimer: e.target.value })}
-                rows={3}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="no_show_credit">Provider no-show credit (PHP)</Label>
-              <Input
-                id="no_show_credit"
-                type="number"
-                value={editPayload.provider_no_show_credit_php}
-                onChange={(e): void => setEditing({ ...editPayload, provider_no_show_credit_php: Number(e.target.value) })}
-              />
-            </div>
-
-            <div className="bg-[var(--color-bg)] p-4 rounded-lg">
-              <Label htmlFor="preview-hours">Preview: customer cancels at...</Label>
-              <div className="flex items-center gap-2 mt-1">
-                <Input
-                  id="preview-hours"
-                  type="number"
-                  value={previewHours}
-                  onChange={(e): void => setPreviewHours(Number(e.target.value))}
-                  className="w-24"
-                />
-                <span className="text-sm">hours before scheduled time, on a ₱{SAMPLE_BOOKING_PHP} booking →</span>
-              </div>
-              <div className="mt-2 text-sm">
-                {previewResult.tier ? (
-                  <>
-                    Tier: <strong>{previewResult.tier.label}</strong>;
-                    {' '}refund <strong>{formatPHP(previewResult.refund)}</strong>;
-                    {' '}fee <strong>{formatPHP(previewResult.fee)}</strong>
-                  </>
-                ) : (
-                  <span className="text-red-600">No tier matches this hour value — the policy has a gap.</span>
-                )}
-              </div>
-            </div>
-
-            {submitError && (
-              <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                {submitError}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <Button
-                disabled={!validation.ok || saveMutation.isPending}
-                onClick={savePolicy}
-              >
-                <Save className="w-4 h-4 mr-1" />
-                {saveMutation.isPending ? 'Saving...' : (editMode === 'in-place' ? 'Save in place' : 'Save as new version')}
-              </Button>
-              <Button variant="ghost" onClick={(): void => { setEditing(null); setEditMode(null); setSubmitError(''); }}>
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Version history</CardTitle>
-          <CardDescription>All policy versions, newest first.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-[var(--color-text-secondary)] uppercase">
-              <tr>
-                <th className="py-2">Version</th>
-                <th>Effective from</th>
-                <th>Effective to</th>
-                <th>Tiers</th>
-                <th>No-show credit</th>
-                <th>Created by</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(versionsQuery.data ?? []).map((v) => (
-                <tr key={v.id} className="border-t border-[var(--color-border)]">
-                  <td className="py-2">{v.version}{v.is_active ? ' (active)' : ''}</td>
-                  <td>{formatPHT(v.effective_from)}</td>
-                  <td>{v.effective_to ? formatPHT(v.effective_to) : '—'}</td>
-                  <td>{v.tier_count}</td>
-                  <td>{formatPHP(v.provider_no_show_credit_php * 100)}</td>
-                  <td>{v.creator_name ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          </div>
         </CardContent>
       </Card>
     </div>

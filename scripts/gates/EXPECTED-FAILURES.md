@@ -11,12 +11,13 @@ The Phase 14 design accepts these failures during Dispatches 01–13 because eac
 ## Gate A fragments
 
 ### `a-cross-source-cancellation-policy.sh`
-- **Expected to fail on master:** NO (resolved by D02 cancellation work).
-- **Reason:** Bug 1170/1198 fixed — `cancellation_policies` table is now the
-  single source of truth (admin-editable via /admin/settings/cancellation-policy).
-  Mobile `terms.tsx` and `help.tsx` consume `/api/v1/settings/cancellation-policy`.
-  Static `cancellationFees` / `cancellationRefundSplits` deleted from
-  `platform.config.ts` (api + mobile). Gate now passes locally.
+- **Expected to fail on master:** NO.
+- **Reason:** Bug 1170/1198 removed hardcoded cancellation tiers from the
+  customer clients, but E09 later proved that the live escrow refund path still
+  reads separate `cancel_refund_*` settings. The fragment now truthfully guards
+  customer-display tier drift and requires the E09 mutation hold on both the
+  versioned display table and all seven live refund settings. It does not claim
+  the customer display and money path have one source.
 - **Status:** BLOCKING immediately on the D02 branch and going forward.
 
 ### `a-cross-source-brand-color.sh`

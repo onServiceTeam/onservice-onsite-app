@@ -92,3 +92,21 @@ operating-mode exception, not direct to master.
 - Not changing any refund code or bracket value without Ken's decision.
 - Until reconciled, support quotes the System A (actual) numbers, never the displayed
   page. This is already noted in `docs/operations/13-policies-codes-and-templates.md`.
+
+## Operational containment added 2026-08-31
+
+The mismatch is still unresolved. The admin audit found that the Cancellation Policy
+page continued to call System B "server-canonical" and claimed every server pricing
+path consumed it. That statement was false and made the display-only editor unsafe.
+
+Containment now keeps both systems read-only without changing either set of numbers or
+the live refund calculation:
+
+- admin and super-admin support staff can compare System A and System B in one page;
+- the page identifies which source moves money and which source feeds Help and Terms;
+- POST/PUT mutations to the versioned display policy return a 409 E09 hold;
+- the seven live `cancel_refund_*` controls are marked held and reject edits;
+- support instructions point staff to the case-specific server-calculated outcome.
+
+This containment is not the E09 resolution. The source-of-truth and final bracket
+decision above is still required before either mutation surface can reopen.

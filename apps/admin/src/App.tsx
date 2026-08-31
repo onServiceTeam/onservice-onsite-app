@@ -126,6 +126,7 @@ export default function App(): React.ReactElement {
               <Route path="/audit-log" element={<AuditLogPage />} />
               <Route path="/support-tickets" element={<SupportTicketsPage />} />
               <Route path="/settings" element={<SystemSettingsPage />} />
+              <Route path="/settings/cancellation-policy" element={<CancellationPolicyPage />} />
               <Route path="/marketing" element={<MarketingPage />} />
               <Route path="/dispatch" element={<DispatchConsolePage />} />
               <Route path="/communications" element={<CommunicationsPage />} />
@@ -135,7 +136,6 @@ export default function App(): React.ReactElement {
             </Route>
             <Route element={<RoleRouteGuard allowed={['super_admin']} />}>
               <Route path="/staff" element={<StaffRolesPage />} />
-              <Route path="/settings/cancellation-policy" element={<CancellationPolicyPage />} />
             </Route>
             <Route element={<RoleRouteGuard allowed={['dpo', 'super_admin']} />}>
               <Route path="/privacy" element={<PrivacyWorkspacePage />} />

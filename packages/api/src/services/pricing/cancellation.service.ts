@@ -3,11 +3,12 @@
 // Bug 1170 / 1198 fix verified.
 // Phase 14 Dispatch 02.
 //
-// Cancellation policy is server-canonical (table cancellation_policies,
-// migration 071) and admin-editable (settings/CancellationPolicyPage in the
-// admin UI). This service is the only entry point that other services use to
-// compute cancellation outcomes — never read tier values from configs or
-// magic numbers.
+// Customer-facing cancellation wording lives in cancellation_policies.
+// Escalation E09 records that the live escrow refund path still reads the
+// separate cancel_refund_* platform settings through commission.service.
+// The calculation helpers below model the displayed tier table but are not
+// authoritative money-path functions. Do not wire or edit either source until
+// one canonical model and its final percentages are approved.
 //
 // Two code paths:
 //
@@ -185,7 +186,8 @@ async function loadBooking(bookingId: string): Promise<BookingRow> {
 }
 
 /**
- * Compute the refund + fee for a customer-initiated cancellation.
+ * Compute a display-policy example for a customer-initiated cancellation.
+ * The live escrow path does not call this function while E09 remains open.
  * total_amount in the bookings table is centavos; the percentages in the
  * tiers are integer 0..100.
  */
@@ -223,7 +225,8 @@ export async function calculateCancellation(
 }
 
 /**
- * Provider-no-show outcome — separate code path from tier lookup.
+ * Display-policy provider-no-show example — separate from tier lookup.
+ * The live escrow path does not call this function while E09 remains open.
  * Customer always receives 100% refund of total_amount AND a platform-funded
  * apology credit in centavos. Credit value lives on the active policy row
  * (provider_no_show_credit_php) so admin can tune it without code changes.
@@ -246,7 +249,7 @@ export async function calculateProviderNoShow(
 }
 
 /**
- * Preview helper — exposed to the admin editor's "what if" pane.
+ * Preview helper retained for validation tests and any future approved policy comparison.
  * Pure function over (hoursBefore, sampleAmount, tiers): no DB, no cache.
  */
 export function previewTierForHours(

@@ -112,7 +112,7 @@ const CANCELLATION_POLICY_OBJECT = {
     { min_hours_before: 0, max_hours_before: 6, refund_percent: 25, fee_percent: 75, label: 'Less than 6 hours' },
     { min_hours_before: -24, max_hours_before: 0, refund_percent: 0, fee_percent: 100, label: 'After scheduled time' },
   ],
-  intro_text: 'Customer cancellations use the server-canonical schedule below.',
+  intro_text: 'Customer-facing cancellation wording currently uses the schedule below.',
   legal_disclaimer: 'Final treatment remains subject to the published booking terms and applicable law.',
   provider_no_show_credit_php: 300,
   is_active: true,
@@ -132,6 +132,19 @@ const CANCELLATION_POLICY_VERSION = {
   provider_no_show_credit_php: CANCELLATION_POLICY_OBJECT.provider_no_show_credit_php,
   intro_text_preview: CANCELLATION_POLICY_OBJECT.intro_text,
 };
+const CANCELLATION_SETTINGS = [
+  ['cancel_refund_over_24h', '100'],
+  ['cancel_refund_2_to_24h', '100'],
+  ['cancel_refund_1_to_2h', '90'],
+  ['cancel_refund_30min_to_1h', '80'],
+  ['cancel_refund_under_30min', '70'],
+  ['cancel_refund_provider_arrived', '50'],
+  ['cancel_refund_customer_noshow', '0'],
+].map(([key, value]) => ({
+  key, label: key, value, unit: '%', runtimeStatus: 'held', runtimeLabel: 'Launch hold',
+  runtimeSummary: 'Frozen under E09 until one canonical cancellation source is approved.',
+  editable: false,
+}));
 
 // Financials sub-endpoints — Each tab calls its own endpoint with a
 // distinct object shape. The default empty-list mock crashes pages
@@ -761,6 +774,8 @@ export const test = base.extend<VisualFixtureOptions>({
       } else if (url.match(/\/admin\/settings(\?|$)/)) {
         // /admin/settings (no path suffix) — bundle endpoint
         body = { success: true, data: SETTINGS_BUNDLE };
+      } else if (path === '/api/v1/admin/settings/cancellation') {
+        body = { success: true, data: CANCELLATION_SETTINGS };
       } else if (path === '/api/v1/admin/cancellation-policies') {
         body = { success: true, data: [CANCELLATION_POLICY_VERSION] };
       } else if (url.includes('/admin/cancellation-policies') && url.match(/\/\d+($|\?)/)) {

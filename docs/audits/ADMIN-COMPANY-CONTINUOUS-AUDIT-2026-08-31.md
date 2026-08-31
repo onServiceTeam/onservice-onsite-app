@@ -249,6 +249,19 @@ E46 records a material source conflict: the recruiting SOP requires `planned -> 
 
 Executed focused regression coverage: Bugs UX-763 through UX-792, plus the updated catalog transaction/pricing, Service Areas validator/default/waitlist, provider queue, and public-market suites. The obsolete catalog price and service-area slug source inspections were replaced with rendered or executed behavior.
 
+## Checkpoint J: Cancellation policy support and money-governance containment
+
+- The admin page falsely called the versioned `cancellation_policies` table server-canonical and claimed every pricing path consumed it. The live escrow cancellation path actually reads seven `cancel_refund_*` rows from Platform Settings. E09 remains the controlling money-path escalation.
+- The page was a dangerous placebo editor: changing its tiers changed Help and Terms but not the refund. The separate Settings controls could also change the refund without changing what customers read. Both mutation surfaces are now frozen under E09 without changing either set of percentages or any refund calculation.
+- Admin and super-admin support staff can now compare System A (actual refund-engine settings) with System B (customer-displayed tiers) in one read-only workspace. It identifies service-price versus service-fee handling, the customer-displayed provider no-show promise, and the display-version history.
+- The API gives ordinary admins read access, returns explicit `held`/`displayOnly`/`mutationsAllowed: false` governance metadata, strictly validates policy version paths, and rejects version POST/PUT attempts with 409 before database work. Forged `cancel_refund_*` updates are also rejected before a transaction.
+- Support handling now requires booking/payment/timing/arrival/no-show evidence, the case-specific server-calculated outcome, and escalation when customer wording differs. It prohibits improvised percentages and unconfirmed gateway-refund promises.
+- Obsolete source-content assertions that called the page wired merely because strings existed were removed. Executed route, settings-service, navigation, and rendered-page tests cover Bugs UX-793 through UX-800.
+- Gate A itself still printed "cancellation policy single source" despite the verified two-source mismatch. Its blocking contract and human-readable gate record now state the narrower truth: it prevents client display-tier drift and requires E09 containment on both mutation surfaces; it does not certify unified refund authority.
+- The Stitch-aligned comparison workspace was rendered and manually inspected at 820, 1024, 1280, 1440, and 1920 pixels. The first pass exposed a clipped tablet history table; tablet widths now use complete version cards and desktop widths use the table. Default/loading/empty/error contracts total 20 strict screenshots.
+
+This checkpoint is containment, not resolution. Selecting the canonical source and final brackets remains a money/product decision under E09. No customer refund, provider compensation, service-fee rule, policy percentage, provider no-show credit, or legal disclaimer was changed.
+
 ## Verification at checkpoints D through H
 
 - All three workspace TypeScript checks: passed.
@@ -271,11 +284,20 @@ Executed focused regression coverage: Bugs UX-763 through UX-792, plus the updat
 - Focused tests execute Catalog lifecycle/restoration/pricing, Service Areas RBAC/audit/capacity/default/waitlist/privacy, provider-change bypass prevention, truthful activation partial success, and the real Service Areas to Providers filter. Rendered admin tests exercise ordinary-admin read-only behavior, provider-capacity blocking, waitlist retry, reason payloads, and the scoped provider queue.
 - Production remains unclaimed under E32. This verification did not access or mutate production data.
 
+## Checkpoint J local verification
+
+- Admin full suite: 222 passed files, 1 skipped file; 329 passed tests and 3 explicit todos.
+- API full locally runnable suite: 596 passed suites and 3,176 passed tests; one intentional suite/test skip remained. The Docker-dependent nginx certificate test was excluded because Docker Desktop is unavailable and is not counted as a pass.
+- Cancellation Policy strict visual comparison: 20 passed at 820, 1024, 1280, 1440, and 1920 pixels across default, loading, empty, and error states. The new baselines were generated only for the intentional comparison-workspace redesign, manually inspected, then rerun without updates.
+- API and Admin TypeScript production builds passed; the Admin build transformed 2,840 modules. Mobile TypeScript, full repository ESLint, and focused API/Admin containment tests passed.
+- Gate A passed all 10 blocking fragments, Gate C passed all 6 blocking articles, all six gate self-tests passed, and the no-phantom-test scan passed. The N+1 heuristic retained 30 reviewed/justified locations and passed.
+- Production remains unclaimed under E32. No production data, policy value, refund amount, legal text, or server deployment was changed.
+
 ## Next admin/company audit queue
 
 The next continuous loop starts from the admin navigation inventory and rechecks each remaining page against the operating questions above. Priority order is:
 
-1. Cancellation-policy, compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
+1. Compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
 2. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
 
 Existing legal, money, production-data, and privileged-identity escalation boundaries still apply. A page-local visual improvement is not permission to invent legal wording, mutate production money, or bypass those controls.
