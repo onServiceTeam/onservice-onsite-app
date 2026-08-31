@@ -8,6 +8,9 @@ import express from 'express';
 import request from 'supertest';
 
 let CURRENT_USER: { userId: string; role: string } = { userId: 'u1', role: 'customer' };
+const TICKET_ID = '11111111-1111-4111-8111-111111111111';
+const OTHER_TICKET_ID = '22222222-2222-4222-8222-222222222222';
+const MISSING_TICKET_ID = '33333333-3333-4333-8333-333333333333';
 jest.mock('../src/middleware/auth.middleware', () => ({
   authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction): void => {
     (req as express.Request & { user: unknown }).user = CURRENT_USER;
@@ -71,25 +74,25 @@ describe('GET /support-tickets/mine', () => {
 
 describe('GET /support-tickets/mine/:id owner scoping', () => {
   it('returns the ticket + non-internal messages when the caller owns it', async () => {
-    getTicketByIdMock.mockResolvedValueOnce({ id: 't1', user_id: 'u1', subject: 'help' });
+    getTicketByIdMock.mockResolvedValueOnce({ id: TICKET_ID, user_id: 'u1', subject: 'help' });
     getTicketMessagesMock.mockResolvedValueOnce([{ id: 'm1', message: 'hi' }]);
-    const res = await request(buildApp()).get('/api/v1/support-tickets/mine/t1');
+    const res = await request(buildApp()).get(`/api/v1/support-tickets/mine/${TICKET_ID}`);
     expect(res.status).toBe(200);
-    expect(res.body.data.id).toBe('t1');
+    expect(res.body.data.id).toBe(TICKET_ID);
     expect(res.body.data.messages).toHaveLength(1);
-    expect(getTicketMessagesMock).toHaveBeenCalledWith('t1', false);
+    expect(getTicketMessagesMock).toHaveBeenCalledWith(TICKET_ID, false);
   });
 
   it('returns 404 for a ticket owned by another user and never reads its messages', async () => {
-    getTicketByIdMock.mockResolvedValueOnce({ id: 't9', user_id: 'someone-else', subject: 'secret' });
-    const res = await request(buildApp()).get('/api/v1/support-tickets/mine/t9');
+    getTicketByIdMock.mockResolvedValueOnce({ id: OTHER_TICKET_ID, user_id: 'someone-else', subject: 'secret' });
+    const res = await request(buildApp()).get(`/api/v1/support-tickets/mine/${OTHER_TICKET_ID}`);
     expect(res.status).toBe(404);
     expect(getTicketMessagesMock).not.toHaveBeenCalled();
   });
 
   it('returns 404 when the ticket does not exist', async () => {
     getTicketByIdMock.mockResolvedValueOnce(null);
-    const res = await request(buildApp()).get('/api/v1/support-tickets/mine/nope');
+    const res = await request(buildApp()).get(`/api/v1/support-tickets/mine/${MISSING_TICKET_ID}`);
     expect(res.status).toBe(404);
   });
 });

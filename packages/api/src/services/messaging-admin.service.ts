@@ -19,6 +19,7 @@ import { logger } from '../utils/logger';
 const PREVIEW_LEN = 120;
 const REDACTION_REASON_MIN = 3;
 const REVIEW_NOTE_MIN = 3;
+const MODERATION_REASON_MAX = 2000;
 
 interface AdminMessageRow {
   id: string;
@@ -138,6 +139,7 @@ export async function listConversationsForAdmin(opts: ListConversationsOpts): Pr
     booking_id: string;
     customer_id: string;
     provider_id: string;
+    provider_profile_id: string | null;
     is_active: boolean;
     created_at: Date;
     updated_at: Date;
@@ -151,7 +153,8 @@ export async function listConversationsForAdmin(opts: ListConversationsOpts): Pr
     last_message_at: Date | null;
     last_message_preview: string | null;
   }>(
-    `SELECT c.id, c.booking_id, c.customer_id, c.provider_id, c.is_active,
+    `SELECT c.id, c.booking_id, c.customer_id, c.provider_id,
+            p.id AS provider_profile_id, c.is_active,
             c.created_at, c.updated_at,
             cu.first_name AS customer_first, cu.last_name AS customer_last,
             pu.first_name AS provider_first, pu.last_name AS provider_last,
@@ -160,6 +163,7 @@ export async function listConversationsForAdmin(opts: ListConversationsOpts): Pr
        FROM conversations c
        JOIN users cu ON cu.id = c.customer_id
        JOIN users pu ON pu.id = c.provider_id
+       LEFT JOIN providers p ON p.user_id = c.provider_id
        LEFT JOIN LATERAL (
          SELECT COUNT(*)::text AS message_count,
                 COUNT(*) FILTER (WHERE m.is_flagged = TRUE AND m.flag_reviewed_at IS NULL)::text AS flagged_open,
@@ -180,6 +184,7 @@ export async function listConversationsForAdmin(opts: ListConversationsOpts): Pr
     customerId: r.customer_id,
     customerName: `${r.customer_first} ${r.customer_last}`.trim(),
     providerId: r.provider_id,
+    providerProfileId: r.provider_profile_id,
     providerName: `${r.provider_first} ${r.provider_last}`.trim(),
     isActive: r.is_active,
     messageCount: Number(r.message_count ?? 0),
@@ -208,6 +213,7 @@ export async function getConversationThreadForAdmin(
       booking_id: string;
       customer_id: string;
       provider_id: string;
+      provider_profile_id: string | null;
       is_active: boolean;
       created_at: Date;
       updated_at: Date;
@@ -216,13 +222,15 @@ export async function getConversationThreadForAdmin(
       provider_first: string;
       provider_last: string;
     }>(
-      `SELECT c.id, c.booking_id, c.customer_id, c.provider_id, c.is_active,
+      `SELECT c.id, c.booking_id, c.customer_id, c.provider_id,
+            p.id AS provider_profile_id, c.is_active,
             c.created_at, c.updated_at,
             cu.first_name AS customer_first, cu.last_name AS customer_last,
             pu.first_name AS provider_first, pu.last_name AS provider_last
        FROM conversations c
        JOIN users cu ON cu.id = c.customer_id
        JOIN users pu ON pu.id = c.provider_id
+       LEFT JOIN providers p ON p.user_id = c.provider_id
       WHERE c.id = $1`,
       [conversationId],
     );
@@ -255,6 +263,7 @@ export async function getConversationThreadForAdmin(
         customerId: conv.customer_id,
         customerName: `${conv.customer_first} ${conv.customer_last}`.trim(),
         providerId: conv.provider_id,
+        providerProfileId: conv.provider_profile_id,
         providerName: `${conv.provider_first} ${conv.provider_last}`.trim(),
         isActive: conv.is_active,
         createdAt: conv.created_at.toISOString(),
@@ -353,6 +362,9 @@ export async function redactMessage(
       400,
     );
   }
+  if (trimmed.length > MODERATION_REASON_MAX) {
+    throw createAppError(`Redaction reason must be at most ${MODERATION_REASON_MAX} characters.`, 400);
+  }
 
   const message = await db.transaction(async (client) => {
     const bookingResult = await client.query<{ booking_id: string; already: Date | null }>(
@@ -363,11 +375,14 @@ export async function redactMessage(
     );
     const row = bookingResult.rows[0];
     if (!row) throw createAppError('Message not found.', 404);
+    if (row.already) {
+      throw createAppError('Message is already redacted. The original moderation decision is immutable.', 409);
+    }
 
     const updated = await client.query<AdminMessageRow>(
       `UPDATE messages
-          SET redacted_at = COALESCE(redacted_at, NOW()),
-              redacted_by = COALESCE(redacted_by, $2),
+          SET redacted_at = NOW(),
+              redacted_by = $2,
               redaction_reason = $3,
               flag_reviewed_at = COALESCE(flag_reviewed_at, NOW()),
               flag_reviewed_by = COALESCE(flag_reviewed_by, $2)
@@ -403,28 +418,42 @@ export async function reviewFlag(
       400,
     );
   }
+  if (trimmedNote.length > MODERATION_REASON_MAX) {
+    throw createAppError(`Review rationale must be at most ${MODERATION_REASON_MAX} characters.`, 400);
+  }
 
   await db.transaction(async (client) => {
-    const lookup = await client.query<{ booking_id: string }>(
-      `SELECT c.booking_id
+    const lookup = await client.query<{
+      booking_id: string;
+      is_flagged: boolean;
+      reported_at: Date | null;
+      flag_reviewed_at: Date | null;
+    }>(
+      `SELECT c.booking_id, m.is_flagged, m.reported_at, m.flag_reviewed_at
          FROM messages m JOIN conversations c ON c.id = m.conversation_id
         WHERE m.id = $1`,
       [messageId],
     );
     const row = lookup.rows[0];
     if (!row) throw createAppError('Message not found.', 404);
+    if (!row.is_flagged && !row.reported_at) {
+      throw createAppError('Message has no open flag or user report to review.', 409);
+    }
+    if (row.flag_reviewed_at) {
+      throw createAppError('Message report is already reviewed. The original decision is immutable.', 409);
+    }
 
     await client.query(
       `UPDATE messages
-          SET flag_reviewed_at = COALESCE(flag_reviewed_at, NOW()),
-              flag_reviewed_by = COALESCE(flag_reviewed_by, $2)
+          SET flag_reviewed_at = NOW(),
+              flag_reviewed_by = $2
         WHERE id = $1`,
       [messageId, adminId],
     );
 
     await logModerationAction(client, adminId, 'message_flag_reviewed', row.booking_id, {
       messageId,
-      reviewNote: trimmedNote.slice(0, 1000),
+      reviewNote: trimmedNote,
     });
   });
   logger.info('Admin reviewed message flag', { adminId, messageId });

@@ -24,6 +24,7 @@ jest.mock('../src/middleware/rbac.middleware', () => ({
 
 const getTicketByIdMock = jest.fn();
 const addMessageMock = jest.fn();
+const TICKET_ID = '11111111-1111-4111-8111-111111111111';
 jest.mock('../src/services/support-ticket.service', () => ({
   getTicketById: (...args: unknown[]) => getTicketByIdMock(...args),
   addMessage: (...args: unknown[]) => addMessageMock(...args),
@@ -40,14 +41,14 @@ jest.mock('../src/services/support-ticket.service', () => ({
 import supportRouter from '../src/routes/support-ticket.routes';
 
 it('Bug UX-057 — stores provider staff support replies under the database-supported provider sender role', async () => {
-  getTicketByIdMock.mockResolvedValueOnce({ id: 'ticket-1', user_id: 'staff-1' });
+  getTicketByIdMock.mockResolvedValueOnce({ id: TICKET_ID, user_id: 'staff-1' });
   addMessageMock.mockResolvedValueOnce({ id: 'message-1' });
   const app = express();
   app.use(express.json());
   app.use('/support-tickets', supportRouter);
 
   const response = await request(app)
-    .post('/support-tickets/ticket-1/messages')
+    .post(`/support-tickets/${TICKET_ID}/messages`)
     .send({ message: 'Please help with this assigned job.' });
 
   expect(response.status).toBe(201);

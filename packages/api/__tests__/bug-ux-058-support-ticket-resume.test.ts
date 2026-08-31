@@ -19,6 +19,7 @@ it('Bug UX-058 — resumes waiting cases on user reply and keeps terminal cases 
   queryMock
     .mockResolvedValueOnce({ rows: [{ status: 'waiting_on_customer', assigned_agent_id: 'agent-1' }] })
     .mockResolvedValueOnce({ rows: [{ id: 'message-1', message: 'Here are the details.' }] })
+    .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValueOnce({ rows: [] });
 
   await addMessage({
@@ -38,6 +39,7 @@ it('Bug UX-058 — resumes waiting cases on user reply and keeps terminal cases 
   ]);
   expect(queryMock.mock.calls[2]?.[0]).toMatch(/SET status = \$2, updated_at = NOW\(\)/);
   expect(queryMock.mock.calls[2]?.[1]).toEqual(['ticket-1', 'in_progress']);
+  expect(queryMock.mock.calls[3]?.[0]).toMatch(/support_ticket_status_resumed_by_reply/);
 
   queryMock.mockReset();
   queryMock.mockResolvedValueOnce({ rows: [{ status: 'closed', assigned_agent_id: 'agent-1' }] });

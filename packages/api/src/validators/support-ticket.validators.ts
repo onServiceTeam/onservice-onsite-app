@@ -79,3 +79,12 @@ export const updateSupportTicketStatusSchema = z.object({
 export const assignSupportTicketSchema = z.object({
   agentId: z.string().uuid('Invalid agent ID'),
 }).strict();
+
+export const supportTicketIdParamsSchema = z.object({
+  id: z.string().uuid('Invalid support ticket ID'),
+}).strict();
+
+export const updateSupportTicketPrioritySchema = z.object({
+  priority: ticketPriority,
+  workflowNote: z.string().trim().min(10, 'Workflow note must be at least 10 characters').max(5000),
+}).strict();

@@ -97,6 +97,8 @@ const ACTION_LABELS: Record<string, string> = {
   staff_role_demoted_from_dpo: 'DPO access removed',
   staff_role_promoted_dpo: 'DPO access granted',
   support_ticket_status_updated: 'Support case status updated',
+  support_ticket_status_resumed_by_reply: 'Support case resumed by participant reply',
+  support_ticket_priority_updated: 'Support case priority updated',
 };
 
 const ROLE_COLORS: Record<string, string> = {

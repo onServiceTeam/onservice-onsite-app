@@ -4,7 +4,7 @@
 
 This is the resumable record for the suspicion-first admin/company stage that follows the provider and customer desktop/linkage audits. It records what was inspected, what was changed, what was proven by executed tests, and what remains. It does not treat the existence of a route, table, button, or old test as proof that an operator workflow is feasible.
 
-The current stage is not a declaration that every admin screen is complete. The first checkpoint covers Business Account 360, business projects, notification templates, promo redemption controls, customer-home banners, and marketing campaign records. The remaining admin surfaces continue after this checkpoint.
+The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover Business Account 360, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, and support operations. The remaining admin surfaces continue after these checkpoints.
 
 Production synchronization is not claimed. Escalation E32 still records that the supplied SSH identities are rejected by the production host. Local and GitHub code may be aligned after CI, but production cannot be updated until an authorized server identity is available.
 
@@ -86,25 +86,70 @@ Executed regression coverage: Bugs UX-672 through UX-679.
 
 Executed regression coverage: Bugs UX-680 through UX-689.
 
-## Verification at this checkpoint
+## Checkpoint D: communications moderation
+
+### Findings
+
+- Conversation rows contained a provider user ID, while the Provider 360 route requires the provider profile ID. The resulting operator link could open the wrong resource or fail.
+- A moderation review could be submitted without an open flag/report, and a reviewed conversation could be reviewed again. That made the review action neither stateful nor immutable.
+- Repeated redaction could overwrite the original reason and actor context.
+- Moderation reasons had no useful server length contract and route inputs were not consistently validated before service/database work.
+- A failed statistics request was rendered as zero flagged conversations, hiding an unavailable moderation signal.
+- Booking filters, tabs, and recovery controls did not collapse safely for tablet-width operator use.
+
+### Implemented boundary
+
+- Conversation results now expose the canonical provider profile ID and the admin exits to Provider 360 use that ID.
+- Review requires an open flag/report and is rejected after review. Redaction is rejected after the first redaction so its original reason remains immutable. A valid review rationale is preserved in full in the audit record.
+- Conversation IDs, queue filters, review bodies, and redaction bodies are validated at the route boundary. Reasons are limited to 3–2,000 characters.
+- Failed moderation statistics are shown as unavailable with retry, not as a clean zero. List, queue, thread, and statistics failures each provide a local recovery action.
+- Booking scope and moderation tabs now use responsive controls suitable for tablet and desktop browsers.
+
+Executed regression coverage: Bugs UX-690 through UX-693 and UX-703, plus the existing communications and moderation suites.
+
+## Checkpoint E: support operations
+
+### Findings
+
+- A selected case fell back to the queue row while its complete record was loading or unavailable. Staff could therefore see and act on incomplete or stale status, ownership, message, and account data.
+- Queue-summary failure appeared as four zero signals. Agent-load and decision-history failures lacked complete recovery and did not consistently block dependent actions.
+- Case assignment allowed no-op reassignment and ownership changes on terminal cases, did not lock the current row before deciding, and omitted the previous owner/status from its audit details.
+- Participant replies automatically resumed waiting cases without adding that transition to case-decision history.
+- Staff could attempt a participant-visible reply on a resolved/closed case. Conversely, the admin screen provided no way to add a private post-closure handoff or investigation note.
+- Priority affected queue ordering and urgent signals, but support staff could not change it after intake and no reasoned priority history existed.
+- Ticket path parameters were not consistently UUID-validated, allowing malformed identifiers to reach database-backed handlers.
+
+### Implemented boundary
+
+- Case detail now fails closed: until the current complete record loads, status, owner, priority, and reply controls are unavailable. The detail request has a local retry.
+- Queue summary, active-agent choices, decision history, and the main queue have truthful loading/error states and recovery. Status/priority decisions are disabled if their decision history cannot be verified.
+- Assignment locks the case, rejects terminal and same-owner changes, validates an active support agent, and preserves prior owner/status in the append-only admin action.
+- Customer/provider replies that resume waiting cases write an atomic audit event and appear in Case decisions with the participant actor.
+- Terminal cases reject participant-visible replies at the service boundary. The admin workspace offers a forced-private internal-note composer for post-closure documentation.
+- Staff can change priority on active cases only after entering a triage reason. The change and reason are atomic and appear beside status and reply-driven decisions.
+- All ticket-ID routes now reject malformed UUIDs before service/database work.
+
+Executed regression coverage: Bugs UX-694 through UX-702, plus all existing support route, service, and rendered admin support suites.
+
+## Verification at checkpoints D and E
 
 - Admin TypeScript: passed.
 - API TypeScript: passed.
-- ESLint on every changed and new TypeScript/TSX file: passed.
-- Admin full suite: 182 passed files, 1 skipped file; 292 passed tests and 3 explicit todos.
-- API full locally runnable suite: 532 passed suites, 1 skipped suite; 3,124 passed tests and 1 intentional skip.
-- The Docker-dependent nginx certificate configuration test was not counted as a pass because Docker Desktop was off. Its failure was inability to connect to the local Docker engine, before nginx validation ran.
+- Admin production build: passed.
+- API production build: passed.
+- Full repository ESLint: passed.
+- Admin full suite: 187 passed files, 1 skipped file; 297 passed tests and 3 explicit todos.
+- API full locally runnable run: 541 passed suites, 1 skipped suite; 3,133 passed tests and 1 intentional skip. The Docker-dependent nginx certificate configuration test was excluded from this clean run after a separate full run proved that its only failure was inability to connect to the local Docker engine, before nginx validation ran.
 - `git diff --check`: passed.
 
 ## Next admin/company audit queue
 
 The next continuous loop starts from the admin navigation inventory and rechecks each remaining page against the operating questions above. Priority order is:
 
-1. Support and communications linkage from booking, customer, provider, payment, dispute, and private/public message context.
-2. Booking/dispatch state transitions, exception queues, proof-to-close evidence, cancellation/no-show, and exact company ownership.
-3. Financial operations: payment intents/events, refunds, invoices, payouts, AML holds, reconciliations, and immutable money/audit boundaries.
-4. Customer and Provider 360 action feasibility, including enforcement impact, support ownership, sessions, documents, service areas, staff, and history.
-5. Catalog, service-area, cancellation-policy, compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
-6. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
+1. Booking/dispatch state transitions, exception queues, proof-to-close evidence, cancellation/no-show, and exact company ownership.
+2. Financial operations: payment intents/events, refunds, invoices, payouts, AML holds, reconciliations, and immutable money/audit boundaries.
+3. Customer and Provider 360 action feasibility, including enforcement impact, support ownership, sessions, documents, service areas, staff, and history.
+4. Catalog, service-area, cancellation-policy, compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
+5. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
 
 Existing legal, money, production-data, and privileged-identity escalation boundaries still apply. A page-local visual improvement is not permission to invent legal wording, mutate production money, or bypass those controls.

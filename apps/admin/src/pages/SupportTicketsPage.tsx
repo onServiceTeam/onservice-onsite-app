@@ -67,9 +67,12 @@ interface SupportTicketStatusHistoryEntry {
   adminName: string;
   adminRole: string | null;
   previousStatus: string | null;
-  nextStatus: string;
+  nextStatus: string | null;
+  previousPriority?: string | null;
+  nextPriority?: string | null;
   workflowNote: string;
   resolutionNotes: string | null;
+  decisionSource?: 'admin_status_change' | 'participant_reply' | 'admin_priority_change';
 }
 
 const TICKET_TYPES = [
@@ -203,7 +206,9 @@ export default function SupportTicketsPage(): React.ReactElement {
   // recipient comms. Now: when target status is resolved/closed,
   // open a confirm dialog asking for resolution notes.
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [pendingPriority, setPendingPriority] = useState<string | null>(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
+  const [priorityNote, setPriorityNote] = useState('');
   const [newTicketType, setNewTicketType] = useState(
     parseOption(searchParams.get('type'), TICKET_TYPES) || 'general_inquiry',
   );
@@ -270,6 +275,8 @@ export default function SupportTicketsPage(): React.ReactElement {
     setError('');
     setNotice('');
     setAssignAgentId('');
+    setPendingPriority(null);
+    setPriorityNote('');
   }
 
   function handleBack(): void {
@@ -285,9 +292,11 @@ export default function SupportTicketsPage(): React.ReactElement {
     setError('');
     setNotice('');
     setAssignAgentId('');
+    setPendingPriority(null);
+    setPriorityNote('');
   }
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error: listError } = useQuery({
     queryKey: [
       'adminSupportTickets',
       page,
@@ -384,6 +393,26 @@ export default function SupportTicketsPage(): React.ReactElement {
     onError: (e) => setError(getErrorMessage(e)),
   });
 
+  const updatePriorityMutation = useMutation({
+    mutationFn: async ({ id, priority, workflowNote }: { id: string; priority: string; workflowNote: string }) => {
+      await api.patch(`/api/v1/support-tickets/${id}/priority`, {
+        priority,
+        workflowNote: workflowNote.trim(),
+      });
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ['adminSupportTickets'] });
+      void queryClient.invalidateQueries({ queryKey: ['adminSupportTicket'] });
+      void queryClient.invalidateQueries({ queryKey: ['adminSupportTicketHistory'] });
+      void queryClient.invalidateQueries({ queryKey: ['adminSupportTicketSummary'] });
+      setError('');
+      setNotice(`Case priority changed to ${formatLabel(variables.priority)}. The triage reason was added to the audit record.`);
+      setPendingPriority(null);
+      setPriorityNote('');
+    },
+    onError: (e) => setError(getErrorMessage(e)),
+  });
+
   const replyMutation = useMutation({
     mutationFn: async (params: { ticketId: string; message: string; isInternalNote: boolean }) => {
       await api.post(`/api/v1/support-tickets/${params.ticketId}/messages`, {
@@ -451,10 +480,11 @@ export default function SupportTicketsPage(): React.ReactElement {
   const handleReply = (e: FormEvent): void => {
     e.preventDefault();
     if (!selectedId || !replyMessage.trim()) return;
+    const terminalCase = detailQuery.data?.status === 'resolved' || detailQuery.data?.status === 'closed';
     replyMutation.mutate({
       ticketId: selectedId,
       message: replyMessage.trim(),
-      isInternalNote,
+      isInternalNote: terminalCase || isInternalNote,
     });
   };
 
@@ -662,21 +692,40 @@ export default function SupportTicketsPage(): React.ReactElement {
   }
 
   if (selectedId) {
-    const fallbackTicket = visibleTickets.find((candidate) => candidate.id === selectedId);
-    const ticket = detailQuery.data ?? fallbackTicket;
-    if (!ticket) {
+    if (detailQuery.isLoading) {
       return (
         <div className="space-y-4">
           <button type="button" className="min-h-11 text-sm font-semibold text-[var(--color-primary)] hover:underline" onClick={handleBack}>
             ← Back to support queue
           </button>
           <div className="rounded-lg border border-[var(--color-border)] bg-white p-8 text-center text-sm text-[var(--color-text-secondary)]">
-            {detailQuery.isError ? 'Failed to load ticket details.' : 'Loading support case…'}
+            Loading the complete support case…
           </div>
         </div>
       );
     }
-    const isDetailLoading = detailQuery.isLoading;
+    if (detailQuery.isError || !detailQuery.data) {
+      return (
+        <div className="space-y-4">
+          <button type="button" className="min-h-11 text-sm font-semibold text-[var(--color-primary)] hover:underline" onClick={handleBack}>
+            ← Back to support queue
+          </button>
+          <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-900">
+            <p className="font-semibold">The complete support case could not be loaded.</p>
+            <p className="mt-1">Status, ownership, priority, and reply actions are unavailable until the current record loads.</p>
+            <button
+              type="button"
+              className="mt-4 min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold"
+              onClick={() => void detailQuery.refetch()}
+            >
+              Retry case details
+            </button>
+          </div>
+        </div>
+      );
+    }
+    const ticket = detailQuery.data;
+    const terminalCase = ticket.status === 'resolved' || ticket.status === 'closed';
     const statusNeedsResolution = pendingStatus === 'resolved' || pendingStatus === 'closed';
     return (
       <div className="space-y-4">
@@ -701,15 +750,6 @@ export default function SupportTicketsPage(): React.ReactElement {
             {notice}
           </p>
         )}
-        {detailQuery.isError && (
-          <p
-            role="alert"
-            className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2"
-          >
-            Failed to load ticket details.
-          </p>
-        )}
-
         <div className="rounded-lg border border-[var(--color-border)] bg-white p-5 sm:p-6">
           <div className="mb-5 flex flex-col items-start justify-between gap-4 xl:flex-row">
             <div>
@@ -731,12 +771,13 @@ export default function SupportTicketsPage(): React.ReactElement {
                 <Badge variant="info" label={formatLabel(ticket.type)} />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <select
                 className="h-11 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm font-semibold disabled:opacity-50"
                 value=""
                 aria-label="Change support ticket status"
-                disabled={updateStatusMutation.isPending}
+                title={historyQuery.isError ? 'Status history must load before another status decision.' : undefined}
+                disabled={updateStatusMutation.isPending || historyQuery.isLoading || historyQuery.isError}
                 onChange={(e) => {
                   const target = e.target.value;
                   if (!target) return;
@@ -754,6 +795,26 @@ export default function SupportTicketsPage(): React.ReactElement {
                   </option>
                 ))}
               </select>
+              {ticket.status !== 'resolved' && ticket.status !== 'closed' && (
+                <select
+                  className="h-11 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm font-semibold disabled:opacity-50"
+                  value=""
+                  aria-label="Change support ticket priority"
+                  disabled={updatePriorityMutation.isPending || historyQuery.isLoading || historyQuery.isError}
+                  onChange={(event) => {
+                    const target = event.target.value;
+                    if (!target) return;
+                    setPendingPriority(target);
+                    setPriorityNote('');
+                    setNotice('');
+                  }}
+                >
+                  <option value="">Change priority</option>
+                  {PRIORITIES.filter((priority) => priority !== ticket.priority).map((priority) => (
+                    <option key={priority} value={priority}>{formatLabel(priority)}</option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
@@ -807,7 +868,7 @@ export default function SupportTicketsPage(): React.ReactElement {
           </div>
 
           {/* Assign agent by name. Raw UUID entry was not usable by support staff. */}
-          {ticket.status !== 'closed' && (
+          {ticket.status !== 'resolved' && ticket.status !== 'closed' && (
             <div className="mb-4 flex flex-wrap items-end gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
               <label
                 htmlFor="ticket-agent-id"
@@ -825,7 +886,7 @@ export default function SupportTicketsPage(): React.ReactElement {
                   <option value="">
                     {agentsQuery.isLoading ? 'Loading agents...' : 'Choose an active agent'}
                   </option>
-                  {(agentsQuery.data ?? []).map((agent) => (
+                  {(agentsQuery.data ?? []).filter((agent) => agent.id !== ticket.assigned_agent_id).map((agent) => (
                     <option key={agent.id} value={agent.id}>
                       {agent.first_name} {agent.last_name} ({formatLabel(agent.role)})
                     </option>
@@ -841,9 +902,12 @@ export default function SupportTicketsPage(): React.ReactElement {
                 {assignMutation.isPending ? 'Assigning...' : 'Assign'}
               </button>
               {agentsQuery.isError && (
-                <p role="alert" className="w-full text-xs text-red-700">
-                  Active support agents could not be loaded.
-                </p>
+                <div role="alert" className="flex w-full flex-wrap items-center justify-between gap-2 text-xs text-red-700">
+                  <span>Active support agents could not be loaded.</span>
+                  <button type="button" className="min-h-11 rounded-md border border-red-300 bg-white px-3 font-semibold" onClick={() => void agentsQuery.refetch()}>
+                    Retry agents
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -859,32 +923,58 @@ export default function SupportTicketsPage(): React.ReactElement {
         </div>
 
         <div aria-label="Support status decision history" className="rounded-lg border border-[var(--color-border)] bg-white p-5 sm:p-6">
-          <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Append-only audit history</p>
-          <h2 className="mt-1 text-lg font-semibold text-[var(--color-text)]">Status decisions</h2>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Append-only audit history</p>
+              <h2 className="mt-1 text-lg font-semibold text-[var(--color-text)]">Case decisions</h2>
+            </div>
+            <Link
+              className="min-h-11 rounded-md border border-[var(--color-border)] px-3 py-2 text-sm font-semibold text-[var(--color-primary)] hover:underline"
+              to={`/audit-log?entityType=support_ticket&entityId=${ticket.id}`}
+            >
+              View full audit history
+            </Link>
+          </div>
           <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-            Manual status decisions keep the acting administrator, reason, and recorded resolution.
+            Status and priority decisions keep the actor, reason, and recorded resolution. A participant reply that resumes a waiting case is recorded automatically.
           </p>
           {historyQuery.isLoading && <p className="mt-4 text-sm text-[var(--color-text-secondary)]">Loading status history…</p>}
-          {historyQuery.isError && <p role="alert" className="mt-4 text-sm text-red-700">Status history could not be loaded.</p>}
+          {historyQuery.isError && (
+            <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              <span>Case decision history could not be loaded. New status and priority decisions are disabled.</span>
+              <button type="button" className="min-h-11 rounded-md border border-red-300 bg-white px-3 font-semibold" onClick={() => void historyQuery.refetch()}>
+                Retry history
+              </button>
+            </div>
+          )}
           {!historyQuery.isLoading && !historyQuery.isError && (historyQuery.data?.length ?? 0) === 0 && (
             <p className="mt-4 rounded-md bg-[var(--color-bg)] p-3 text-sm text-[var(--color-text-secondary)]">
-              No audited status decision has been recorded yet.
+              No audited case decision has been recorded yet.
             </p>
           )}
           {(historyQuery.data?.length ?? 0) > 0 && (
             <ol className="mt-4 space-y-3">
-              {historyQuery.data!.map((entry) => (
+              {historyQuery.data!.map((entry) => {
+                const decision = entry.decisionSource === 'admin_priority_change'
+                  ? `${formatLabel(entry.previousPriority ?? 'unknown')} → ${formatLabel(entry.nextPriority ?? 'unknown')}`
+                  : `${entry.previousStatus ? formatLabel(entry.previousStatus) : 'No prior status'} → ${entry.nextStatus ? formatLabel(entry.nextStatus) : 'Unknown status'}`;
+                const sourceLabel = entry.decisionSource === 'participant_reply'
+                  ? 'Participant reply resumed case'
+                  : entry.decisionSource === 'admin_priority_change'
+                    ? 'Priority decision'
+                    : 'Status decision';
+                return (
                 <li key={entry.id} className="rounded-md border border-[var(--color-border)] p-4">
                   <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-start">
                     <p className="text-sm font-semibold text-[var(--color-text)]">
-                      {entry.previousStatus ? formatLabel(entry.previousStatus) : 'No prior status'} → {formatLabel(entry.nextStatus)}
+                      {decision}
                     </p>
                     <time className="text-xs text-[var(--color-text-tertiary)]">
                       {new Date(entry.createdAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}
                     </time>
                   </div>
                   <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
-                    {entry.adminName}{entry.adminRole ? ` (${formatLabel(entry.adminRole)})` : ''}
+                    {sourceLabel} · {entry.adminName}{entry.adminRole ? ` (${formatLabel(entry.adminRole)})` : ''}
                   </p>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--color-text-secondary)]">
                     {entry.workflowNote || 'No workflow note captured.'}
@@ -895,7 +985,8 @@ export default function SupportTicketsPage(): React.ReactElement {
                     </p>
                   )}
                 </li>
-              ))}
+                );
+              })}
             </ol>
           )}
         </div>
@@ -913,12 +1004,7 @@ export default function SupportTicketsPage(): React.ReactElement {
               {ticket.messages?.length ?? 0} entries
             </span>
           </div>
-          {isDetailLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin h-6 w-6 border-3 border-[var(--color-primary)] border-t-transparent rounded-full" />
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto mb-4">
+          <div className="space-y-3 max-h-96 overflow-y-auto mb-4">
               {(ticket.messages ?? []).map((msg) => (
                 <div
                   key={msg.id}
@@ -944,8 +1030,7 @@ export default function SupportTicketsPage(): React.ReactElement {
               {(ticket.messages ?? []).length === 0 && (
                 <p className="text-sm text-[var(--color-text-secondary)]">No messages yet.</p>
               )}
-            </div>
-          )}
+          </div>
 
           {pendingStatus && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1031,20 +1116,80 @@ export default function SupportTicketsPage(): React.ReactElement {
             </div>
           )}
 
-          {ticket.status !== 'resolved' && ticket.status !== 'closed' && (
-            <form onSubmit={handleReply} className="border-t border-[var(--color-border)] pt-4">
+          {pendingPriority && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="ticket-priority-title"
+                className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-white p-6"
+              >
+                <h3 id="ticket-priority-title" className="text-lg font-semibold text-[var(--color-text)]">
+                  Change priority to {formatLabel(pendingPriority)}
+                </h3>
+                <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{ticket.ticket_number}: {ticket.subject}</p>
+                <p className="my-4 rounded-md bg-[var(--color-bg)] p-3 text-sm text-[var(--color-text-secondary)]">
+                  This changes queue ordering and urgency signals. It does not message the customer or provider.
+                </p>
+                <label htmlFor="ticket-priority-note" className="block text-sm font-medium text-[var(--color-text)]">
+                  Triage reason *
+                </label>
+                <textarea
+                  id="ticket-priority-note"
+                  value={priorityNote}
+                  onChange={(event) => setPriorityNote(event.target.value)}
+                  rows={4}
+                  maxLength={5000}
+                  placeholder="Explain the evidence for this priority in at least 10 characters."
+                  className="mt-1.5 w-full resize-none rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                />
+                <p className={`mt-1 text-right text-xs font-semibold ${priorityNote.trim().length < 10 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                  {priorityNote.trim().length}/10 minimum
+                </p>
+                {error && updatePriorityMutation.isError && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className="min-h-11 rounded-md border border-[var(--color-border)] px-4 text-sm font-semibold"
+                    onClick={() => { setPendingPriority(null); setPriorityNote(''); }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="min-h-11 rounded-md bg-[var(--color-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
+                    disabled={updatePriorityMutation.isPending || priorityNote.trim().length < 10}
+                    onClick={() => updatePriorityMutation.mutate({
+                      id: ticket.id,
+                      priority: pendingPriority,
+                      workflowNote: priorityNote.trim(),
+                    })}
+                  >
+                    {updatePriorityMutation.isPending ? 'Updating…' : `Confirm ${formatLabel(pendingPriority)}`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleReply} className="border-t border-[var(--color-border)] pt-4">
+              {terminalCase && (
+                <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  This case is {ticket.status}. Participant-visible replies are locked until it is reopened. You can still save a private internal note.
+                </p>
+              )}
               <label htmlFor="ticket-reply-message" className="sr-only">
-                Reply message
+                {terminalCase ? 'Internal note' : 'Reply message'}
               </label>
               <textarea
                 id="ticket-reply-message"
                 className="w-full border border-[var(--color-border)] rounded-lg p-3 text-sm resize-none"
                 rows={3}
                 maxLength={5000}
-                placeholder="Type a reply..."
+                placeholder={terminalCase ? 'Add a private post-closure note...' : 'Type a reply...'}
                 value={replyMessage}
                 onChange={(e) => setReplyMessage(e.target.value)}
-                aria-label="Reply message"
+                aria-label={terminalCase ? 'Internal note' : 'Reply message'}
               />
               <p
                 aria-live="polite"
@@ -1052,29 +1197,32 @@ export default function SupportTicketsPage(): React.ReactElement {
               >
                 {replyMessage.length} / 5000 characters
               </p>
-              <div className="flex items-center justify-between mt-2">
-                <label
-                  htmlFor="ticket-internal-note"
-                  className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]"
-                >
-                  <input
-                    id="ticket-internal-note"
-                    type="checkbox"
-                    checked={isInternalNote}
-                    onChange={(e) => setIsInternalNote(e.target.checked)}
-                  />
-                  Internal note (not visible to user)
-                </label>
+              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                {terminalCase ? (
+                  <span className="text-sm font-semibold text-amber-800">Private note, not visible to the user</span>
+                ) : (
+                  <label
+                    htmlFor="ticket-internal-note"
+                    className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]"
+                  >
+                    <input
+                      id="ticket-internal-note"
+                      type="checkbox"
+                      checked={isInternalNote}
+                      onChange={(e) => setIsInternalNote(e.target.checked)}
+                    />
+                    Internal note (not visible to user)
+                  </label>
+                )}
                 <button
                   type="submit"
                   disabled={!replyMessage.trim() || replyMutation.isPending}
                   className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg disabled:opacity-50"
                 >
-                  {replyMutation.isPending ? 'Saving...' : isInternalNote ? 'Save internal note' : 'Send reply'}
+                  {replyMutation.isPending ? 'Saving...' : terminalCase || isInternalNote ? 'Save internal note' : 'Send reply'}
                 </button>
               </div>
             </form>
-          )}
         </div>
       </div>
     );
@@ -1166,10 +1314,20 @@ export default function SupportTicketsPage(): React.ReactElement {
         </div>
       )}
 
-      <section
-        aria-label="Support queue signals"
-        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-      >
+      {summaryQuery.isError ? (
+        <div role="alert" className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900 sm:flex-row sm:items-center sm:justify-between">
+          <span>Whole-queue support signals could not be loaded. No zero counts are being inferred.</span>
+          <button type="button" className="min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold" onClick={() => void summaryQuery.refetch()}>
+            Retry queue signals
+          </button>
+        </div>
+      ) : summaryQuery.isLoading ? (
+        <p role="status" className="text-sm text-[var(--color-text-secondary)]">Loading whole-queue support signals…</p>
+      ) : (
+        <section
+          aria-label="Support queue signals"
+          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+        >
         {[
           {
             label: 'Open',
@@ -1208,7 +1366,8 @@ export default function SupportTicketsPage(): React.ReactElement {
             <span className={`mt-1 block text-2xl font-bold ${signal.tone}`}>{signal.count}</span>
           </button>
         ))}
-      </section>
+        </section>
+      )}
 
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--color-border)] bg-white p-4">
         <span className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">
@@ -1311,18 +1470,14 @@ export default function SupportTicketsPage(): React.ReactElement {
         )}
       </div>
 
-      {isError && (
-        <p role="alert" className="text-red-600 text-sm">
-          Failed to load tickets.
-        </p>
-      )}
-
       <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-white">
         <DataTable
           columns={columns}
           data={visibleTickets}
           keyExtractor={(r) => r.id}
           isLoading={isLoading}
+          isError={isError}
+          errorMessage={isError ? getErrorMessage(listError) : undefined}
           emptyMessage="No support tickets match these filters."
         />
       </div>
