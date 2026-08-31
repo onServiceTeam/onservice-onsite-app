@@ -40,12 +40,22 @@
   the booking's ledger remainder and prorate the original immutable terms, so
   the provider/platform remainder is neither stranded nor funded from another
   booking's escrow. Manual-release totals now include the guarantee allocation.
+- Replaces the CRIT-N10 booking-confirmation and MED-N166 wallet-withdrawal
+  source-text checks with executed route behavior. The confirmation test now
+  proves commit, rollback, and post-commit receipt-failure behavior; the
+  withdrawal test proves provider-only delegation and service-error
+  propagation.
+- Fixes OPS-299/OPS-300 in the provider payout handoff. The wallet facade now
+  shares the canonical payout request schema, so account-holder name and notes
+  are no longer stripped before payout creation. The responsive provider
+  withdrawal screen captures an optional account-holder name and sends the
+  trimmed value through to the payout record already shown to finance staff.
 
 ## Verification completed
 
-- API: 673 suites passed, 1 suite skipped by its own config, 3,170 tests passed.
+- API: 674 suites passed, 1 suite skipped by its own config, 3,163 tests passed.
 - Admin: 248 files passed, 1 skipped, 340 tests passed, 3 existing todos.
-- Mobile: 501 suites passed, 880 tests passed, 84 existing todos.
+- Mobile: 502 suites passed, 881 tests passed, 84 existing todos.
 - API, admin, and mobile typechecks passed.
 - ESLint passed for `apps` and `packages`.
 - API TypeScript production build passed.
