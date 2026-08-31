@@ -607,7 +607,7 @@ describe('cancelBookingAsAdmin', () => {
 
   it('escrow held → calls handleCancellationInTransaction with passed args + records refundAmount (Bug 69)', async () => {
     dbQueryMock.mockResolvedValueOnce(
-      rows([{ id: BOOKING_ID, status: 'confirmed_by_provider', escrow_status: 'held' }]),
+      rows([{ id: BOOKING_ID, status: 'paid', escrow_status: 'held' }]),
     );
     // BUG-PHASE78-01 test maintenance — cancelBookingAsAdmin in
     // booking-admin.service.ts:873 SELECTs service_fee right after

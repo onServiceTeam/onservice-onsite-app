@@ -4,7 +4,7 @@
 
 This is the resumable record for the suspicion-first admin/company stage that follows the provider and customer desktop/linkage audits. It records what was inspected, what was changed, what was proven by executed tests, and what remains. It does not treat the existence of a route, table, button, or old test as proof that an operator workflow is feasible.
 
-The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover Business Account 360, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, and support operations. The remaining admin surfaces continue after these checkpoints.
+The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover Business Account 360, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, and the current Booking 360/Dispatch integrity pass. The remaining admin surfaces continue after these checkpoints.
 
 Production synchronization is not claimed. Escalation E32 still records that the supplied SSH identities are rejected by the production host. Local and GitHub code may be aligned after CI, but production cannot be updated until an authorized server identity is available.
 
@@ -131,25 +131,55 @@ Executed regression coverage: Bugs UX-690 through UX-693 and UX-703, plus the ex
 
 Executed regression coverage: Bugs UX-694 through UX-702, plus all existing support route, service, and rendered admin support suites.
 
-## Verification at checkpoints D and E
+## Checkpoint F: Booking 360 and Dispatch integrity
 
-- Admin TypeScript: passed.
-- API TypeScript: passed.
+### Findings
+
+- Booking queue summary failure could still be read as clean zero signals, while Dispatch could combine an unavailable feed with zero/empty language. Both patterns could hide active operational work.
+- Dispatch used fixed viewport/map/panel heights that were brittle on tablet and shorter desktop browsers. Booking 360's six record sections did not provide a safe horizontal section rail at narrow tablet widths.
+- Primary Booking 360 and its timeline, proof, quote, dispute, payment, and audit feeds could fail without an in-context recovery action.
+- Reassignment offered the already assigned provider and initially implied schedule enforcement that the API did not perform.
+- The API enforced approval, account state, accepting-work state, service capability, and service radius but did not reject an overlapping scheduled booking.
+- Both reassignment pickers and the Dispatch map silently depended on the first 100 accepting-work provider rows. Operators could not reach a provider outside that page from the action dialog.
+- Booking 360 returned raw customer/provider contact to ordinary admins even though Customer and Provider 360 require role-aware masking and audited reveal.
+- Booking-admin routes let malformed booking/provider identifiers reach database-backed handlers.
+- The direct admin cancellation service bypassed the canonical state-transition table. A crafted super-admin request could relabel a settled `paid_out` booking as cancelled.
+- Booking actions appeared available in impossible booking/escrow states and successful actions closed without explicit operator feedback.
+
+### Implemented boundary
+
+- Booking and Dispatch failures now fail closed: unavailable feeds never become zero/empty operational conclusions, each failed feed has a local retry, and dependent tables/attention signals remain unavailable until recovery.
+- Dispatch uses tablet-safe map and panel sizing; Booking 360 uses a scrollable, touch-sized section rail and touch-sized action fields.
+- Booking 360's primary and secondary records recover in place without sending support staff away from the case.
+- Reassignment excludes the current provider, explains the exact server gates, and now rejects double-booking conflicts for scheduled work.
+- Both action dialogs add server-backed accepting-work-provider search. Dispatch identifies when its map is showing only the first page and preserves the API total rather than presenting the page length as the whole supply count.
+- Dispatch never compares a locally filtered loaded count with the unfiltered API total, avoiding a mathematically false queue/supply summary.
+- Ordinary admins receive masked booking-participant contact. Canonical Customer/Provider 360 remains the place for an audited contact reveal.
+- All Booking 360 path identifiers and reassignment provider IDs are UUID-validated before service/database work.
+- Admin cancellation now uses the canonical booking transition table. Settled/completed money states cannot be relabelled through cancellation; operators are directed to dispute or settlement handling.
+- Visible super-admin actions are gated by booking and escrow state, all mutations prevent concurrent action switching, and successful actions provide explicit feedback.
+
+The cancellation timing/arrival/no-show inputs still feed the live System A refund calculation. E09 remains open because the customer-facing policy editor is a different System B source. This checkpoint does not change refund percentages, legal wording, or either source of policy truth. Dispatch also continues to use saved service locations rather than claiming live GPS.
+
+Executed regression coverage: Bugs UX-704 through UX-718, plus the existing Booking 360, Dispatch, reassignment, cancellation-transaction, proof, money-trail, and support-message suites. The reviewed visual contract now includes default/loading/empty/error states at 820, 1024, 1280, 1440, and 1920 pixels for Booking 360 and Dispatch.
+
+## Verification at checkpoints D through F
+
+- All three workspace TypeScript checks: passed.
 - Admin production build: passed.
 - API production build: passed.
 - Full repository ESLint: passed.
-- Admin full suite: 187 passed files, 1 skipped file; 297 passed tests and 3 explicit todos.
-- API full locally runnable run: 541 passed suites, 1 skipped suite; 3,133 passed tests and 1 intentional skip. The Docker-dependent nginx certificate configuration test was excluded from this clean run after a separate full run proved that its only failure was inability to connect to the local Docker engine, before nginx validation ran.
+- Admin full suite: 198 passed files, 1 skipped file; 308 passed tests and 3 explicit todos.
+- API full locally runnable run: 545 passed suites, 1 skipped suite; 3,137 passed tests and 1 intentional skip. The Docker-dependent nginx certificate configuration test was excluded because Docker Desktop is unavailable in the local environment; CI remains the execution gate for that check.
 - `git diff --check`: passed.
 
 ## Next admin/company audit queue
 
 The next continuous loop starts from the admin navigation inventory and rechecks each remaining page against the operating questions above. Priority order is:
 
-1. Booking/dispatch state transitions, exception queues, proof-to-close evidence, cancellation/no-show, and exact company ownership.
-2. Financial operations: payment intents/events, refunds, invoices, payouts, AML holds, reconciliations, and immutable money/audit boundaries.
-3. Customer and Provider 360 action feasibility, including enforcement impact, support ownership, sessions, documents, service areas, staff, and history.
-4. Catalog, service-area, cancellation-policy, compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
-5. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
+1. Financial operations: payment intents/events, refunds, invoices, payouts, AML holds, reconciliations, and immutable money/audit boundaries.
+2. Customer and Provider 360 action feasibility, including enforcement impact, support ownership, sessions, documents, service areas, staff, and history.
+3. Catalog, service-area, cancellation-policy, compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
+4. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
 
 Existing legal, money, production-data, and privileged-identity escalation boundaries still apply. A page-local visual improvement is not permission to invent legal wording, mutate production money, or bypass those controls.

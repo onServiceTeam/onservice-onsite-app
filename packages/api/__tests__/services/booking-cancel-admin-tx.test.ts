@@ -55,7 +55,7 @@ beforeEach(() => {
 describe('Bug 69 — cancelBookingAsAdmin transactional', () => {
   it('opens exactly one transaction containing all writes', async () => {
     setTopQueryImpl(makeRouter([
-      { match: /SELECT id, status, escrow_status FROM bookings WHERE id = \$1$/, rows: [{ id: BOOKING_ID, status: 'pending', escrow_status: null }], rowCount: 1 },
+      { match: /SELECT id, status, escrow_status FROM bookings WHERE id = \$1$/, rows: [{ id: BOOKING_ID, status: 'requested', escrow_status: null }], rowCount: 1 },
     ]));
     setTxQueryImpl(makeRouter([
       { match: /UPDATE bookings/, rowCount: 1 },
@@ -84,7 +84,7 @@ describe('Bug 69 — cancelBookingAsAdmin transactional', () => {
     });
 
     setTopQueryImpl(makeRouter([
-      { match: /SELECT id, status, escrow_status FROM bookings/, rows: [{ id: BOOKING_ID, status: 'confirmed', escrow_status: 'held' }], rowCount: 1 },
+      { match: /SELECT id, status, escrow_status FROM bookings/, rows: [{ id: BOOKING_ID, status: 'paid', escrow_status: 'held' }], rowCount: 1 },
     ]));
     setTxQueryImpl(makeRouter([
       { match: /UPDATE bookings/, rowCount: 1 },
@@ -106,7 +106,7 @@ describe('Bug 69 — cancelBookingAsAdmin transactional', () => {
     });
 
     setTopQueryImpl(makeRouter([
-      { match: /SELECT id, status, escrow_status FROM bookings/, rows: [{ id: BOOKING_ID, status: 'confirmed', escrow_status: 'held' }], rowCount: 1 },
+      { match: /SELECT id, status, escrow_status FROM bookings/, rows: [{ id: BOOKING_ID, status: 'paid', escrow_status: 'held' }], rowCount: 1 },
     ]));
 
     const auditErr = new Error('simulated audit failure (CHECK constraint violated)');
@@ -137,7 +137,7 @@ describe('Bug 69 — cancelBookingAsAdmin transactional', () => {
     );
 
     setTopQueryImpl(makeRouter([
-      { match: /SELECT id, status, escrow_status FROM bookings/, rows: [{ id: BOOKING_ID, status: 'confirmed', escrow_status: 'held' }], rowCount: 1 },
+      { match: /SELECT id, status, escrow_status FROM bookings/, rows: [{ id: BOOKING_ID, status: 'paid', escrow_status: 'held' }], rowCount: 1 },
     ]));
     setTxQueryImpl(makeRouter([]));
 
@@ -165,13 +165,13 @@ describe('Bug 69 — cancelBookingAsAdmin transactional', () => {
 
     await expect(
       cancelBookingAsAdmin(BOOKING_ID, VALID_REASON, ADMIN_ID),
-    ).rejects.toThrow(/already cancelled/);
+    ).rejects.toThrow(/Cannot cancel booking/);
     expect(getTransactionInvocations()).toBe(0);
   });
 
   it('skips escrow handler when escrow_status is not held', async () => {
     setTopQueryImpl(makeRouter([
-      { match: /SELECT id, status, escrow_status FROM bookings/, rows: [{ id: BOOKING_ID, status: 'pending', escrow_status: null }], rowCount: 1 },
+      { match: /SELECT id, status, escrow_status FROM bookings/, rows: [{ id: BOOKING_ID, status: 'requested', escrow_status: null }], rowCount: 1 },
     ]));
     setTxQueryImpl(makeRouter([
       { match: /UPDATE bookings/, rowCount: 1 },
@@ -188,7 +188,7 @@ describe('Bug 69 — cancelBookingAsAdmin transactional', () => {
     const longReason = 'a'.repeat(800); // >500 chars to verify reason vs full_notes split
 
     setTopQueryImpl(makeRouter([
-      { match: /SELECT id, status, escrow_status FROM bookings/, rows: [{ id: BOOKING_ID, status: 'pending', escrow_status: null }], rowCount: 1 },
+      { match: /SELECT id, status, escrow_status FROM bookings/, rows: [{ id: BOOKING_ID, status: 'requested', escrow_status: null }], rowCount: 1 },
     ]));
     setTxQueryImpl(makeRouter([
       { match: /UPDATE bookings/, rowCount: 1 },

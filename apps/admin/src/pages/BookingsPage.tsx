@@ -129,7 +129,7 @@ export default function BookingsPage(): React.ReactElement {
     void queryClient.invalidateQueries({ queryKey: ['adminBookings'] });
   });
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['adminBookings', page, search, statusFilter, view, sort, businessAccountId],
     queryFn: async () => {
       const params: Record<string, string | number> = {
@@ -182,14 +182,25 @@ export default function BookingsPage(): React.ReactElement {
         </section>
       ) : null}
 
-      <section aria-label="Booking queue signals" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-        <QueueSignal label="All bookings" value={summary?.totalBookings ?? 0} detail="Every lifecycle state" selected={view === 'all' && !statusFilter} onClick={() => selectView('all')} />
-        <QueueSignal label="Active" value={summary?.activeBookings ?? 0} detail="Work not terminal" selected={view === 'active'} onClick={() => selectView('active')} />
-        <QueueSignal label="Paid needs assignment" value={summary?.unassignedActive ?? 0} detail="Verified paid and unassigned" selected={view === 'unassigned'} onClick={() => selectView('unassigned')} />
-        <QueueSignal label="Open support" value={summary?.openSupportBookings ?? 0} detail="Bookings with active cases" selected={view === 'support'} onClick={() => selectView('support')} />
-        <QueueSignal label="Dispute review" value={summary?.disputedBookings ?? 0} detail="Open linked disputes" selected={view === 'disputed'} onClick={() => selectView('disputed')} />
-        <QueueSignal label="Past scheduled" value={summary?.pastScheduledBookings ?? 0} detail="Active after start time" selected={view === 'past_scheduled'} onClick={() => selectView('past_scheduled')} />
-      </section>
+      {isError ? (
+        <div role="alert" className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900 sm:flex-row sm:items-center sm:justify-between">
+          <span>Booking queue signals and rows could not be loaded. No zero counts are being inferred.</span>
+          <button type="button" className="min-h-11 rounded-lg border border-red-300 bg-white px-4 font-semibold" onClick={() => void refetch()}>
+            Retry booking operations
+          </button>
+        </div>
+      ) : isLoading ? (
+        <p role="status" className="text-sm text-[var(--color-text-secondary)]">Loading booking queue signals…</p>
+      ) : (
+        <section aria-label="Booking queue signals" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+          <QueueSignal label="All bookings" value={summary?.totalBookings ?? 0} detail="Every lifecycle state" selected={view === 'all' && !statusFilter} onClick={() => selectView('all')} />
+          <QueueSignal label="Active" value={summary?.activeBookings ?? 0} detail="Work not terminal" selected={view === 'active'} onClick={() => selectView('active')} />
+          <QueueSignal label="Paid needs assignment" value={summary?.unassignedActive ?? 0} detail="Verified paid and unassigned" selected={view === 'unassigned'} onClick={() => selectView('unassigned')} />
+          <QueueSignal label="Open support" value={summary?.openSupportBookings ?? 0} detail="Bookings with active cases" selected={view === 'support'} onClick={() => selectView('support')} />
+          <QueueSignal label="Dispute review" value={summary?.disputedBookings ?? 0} detail="Open linked disputes" selected={view === 'disputed'} onClick={() => selectView('disputed')} />
+          <QueueSignal label="Past scheduled" value={summary?.pastScheduledBookings ?? 0} detail="Active after start time" selected={view === 'past_scheduled'} onClick={() => selectView('past_scheduled')} />
+        </section>
+      )}
 
       <section className="rounded-xl border border-[var(--color-border)] bg-white p-4" aria-label="Booking queue controls">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center">

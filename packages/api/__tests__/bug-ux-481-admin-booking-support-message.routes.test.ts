@@ -20,18 +20,19 @@ jest.mock('../src/services/booking-admin.service', () => ({
 import bookingAdminRouter from '../src/routes/booking-admin.routes';
 
 it('Bug UX-481 — a support admin can post an audited booking-participant update without receiving super-admin money authority', async () => {
-  sendMessageMock.mockResolvedValueOnce({ bookingId: 'booking-1', messageId: 'message-1' });
+  const bookingId = '11111111-1111-4111-8111-111111111111';
+  sendMessageMock.mockResolvedValueOnce({ bookingId, messageId: 'message-1' });
   const app = express();
   app.use(express.json());
   app.use('/admin/bookings', bookingAdminRouter);
 
   const response = await request(app)
-    .post('/admin/bookings/booking-1/message')
+    .post(`/admin/bookings/${bookingId}/message`)
     .send({ message: 'Support is checking this booking with both parties.' });
 
   expect(response.status).toBe(200);
   expect(sendMessageMock).toHaveBeenCalledWith(
-    'booking-1',
+    bookingId,
     'Support is checking this booking with both parties.',
     'admin-1',
   );

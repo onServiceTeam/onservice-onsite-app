@@ -46,6 +46,7 @@ import KpiCard from '@/components/ui/KpiCard';
 import { Textarea } from '@/components/ui/Textarea';
 import { useConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { useAuthStore } from '@/stores/auth.store';
+import { toast } from 'sonner';
 
 // ─── Types (mirror packages/api/src/services/booking-admin.service.ts) ────
 
@@ -331,11 +332,16 @@ export default function BookingDetailPage(): React.ReactElement {
         title="Failed to load booking"
         description={getErrorMessage(detailQuery.error)}
         action={
-          <Link to="/bookings">
-            <Button variant="secondary" size="sm">
-              <ArrowLeft size={14} /> Back to bookings
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button size="sm" onClick={() => void detailQuery.refetch()}>
+              <RefreshCw size={14} /> Retry booking
             </Button>
-          </Link>
+            <Link to="/bookings">
+              <Button variant="secondary" size="sm">
+                <ArrowLeft size={14} /> Back to bookings
+              </Button>
+            </Link>
+          </div>
         }
       />
     );
@@ -356,17 +362,24 @@ export default function BookingDetailPage(): React.ReactElement {
 
       <BookingHeader detail={detail} />
 
-      <BookingActions bookingId={bookingId} />
+      <BookingActions
+        bookingId={bookingId}
+        currentProviderId={detail.provider?.id ?? null}
+        bookingStatus={detail.status}
+        escrowStatus={detail.escrowStatus}
+      />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabId)}>
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
-          <TabsTrigger value="evidence">Evidence</TabsTrigger>
-          <TabsTrigger value="quotes">Quotes</TabsTrigger>
-          <TabsTrigger value="money">Money</TabsTrigger>
-          <TabsTrigger value="audit">Audit</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-1" aria-label="Booking record sections">
+          <TabsList className="!h-12 min-w-max">
+            <TabsTrigger className="!h-10" value="overview">Overview</TabsTrigger>
+            <TabsTrigger className="!h-10" value="timeline">Timeline</TabsTrigger>
+            <TabsTrigger className="!h-10" value="evidence">Evidence</TabsTrigger>
+            <TabsTrigger className="!h-10" value="quotes">Quotes</TabsTrigger>
+            <TabsTrigger className="!h-10" value="money">Money</TabsTrigger>
+            <TabsTrigger className="!h-10" value="audit">Audit</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview">
           <OverviewTab detail={detail} />
@@ -457,7 +470,17 @@ function BookingHeader({ detail }: { detail: BookingDetail }): React.ReactElemen
 
 type ActionId = 'release' | 'refund' | 'reassign' | 'cancel' | 'force_complete';
 
-export function BookingActions({ bookingId }: { bookingId: string }): React.ReactElement | null {
+export function BookingActions({
+  bookingId,
+  currentProviderId = null,
+  bookingStatus = 'requested',
+  escrowStatus = 'held',
+}: {
+  bookingId: string;
+  currentProviderId?: string | null;
+  bookingStatus?: string;
+  escrowStatus?: string | null;
+}): React.ReactElement | null {
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
   const queryClient = useQueryClient();
@@ -467,15 +490,18 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
   const [reason, setReason] = useState('');
   const [amountPesos, setAmountPesos] = useState('');
   const [providerId, setProviderId] = useState('');
+  const [providerSearch, setProviderSearch] = useState('');
   const [hoursUntilScheduled, setHoursUntilScheduled] = useState('');
   const [providerArrived, setProviderArrived] = useState(false);
   const [customerNoShow, setCustomerNoShow] = useState(false);
 
   const providersQuery = useQuery({
-    queryKey: ['admin-online-providers', 'booking-reassign'],
+    queryKey: ['admin-online-providers', 'booking-reassign', providerSearch.trim()],
     queryFn: async () => {
+      const search = providerSearch.trim();
+      const searchParam = search ? `&search=${encodeURIComponent(search)}` : '';
       const res = await api.get<{ rows?: AssignableProvider[]; data?: AssignableProvider[] }>(
-        '/api/v1/admin/providers?online=true&pageSize=100',
+        `/api/v1/admin/providers?online=true&pageSize=100${searchParam}`,
       );
       return res.data.rows ?? res.data.data ?? [];
     },
@@ -497,6 +523,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
     setReason('');
     setAmountPesos('');
     setProviderId('');
+    setProviderSearch('');
     setHoursUntilScheduled('');
     setProviderArrived(false);
     setCustomerNoShow(false);
@@ -509,6 +536,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
       return res.data;
     },
     onSuccess: () => {
+      toast.success('Escrow released.');
       invalidateAll();
       reset();
     },
@@ -520,6 +548,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
       return res.data;
     },
     onSuccess: () => {
+      toast.success('Refund recorded and gateway processing started.');
       invalidateAll();
       reset();
     },
@@ -531,6 +560,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
       return res.data;
     },
     onSuccess: () => {
+      toast.success('Booking reassigned.');
       invalidateAll();
       reset();
     },
@@ -547,6 +577,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
       return res.data;
     },
     onSuccess: () => {
+      toast.success('Booking cancelled.');
       invalidateAll();
       reset();
     },
@@ -558,6 +589,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
       return res.data;
     },
     onSuccess: () => {
+      toast.success('Booking force-completed.');
       invalidateAll();
       reset();
     },
@@ -577,7 +609,42 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
   // 20-char floor.
   const reasonOk = reason.trim().length >= 10;
   const reasonOkForce = reason.trim().length >= 20;
-  const providerIdOk = (providersQuery.data ?? []).some((provider) => provider.id === providerId);
+  const assignableProviders = (providersQuery.data ?? []).filter(
+    (provider) => provider.id !== currentProviderId,
+  );
+  const providerIdOk = assignableProviders.some((provider) => provider.id === providerId);
+  const anyActionPending =
+    releaseMut.isPending ||
+    refundMut.isPending ||
+    reassignMut.isPending ||
+    cancelMut.isPending ||
+    forceMut.isPending;
+  const escrowActionAllowed = escrowStatus === 'held';
+  const reassignAllowed = !new Set([
+    'provider_arrived',
+    'in_progress',
+    'completed_by_provider',
+    'confirmed',
+    'disputed',
+    'resolved',
+    'cancelled_by_customer',
+    'cancelled_by_provider',
+    'cancelled_by_admin',
+    'paid_out',
+    'payout_ready',
+  ]).has(bookingStatus);
+  const cancelAllowed = new Set([
+    'requested',
+    'quoted',
+    'matched',
+    'payment_pending',
+    'paid',
+    'provider_en_route',
+    'provider_arrived',
+    'in_progress',
+    'resolved',
+  ]).has(bookingStatus);
+  const forceCompleteAllowed = bookingStatus === 'in_progress' || bookingStatus === 'completed_by_provider';
   const refundAmtCentavos = (() => {
     const n = parseFloat(amountPesos);
     return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
@@ -598,6 +665,8 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
           <Button
             size="sm"
             variant={open === 'release' ? 'default' : 'secondary'}
+            disabled={anyActionPending || !escrowActionAllowed}
+            title={escrowActionAllowed ? undefined : 'Available only while escrow is held'}
             onClick={() => setOpen(open === 'release' ? null : 'release')}
           >
             <Wallet size={14} /> Manual release
@@ -605,6 +674,8 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
           <Button
             size="sm"
             variant={open === 'refund' ? 'default' : 'secondary'}
+            disabled={anyActionPending || !escrowActionAllowed}
+            title={escrowActionAllowed ? undefined : 'Available only while escrow is held'}
             onClick={() => setOpen(open === 'refund' ? null : 'refund')}
           >
             <Coins size={14} /> Refund
@@ -612,6 +683,8 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
           <Button
             size="sm"
             variant={open === 'reassign' ? 'default' : 'secondary'}
+            disabled={anyActionPending || !reassignAllowed}
+            title={reassignAllowed ? undefined : `Reassignment is not valid in status ${bookingStatus}`}
             onClick={() => setOpen(open === 'reassign' ? null : 'reassign')}
           >
             <RefreshCw size={14} /> Reassign
@@ -619,6 +692,8 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
           <Button
             size="sm"
             variant={open === 'cancel' ? 'destructive' : 'secondary'}
+            disabled={anyActionPending || !cancelAllowed}
+            title={cancelAllowed ? undefined : `Cancellation is not valid in status ${bookingStatus}`}
             onClick={() => setOpen(open === 'cancel' ? null : 'cancel')}
           >
             <AlertTriangle size={14} /> Cancel
@@ -626,12 +701,17 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
           <Button
             size="sm"
             variant={open === 'force_complete' ? 'default' : 'secondary'}
+            disabled={anyActionPending || !forceCompleteAllowed}
+            title={forceCompleteAllowed ? undefined : 'Available only for in-progress or provider-completed work'}
             onClick={() => setOpen(open === 'force_complete' ? null : 'force_complete')}
           >
             Force complete
           </Button>
         </div>
       </div>
+      <p className="mt-2 text-xs text-[var(--color-text-secondary)]">
+        Actions are limited by booking status <strong>{bookingStatus}</strong> and escrow status <strong>{escrowStatus ?? 'none'}</strong>. Completed money states use dispute or settlement workflows instead of cancellation.
+      </p>
 
       {open && (
         <div className="mt-4 p-4 border border-[var(--color-border)] rounded-lg bg-[var(--color-surface-hover)]/50 space-y-3">
@@ -658,13 +738,34 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                 value={amountPesos}
                 onChange={(e) => setAmountPesos(e.target.value)}
                 placeholder="100.00"
-                className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm"
+                disabled={anyActionPending}
+                className="min-h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm"
               />
             </div>
           )}
 
           {open === 'reassign' && (
-            <div>
+            <div className="space-y-2">
+              <div>
+                <label
+                  htmlFor="booking-reassign-provider-search"
+                  className="text-xs text-[var(--color-text-secondary)]"
+                >
+                  Search accepting-work providers
+                </label>
+                <input
+                  id="booking-reassign-provider-search"
+                  type="search"
+                  value={providerSearch}
+                  onChange={(event) => {
+                    setProviderSearch(event.target.value);
+                    setProviderId('');
+                  }}
+                  placeholder="Business name, phone, or email"
+                  disabled={anyActionPending}
+                  className="min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 text-sm"
+                />
+              </div>
               <label
                 htmlFor="booking-reassign-provider"
                 className="text-xs text-[var(--color-text-secondary)]"
@@ -682,9 +783,11 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                 <option value="">
                   {providersQuery.isLoading
                     ? 'Loading accepting-work providers...'
-                    : 'Choose an accepting-work provider'}
+                    : providerSearch.trim()
+                      ? 'Choose from matching accepting-work providers'
+                      : 'Choose an accepting-work provider'}
                 </option>
-                {(providersQuery.data ?? []).map((provider) => (
+                {assignableProviders.map((provider) => (
                   <option key={provider.id} value={provider.id}>
                     {provider.businessName ?? 'Unnamed provider'}
                     {provider.city ? ` · ${provider.city}` : ''}
@@ -692,8 +795,21 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                 ))}
               </select>
               {providersQuery.isError && (
-                <p role="alert" className="mt-1 text-xs text-[var(--color-error)]">
-                  Accepting-work providers could not be loaded. Use Dispatch to retry.
+                <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--color-error)]">
+                  <span>Accepting-work providers could not be loaded. No replacement can be selected until this feed recovers.</span>
+                  <Button size="sm" variant="secondary" onClick={() => void providersQuery.refetch()}>
+                    <RefreshCw size={14} /> Retry providers
+                  </Button>
+                </div>
+              )}
+              {!providersQuery.isLoading && !providersQuery.isError && assignableProviders.length === 0 && (
+                <p className="mt-2 text-xs text-[var(--color-text-secondary)]">
+                  No alternative accepting-work provider is available. The currently assigned provider is excluded.
+                </p>
+              )}
+              {!providersQuery.isError && (
+                <p className="mt-2 text-xs text-[var(--color-text-secondary)]">
+                  The server rechecks account approval, accepting-work status, service capability, service radius, and double-booking conflicts when the job is scheduled.
                 </p>
               )}
             </div>
@@ -715,7 +831,8 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                   value={hoursUntilScheduled}
                   onChange={(e) => setHoursUntilScheduled(e.target.value)}
                   required
-                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm"
+                  disabled={anyActionPending}
+                  className="min-h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm"
                 />
               </div>
               <label className="flex items-center gap-2 text-sm pt-5">
@@ -723,6 +840,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                   type="checkbox"
                   checked={providerArrived}
                   onChange={(e) => setProviderArrived(e.target.checked)}
+                  disabled={anyActionPending}
                 />
                 Provider arrived
               </label>
@@ -731,6 +849,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                   type="checkbox"
                   checked={customerNoShow}
                   onChange={(e) => setCustomerNoShow(e.target.checked)}
+                  disabled={anyActionPending}
                 />
                 Customer no-show
               </label>
@@ -750,6 +869,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
               aria-label="Booking action reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
+              disabled={anyActionPending}
               placeholder={
                 open === 'force_complete'
                   ? 'e.g., Customer unreachable for 4 days; provider photo evidence verified by support agent — auto-confirming.'
@@ -856,7 +976,7 @@ export function BookingActions({ bookingId }: { bookingId: string }): React.Reac
                 Confirm force-complete
               </Button>
             )}
-            <Button size="sm" variant="ghost" onClick={reset}>
+            <Button size="sm" variant="ghost" disabled={anyActionPending} onClick={reset}>
               Cancel
             </Button>
             {open === 'release' && releaseMut.isError && (
@@ -1023,7 +1143,7 @@ function PartyBlock({
 
 // ─── TimelineTab ──────────────────────────────────────────────────────────
 
-function TimelineTab({ bookingId }: { bookingId: string }): React.ReactElement {
+export function TimelineTab({ bookingId }: { bookingId: string }): React.ReactElement {
   const q = useQuery({
     queryKey: ['admin-booking-timeline', bookingId],
     queryFn: async () => {
@@ -1035,7 +1155,15 @@ function TimelineTab({ bookingId }: { bookingId: string }): React.ReactElement {
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Timeline unavailable"
+        description={getErrorMessage(q.error)}
+        action={<Button size="sm" onClick={() => void q.refetch()}><RefreshCw size={14} /> Retry timeline</Button>}
+      />
+    );
+  }
   const events = q.data ?? [];
 
   if (events.length === 0) {
@@ -1091,7 +1219,15 @@ export function EvidenceTab({ bookingId }: { bookingId: string }): React.ReactEl
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Evidence unavailable"
+        description={getErrorMessage(q.error)}
+        action={<Button size="sm" onClick={() => void q.refetch()}><RefreshCw size={14} /> Retry evidence</Button>}
+      />
+    );
+  }
   const data = q.data;
   if (!data) return <EmptyState title="No proof record." />;
 
@@ -1429,7 +1565,11 @@ export function MoneyTab({
         {q.isLoading ? (
           <LoadingState />
         ) : q.isError ? (
-          <ErrorState description={getErrorMessage(q.error)} />
+          <ErrorState
+            title="Dispute record unavailable"
+            description={getErrorMessage(q.error)}
+            action={<Button size="sm" onClick={() => void q.refetch()}><RefreshCw size={14} /> Retry dispute</Button>}
+          />
         ) : !q.data ? (
           <EmptyState title="No dispute filed for this booking." />
         ) : (
@@ -1479,7 +1619,11 @@ export function MoneyTab({
         {moneyQuery.isLoading ? (
           <LoadingState />
         ) : moneyQuery.isError ? (
-          <ErrorState description={getErrorMessage(moneyQuery.error)} />
+          <ErrorState
+            title="Payment trail unavailable"
+            description={getErrorMessage(moneyQuery.error)}
+            action={<Button size="sm" onClick={() => void moneyQuery.refetch()}><RefreshCw size={14} /> Retry payment trail</Button>}
+          />
         ) : !moneyQuery.data || moneyQuery.data.paymentIntents.length === 0 ? (
           <div className="mt-3"><EmptyState title="No payment intent recorded." /></div>
         ) : (
@@ -1594,7 +1738,15 @@ function AuditTab({ bookingId }: { bookingId: string }): React.ReactElement {
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Admin audit unavailable"
+        description={getErrorMessage(q.error)}
+        action={<Button size="sm" onClick={() => void q.refetch()}><RefreshCw size={14} /> Retry audit</Button>}
+      />
+    );
+  }
   const adminEvents = (q.data ?? []).filter((e) => e.actor.kind === 'admin');
 
   if (adminEvents.length === 0) {
@@ -1688,7 +1840,13 @@ function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
 
   if (q.isLoading) return <LoadingState />;
   if (q.isError || !q.data)
-    return <ErrorState title="Failed to load quotes" description={getErrorMessage(q.error)} />;
+    return (
+      <ErrorState
+        title="Failed to load quotes"
+        description={getErrorMessage(q.error)}
+        action={<Button size="sm" onClick={() => void q.refetch()}><RefreshCw size={14} /> Retry quotes</Button>}
+      />
+    );
 
   const { quotes, changeOrders } = q.data;
 
