@@ -56,6 +56,7 @@ export default function ProvidersPage(): React.ReactElement {
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') ?? '');
   const [tierFilter, setTierFilter] = useState(() => searchParams.get('tier') ?? '');
+  const serviceAreaFilter = searchParams.get('serviceAreaId')?.trim() ?? '';
   const [searchInput, setSearchInput] = useState(() => searchParams.get('search') ?? '');
 
   const [actionModal, setActionModal] = useState<{
@@ -87,12 +88,13 @@ export default function ProvidersPage(): React.ReactElement {
   };
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['adminProviders', page, search, statusFilter, tierFilter],
+    queryKey: ['adminProviders', page, search, statusFilter, tierFilter, serviceAreaFilter],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
       if (tierFilter) params.tier = tierFilter;
+      if (serviceAreaFilter) params.serviceAreaId = serviceAreaFilter;
       const res = await api.get<PaginatedResult>('/api/v1/admin/providers', { params });
       return res.data;
     },
@@ -272,6 +274,29 @@ export default function ProvidersPage(): React.ReactElement {
           <option value="elite">Elite</option>
         </select>
       </div>
+
+      {serviceAreaFilter && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+          <div>
+            <p className="font-semibold">Service Area provider view</p>
+            <p className="mt-0.5">Showing providers assigned to the selected market. Status and tier filters still apply.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/service-areas" className="inline-flex min-h-11 items-center rounded-lg border border-sky-300 bg-white px-3 py-2 font-medium">Back to Service Areas</Link>
+            <button
+              type="button"
+              onClick={() => {
+                const params = new URLSearchParams(searchParams);
+                params.delete('serviceAreaId');
+                setSearchParams(params, { replace: true });
+              }}
+              className="min-h-11 rounded-lg bg-[var(--color-primary)] px-3 py-2 font-medium text-white"
+            >
+              Clear market filter
+            </button>
+          </div>
+        </div>
+      )}
 
       {isError && (
         <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">

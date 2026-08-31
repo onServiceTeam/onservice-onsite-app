@@ -1,28 +1,32 @@
-// BUG-PHASE167-01 — catalog deleteSubcategory + deleteAddon accepted
-// unbounded reason. The reason column gets a 500-char slice but
-// admin_actions.full_notes (TEXT, unbounded) gets the entire string.
-//
-// Cap at 2000 to prevent unbounded full_notes inserts. Same
-// defense-in-depth pattern as Phase 152-166.
+jest.mock('../src/models/db', () => {
+  const helper = jest.requireActual('./helpers/d06-tx-mock') as typeof import('./helpers/d06-tx-mock');
+  return helper.createDbMock();
+});
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+jest.mock('../src/utils/logger', () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}));
 
-const SOURCE = readFileSync(
-  resolve(__dirname, '../src/services/catalog.service.ts'),
-  'utf8',
-);
+import { deleteAddon, deleteSubcategory } from '../src/services/catalog.service';
+import { getTransactionInvocations, resetDbMock } from './helpers/d06-tx-mock';
 
-describe('BUG-PHASE167-01 — catalog delete reason cap', () => {
-  it('deleteSubcategory + deleteAddon cap reason at 2000 (≥ 2 sites)', () => {
-    const matches = SOURCE.match(
-      /reason\.length > 2000[\s\S]+?reason must be ≤ 2000 characters/g,
-    );
-    expect(matches).not.toBeNull();
-    expect(matches!.length).toBeGreaterThanOrEqual(2);
+const ADMIN_ID = '11111111-1111-1111-1111-111111111111';
+const SUBCATEGORY_ID = '33333333-3333-3333-3333-333333333333';
+const ADDON_ID = '44444444-4444-4444-4444-444444444444';
+
+beforeEach(resetDbMock);
+
+describe('BUG-PHASE167-01 — catalog lifecycle reason bounds', () => {
+  it('rejects missing or short reasons for both deactivation paths before database work', async () => {
+    await expect(deleteSubcategory(SUBCATEGORY_ID, ADMIN_ID, '')).rejects.toMatchObject({ statusCode: 400 });
+    await expect(deleteAddon(ADDON_ID, ADMIN_ID, 'short')).rejects.toMatchObject({ statusCode: 400 });
+    expect(getTransactionInvocations()).toBe(0);
   });
 
-  it('PHASE167 fix-comment is preserved', () => {
-    expect(SOURCE).toMatch(/BUG-PHASE167-01 fix/);
+  it('rejects reasons above 2000 characters for both deactivation paths before database work', async () => {
+    const tooLong = 'x'.repeat(2001);
+    await expect(deleteSubcategory(SUBCATEGORY_ID, ADMIN_ID, tooLong)).rejects.toMatchObject({ statusCode: 400 });
+    await expect(deleteAddon(ADDON_ID, ADMIN_ID, tooLong)).rejects.toMatchObject({ statusCode: 400 });
+    expect(getTransactionInvocations()).toBe(0);
   });
 });

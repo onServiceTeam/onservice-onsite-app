@@ -16,7 +16,7 @@ describe('service-area activation', () => {
             data: {
               totalAreas: 1,
               activeAreas: 0,
-              totalProviders: 3,
+              totalProviders: 5,
               totalWaitlist: 12,
               areasByStatus: { recruiting: 1 },
             },
@@ -45,7 +45,7 @@ describe('service-area activation', () => {
               launchDate: null,
               launchedAt: null,
               minProvidersToLaunch: 5,
-              activeProviderCount: 3,
+              activeProviderCount: 5,
               activeCustomerCount: 20,
               totalBookings: 0,
               isDefault: true,
@@ -72,13 +72,19 @@ describe('service-area activation', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Activate service area Metro Cebu' }));
     expect(screen.getByRole('dialog')).toBeTruthy();
     expect(screen.getByText(/customer bookings and provider matching/i)).toBeTruthy();
-    expect(screen.getByText(/3 active providers.*minimum of 5/i)).toBeTruthy();
-    expect(screen.getByText(/Waitlisted users will be notified/i)).toBeTruthy();
+    expect(screen.getByText(/5 approved providers.*minimum of 5/i)).toBeTruthy();
+    expect(screen.getByText(/registered waitlist users with accounts.*in-app notice/i)).toBeTruthy();
+    expect(screen.getByText(/other entries remain awaiting contact/i)).toBeTruthy();
     expect(api.post).not.toHaveBeenCalled();
 
+    fireEvent.change(screen.getByRole('textbox', { name: 'Activation reason' }), {
+      target: { value: 'Provider capacity and launch operations have been reviewed.' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Activate area' }));
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/api/v1/admin/service-areas/area-1/activate');
+      expect(api.post).toHaveBeenCalledWith('/api/v1/admin/service-areas/area-1/activate', {
+        reason: 'Provider capacity and launch operations have been reviewed.',
+      });
     });
   });
 });

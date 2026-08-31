@@ -24,6 +24,7 @@ import { createAppError } from '../middleware/error.middleware';
 import * as providerOnboarding from '../services/provider-onboarding.service';
 import * as areaChange from '../services/service-area-change.service';
 import * as admin2fa from '../services/admin-2fa.service';
+import { maskEmail, maskPhilippinePhone } from '../utils/pii-mask';
 
 const router = Router();
 
@@ -120,7 +121,16 @@ router.get(
         throw createAppError('providerId must be a valid UUID.', 400);
       }
       const data = await areaChange.listPending(limit, providerId);
-      res.json({ success: true, data });
+      const revealContact = req.user!.role === 'super_admin';
+      res.json({
+        success: true,
+        data: data.map((request) => ({
+          ...request,
+          providerEmail: revealContact || !request.providerEmail ? request.providerEmail : maskEmail(request.providerEmail),
+          providerPhone: revealContact || !request.providerPhone ? request.providerPhone : maskPhilippinePhone(request.providerPhone),
+          contactMasked: !revealContact,
+        })),
+      });
     } catch (error) { next(error); }
   },
 );

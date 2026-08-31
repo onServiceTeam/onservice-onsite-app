@@ -73,8 +73,8 @@ describe('Bug 266 — createAddonSchema (admin addon create)', () => {
 });
 
 describe('Bug 266 — updateAddonSchema (admin addon update)', () => {
-  it('accepts an empty patch', () => {
-    expect(updateAddonSchema.safeParse({}).success).toBe(true);
+  it('rejects an empty patch instead of writing a no-op audit event', () => {
+    expect(updateAddonSchema.safeParse({}).success).toBe(false);
   });
 
   it('accepts a price-only patch within the cap', () => {

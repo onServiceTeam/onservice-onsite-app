@@ -4,7 +4,7 @@
 
 This is the resumable record for the suspicion-first admin/company stage that follows the provider and customer desktop/linkage audits. It records what was inspected, what was changed, what was proven by executed tests, and what remains. It does not treat the existence of a route, table, button, or old test as proof that an operator workflow is feasible.
 
-The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover Business Account 360, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, Booking 360/Dispatch integrity, financial-operations truth, and Customer/Provider 360 account-support authority. The remaining admin surfaces continue after these checkpoints.
+The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover Business Account 360, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, Booking 360/Dispatch integrity, financial-operations truth, Customer/Provider 360 account-support authority, Catalog publishing, and the unambiguous parts of Service Areas operations. The remaining admin surfaces continue after these checkpoints.
 
 Production synchronization is not claimed. Escalation E32 still records that the supplied SSH identities are rejected by the production host. Local and GitHub code may be aligned after CI, but production cannot be updated until an authorized server identity is available.
 
@@ -221,6 +221,34 @@ E29, E30, E31, E35, E36, E37, and E39 remain documented hard stops. This checkpo
 
 Executed regression coverage: Bugs UX-744 through UX-762. Strict Customer/Provider 360 visual comparison passed 37 tests at 820, 1024, 1280, 1440, and 1920 pixels without baseline updates, including the provider-team privacy/review state. Detailed trace: `docs/audits/CUSTOMER-PROVIDER-360-AUDIT-2026-08-31.md`.
 
+## Checkpoint I: Catalog and Service Areas configuration authority
+
+### Catalog findings and implemented boundary
+
+- The admin catalog loaded through the public active-only endpoint, so an inactive service disappeared from the same workspace needed to restore it. Admin now uses a complete admin projection and can filter active/inactive records.
+- Category/service/add-on mutation routes accepted malformed identifiers and generic service updates could change `isActive`, bypassing the reasoned lifecycle actions. UUID/body validation now runs before service work and generic updates cannot change lifecycle state.
+- Deactivation and restoration did not consistently require a durable operator reason, lock the current record, validate the parent category, or preserve the mutation and audit in one transaction. These lifecycle actions now do all four and reject no-op changes.
+- Service pricing could become internally impossible during update, and hourly editing could send a fixed base price that the client then ignored. The service validates the merged pricing state; hourly uses the hourly rate without inventing a fixed base price.
+- Add-on failure had no local recovery and key controls were undersized at tablet widths. The admin workspace now provides retry, responsive composition, touch-sized controls, honest customer previews, and explicit ordinary-admin read-only behavior.
+
+### Service Areas findings and implemented boundary
+
+- Market creation/edit/activation/pause/default changes were available to ordinary admins and did not consistently require a reasoned atomic audit. They are now `super_admin` mutations with 10–2,000-character reasons, row locking where state is decided, and verified audit writes in the same transaction.
+- Activation trusted the stored provider count. It now recomputes approved provider supply and refuses launch below `min_providers_to_launch`; the UI explains the exact shortfall. A default market cannot be paused until another active/soft-launch default is chosen.
+- Market radius was silently capped by the separate provider travel-radius setting. A valid 1–100 km market boundary is now preserved independently; provider travel requests remain subject to the live provider maximum.
+- Customer/public area detail exposed recruiting markets. Public detail is now limited to customer-bookable `active` and `soft_launch` statuses; the separate provider-application market endpoint retains recruiting visibility.
+- Automatic waitlist matching used city without province and marked records notified even when no account received an in-app notice. It now matches city plus province, marks only successfully notified registered accounts, reports the actual count, leaves other leads awaiting contact, and provides a reasoned super-admin retry action.
+- Waitlist and provider-change queues exposed raw contact data to ordinary admins. Contact and exact waitlist coordinates are now masked for ordinary admins; `super_admin` retains the operational value under the existing role policy.
+- Legacy admin provider assignment/removal routes could bypass the canonical provider market/location/radius review queue. Both routes now fail closed, and the unused internal direct-write helpers were removed. Provider changes go through the reviewed request decision only.
+- The Service Areas provider-count link pointed at a Providers URL that ignored its market filter. The provider list now validates and applies `serviceAreaId` through `provider_service_areas`, preserves the approved-status filter, explains the scoped view, and can clear it.
+- Market, waitlist, and provider-list query/body/path fields now reject malformed pagination, enums, unknown keys, dates, Philippine ZIP codes, and UUIDs before database work. Stats distinguish all waitlist leads, awaiting notice, and notified leads, and the provider KPI counts only approved providers.
+
+### Honest hold
+
+E46 records a material source conflict: the recruiting SOP requires `planned -> recruiting -> soft_launch -> active`, while the current UI/API and the older training text allow direct activation from planned/recruiting/soft-launch and provide no supported intermediate transition actions. This checkpoint does not silently choose a lifecycle. The UI/API compatibility remains, the training manual now warns operators not to treat button availability as permission to skip the approved launch process, and a transition matrix remains open.
+
+Executed focused regression coverage: Bugs UX-763 through UX-792, plus the updated catalog transaction/pricing, Service Areas validator/default/waitlist, provider queue, and public-market suites. The obsolete catalog price and service-area slug source inspections were replaced with rendered or executed behavior.
+
 ## Verification at checkpoints D through H
 
 - All three workspace TypeScript checks: passed.
@@ -234,11 +262,20 @@ Executed regression coverage: Bugs UX-744 through UX-762. Strict Customer/Provid
 - API smoke: 13/13. Environment contract: 80/80. Gate A and Gate C: passed with zero blocking/report failures. All six gate self-tests and the no-phantom-test scan passed. The N+1 heuristic retained the same 30 review locations with no unjustified marker. Money-conservation checkpoint: 115 focused state, pricing, escrow, commission, refund, and wallet assertions passed.
 - `git diff --check`: passed.
 
+## Checkpoint I local verification
+
+- Admin full suite: 220 passed files, 1 skipped file; 327 passed tests and 3 explicit todos.
+- API full run: 595 suites passed and 3,179 tests passed; one intentional suite/test skip remained. The only failure was the Docker-dependent nginx certificate test because Docker Desktop was unavailable. It is not counted as a pass and requires CI or a running Docker engine.
+- Admin and API TypeScript and production builds passed; the admin build transformed 2,841 modules. Full repository ESLint and `git diff --check` passed.
+- Gate A passed all 10 blocking fragments, Gate C passed all 6 blocking articles, all six gate self-tests passed, and the phantom-test scan passed. The N+1 heuristic retained 30 reviewed/justified locations and passed.
+- Focused tests execute Catalog lifecycle/restoration/pricing, Service Areas RBAC/audit/capacity/default/waitlist/privacy, provider-change bypass prevention, truthful activation partial success, and the real Service Areas to Providers filter. Rendered admin tests exercise ordinary-admin read-only behavior, provider-capacity blocking, waitlist retry, reason payloads, and the scoped provider queue.
+- Production remains unclaimed under E32. This verification did not access or mutate production data.
+
 ## Next admin/company audit queue
 
 The next continuous loop starts from the admin navigation inventory and rechecks each remaining page against the operating questions above. Priority order is:
 
-1. Catalog, service-area, cancellation-policy, compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
+1. Cancellation-policy, compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
 2. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
 
 Existing legal, money, production-data, and privileged-identity escalation boundaries still apply. A page-local visual improvement is not permission to invent legal wording, mutate production money, or bypass those controls.

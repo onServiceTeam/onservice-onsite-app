@@ -3,6 +3,8 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as notificationService from './notification.service';
 import { platformConfig } from '../config/platform.config';
+import { randomBytes } from 'node:crypto';
+import { maskEmail, maskPhilippinePhone } from '../utils/pii-mask';
 
 interface ServiceAreaRow {
   id: string;
@@ -79,8 +81,16 @@ interface UpdateServiceAreaParams {
   radiusKm?: number;
   status?: string;
   minProvidersToLaunch?: number;
-  launchDate?: string;
+  launchDate?: string | null;
   settings?: Record<string, unknown>;
+}
+
+function assertAdminReason(reason: string): string {
+  const trimmed = reason.trim();
+  if (trimmed.length < 10 || trimmed.length > 2000) {
+    throw createAppError('Reason must be between 10 and 2,000 characters.', 400);
+  }
+  return trimmed;
 }
 
 function generateSlug(name: string): string {
@@ -98,9 +108,7 @@ function generateSlug(name: string): string {
     // slugs make it easier to enumerate test areas via brute force.
     // Use a CSPRNG hex slice — same character class as the old
     // [a-z0-9] base36 output.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const crypto = require('node:crypto');
-    const fallback = (crypto.randomBytes(4) as Buffer).toString('hex');
+    const fallback = randomBytes(4).toString('hex');
     return `area-${fallback}`;
   }
 
@@ -133,9 +141,14 @@ function haversineDistance(
 // existing `createdBy` field on CreateServiceAreaParams already
 // fits the same purpose (re-used here so we don't break callers).
 export async function createServiceArea(
-  params: CreateServiceAreaParams & { createdByAdminId?: string },
+  params: CreateServiceAreaParams & { createdByAdminId: string; reason: string },
 ): Promise<ServiceAreaRow> {
-  const slug = generateSlug(params.name);
+  const reason = assertAdminReason(params.reason);
+  const name = params.name.trim();
+  const city = params.city.trim();
+  const province = params.province.trim();
+  const region = params.region.trim();
+  const slug = generateSlug(name);
 
   return db.transaction(async (client) => {
     const result = await client.query<ServiceAreaRow>(
@@ -146,10 +159,12 @@ export async function createServiceArea(
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *`,
       [
-        params.name, slug, params.city, params.province, params.region,
+        name, slug, city, province, region,
         params.zipCodes ?? [],
         params.centerLat, params.centerLng,
-        Math.min(params.radiusKm ?? platformConfig.defaultServiceAreaRadius, platformConfig.maxServiceRadius),
+        // A market coverage boundary is not a provider's travel-radius limit.
+        // HTTP validation and the database constrain market radii to 1..100 km.
+        params.radiusKm ?? platformConfig.defaultServiceAreaRadius,
         params.minProvidersToLaunch ?? 5,
         params.launchDate ?? null,
         JSON.stringify(params.settings ?? {}),
@@ -157,30 +172,34 @@ export async function createServiceArea(
     );
     const row = result.rows[0]!;
 
-    if (params.createdByAdminId) {
-      await client.query(
+    const auditResult = await client.query<{ id: string }>(
         `INSERT INTO admin_actions
-           (admin_id, action_type, target_type, target_id, details)
-         VALUES ($1, 'config_changed', 'service_area', $2, $3::jsonb)`,
+           (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+         VALUES ($1, 'config_changed', 'service_area', $2, $3::jsonb, $4, $5)
+         RETURNING id`,
         [
           params.createdByAdminId,
           row.id,
           JSON.stringify({
             op: 'create',
             slug,
-            name: params.name,
-            city: params.city,
-            province: params.province,
+            name,
+            city,
+            province,
           }),
+          reason.slice(0, 500),
+          reason,
         ],
       );
+    if (!auditResult.rows[0]?.id) {
+      throw createAppError('Failed to record service-area creation audit.', 500);
     }
 
     logger.info('Service area created', {
       areaId: row.id,
-      name: params.name,
-      city: params.city,
-      createdByAdminId: params.createdByAdminId ?? null,
+      name,
+      city,
+      createdByAdminId: params.createdByAdminId,
     });
     return row;
   });
@@ -281,81 +300,143 @@ export async function getProviderApplicationAreas(): Promise<ServiceAreaRow[]> {
 export async function updateServiceArea(
   areaId: string,
   updates: UpdateServiceAreaParams,
+  adminId: string,
+  reason: string,
 ): Promise<ServiceAreaRow> {
-  const setClauses: string[] = [];
-  const params: unknown[] = [];
-  let idx = 1;
+  const trimmedReason = assertAdminReason(reason);
+  return db.transaction(async (client) => {
+    const beforeResult = await client.query<ServiceAreaRow>(
+      `SELECT * FROM service_areas WHERE id = $1 FOR UPDATE`,
+      [areaId],
+    );
+    const before = beforeResult.rows[0];
+    if (!before) throw createAppError('Service area not found.', 404);
 
-  const fieldMap: Record<string, string> = {
-    name: 'name',
-    city: 'city',
-    province: 'province',
-    region: 'region',
-    centerLat: 'center_lat',
-    centerLng: 'center_lng',
-    radiusKm: 'radius_km',
-    minProvidersToLaunch: 'min_providers_to_launch',
-    launchDate: 'launch_date',
-  };
+    const setClauses: string[] = [];
+    const params: unknown[] = [];
+    let idx = 1;
+    const fieldMap: Record<string, string> = {
+      name: 'name',
+      city: 'city',
+      province: 'province',
+      region: 'region',
+      centerLat: 'center_lat',
+      centerLng: 'center_lng',
+      radiusKm: 'radius_km',
+      minProvidersToLaunch: 'min_providers_to_launch',
+      launchDate: 'launch_date',
+    };
 
-  for (const [key, column] of Object.entries(fieldMap)) {
-    const value = updates[key as keyof UpdateServiceAreaParams];
-    if (value !== undefined) {
-      setClauses.push(`${column} = $${idx}`);
-      params.push(value);
+    for (const [key, column] of Object.entries(fieldMap)) {
+      const value = updates[key as keyof UpdateServiceAreaParams];
+      if (value !== undefined) {
+        setClauses.push(`${column} = $${idx}`);
+        params.push(typeof value === 'string' && ['name', 'city', 'province', 'region'].includes(key) ? value.trim() : value);
+        idx++;
+      }
+    }
+
+    if (updates.zipCodes !== undefined) {
+      setClauses.push(`zip_codes = $${idx}`);
+      params.push(updates.zipCodes);
       idx++;
     }
-  }
-
-  if (updates.zipCodes !== undefined) {
-    setClauses.push(`zip_codes = $${idx}`);
-    params.push(updates.zipCodes);
-    idx++;
-  }
-
-  if (updates.settings !== undefined) {
-    setClauses.push(`settings = $${idx}`);
-    params.push(JSON.stringify(updates.settings));
-    idx++;
-  }
-
-  if (updates.status !== undefined) {
-    const validStatuses = ['planned', 'recruiting', 'soft_launch', 'active', 'paused', 'retired'];
-    if (!validStatuses.includes(updates.status)) {
-      throw createAppError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
+    if (updates.settings !== undefined) {
+      setClauses.push(`settings = $${idx}`);
+      params.push(JSON.stringify(updates.settings));
+      idx++;
     }
-    setClauses.push(`status = $${idx}`);
-    params.push(updates.status);
-    idx++;
 
-    if (updates.status === 'active') {
-      setClauses.push(`launched_at = COALESCE(launched_at, NOW())`);
+    let liveProviderCount: number | null = null;
+    if (updates.status !== undefined) {
+      const validStatuses = ['planned', 'recruiting', 'soft_launch', 'active', 'paused', 'retired'];
+      if (!validStatuses.includes(updates.status)) {
+        throw createAppError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
+      }
+      if (updates.status === before.status) {
+        throw createAppError(`Service area is already ${updates.status.replace(/_/g, ' ')}.`, 409);
+      }
+      if (updates.status === 'active') {
+        if (before.status === 'retired') {
+          throw createAppError('A retired service area cannot be activated.', 409);
+        }
+        const providerCountResult = await client.query<CountRow>(
+          `SELECT COUNT(*)::text AS count
+             FROM provider_service_areas psa
+             JOIN providers p ON p.id = psa.provider_id
+            WHERE psa.service_area_id = $1 AND p.status = 'approved'`,
+          [areaId],
+        );
+        liveProviderCount = Number(providerCountResult.rows[0]?.count ?? 0);
+        const requiredProviders = updates.minProvidersToLaunch ?? before.min_providers_to_launch;
+        if (liveProviderCount < requiredProviders) {
+          throw createAppError(
+            `Cannot activate this area with ${liveProviderCount} approved providers; at least ${requiredProviders} are required.`,
+            409,
+          );
+        }
+      }
+      if (updates.status === 'paused') {
+        if (before.status !== 'active') {
+          throw createAppError('Only an active service area can be paused.', 409);
+        }
+        if (before.is_default) {
+          throw createAppError('Set another active or soft-launch area as default before pausing this area.', 409);
+        }
+      }
+      setClauses.push(`status = $${idx}`);
+      params.push(updates.status);
+      idx++;
+      if (updates.status === 'active') {
+        setClauses.push('launched_at = COALESCE(launched_at, NOW())');
+        setClauses.push(`active_provider_count = $${idx}`);
+        params.push(liveProviderCount);
+        idx++;
+      }
     }
-  }
 
-  if (updates.name !== undefined) {
-    setClauses.push(`slug = $${idx}`);
-    params.push(generateSlug(updates.name));
-    idx++;
-  }
+    if (updates.name !== undefined) {
+      setClauses.push(`slug = $${idx}`);
+      params.push(generateSlug(updates.name));
+      idx++;
+    }
+    if (setClauses.length === 0) throw createAppError('No fields to update.', 400);
 
-  if (setClauses.length === 0) {
-    throw createAppError('No fields to update.', 400);
-  }
+    setClauses.push('updated_at = NOW()');
+    params.push(areaId);
+    const result = await client.query<ServiceAreaRow>(
+      `UPDATE service_areas SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING *`,
+      params,
+    );
+    const row = result.rows[0];
+    if (!row) throw createAppError('Service area not found.', 404);
 
-  setClauses.push('updated_at = NOW()');
-  params.push(areaId);
-
-  const result = await db.query<ServiceAreaRow>(
-    `UPDATE service_areas SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING *`,
-    params,
-  );
-
-  if (result.rows.length === 0) {
-    throw createAppError('Service area not found.', 404);
-  }
-
-  return result.rows[0]!;
+    const auditResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'config_changed', 'service_area', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        adminId,
+        areaId,
+        JSON.stringify({
+          op: updates.status ? 'status_change' : 'update',
+          previousStatus: before.status,
+          updates,
+          ...(liveProviderCount == null ? {} : { approvedProviderCount: liveProviderCount }),
+        }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
+      ],
+    );
+    if (!auditResult.rows[0]?.id) throw createAppError('Failed to record service-area update audit.', 500);
+    return row;
+  }).catch((error: unknown) => {
+    if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === '23505') {
+      throw createAppError('A service area with that name or slug already exists.', 409);
+    }
+    throw error;
+  });
 }
 
 // Multi-city — set exactly one area as the app default (drives the mobile
@@ -365,15 +446,23 @@ export async function updateServiceArea(
 // service-area mutations.
 export async function setDefaultServiceArea(
   areaId: string,
-  adminId?: string,
+  adminId: string,
+  reason: string,
 ): Promise<ServiceAreaRow> {
+  const trimmedReason = assertAdminReason(reason);
   return db.transaction(async (client) => {
     const target = await client.query<ServiceAreaRow>(
-      `SELECT * FROM service_areas WHERE id = $1`,
+      `SELECT * FROM service_areas WHERE id = $1 FOR UPDATE`,
       [areaId],
     );
     if (target.rows.length === 0) {
       throw createAppError('Service area not found.', 404);
+    }
+    if (!['active', 'soft_launch'].includes(target.rows[0]!.status)) {
+      throw createAppError('Only an active or soft-launch area can be the app default.', 409);
+    }
+    if (target.rows[0]!.is_default) {
+      throw createAppError('This service area is already the app default.', 409);
     }
 
     // Clear the existing default, then set the new one.
@@ -387,18 +476,20 @@ export async function setDefaultServiceArea(
     );
     const row = result.rows[0]!;
 
-    if (adminId) {
-      await client.query(
+    const auditResult = await client.query<{ id: string }>(
         `INSERT INTO admin_actions
-           (admin_id, action_type, target_type, target_id, details)
-         VALUES ($1, 'config_changed', 'service_area', $2, $3::jsonb)`,
+           (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+         VALUES ($1, 'config_changed', 'service_area', $2, $3::jsonb, $4, $5)
+         RETURNING id`,
         [
           adminId,
           row.id,
           JSON.stringify({ op: 'set_default', slug: row.slug, name: row.name }),
+          trimmedReason.slice(0, 500),
+          trimmedReason,
         ],
       );
-    }
+    if (!auditResult.rows[0]?.id) throw createAppError('Failed to record default-area audit.', 500);
 
     return row;
   });
@@ -540,14 +631,35 @@ export async function getWaitlist(
   return { items: result.rows, total };
 }
 
-export async function notifyWaitlist(serviceAreaId: string): Promise<number> {
+export async function notifyWaitlist(
+  serviceAreaId: string,
+  audit?: { adminId: string; reason: string },
+): Promise<number> {
   const area = await getServiceArea(serviceAreaId);
+
+  if (audit) {
+    const trimmedReason = assertAdminReason(audit.reason);
+    const auditResult = await db.query<{ id: string }>(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'config_changed', 'service_area', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        audit.adminId,
+        serviceAreaId,
+        JSON.stringify({ op: 'notify_waitlist', areaName: area.name }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
+      ],
+    );
+    if (!auditResult.rows[0]?.id) throw createAppError('Failed to record waitlist-notification audit.', 500);
+  }
 
   const waitlistEntries = await db.query<WaitlistRow>(
     `SELECT * FROM area_waitlist
-     WHERE (service_area_id = $1 OR city ILIKE $2)
+     WHERE (service_area_id = $1 OR (city ILIKE $2 AND province ILIKE $3))
        AND notified = FALSE`,
-    [serviceAreaId, area.city],
+    [serviceAreaId, area.city, area.province],
   );
 
   let notified = 0;
@@ -558,15 +670,14 @@ export async function notifyWaitlist(serviceAreaId: string): Promise<number> {
         [entry.phone],
       );
 
-      if (userResult.rows[0]) {
-        await notificationService.createPushNotification({
-          userId: userResult.rows[0].id,
-          type: 'area_launch',
-          title: `${area.name} is Now Live!`,
-          body: `onService is now available in ${area.city}, ${area.province}. Book your first service today!`,
-          data: { serviceAreaId, areaName: area.name, areaSlug: area.slug },
-        });
-      }
+      if (!userResult.rows[0]) continue;
+      await notificationService.createPushNotification({
+        userId: userResult.rows[0].id,
+        type: 'area_launch',
+        title: `${area.name} is Now Live!`,
+        body: `onService is now available in ${area.city}, ${area.province}. Book your first service today!`,
+        data: { serviceAreaId, areaName: area.name, areaSlug: area.slug },
+      });
 
       await db.query(
         `UPDATE area_waitlist SET notified = TRUE, notified_at = NOW() WHERE id = $1`,
@@ -588,39 +699,6 @@ export async function notifyWaitlist(serviceAreaId: string): Promise<number> {
   });
 
   return notified;
-}
-
-export async function assignProviderToArea(
-  providerId: string,
-  serviceAreaId: string,
-  isPrimary = false,
-): Promise<ProviderServiceAreaRow> {
-  const result = await db.query<ProviderServiceAreaRow>(
-    `INSERT INTO provider_service_areas (provider_id, service_area_id, is_primary)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (provider_id, service_area_id) DO UPDATE SET is_primary = EXCLUDED.is_primary
-     RETURNING *`,
-    [providerId, serviceAreaId, isPrimary],
-  );
-
-  await refreshAreaProviderCount(serviceAreaId);
-  return result.rows[0]!;
-}
-
-export async function removeProviderFromArea(
-  providerId: string,
-  serviceAreaId: string,
-): Promise<void> {
-  const result = await db.query(
-    `DELETE FROM provider_service_areas WHERE provider_id = $1 AND service_area_id = $2`,
-    [providerId, serviceAreaId],
-  );
-
-  if ((result.rowCount ?? 0) === 0) {
-    throw createAppError('Provider is not assigned to this area.', 404);
-  }
-
-  await refreshAreaProviderCount(serviceAreaId);
 }
 
 export async function getProviderAreas(
@@ -651,25 +729,13 @@ export async function getAreaProviders(
   return result.rows;
 }
 
-async function refreshAreaProviderCount(serviceAreaId: string): Promise<void> {
-  await db.query(
-    `UPDATE service_areas SET
-       active_provider_count = (
-         SELECT COUNT(*) FROM provider_service_areas psa
-         INNER JOIN providers p ON psa.provider_id = p.id
-         WHERE psa.service_area_id = $1 AND p.status = 'approved'
-       ),
-       updated_at = NOW()
-     WHERE id = $1`,
-    [serviceAreaId],
-  );
-}
-
 export async function getServiceAreaStats(): Promise<{
   totalAreas: number;
   activeAreas: number;
   totalProviders: number;
   totalWaitlist: number;
+  pendingWaitlist: number;
+  waitlistNotified: number;
   areasByStatus: Record<string, number>;
 }> {
   const [areasResult, providersResult, waitlistResult, statusResult] = await Promise.all([
@@ -680,10 +746,16 @@ export async function getServiceAreaStats(): Promise<{
        FROM service_areas`,
     ),
     db.query<CountRow>(
-      `SELECT COUNT(DISTINCT provider_id)::text AS count FROM provider_service_areas`,
+      `SELECT COUNT(DISTINCT psa.provider_id)::text AS count
+         FROM provider_service_areas psa
+         JOIN providers p ON p.id = psa.provider_id
+        WHERE p.status = 'approved'`,
     ),
-    db.query<CountRow>(
-      `SELECT COUNT(*)::text AS count FROM area_waitlist WHERE notified = FALSE`,
+    db.query<{ total: string; pending: string; notified: string }>(
+      `SELECT COUNT(*)::text AS total,
+              COUNT(*) FILTER (WHERE notified = FALSE)::text AS pending,
+              COUNT(*) FILTER (WHERE notified = TRUE)::text AS notified
+         FROM area_waitlist`,
     ),
     db.query<{ status: string; count: string }>(
       `SELECT status, COUNT(*)::text AS count FROM service_areas GROUP BY status`,
@@ -699,7 +771,9 @@ export async function getServiceAreaStats(): Promise<{
     totalAreas: Number(areasResult.rows[0]?.total ?? 0),
     activeAreas: Number(areasResult.rows[0]?.active ?? 0),
     totalProviders: Number(providersResult.rows[0]?.count ?? 0),
-    totalWaitlist: Number(waitlistResult.rows[0]?.count ?? 0),
+    totalWaitlist: Number(waitlistResult.rows[0]?.total ?? 0),
+    pendingWaitlist: Number(waitlistResult.rows[0]?.pending ?? 0),
+    waitlistNotified: Number(waitlistResult.rows[0]?.notified ?? 0),
     areasByStatus,
   };
 }
@@ -730,17 +804,23 @@ export function formatServiceArea(sa: ServiceAreaRow): Record<string, unknown> {
   };
 }
 
-export function formatWaitlistEntry(w: WaitlistRow): Record<string, unknown> {
+export function formatWaitlistEntry(w: WaitlistRow, revealPersonalData = false): Record<string, unknown> {
+  const nameParts = w.full_name.trim().split(/\s+/).filter(Boolean);
+  const maskedName = nameParts.length > 1
+    ? `${nameParts[0]} ${nameParts.at(-1)![0]}.`
+    : (nameParts[0] ?? 'Waitlist user');
   return {
     id: w.id,
-    fullName: w.full_name,
-    phone: w.phone,
-    email: w.email,
+    fullName: revealPersonalData ? w.full_name : maskedName,
+    phone: revealPersonalData ? w.phone : maskPhilippinePhone(w.phone),
+    email: revealPersonalData ? w.email : (w.email ? maskEmail(w.email) : null),
+    contactMasked: !revealPersonalData,
     city: w.city,
     province: w.province,
     barangay: w.barangay,
-    latitude: w.latitude ? Number(w.latitude) : null,
-    longitude: w.longitude ? Number(w.longitude) : null,
+    latitude: revealPersonalData && w.latitude ? Number(w.latitude) : null,
+    longitude: revealPersonalData && w.longitude ? Number(w.longitude) : null,
+    exactLocationMasked: !revealPersonalData && Boolean(w.latitude && w.longitude),
     serviceAreaId: w.service_area_id,
     notified: w.notified,
     notifiedAt: w.notified_at,

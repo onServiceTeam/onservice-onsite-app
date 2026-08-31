@@ -89,7 +89,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         to: '/projects',
         Icon: Hammer,
         label: 'Projects',
-        description: 'Longer work and milestones',
+        description: 'Planning records, milestones, and linked accounts',
       },
       {
         to: '/service-areas',
@@ -129,7 +129,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         to: '/support-tickets',
         Icon: Ticket,
         label: 'Support Queue',
-        description: 'Tickets, SLAs, replies, and notes',
+        description: 'Cases, owners, replies, and internal notes',
       },
       {
         to: '/communications',

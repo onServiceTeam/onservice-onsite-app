@@ -23,6 +23,9 @@ function slugify(text: string): string {
 const CATALOG_NAME_MAX = 100;
 const CATALOG_DESCRIPTION_MAX = 2000;
 const CATALOG_ICON_URL_MAX = 500;
+const POSTGRES_INTEGER_MAX = 2_147_483_647;
+const POSTGRES_INTEGER_MIN = -2_147_483_648;
+const PRICING_TYPES = new Set(['fixed', 'quote', 'hourly', 'per_unit']);
 export const CUSTOMER_SERVICE_SCOPE_MIN = 30;
 
 function validateCatalogText(value: unknown, field: string, max: number, optional = true): void {
@@ -44,6 +47,34 @@ function assertCustomerServiceScope(value: unknown): void {
       400,
     );
   }
+}
+
+function assertIntegerField(value: unknown, field: string, options: { nullable?: boolean; nonNegative?: boolean } = {}): void {
+  if (value === undefined || (options.nullable && value === null)) return;
+  if (
+    typeof value !== 'number'
+    || !Number.isInteger(value)
+    || value < (options.nonNegative ? 0 : POSTGRES_INTEGER_MIN)
+    || value > POSTGRES_INTEGER_MAX
+  ) {
+    throw createAppError(
+      `${field} must be ${options.nonNegative ? 'a non-negative ' : 'an '}integer within the supported range.`,
+      400,
+    );
+  }
+}
+
+function assertPricingType(value: unknown): void {
+  if (typeof value !== 'string' || !PRICING_TYPES.has(value)) {
+    throw createAppError('Pricing type must be fixed, quote, hourly, or per_unit.', 400);
+  }
+}
+
+function assertLifecycleReason(reason: unknown): string {
+  if (typeof reason !== 'string' || reason.trim().length < 10 || reason.trim().length > 2000) {
+    throw createAppError('A reason between 10 and 2000 characters is required.', 400);
+  }
+  return reason.trim();
 }
 
 export interface CategoryMutationRow {
@@ -106,7 +137,9 @@ export async function createCategory(
   validateCatalogText(input.name, 'name', CATALOG_NAME_MAX, false);
   validateCatalogText(input.description, 'description', CATALOG_DESCRIPTION_MAX);
   validateCatalogText(input.iconUrl, 'iconUrl', CATALOG_ICON_URL_MAX);
+  assertIntegerField(input.displayOrder, 'displayOrder');
   const slug = slugify(input.name);
+  if (!slug) throw createAppError('Name must contain at least one letter or number.', 400);
 
   return db.transaction(async (client) => {
     let result;
@@ -162,6 +195,14 @@ export async function updateCategory(
   validateCatalogText(patch.name, 'name', CATALOG_NAME_MAX);
   validateCatalogText(patch.description, 'description', CATALOG_DESCRIPTION_MAX);
   validateCatalogText(patch.iconUrl, 'iconUrl', CATALOG_ICON_URL_MAX);
+  if (patch.name !== undefined && !patch.name.trim()) throw createAppError('Name is required.', 400);
+  if (patch.name !== undefined && !slugify(patch.name)) {
+    throw createAppError('Name must contain at least one letter or number.', 400);
+  }
+  assertIntegerField(patch.displayOrder, 'displayOrder');
+  if (patch.isActive !== undefined && typeof patch.isActive !== 'boolean') {
+    throw createAppError('isActive must be a boolean.', 400);
+  }
   const sets: string[] = [];
   const values: unknown[] = [];
   const auditPatch: Record<string, unknown> = {};
@@ -199,10 +240,18 @@ export async function updateCategory(
   values.push(categoryId);
 
   return db.transaction(async (client) => {
-    const result = await client.query<CategoryMutationRow>(
-      `UPDATE service_categories SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`,
-      values,
-    );
+    let result;
+    try {
+      result = await client.query<CategoryMutationRow>(
+        `UPDATE service_categories SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`,
+        values,
+      );
+    } catch (err) {
+      if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === '23505') {
+        throw createAppError('A category with this name already exists.', 409);
+      }
+      throw err;
+    }
     const row = result.rows[0];
     if (!row) throw createAppError('Category not found.', 404);
 
@@ -232,6 +281,9 @@ function assertPriceBounds(
   basePrice: number | null | undefined,
   maxPrice: number | null | undefined,
 ): void {
+  assertIntegerField(minPrice, 'Minimum price', { nullable: true, nonNegative: true });
+  assertIntegerField(basePrice, 'Base price', { nullable: true, nonNegative: true });
+  assertIntegerField(maxPrice, 'Maximum price', { nullable: true, nonNegative: true });
   const min = minPrice ?? null;
   const base = basePrice ?? null;
   const max = maxPrice ?? null;
@@ -254,6 +306,11 @@ function assertUnitPricing(
   unitLabel: string | null | undefined,
   unitPrice: number | null | undefined,
 ): void {
+  if (unitLabel != null) {
+    if (typeof unitLabel !== 'string' || unitLabel.trim().length === 0 || unitLabel.trim().length > 30) {
+      throw createAppError('Unit label must be between 1 and 30 characters.', 400);
+    }
+  }
   if (unitPrice != null) {
     if (!Number.isInteger(unitPrice) || unitPrice < 0) {
       throw createAppError('Unit price must be a non-negative whole number of centavos.', 400);
@@ -301,14 +358,29 @@ export async function createSubcategory(
   // BUG-PHASE163-01 fix — explicit length validation.
   validateCatalogText(input.name, 'name', CATALOG_NAME_MAX, false);
   assertCustomerServiceScope(input.description);
+  const pricingType = input.pricingType ?? 'fixed';
+  assertPricingType(pricingType);
   assertPriceBounds(input.minPrice, input.basePrice, input.maxPrice);
+  if (pricingType === 'fixed' && input.basePrice == null) {
+    throw createAppError('Fixed services need a base price.', 400);
+  }
+  assertIntegerField(input.estimatedDurationMinutes, 'Estimated duration', { nullable: true, nonNegative: true });
+  assertIntegerField(input.displayOrder, 'displayOrder');
   // D27 Phase 4 — per-unit rate must be a non-negative integer (centavos) and a
   // per_unit subcategory needs a rate to be meaningful.
-  assertUnitPricing(input.pricingType, input.unitLabel, input.unitPrice);
-  assertHourlyPricing(input.pricingType, input.hourlyRate);
+  assertUnitPricing(pricingType, input.unitLabel, input.unitPrice);
+  assertHourlyPricing(pricingType, input.hourlyRate);
   const slug = slugify(input.name);
+  if (!slug) throw createAppError('Name must contain at least one letter or number.', 400);
 
   return db.transaction(async (client) => {
+    const category = await client.query<{ id: string }>(
+      `SELECT id FROM service_categories WHERE id = $1 AND is_active = TRUE FOR UPDATE`,
+      [input.categoryId],
+    );
+    if (!category.rows[0]?.id) {
+      throw createAppError('Active category not found.', 404);
+    }
     const result = await client.query<SubcategoryMutationRow>(
       `INSERT INTO service_subcategories
          (category_id, name, slug, description, pricing_type, base_price, min_price, max_price, estimated_duration_minutes, unit_label, unit_price, hourly_rate, display_order)
@@ -319,7 +391,7 @@ export async function createSubcategory(
         input.name.trim(),
         slug,
         input.description ?? '',
-        input.pricingType ?? 'fixed',
+        pricingType,
         input.basePrice ?? null,
         input.minPrice ?? null,
         input.maxPrice ?? null,
@@ -377,53 +449,20 @@ export async function updateSubcategory(
   // BUG-PHASE163-01 fix — explicit length validation on PATCH path.
   validateCatalogText(patch.name, 'name', CATALOG_NAME_MAX);
   validateCatalogText(patch.description, 'description', CATALOG_DESCRIPTION_MAX);
-
-  // Tester-feedback remediation: the customer scope is now required for every
-  // active service. Existing legacy rows can still be deactivated even when
-  // incomplete, but cannot otherwise be re-published or edited while blank.
-  const existing = await db.query<{
-    description: string;
-    is_active: boolean;
-    base_price: number | null;
-    min_price: number | null;
-    max_price: number | null;
-    pricing_type: string;
-    unit_label: string | null;
-    unit_price: number | null;
-    hourly_rate: number | null;
-  }>(
-    `SELECT description, is_active, base_price, min_price, max_price,
-            pricing_type, unit_label, unit_price, hourly_rate
-       FROM service_subcategories WHERE id = $1`,
-    [subcategoryId],
-  );
-  if (existing.rows.length === 0) throw createAppError('Subcategory not found.', 404);
-  const current = existing.rows[0]!;
-  const mergedIsActive = patch.isActive !== undefined ? patch.isActive : current.is_active;
-  if (mergedIsActive) {
-    assertCustomerServiceScope(patch.description !== undefined ? patch.description : current.description);
+  if (patch.name !== undefined && !patch.name.trim()) throw createAppError('Name is required.', 400);
+  if (patch.name !== undefined && !slugify(patch.name)) {
+    throw createAppError('Name must contain at least one letter or number.', 400);
   }
-
-  // Validate price bounds against the MERGED result (patch over existing), so a
-  // patch that only moves one bound can't create an inverted min/base/max.
-  if (patch.basePrice !== undefined || patch.minPrice !== undefined || patch.maxPrice !== undefined) {
-    assertPriceBounds(
-      patch.minPrice !== undefined ? patch.minPrice : current.min_price,
-      patch.basePrice !== undefined ? patch.basePrice : current.base_price,
-      patch.maxPrice !== undefined ? patch.maxPrice : current.max_price,
-    );
-  }
-
-  // D27 Phase 4 / 4b — validate per-unit + hourly pricing against the MERGED
-  // result so a patch that switches pricing_type without the needed rate fails.
-  if (patch.unitLabel !== undefined || patch.unitPrice !== undefined || patch.hourlyRate !== undefined || patch.pricingType !== undefined) {
-    const mergedType = patch.pricingType !== undefined ? patch.pricingType : current.pricing_type;
-    assertUnitPricing(
-      mergedType,
-      patch.unitLabel !== undefined ? patch.unitLabel : current.unit_label,
-      patch.unitPrice !== undefined ? patch.unitPrice : current.unit_price,
-    );
-    assertHourlyPricing(mergedType, patch.hourlyRate !== undefined ? patch.hourlyRate : current.hourly_rate);
+  if (patch.pricingType !== undefined) assertPricingType(patch.pricingType);
+  assertIntegerField(patch.basePrice, 'Base price', { nullable: true, nonNegative: true });
+  assertIntegerField(patch.minPrice, 'Minimum price', { nullable: true, nonNegative: true });
+  assertIntegerField(patch.maxPrice, 'Maximum price', { nullable: true, nonNegative: true });
+  assertIntegerField(patch.estimatedDurationMinutes, 'Estimated duration', { nullable: true, nonNegative: true });
+  assertIntegerField(patch.unitPrice, 'Unit price', { nullable: true, nonNegative: true });
+  assertIntegerField(patch.hourlyRate, 'Hourly rate', { nullable: true, nonNegative: true });
+  assertIntegerField(patch.displayOrder, 'displayOrder');
+  if (patch.isActive !== undefined && typeof patch.isActive !== 'boolean') {
+    throw createAppError('isActive must be a boolean.', 400);
   }
 
   const sets: string[] = [];
@@ -498,6 +537,47 @@ export async function updateSubcategory(
   values.push(subcategoryId);
 
   return db.transaction(async (client) => {
+    // Lock the row before validating the merged pricing model. Without this,
+    // two concurrent partial edits could each validate against stale values
+    // and commit an impossible min/base/max or pricing/rate combination.
+    const existing = await client.query<{
+      description: string;
+      is_active: boolean;
+      base_price: number | null;
+      min_price: number | null;
+      max_price: number | null;
+      pricing_type: string;
+      unit_label: string | null;
+      unit_price: number | null;
+      hourly_rate: number | null;
+    }>(
+      `SELECT description, is_active, base_price, min_price, max_price,
+              pricing_type, unit_label, unit_price, hourly_rate
+         FROM service_subcategories WHERE id = $1 FOR UPDATE`,
+      [subcategoryId],
+    );
+    if (existing.rows.length === 0) throw createAppError('Subcategory not found.', 404);
+    const current = existing.rows[0]!;
+    const mergedIsActive = patch.isActive !== undefined ? patch.isActive : current.is_active;
+    const mergedType = patch.pricingType !== undefined ? patch.pricingType : current.pricing_type;
+    const mergedBasePrice = patch.basePrice !== undefined ? patch.basePrice : current.base_price;
+    const mergedMinPrice = patch.minPrice !== undefined ? patch.minPrice : current.min_price;
+    const mergedMaxPrice = patch.maxPrice !== undefined ? patch.maxPrice : current.max_price;
+    const mergedUnitLabel = patch.unitLabel !== undefined ? patch.unitLabel : current.unit_label;
+    const mergedUnitPrice = patch.unitPrice !== undefined ? patch.unitPrice : current.unit_price;
+    const mergedHourlyRate = patch.hourlyRate !== undefined ? patch.hourlyRate : current.hourly_rate;
+
+    if (mergedIsActive) {
+      assertCustomerServiceScope(patch.description !== undefined ? patch.description : current.description);
+    }
+    assertPricingType(mergedType);
+    assertPriceBounds(mergedMinPrice, mergedBasePrice, mergedMaxPrice);
+    if (mergedType === 'fixed' && mergedBasePrice == null) {
+      throw createAppError('Fixed services need a base price.', 400);
+    }
+    assertUnitPricing(mergedType, mergedUnitLabel, mergedUnitPrice);
+    assertHourlyPricing(mergedType, mergedHourlyRate);
+
     const result = await client.query<SubcategoryMutationRow>(
       `UPDATE service_subcategories SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`,
       values,
@@ -538,19 +618,17 @@ export async function updateSubcategory(
 export async function deleteSubcategory(
   subcategoryId: string,
   adminUserId: string,
-  reason?: string,
+  reason: string,
 ): Promise<void> {
   // BUG-PHASE167-01 fix — pre-fix reason had no cap. The reason
   // column gets a 500-char slice but full_notes (TEXT, unbounded)
   // gets the entire string. Cap reason at 2000 to prevent abuse
   // via unbounded full_notes. Same defense-in-depth pattern as
   // Phase 152-166.
-  if (reason !== undefined && typeof reason === 'string' && reason.length > 2000) {
-    throw createAppError('reason must be ≤ 2000 characters.', 400);
-  }
+  const trimmedReason = assertLifecycleReason(reason);
   await db.transaction(async (client) => {
     const before = await client.query<SubcategoryMutationRow>(
-      `SELECT * FROM service_subcategories WHERE id = $1`,
+      `SELECT * FROM service_subcategories WHERE id = $1 FOR UPDATE`,
       [subcategoryId],
     );
     if (before.rows.length === 0) throw createAppError('Subcategory not found.', 404);
@@ -564,7 +642,6 @@ export async function deleteSubcategory(
     );
     if (result.rowCount === 0) throw createAppError('Subcategory not found.', 404);
 
-    const trimmedReason = (reason ?? '').trim();
     const auditResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
        VALUES ($1, 'service_subcategory_deleted', 'service_subcategory', $2, $3::jsonb, $4, $5)
@@ -577,13 +654,67 @@ export async function deleteSubcategory(
           name: before.rows[0]!.name,
           slug: before.rows[0]!.slug,
         }),
-        trimmedReason ? trimmedReason.slice(0, 500) : `Service subcategory deactivated: ${before.rows[0]!.name}`,
-        trimmedReason || null,
+        trimmedReason.slice(0, 500),
+        trimmedReason,
       ],
     );
     if (!auditResult.rows[0]?.id) {
       throw createAppError('Failed to record service_subcategory_deleted audit.', 500);
     }
+  });
+}
+
+export async function reactivateSubcategory(
+  subcategoryId: string,
+  adminUserId: string,
+  reason: string,
+): Promise<SubcategoryMutationRow> {
+  const trimmedReason = assertLifecycleReason(reason);
+  return db.transaction(async (client) => {
+    const before = await client.query<SubcategoryMutationRow>(
+      `SELECT * FROM service_subcategories WHERE id = $1 FOR UPDATE`,
+      [subcategoryId],
+    );
+    const current = before.rows[0];
+    if (!current) throw createAppError('Subcategory not found.', 404);
+    if (current.is_active) throw createAppError('Subcategory is already active.', 409);
+
+    const category = await client.query<{ id: string }>(
+      `SELECT id FROM service_categories WHERE id = $1 AND is_active = TRUE FOR UPDATE`,
+      [current.category_id],
+    );
+    if (!category.rows[0]?.id) throw createAppError('The parent category is inactive or unavailable.', 409);
+
+    assertCustomerServiceScope(current.description);
+    assertPricingType(current.pricing_type);
+    assertPriceBounds(current.min_price, current.base_price, current.max_price);
+    if (current.pricing_type === 'fixed' && current.base_price == null) {
+      throw createAppError('Fixed services need a base price before reactivation.', 400);
+    }
+    assertUnitPricing(current.pricing_type, current.unit_label, current.unit_price);
+    assertHourlyPricing(current.pricing_type, current.hourly_rate);
+
+    const result = await client.query<SubcategoryMutationRow>(
+      `UPDATE service_subcategories SET is_active = TRUE, updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [subcategoryId],
+    );
+    const row = result.rows[0];
+    if (!row) throw createAppError('Subcategory not found.', 404);
+
+    const auditResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'service_subcategory_updated', 'service_subcategory', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        adminUserId,
+        subcategoryId,
+        JSON.stringify({ name: row.name, isActive: { from: false, to: true } }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
+      ],
+    );
+    if (!auditResult.rows[0]?.id) throw createAppError('Failed to record service reactivation audit.', 500);
+    return row;
   });
 }
 
@@ -600,6 +731,9 @@ export async function createAddon(
   // BUG-PHASE163-01 fix — explicit length validation.
   validateCatalogText(input.name, 'name', CATALOG_NAME_MAX, false);
   validateCatalogText(input.description, 'description', CATALOG_DESCRIPTION_MAX);
+  if (!input.name.trim()) throw createAppError('Name is required.', 400);
+  assertIntegerField(input.price, 'price', { nonNegative: true });
+  assertIntegerField(input.displayOrder, 'displayOrder');
   // MED-M09 fix — apply the admin-tunable cap from platform_settings
   // (validator only enforces the hard backstop). Tuned cap is the
   // narrower of the two; service-layer rejection here keeps the
@@ -614,6 +748,12 @@ export async function createAddon(
     );
   }
   return db.transaction(async (client) => {
+    const parent = await client.query<{ id: string }>(
+      `SELECT id FROM service_subcategories WHERE id = $1 AND is_active = TRUE FOR UPDATE`,
+      [input.subcategoryId],
+    );
+    if (!parent.rows[0]?.id) throw createAppError('Active parent service not found.', 404);
+
     const result = await client.query<AddonMutationRow>(
       `INSERT INTO service_addons (subcategory_id, name, description, price, display_order)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
@@ -664,6 +804,12 @@ export async function updateAddon(
   // BUG-PHASE163-01 fix — explicit length validation on PATCH path.
   validateCatalogText(patch.name, 'name', CATALOG_NAME_MAX);
   validateCatalogText(patch.description, 'description', CATALOG_DESCRIPTION_MAX);
+  if (patch.name !== undefined && !patch.name.trim()) throw createAppError('Name is required.', 400);
+  assertIntegerField(patch.price, 'price', { nonNegative: true });
+  assertIntegerField(patch.displayOrder, 'displayOrder');
+  if (patch.isActive !== undefined && typeof patch.isActive !== 'boolean') {
+    throw createAppError('isActive must be a boolean.', 400);
+  }
   // Audit fix — mirror createAddon's admin-tunable price cap on the PATCH path
   // (previously updateAddon could raise a price past the configured maximum).
   if (patch.price !== undefined) {
@@ -720,12 +866,10 @@ export async function updateAddon(
 export async function deleteAddon(
   addonId: string,
   adminUserId: string,
-  reason?: string,
+  reason: string,
 ): Promise<void> {
   // BUG-PHASE167-01 fix — same reason cap as deleteSubcategory.
-  if (reason !== undefined && typeof reason === 'string' && reason.length > 2000) {
-    throw createAppError('reason must be ≤ 2000 characters.', 400);
-  }
+  const trimmedReason = assertLifecycleReason(reason);
   // Phase 14 Dispatch 06 — Bug 237. Pre-D06 the route did UPDATE
   // service_addons SET is_active = FALSE (soft deactivate, preserving
   // booking_addons FK integrity) with NO audit. The behavior here keeps
@@ -733,7 +877,7 @@ export async function deleteAddon(
   // would orphan historical booking_addons rows.
   await db.transaction(async (client) => {
     const before = await client.query<AddonMutationRow>(
-      `SELECT * FROM service_addons WHERE id = $1`,
+      `SELECT * FROM service_addons WHERE id = $1 FOR UPDATE`,
       [addonId],
     );
     if (before.rows.length === 0) throw createAppError('Add-on not found.', 404);
@@ -747,7 +891,6 @@ export async function deleteAddon(
     );
     if (result.rowCount === 0) throw createAppError('Add-on not found.', 404);
 
-    const trimmedReason = (reason ?? '').trim();
     const auditResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
        VALUES ($1, 'service_addon_deleted', 'service_addon', $2, $3::jsonb, $4, $5)
@@ -760,13 +903,65 @@ export async function deleteAddon(
           name: before.rows[0]!.name,
           price: before.rows[0]!.price,
         }),
-        trimmedReason ? trimmedReason.slice(0, 500) : `Service addon deactivated: ${before.rows[0]!.name}`,
-        trimmedReason || null,
+        trimmedReason.slice(0, 500),
+        trimmedReason,
       ],
     );
     if (!auditResult.rows[0]?.id) {
       throw createAppError('Failed to record service_addon_deleted audit.', 500);
     }
+  });
+}
+
+export async function reactivateAddon(
+  addonId: string,
+  adminUserId: string,
+  reason: string,
+): Promise<AddonMutationRow> {
+  const trimmedReason = assertLifecycleReason(reason);
+  return db.transaction(async (client) => {
+    const before = await client.query<AddonMutationRow>(
+      `SELECT * FROM service_addons WHERE id = $1 FOR UPDATE`,
+      [addonId],
+    );
+    const current = before.rows[0];
+    if (!current) throw createAppError('Add-on not found.', 404);
+    if (current.is_active) throw createAppError('Add-on is already active.', 409);
+
+    const parent = await client.query<{ id: string }>(
+      `SELECT id FROM service_subcategories WHERE id = $1 AND is_active = TRUE FOR UPDATE`,
+      [current.subcategory_id],
+    );
+    if (!parent.rows[0]?.id) throw createAppError('The parent service is inactive or unavailable.', 409);
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getAddonPriceMaxCentsLive } = require('../validators/admin-catalog.validators');
+    const liveMaxCents: number = await getAddonPriceMaxCentsLive();
+    if (current.price > liveMaxCents) {
+      throw createAppError('Add-on price exceeds the current configured maximum.', 400);
+    }
+
+    const result = await client.query<AddonMutationRow>(
+      `UPDATE service_addons SET is_active = TRUE, updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [addonId],
+    );
+    const row = result.rows[0];
+    if (!row) throw createAppError('Add-on not found.', 404);
+
+    const auditResult = await client.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'service_addon_updated', 'service_addon', $2, $3::jsonb, $4, $5)
+       RETURNING id`,
+      [
+        adminUserId,
+        addonId,
+        JSON.stringify({ name: row.name, isActive: { from: false, to: true } }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
+      ],
+    );
+    if (!auditResult.rows[0]?.id) throw createAppError('Failed to record add-on reactivation audit.', 500);
+    return row;
   });
 }
 
@@ -970,6 +1165,36 @@ export async function getFullCatalog(): Promise<CategoryWithSubcategories[]> {
   return categories.map((cat) => ({
     ...cat,
     subcategories: subsByCategory.get(cat.id) ?? [],
+  }));
+}
+
+/**
+ * Admin lifecycle view. Public catalog reads intentionally expose only active
+ * records, while operators must retain visibility of deactivated services so
+ * they can investigate history and perform a reasoned, validated restoration.
+ * Inactive categories stay excluded because category lifecycle is not exposed
+ * as an admin action in the current product.
+ */
+export async function getAdminCatalog(): Promise<CategoryWithSubcategories[]> {
+  const categories = await getActiveCategories();
+  if (categories.length === 0) return [];
+  const allSubs = await db.query<SubcategoryRow>(
+    `SELECT * FROM service_subcategories
+     WHERE category_id = ANY($1::uuid[])
+     ORDER BY display_order ASC, name ASC`,
+    [categories.map((category) => category.id)],
+  );
+
+  const subsByCategory = new Map<string, SubcategoryRow[]>();
+  for (const sub of allSubs.rows) {
+    const existing = subsByCategory.get(sub.category_id) ?? [];
+    existing.push(sub);
+    subsByCategory.set(sub.category_id, existing);
+  }
+
+  return categories.map((category) => ({
+    ...category,
+    subcategories: subsByCategory.get(category.id) ?? [],
   }));
 }
 
