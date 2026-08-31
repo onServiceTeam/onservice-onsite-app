@@ -58,6 +58,9 @@
   read-only ordinary-admin and mutating super-admin boundary; signed payment
   amount mismatches prove exact alert metadata, best-effort alert failure
   handling, completed idempotency state, and zero money movement.
+- Replaces the MED-N42 consent source scan with executed rollback behavior. A
+  failed revocation-history insert now proves the prior active consent remains
+  active and no phantom revocation event is stored.
 - Fixes OPS-299/OPS-300 in the provider payout handoff. The wallet facade now
   shares the canonical payout request schema, so account-holder name and notes
   are no longer stripped before payout creation. The responsive provider
@@ -66,7 +69,7 @@
 
 ## Verification completed
 
-- API: 675 suites passed, 1 suite skipped by its own config, 3,133 tests passed.
+- API: 675 suites passed, 1 suite skipped by its own config, 3,130 tests passed.
 - Admin: 248 files passed, 1 skipped, 340 tests passed, 3 existing todos.
 - Mobile: 502 suites passed, 881 tests passed, 84 existing todos.
 - API, admin, and mobile typechecks passed.
