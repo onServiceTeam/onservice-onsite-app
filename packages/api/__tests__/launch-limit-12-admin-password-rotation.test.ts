@@ -10,6 +10,9 @@
 //      and writes an audit row. All inside a transaction.
 //   4. Routes are wired with auth + super_admin gates as appropriate.
 
+import express from 'express';
+import request from 'supertest';
+
 const dbQueryMock = jest.fn();
 const dbTransactionMock = jest.fn();
 
@@ -20,10 +23,23 @@ jest.mock('../src/models/db', () => ({
   },
 }));
 
+jest.mock('../src/middleware/auth.middleware', () => ({
+  authMiddleware: (
+    req: express.Request,
+    _res: express.Response,
+    next: express.NextFunction,
+  ): void => {
+    const role = req.header('x-test-role') ?? 'admin';
+    (req as express.Request & { user: unknown }).user = {
+      userId: `${role}-rotation-user`, role, iat: 0, exp: 0,
+    };
+    next();
+  },
+}));
+
 import * as passwordRotation from '../src/services/admin-password-rotation.service';
 import { hashPassword, SCRYPT_N, HASH_VERSION } from '../src/services/auth.service';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import securityRouter from '../src/routes/security.routes';
 
 beforeEach(() => {
   dbQueryMock.mockReset();
@@ -230,28 +246,48 @@ describe('LAUNCH-LIMITATIONS #12 — changeOwnAdminPassword', () => {
 });
 
 describe('LAUNCH-LIMITATIONS #12 — route wiring', () => {
-  it('#12 — security.routes mounts the three new endpoints', () => {
-    const ROUTE = readFileSync(
-      resolve(__dirname, '../src/routes/security.routes.ts'),
-      'utf8',
-    );
-    expect(ROUTE).toMatch(/router\.get\(\s*['"]\/admin\/legacy-password-stats['"]/);
-    expect(ROUTE).toMatch(/router\.post\(\s*['"]\/admin\/flag-legacy-password-hashes['"]/);
-    expect(ROUTE).toMatch(/router\.post\(\s*['"]\/admin\/me\/change-password['"]/);
-    // Bulk-flag endpoint must be super_admin gated.
-    expect(ROUTE).toMatch(/requireSuperAdmin/);
-  });
+  it('#12 — mounted password-rotation routes enforce role boundaries and forward the current account', async () => {
+    const statsSpy = jest.spyOn(passwordRotation, 'getLegacyPasswordStats').mockResolvedValue({
+      total: 4, legacy: 2, current: 2, mustRotate: 1,
+    });
+    const flagSpy = jest.spyOn(passwordRotation, 'flagLegacyHashesForRotation').mockResolvedValue({
+      affected: 2, newlyFlagged: 1, alreadyFlagged: 1,
+    });
+    const changeSpy = jest.spyOn(passwordRotation, 'changeOwnAdminPassword').mockResolvedValue(undefined);
+    const app = express();
+    app.use(express.json());
+    app.use('/security', securityRouter);
+    app.use((
+      error: { statusCode?: number; message?: string },
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction,
+    ) => res.status(error.statusCode ?? 500).json({ error: error.message ?? 'error' }));
 
-  it('#12 — auth.routes admin login surfaces mustRotatePassword in both branches', () => {
-    const ROUTE = readFileSync(
-      resolve(__dirname, '../src/routes/auth.routes.ts'),
-      'utf8',
-    );
-    // Password-only branch.
-    expect(ROUTE).toMatch(/mustRotatePassword:\s*user\.must_rotate_password === true/);
-    // Post-2FA branch.
-    expect(ROUTE).toMatch(/mustRotatePassword:\s*fullUser\.rows\[0\]\?\.must_rotate_password === true/);
-    // SELECT pulls the column.
-    expect(ROUTE).toMatch(/COALESCE\(must_rotate_password, FALSE\) AS must_rotate_password/);
+    const adminStats = await request(app).get('/security/admin/legacy-password-stats');
+    const dpoStats = await request(app)
+      .get('/security/admin/legacy-password-stats')
+      .set('x-test-role', 'dpo');
+    const adminFlag = await request(app).post('/security/admin/flag-legacy-password-hashes');
+    const superAdminFlag = await request(app)
+      .post('/security/admin/flag-legacy-password-hashes')
+      .set('x-test-role', 'super_admin');
+    const ownChange = await request(app)
+      .post('/security/admin/me/change-password')
+      .set('x-test-role', 'dpo')
+      .send({ oldPassword: 'old-password-value', newPassword: 'new-password-value' });
+
+    expect(adminStats.status).toBe(200);
+    expect(dpoStats.status).toBe(403);
+    expect(statsSpy).toHaveBeenCalledTimes(1);
+    expect(adminFlag.status).toBe(403);
+    expect(superAdminFlag.status).toBe(200);
+    expect(flagSpy).toHaveBeenCalledWith('super_admin-rotation-user');
+    expect(ownChange.status).toBe(200);
+    expect(changeSpy).toHaveBeenCalledWith({
+      userId: 'dpo-rotation-user',
+      oldPassword: 'old-password-value',
+      newPassword: 'new-password-value',
+    });
   });
 });

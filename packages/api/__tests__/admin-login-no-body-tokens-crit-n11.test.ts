@@ -73,7 +73,7 @@ const userFixture = {
   session_version: 3,
   created_at: new Date('2026-01-01T00:00:00.000Z'),
   password_hash: 'stored-password-hash',
-  must_rotate_password: false,
+  must_rotate_password: true,
 };
 
 function expectCookieOnlySession(response: SupertestResponse): void {
@@ -184,6 +184,7 @@ it('CRIT-N11 - every completed admin authentication flow keeps bearer tokens out
     });
     expect(login.status).toBe(200);
     expectCookieOnlySession(login);
+    expect(login.body.data.mustRotatePassword).toBe(true);
 
     delete process.env.ADMIN_DISABLE_2FA;
     scenario = 'verify';
@@ -201,6 +202,7 @@ it('CRIT-N11 - every completed admin authentication flow keeps bearer tokens out
     });
     expect(verified.status).toBe(200);
     expectCookieOnlySession(verified);
+    expect(verified.body.data.mustRotatePassword).toBe(true);
 
     scenario = 'enable';
     createTokenPairMock.mockResolvedValueOnce({
@@ -218,6 +220,7 @@ it('CRIT-N11 - every completed admin authentication flow keeps bearer tokens out
       .send({ totpCode: '123456' });
     expect(enabled.status).toBe(200);
     expectCookieOnlySession(enabled);
+    expect(enabled.body.data.mustRotatePassword).toBe(true);
 
     scenario = 'refresh';
     const refreshedAccessToken = jwt.sign({

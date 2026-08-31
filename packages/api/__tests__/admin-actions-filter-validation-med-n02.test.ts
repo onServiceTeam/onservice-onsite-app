@@ -1,75 +1,75 @@
-// MED-N02 fix verified — admin GET /actions endpoint validates
-// adminId (UUID) and actionType (slug shape) before passing to
-// the service. Pre-fix, garbage values either returned empty
-// results or caused unparseable-UUID errors to bubble up as 500.
-// Now: clean 400 with a helpful message.
+import express from 'express';
+import request from 'supertest';
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+const getAdminActionsMock = jest.fn();
 
-const ROUTES = readFileSync(
-  resolve(__dirname, '../src/routes/admin.routes.ts'),
-  'utf8',
-);
+jest.mock('../src/middleware/auth.middleware', () => ({
+  authMiddleware: (
+    req: express.Request,
+    _res: express.Response,
+    next: express.NextFunction,
+  ): void => {
+    const role = req.header('x-test-role') ?? 'super_admin';
+    (req as express.Request & { user: unknown }).user = {
+      userId: `${role}-med-n02`, role, iat: 0, exp: 0,
+    };
+    next();
+  },
+}));
+jest.mock('../src/services/admin.service', () => ({
+  getAdminActions: (...args: unknown[]) => getAdminActionsMock(...args),
+  formatAdminAction: (value: unknown) => value,
+}));
+jest.mock('../src/models/db', () => ({ db: { query: jest.fn(), transaction: jest.fn() } }));
+jest.mock('../src/utils/logger', () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}));
 
-describe('MED-N02 — admin /actions endpoint validates filter params', () => {
-  it('UUID regex validates adminId before passing to service', () => {
-    expect(ROUTES).toMatch(/MED-N02 fix/);
-    expect(ROUTES).toMatch(/UUID_REGEX = \/\^\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{12\}\$\/i/);
-  });
+import adminRouter from '../src/routes/admin.routes';
 
-  it('throws 400 with clear message when adminId is not a UUID', () => {
-    expect(ROUTES).toMatch(/!UUID_REGEX\.test\(req\.query\.adminId\)/);
-    expect(ROUTES).toMatch(/createAppError\('adminId must be a valid UUID\.', 400\)/);
-  });
+it('MED-N02 - admin action filters reject malformed values before the audit service', async () => {
+  getAdminActionsMock.mockResolvedValue({ actions: [{ id: 'action-med-n02' }], total: 1 });
+  const app = express();
+  app.use('/admin', adminRouter);
+  app.use((
+    error: { statusCode?: number; message?: string },
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => res.status(error.statusCode ?? 500).json({ error: error.message ?? 'error' }));
 
-  it('actionType regex enforces lowercase slug shape', () => {
-    expect(ROUTES).toMatch(/ACTION_TYPE_REGEX = \/\^\[a-z\]\[a-z0-9_\]\{2,80\}\$\//);
-  });
+  const badAdminId = await request(app).get('/admin/actions?adminId=not-a-uuid');
+  const badActionType = await request(app).get('/admin/actions?actionType=Provider-Approved');
+  const ordinaryAdmin = await request(app)
+    .get('/admin/actions')
+    .set('x-test-role', 'admin');
 
-  it('throws 400 with clear message when actionType has invalid characters', () => {
-    expect(ROUTES).toMatch(/!ACTION_TYPE_REGEX\.test\(req\.query\.actionType\)/);
-    expect(ROUTES).toMatch(/actionType must be lowercase letters, digits, or underscores/);
-  });
+  expect(badAdminId.status).toBe(400);
+  expect(badAdminId.body.error).toBe('adminId must be a valid UUID.');
+  expect(badActionType.status).toBe(400);
+  expect(badActionType.body.error).toMatch(/lowercase letters, digits, or underscores/i);
+  expect(ordinaryAdmin.status).toBe(403);
+  expect(getAdminActionsMock).not.toHaveBeenCalled();
 
-  it('empty / missing query params still produce undefined (no validation runs)', () => {
-    // Source-level: the validation is gated on `length > 0` so
-    // omitted query params don't trigger 400.
-    expect(ROUTES).toMatch(/typeof req\.query\.adminId === 'string' && req\.query\.adminId\.length > 0/);
-    expect(ROUTES).toMatch(/typeof req\.query\.actionType === 'string' && req\.query\.actionType\.length > 0/);
-  });
-});
+  const adminId = '11111111-1111-4111-9111-1111111111AA';
+  const filtered = await request(app).get(
+    `/admin/actions?adminId=${adminId}&actionType=provider_approved&page=2&pageSize=50`,
+  );
+  const unfiltered = await request(app).get('/admin/actions');
 
-describe('MED-N02 — UUID + slug regex behavior smoke', () => {
-  // Mirror the regexes inline so we verify the contract.
-  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const ACTION_TYPE_REGEX = /^[a-z][a-z0-9_]{2,80}$/;
-
-  it('accepts a canonical UUIDv4', () => {
-    expect(UUID_REGEX.test('11111111-1111-4111-9111-111111111111')).toBe(true);
-  });
-
-  it('accepts uppercase hex (case-insensitive)', () => {
-    expect(UUID_REGEX.test('11111111-1111-1111-1111-1111111111AA')).toBe(true);
-  });
-
-  it('rejects junk strings', () => {
-    expect(UUID_REGEX.test('not-a-uuid')).toBe(false);
-    expect(UUID_REGEX.test('11111111-1111-1111-1111-11111111111')).toBe(false); // too short
-    expect(UUID_REGEX.test("'; DROP TABLE users;--")).toBe(false);
-  });
-
-  it('action_type accepts canonical values from the CHECK constraint', () => {
-    expect(ACTION_TYPE_REGEX.test('provider_approved')).toBe(true);
-    expect(ACTION_TYPE_REGEX.test('customer_flagged_fraud')).toBe(true);
-    expect(ACTION_TYPE_REGEX.test('aml_review_cleared')).toBe(true);
-  });
-
-  it('action_type rejects mixed case, leading digit, hyphens, special chars', () => {
-    expect(ACTION_TYPE_REGEX.test('Provider_Approved')).toBe(false);
-    expect(ACTION_TYPE_REGEX.test('1_starts_with_digit')).toBe(false);
-    expect(ACTION_TYPE_REGEX.test('with-hyphen')).toBe(false);
-    expect(ACTION_TYPE_REGEX.test('with space')).toBe(false);
-    expect(ACTION_TYPE_REGEX.test('xx')).toBe(false); // 2 chars: too short
-  });
+  expect(filtered.status).toBe(200);
+  expect(filtered.body.data).toEqual([{ id: 'action-med-n02' }]);
+  expect(getAdminActionsMock).toHaveBeenNthCalledWith(1, {
+    adminId,
+    actionType: 'provider_approved',
+    page: 2,
+    pageSize: 50,
+  }, 'super_admin');
+  expect(unfiltered.status).toBe(200);
+  expect(getAdminActionsMock).toHaveBeenNthCalledWith(2, {
+    adminId: undefined,
+    actionType: undefined,
+    page: 1,
+    pageSize: 20,
+  }, 'super_admin');
 });
