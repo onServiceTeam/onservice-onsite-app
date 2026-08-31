@@ -115,7 +115,7 @@ router.get(
 
       const area = await serviceAreaService.getServiceAreaBySlug(slug);
 
-      if (!['active', 'soft_launch', 'recruiting'].includes(area.status)) {
+      if (!['active', 'soft_launch'].includes(area.status)) {
         throw createAppError('Service area not found.', 404);
       }
 
@@ -194,7 +194,9 @@ router.post(
 
       res.status(201).json({
         success: true,
-        data: serviceAreaService.formatWaitlistEntry(entry),
+        // The caller just submitted this record, so echoing their own values is
+        // not an administrative PII reveal.
+        data: serviceAreaService.formatWaitlistEntry(entry, true),
         message: "We're not available in your area yet. We'll notify you when we expand!",
       });
     } catch (err) {

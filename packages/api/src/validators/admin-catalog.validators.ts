@@ -30,20 +30,116 @@ import { z } from 'zod';
 
 /** Hard backstop. Admin-tunable cap is enforced at the service layer. */
 const ADDON_PRICE_MAX_CENTS = 10_000_000; // ₱100,000 hard ceiling
+const POSTGRES_INTEGER_MAX = 2_147_483_647;
+const POSTGRES_INTEGER_MIN = -2_147_483_648;
+const CUSTOMER_SERVICE_SCOPE_MIN = 30;
+
+const displayOrderSchema = z.number().int().min(POSTGRES_INTEGER_MIN).max(POSTGRES_INTEGER_MAX);
+const priceSchema = z.number().int().min(0).max(POSTGRES_INTEGER_MAX).nullable();
+const iconUrlSchema = z.string().max(500).refine((value) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}, 'Icon URL must be an HTTP(S) URL');
+
+export const catalogUuidParamsSchema = z.object({ id: z.string().uuid('Invalid catalog record ID') }).strict();
+export const catalogSubcategoryUuidParamsSchema = z.object({
+  subcategoryId: z.string().uuid('Invalid subcategory ID'),
+}).strict();
+export const catalogFieldUuidParamsSchema = z.object({
+  fieldId: z.string().uuid('Invalid intake field ID'),
+}).strict();
+
+export const createCategorySchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  description: z.string().max(2000).optional(),
+  iconUrl: iconUrlSchema.nullable().optional(),
+  displayOrder: displayOrderSchema.optional(),
+}).strict();
+
+export const updateCategorySchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  description: z.string().max(2000).optional(),
+  iconUrl: iconUrlSchema.nullable().optional(),
+  displayOrder: displayOrderSchema.optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, 'At least one category field is required');
+
+const subcategoryFields = {
+  name: z.string().trim().min(1).max(100),
+  description: z.string().trim().min(
+    CUSTOMER_SERVICE_SCOPE_MIN,
+    `Customer service scope must be at least ${CUSTOMER_SERVICE_SCOPE_MIN} characters`,
+  ).max(2000),
+  pricingType: z.enum(['fixed', 'quote', 'hourly', 'per_unit']),
+  basePrice: priceSchema,
+  minPrice: priceSchema,
+  maxPrice: priceSchema,
+  estimatedDurationMinutes: z.number().int().min(0).max(POSTGRES_INTEGER_MAX).nullable(),
+  unitLabel: z.string().trim().min(1).max(30).nullable(),
+  unitPrice: priceSchema,
+  hourlyRate: priceSchema,
+  displayOrder: displayOrderSchema,
+};
+
+function validatePricingModel(
+  value: Partial<Record<keyof typeof subcategoryFields, unknown>>,
+  ctx: z.RefinementCtx,
+): void {
+  if (value.pricingType === 'fixed' && value.basePrice == null) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['basePrice'], message: 'Fixed services need a base price' });
+  }
+  if (value.pricingType === 'hourly' && (typeof value.hourlyRate !== 'number' || value.hourlyRate <= 0)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['hourlyRate'], message: 'Hourly services need a positive hourly rate' });
+  }
+  if (value.pricingType === 'per_unit') {
+    if (typeof value.unitLabel !== 'string' || value.unitLabel.trim().length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['unitLabel'], message: 'Per-unit services need a unit label' });
+    }
+    if (typeof value.unitPrice !== 'number') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['unitPrice'], message: 'Per-unit services need a unit price' });
+    }
+  }
+}
+
+export const createSubcategorySchema = z.object({
+  categoryId: z.string().uuid('Invalid category ID'),
+  ...subcategoryFields,
+}).strict().superRefine(validatePricingModel);
+
+export const updateSubcategorySchema = z.object({
+  name: subcategoryFields.name.optional(),
+  description: subcategoryFields.description.optional(),
+  pricingType: subcategoryFields.pricingType.optional(),
+  basePrice: subcategoryFields.basePrice.optional(),
+  minPrice: subcategoryFields.minPrice.optional(),
+  maxPrice: subcategoryFields.maxPrice.optional(),
+  estimatedDurationMinutes: subcategoryFields.estimatedDurationMinutes.optional(),
+  unitLabel: subcategoryFields.unitLabel.optional(),
+  unitPrice: subcategoryFields.unitPrice.optional(),
+  hourlyRate: subcategoryFields.hourlyRate.optional(),
+  displayOrder: subcategoryFields.displayOrder.optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, 'At least one service field is required');
+
+export const catalogLifecycleReasonSchema = z.object({
+  reason: z.string().trim().min(10).max(2000),
+}).strict();
 
 export const createAddonSchema = z
   .object({
     subcategoryId: z.string().uuid('Invalid subcategory ID'),
-    name: z.string().min(1).max(150),
+    name: z.string().trim().min(1).max(100),
     description: z.string().max(1000).optional(),
     price: z.number().int().min(0).max(ADDON_PRICE_MAX_CENTS, 'Add-on price exceeds maximum'),
-    displayOrder: z.number().int().min(0).max(1000).optional(),
+    displayOrder: displayOrderSchema.optional(),
   })
   .strict();
 
 export const updateAddonSchema = z
   .object({
-    name: z.string().min(1).max(150).optional(),
+    name: z.string().trim().min(1).max(100).optional(),
     description: z.string().max(1000).optional(),
     price: z
       .number()
@@ -51,10 +147,10 @@ export const updateAddonSchema = z
       .min(0)
       .max(ADDON_PRICE_MAX_CENTS, 'Add-on price exceeds maximum')
       .optional(),
-    displayOrder: z.number().int().min(0).max(1000).optional(),
-    isActive: z.boolean().optional(),
+    displayOrder: displayOrderSchema.optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, 'At least one add-on field is required');
 
 export const ADDON_PRICE_MAX_CENTS_EXPORT = ADDON_PRICE_MAX_CENTS;
 

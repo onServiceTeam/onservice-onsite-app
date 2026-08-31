@@ -1,5 +1,17 @@
 import { z } from 'zod';
 
+const positiveIntegerQuery = z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(1));
+
+export const adminProviderListQuerySchema = z.object({
+  page: positiveIntegerQuery.optional(),
+  pageSize: positiveIntegerQuery.pipe(z.number().max(100)).optional(),
+  status: z.enum(['pending', 'approved', 'rejected', 'suspended', 'deactivated']).optional(),
+  tier: z.enum(['founding', 'new', 'verified', 'pro', 'elite']).optional(),
+  search: z.string().trim().min(1).max(100).optional(),
+  online: z.enum(['true', 'false']).transform((value) => value === 'true').optional(),
+  serviceAreaId: z.string().uuid('Service area ID must be a valid UUID').optional(),
+}).strict();
+
 export const suspendProviderSchema = z.object({
   reason: z.string().min(10, 'Reason must be at least 10 characters').max(1000),
 });

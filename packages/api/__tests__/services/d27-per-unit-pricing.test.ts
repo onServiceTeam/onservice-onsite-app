@@ -14,7 +14,7 @@ jest.mock('../../src/utils/logger', () => ({
 
 import { createSubcategory, updateSubcategory } from '../../src/services/catalog.service';
 import {
-  resetDbMock, getTxCalls, setTxQueryImpl, setTopQueryImpl, makeRouter,
+  resetDbMock, getTxCalls, setTxQueryImpl, makeRouter,
 } from '../helpers/d06-tx-mock';
 
 const ADMIN_ID = '11111111-1111-1111-1111-111111111111';
@@ -37,6 +37,7 @@ describe('D27 Phase 4 — per-unit pricing', () => {
   describe('createSubcategory', () => {
     it('persists unit_label + unit_price for a per_unit service', async () => {
       setTxQueryImpl(makeRouter([
+        { match: /SELECT id FROM service_categories/, rows: [{ id: CATEGORY_ID }], rowCount: 1 },
         { match: /INSERT INTO service_subcategories/, rows: [subRow()], rowCount: 1 },
         { match: /INSERT INTO admin_actions/, rows: [{ id: 'audit' }], rowCount: 1 },
       ]));
@@ -82,7 +83,7 @@ describe('D27 Phase 4 — per-unit pricing', () => {
 
   describe('updateSubcategory', () => {
     it('rejects switching to per_unit without a rate', async () => {
-      setTopQueryImpl(makeRouter([
+      setTxQueryImpl(makeRouter([
         { match: /SELECT description, is_active, base_price/, rows: [{
           description: SERVICE_SCOPE, is_active: true, pricing_type: 'fixed', unit_label: null,
           unit_price: null, hourly_rate: null, base_price: 1000, min_price: null, max_price: null,
@@ -94,13 +95,11 @@ describe('D27 Phase 4 — per-unit pricing', () => {
     });
 
     it('persists unit_label + unit_price on a valid per_unit update', async () => {
-      setTopQueryImpl(makeRouter([
+      setTxQueryImpl(makeRouter([
         { match: /SELECT description, is_active, base_price/, rows: [{
           description: SERVICE_SCOPE, is_active: true, pricing_type: 'fixed', unit_label: null,
           unit_price: null, hourly_rate: null, base_price: 1000, min_price: null, max_price: null,
         }], rowCount: 1 },
-      ]));
-      setTxQueryImpl(makeRouter([
         { match: /UPDATE service_subcategories/, rows: [subRow()], rowCount: 1 },
         { match: /INSERT INTO admin_actions/, rows: [{ id: 'audit' }], rowCount: 1 },
       ]));

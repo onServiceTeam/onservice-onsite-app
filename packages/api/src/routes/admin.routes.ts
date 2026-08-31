@@ -2,13 +2,22 @@ import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import {
+  adminProviderListQuerySchema,
   assignBusinessAccountManagerSchema,
   businessAccountIdParamsSchema,
   suspendProviderSchema,
   changeProviderTierSchema,
 } from '../validators/admin.validators';
 import { createPricingRuleSchema, updatePricingRuleSchema } from '../validators/admin-pricing-rules.validators';
-import { createServiceAreaSchema, updateServiceAreaSchema } from '../validators/admin-service-area.validators';
+import {
+  createServiceAreaSchema,
+  serviceAreaIdParamsSchema,
+  serviceAreaListQuerySchema,
+  serviceAreaLifecycleReasonSchema,
+  serviceAreaProviderParamsSchema,
+  serviceAreaWaitlistQuerySchema,
+  updateServiceAreaSchema,
+} from '../validators/admin-service-area.validators';
 import * as adminService from '../services/admin.service';
 import * as escrowService from '../services/escrow.service';
 import { createAppError } from '../middleware/error.middleware';
@@ -170,18 +179,31 @@ router.get(
 router.get(
   '/providers',
   authMiddleware,
+  validationMiddleware({ query: adminProviderListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
-      const status = typeof req.query.status === 'string' ? req.query.status : undefined;
-      const tier = typeof req.query.tier === 'string' ? req.query.tier : undefined;
-      const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+      const query = req.query as unknown as {
+        page?: number;
+        pageSize?: number;
+        status?: string;
+        tier?: string;
+        search?: string;
+        online?: boolean;
+        serviceAreaId?: string;
+      };
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
+      const status = query.status;
+      const tier = query.tier;
+      const search = query.search;
       // Phase 200 — dispatch console online-providers feed.
-      const online = req.query.online === 'true';
+      const online = query.online ?? false;
+      const serviceAreaId = query.serviceAreaId;
 
-      const { providers, total } = await adminService.listProviders({ status, tier, search, online, page, pageSize });
+      const { providers, total } = await adminService.listProviders({
+        status, tier, search, online, serviceAreaId, page, pageSize,
+      });
 
       res.json({
         success: true,
@@ -976,6 +998,7 @@ router.get(
 router.get(
   '/service-areas',
   authMiddleware,
+  validationMiddleware({ query: serviceAreaListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -1023,7 +1046,7 @@ router.post(
   validationMiddleware(createServiceAreaSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const body = req.body as {
         name: string;
         city: string;
@@ -1035,7 +1058,7 @@ router.post(
         radiusKm?: number;
         minProvidersToLaunch?: number;
         launchDate?: string;
-        settings?: Record<string, unknown>;
+        reason: string;
       };
 
       // MED-N48 fix — pass actor for audit row.
@@ -1057,6 +1080,7 @@ router.post(
 router.get(
   '/service-areas/:id',
   authMiddleware,
+  validationMiddleware({ params: serviceAreaIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -1072,14 +1096,14 @@ router.get(
 router.patch(
   '/service-areas/:id',
   authMiddleware,
-  validationMiddleware(updateServiceAreaSchema),
+  validationMiddleware({ params: serviceAreaIdParamsSchema, body: updateServiceAreaSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const id = req.params.id as string;
-      const updates = req.body as Record<string, unknown>;
+      const { reason, ...updates } = req.body as Record<string, unknown> & { reason: string };
 
-      const area = await serviceAreaService.updateServiceArea(id, updates);
+      const area = await serviceAreaService.updateServiceArea(id, updates, req.user!.userId, reason);
       res.json({ success: true, data: serviceAreaService.formatServiceArea(area) });
     } catch (error) {
       next(error);
@@ -1090,15 +1114,37 @@ router.patch(
 router.post(
   '/service-areas/:id/activate',
   authMiddleware,
+  validationMiddleware({ params: serviceAreaIdParamsSchema, body: serviceAreaLifecycleReasonSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const id = req.params.id as string;
 
-      const area = await serviceAreaService.updateServiceArea(id, { status: 'active' });
-      await serviceAreaService.notifyWaitlist(id);
+      const area = await serviceAreaService.updateServiceArea(
+        id,
+        { status: 'active' },
+        req.user!.userId,
+        req.body.reason as string,
+      );
+      let notifiedCount = 0;
+      let notificationWarning: string | null = null;
+      try {
+        notifiedCount = await serviceAreaService.notifyWaitlist(id);
+      } catch (notificationError) {
+        notificationWarning = 'The area was activated, but the waitlist notification run could not be completed. Retry it from Service Areas.';
+        logger.error('Service area activated but waitlist notification failed', {
+          serviceAreaId: id,
+          error: notificationError instanceof Error ? notificationError.message : 'Unknown',
+        });
+      }
 
-      res.json({ success: true, data: serviceAreaService.formatServiceArea(area), message: 'Service area activated and waitlist notified.' });
+      res.json({
+        success: true,
+        data: serviceAreaService.formatServiceArea(area),
+        waitlistNotification: { notifiedCount, warning: notificationWarning },
+        message: notificationWarning
+          ?? `Service area activated. ${notifiedCount} registered waitlist account${notifiedCount === 1 ? '' : 's'} notified; other entries remain awaiting contact.`,
+      });
     } catch (error) {
       next(error);
     }
@@ -1108,12 +1154,18 @@ router.post(
 router.post(
   '/service-areas/:id/pause',
   authMiddleware,
+  validationMiddleware({ params: serviceAreaIdParamsSchema, body: serviceAreaLifecycleReasonSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const id = req.params.id as string;
 
-      const area = await serviceAreaService.updateServiceArea(id, { status: 'paused' });
+      const area = await serviceAreaService.updateServiceArea(
+        id,
+        { status: 'paused' },
+        req.user!.userId,
+        req.body.reason as string,
+      );
       res.json({ success: true, data: serviceAreaService.formatServiceArea(area) });
     } catch (error) {
       next(error);
@@ -1126,12 +1178,17 @@ router.post(
 router.post(
   '/service-areas/:id/set-default',
   authMiddleware,
+  validationMiddleware({ params: serviceAreaIdParamsSchema, body: serviceAreaLifecycleReasonSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const id = req.params.id as string;
 
-      const area = await serviceAreaService.setDefaultServiceArea(id, req.user!.userId);
+      const area = await serviceAreaService.setDefaultServiceArea(
+        id,
+        req.user!.userId,
+        req.body.reason as string,
+      );
       res.json({ success: true, data: serviceAreaService.formatServiceArea(area), message: 'Default service area updated.' });
     } catch (error) {
       next(error);
@@ -1142,6 +1199,7 @@ router.post(
 router.get(
   '/service-areas/:id/providers',
   authMiddleware,
+  validationMiddleware({ params: serviceAreaIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -1167,19 +1225,18 @@ router.get(
 router.post(
   '/service-areas/:id/providers',
   authMiddleware,
+  validationMiddleware({ params: serviceAreaIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const areaId = req.params.id as string;
-      const { providerId, isPrimary } = req.body as { providerId: string; isPrimary?: boolean };
-
-      if (!providerId) {
-        res.status(400).json({ success: false, message: 'providerId is required.' });
-        return;
-      }
-
-      const assignment = await serviceAreaService.assignProviderToArea(providerId, areaId, isPrimary);
-      res.status(201).json({ success: true, data: assignment });
+      requireSuperAdmin(req);
+      // Bug UX-782 — this legacy admin write bypassed the provider's reviewed
+      // market/location/radius request and could silently replace matching
+      // coverage. Preserve a clear conflict for old clients; the canonical
+      // write is the service-area change decision queue.
+      throw createAppError(
+        'Direct provider assignment is disabled. Review the provider service-area change request instead.',
+        409,
+      );
     } catch (error) {
       next(error);
     }
@@ -1189,12 +1246,14 @@ router.post(
 router.delete(
   '/service-areas/:areaId/providers/:providerId',
   authMiddleware,
+  validationMiddleware({ params: serviceAreaProviderParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const { areaId, providerId } = req.params;
-      await serviceAreaService.removeProviderFromArea(providerId as string, areaId as string);
-      res.json({ success: true, message: 'Provider removed from area.' });
+      requireSuperAdmin(req);
+      throw createAppError(
+        'Direct provider removal is disabled. Review the provider service-area change request instead.',
+        409,
+      );
     } catch (error) {
       next(error);
     }
@@ -1204,20 +1263,21 @@ router.delete(
 router.get(
   '/service-areas-waitlist',
   authMiddleware,
+  validationMiddleware({ query: serviceAreaWaitlistQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
-      const city = typeof req.query.city === 'string' ? req.query.city.trim() : undefined;
-      const notifiedParam = req.query.notified;
-      const notifiedFilter = notifiedParam === 'true' ? true : notifiedParam === 'false' ? false : undefined;
+      const page = typeof req.query.page === 'number' ? req.query.page : 1;
+      const pageSize = typeof req.query.pageSize === 'number' ? req.query.pageSize : 20;
+      const city = typeof req.query.city === 'string' ? req.query.city : undefined;
+      const notifiedFilter = typeof req.query.notified === 'boolean' ? req.query.notified : undefined;
 
       const result = await serviceAreaService.getWaitlist(page, pageSize, city, notifiedFilter);
+      const revealPersonalData = req.user!.role === 'super_admin';
 
       res.json({
         success: true,
-        data: result.items.map(serviceAreaService.formatWaitlistEntry),
+        data: result.items.map((entry) => serviceAreaService.formatWaitlistEntry(entry, revealPersonalData)),
         pagination: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
       });
     } catch (error) {
@@ -1229,11 +1289,15 @@ router.get(
 router.post(
   '/service-areas/:id/notify-waitlist',
   authMiddleware,
+  validationMiddleware({ params: serviceAreaIdParamsSchema, body: serviceAreaLifecycleReasonSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const id = req.params.id as string;
-      const notified = await serviceAreaService.notifyWaitlist(id);
+      const notified = await serviceAreaService.notifyWaitlist(id, {
+        adminId: req.user!.userId,
+        reason: req.body.reason as string,
+      });
       res.json({ success: true, data: { notifiedCount: notified } });
     } catch (error) {
       next(error);

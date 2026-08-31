@@ -16,13 +16,48 @@
 
 import { z } from 'zod';
 
+const lifecycleReasonSchema = z.string().trim().min(10).max(2000);
+const launchDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Launch date must use YYYY-MM-DD').refine((value) => {
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}, 'Launch date must be a real calendar date');
+const zipCodeSchema = z.string().trim().regex(/^\d{4}$/, 'Philippine ZIP codes must contain exactly four digits');
+
+export const serviceAreaIdParamsSchema = z.object({
+  id: z.string().uuid('Service area ID must be a valid UUID'),
+}).strict();
+
+export const serviceAreaProviderParamsSchema = z.object({
+  areaId: z.string().uuid('Service area ID must be a valid UUID'),
+  providerId: z.string().uuid('Provider ID must be a valid UUID'),
+}).strict();
+
+export const serviceAreaLifecycleReasonSchema = z.object({
+  reason: lifecycleReasonSchema,
+}).strict();
+
+const positiveIntegerQuery = z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(1));
+export const serviceAreaListQuerySchema = z.object({
+  page: positiveIntegerQuery.optional(),
+  pageSize: positiveIntegerQuery.pipe(z.number().max(100)).optional(),
+  status: z.enum(['planned', 'recruiting', 'soft_launch', 'active', 'paused', 'retired']).optional(),
+  search: z.string().trim().min(1).max(100).optional(),
+}).strict();
+
+export const serviceAreaWaitlistQuerySchema = z.object({
+  page: positiveIntegerQuery.optional(),
+  pageSize: positiveIntegerQuery.pipe(z.number().max(100)).optional(),
+  city: z.string().trim().min(1).max(100).optional(),
+  notified: z.enum(['true', 'false']).transform((value) => value === 'true').optional(),
+}).strict();
+
 export const createServiceAreaSchema = z
   .object({
-    name: z.string().min(1).max(200),
-    city: z.string().min(1).max(100),
-    province: z.string().min(1).max(100),
-    region: z.string().min(1).max(100),
-    zipCodes: z.array(z.string().max(10)).max(100).optional(),
+    name: z.string().trim().min(1).max(200),
+    city: z.string().trim().min(1).max(100),
+    province: z.string().trim().min(1).max(100),
+    region: z.string().trim().min(1).max(100),
+    zipCodes: z.array(zipCodeSchema).max(100).optional(),
     centerLat: z
       .number()
       .min(4.5, 'Latitude must be within Philippines (4.5..21.5)')
@@ -43,24 +78,24 @@ export const createServiceAreaSchema = z
       .min(1)
       .max(50)
       .optional(),
-    launchDate: z.string().optional(),
-    settings: z.record(z.string(), z.unknown()).optional(),
+    launchDate: launchDateSchema.optional(),
+    reason: lifecycleReasonSchema,
   })
   .strict();
 
 export const updateServiceAreaSchema = z
   .object({
-    name: z.string().min(1).max(200).optional(),
-    city: z.string().min(1).max(100).optional(),
-    province: z.string().min(1).max(100).optional(),
-    region: z.string().min(1).max(100).optional(),
-    zipCodes: z.array(z.string().max(10)).max(100).optional(),
+    name: z.string().trim().min(1).max(200).optional(),
+    city: z.string().trim().min(1).max(100).optional(),
+    province: z.string().trim().min(1).max(100).optional(),
+    region: z.string().trim().min(1).max(100).optional(),
+    zipCodes: z.array(zipCodeSchema).max(100).optional(),
     centerLat: z.number().min(4.5).max(21.5).optional(),
     centerLng: z.number().min(116).max(127.5).optional(),
     radiusKm: z.number().int().min(1).max(100).optional(),
     minProvidersToLaunch: z.number().int().min(1).max(50).optional(),
-    launchDate: z.string().nullable().optional(),
-    status: z.enum(['planned', 'recruiting', 'soft_launch', 'active', 'paused', 'retired']).optional(),
-    settings: z.record(z.string(), z.unknown()).optional(),
+    launchDate: launchDateSchema.nullable().optional(),
+    reason: lifecycleReasonSchema,
   })
-  .strict();
+  .strict()
+  .refine((value) => Object.keys(value).some((key) => key !== 'reason'), 'At least one service-area field is required');

@@ -15,6 +15,7 @@ const valid = {
   centerLng: 121.9272,
   radiusKm: 10,
   minProvidersToLaunch: 5,
+  reason: 'Opening this market for the approved launch plan.',
 };
 
 describe('Bug 320 — service area latitude bounds (PH 4.5..21.5)', () => {
@@ -135,21 +136,27 @@ describe('createServiceAreaSchema — required fields + .strict()', () => {
 });
 
 describe('updateServiceAreaSchema — partial updates honor bounds', () => {
-  it('accepts a status-only patch', () => {
+  it('rejects a generic status patch that bypasses lifecycle actions', () => {
     expect(
       updateServiceAreaSchema.safeParse({ status: 'paused' }).success,
+    ).toBe(false);
+  });
+
+  it('accepts an explained configuration patch', () => {
+    expect(
+      updateServiceAreaSchema.safeParse({ name: 'Metro Cebu', reason: 'Correcting the operator-facing market name.' }).success,
     ).toBe(true);
   });
 
   it('rejects out-of-PH lat in patch', () => {
     expect(
-      updateServiceAreaSchema.safeParse({ centerLat: 40 }).success,
+      updateServiceAreaSchema.safeParse({ centerLat: 40, reason: 'Correcting the reviewed market center.' }).success,
     ).toBe(false);
   });
 
   it('rejects unknown keys via .strict()', () => {
     expect(
-      updateServiceAreaSchema.safeParse({ name: 'X', evil: 'x' } as unknown).success,
+      updateServiceAreaSchema.safeParse({ name: 'X', reason: 'Correcting the market name.', evil: 'x' } as unknown).success,
     ).toBe(false);
   });
 

@@ -8,7 +8,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import { createSubcategory, updateSubcategory } from '../src/services/catalog.service';
-import { resetDbMock, setTopQueryImpl, makeRouter, getTransactionInvocations } from './helpers/d06-tx-mock';
+import { resetDbMock, setTxQueryImpl, makeRouter, getTransactionInvocations } from './helpers/d06-tx-mock';
 
 const ADMIN_ID = '11111111-1111-1111-1111-111111111111';
 const CATEGORY_ID = '22222222-2222-2222-2222-222222222222';
@@ -27,7 +27,7 @@ it('Bug UX-045 — prevents active services from being created or edited without
     message: expect.stringContaining('Customer service scope must be at least 30 characters'),
   });
 
-  setTopQueryImpl(makeRouter([{
+  setTxQueryImpl(makeRouter([{
     match: /SELECT description, is_active, base_price/,
     rows: [{
       description: '', is_active: true, base_price: 50000, min_price: null, max_price: null,
@@ -40,5 +40,5 @@ it('Bug UX-045 — prevents active services from being created or edited without
     statusCode: 400,
     message: expect.stringContaining('Customer service scope'),
   });
-  expect(getTransactionInvocations()).toBe(0);
+  expect(getTransactionInvocations()).toBe(1);
 });

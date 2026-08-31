@@ -204,7 +204,15 @@ export async function getDashboardKpis(): Promise<Record<string, unknown>> {
 }
 
 export async function listProviders(
-  filters: { status?: string; tier?: string; search?: string; online?: boolean; page: number; pageSize: number },
+  filters: {
+    status?: string;
+    tier?: string;
+    search?: string;
+    online?: boolean;
+    serviceAreaId?: string;
+    page: number;
+    pageSize: number;
+  },
 ): Promise<{ providers: ProviderAdminRow[]; total: number }> {
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -229,6 +237,15 @@ export async function listProviders(
     conditions.push(`(p.business_name ILIKE $${paramIdx} OR u.phone ILIKE $${paramIdx} OR u.email ILIKE $${paramIdx})`);
     params.push(`%${filters.search}%`);
     paramIdx++;
+  }
+  if (filters.serviceAreaId) {
+    conditions.push(
+      `EXISTS (
+        SELECT 1 FROM provider_service_areas psa
+         WHERE psa.provider_id = p.id AND psa.service_area_id = $${paramIdx++}
+      )`,
+    );
+    params.push(filters.serviceAreaId);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

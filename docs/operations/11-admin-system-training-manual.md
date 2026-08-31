@@ -40,8 +40,8 @@ What actually controls what you can click is your single account role on the `us
 
 | Your account role | What you can do |
 |---|---|
-| `super_admin` | All currently enabled money and destructive actions: escrow release/refund, booking force-complete/cancel/reassign, dispute resolve/escalate/reopen, payout internal-review decisions and approve/reject/complete, provider wallet adjust, reconciliation run, settings edit/reset, staff and roles management, cancellation-policy edit, service-area set-default, delete notification templates. BIR issuance/finalization remains disabled for every role under E22. |
-| `admin` | Read and operational access. You can view every page and do non-money operational work such as provider vetting and support case handling. Catalog publishing is read-only because the API reserves category, service, pricing, add-on, and intake-field changes for `super_admin`. On money, destructive, and catalog-publishing surfaces you see a read-only banner. |
+| `super_admin` | All currently enabled money and destructive actions: escrow release/refund, booking force-complete/cancel/reassign, dispute resolve/escalate/reopen, payout internal-review decisions and approve/reject/complete, provider wallet adjust, reconciliation run, settings edit/reset, staff and roles management, cancellation-policy edit, Catalog publishing, Service Areas create/edit/activate/pause/default/waitlist-notify decisions, and delete notification templates. BIR issuance/finalization remains disabled for every role under E22. |
+| `admin` | Read and operational access. You can view every page and do non-money operational work such as provider vetting and support case handling. Catalog publishing and Service Areas market mutation are read-only because the API reserves them for `super_admin`. On money, destructive, and configuration-publishing surfaces you see a read-only banner. |
 | `dpo` | Admin-tier, plus the compliance powers: search consent records and handle Data Subject Requests under the Data Privacy Act. This is a real, separate role required by NPC rules, not a nickname for super_admin. |
 
 There is also a second, finer permission system in the database (`admin_roles` / `admin_staff`) that seeds named roles: `super_admin`, `admin`, `support_agent`, `finance`, `moderator`, plus a permission vocabulary like `bookings.view`, `payouts.manage`, `disputes.manage`. Useful to know:
@@ -120,6 +120,8 @@ privacy role name.
 ### 2.2 Providers (`/providers`)
 
 The provider list. Search by business name / phone / email. Filter by status (`pending`, `approved`, `rejected`, `suspended`, `deactivated`) and tier (`founding`, `new`, `verified`, `pro`, `elite`).
+
+When you open Providers from a count in Service Areas, the queue is additionally scoped to that market through the provider's canonical `provider_service_areas` assignment. A blue banner confirms the market scope. Use **Back to Service Areas** or **Clear market filter** rather than editing the URL by hand.
 
 Row actions depend on status: a pending provider shows Approve / Reject; an approved one shows Suspend; a suspended one shows Reactivate; Change Tier is available in any state. Status badges: green = approved, amber = pending, red = rejected/suspended/deactivated.
 
@@ -226,6 +228,8 @@ The default map center comes from the configured default service area, with Cebu
 
 Manage the customer-facing service taxonomy: Categories (name, description, icon, order), Subcategories/services (customer scope, pricing type `fixed`/`range`/`quote`/`hourly`; base/min/max price in pesos; estimated duration; order), Add-ons (name, price, order), and intake fields. Prices are stored as centavos. Ordinary admins can inspect this workspace; only `super_admin` can publish or change it.
 
+The admin endpoint includes inactive services so they can be inspected and restored; customer/public catalog endpoints remain active-only. Use the active/inactive filter instead of assuming a missing customer service was deleted. Deactivate and Restore both require a reason and are written to the audit record. A service cannot be activated under an inactive category. Generic editing cannot change active status; use the lifecycle action.
+
 Start with the three status cards. **Need customer scope** opens the publishing queue for active services whose description is blank or too short. These services show customers an honest fallback until approved copy is published. Do not treat that fallback as finished catalog content.
 
 How a `super_admin` adds or repairs a service:
@@ -233,8 +237,9 @@ How a `super_admin` adds or repairs a service:
 1. Open the right category and add or edit the service.
 2. Write the customer service scope first. State what work is covered, the expected deliverable, important exclusions or limits, and anything the customer or provider must prepare. Do not add guarantees, prices, parts, response times, or legal promises that have not been approved.
 3. Use the customer preview to check the exact name, scope, and pricing presentation the customer receives.
-4. Set the canonical pricing type and applicable base/range/hourly/per-unit values, estimated duration, and order.
-5. Save. Active services require at least 30 trimmed characters of scope. This is a blank-copy safety check, not approval of the wording.
+4. Set the canonical pricing type and only its applicable values: fixed uses one base price, range uses minimum/maximum, hourly uses the hourly rate, quote has no customer amount, and per-unit uses the unit contract. Estimated duration and order are separate fields.
+5. Save with a specific configuration reason. Active services require at least 30 trimmed characters of scope. This is a blank-copy safety check, not approval of the wording.
+6. If restoring an inactive service, verify its category is active and enter why customer discovery should resume. If deactivating, state the customer/provider impact and where in-flight bookings will be handled.
 
 At the 2026-08-24 production audit, all 29 active services needed scope (17 fixed-price and 12 quote), and there were no add-ons. The business content task remains open until each service is reviewed and published; do not invent copy simply to clear the counter.
 
@@ -340,23 +345,26 @@ The detail page identifies the business owner and the internal relationship mana
 
 ### 2.19 Service Areas (`/service-areas`)
 
-The "cities are data, not code" control surface. This is how we turn markets on and off. Stats cards show total areas, active areas, total providers, waitlist count.
+The "cities are data, not code" control surface. This is how we inspect markets, provider capacity, demand leads, and provider change requests. Stats distinguish total areas, customer-bookable areas, approved assigned providers, all waitlist leads, leads awaiting notice, and leads notified. Ordinary `admin` accounts are read-only; market and waitlist mutations require `super_admin`. DPO sessions are not authorized for this marketplace-operations API while E34 remains open.
 
 How to add a service area (a new city):
 1. Click Add Area.
 2. Fill in name, city, municipality, province, region.
 3. Set center lat/lng (must be inside the Philippines: lat 4.5-21.5, lng 116-127.5).
 4. Set radius (1-100 km) and min providers to launch (1-50).
-5. Set a target launch date. Save. The area starts in `planned`.
+5. Set a target launch date. Save with a planning reason. The area starts in `planned`.
 
 How to launch / pause / set default a city:
-- Activate: a `planned`/`recruiting`/`soft_launch` area to `active`.
-- Pause: an `active` area to `paused` (stops new work without deleting it).
-- Set default: makes that area the app's default. The mobile apps center their map and default the location pickers here. Only available for `active`/`soft_launch` areas, and only one area can be the default.
+- Activate currently appears for `planned`, `recruiting`, and `soft_launch`, but E46 records that this conflicts with the staged recruiting SOP and the app lacks intermediate transition actions. Do not treat button availability as permission to skip the approved launch process. Escalate the transition decision until E46 is closed. The server always re-counts approved assigned providers and refuses activation below the area's configured minimum.
+- Pause is available for an `active` non-default area and stops new work without deleting the market or cancelling existing bookings. Enter the operational reason. Choose another active/soft-launch default before pausing the current default.
+- Set default changes the initial map and location-picker market; it does not rewrite saved addresses or bookings. Only `active`/`soft_launch` areas qualify, only one can be default, and the reason is audited.
+- Activate, Pause, Set default, Create, Edit, and manual waitlist notification are all `super_admin` actions.
 
 Default market today is Metro Cebu (Cebu City, Mandaue, Lapu-Lapu, Talisay). Markets Ken has in mind to add later: Boracay, General Santos, Davao, Metro Manila, Bacolod, and others.
 
-Provider change requests appear above the market table. Each card links to Provider 360 and shows the current and requested market, old and proposed radius, proposed location pin, provider reason, and request time. Support, admin, DPO, and super-admin staff may inspect the queue; only `super_admin` may decide it. Before approval, verify that the pin is the provider's real operating location, lies inside the requested active/soft-launch area, and that the radius is appropriate. Enter a specific decision reason. Approval atomically changes the provider's primary area, radius, coordinates, city, and province; rejection leaves current matching coverage unchanged. The server rechecks the area, pin, live **Max Service Radius** setting, provider approval status, and original area/radius snapshot at decision time. If newer coverage exists, reject the stale request and ask for a new one instead of overwriting it. Every decision writes the audit trail and notifies the provider; a provider-withdrawn request simply leaves the queue and preserves active coverage.
+Provider change requests appear above the market table. Each card links to Provider 360 and shows the current and requested market, old and proposed radius, proposed location pin, provider reason, and request time. Admin and super-admin staff may inspect the queue; ordinary admins receive masked contact values and only `super_admin` may decide it. Before approval, verify that the pin is the provider's real operating location, lies inside the requested active/soft-launch area, and that the radius is appropriate. Enter a specific decision reason. Approval atomically changes the provider's primary area, radius, coordinates, city, and province; rejection leaves current matching coverage unchanged. The server rechecks the area, pin, live **Max Service Radius** setting, provider approval status, and original area/radius snapshot at decision time. If newer coverage exists, reject the stale request and ask for a new one instead of overwriting it. Every decision writes the audit trail and notifies the provider; a provider-withdrawn request simply leaves the queue and preserves active coverage. Direct provider assignment/removal endpoints are disabled so this review cannot be bypassed.
+
+Waitlist notification is in-app only. On activation, registered waitlist phone numbers that resolve to an onService account receive the launch notice and are marked notified. Leads without an account, delivery failures, and unmatched records remain **Awaiting Notice**. The activation result reports the actual notified-account count. A super-admin can use **Notify waitlist** with a reason to retry; this does not claim SMS, email, or manual contact. Ordinary admins see masked contact and no exact coordinates in waitlist data.
 
 ### 2.20 Analytics (`/analytics`)
 

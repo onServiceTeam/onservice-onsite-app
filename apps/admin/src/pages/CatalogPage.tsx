@@ -28,6 +28,7 @@ interface Subcategory {
   // D27 Phase 4b — hourly rate (centavos per hour).
   hourlyRate: number | null;
   displayOrder: number;
+  isActive: boolean;
 }
 
 interface Category {
@@ -57,7 +58,7 @@ export default function CatalogPage(): React.ReactElement {
   const { requestReason, reasonDialog } = useReasonDialog();
   const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const [serviceFilter, setServiceFilter] = useState<'all' | 'needsScope'>('all');
+  const [serviceFilter, setServiceFilter] = useState<'all' | 'needsScope' | 'inactive'>('all');
   const [modal, setModal] = useState<ModalMode>(null);
   const [editTarget, setEditTarget] = useState<Category | Subcategory | null>(null);
   const [targetCategoryId, setTargetCategoryId] = useState<string | null>(null);
@@ -88,7 +89,7 @@ export default function CatalogPage(): React.ReactElement {
   const { data, isLoading, isError, error: catalogError, refetch: refetchCatalog } = useQuery({
     queryKey: ['adminCatalog'],
     queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: Category[] }>('/api/v1/catalog/full');
+      const res = await api.get<{ success: boolean; data: Category[] }>('/api/v1/catalog/admin/full');
       return res.data.data;
     },
     refetchOnWindowFocus: false,
@@ -152,8 +153,8 @@ export default function CatalogPage(): React.ReactElement {
     if ([basePrice, minPrice, maxPrice, estimatedDuration].some((value) => value !== '' && Number(value) < 0)) {
       return 'Prices and duration cannot be negative.';
     }
-    if ((pricingType === 'fixed' || pricingType === 'hourly') && basePrice === '') {
-      return 'Base price is required for fixed and hourly services.';
+    if (pricingType === 'fixed' && basePrice === '') {
+      return 'Base price is required for fixed services.';
     }
     // D27 Phase 4 — per-unit services need a unit label + a unit price.
     if (pricingType === 'per_unit') {
@@ -177,13 +178,12 @@ export default function CatalogPage(): React.ReactElement {
   const subcategoryMutation = useMutation({
     mutationFn: async () => {
       const body = {
-        categoryId: targetCategoryId,
         name: name.trim(),
         description: description.trim(),
         pricingType,
-        basePrice: toCentavos(basePrice),
-        minPrice: toCentavos(minPrice),
-        maxPrice: toCentavos(maxPrice),
+        basePrice: pricingType === 'fixed' ? toCentavos(basePrice) : null,
+        minPrice: pricingType === 'fixed' ? toCentavos(minPrice) : null,
+        maxPrice: pricingType === 'fixed' ? toCentavos(maxPrice) : null,
         estimatedDurationMinutes: estimatedDuration ? Number(estimatedDuration) : null,
         unitLabel: pricingType === 'per_unit' ? (unitLabel.trim() || null) : null,
         unitPrice: pricingType === 'per_unit' ? toCentavos(unitPrice) : null,
@@ -191,7 +191,7 @@ export default function CatalogPage(): React.ReactElement {
         displayOrder: Number(displayOrder),
       };
       if (modal === 'addSubcategory') {
-        await api.post('/api/v1/catalog/admin/subcategories', body);
+        await api.post('/api/v1/catalog/admin/subcategories', { categoryId: targetCategoryId, ...body });
       } else if (modal === 'editSubcategory' && editTarget) {
         await api.put(`/api/v1/catalog/admin/subcategories/${editTarget.id}`, body);
       }
@@ -210,11 +210,23 @@ export default function CatalogPage(): React.ReactElement {
     onError: (err) => setError(getErrorMessage(err)),
   });
 
+  const reactivateServiceMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api.post(`/api/v1/catalog/admin/subcategories/${id}/reactivate`, { reason }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['adminCatalog'] }),
+    onError: (err) => setError(getErrorMessage(err)),
+  });
+
   const [expandedAddons, setExpandedAddons] = useState<string | null>(null);
   // D27 Phase 2 — which subcategory's intake-field editor is open.
   const [expandedIntake, setExpandedIntake] = useState<string | null>(null);
 
-  const { data: addonsData, isLoading: isAddonsLoading, isError: isAddonsError } = useQuery({
+  const {
+    data: addonsData,
+    isLoading: isAddonsLoading,
+    isError: isAddonsError,
+    refetch: refetchAddons,
+  } = useQuery({
     queryKey: ['adminAddons', expandedAddons],
     queryFn: async () => {
       if (!expandedAddons) return [];
@@ -251,6 +263,13 @@ export default function CatalogPage(): React.ReactElement {
   const deleteAddonMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       api.delete(`/api/v1/catalog/admin/addons/${id}`, { body: { reason } }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['adminAddons', expandedAddons] }),
+    onError: (err) => setError(getErrorMessage(err)),
+  });
+
+  const reactivateAddonMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api.post(`/api/v1/catalog/admin/addons/${id}/reactivate`, { reason }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['adminAddons', expandedAddons] }),
     onError: (err) => setError(getErrorMessage(err)),
   });
@@ -364,6 +383,30 @@ export default function CatalogPage(): React.ReactElement {
     if (reason) deleteAddonMutation.mutate({ id: addon.id, reason });
   }
 
+  async function reactivateService(service: Subcategory): Promise<void> {
+    const reason = await requestReason({
+      title: 'Restore customer service?',
+      description: `“${service.name}” will return to customer discovery and new booking after its saved scope and pricing pass server validation. Historical records are unchanged.`,
+      confirmLabel: 'Restore service',
+      reasonLabel: 'Restoration reason',
+      minLength: 10,
+      maxLength: 2000,
+    });
+    if (reason) reactivateServiceMutation.mutate({ id: service.id, reason });
+  }
+
+  async function reactivateAddon(addon: Addon): Promise<void> {
+    const reason = await requestReason({
+      title: 'Restore customer add-on?',
+      description: `“${addon.name}” will return as an option on new customer bookings if its parent service is active and its price remains within the configured limit.`,
+      confirmLabel: 'Restore add-on',
+      reasonLabel: 'Restoration reason',
+      minLength: 10,
+      maxLength: 2000,
+    });
+    if (reason) reactivateAddonMutation.mutate({ id: addon.id, reason });
+  }
+
   const handleSubmit = (e: FormEvent): void => {
     e.preventDefault();
     const validationError = validateForm();
@@ -385,21 +428,25 @@ export default function CatalogPage(): React.ReactElement {
   const isAddonModal = modal === 'addAddon' || modal === 'editAddon';
   const isPending = categoryMutation.isPending || subcategoryMutation.isPending || addonMutation.isPending;
   const categories = data ?? [];
-  const activeServices = categories.flatMap((category) => category.subcategories);
+  const allServices = categories.flatMap((category) => category.subcategories);
+  const activeServices = allServices.filter((service) => service.isActive !== false);
+  const inactiveServices = allServices.filter((service) => service.isActive === false);
   const missingScopeCount = activeServices.filter(
     (service) => service.description.trim().length < CUSTOMER_SERVICE_SCOPE_MIN,
   ).length;
   const readyScopeCount = activeServices.length - missingScopeCount;
-  const visibleCategories = serviceFilter === 'needsScope'
+  const visibleCategories = serviceFilter === 'all'
     ? categories
+    : categories
       .map((category) => ({
         ...category,
-        subcategories: category.subcategories.filter(
-          (service) => service.description.trim().length < CUSTOMER_SERVICE_SCOPE_MIN,
-        ),
+        subcategories: category.subcategories.filter((service) => (
+          serviceFilter === 'inactive'
+            ? service.isActive === false
+            : service.isActive !== false && service.description.trim().length < CUSTOMER_SERVICE_SCOPE_MIN
+        )),
       }))
-      .filter((category) => category.subcategories.length > 0)
-    : categories;
+      .filter((category) => category.subcategories.length > 0);
 
   if (isLoading) {
     return <LoadingState label="Loading the service catalog…" className="min-h-72" />;
@@ -433,7 +480,7 @@ export default function CatalogPage(): React.ReactElement {
         {isSuperAdmin ? <button
           type="button"
           onClick={openAddCategory}
-          className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
+          className="min-h-11 px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
         >
           + Add Category
         </button> : null}
@@ -445,7 +492,7 @@ export default function CatalogPage(): React.ReactElement {
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3 mb-4" aria-label="Catalog publishing status">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-4" aria-label="Catalog publishing status">
         <button
           type="button"
           onClick={() => setServiceFilter('all')}
@@ -468,6 +515,15 @@ export default function CatalogPage(): React.ReactElement {
           <span className="block text-2xl font-bold text-emerald-700">{readyScopeCount}</span>
           <span className="text-sm text-[var(--color-text-secondary)]">Scope ready</span>
         </div>
+        <button
+          type="button"
+          onClick={() => setServiceFilter('inactive')}
+          aria-pressed={serviceFilter === 'inactive'}
+          className={`min-h-24 rounded-xl border p-4 text-left transition-colors ${serviceFilter === 'inactive' ? 'border-slate-600 bg-slate-100' : 'border-[var(--color-border)] bg-white hover:bg-slate-50'}`}
+        >
+          <span className="block text-2xl font-bold text-slate-700">{inactiveServices.length}</span>
+          <span className="text-sm text-[var(--color-text-secondary)]">Inactive services</span>
+        </button>
       </div>
 
       {missingScopeCount > 0 && (
@@ -485,7 +541,7 @@ export default function CatalogPage(): React.ReactElement {
 
       <div className="space-y-3">
         {visibleCategories.map((cat) => {
-          const categoryExpanded = serviceFilter === 'needsScope' || expandedCategory === cat.id;
+          const categoryExpanded = serviceFilter !== 'all' || expandedCategory === cat.id;
           return (
           <div key={cat.id} className="bg-white rounded-xl border border-[var(--color-border)] overflow-hidden">
             <div className="flex items-center justify-between gap-3 px-3 py-2 sm:px-5 sm:py-3">
@@ -514,7 +570,7 @@ export default function CatalogPage(): React.ReactElement {
                   type="button"
                   onClick={(e) => { e.stopPropagation(); openEditCategory(cat); }}
                   aria-label={`Edit category ${cat.name}`}
-                  className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
+                  className="min-h-11 px-3 py-2 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
                 >
                   Edit
                 </button>}
@@ -522,7 +578,7 @@ export default function CatalogPage(): React.ReactElement {
                   type="button"
                   onClick={(e) => { e.stopPropagation(); openAddSubcategory(cat.id); }}
                   aria-label={`Add service to ${cat.name}`}
-                  className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
+                  className="min-h-11 px-3 py-2 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
                 >
                   + Service
                 </button>}
@@ -550,7 +606,10 @@ export default function CatalogPage(): React.ReactElement {
                         <Fragment key={sub.id}>
                         <tr className="border-t border-[var(--color-border)]">
                           <td className="px-5 py-3">
-                            <p className="text-sm font-medium text-[var(--color-text)]">{sub.name}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-medium text-[var(--color-text)]">{sub.name}</p>
+                              {sub.isActive === false ? <Badge label="Inactive" variant="outline" /> : null}
+                            </div>
                             {sub.description.trim().length >= CUSTOMER_SERVICE_SCOPE_MIN ? (
                               <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">{sub.description}</p>
                             ) : (
@@ -605,7 +664,7 @@ export default function CatalogPage(): React.ReactElement {
                               onClick={() => setExpandedAddons(expandedAddons === sub.id ? null : sub.id)}
                               aria-expanded={expandedAddons === sub.id}
                               aria-label={`${expandedAddons === sub.id ? 'Hide' : 'Show'} add-ons for ${sub.name}`}
-                              className="px-2 py-1 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-md transition-colors mr-1"
+                              className="min-h-11 px-3 py-2 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-md transition-colors mr-1"
                             >
                               Add-ons
                             </button>
@@ -614,7 +673,7 @@ export default function CatalogPage(): React.ReactElement {
                               onClick={() => setExpandedIntake(expandedIntake === sub.id ? null : sub.id)}
                               aria-expanded={expandedIntake === sub.id}
                               aria-label={`${expandedIntake === sub.id ? 'Hide' : 'Show'} intake fields for ${sub.name}`}
-                              className="px-2 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors mr-1"
+                              className="min-h-11 px-3 py-2 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors mr-1"
                             >
                               Intake
                             </button>
@@ -622,17 +681,25 @@ export default function CatalogPage(): React.ReactElement {
                               type="button"
                               onClick={() => openEditSubcategory(sub)}
                               aria-label={`Edit service ${sub.name}`}
-                              className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors mr-1"
+                              className="min-h-11 px-3 py-2 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors mr-1"
                             >
                               Edit
                             </button>}
-                            {isSuperAdmin && <button
+                            {isSuperAdmin && sub.isActive !== false && <button
                               type="button"
                               onClick={() => void deactivateService(sub)}
                               aria-label={`Deactivate service ${sub.name}`}
-                              className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                              className="min-h-11 px-3 py-2 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
                             >
                               Deactivate
+                            </button>}
+                            {isSuperAdmin && sub.isActive === false && <button
+                              type="button"
+                              onClick={() => void reactivateService(sub)}
+                              aria-label={`Restore service ${sub.name}`}
+                              className="min-h-11 px-3 py-2 text-xs font-medium text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
+                            >
+                              Restore
                             </button>}
                           </td>
                         </tr>
@@ -647,7 +714,7 @@ export default function CatalogPage(): React.ReactElement {
                                   type="button"
                                   onClick={() => openAddAddon(sub.id)}
                                   aria-label={`Add add-on to ${sub.name}`}
-                                  className="px-2 py-1 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-md transition-colors"
+                                  className="min-h-11 px-3 py-2 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-md transition-colors"
                                 >
                                   + Add-on
                                 </button>}
@@ -655,37 +722,54 @@ export default function CatalogPage(): React.ReactElement {
                               {isAddonsLoading ? (
                                 <p className="text-xs text-[var(--color-text-secondary)]">Loading add-ons…</p>
                               ) : isAddonsError ? (
-                                <p role="alert" className="text-xs text-red-600">Failed to load add-ons. Please try again.</p>
+                                <div role="alert" className="flex flex-wrap items-center justify-between gap-2 text-xs text-red-700">
+                                  <span>Add-ons are unavailable. Customer options cannot be verified.</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => { void refetchAddons(); }}
+                                    className="min-h-11 rounded-md border border-red-300 bg-white px-3 py-2 font-semibold"
+                                  >
+                                    Retry add-ons
+                                  </button>
+                                </div>
                               ) : (addonsData ?? []).length === 0 ? (
                                 <p className="text-xs text-[var(--color-text-secondary)]">No add-ons yet.</p>
                               ) : (
                                 <div className="space-y-1">
                                   {(addonsData ?? []).map((addon) => (
-                                    <div key={addon.id} className="flex items-center justify-between bg-white rounded-md px-3 py-2 border border-purple-100">
-                                      <div>
+                                    <div key={addon.id} className="flex flex-col gap-3 bg-white rounded-md px-3 py-2 border border-purple-100 sm:flex-row sm:items-center sm:justify-between">
+                                      <div className="min-w-0">
                                         <span className="text-sm font-medium text-[var(--color-text)]">{addon.name}</span>
                                         {addon.description && (
                                           <span className="ml-2 text-xs text-[var(--color-text-secondary)]">{addon.description}</span>
                                         )}
                                       </div>
-                                      <div className="flex items-center gap-2">
+                                      <div className="flex flex-wrap items-center gap-2">
                                         <span className="text-sm font-medium text-[var(--color-text)]">{formatCurrency(addon.price)}</span>
                                         {!addon.isActive && <span className="text-xs text-red-600">(inactive)</span>}
                                         {isSuperAdmin && <button
                                           type="button"
                                           onClick={() => openEditAddon(addon)}
                                           aria-label={`Edit add-on ${addon.name}`}
-                                          className="px-2 py-0.5 text-xs text-sky-700 bg-sky-50 rounded hover:bg-sky-100 transition-colors"
+                                          className="min-h-11 px-3 py-2 text-xs text-sky-700 bg-sky-50 rounded hover:bg-sky-100 transition-colors"
                                         >
                                           Edit
                                         </button>}
-                                        {isSuperAdmin && <button
+                                        {isSuperAdmin && addon.isActive && <button
                                           type="button"
                                           onClick={() => void deactivateAddon(addon)}
                                           aria-label={`Deactivate add-on ${addon.name}`}
-                                          className="px-2 py-0.5 text-xs text-red-700 bg-red-50 rounded hover:bg-red-100 transition-colors"
+                                          className="min-h-11 px-3 py-2 text-xs text-red-700 bg-red-50 rounded hover:bg-red-100 transition-colors"
                                         >
                                           Deactivate
+                                        </button>}
+                                        {isSuperAdmin && !addon.isActive && <button
+                                          type="button"
+                                          onClick={() => void reactivateAddon(addon)}
+                                          aria-label={`Restore add-on ${addon.name}`}
+                                          className="min-h-11 px-3 py-2 text-xs text-emerald-800 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors"
+                                        >
+                                          Restore
                                         </button>}
                                       </div>
                                     </div>
@@ -722,7 +806,9 @@ export default function CatalogPage(): React.ReactElement {
         )}
         {categories.length > 0 && visibleCategories.length === 0 && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-8 text-center text-emerald-800">
-            Every active service has customer scope copy.
+            {serviceFilter === 'inactive'
+              ? 'No inactive services. Every listed service is currently available for discovery.'
+              : 'Every active service has customer scope copy.'}
           </div>
         )}
       </div>
@@ -753,6 +839,7 @@ export default function CatalogPage(): React.ReactElement {
                       type="text"
                       value={addonName}
                       onChange={(e) => setAddonName(e.target.value)}
+                      maxLength={100}
                       required
                     />
                   </div>
@@ -762,16 +849,18 @@ export default function CatalogPage(): React.ReactElement {
                       id="cat-addon-desc"
                       value={addonDesc}
                       onChange={(e) => setAddonDesc(e.target.value)}
+                      maxLength={1000}
                       rows={2}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <Label htmlFor="cat-addon-price" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Price ({CURRENCY_SYMBOL})</Label>
                       <Input
                         id="cat-addon-price"
                         type="number"
                         step="0.01"
+                        min="0"
                         value={addonPrice}
                         onChange={(e) => setAddonPrice(e.target.value)}
                         required
@@ -782,6 +871,7 @@ export default function CatalogPage(): React.ReactElement {
                       <Input
                         id="cat-addon-order"
                         type="number"
+                        step="1"
                         value={addonOrder}
                         onChange={(e) => setAddonOrder(e.target.value)}
                       />
@@ -797,6 +887,7 @@ export default function CatalogPage(): React.ReactElement {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  maxLength={100}
                   required
                 />
               </div>
@@ -833,6 +924,7 @@ export default function CatalogPage(): React.ReactElement {
                     type="text"
                     value={iconUrl}
                     onChange={(e) => setIconUrl(e.target.value)}
+                    maxLength={500}
                     placeholder="https://..."
                   />
                 </div>
@@ -859,7 +951,7 @@ export default function CatalogPage(): React.ReactElement {
                       </span>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <Label htmlFor="cat-pricing-type" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Pricing type</Label>
                       <select
@@ -881,26 +973,32 @@ export default function CatalogPage(): React.ReactElement {
                         <option value="per_unit">Per unit</option>
                       </select>
                     </div>
-                    <div>
+                    {pricingType === 'fixed' && <div>
                       <Label htmlFor="cat-base-price" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Base price ({CURRENCY_SYMBOL})</Label>
                       <Input
                         id="cat-base-price"
                         type="number"
                         step="0.01"
+                        min="0"
                         value={basePrice}
                         onChange={(e) => setBasePrice(e.target.value)}
                         placeholder="0.00"
                       />
-                    </div>
+                    </div>}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  {pricingType === 'fixed' && <div className="rounded-lg border border-[var(--color-border)] bg-slate-50/60 p-3">
+                  <p className="mb-3 text-xs text-[var(--color-text-secondary)]">
+                    Optional legacy provider-price bounds. Customers are charged the base catalog price; provider personal pricing remains inactive.
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <Label htmlFor="cat-min-price" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Min price ({CURRENCY_SYMBOL})</Label>
                       <Input
                         id="cat-min-price"
                         type="number"
                         step="0.01"
+                        min="0"
                         value={minPrice}
                         onChange={(e) => setMinPrice(e.target.value)}
                         placeholder="Optional"
@@ -912,18 +1010,22 @@ export default function CatalogPage(): React.ReactElement {
                         id="cat-max-price"
                         type="number"
                         step="0.01"
+                        min="0"
                         value={maxPrice}
                         onChange={(e) => setMaxPrice(e.target.value)}
                         placeholder="Optional"
                       />
                     </div>
                   </div>
+                  </div>}
 
                   <div>
                     <Label htmlFor="cat-duration" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Estimated duration (minutes)</Label>
                     <Input
                       id="cat-duration"
                       type="number"
+                      step="1"
+                      min="0"
                       value={estimatedDuration}
                       onChange={(e) => setEstimatedDuration(e.target.value)}
                       placeholder="Optional"
@@ -931,7 +1033,7 @@ export default function CatalogPage(): React.ReactElement {
                   </div>
 
                   {pricingType === 'per_unit' && (
-                    <div className="grid grid-cols-2 gap-4 rounded-lg bg-amber-50/50 p-3 border border-amber-100">
+                    <div className="grid gap-4 rounded-lg bg-amber-50/50 p-3 border border-amber-100 sm:grid-cols-2">
                       <div>
                         <Label htmlFor="cat-unit-label" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Unit label</Label>
                         <Input
@@ -939,6 +1041,7 @@ export default function CatalogPage(): React.ReactElement {
                           type="text"
                           value={unitLabel}
                           onChange={(e) => setUnitLabel(e.target.value)}
+                          maxLength={30}
                           placeholder="sqm, room, panel"
                         />
                       </div>
@@ -948,12 +1051,13 @@ export default function CatalogPage(): React.ReactElement {
                           id="cat-unit-price"
                           type="number"
                           step="0.01"
+                          min="0"
                           value={unitPrice}
                           onChange={(e) => setUnitPrice(e.target.value)}
                           placeholder="0.00"
                         />
                       </div>
-                      <p className="col-span-2 text-xs text-[var(--color-text-secondary)]">
+                      <p className="text-xs text-[var(--color-text-secondary)] sm:col-span-2">
                         Shown to customers as a rate (e.g. ₱50 / sqm) with an estimate. The final price is
                         confirmed by the provider's quote, not auto-charged.
                       </p>
@@ -967,6 +1071,7 @@ export default function CatalogPage(): React.ReactElement {
                         id="cat-hourly-rate"
                         type="number"
                         step="0.01"
+                        min="0.01"
                         value={hourlyRate}
                         onChange={(e) => setHourlyRate(e.target.value)}
                         placeholder="0.00"
@@ -986,6 +1091,7 @@ export default function CatalogPage(): React.ReactElement {
                 <Input
                   id="cat-display-order"
                   type="number"
+                  step="1"
                   value={displayOrder}
                   onChange={(e) => setDisplayOrder(e.target.value)}
                 />
@@ -997,14 +1103,14 @@ export default function CatalogPage(): React.ReactElement {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
+                  className="min-h-11 px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isPending || (isAddonModal ? !addonName.trim() : !name.trim())}
-                  className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
+                  className="min-h-11 px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
                 >
                   {isPending ? 'Saving...' : 'Save'}
                 </button>

@@ -8,7 +8,18 @@ import * as intakeService from '../services/intake.service';
 import { intakeFieldSchema, updateIntakeFieldSchema } from '../validators/intake.validators';
 import { cacheMiddleware } from '../middleware/cache.middleware';
 import { cacheDeletePattern, getRuntimeCacheTtl } from '../services/cache.service';
-import { createAddonSchema, updateAddonSchema } from '../validators/admin-catalog.validators';
+import {
+  catalogFieldUuidParamsSchema,
+  catalogLifecycleReasonSchema,
+  catalogSubcategoryUuidParamsSchema,
+  catalogUuidParamsSchema,
+  createAddonSchema,
+  createCategorySchema,
+  createSubcategorySchema,
+  updateAddonSchema,
+  updateCategorySchema,
+  updateSubcategorySchema,
+} from '../validators/admin-catalog.validators';
 
 const router = Router();
 
@@ -47,6 +58,7 @@ function formatSubcategory(s: {
   max_price: number | null; estimated_duration_minutes: number | null; display_order: number;
   unit_label?: string | null; unit_price?: number | null; hourly_rate?: number | null;
   category_name?: string; category_slug?: string;
+  is_active?: boolean;
 }): Record<string, unknown> {
   const result: Record<string, unknown> = {
     id: s.id,
@@ -65,6 +77,7 @@ function formatSubcategory(s: {
     // D27 Phase 4b — hourly rate (null unless pricingType is 'hourly').
     hourlyRate: s.hourly_rate ?? null,
     displayOrder: s.display_order,
+    ...(typeof s.is_active === 'boolean' ? { isActive: s.is_active } : {}),
   };
   if (s.category_name) result.categoryName = s.category_name;
   if (s.category_slug) result.categorySlug = s.category_slug;
@@ -98,6 +111,26 @@ router.get(
         data: catalog.map((c) => ({
           ...formatCategory(c),
           subcategories: c.subcategories.map(formatSubcategory),
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/admin/full',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const catalog = await catalogService.getAdminCatalog();
+      res.json({
+        success: true,
+        data: catalog.map((category) => ({
+          ...formatCategory(category),
+          subcategories: category.subcategories.map(formatSubcategory),
         })),
       });
     } catch (error) {
@@ -216,6 +249,7 @@ router.get(
 // `provider.service.ts:addProviderService` (defense in depth).
 router.get(
   '/subcategories/:id/bounds',
+  validationMiddleware({ params: catalogUuidParamsSchema }),
   cacheMiddleware(() => getRuntimeCacheTtl('categories')),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -251,6 +285,7 @@ router.get(
 
 router.get(
   '/subcategory/:subcategoryId/addons',
+  validationMiddleware({ params: catalogSubcategoryUuidParamsSchema }),
   cacheMiddleware(() => getRuntimeCacheTtl('categories')),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -296,6 +331,7 @@ router.get(
 router.post(
   '/admin/categories',
   authMiddleware,
+  validationMiddleware(createCategorySchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req); // MED-N161
@@ -320,16 +356,17 @@ router.post(
 router.put(
   '/admin/categories/:id',
   authMiddleware,
+  validationMiddleware({ params: catalogUuidParamsSchema, body: updateCategorySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req); // MED-N161
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Category ID is required.', 400);
 
-      const { name, description, iconUrl, displayOrder, isActive } = req.body;
+      const { name, description, iconUrl, displayOrder } = req.body;
       const row = await catalogService.updateCategory(
         id,
-        { name, description, iconUrl, displayOrder, isActive },
+        { name, description, iconUrl, displayOrder },
         req.user!.userId,
       );
 
@@ -345,6 +382,7 @@ router.put(
 router.post(
   '/admin/subcategories',
   authMiddleware,
+  validationMiddleware(createSubcategorySchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req); // MED-N161
@@ -369,16 +407,17 @@ router.post(
 router.put(
   '/admin/subcategories/:id',
   authMiddleware,
+  validationMiddleware({ params: catalogUuidParamsSchema, body: updateSubcategorySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req); // MED-N161
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Subcategory ID is required.', 400);
 
-      const { name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, unitLabel, unitPrice, hourlyRate, displayOrder, isActive } = req.body;
+      const { name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, unitLabel, unitPrice, hourlyRate, displayOrder } = req.body;
       const row = await catalogService.updateSubcategory(
         id,
-        { name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, unitLabel, unitPrice, hourlyRate, displayOrder, isActive },
+        { name, description, pricingType, basePrice, minPrice, maxPrice, estimatedDurationMinutes, unitLabel, unitPrice, hourlyRate, displayOrder },
         req.user!.userId,
       );
 
@@ -396,6 +435,7 @@ router.put(
 router.get(
   '/admin/subcategories/:id/addons',
   authMiddleware,
+  validationMiddleware({ params: catalogUuidParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -421,8 +461,8 @@ router.get(
 // Phase 14 Dispatch 05 — Bug 266.
 // Replaced manual `typeof price !== 'number' || price < 0` validation
 // with `validationMiddleware(createAddonSchema)`. The new Zod schema
-// caps price at 5_000_000 centavos (₱50,000) per migration 074's
-// `addon_price_max_cents` setting.
+// caps price at the hard backstop while the service also enforces the
+// live `addon_price_max_cents` setting.
 router.post(
   '/admin/addons',
   authMiddleware,
@@ -458,24 +498,23 @@ router.post(
 router.put(
   '/admin/addons/:id',
   authMiddleware,
-  validationMiddleware(updateAddonSchema),
+  validationMiddleware({ params: catalogUuidParamsSchema, body: updateAddonSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req); // MED-N161
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Add-on ID is required.', 400);
 
-      const { name, description, price, displayOrder, isActive } = req.body as {
+      const { name, description, price, displayOrder } = req.body as {
         name?: string;
         description?: string;
         price?: number;
         displayOrder?: number;
-        isActive?: boolean;
       };
 
       const a = await catalogService.updateAddon(
         id,
-        { name, description, price, displayOrder, isActive },
+        { name, description, price, displayOrder },
         req.user!.userId,
       );
 
@@ -494,13 +533,14 @@ router.put(
 router.delete(
   '/admin/addons/:id',
   authMiddleware,
+  validationMiddleware({ params: catalogUuidParamsSchema, body: catalogLifecycleReasonSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req); // MED-N161
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Add-on ID is required.', 400);
 
-      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+      const reason = req.body.reason as string;
       await catalogService.deleteAddon(id, req.user!.userId, reason);
 
       // gate-c-allowed: post-commit-cache-invalidation
@@ -520,18 +560,72 @@ router.delete(
 router.delete(
   '/admin/subcategories/:id',
   authMiddleware,
+  validationMiddleware({ params: catalogUuidParamsSchema, body: catalogLifecycleReasonSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
       const id = req.params['id'];
       if (typeof id !== 'string') throw createAppError('Subcategory ID is required.', 400);
 
-      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+      const reason = req.body.reason as string;
       await catalogService.deleteSubcategory(id, req.user!.userId, reason);
 
       // gate-c-allowed: post-commit-cache-invalidation
       await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
       res.json({ success: true, data: { message: 'Subcategory deactivated.' } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/admin/subcategories/:id/reactivate',
+  authMiddleware,
+  validationMiddleware({ params: catalogUuidParamsSchema, body: catalogLifecycleReasonSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const row = await catalogService.reactivateSubcategory(
+        req.params.id as string,
+        req.user!.userId,
+        req.body.reason as string,
+      );
+      // gate-c-allowed: post-commit-cache-invalidation
+      await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
+      res.json({ success: true, data: formatSubcategory(row) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/admin/addons/:id/reactivate',
+  authMiddleware,
+  validationMiddleware({ params: catalogUuidParamsSchema, body: catalogLifecycleReasonSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const row = await catalogService.reactivateAddon(
+        req.params.id as string,
+        req.user!.userId,
+        req.body.reason as string,
+      );
+      // gate-c-allowed: post-commit-cache-invalidation
+      await cacheDeletePattern('onservice:http:*/api/v1/catalog*');
+      res.json({
+        success: true,
+        data: {
+          id: row.id,
+          subcategoryId: row.subcategory_id,
+          name: row.name,
+          description: row.description,
+          price: row.price,
+          isActive: row.is_active,
+          displayOrder: row.display_order,
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -549,6 +643,7 @@ function getId(req: AuthenticatedRequest, name: string): string {
 // Public — active intake fields for a subcategory (the customer job-request form).
 router.get(
   '/subcategories/:id/intake-fields',
+  validationMiddleware({ params: catalogUuidParamsSchema }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params.id;
@@ -565,6 +660,7 @@ router.get(
 router.get(
   '/admin/subcategories/:id/intake-fields',
   authMiddleware,
+  validationMiddleware({ params: catalogUuidParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -579,7 +675,7 @@ router.get(
 router.post(
   '/admin/subcategories/:id/intake-fields',
   authMiddleware,
-  validationMiddleware(intakeFieldSchema),
+  validationMiddleware({ params: catalogUuidParamsSchema, body: intakeFieldSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
@@ -594,7 +690,7 @@ router.post(
 router.patch(
   '/admin/intake-fields/:fieldId',
   authMiddleware,
-  validationMiddleware(updateIntakeFieldSchema),
+  validationMiddleware({ params: catalogFieldUuidParamsSchema, body: updateIntakeFieldSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
@@ -609,6 +705,7 @@ router.patch(
 router.delete(
   '/admin/intake-fields/:fieldId',
   authMiddleware,
+  validationMiddleware({ params: catalogFieldUuidParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);

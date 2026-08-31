@@ -8,7 +8,7 @@ import {
   DataTable,
   Badge,
   Pagination,
-  useConfirmationDialog,
+  useReasonDialog,
   type Column,
 } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
@@ -48,6 +48,8 @@ interface AreaStats {
     activeAreas: number;
     totalProviders: number;
     totalWaitlist: number;
+    pendingWaitlist?: number;
+    waitlistNotified?: number;
     areasByStatus: Record<string, number>;
   };
 }
@@ -112,7 +114,7 @@ const EMPTY_FORM: CreateAreaForm = {
 };
 
 export default function ServiceAreasPage(): React.ReactElement {
-  const { confirm, confirmationDialog } = useConfirmationDialog();
+  const { requestReason, reasonDialog } = useReasonDialog();
   const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
@@ -124,6 +126,7 @@ export default function ServiceAreasPage(): React.ReactElement {
   const [form, setForm] = useState<CreateAreaForm>({ ...EMPTY_FORM });
   const [actionError, setActionError] = useState('');
   const [formError, setFormError] = useState('');
+  const [actionNotice, setActionNotice] = useState('');
   // Phase 200 — edit an existing market (rename, adjust radius / providers-to-launch).
   const [editTarget, setEditTarget] = useState<ServiceArea | null>(null);
   const [editForm, setEditForm] = useState<{ name: string; radiusKm: string; minProvidersToLaunch: string }>({
@@ -138,7 +141,7 @@ export default function ServiceAreasPage(): React.ReactElement {
   const [decisionError, setDecisionError] = useState('');
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch: refetchAreas } = useQuery({
     queryKey: ['adminServiceAreas', page, search, statusFilter],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
@@ -149,7 +152,7 @@ export default function ServiceAreasPage(): React.ReactElement {
     },
   });
 
-  const { data: statsData, isError: isStatsError } = useQuery({
+  const { data: statsData, isError: isStatsError, refetch: refetchStats } = useQuery({
     queryKey: ['adminServiceAreaStats'],
     queryFn: async () => {
       const res = await api.get<AreaStats>('/api/v1/admin/service-areas/stats');
@@ -188,7 +191,7 @@ export default function ServiceAreasPage(): React.ReactElement {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (formData: CreateAreaForm) => {
+    mutationFn: async ({ formData, reason }: { formData: CreateAreaForm; reason: string }) => {
       await api.post('/api/v1/admin/service-areas', {
         name: formData.name.trim(),
         city: formData.city.trim(),
@@ -199,6 +202,7 @@ export default function ServiceAreasPage(): React.ReactElement {
         radiusKm: Number(formData.radiusKm),
         minProvidersToLaunch: Number(formData.minProvidersToLaunch),
         launchDate: formData.launchDate || undefined,
+        reason,
       });
     },
     onSuccess: () => {
@@ -213,20 +217,41 @@ export default function ServiceAreasPage(): React.ReactElement {
   });
 
   const activateMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await api.post(`/api/v1/admin/service-areas/${id}/activate`);
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const response = await api.post<{ message?: string }>(`/api/v1/admin/service-areas/${id}/activate`, { reason });
+      return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['adminServiceAreas'] });
       void queryClient.invalidateQueries({ queryKey: ['adminServiceAreaStats'] });
       setActionError('');
+      setActionNotice(result.message ?? 'Service area activated.');
     },
     onError: (e) => setActionError(getErrorMessage(e)),
   });
 
+  const notifyWaitlistMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const response = await api.post<{ data: { notifiedCount: number } }>(
+        `/api/v1/admin/service-areas/${id}/notify-waitlist`,
+        { reason },
+      );
+      return response.data.data.notifiedCount;
+    },
+    onSuccess: (notifiedCount) => {
+      void queryClient.invalidateQueries({ queryKey: ['adminServiceAreaStats'] });
+      setActionError('');
+      setActionNotice(`${notifiedCount} registered waitlist account${notifiedCount === 1 ? '' : 's'} notified. Entries without an account remain awaiting contact.`);
+    },
+    onError: (error) => {
+      setActionNotice('');
+      setActionError(getErrorMessage(error));
+    },
+  });
+
   const pauseMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await api.post(`/api/v1/admin/service-areas/${id}/pause`);
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      await api.post(`/api/v1/admin/service-areas/${id}/pause`, { reason });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminServiceAreas'] });
@@ -237,8 +262,8 @@ export default function ServiceAreasPage(): React.ReactElement {
   });
 
   const setDefaultMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await api.post(`/api/v1/admin/service-areas/${id}/set-default`);
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      await api.post(`/api/v1/admin/service-areas/${id}/set-default`, { reason });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminServiceAreas'] });
@@ -270,7 +295,7 @@ export default function ServiceAreasPage(): React.ReactElement {
     });
   }
 
-  function submitEdit(e: FormEvent): void {
+  async function submitEdit(e: FormEvent): Promise<void> {
     e.preventDefault();
     if (!editTarget) return;
     const name = editForm.name.trim();
@@ -279,7 +304,19 @@ export default function ServiceAreasPage(): React.ReactElement {
     if (!name) { setEditError('Area name is required.'); return; }
     if (!Number.isFinite(radius) || radius < 1 || radius > 100) { setEditError('Radius must be between 1 and 100 km.'); return; }
     if (!Number.isInteger(minProviders) || minProviders < 1 || minProviders > 50) { setEditError('Minimum providers to launch must be an integer from 1 to 50.'); return; }
-    editMutation.mutate({ id: editTarget.id, updates: { name, radiusKm: radius, minProvidersToLaunch: minProviders } });
+    const reason = await requestReason({
+      title: 'Save market configuration?',
+      description: `This changes customer coverage and provider matching configuration for “${editTarget.name}”. Existing booking addresses are not rewritten.`,
+      confirmLabel: 'Save changes',
+      reasonLabel: 'Configuration reason',
+      minLength: 10,
+      maxLength: 2000,
+    });
+    if (!reason) return;
+    editMutation.mutate({
+      id: editTarget.id,
+      updates: { name, radiusKm: radius, minProvidersToLaunch: minProviders, reason },
+    });
   }
 
   const handleSearch = (e: FormEvent): void => {
@@ -337,45 +374,69 @@ export default function ServiceAreasPage(): React.ReactElement {
       setFormError(validationError);
       return;
     }
-    const accepted = await confirm({
+    const reason = await requestReason({
       title: 'Create service area?',
       description: `Create “${form.name.trim()}” in ${form.city.trim()}, ${form.province.trim()} with a ${form.radiusKm} km matching radius. It will not accept customer bookings until activated.`,
       confirmLabel: 'Create area',
+      reasonLabel: 'Planning reason',
+      minLength: 10,
+      maxLength: 2000,
     });
-    if (!accepted) return;
+    if (!reason) return;
     setFormError('');
-    createMutation.mutate(form);
+    createMutation.mutate({ formData: form, reason });
   };
 
   async function activateArea(area: ServiceArea): Promise<void> {
-    const accepted = await confirm({
+    const reason = await requestReason({
       title: 'Activate service area?',
-      description: `“${area.name}” will begin accepting customer bookings and provider matching. ${area.activeProviderCount} active providers are available against a configured minimum of ${area.minProvidersToLaunch}. Waitlisted users will be notified.`,
+      description: `“${area.name}” will begin accepting customer bookings and provider matching. ${area.activeProviderCount} approved providers are assigned against a configured minimum of ${area.minProvidersToLaunch}. Registered waitlist users with accounts will receive an in-app notice; other entries remain awaiting contact.`,
       confirmLabel: 'Activate area',
+      reasonLabel: 'Activation reason',
+      minLength: 10,
+      maxLength: 2000,
     });
-    if (!accepted) return;
-    activateMutation.mutate(area.id);
+    if (!reason) return;
+    activateMutation.mutate({ id: area.id, reason });
+  }
+
+  async function notifyAreaWaitlist(area: ServiceArea): Promise<void> {
+    const reason = await requestReason({
+      title: 'Retry waitlist notices?',
+      description: `Send an in-app launch notice to registered accounts waiting for “${area.name}”. Entries without an onService account remain awaiting manual contact.`,
+      confirmLabel: 'Send notices',
+      reasonLabel: 'Notification reason',
+      minLength: 10,
+      maxLength: 2000,
+    });
+    if (!reason) return;
+    notifyWaitlistMutation.mutate({ id: area.id, reason });
   }
 
   async function pauseArea(area: ServiceArea): Promise<void> {
-    const accepted = await confirm({
+    const reason = await requestReason({
       title: 'Pause service area?',
       description: `“${area.name}” will stop accepting new customer bookings and provider service-area requests. Existing bookings are not cancelled by this action.`,
       confirmLabel: 'Pause area',
-      tone: 'destructive',
+      reasonLabel: 'Pause reason',
+      minLength: 10,
+      maxLength: 2000,
     });
-    if (!accepted) return;
-    pauseMutation.mutate(area.id);
+    if (!reason) return;
+    pauseMutation.mutate({ id: area.id, reason });
   }
 
   async function setDefaultArea(area: ServiceArea): Promise<void> {
-    const accepted = await confirm({
+    const reason = await requestReason({
       title: 'Change the app default city?',
       description: `Customer and provider maps and location pickers will default to “${area.name}”. This changes the starting market, not a user’s saved address or an existing booking.`,
       confirmLabel: 'Set as default',
+      reasonLabel: 'Default-market reason',
+      minLength: 10,
+      maxLength: 2000,
     });
-    if (!accepted) return;
-    setDefaultMutation.mutate(area.id);
+    if (!reason) return;
+    setDefaultMutation.mutate({ id: area.id, reason });
   }
 
   function openDecision(request: ServiceAreaChangeRequest, decision: 'approved' | 'rejected'): void {
@@ -429,10 +490,16 @@ export default function ServiceAreasPage(): React.ReactElement {
     },
     {
       key: 'activeProviderCount',
-      header: 'Providers',
+      header: 'Approved providers',
       render: (r) => (
         <div>
-          <span className="text-sm font-medium">{r.activeProviderCount}</span>
+          <Link
+            to={`/providers?serviceAreaId=${encodeURIComponent(r.id)}&status=approved`}
+            className="text-sm font-medium text-[var(--color-primary)] hover:underline"
+            aria-label={`Open providers assigned to ${r.name}`}
+          >
+            {r.activeProviderCount}
+          </Link>
           <span className="text-xs text-[var(--color-text-secondary)]"> / {r.minProvidersToLaunch} min</span>
         </div>
       ),
@@ -477,44 +544,63 @@ export default function ServiceAreasPage(): React.ReactElement {
       key: 'actions',
       header: '',
       render: (r) => (
-        <div className="flex gap-2">
-          <button
+        <div className="flex flex-wrap justify-end gap-2">
+          {isSuperAdmin && <button
             type="button"
             aria-label={`Edit service area ${r.name}`}
             onClick={() => openEdit(r)}
-            className="text-xs text-[var(--color-text-secondary)] hover:underline"
+            className="min-h-11 rounded-md px-3 py-2 text-xs text-[var(--color-text-secondary)] hover:bg-slate-100"
           >
             Edit
-          </button>
-          {['planned', 'recruiting', 'soft_launch'].includes(r.status) && (
+          </button>}
+          {isSuperAdmin && ['planned', 'recruiting', 'soft_launch'].includes(r.status) && (
             <button
               type="button"
-              aria-label={`Activate service area ${r.name}`}
+              aria-label={r.activeProviderCount < r.minProvidersToLaunch
+                ? `Cannot activate service area ${r.name}; ${r.minProvidersToLaunch - r.activeProviderCount} more approved providers required`
+                : `Activate service area ${r.name}`}
               onClick={() => void activateArea(r)}
-              disabled={activateMutation.isPending}
-              className="text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
+              disabled={activateMutation.isPending || r.activeProviderCount < r.minProvidersToLaunch}
+              title={r.activeProviderCount < r.minProvidersToLaunch
+                ? `${r.minProvidersToLaunch - r.activeProviderCount} more approved providers are required before activation.`
+                : undefined}
+              className="min-h-11 rounded-md px-3 py-2 text-xs text-[var(--color-primary)] hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Activate
+              {r.activeProviderCount < r.minProvidersToLaunch ? 'Supply below minimum' : 'Activate'}
             </button>
           )}
-          {r.status === 'active' && (
+          {isSuperAdmin && r.status === 'active' && (
             <button
               type="button"
-              aria-label={`Pause service area ${r.name}`}
+              aria-label={r.isDefault
+                ? `Cannot pause default service area ${r.name}; choose another default first`
+                : `Pause service area ${r.name}`}
               onClick={() => void pauseArea(r)}
-              disabled={pauseMutation.isPending}
-              className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
+              disabled={pauseMutation.isPending || r.isDefault}
+              title={r.isDefault ? 'Choose another active or soft-launch default before pausing this market.' : undefined}
+              className="min-h-11 rounded-md px-3 py-2 text-xs text-[var(--color-error)] hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Pause
+              {r.isDefault ? 'Default cannot pause' : 'Pause'}
             </button>
           )}
-          {!r.isDefault && ['active', 'soft_launch'].includes(r.status) && (
+          {isSuperAdmin && r.status === 'active' && (
+            <button
+              type="button"
+              aria-label={`Retry waitlist notices for ${r.name}`}
+              onClick={() => void notifyAreaWaitlist(r)}
+              disabled={notifyWaitlistMutation.isPending}
+              className="min-h-11 rounded-md px-3 py-2 text-xs text-[var(--color-primary)] hover:bg-sky-50 disabled:opacity-50"
+            >
+              Notify waitlist
+            </button>
+          )}
+          {isSuperAdmin && !r.isDefault && ['active', 'soft_launch'].includes(r.status) && (
             <button
               type="button"
               aria-label={`Set ${r.name} as the default city`}
               onClick={() => void setDefaultArea(r)}
               disabled={setDefaultMutation.isPending}
-              className="text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
+              className="min-h-11 rounded-md px-3 py-2 text-xs text-[var(--color-primary)] hover:bg-emerald-50 disabled:opacity-50"
             >
               Set default
             </button>
@@ -534,35 +620,56 @@ export default function ServiceAreasPage(): React.ReactElement {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-[var(--color-text)]">Service Areas</h1>
-        <button
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--color-text)]">Service Areas</h1>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Control customer-bookable markets, provider coverage, capacity, and reviewed provider change requests.</p>
+        </div>
+        {isSuperAdmin && <button
           type="button"
           onClick={() => setShowCreateForm(!showCreateForm)}
-          className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)]"
+          className="min-h-11 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)]"
         >
           {showCreateForm ? 'Cancel' : 'Add Area'}
-        </button>
+        </button>}
       </div>
 
-      {isStatsError && <p className="text-sm text-red-600 mb-2">Failed to load area statistics.</p>}
+      {!isSuperAdmin && (
+        <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+          <p className="font-semibold">Read-only market access</p>
+          <p className="mt-1">You can inspect coverage, capacity, and provider requests. Creating markets or changing customer and provider availability requires a super admin.</p>
+        </div>
+      )}
+
+      {isStatsError && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <span>Failed to load area statistics.</span>
+        <button type="button" onClick={() => { void refetchStats(); }} className="min-h-11 rounded-md border border-red-300 bg-white px-3 py-2 font-semibold">Retry statistics</button>
+      </div>}
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
             <p className="text-sm text-[var(--color-text-secondary)]">Total Areas</p>
             <p className="text-2xl font-bold text-[var(--color-text)]">{stats.totalAreas}</p>
           </div>
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-            <p className="text-sm text-[var(--color-text-secondary)]">Active</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">Bookable Areas</p>
             <p className="text-2xl font-bold text-[var(--color-primary)]">{stats.activeAreas}</p>
           </div>
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-            <p className="text-sm text-[var(--color-text-secondary)]">Providers</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">Approved Providers</p>
             <p className="text-2xl font-bold text-[var(--color-text)]">{stats.totalProviders}</p>
           </div>
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-            <p className="text-sm text-[var(--color-text-secondary)]">Waitlist</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">Waitlist Total</p>
             <p className="text-2xl font-bold text-[var(--color-warning)]">{stats.totalWaitlist}</p>
+          </div>
+          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+            <p className="text-sm text-[var(--color-text-secondary)]">Awaiting Notice</p>
+            <p className="text-2xl font-bold text-amber-700">{stats.pendingWaitlist ?? stats.totalWaitlist}</p>
+          </div>
+          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+            <p className="text-sm text-[var(--color-text-secondary)]">Notified</p>
+            <p className="text-2xl font-bold text-emerald-700">{stats.waitlistNotified ?? 0}</p>
           </div>
         </div>
       )}
@@ -578,7 +685,7 @@ export default function ServiceAreasPage(): React.ReactElement {
             {providerFilter && (
               <button
                 type="button"
-                className="mt-2 text-xs font-medium text-[var(--color-primary)] hover:underline"
+                className="mt-2 min-h-11 rounded-md px-2 py-2 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-surface-muted)] hover:underline"
                 onClick={() => {
                   const next = new URLSearchParams(searchParams);
                   next.delete('providerId');
@@ -595,7 +702,10 @@ export default function ServiceAreasPage(): React.ReactElement {
         </div>
 
         {changeRequestsQuery.isLoading && <p className="mt-4 text-sm text-[var(--color-text-secondary)]">Loading provider requests…</p>}
-        {changeRequestsQuery.isError && <p role="alert" className="mt-4 text-sm text-[var(--color-error)]">Failed to load provider service-area requests.</p>}
+        {changeRequestsQuery.isError && <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 text-sm text-[var(--color-error)]">
+          <span>Failed to load provider service-area requests.</span>
+          <button type="button" onClick={() => { void changeRequestsQuery.refetch(); }} className="min-h-11 rounded-md border border-red-300 bg-white px-3 py-2 font-semibold">Retry requests</button>
+        </div>}
         {!changeRequestsQuery.isLoading && !changeRequestsQuery.isError && pendingRequests.length === 0 && (
           <div className="mt-4 rounded-lg border border-dashed border-[var(--color-border)] p-5 text-center text-sm text-[var(--color-text-secondary)]">
             {providerFilter
@@ -651,8 +761,8 @@ export default function ServiceAreasPage(): React.ReactElement {
 
                 {isSuperAdmin && (
                   <div className="mt-4 flex flex-wrap justify-end gap-2">
-                    <button type="button" onClick={() => openDecision(request, 'rejected')} className="rounded-lg border border-[var(--color-error)] px-3 py-2 text-sm font-medium text-[var(--color-error)] hover:bg-red-50">Reject</button>
-                    <button type="button" onClick={() => openDecision(request, 'approved')} className="rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)]">Approve</button>
+                    <button type="button" onClick={() => openDecision(request, 'rejected')} className="min-h-11 rounded-lg border border-[var(--color-error)] px-3 py-2 text-sm font-medium text-[var(--color-error)] hover:bg-red-50">Reject</button>
+                    <button type="button" onClick={() => openDecision(request, 'approved')} className="min-h-11 rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)]">Approve</button>
                   </div>
                 )}
               </article>
@@ -662,10 +772,10 @@ export default function ServiceAreasPage(): React.ReactElement {
       </section>
 
       {showCreateForm && (
-        <form onSubmit={handleCreateSubmit} noValidate className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-4">
+        <form onSubmit={handleCreateSubmit} noValidate className="space-y-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-[var(--color-text)]">New Service Area</h2>
           {formError && <p role="alert" className="text-sm text-[var(--color-error)]">{formError}</p>}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="area-name" className="block text-sm font-medium text-[var(--color-text)] mb-1">Area Name</label>
               <input id="area-name" type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -721,11 +831,11 @@ export default function ServiceAreasPage(): React.ReactElement {
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={createMutation.isPending}
-              className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50">
+              className="min-h-11 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50">
               {createMutation.isPending ? 'Creating...' : 'Create Area'}
             </button>
             <button type="button" onClick={() => setShowCreateForm(false)}
-              className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]">
+              className="min-h-11 rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]">
               Cancel
             </button>
           </div>
@@ -736,7 +846,7 @@ export default function ServiceAreasPage(): React.ReactElement {
       )}
 
       <div className="flex flex-wrap items-center gap-4">
-        <form onSubmit={handleSearch} className="flex gap-2">
+        <form onSubmit={handleSearch} className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <input
             id="service-area-search"
             type="text"
@@ -744,10 +854,11 @@ export default function ServiceAreasPage(): React.ReactElement {
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search areas..."
             aria-label="Search service areas by name"
-            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)]"
+            maxLength={100}
+            className="min-h-11 min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-tertiary)]"
           />
           <button type="submit"
-            className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)]">
+            className="min-h-11 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)]">
             Search
           </button>
         </form>
@@ -756,7 +867,7 @@ export default function ServiceAreasPage(): React.ReactElement {
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           aria-label="Filter service areas by status"
-          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]"
+          className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]"
         >
           <option value="">All Statuses</option>
           <option value="planned">Planned</option>
@@ -768,8 +879,12 @@ export default function ServiceAreasPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p role="alert" className="text-sm text-red-600 mb-4">Failed to load service areas. Please try again.</p>}
+      {isError && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <span>Failed to load service areas.</span>
+        <button type="button" onClick={() => { void refetchAreas(); }} className="min-h-11 rounded-md border border-red-300 bg-white px-3 py-2 font-semibold">Retry service areas</button>
+      </div>}
       {actionError && <p role="alert" className="text-sm text-red-600 mb-4">{actionError}</p>}
+      {actionNotice && <p role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{actionNotice}</p>}
 
       <DataTable columns={columns} data={areas} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No service areas found." />
 
@@ -808,13 +923,13 @@ export default function ServiceAreasPage(): React.ReactElement {
               </div>
               {decisionError && <p role="alert" className="text-sm text-[var(--color-error)]">{decisionError}</p>}
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setDecisionTarget(null)} disabled={decideChangeMutation.isPending} className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text)] disabled:opacity-50">Cancel</button>
+                <button type="button" onClick={() => setDecisionTarget(null)} disabled={decideChangeMutation.isPending} className="min-h-11 rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text)] disabled:opacity-50">Cancel</button>
                 <button
                   type="submit"
                   disabled={decideChangeMutation.isPending}
                   className={decisionTarget.decision === 'approved'
-                    ? 'rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50'
-                    : 'rounded-lg bg-[var(--color-error)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50'}
+                    ? 'min-h-11 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50'
+                    : 'min-h-11 rounded-lg bg-[var(--color-error)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50'}
                 >
                   {decideChangeMutation.isPending ? 'Saving…' : decisionTarget.decision === 'approved' ? 'Approve change' : 'Reject change'}
                 </button>
@@ -837,7 +952,7 @@ export default function ServiceAreasPage(): React.ReactElement {
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                   className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label htmlFor="edit-area-radius" className="block text-sm font-medium text-[var(--color-text)] mb-1">Radius (km)</label>
                   <input id="edit-area-radius" type="number" min="1" max="100" value={editForm.radiusKm}
@@ -854,9 +969,9 @@ export default function ServiceAreasPage(): React.ReactElement {
               {editError && <p role="alert" className="text-sm text-red-600">{editError}</p>}
               <div className="flex justify-end gap-2 pt-1">
                 <button type="button" onClick={() => setEditTarget(null)}
-                  className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50">Cancel</button>
+                  className="min-h-11 rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm hover:bg-slate-50">Cancel</button>
                 <button type="submit" disabled={editMutation.isPending}
-                  className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50">
+                  className="min-h-11 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50">
                   {editMutation.isPending ? 'Saving...' : 'Save changes'}
                 </button>
               </div>
@@ -864,7 +979,7 @@ export default function ServiceAreasPage(): React.ReactElement {
           </div>
         </div>
       )}
-      {confirmationDialog}
+      {reasonDialog}
     </div>
   );
 }

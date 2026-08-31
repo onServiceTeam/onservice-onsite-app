@@ -28,6 +28,8 @@ import {
   createAddon,
   updateAddon,
   deleteAddon,
+  reactivateAddon,
+  reactivateSubcategory,
 } from '../../src/services/catalog.service';
 import {
   resetDbMock,
@@ -35,7 +37,6 @@ import {
   getTopCalls,
   getTransactionInvocations,
   setTxQueryImpl,
-  setTopQueryImpl,
   makeRouter,
 } from '../helpers/d06-tx-mock';
 
@@ -131,6 +132,7 @@ describe('Bug 237 — catalog mutations transactional', () => {
   describe('createSubcategory', () => {
     it('writes subcategory row + audit inside one transaction', async () => {
       setTxQueryImpl(makeRouter([
+        { match: /SELECT id FROM service_categories/, rows: [{ id: CATEGORY_ID }], rowCount: 1 },
         { match: /INSERT INTO service_subcategories/, rows: [{
           id: SUBCATEGORY_ID,
           category_id: CATEGORY_ID,
@@ -160,10 +162,8 @@ describe('Bug 237 — catalog mutations transactional', () => {
 
   describe('updateSubcategory', () => {
     it('updates row + writes audit inside one transaction', async () => {
-      setTopQueryImpl(makeRouter([
-        { match: /SELECT description, is_active, base_price/, rows: [existingSubcategory()], rowCount: 1 },
-      ]));
       setTxQueryImpl(makeRouter([
+        { match: /SELECT description, is_active, base_price/, rows: [existingSubcategory()], rowCount: 1 },
         { match: /UPDATE service_subcategories/, rows: [{ id: SUBCATEGORY_ID, category_id: CATEGORY_ID, name: 'X', slug: 'x', description: '', pricing_type: 'fixed', base_price: 0, min_price: null, max_price: null, estimated_duration_minutes: null, display_order: 0, is_active: true, created_at: new Date(), updated_at: new Date() }], rowCount: 1 },
         { match: /INSERT INTO admin_actions/, rows: [{ id: 'audit-subupdate' }], rowCount: 1 },
       ]));
@@ -174,10 +174,8 @@ describe('Bug 237 — catalog mutations transactional', () => {
     });
 
     it('rolls back when audit insert throws', async () => {
-      setTopQueryImpl(makeRouter([
-        { match: /SELECT description, is_active, base_price/, rows: [existingSubcategory()], rowCount: 1 },
-      ]));
       setTxQueryImpl(makeRouter([
+        { match: /SELECT description, is_active, base_price/, rows: [existingSubcategory()], rowCount: 1 },
         { match: /UPDATE service_subcategories/, rows: [{ id: SUBCATEGORY_ID, category_id: CATEGORY_ID, name: 'X', slug: 'x', description: '', pricing_type: 'fixed', base_price: 0, min_price: null, max_price: null, estimated_duration_minutes: null, display_order: 0, is_active: true, created_at: new Date(), updated_at: new Date() }], rowCount: 1 },
         { match: /INSERT INTO admin_actions/, throwError: new Error('audit boom') },
       ]));
@@ -188,6 +186,7 @@ describe('Bug 237 — catalog mutations transactional', () => {
   describe('createAddon', () => {
     it('writes addon row + audit inside one transaction', async () => {
       setTxQueryImpl(makeRouter([
+        { match: /SELECT id FROM service_subcategories/, rows: [{ id: SUBCATEGORY_ID }], rowCount: 1 },
         { match: /INSERT INTO service_addons/, rows: [{ id: ADDON_ID, subcategory_id: SUBCATEGORY_ID, name: 'Extra room', description: '', price: 25000, is_active: true, display_order: 0 }], rowCount: 1 },
         { match: /INSERT INTO admin_actions/, rows: [{ id: 'audit-addon' }], rowCount: 1 },
       ]));
@@ -235,14 +234,14 @@ describe('Bug 237 — catalog mutations transactional', () => {
         { match: /UPDATE service_addons SET is_active = FALSE/, rows: [{ id: ADDON_ID }], rowCount: 1 },
         { match: /INSERT INTO admin_actions/, throwError: new Error('audit boom') },
       ]));
-      await expect(deleteAddon(ADDON_ID, ADMIN_ID)).rejects.toThrow(/audit boom/);
+      await expect(deleteAddon(ADDON_ID, ADMIN_ID, 'retired after catalog review')).rejects.toThrow(/audit boom/);
     });
 
     it('409 when already deactivated', async () => {
       setTxQueryImpl(makeRouter([
         { match: /SELECT \* FROM service_addons WHERE id/, rows: [{ id: ADDON_ID, subcategory_id: SUBCATEGORY_ID, name: 'X', description: '', price: 1, is_active: false, display_order: 0 }], rowCount: 1 },
       ]));
-      await expect(deleteAddon(ADDON_ID, ADMIN_ID)).rejects.toMatchObject({ statusCode: 409 });
+      await expect(deleteAddon(ADDON_ID, ADMIN_ID, 'retired after catalog review')).rejects.toMatchObject({ statusCode: 409 });
     });
   });
 
@@ -261,12 +260,73 @@ describe('Bug 237 — catalog mutations transactional', () => {
 
     it('updateSubcategory rejects a patch that inverts bounds against the existing row', async () => {
       // Existing base = 1000; patching min up to 5000 would make min > base.
-      setTopQueryImpl(makeRouter([
+      setTxQueryImpl(makeRouter([
         { match: /SELECT description, is_active, base_price/, rows: [existingSubcategory({ base_price: 1000 })], rowCount: 1 },
       ]));
       await expect(
         updateSubcategory(SUBCATEGORY_ID, { minPrice: 5000 }, ADMIN_ID),
       ).rejects.toThrow(/Minimum price cannot exceed the base price/);
+    });
+
+    it('locks and revalidates a service before reasoned restoration', async () => {
+      setTxQueryImpl(makeRouter([
+        { match: /SELECT \* FROM service_subcategories/, rows: [{
+          id: SUBCATEGORY_ID,
+          category_id: CATEGORY_ID,
+          name: 'Deep clean',
+          slug: 'deep-clean',
+          description: SERVICE_SCOPE,
+          pricing_type: 'fixed',
+          base_price: 50000,
+          min_price: null,
+          max_price: null,
+          estimated_duration_minutes: 120,
+          unit_label: null,
+          unit_price: null,
+          hourly_rate: null,
+          display_order: 0,
+          is_active: false,
+          created_at: new Date(),
+          updated_at: new Date(),
+        }], rowCount: 1 },
+        { match: /SELECT id FROM service_categories/, rows: [{ id: CATEGORY_ID }], rowCount: 1 },
+        { match: /UPDATE service_subcategories SET is_active = TRUE/, rows: [{
+          id: SUBCATEGORY_ID,
+          category_id: CATEGORY_ID,
+          name: 'Deep clean',
+          slug: 'deep-clean',
+          description: SERVICE_SCOPE,
+          pricing_type: 'fixed',
+          base_price: 50000,
+          min_price: null,
+          max_price: null,
+          estimated_duration_minutes: 120,
+          unit_label: null,
+          unit_price: null,
+          hourly_rate: null,
+          display_order: 0,
+          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        }], rowCount: 1 },
+        { match: /INSERT INTO admin_actions/, rows: [{ id: 'audit-service-restore' }], rowCount: 1 },
+      ]));
+
+      await reactivateSubcategory(SUBCATEGORY_ID, ADMIN_ID, 'Scope and pricing re-approved');
+      expect(getTxCalls().find((call) => /FOR UPDATE/.test(call.sql))).toBeDefined();
+      expect(getTxCalls().find((call) => /is_active = TRUE/.test(call.sql))).toBeDefined();
+    });
+
+    it('restores an add-on only after active-parent and price checks', async () => {
+      setTxQueryImpl(makeRouter([
+        { match: /SELECT \* FROM service_addons/, rows: [{ id: ADDON_ID, subcategory_id: SUBCATEGORY_ID, name: 'Extra room', description: '', price: 25000, is_active: false, display_order: 0 }], rowCount: 1 },
+        { match: /SELECT id FROM service_subcategories/, rows: [{ id: SUBCATEGORY_ID }], rowCount: 1 },
+        { match: /UPDATE service_addons SET is_active = TRUE/, rows: [{ id: ADDON_ID, subcategory_id: SUBCATEGORY_ID, name: 'Extra room', description: '', price: 25000, is_active: true, display_order: 0 }], rowCount: 1 },
+        { match: /INSERT INTO admin_actions/, rows: [{ id: 'audit-addon-restore' }], rowCount: 1 },
+      ]));
+
+      await reactivateAddon(ADDON_ID, ADMIN_ID, 'Add-on approved for new bookings');
+      expect(getTxCalls().find((call) => /is_active = TRUE/.test(call.sql))).toBeDefined();
     });
 
     it('updateAddon rejects a price above the configured maximum', async () => {

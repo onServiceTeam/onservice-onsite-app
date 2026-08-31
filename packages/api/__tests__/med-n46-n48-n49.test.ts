@@ -39,7 +39,7 @@ describe('MED-N48 — createServiceArea writes admin_actions audit', () => {
       rowCount: 1,
     });
     // INSERT admin_actions.
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ id: 'audit-1' }], rowCount: 1 });
 
     await createServiceArea({
       name: 'Boracay Station 2',
@@ -49,6 +49,7 @@ describe('MED-N48 — createServiceArea writes admin_actions audit', () => {
       centerLat: 11.96,
       centerLng: 121.92,
       createdByAdminId: 'super-1',
+      reason: 'Opening this market after the launch readiness review.',
     });
 
     const auditCall = dbQueryMock.mock.calls.find(
@@ -65,44 +66,38 @@ describe('MED-N48 — createServiceArea writes admin_actions audit', () => {
     expect(details.name).toBe('Boracay Station 2');
   });
 
-  it('MED-N48 — back-compat: no audit row when createdByAdminId omitted', async () => {
-    dbQueryMock.mockResolvedValueOnce({
-      rows: [{
-        id: 'a-1', name: 'X', slug: 'x', city: 'C', province: 'P', region: 'R',
-        zip_codes: [], center_lat: 0, center_lng: 0, radius_km: 5,
-        min_providers_to_launch: 5, launch_date: null, settings: {},
-        is_active: true, created_at: new Date(), updated_at: new Date(),
-      }],
-      rowCount: 1,
-    });
-    await createServiceArea({
+  it('MED-N48 — rejects an unexplained create before opening a transaction', async () => {
+    await expect(createServiceArea({
       name: 'X', city: 'C', province: 'P', region: 'R',
-      centerLat: 0, centerLng: 0,
-    });
-    const auditCall = dbQueryMock.mock.calls.find(
-      ([sql]) => /INSERT INTO admin_actions/.test(sql as string),
-    );
-    expect(auditCall).toBeUndefined();
+      centerLat: 10, centerLng: 123,
+      createdByAdminId: 'super-1',
+      reason: '',
+    })).rejects.toMatchObject({ statusCode: 400 });
+    expect(dbTransactionMock).not.toHaveBeenCalled();
   });
 });
 
 describe('MED-N49 — generateSlug fallback uses crypto.randomBytes', () => {
-  it('MED-N49 — source uses crypto.randomBytes not Math.random', () => {
-    const src = require('fs').readFileSync(
-      require('path').resolve(__dirname, '../src/services/service-area.service.ts'),
-      'utf8',
-    ) as string;
-    // Get generateSlug body, then strip line comments so we don't
-    // accidentally match the documentation comment that mentions
-    // "Math.random" while explaining the fix.
-    const generateSlugBody = src.match(/function generateSlug\([\s\S]*?\n\}/);
-    expect(generateSlugBody).not.toBeNull();
-    const codeOnly = generateSlugBody![0]
-      .split('\n')
-      .filter((l) => !l.trim().startsWith('//'))
-      .join('\n');
-    expect(codeOnly).not.toMatch(/Math\.random/);
-    expect(codeOnly).toMatch(/crypto\.randomBytes/);
+  it('MED-N49 — a name without slug characters receives an eight-byte-safe URL suffix', async () => {
+    dbQueryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'a-emoji', name: '🏝️', slug: 'placeholder', city: 'Malay', province: 'Aklan', region: 'Region VI',
+          zip_codes: [], center_lat: 11.96, center_lng: 121.92, radius_km: 10,
+          min_providers_to_launch: 5, launch_date: null, settings: {}, created_at: new Date(), updated_at: new Date(),
+        }],
+        rowCount: 1,
+      })
+      .mockResolvedValueOnce({ rows: [{ id: 'audit-emoji' }], rowCount: 1 });
+
+    await createServiceArea({
+      name: '🏝️', city: 'Malay', province: 'Aklan', region: 'Region VI',
+      centerLat: 11.96, centerLng: 121.92, createdByAdminId: 'super-1',
+      reason: 'Creating a safely addressable operator market record.',
+    });
+
+    const areaInsert = dbQueryMock.mock.calls.find(([sql]) => /INSERT INTO service_areas/.test(sql as string));
+    expect((areaInsert![1] as unknown[])[1]).toMatch(/^area-[0-9a-f]{8}$/);
   });
 });
 
