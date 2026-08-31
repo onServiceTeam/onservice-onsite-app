@@ -326,7 +326,10 @@ export async function cancelPending(providerUserId: string): Promise<AreaChangeR
   return format(row);
 }
 
-export async function listPending(limit = 50): Promise<AreaChangeRequest[]> {
+export async function listPending(
+  limit = 50,
+  providerRecordId?: string,
+): Promise<AreaChangeRequest[]> {
   const result = await db.query<ChangeRow>(
     `SELECT acr.*,
             p.id AS provider_record_id,
@@ -341,9 +344,10 @@ export async function listPending(limit = 50): Promise<AreaChangeRequest[]> {
        LEFT JOIN service_areas current_area ON current_area.id = acr.current_area_id
        JOIN service_areas requested_area ON requested_area.id = acr.requested_area_id
       WHERE acr.status = 'pending'
+        AND ($2::uuid IS NULL OR p.id = $2::uuid)
       ORDER BY acr.created_at ASC
       LIMIT $1`,
-    [limit],
+    [limit, providerRecordId ?? null],
   );
   return result.rows.map(format);
 }

@@ -71,6 +71,11 @@ interface CustomerProfile {
   openDisputes: number;
   averageRatingGiven: number | null;
   totalReviewsGiven: number;
+  activeRefreshSessions?: number;
+  openSupportCases?: number;
+  urgentSupportCases?: number;
+  unassignedSupportCases?: number;
+  supportOwnerNames?: string[];
   addresses: {
     id: string;
     label: string;
@@ -144,8 +149,14 @@ interface DisputesResult {
     status: string;
     resolutionType: string | null;
     refundAmount: number;
+    filedById?: string;
+    filedByRole?: string;
+    filedByName?: string;
     createdAt: string;
   }[];
+  total: number;
+  page: number;
+  pageSize: number;
   fraudPattern: {
     disputesInWindow: number;
     windowDays: number;
@@ -275,13 +286,13 @@ export default function CustomerDetailPage(): React.ReactElement {
       <CustomerHeader profile={profile} />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabId)}>
-        <TabsList>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="bookings">Bookings</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-          <TabsTrigger value="disputes">Disputes</TabsTrigger>
-          <TabsTrigger value="referrals">Referrals</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
+        <TabsList className="flex h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto rounded-xl p-1">
+          <TabsTrigger className="min-h-11 shrink-0" value="profile">Profile</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="bookings">Bookings</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="payments">Payments</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="disputes">Disputes</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="referrals">Referrals</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="activity">Activity</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -331,7 +342,7 @@ export function CustomerHeader({ profile }: { profile: CustomerProfile }): React
       setShowStatus(false);
       setStatusSuccess(
         input.action === 'suspend'
-          ? 'Customer suspended and refresh sessions revoked.'
+          ? 'Customer suspended. Every existing access and refresh credential is now invalid.'
           : input.action === 'reactivate'
             ? 'Customer reactivated. They must sign in again.'
             : 'Customer added to the internal fraud-review queue.',
@@ -352,7 +363,7 @@ export function CustomerHeader({ profile }: { profile: CustomerProfile }): React
             : `Flag ${profile.fullName} for fraud review?`,
       description:
         action === 'suspend'
-          ? `Suspension blocks the next login and token refresh, and revokes stored refresh sessions. A currently issued short-lived access token may work until it expires. It does not cancel ${profile.activeBookings} active booking${profile.activeBookings === 1 ? '' : 's'}, move wallet funds, or resolve ${profile.openDisputes} open dispute${profile.openDisputes === 1 ? '' : 's'}; support must manage those records separately. The audit reason stays internal; the customer receives a generic account-status notice.`
+          ? `Suspension immediately invalidates every issued access and refresh credential. It does not cancel ${profile.activeBookings} active booking${profile.activeBookings === 1 ? '' : 's'}, move wallet funds, or resolve ${profile.openDisputes} open dispute${profile.openDisputes === 1 ? '' : 's'}; support must manage those records separately. The audit reason stays internal; the customer receives a generic account-status notice.`
           : action === 'reactivate'
             ? 'Reactivation restores sign-in but does not clear a fraud-review flag, alter bookings, or move money. Suspended sessions were revoked, so the customer must sign in again. The audit reason stays internal; the customer receives a generic account-status notice.'
             : 'This adds an internal fraud-review marker only. It does not suspend the customer, cancel bookings, move money, decide a dispute, or notify the customer.',
@@ -373,7 +384,7 @@ export function CustomerHeader({ profile }: { profile: CustomerProfile }): React
           ? 'Record the observable pattern, linked cases, and evidence to review.'
           : 'Record the support case, evidence, and decision basis.',
       minLength: 10,
-      maxLength: 2000,
+      maxLength: 1000,
       tone: action === 'suspend' ? 'destructive' : 'default',
     });
     if (reason) statusMutation.mutate({ action, reason });
@@ -394,6 +405,38 @@ export function CustomerHeader({ profile }: { profile: CustomerProfile }): React
   });
   const shownPhone = revealed?.phone ?? profile.phone;
   const shownEmail = revealed ? revealed.email : profile.email;
+
+  const revokeSessionsMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const res = await api.post<{
+        success: boolean;
+        data: { revokedRefreshSessions: number; sessionVersion: number };
+      }>(`/api/v1/admin/customers/${profile.id}/revoke-sessions`, { reason });
+      return res.data.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-customer-profile', profile.id] });
+      queryClient.invalidateQueries({ queryKey: ['admin-customer-activity', profile.id] });
+      setStatusSuccess(
+        `Forced sign-out completed. ${data.revokedRefreshSessions} remembered sign-in${data.revokedRefreshSessions === 1 ? '' : 's'} removed and every older credential invalidated.`,
+      );
+    },
+  });
+
+  async function requestSessionRevocation(): Promise<void> {
+    setStatusSuccess('');
+    const reason = await requestReason({
+      title: `Force ${profile.fullName} to sign in again?`,
+      description: 'This immediately invalidates every current access and refresh credential on all devices. It does not suspend the account or change any booking, dispute, payment, or wallet record.',
+      confirmLabel: 'Force sign-out',
+      reasonLabel: 'Security or support reason',
+      placeholder: 'Record the support case, security concern, or customer request.',
+      minLength: 10,
+      maxLength: 1000,
+      tone: 'destructive',
+    });
+    if (reason) revokeSessionsMutation.mutate(reason);
+  }
 
   return (
     <Card className="p-5">
@@ -483,7 +526,7 @@ export function CustomerHeader({ profile }: { profile: CustomerProfile }): React
             <MessageSquare size={14} /> Create support case
           </Link>
           <Link
-            to={`/support-tickets?userId=${encodeURIComponent(profile.id)}&userRole=customer&userName=${encodeURIComponent(profile.fullName)}`}
+            to={`/support-tickets?relatedCustomerId=${encodeURIComponent(profile.id)}&userRole=customer&userName=${encodeURIComponent(profile.fullName)}`}
             className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--color-border)] bg-white px-4 text-sm font-semibold text-[var(--color-primary)]"
           >
             View support history
@@ -495,6 +538,50 @@ export function CustomerHeader({ profile }: { profile: CustomerProfile }): React
           )}
         </div>
       </div>
+
+      <div className="mt-5 grid gap-3 border-t border-[var(--color-border)] pt-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Open support</p>
+          <p className="mt-1 text-lg font-semibold text-[var(--color-text)]">{profile.openSupportCases ?? 0}</p>
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            {profile.urgentSupportCases ?? 0} urgent · {profile.unassignedSupportCases ?? 0} unassigned
+          </p>
+        </div>
+        <div className="sm:col-span-1 xl:col-span-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Support ownership</p>
+          <p className="mt-1 text-sm font-medium text-[var(--color-text)]">
+            {(profile.supportOwnerNames ?? []).length > 0
+              ? (profile.supportOwnerNames ?? []).join(', ')
+              : (profile.openSupportCases ?? 0) > 0
+                ? 'No owner assigned'
+                : 'No open support cases'}
+          </p>
+          <p className="text-xs text-[var(--color-text-secondary)]">Owners across this customer’s open cases</p>
+        </div>
+        <div className="flex items-start justify-between gap-3 sm:col-span-2 xl:col-span-1">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Remembered sign-ins</p>
+            <p className="mt-1 text-lg font-semibold text-[var(--color-text)]">{profile.activeRefreshSessions ?? 0}</p>
+            <p className="text-xs text-[var(--color-text-secondary)]">All registered devices</p>
+          </div>
+          {isSuperAdmin && (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={revokeSessionsMutation.isPending}
+              onClick={() => void requestSessionRevocation()}
+            >
+              Force sign-out
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {revokeSessionsMutation.isError && (
+        <p role="alert" className="mt-3 text-xs text-[var(--color-danger)]">
+          {getErrorMessage(revokeSessionsMutation.error)}
+        </p>
+      )}
 
       {showStatus && isSuperAdmin && (
         <div className="mt-4 p-4 border border-[var(--color-border)] rounded-lg bg-[var(--color-surface-hover)] space-y-3">
@@ -1025,11 +1112,12 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
 // ─── DisputesTab ──────────────────────────────────────────────────────────
 
 export function DisputesTab({ customerId }: { customerId: string }): React.ReactElement {
+  const [page, setPage] = useState(1);
   const q = useQuery({
-    queryKey: ['admin-customer-disputes', customerId],
+    queryKey: ['admin-customer-disputes', customerId, page],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: DisputesResult }>(
-        `/api/v1/admin/customers/${customerId}/disputes`,
+        `/api/v1/admin/customers/${customerId}/disputes?page=${page}&pageSize=20`,
       );
       return res.data.data;
     },
@@ -1064,8 +1152,8 @@ export function DisputesTab({ customerId }: { customerId: string }): React.React
           icon={<AlertTriangle size={16} />}
         />
         <KpiCard
-          title="Total disputes filed"
-          value={data.rows.length.toString()}
+          title="Linked disputes"
+          value={(data.total ?? data.rows.length).toString()}
           icon={<FileText size={16} />}
         />
         <KpiCard
@@ -1080,7 +1168,7 @@ export function DisputesTab({ customerId }: { customerId: string }): React.React
       </div>
 
       {data.rows.length === 0 ? (
-        <EmptyState title="No disputes filed by this customer." />
+        <EmptyState title="No disputes linked to this customer’s bookings." />
       ) : (
         <Card>
           <div className="overflow-x-auto">
@@ -1091,6 +1179,7 @@ export function DisputesTab({ customerId }: { customerId: string }): React.React
                   <th className="px-3 py-2 text-left">Type</th>
                   <th className="px-3 py-2 text-left">Status</th>
                   <th className="px-3 py-2 text-left">Resolution</th>
+                  <th className="px-3 py-2 text-left">Filed by</th>
                   <th className="px-3 py-2 text-right">Refund</th>
                   <th className="px-3 py-2 text-left">Filed</th>
                 </tr>
@@ -1132,6 +1221,10 @@ export function DisputesTab({ customerId }: { customerId: string }): React.React
                     <td className="px-3 py-2 text-[var(--color-text-secondary)]">
                       {d.resolutionType ?? '—'}
                     </td>
+                    <td className="px-3 py-2 text-xs">
+                      <span className="block font-medium text-[var(--color-text)]">{d.filedByName ?? 'Unknown user'}</span>
+                      <span className="capitalize text-[var(--color-text-secondary)]">{d.filedByRole ?? 'unknown role'}</span>
+                    </td>
                     <td className="px-3 py-2 text-right">{fmtCentavos(d.refundAmount)}</td>
                     <td className="px-3 py-2 text-xs text-[var(--color-text-secondary)]">
                       {fmtDate(d.createdAt)}
@@ -1142,6 +1235,15 @@ export function DisputesTab({ customerId }: { customerId: string }): React.React
             </table>
           </div>
         </Card>
+      )}
+      {(data.total ?? 0) > (data.pageSize ?? 20) && (
+        <Pagination
+          page={data.page ?? page}
+          totalPages={Math.ceil((data.total ?? 0) / (data.pageSize ?? 20))}
+          total={data.total ?? 0}
+          pageSize={data.pageSize ?? 20}
+          onPageChange={setPage}
+        />
       )}
     </div>
   );

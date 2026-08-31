@@ -392,8 +392,9 @@ describe('getCustomerPayments', () => {
 
 describe('getCustomerDisputes', () => {
   it('projects rows + reports no-flag for sparse history', async () => {
-    dbQueryMock.mockResolvedValueOnce(
-      rows([
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ count: '1' }]))
+      .mockResolvedValueOnce(rows([
         {
           id: 'd1',
           booking_id: 'b1',
@@ -403,10 +404,17 @@ describe('getCustomerDisputes', () => {
           status: 'resolved',
           resolution_type: 'partial_refund',
           refund_amount: 5000,
+          filed_by: CUSTOMER_ID,
+          filed_by_role: 'customer',
+          filed_by_name: 'Customer One',
           created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
         },
-      ]),
-    );
+      ]))
+      .mockResolvedValueOnce(rows([{
+        disputes_in_window: '1',
+        resolved_in_window: '1',
+        no_refund_in_window: '0',
+      }]));
     const out = await svc.getCustomerDisputes(CUSTOMER_ID);
     expect(out.rows[0].providerBusinessName).toBe('Acme');
     expect(out.rows[0].providerId).toBe('p1');
@@ -429,15 +437,25 @@ describe('getCustomerDisputes', () => {
       refund_amount: 0,
       created_at: new Date(now - offsetDays * 24 * 60 * 60 * 1000),
     });
-    dbQueryMock.mockResolvedValueOnce(
-      rows([
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ count: '5' }]))
+      .mockResolvedValueOnce(rows([
         recent(1, 'no_refund'),
         recent(3, 'no_refund'),
         recent(5, 'no_refund'),
         recent(7, 'no_refund'),
         recent(10, 'partial_refund'), // 1 customer-favorable
-      ]),
-    );
+      ].map((item) => ({
+        ...item,
+        filed_by: CUSTOMER_ID,
+        filed_by_role: 'customer',
+        filed_by_name: 'Customer One',
+      }))))
+      .mockResolvedValueOnce(rows([{
+        disputes_in_window: '5',
+        resolved_in_window: '5',
+        no_refund_in_window: '4',
+      }]));
     const out = await svc.getCustomerDisputes(CUSTOMER_ID);
     expect(out.fraudPattern.disputesInWindow).toBe(5);
     expect(out.fraudPattern.favorProviderRate).toBe(0.8);
@@ -448,8 +466,9 @@ describe('getCustomerDisputes', () => {
 
   it('does not flag when fewer than 5 recent disputes', async () => {
     const now = Date.now();
-    dbQueryMock.mockResolvedValueOnce(
-      rows([
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ count: '1' }]))
+      .mockResolvedValueOnce(rows([
         {
           id: 'd1',
           booking_id: 'b1',
@@ -458,16 +477,30 @@ describe('getCustomerDisputes', () => {
           status: 'resolved',
           resolution_type: 'no_refund',
           refund_amount: 0,
+          filed_by: CUSTOMER_ID,
+          filed_by_role: 'customer',
+          filed_by_name: 'Customer One',
           created_at: new Date(now - 1 * 24 * 60 * 60 * 1000),
         },
-      ]),
-    );
+      ]))
+      .mockResolvedValueOnce(rows([{
+        disputes_in_window: '1',
+        resolved_in_window: '1',
+        no_refund_in_window: '1',
+      }]));
     const out = await svc.getCustomerDisputes(CUSTOMER_ID);
     expect(out.fraudPattern.flagged).toBe(false);
   });
 
   it('returns null favor rate when no resolved disputes in window', async () => {
-    dbQueryMock.mockResolvedValueOnce(rows([]));
+    dbQueryMock
+      .mockResolvedValueOnce(rows([{ count: '0' }]))
+      .mockResolvedValueOnce(rows([]))
+      .mockResolvedValueOnce(rows([{
+        disputes_in_window: '0',
+        resolved_in_window: '0',
+        no_refund_in_window: '0',
+      }]));
     const out = await svc.getCustomerDisputes(CUSTOMER_ID);
     expect(out.fraudPattern.favorProviderRate).toBeNull();
     expect(out.fraudPattern.flagged).toBe(false);

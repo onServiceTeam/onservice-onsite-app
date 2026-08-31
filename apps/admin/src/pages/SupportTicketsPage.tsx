@@ -186,6 +186,8 @@ export default function SupportTicketsPage(): React.ReactElement {
   const searchFilter = (searchParams.get('search') ?? '').trim();
   const bookingFilter = searchParams.get('bookingId') ?? '';
   const userFilter = searchParams.get('userId') ?? '';
+  const relatedCustomerFilter = searchParams.get('relatedCustomerId') ?? '';
+  const relatedProviderFilter = searchParams.get('relatedProviderId') ?? '';
   const assignedAgentFilter = searchParams.get('assignedAgentId') ?? '';
   const assignedAgentName = searchParams.get('agentName') ?? 'Selected staff account';
   const [selectedOverride, setSelectedOverride] = useState('');
@@ -308,6 +310,8 @@ export default function SupportTicketsPage(): React.ReactElement {
       searchFilter,
       bookingFilter,
       userFilter,
+      relatedCustomerFilter,
+      relatedProviderFilter,
       assignedAgentFilter,
     ],
     queryFn: async () => {
@@ -320,6 +324,8 @@ export default function SupportTicketsPage(): React.ReactElement {
       if (searchFilter) params.set('search', searchFilter);
       if (bookingFilter) params.set('bookingId', bookingFilter);
       if (userFilter) params.set('userId', userFilter);
+      if (relatedCustomerFilter) params.set('relatedCustomerId', relatedCustomerFilter);
+      if (relatedProviderFilter) params.set('relatedProviderId', relatedProviderFilter);
       if (assignedAgentFilter) params.set('assignedAgentId', assignedAgentFilter);
       const res = await api.get(`/api/v1/support-tickets?${params}`);
       return res.data as { data: Ticket[]; meta: { total: number } };
@@ -1249,12 +1255,13 @@ export default function SupportTicketsPage(): React.ReactElement {
         </div>
       </div>
 
-      {(bookingFilter || userFilter) && (
+      {(bookingFilter || userFilter || relatedCustomerFilter || relatedProviderFilter) && (
         <div className="flex flex-col justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950 md:flex-row md:items-center">
           <div>
             <strong className="block">Linked-case view</strong>
             {userFilter && <span>Account: {newUserName}</span>}
-            {userFilter && bookingFilter && <span> · </span>}
+            {(relatedCustomerFilter || relatedProviderFilter) && <span>Related account: {newUserName}</span>}
+            {(userFilter || relatedCustomerFilter || relatedProviderFilter) && bookingFilter && <span> · </span>}
             {bookingFilter && <span>Booking: <span className="font-mono">{bookingFilter}</span></span>}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1280,6 +1287,8 @@ export default function SupportTicketsPage(): React.ReactElement {
                 params.delete('userId');
                 params.delete('userName');
                 params.delete('userRole');
+                params.delete('relatedCustomerId');
+                params.delete('relatedProviderId');
                 params.delete('bookingId');
                 params.delete('new');
                 params.delete('page');

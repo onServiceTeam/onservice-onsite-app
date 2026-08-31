@@ -17,8 +17,44 @@ import * as providerStaffService from '../services/provider-staff.service';
 import * as kycDocumentService from '../services/kyc-document.service';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { providerCertificationReviewSchema } from '../validators/provider.validators';
+import { ALL_BOOKING_STATUSES } from '../types/booking.types';
 
 const router = Router();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateUuidParam(name: string, label: string) {
+  return (req: AuthenticatedRequest, _res: Response, next: NextFunction): void => {
+    const value = req.params[name];
+    if (typeof value !== 'string' || !UUID_REGEX.test(value)) {
+      next(createAppError(`${label} must be a valid UUID.`, 400));
+      return;
+    }
+    next();
+  };
+}
+
+const validateProviderId = validateUuidParam('id', 'Provider ID');
+const validateReviewId = validateUuidParam('reviewId', 'Review ID');
+const validateNoteId = validateUuidParam('noteId', 'Note ID');
+const validateStaffId = validateUuidParam('staffId', 'Staff ID');
+const validateCertificationId = validateUuidParam('certId', 'Certification ID');
+
+function positiveIntegerQuery(
+  value: unknown,
+  name: string,
+  defaultValue: number,
+  maximum: number,
+): number {
+  if (value === undefined) return defaultValue;
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) {
+    throw createAppError(`${name} must be a positive integer.`, 400);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > maximum) {
+    throw createAppError(`${name} must be between 1 and ${maximum}.`, 400);
+  }
+  return parsed;
+}
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
@@ -37,6 +73,7 @@ function requireSuperAdmin(req: AuthenticatedRequest): void {
 router.get(
   '/:id/profile',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -57,6 +94,7 @@ router.get(
 router.post(
   '/:id/reveal-contact',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -71,9 +109,29 @@ router.post(
   },
 );
 
+router.post(
+  '/:id/revoke-sessions',
+  authMiddleware,
+  validateProviderId,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const data = await providerAdminService.revokeProviderSessions(
+        req.params.id as string,
+        String(req.body?.reason ?? ''),
+        req.user!.userId,
+      );
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.patch(
   '/:id/profile',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
@@ -95,12 +153,16 @@ router.patch(
 router.get(
   '/:id/jobs',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const page = Number(req.query.page ?? 1);
-      const pageSize = Number(req.query.pageSize ?? 20);
+      const page = positiveIntegerQuery(req.query.page, 'page', 1, 100_000);
+      const pageSize = positiveIntegerQuery(req.query.pageSize, 'pageSize', 20, 100);
       const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+      if (status && !ALL_BOOKING_STATUSES.includes(status as never)) {
+        throw createAppError('status must be a known booking status.', 400);
+      }
       const data = await providerAdminService.getProviderJobs((req.params.id as string), page, pageSize, status);
       res.json({ success: true, data });
     } catch (error) {
@@ -114,6 +176,7 @@ router.get(
 router.get(
   '/:id/financials',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -128,6 +191,7 @@ router.get(
 router.post(
   '/:id/wallet/adjust',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
@@ -150,13 +214,14 @@ router.post(
 router.get(
   '/:id/reviews',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
       // MED-N13 fix — accept pagination query params; service returns
       // { rows, total, page, pageSize } so admin UI can paginate.
-      const page = Math.max(1, Number(req.query.page ?? 1) || 1);
-      const pageSize = Math.max(1, Math.min(200, Number(req.query.pageSize ?? 50) || 50));
+      const page = positiveIntegerQuery(req.query.page, 'page', 1, 100_000);
+      const pageSize = positiveIntegerQuery(req.query.pageSize, 'pageSize', 50, 200);
       const data = await providerAdminService.getProviderReviews(
         req.params.id as string,
         page,
@@ -172,6 +237,8 @@ router.get(
 router.patch(
   '/:id/reviews/:reviewId/visibility',
   authMiddleware,
+  validateProviderId,
+  validateReviewId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -196,6 +263,8 @@ router.patch(
 router.patch(
   '/:id/reviews/:reviewId/response',
   authMiddleware,
+  validateProviderId,
+  validateReviewId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -222,12 +291,13 @@ router.patch(
 router.get(
   '/:id/disputes',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
       // MED-N13 fix — same pagination as /reviews above.
-      const page = Math.max(1, Number(req.query.page ?? 1) || 1);
-      const pageSize = Math.max(1, Math.min(200, Number(req.query.pageSize ?? 50) || 50));
+      const page = positiveIntegerQuery(req.query.page, 'page', 1, 100_000);
+      const pageSize = positiveIntegerQuery(req.query.pageSize, 'pageSize', 50, 200);
       const data = await providerAdminService.getProviderDisputes(
         req.params.id as string,
         page,
@@ -245,10 +315,11 @@ router.get(
 router.get(
   '/:id/activity',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const limit = Number(req.query.limit ?? 50);
+      const limit = positiveIntegerQuery(req.query.limit, 'limit', 50, 200);
       // Forward the authorized operations role so super_admin receives the
       // intended forensic view while plain admin remains masked. DPO is
       // rejected by requireAdmin above and is never upgraded here.
@@ -268,6 +339,7 @@ router.get(
 router.get(
   '/:id/notes',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -282,6 +354,7 @@ router.get(
 router.post(
   '/:id/notes',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -303,16 +376,20 @@ router.post(
 router.patch(
   '/:id/notes/:noteId',
   authMiddleware,
+  validateProviderId,
+  validateNoteId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
       const { body, category, pinned } = req.body ?? {};
       const isSuperAdmin = req.user!.role === 'super_admin';
-      await providerAdminService.updateProviderNote((req.params.noteId as string), req.user!.userId, isSuperAdmin, {
-        body,
-        category,
-        pinned,
-      });
+      await providerAdminService.updateProviderNote(
+        req.params.id as string,
+        req.params.noteId as string,
+        req.user!.userId,
+        isSuperAdmin,
+        { body, category, pinned },
+      );
       res.json({ success: true });
     } catch (error) {
       next(error);
@@ -323,12 +400,15 @@ router.patch(
 router.delete(
   '/:id/notes/:noteId',
   authMiddleware,
+  validateProviderId,
+  validateNoteId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
       const isSuperAdmin = req.user!.role === 'super_admin';
       const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
       await providerAdminService.deleteProviderNote(
+        req.params.id as string,
         (req.params.noteId as string),
         req.user!.userId,
         isSuperAdmin,
@@ -361,10 +441,14 @@ async function loadStaffForProvider(
 router.get(
   '/:id/staff',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const data = await providerStaffService.listStaffWithPerformance(req.params.id as string);
+      const data = await providerStaffService.listStaffWithPerformance(
+        req.params.id as string,
+        req.user!.role,
+      );
       res.json({ success: true, data });
     } catch (error) {
       next(error);
@@ -375,6 +459,8 @@ router.get(
 router.post(
   '/:id/staff/:staffId/review',
   authMiddleware,
+  validateProviderId,
+  validateStaffId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -389,7 +475,10 @@ router.post(
         decision,
         reason: typeof req.body?.reason === 'string' ? req.body.reason : undefined,
       });
-      res.json({ success: true, data: providerStaffService.formatProviderStaff(updated) });
+      res.json({
+        success: true,
+        data: providerStaffService.formatProviderStaffForAdmin(updated, req.user!.role),
+      });
     } catch (error) {
       next(error);
     }
@@ -399,6 +488,8 @@ router.post(
 router.post(
   '/:id/staff/:staffId/suspend',
   authMiddleware,
+  validateProviderId,
+  validateStaffId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -410,7 +501,10 @@ router.post(
         suspend,
         reason: typeof req.body?.reason === 'string' ? req.body.reason : undefined,
       });
-      res.json({ success: true, data: providerStaffService.formatProviderStaff(updated) });
+      res.json({
+        success: true,
+        data: providerStaffService.formatProviderStaffForAdmin(updated, req.user!.role),
+      });
     } catch (error) {
       next(error);
     }
@@ -424,6 +518,8 @@ router.post(
 router.post(
   '/:id/certifications/:certId/review',
   authMiddleware,
+  validateProviderId,
+  validateCertificationId,
   validationMiddleware(providerCertificationReviewSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
@@ -445,6 +541,8 @@ router.post(
 router.get(
   '/:id/certifications/:certId/document',
   authMiddleware,
+  validateProviderId,
+  validateCertificationId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -469,6 +567,7 @@ router.get(
 router.get(
   '/:id/kyc/:docType',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);

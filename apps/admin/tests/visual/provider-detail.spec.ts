@@ -1,8 +1,8 @@
 // Phase 14 Remediation #4 — visual baseline spec for ProviderDetailPage
 // Page: apps/admin/src/pages/ProviderDetailPage.tsx
 //
-// Captures 5 states (loading, missing, error, success, certification review) at 3 viewport
-// widths (1280, 1440, 1920). Operator runs
+// Captures core record states at desktop widths plus operations, notes, and staff
+// workspaces at tablet widths. Operator runs
 //   pnpm exec playwright test tests/visual/provider-detail.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
@@ -78,6 +78,43 @@ test.describe('ProviderDetailPage', () => {
         await page.goto(ROUTE);
         await expect(page.getByRole('alert')).toContainText('Provider service unavailable.', { timeout: 15_000 });
         await expect(page).toHaveScreenshot(`provider-detail-error-${width}.png`, {
+          fullPage: true,
+          maxDiffPixelRatio: 0.001,
+        });
+      });
+    });
+  }
+
+  for (const width of [820, 1024]) {
+    test.describe(`tablet @${width}`, () => {
+      test.use({ viewport: { width, height: 900 } });
+
+      test('tablet operations workspace', async ({ page }) => {
+        await page.goto(ROUTE);
+        await expect(page.getByRole('heading', { name: 'Cebu Home Care' })).toBeVisible();
+        await expect(page.getByText('Mia Support')).toBeVisible();
+        await expect(page).toHaveScreenshot(`provider-detail-tablet-${width}.png`, {
+          fullPage: true,
+          maxDiffPixelRatio: 0.001,
+        });
+      });
+
+      test('tablet internal notes', async ({ page }) => {
+        await page.goto(ROUTE);
+        await page.getByRole('tab', { name: 'Notes' }).click();
+        await expect(page.getByText('Customer callback completed. Evidence review remains open.')).toBeVisible();
+        await expect(page).toHaveScreenshot(`provider-detail-notes-tablet-${width}.png`, {
+          fullPage: true,
+          maxDiffPixelRatio: 0.001,
+        });
+      });
+
+      test('tablet provider team privacy and review state', async ({ page }) => {
+        await page.goto(ROUTE);
+        await page.getByRole('tab', { name: 'Staff' }).click();
+        await expect(page.getByText('Joel Santos')).toBeVisible();
+        await expect(page.getByText('Invite contact masked').first()).toBeVisible();
+        await expect(page).toHaveScreenshot(`provider-detail-staff-tablet-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.001,
         });

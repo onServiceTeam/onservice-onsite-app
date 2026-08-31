@@ -43,6 +43,11 @@ export interface CustomerProfile {
   openDisputes: number;
   averageRatingGiven: number | null;
   totalReviewsGiven: number;
+  activeRefreshSessions: number;
+  openSupportCases: number;
+  urgentSupportCases: number;
+  unassignedSupportCases: number;
+  supportOwnerNames: string[];
   addresses: {
     id: string;
     label: string;
@@ -117,11 +122,17 @@ export interface CustomerDispute {
   status: string;
   resolutionType: string | null;
   refundAmount: number;
+  filedById: string;
+  filedByRole: string;
+  filedByName: string;
   createdAt: string;
 }
 
 export interface CustomerDisputesResult {
   rows: CustomerDispute[];
+  total: number;
+  page: number;
+  pageSize: number;
   fraudPattern: {
     disputesInWindow: number;
     windowDays: number;
@@ -208,13 +219,45 @@ export async function getCustomerProfile(
     is_verified: boolean;
     is_active: boolean;
     is_flagged_fraud: boolean;
+    active_refresh_sessions: string;
+    open_support_cases: string;
+    urgent_support_cases: string;
+    unassigned_support_cases: string;
+    support_owner_names: string[] | null;
     last_login_at: Date | null;
     created_at: Date;
   }>(
-    `SELECT id, first_name, last_name, phone, email, avatar_url,
-            is_verified, is_active, is_flagged_fraud, last_login_at, created_at
-       FROM users
-      WHERE id = $1 AND role = 'customer'`,
+    `SELECT u.id, u.first_name, u.last_name, u.phone, u.email, u.avatar_url,
+            u.is_verified, u.is_active, u.is_flagged_fraud, u.last_login_at, u.created_at,
+            (SELECT COUNT(*)::text FROM refresh_tokens rt WHERE rt.user_id = u.id) AS active_refresh_sessions,
+            (SELECT COUNT(*)::text
+               FROM support_tickets st
+               LEFT JOIN bookings support_booking ON support_booking.id = st.booking_id
+              WHERE (st.user_id = u.id OR support_booking.customer_id = u.id)
+                AND st.status NOT IN ('resolved', 'closed')) AS open_support_cases,
+            (SELECT COUNT(*)::text
+               FROM support_tickets st
+               LEFT JOIN bookings support_booking ON support_booking.id = st.booking_id
+              WHERE (st.user_id = u.id OR support_booking.customer_id = u.id)
+                AND st.status NOT IN ('resolved', 'closed')
+                AND st.priority = 'urgent') AS urgent_support_cases,
+            (SELECT COUNT(*)::text
+               FROM support_tickets st
+               LEFT JOIN bookings support_booking ON support_booking.id = st.booking_id
+              WHERE (st.user_id = u.id OR support_booking.customer_id = u.id)
+                AND st.status NOT IN ('resolved', 'closed')
+                AND st.assigned_agent_id IS NULL) AS unassigned_support_cases,
+            ARRAY(
+              SELECT DISTINCT NULLIF(CONCAT_WS(' ', owner.first_name, owner.last_name), '')
+                FROM support_tickets st
+                LEFT JOIN bookings support_booking ON support_booking.id = st.booking_id
+                JOIN users owner ON owner.id = st.assigned_agent_id
+               WHERE (st.user_id = u.id OR support_booking.customer_id = u.id)
+                 AND st.status NOT IN ('resolved', 'closed')
+               ORDER BY NULLIF(CONCAT_WS(' ', owner.first_name, owner.last_name), '')
+            ) AS support_owner_names
+       FROM users u
+      WHERE u.id = $1 AND u.role = 'customer'`,
     [customerId],
   );
   const u = userResult.rows[0];
@@ -314,6 +357,11 @@ export async function getCustomerProfile(
     openDisputes: Number(s?.open_disputes ?? 0),
     averageRatingGiven: s?.avg_rating ? Number(s.avg_rating) : null,
     totalReviewsGiven: Number(s?.total_reviews ?? 0),
+    activeRefreshSessions: Number(u.active_refresh_sessions ?? 0),
+    openSupportCases: Number(u.open_support_cases ?? 0),
+    urgentSupportCases: Number(u.urgent_support_cases ?? 0),
+    unassignedSupportCases: Number(u.unassigned_support_cases ?? 0),
+    supportOwnerNames: (u.support_owner_names ?? []).filter(Boolean),
     addresses: addresses.rows.map((r) => ({
       id: r.id,
       label: r.label,
@@ -532,7 +580,23 @@ export async function getCustomerPayments(customerId: string): Promise<CustomerP
 // Disputes (with fraud-pattern detection)
 // ─────────────────────────────────────────────────────────────────
 
-export async function getCustomerDisputes(customerId: string): Promise<CustomerDisputesResult> {
+export async function getCustomerDisputes(
+  customerId: string,
+  page = 1,
+  pageSize = 20,
+): Promise<CustomerDisputesResult> {
+  const safePage = Math.max(1, Math.floor(page) || 1);
+  const safePageSize = Math.max(1, Math.min(100, Math.floor(pageSize) || 20));
+  const offset = (safePage - 1) * safePageSize;
+
+  const countResult = await db.query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count
+       FROM disputes d
+       JOIN bookings b ON b.id = d.booking_id
+      WHERE b.customer_id = $1`,
+    [customerId],
+  );
+
   const result = await db.query<{
     id: string;
     booking_id: string;
@@ -542,20 +606,32 @@ export async function getCustomerDisputes(customerId: string): Promise<CustomerD
     status: string;
     resolution_type: string | null;
     refund_amount: number | null;
+    filed_by: string;
+    filed_by_role: string;
+    filed_by_name: string;
     created_at: Date;
   }>(
     `SELECT d.id, d.booking_id, b.provider_id,
             p.business_name,
             d.type, d.status, d.resolution_type,
             COALESCE(d.refund_amount, 0) AS refund_amount,
+            d.filed_by,
+            filer.role AS filed_by_role,
+            COALESCE(
+              NULLIF(CONCAT_WS(' ', filer.first_name, filer.last_name), ''),
+              filer_provider.business_name,
+              'Unknown user'
+            ) AS filed_by_name,
             d.created_at
        FROM disputes d
        JOIN bookings b ON b.id = d.booking_id
+       JOIN users filer ON filer.id = d.filed_by
+       LEFT JOIN providers filer_provider ON filer_provider.user_id = filer.id
        LEFT JOIN providers p ON p.id = b.provider_id
-      WHERE d.filed_by = $1
+      WHERE b.customer_id = $1
       ORDER BY d.created_at DESC
-      LIMIT 200`,
-    [customerId],
+      LIMIT $2 OFFSET $3`,
+    [customerId, safePageSize, offset],
   );
 
   const rows = result.rows.map<CustomerDispute>((r) => ({
@@ -567,6 +643,9 @@ export async function getCustomerDisputes(customerId: string): Promise<CustomerD
     status: r.status,
     resolutionType: r.resolution_type,
     refundAmount: Number(r.refund_amount ?? 0),
+    filedById: r.filed_by,
+    filedByRole: r.filed_by_role,
+    filedByName: r.filed_by_name,
     createdAt: r.created_at.toISOString(),
   }));
 
@@ -593,30 +672,46 @@ export async function getCustomerDisputes(customerId: string): Promise<CustomerD
     });
   }
 
-  const now = Date.now();
-  const cutoff = now - windowDays * 24 * 60 * 60 * 1000;
-  const recent = rows.filter((r) => new Date(r.createdAt).getTime() >= cutoff);
-  const resolved = recent.filter((r) => r.status === 'resolved');
-  // A refund with a provider warning or suspension is customer relief caused
-  // by provider-side findings. Counting those outcomes as provider-favoring
-  // falsely marks legitimate complainants as fraud risks. Only a resolved
-  // no-refund outcome is unambiguously provider-favoring.
-  const favorProvider = resolved.filter((r) => r.resolutionType === 'no_refund').length;
-  const favorProviderRate = resolved.length > 0 ? favorProvider / resolved.length : null;
+  // Fraud review is deliberately narrower than the support list above. The
+  // list includes every case attached to the customer's bookings, including a
+  // provider-filed case. Fraud signals count only cases the customer filed.
+  const fraudResult = await db.query<{
+    disputes_in_window: string;
+    resolved_in_window: string;
+    no_refund_in_window: string;
+  }>(
+    `SELECT COUNT(*)::text AS disputes_in_window,
+            COUNT(*) FILTER (WHERE d.status = 'resolved')::text AS resolved_in_window,
+            COUNT(*) FILTER (
+              WHERE d.status = 'resolved' AND d.resolution_type = 'no_refund'
+            )::text AS no_refund_in_window
+       FROM disputes d
+      WHERE d.filed_by = $1
+        AND d.created_at >= NOW() - ($2::integer * INTERVAL '1 day')`,
+    [customerId, windowDays],
+  );
+  const fraud = fraudResult.rows[0];
+  const disputesInWindow = Number(fraud?.disputes_in_window ?? 0);
+  const resolvedInWindow = Number(fraud?.resolved_in_window ?? 0);
+  const noRefundInWindow = Number(fraud?.no_refund_in_window ?? 0);
+  const favorProviderRate = resolvedInWindow > 0 ? noRefundInWindow / resolvedInWindow : null;
   const flagged =
-    recent.length >= countThreshold &&
+    disputesInWindow >= countThreshold &&
     favorProviderRate !== null &&
     favorProviderRate >= favorRateThreshold;
   let reason: string | null = null;
   if (flagged) {
     const pct = Math.round((favorProviderRate ?? 0) * 100);
-    reason = `Filed ${recent.length} disputes in ${windowDays} days; ${pct}% of resolved cases ended with no refund — possible fraudulent pattern.`;
+    reason = `Filed ${disputesInWindow} disputes in ${windowDays} days; ${pct}% of resolved cases ended with no refund — possible fraudulent pattern.`;
   }
 
   return {
     rows,
+    total: Number(countResult.rows[0]?.count ?? 0),
+    page: safePage,
+    pageSize: safePageSize,
     fraudPattern: {
-      disputesInWindow: recent.length,
+      disputesInWindow,
       windowDays,
       favorProviderRate,
       flagged,
@@ -819,7 +914,7 @@ export async function getCustomerActivity(
               a.action_type, a.reason, a.details, a.created_at
          FROM admin_actions a
          LEFT JOIN users u ON u.id = a.admin_id
-        WHERE a.target_type = 'customer' AND a.target_id = $1
+        WHERE a.target_id = $1 AND a.target_type IN ('customer', 'user')
         ORDER BY a.created_at DESC
         LIMIT $2`,
       [customerId, safeLimit],
@@ -942,11 +1037,24 @@ export async function updateCustomerStatus(
       actionType = 'customer_flagged_fraud';
     }
 
-    if (action !== 'flag_fraud') {
-      await client.query(`UPDATE users SET is_active = $1, updated_at = NOW() WHERE id = $2`, [
-        newIsActive,
-        customerId,
-      ]);
+    if (action === 'suspend') {
+      // A simple is_active flip blocks requests only while the account stays
+      // suspended. Without a generation bump, an old access token becomes
+      // valid again after reactivation. Incrementing session_version makes the
+      // suspension a durable all-credential revocation.
+      await client.query(
+        `UPDATE users
+            SET is_active = FALSE,
+                session_version = session_version + 1,
+                updated_at = NOW()
+          WHERE id = $1`,
+        [customerId],
+      );
+    } else if (action === 'reactivate') {
+      await client.query(
+        `UPDATE users SET is_active = TRUE, updated_at = NOW() WHERE id = $1`,
+        [customerId],
+      );
     }
 
     let revokedSessionCount = 0;
@@ -981,6 +1089,7 @@ export async function updateCustomerStatus(
           previousFraudFlag: user.is_flagged_fraud,
           nextFraudFlag: action === 'flag_fraud' ? true : user.is_flagged_fraud,
           revokedSessionCount,
+          allAccessCredentialsInvalidated: action === 'suspend',
         }),
         trimmed,
       ],
@@ -1011,6 +1120,48 @@ export async function updateCustomerStatus(
     });
 
     return { isActive: newIsActive };
+  });
+}
+
+export async function revokeCustomerSessions(
+  customerId: string,
+  reason: string,
+  adminUserId: string,
+): Promise<{ revokedRefreshSessions: number; sessionVersion: number }> {
+  const trimmedReason = reason?.trim();
+  if (!trimmedReason || trimmedReason.length < 10 || trimmedReason.length > 1000) {
+    throw createAppError('reason must be between 10 and 1000 characters.', 400);
+  }
+
+  return db.transaction(async (client) => {
+    const updated = await client.query<{ session_version: number | string }>(
+      `UPDATE users
+          SET session_version = session_version + 1,
+              updated_at = NOW()
+        WHERE id = $1 AND role = 'customer'
+        RETURNING session_version`,
+      [customerId],
+    );
+    if (!updated.rows[0]) throw createAppError('Customer not found.', 404);
+
+    const revoked = await client.query(`DELETE FROM refresh_tokens WHERE user_id = $1`, [customerId]);
+    const revokedRefreshSessions = revoked.rowCount ?? 0;
+    const sessionVersion = Number(updated.rows[0].session_version);
+
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'user_force_logout', 'user', $2, $3::jsonb, $4, $5)`,
+      [
+        adminUserId,
+        customerId,
+        JSON.stringify({ accountType: 'customer', revokedRefreshSessions, sessionVersion }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
+      ],
+    );
+
+    return { revokedRefreshSessions, sessionVersion };
   });
 }
 

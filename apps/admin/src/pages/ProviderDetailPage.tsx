@@ -74,6 +74,12 @@ export interface ProviderProfile {
   longitude: number | null;
   createdAt: string;
   updatedAt: string;
+  activeRefreshSessions?: number;
+  openSupportCases?: number;
+  urgentSupportCases?: number;
+  unassignedSupportCases?: number;
+  supportOwnerNames?: string[];
+  pendingServiceAreaChanges?: number;
   user: {
     id: string;
     fullName: string;
@@ -323,7 +329,7 @@ export default function ProviderDetailPage(): React.ReactElement {
   const p = profile.data;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <Link
         to="/providers"
         className="inline-flex items-center gap-1 text-sm text-[var(--color-secondary)] hover:underline"
@@ -334,16 +340,16 @@ export default function ProviderDetailPage(): React.ReactElement {
       <ProviderHeader profile={p} />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)}>
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="certifications">Certifications</TabsTrigger>
-          <TabsTrigger value="jobs">Jobs</TabsTrigger>
-          <TabsTrigger value="financials">Financials</TabsTrigger>
-          <TabsTrigger value="reviews">Reviews</TabsTrigger>
-          <TabsTrigger value="staff">Staff</TabsTrigger>
-          <TabsTrigger value="disputes">Disputes</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="notes">Notes</TabsTrigger>
+        <TabsList className="flex h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto rounded-xl p-1">
+          <TabsTrigger className="min-h-11 shrink-0" value="profile">Profile</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="certifications">Certifications</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="jobs">Jobs</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="financials">Financials</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="reviews">Reviews</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="staff">Staff</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="disputes">Disputes</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="activity">Activity</TabsTrigger>
+          <TabsTrigger className="min-h-11 shrink-0" value="notes">Notes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -380,7 +386,7 @@ export default function ProviderDetailPage(): React.ReactElement {
 
 // ─── Header ───────────────────────────────────────────────────────────────
 
-function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactElement {
+export function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactElement {
   // Phase L MED-L04 fix — guard against partial/missing user object
   // during initial render. Pre-fix profile.user.avatarUrl threw when
   // the user sub-object was still undefined from the API.
@@ -402,6 +408,91 @@ function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactE
   });
   const shownPhone = revealed?.phone ?? (('phone' in user ? (user as { phone?: string }).phone : '') || '—');
   const shownEmail = revealed ? revealed.email : (('email' in user) ? (user as { email?: string }).email : null);
+  const role = useAuthStore((state) => state.user?.role);
+  const isSuperAdmin = role === 'super_admin';
+  const queryClient = useQueryClient();
+  const { requestReason, reasonDialog } = useReasonDialog();
+  const [actionSuccess, setActionSuccess] = useState('');
+
+  const statusMutation = useMutation({
+    mutationFn: async ({ action, reason }: {
+      action: 'reject' | 'suspend' | 'reactivate';
+      reason: string;
+    }) => {
+      await api.put(`/api/v1/admin/providers/${profile.id}/${action}`, { reason });
+      return action;
+    },
+    onSuccess: (action) => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-profile', profile.id] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-activity', profile.id] });
+      setActionSuccess(
+        action === 'suspend'
+          ? 'Provider suspended. Every existing access and refresh credential is now invalid.'
+          : action === 'reactivate'
+            ? 'Provider reactivated. They must sign in again.'
+            : 'Provider application rejected and the decision was sent to the applicant.',
+      );
+    },
+  });
+
+  async function requestStatusAction(action: 'reject' | 'suspend' | 'reactivate'): Promise<void> {
+    setActionSuccess('');
+    const providerLabel = profile.businessName || user.fullName || 'this provider';
+    const reason = await requestReason({
+      title:
+        action === 'suspend'
+          ? `Suspend ${providerLabel}?`
+          : action === 'reactivate'
+            ? `Reactivate ${providerLabel}?`
+            : `Reject ${providerLabel}?`,
+      description:
+        action === 'suspend'
+          ? 'Suspension immediately invalidates every provider access and refresh credential. In-flight jobs are held for admin review; this action does not cancel a job, refund a customer, resolve a dispute, or release escrow. The provider receives the reason.'
+          : action === 'reactivate'
+            ? 'Reactivation restores provider workspace access but does not clear held jobs, change payments, or resolve disputes. The provider must sign in again and receives the reason.'
+            : 'Rejection closes this pending application and keeps the person’s customer account. It does not delete submitted records. The applicant receives the reason.',
+      confirmLabel:
+        action === 'suspend' ? 'Suspend provider' : action === 'reactivate' ? 'Reactivate provider' : 'Reject application',
+      reasonLabel: action === 'reactivate' ? 'Reactivation reason' : action === 'suspend' ? 'Suspension reason' : 'Rejection reason',
+      placeholder: 'Record the support case, evidence, checks completed, and decision basis.',
+      minLength: 10,
+      maxLength: 1000,
+      tone: action === 'reactivate' ? 'default' : 'destructive',
+    });
+    if (reason) statusMutation.mutate({ action, reason });
+  }
+
+  const revokeSessionsMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const res = await api.post<{
+        success: boolean;
+        data: { revokedRefreshSessions: number; sessionVersion: number };
+      }>(`/api/v1/admin/providers/${profile.id}/revoke-sessions`, { reason });
+      return res.data.data;
+    },
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-profile', profile.id] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-activity', profile.id] });
+      setActionSuccess(
+        `Forced sign-out completed. ${data.revokedRefreshSessions} remembered sign-in${data.revokedRefreshSessions === 1 ? '' : 's'} removed and every older credential invalidated.`,
+      );
+    },
+  });
+
+  async function requestSessionRevocation(): Promise<void> {
+    setActionSuccess('');
+    const reason = await requestReason({
+      title: `Force ${profile.businessName || user.fullName || 'this provider'} to sign in again?`,
+      description: 'This immediately invalidates every current access and refresh credential on all devices. It does not suspend the provider, hold a job, change a payment, or resolve a dispute.',
+      confirmLabel: 'Force sign-out',
+      reasonLabel: 'Security or support reason',
+      placeholder: 'Record the support case, security concern, or provider request.',
+      minLength: 10,
+      maxLength: 1000,
+      tone: 'destructive',
+    });
+    if (reason) revokeSessionsMutation.mutate(reason);
+  }
 
   return (
     <Card className="p-5 space-y-4">
@@ -475,14 +566,105 @@ function ProviderHeader({ profile }: { profile: ProviderProfile }): React.ReactE
           <MessageSquare size={14} /> Create support case
         </Link>
         <Link
-          to={`/support-tickets?userId=${encodeURIComponent(profile.userId)}&userRole=provider&userName=${encodeURIComponent(profile.businessName || user.fullName || 'Provider')}`}
+          to={`/support-tickets?relatedProviderId=${encodeURIComponent(profile.id)}&userRole=provider&userName=${encodeURIComponent(profile.businessName || user.fullName || 'Provider')}`}
           className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--color-border)] bg-white px-4 text-sm font-semibold text-[var(--color-primary)]"
         >
           View support history
         </Link>
+        {profile.status === 'approved' && (
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={statusMutation.isPending}
+            onClick={() => void requestStatusAction('suspend')}
+          >
+            Suspend provider
+          </Button>
+        )}
+        {profile.status === 'suspended' && (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={statusMutation.isPending}
+            onClick={() => void requestStatusAction('reactivate')}
+          >
+            Reactivate provider
+          </Button>
+        )}
+        {profile.status === 'pending' && (
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={statusMutation.isPending}
+            onClick={() => void requestStatusAction('reject')}
+          >
+            Reject application
+          </Button>
+        )}
       </div>
 
+      <div className="grid gap-3 border-t border-[var(--color-border)] pt-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Open support</p>
+          <p className="mt-1 text-lg font-semibold text-[var(--color-text)]">{profile.openSupportCases ?? 0}</p>
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            {profile.urgentSupportCases ?? 0} urgent · {profile.unassignedSupportCases ?? 0} unassigned
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Support ownership</p>
+          <p className="mt-1 text-sm font-medium text-[var(--color-text)]">
+            {(profile.supportOwnerNames ?? []).length > 0
+              ? (profile.supportOwnerNames ?? []).join(', ')
+              : (profile.openSupportCases ?? 0) > 0
+                ? 'No owner assigned'
+                : 'No open support cases'}
+          </p>
+          <p className="text-xs text-[var(--color-text-secondary)]">Across this provider’s open cases</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Area-change queue</p>
+          <p className="mt-1 text-lg font-semibold text-[var(--color-text)]">{profile.pendingServiceAreaChanges ?? 0}</p>
+          <Link
+            to={`/service-areas?providerId=${encodeURIComponent(profile.id)}`}
+            className="text-xs font-medium text-[var(--color-secondary)] hover:underline"
+          >
+            Review provider requests
+          </Link>
+        </div>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]">Remembered sign-ins</p>
+            <p className="mt-1 text-lg font-semibold text-[var(--color-text)]">{profile.activeRefreshSessions ?? 0}</p>
+            <p className="text-xs text-[var(--color-text-secondary)]">All registered devices</p>
+          </div>
+          {isSuperAdmin && (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={revokeSessionsMutation.isPending}
+              onClick={() => void requestSessionRevocation()}
+            >
+              Force sign-out
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {(statusMutation.isError || revokeSessionsMutation.isError) && (
+        <p role="alert" className="text-sm text-[var(--color-danger)]">
+          {getErrorMessage(statusMutation.error ?? revokeSessionsMutation.error)}
+        </p>
+      )}
+      {actionSuccess && <p role="status" className="text-sm text-[var(--color-success)]">{actionSuccess}</p>}
+
       {profile.status === 'pending' && <ApprovalPanel profile={profile} />}
+      {profile.status === 'rejected' && (
+        <p className="border-t border-[var(--color-border)] pt-4 text-sm text-[var(--color-text-secondary)]">
+          This application is closed. Keep support history and internal notes here; rejected applications cannot be reopened from this screen.
+        </p>
+      )}
+      {reasonDialog}
     </Card>
   );
 }
@@ -648,14 +830,27 @@ export function ProfileTab({ profile }: { profile: ProviderProfile }): React.Rea
       </Card>
 
       <Card className="p-4">
-        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Service Areas</h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-[var(--color-text)]">Service Areas</h3>
+          <Link
+            to={`/service-areas?providerId=${encodeURIComponent(profile.id)}`}
+            className="text-xs font-medium text-[var(--color-secondary)] hover:underline"
+          >
+            Open service-area operations
+          </Link>
+        </div>
+        {(profile.pendingServiceAreaChanges ?? 0) > 0 && (
+          <p className="mb-3 rounded-lg bg-[var(--color-warning)]/10 px-3 py-2 text-xs font-medium text-[var(--color-text)]">
+            {profile.pendingServiceAreaChanges} pending change request{profile.pendingServiceAreaChanges === 1 ? '' : 's'} needs review.
+          </p>
+        )}
         {(profile.serviceAreas ?? []).length === 0 ? (
           <p className="text-xs text-[var(--color-text-secondary)]">No service areas configured.</p>
         ) : (
           <ul className="space-y-1">
             {(profile.serviceAreas ?? []).map((a) => (
-              <li key={a.id} className="text-sm text-[var(--color-text)] flex justify-between">
-                <span>{a.name}</span>
+              <li key={a.id} className="text-sm text-[var(--color-text)] flex justify-between gap-3">
+                <Link to={`/service-areas?search=${encodeURIComponent(a.name)}`} className="hover:underline">{a.name}</Link>
                 {a.isPrimary && <Badge label="primary" variant="info" />}
               </li>
             ))}
@@ -1574,6 +1769,7 @@ interface StaffMember {
   status: 'invited' | 'pending_review' | 'approved' | 'rejected' | 'suspended' | 'deactivated';
   invitePhone: string | null;
   inviteEmail: string | null;
+  contactMasked: boolean;
   adminDecisionReason: string | null;
   isAssignable: boolean;
   createdAt: string;
@@ -1704,6 +1900,11 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
                 <div className="text-xs text-[var(--color-text-secondary)] mt-1 flex flex-wrap gap-3">
                   {s.invitePhone && <span className="inline-flex items-center gap-1"><Phone size={12} /> {s.invitePhone}</span>}
                   {s.inviteEmail && <span className="inline-flex items-center gap-1"><Mail size={12} /> {s.inviteEmail}</span>}
+                  {s.contactMasked && (s.invitePhone || s.inviteEmail) && (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                      Invite contact masked
+                    </span>
+                  )}
                   <span className="inline-flex items-center gap-1">
                     <Star size={12} /> {s.performance.averageRating.toFixed(2)} ({s.performance.totalReviews} reviews)
                   </span>
@@ -1814,6 +2015,10 @@ export function NotesTab({ providerId }: { providerId: string }): React.ReactEle
   const [pinned, setPinned] = useState(false);
   const [createError, setCreateError] = useState('');
   const [removeError, setRemoveError] = useState('');
+  const [noteActionError, setNoteActionError] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState('');
+  const [editCategory, setEditCategory] = useState<Note['category']>('general');
 
   const create = useMutation({
     mutationFn: async () => {
@@ -1833,7 +2038,27 @@ export function NotesTab({ providerId }: { providerId: string }): React.ReactEle
     mutationFn: async (n: Note) => {
       await api.patch(`/api/v1/admin/providers/${providerId}/notes/${n.id}`, { pinned: !n.pinned });
     },
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin-provider-notes', providerId] }),
+    onSuccess: () => {
+      setNoteActionError('');
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-notes', providerId] });
+    },
+    onError: (error) => setNoteActionError(getErrorMessage(error)),
+  });
+
+  const update = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/api/v1/admin/providers/${providerId}/notes/${editingId}`, {
+        body: editBody,
+        category: editCategory,
+      });
+    },
+    onSuccess: () => {
+      setEditingId(null);
+      setEditBody('');
+      setNoteActionError('');
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-notes', providerId] });
+    },
+    onError: (error) => setNoteActionError(getErrorMessage(error)),
   });
 
   const remove = useMutation({
@@ -1881,8 +2106,10 @@ export function NotesTab({ providerId }: { providerId: string }): React.ReactEle
           aria-label="Internal note"
           placeholder="Internal note (not visible to provider)…"
           value={body}
+          maxLength={5000}
           onChange={(e) => setBody(e.target.value)}
         />
+        <p className="mt-1 text-right text-xs text-[var(--color-text-tertiary)]">{body.length}/5000</p>
         <div className="flex items-center gap-3 mt-2 flex-wrap">
           <select aria-label="Note category" value={category} onChange={(e) => setCategory(e.target.value as typeof category)} className="px-3 py-2 border rounded text-sm">
             <option value="general">General</option>
@@ -1894,13 +2121,14 @@ export function NotesTab({ providerId }: { providerId: string }): React.ReactEle
             <Checkbox checked={pinned} onCheckedChange={(v) => setPinned(Boolean(v))} />
             Pin to top
           </label>
-          <Button size="sm" onClick={() => create.mutate()} disabled={create.isPending || !body.trim()}>
+          <Button size="sm" onClick={() => create.mutate()} disabled={create.isPending || !body.trim() || body.length > 5000}>
             Save Note
           </Button>
         </div>
       </Card>
 
       {removeError && <p role="alert" className="text-sm text-[var(--color-danger)]">{removeError}</p>}
+      {noteActionError && <p role="alert" className="text-sm text-[var(--color-danger)]">{noteActionError}</p>}
 
       {notes.length === 0 ? (
         <EmptyState title="No notes yet" description="Add the first internal note above." />
@@ -1917,10 +2145,65 @@ export function NotesTab({ providerId }: { providerId: string }): React.ReactEle
                     <span className="text-[var(--color-text-secondary)]">{n.authorName}</span>
                     <span className="text-[var(--color-text-secondary)]">{formatDate(n.createdAt)}</span>
                   </div>
-                  <p className="text-sm text-[var(--color-text)] mt-2 whitespace-pre-wrap">{n.body}</p>
+                  {editingId === n.id ? (
+                    <div className="mt-3 space-y-2">
+                      <Textarea
+                        aria-label={`Edit note by ${n.authorName}`}
+                        rows={4}
+                        maxLength={5000}
+                        value={editBody}
+                        onChange={(event) => setEditBody(event.target.value)}
+                      />
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <select
+                          aria-label="Edit note category"
+                          value={editCategory}
+                          onChange={(event) => setEditCategory(event.target.value as Note['category'])}
+                          className="min-h-11 rounded border border-[var(--color-border)] px-3 text-sm"
+                        >
+                          <option value="general">General</option>
+                          <option value="quality">Quality</option>
+                          <option value="financial">Financial</option>
+                          <option value="legal">Legal</option>
+                        </select>
+                        <span className="text-xs text-[var(--color-text-tertiary)]">{editBody.length}/5000</span>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => { setEditingId(null); setNoteActionError(''); }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={update.isPending || !editBody.trim()}
+                            onClick={() => update.mutate()}
+                          >
+                            Save changes
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[var(--color-text)] mt-2 whitespace-pre-wrap">{n.body}</p>
+                  )}
                 </div>
                 {canEdit && (
                   <div className="flex flex-col gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingId(n.id);
+                        setEditBody(n.body);
+                        setEditCategory(n.category);
+                        setNoteActionError('');
+                      }}
+                      disabled={update.isPending}
+                    >
+                      <Pencil size={12} /> Edit
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => togglePin.mutate(n)} disabled={togglePin.isPending}>
                       {n.pinned ? 'Unpin' : 'Pin'}
                     </Button>

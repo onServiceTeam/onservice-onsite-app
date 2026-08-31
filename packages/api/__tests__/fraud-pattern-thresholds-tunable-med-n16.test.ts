@@ -45,9 +45,12 @@ describe('fraud-pattern threshold settings', () => {
       .spyOn(settingsService, 'getSetting')
       .mockResolvedValue('0.50');
 
-    mockDbQuery.mockResolvedValueOnce({
-      rows: [disputeRow(1, true), disputeRow(2, true)],
-    });
+    mockDbQuery
+      .mockResolvedValueOnce({ rows: [{ count: '2' }] })
+      .mockResolvedValueOnce({ rows: [disputeRow(1, true), disputeRow(2, true)] })
+      .mockResolvedValueOnce({
+        rows: [{ disputes_in_window: '2', resolved_in_window: '2', no_refund_in_window: '2' }],
+      });
 
     const configured = await getCustomerDisputes('customer-1');
 
@@ -63,15 +66,20 @@ describe('fraud-pattern threshold settings', () => {
     });
 
     integerSetting.mockRejectedValue(new Error('settings unavailable'));
-    mockDbQuery.mockResolvedValueOnce({
-      rows: [
-        disputeRow(1, true),
-        disputeRow(2, true),
-        disputeRow(3, true),
-        disputeRow(4, true),
-        disputeRow(5, false),
-      ],
-    });
+    mockDbQuery
+      .mockResolvedValueOnce({ rows: [{ count: '5' }] })
+      .mockResolvedValueOnce({
+        rows: [
+          disputeRow(1, true),
+          disputeRow(2, true),
+          disputeRow(3, true),
+          disputeRow(4, true),
+          disputeRow(5, false),
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ disputes_in_window: '5', resolved_in_window: '5', no_refund_in_window: '4' }],
+      });
 
     const fallback = await getCustomerDisputes('customer-1');
 

@@ -62,4 +62,31 @@ test.describe('CustomerDetailPage', () => {
       });
     });
   }
+
+  for (const width of [820, 1024]) {
+    test.describe(`tablet @${width}`, () => {
+      test.use({ viewport: { width, height: 900 } });
+
+      test('tablet account workspace', async ({ page }) => {
+        await page.goto(ROUTE);
+        await expect(page.getByRole('heading', { name: 'Visual Baseline' })).toBeVisible();
+        await expect(page.getByText('Mia Support')).toBeVisible();
+        await expect(page).toHaveScreenshot(`customer-detail-tablet-${width}.png`, {
+          fullPage: true,
+          maxDiffPixelRatio: 0.001,
+        });
+      });
+
+      test('tablet linked disputes', async ({ page }) => {
+        await page.goto(ROUTE);
+        await page.getByRole('tab', { name: 'Disputes' }).click();
+        await expect(page.getByRole('link', { name: 'Open provider PV-0001' })).toBeVisible();
+        await expect(page.getByText('provider', { exact: true })).toBeVisible();
+        await expect(page).toHaveScreenshot(`customer-detail-disputes-tablet-${width}.png`, {
+          fullPage: true,
+          maxDiffPixelRatio: 0.001,
+        });
+      });
+    });
+  }
 });

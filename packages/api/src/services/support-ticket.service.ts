@@ -113,6 +113,8 @@ interface ListTicketsParams {
   search?: string;
   bookingId?: string;
   userId?: string;
+  relatedCustomerId?: string;
+  relatedProviderId?: string;
   unassigned?: boolean;
   active?: boolean;
 }
@@ -141,7 +143,10 @@ export interface SupportTicketStatusHistoryEntry {
 export async function listTickets(
   params: ListTicketsParams,
 ): Promise<{ tickets: SupportTicket[]; total: number }> {
-  const { page, limit, status, type, priority, assignedAgentId, search, bookingId, userId, unassigned, active } = params;
+  const {
+    page, limit, status, type, priority, assignedAgentId, search, bookingId,
+    userId, relatedCustomerId, relatedProviderId, unassigned, active,
+  } = params;
   const offset = (page - 1) * limit;
   const conditions: string[] = [];
   const values: unknown[] = [];
@@ -176,6 +181,39 @@ export async function listTickets(
   if (userId) {
     conditions.push(`st.user_id = $${idx++}`);
     values.push(userId);
+  }
+  if (relatedCustomerId) {
+    conditions.push(`(
+      st.user_id = $${idx}
+      OR EXISTS (
+        SELECT 1 FROM bookings linked_customer_booking
+         WHERE linked_customer_booking.id = st.booking_id
+           AND linked_customer_booking.customer_id = $${idx}
+      )
+    )`);
+    values.push(relatedCustomerId);
+    idx += 1;
+  }
+  if (relatedProviderId) {
+    conditions.push(`(
+      EXISTS (
+        SELECT 1 FROM providers linked_direct_provider
+         WHERE linked_direct_provider.id = $${idx}
+           AND linked_direct_provider.user_id = st.user_id
+      )
+      OR EXISTS (
+        SELECT 1 FROM provider_staff linked_provider_staff
+         WHERE linked_provider_staff.provider_id = $${idx}
+           AND linked_provider_staff.user_id = st.user_id
+      )
+      OR EXISTS (
+        SELECT 1 FROM bookings linked_provider_booking
+         WHERE linked_provider_booking.id = st.booking_id
+           AND linked_provider_booking.provider_id = $${idx}
+      )
+    )`);
+    values.push(relatedProviderId);
+    idx += 1;
   }
   if (search) {
     conditions.push(`(

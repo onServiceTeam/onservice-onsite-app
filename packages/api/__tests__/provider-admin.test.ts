@@ -504,24 +504,35 @@ describe('Notes CRUD', () => {
   });
 
   it('updateProviderNote rejects non-author non-super-admin (403)', async () => {
-    dbQueryMock.mockResolvedValueOnce(rows([{ author_id: 'someone-else' }]));
+    dbQueryMock.mockResolvedValueOnce(rows([{
+      author_id: 'someone-else', category: 'general', body: 'old body', pinned: false,
+    }]));
     await expect(
-      svc.updateProviderNote(NOTE_ID, ADMIN_ID, false, { body: 'new body' }),
+      svc.updateProviderNote(PROVIDER_ID, NOTE_ID, ADMIN_ID, false, { body: 'new body' }),
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 
   it('updateProviderNote allows super-admin override', async () => {
     dbQueryMock
-      .mockResolvedValueOnce(rows([{ author_id: 'someone-else' }]))
+      .mockResolvedValueOnce(rows([{
+        author_id: 'someone-else', category: 'general', body: 'old body', pinned: false,
+      }]))
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    await svc.updateProviderNote(NOTE_ID, ADMIN_ID, true, { body: 'new body', pinned: true });
-    expect(dbQueryMock).toHaveBeenCalledTimes(2);
+    await svc.updateProviderNote(
+      PROVIDER_ID,
+      NOTE_ID,
+      ADMIN_ID,
+      true,
+      { body: 'new body', pinned: true },
+    );
+    expect(dbQueryMock).toHaveBeenCalledTimes(3);
   });
 
   it('updateProviderNote 404 when note missing', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([]));
     await expect(
-      svc.updateProviderNote(NOTE_ID, ADMIN_ID, true, { body: 'x' }),
+      svc.updateProviderNote(PROVIDER_ID, NOTE_ID, ADMIN_ID, true, { body: 'x' }),
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
@@ -529,7 +540,7 @@ describe('Notes CRUD', () => {
     dbTransactionMock.mockImplementationOnce(
       async (cb: (client: { query: jest.Mock }) => unknown) => {
         const clientQuery = jest.fn(async (sql: string) => {
-          if (sql.includes('FROM provider_admin_notes WHERE id')) {
+          if (/FROM provider_admin_notes[\s\S]*WHERE id/.test(sql)) {
             return rows([
               { author_id: 'someone-else', provider_id: PROVIDER_ID, deleted_at: null },
             ]);
@@ -539,7 +550,9 @@ describe('Notes CRUD', () => {
         return cb({ query: clientQuery as unknown as jest.Mock });
       },
     );
-    await expect(svc.deleteProviderNote(NOTE_ID, ADMIN_ID, false)).rejects.toMatchObject({
+    await expect(
+      svc.deleteProviderNote(PROVIDER_ID, NOTE_ID, ADMIN_ID, false),
+    ).rejects.toMatchObject({
       statusCode: 403,
     });
   });
@@ -550,7 +563,7 @@ describe('Notes CRUD', () => {
       async (cb: (client: { query: jest.Mock }) => unknown) => {
         const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
           calls.push({ sql, params });
-          if (sql.includes('FROM provider_admin_notes WHERE id')) {
+          if (/FROM provider_admin_notes[\s\S]*WHERE id/.test(sql)) {
             return rows([{ author_id: ADMIN_ID, provider_id: PROVIDER_ID, deleted_at: null }]);
           }
           if (sql.startsWith('UPDATE provider_admin_notes')) {
@@ -564,7 +577,13 @@ describe('Notes CRUD', () => {
         return cb({ query: clientQuery as unknown as jest.Mock });
       },
     );
-    await svc.deleteProviderNote(NOTE_ID, ADMIN_ID, false, 'note no longer relevant');
+    await svc.deleteProviderNote(
+      PROVIDER_ID,
+      NOTE_ID,
+      ADMIN_ID,
+      false,
+      'note no longer relevant',
+    );
     // Soft delete (UPDATE), not hard DELETE.
     expect(calls.find((c) => /UPDATE provider_admin_notes/.test(c.sql))).toBeDefined();
     expect(calls.find((c) => /^DELETE FROM/.test(c.sql))).toBeUndefined();

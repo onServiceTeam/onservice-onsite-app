@@ -34,6 +34,8 @@ export const supportTicketListQuerySchema = z.object({
   search: z.string().trim().min(2).max(100).optional(),
   bookingId: z.string().uuid('Invalid booking ID').optional(),
   userId: z.string().uuid('Invalid user ID').optional(),
+  relatedCustomerId: z.string().uuid('Invalid related customer ID').optional(),
+  relatedProviderId: z.string().uuid('Invalid related provider ID').optional(),
 }).strict();
 
 export const mySupportTicketListQuerySchema = z.object({

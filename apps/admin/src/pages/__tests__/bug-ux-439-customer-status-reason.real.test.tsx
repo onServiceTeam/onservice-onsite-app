@@ -42,7 +42,7 @@ it('Bug UX-439 — customer suspension requires a reason and exposes the exact s
   fireEvent.click(screen.getByRole('button', { name: 'Suspend' }));
 
   expect(confirmSpy).not.toHaveBeenCalled();
-  expect(screen.getByText(/revokes stored refresh sessions/i)).toBeTruthy();
+  expect(screen.getByText(/immediately invalidates every issued access and refresh credential/i)).toBeTruthy();
   expect(screen.getByText(/does not cancel 3 active bookings, move wallet funds, or resolve 2 open disputes/i)).toBeTruthy();
   expect(screen.getByText(/audit reason stays internal/i)).toBeTruthy();
   const submit = screen.getByRole('button', { name: 'Suspend customer' });

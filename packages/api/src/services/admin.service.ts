@@ -418,6 +418,17 @@ export async function suspendProvider(providerId: string, adminId: string, reaso
     );
     if (result.rowCount === 0) throw createAppError('Provider not found or already suspended.', 404);
 
+    const ownerUserId = result.rows[0]!.user_id;
+    await client.query(
+      `UPDATE users
+          SET session_version = session_version + 1,
+              updated_at = NOW()
+        WHERE id = $1`,
+      [ownerUserId],
+    );
+    const revoked = await client.query(`DELETE FROM refresh_tokens WHERE user_id = $1`, [ownerUserId]);
+    const revokedSessionCount = revoked.rowCount ?? 0;
+
     const flagged = await client.query<{ id: string }>(
       `UPDATE bookings
           SET provider_suspended_during_booking_at = NOW(),
@@ -433,7 +444,17 @@ export async function suspendProvider(providerId: string, adminId: string, reaso
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
        VALUES ($1, 'provider_suspended', 'provider', $2, $3, $4)`,
-      [adminId, providerId, JSON.stringify({ action: 'suspended', inFlightBookingsFlagged: flaggedCount }), trimmedReason],
+      [
+        adminId,
+        providerId,
+        JSON.stringify({
+          action: 'suspended',
+          inFlightBookingsFlagged: flaggedCount,
+          revokedRefreshSessions: revokedSessionCount,
+          allAccessCredentialsInvalidated: true,
+        }),
+        trimmedReason,
+      ],
     );
 
     await client.query(
