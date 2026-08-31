@@ -413,6 +413,22 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
       );
     }
 
+    if (params.bookingType === 'fixed_price') {
+      await financialTermsService.appendPricingTermsInTransaction(client, {
+        bookingId: booking.id,
+        event: 'booking_priced',
+        sourceEventId: booking.id,
+        createdBy: params.customerId,
+        metadata: {
+          priceSource: contractId ? 'business_contract' : isHourly ? 'hourly_catalog' : 'catalog',
+          contractId,
+          pricingRuleId,
+          promoApplied: promoDiscountCents > 0,
+          addonsCount: resolvedAddons.length,
+        },
+      });
+    }
+
     return booking;
   });
 
@@ -1218,33 +1234,40 @@ export async function getBookingQuotes(bookingId: string): Promise<Record<string
 }
 
 export async function acceptQuote(bookingId: string, quoteId: string, customerId: string): Promise<Record<string, unknown>> {
-  const booking = await getBookingByIdAdmin(bookingId);
-  if (booking.customer_id !== customerId) {
-    throw createAppError('Not authorized.', 403);
-  }
-  if (booking.status !== 'quoted' && booking.status !== 'requested') {
-    throw createAppError('Booking is not in a state to accept quotes.', 409);
-  }
-
-  interface QuoteAcceptRow { id: string; provider_id: string; quoted_price: number }
-  const quoteResult = await db.query<QuoteAcceptRow>(
-    `SELECT id, provider_id, quoted_price FROM booking_quotes
-     WHERE id = $1 AND booking_id = $2 AND expires_at > NOW()`,
-    [quoteId, bookingId],
-  );
-  if (quoteResult.rows.length === 0) {
-    throw createAppError('Quote not found or expired.', 404);
-  }
-
-  const quote = quoteResult.rows[0]!;
-  const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
-    customerId, quote.provider_id, quote.quoted_price,
-  );
-  const discountedPrice = quote.quoted_price - discountAmount;
-  const serviceFee = await calculateServiceFee(discountedPrice);
-  const totalAmount = discountedPrice + serviceFee;
-
   return db.transaction(async (client) => {
+    const bookingResult = await client.query<BookingRow>(
+      `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
+      [bookingId],
+    );
+    const booking = bookingResult.rows[0];
+    if (!booking) throw createAppError('Booking not found.', 404);
+    if (booking.customer_id !== customerId) throw createAppError('Not authorized.', 403);
+    if (booking.status !== 'quoted' && booking.status !== 'requested') {
+      throw createAppError('Booking is not in a state to accept quotes.', 409);
+    }
+
+    interface QuoteAcceptRow { id: string; provider_id: string; quoted_price: number }
+    const quoteResult = await client.query<QuoteAcceptRow>(
+      `SELECT id, provider_id, quoted_price
+         FROM booking_quotes
+        WHERE id = $1
+          AND booking_id = $2
+          AND expires_at > NOW()
+          AND COALESCE(status, 'submitted') = 'submitted'
+          AND is_accepted = FALSE
+        FOR UPDATE`,
+      [quoteId, bookingId],
+    );
+    const quote = quoteResult.rows[0];
+    if (!quote) throw createAppError('Quote not found, expired, or already resolved.', 404);
+
+    const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
+      customerId, quote.provider_id, quote.quoted_price,
+    );
+    const discountedPrice = quote.quoted_price - discountAmount;
+    const serviceFee = await calculateServiceFee(discountedPrice);
+    const totalAmount = discountedPrice + serviceFee;
+
     await client.query(
       `UPDATE booking_quotes SET is_accepted = TRUE, status = 'accepted', updated_at = NOW()
        WHERE id = $1`,
@@ -1269,6 +1292,18 @@ export async function acceptQuote(bookingId: string, quoteId: string, customerId
        WHERE id = $1`,
       [bookingId, quote.provider_id, discountedPrice, serviceFee, totalAmount, discountAmount],
     );
+
+    await financialTermsService.appendPricingTermsInTransaction(client, {
+      bookingId,
+      event: 'quote_accepted',
+      sourceEventId: quoteId,
+      createdBy: customerId,
+      metadata: {
+        quoteId,
+        quotedPriceCentavos: quote.quoted_price,
+        sukiDiscountCentavos: discountAmount,
+      },
+    });
 
     logger.info('Quote accepted', {
       bookingId, quoteId, providerId: quote.provider_id,

@@ -11,6 +11,8 @@ export type PgClient = {
 };
 
 export type FinancialTermsEvent =
+  | 'booking_priced'
+  | 'quote_accepted'
   | 'wallet_payment_authorized'
   | 'external_payment_authorized'
   | 'recurring_payment_authorized'
@@ -892,11 +894,53 @@ export async function appendAuthorizationTermsInTransaction(
   const existing = await loadIdempotentTerms(client, input.bookingId, input.event, input.sourceEventId);
   if (existing) return existing;
   const previous = await loadLatestTerms(client, input.bookingId);
-  const settings = await loadSettings(client);
+  const amounts = assertBookingMoney(booking);
+
+  if (previous && (
+    previous.servicePriceCentavos !== amounts.servicePrice
+    || previous.serviceFeeAmountCentavos !== amounts.serviceFee
+    || previous.totalAmountCentavos !== amounts.totalAmount
+  )) {
+    throw createAppError(
+      'Booking amounts changed after pricing evidence was recorded. Payment authorization requires a reviewed pricing version.',
+      409,
+    );
+  }
+
+  const settings = previous
+    ? {
+      serviceFeeRateBasisPoints: previous.serviceFeeRateBasisPoints,
+      serviceFeeMinCentavos: previous.serviceFeeMinCentavos,
+      serviceFeeMaxCentavos: previous.serviceFeeMaxCentavos,
+      guaranteeFundRateBasisPoints: previous.guaranteeFundRateBasisPoints,
+      cancellationPolicy: previous.cancellationPolicy,
+      settingSources: previous.settingSources,
+    }
+    : await loadSettings(client);
   const fixedAt = await databaseNow(client);
 
-  let rate: Awaited<ReturnType<typeof resolveCommissionRate>> | null = null;
-  if (booking.provider_id) {
+  let rate: {
+    providerTier: string;
+    commissionSource: NonNullable<BookingFinancialTerms['commissionSource']>;
+    rateVersionId: string;
+    rateBasisPoints: number;
+  } | null = null;
+  if (
+    booking.provider_id
+    && previous?.termsState === 'final'
+    && previous.providerId === booking.provider_id
+    && previous.providerTier
+    && previous.commissionSource
+    && previous.commissionRateVersionId
+    && previous.commissionRateBasisPoints !== null
+  ) {
+    rate = {
+      providerTier: previous.providerTier,
+      commissionSource: previous.commissionSource,
+      rateVersionId: previous.commissionRateVersionId,
+      rateBasisPoints: previous.commissionRateBasisPoints,
+    };
+  } else if (booking.provider_id) {
     rate = await resolveCommissionRate(client, booking, booking.provider_id, fixedAt);
   }
 
@@ -913,7 +957,63 @@ export async function appendAuthorizationTermsInTransaction(
     commissionRateVersionId: rate?.rateVersionId ?? null,
     commissionRateBasisPoints: rate?.rateBasisPoints ?? null,
     ...settings,
-    ...(input.metadata ? { metadata: input.metadata } : {}),
+    metadata: {
+      ...(input.metadata ?? {}),
+      pricingEvidenceTermsId: previous?.id ?? null,
+      pricingEvidenceFallbackAtAuthorization: previous === null,
+    },
+  });
+}
+
+/**
+ * Records the customer-visible fee and cancellation inputs at the same
+ * transaction boundary that creates or accepts the price. A later payment
+ * authorization carries this evidence forward and never rereads newer fee
+ * settings for the already-priced booking.
+ */
+export async function appendPricingTermsInTransaction(
+  client: PgClient,
+  input: {
+    bookingId: string;
+    event: 'booking_priced' | 'quote_accepted';
+    sourceEventId: string;
+    createdBy: string;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<BookingFinancialTerms> {
+  const booking = await loadBookingForUpdate(client, input.bookingId);
+  const existing = await loadIdempotentTerms(client, input.bookingId, input.event, input.sourceEventId);
+  if (existing) return existing;
+  const previous = await loadLatestTerms(client, input.bookingId);
+  const settings = await loadSettings(client);
+  const amounts = assertBookingMoney(booking);
+  const reproducedFee = calculateServiceFeeFromTerms(amounts.servicePrice, settings);
+  if (reproducedFee !== amounts.serviceFee) {
+    throw createAppError(
+      'Financial settings changed while the price was being recorded. Refresh the price before continuing.',
+      409,
+    );
+  }
+
+  const fixedAt = await databaseNow(client);
+  const rate = booking.provider_id
+    ? await resolveCommissionRate(client, booking, booking.provider_id, fixedAt)
+    : null;
+
+  return insertTerms(client, {
+    booking,
+    previous,
+    event: input.event,
+    sourceEventId: input.sourceEventId,
+    createdBy: input.createdBy,
+    fixedAt,
+    providerId: booking.provider_id,
+    providerTier: rate?.providerTier ?? null,
+    commissionSource: rate?.commissionSource ?? null,
+    commissionRateVersionId: rate?.rateVersionId ?? null,
+    commissionRateBasisPoints: rate?.rateBasisPoints ?? null,
+    ...settings,
+    metadata: input.metadata ?? {},
   });
 }
 

@@ -115,6 +115,8 @@ CREATE TABLE booking_financial_terms (
     setting_sources JSONB NOT NULL DEFAULT '{}'::jsonb,
     fixed_by_event VARCHAR(40) NOT NULL
         CHECK (fixed_by_event IN (
+          'booking_priced',
+          'quote_accepted',
           'wallet_payment_authorized',
           'external_payment_authorized',
           'recurring_payment_authorized',

@@ -170,8 +170,12 @@ all typechecks, lint, API/admin production builds, Gate A, Gate C, and the Gate 
 smoke tests. Gates D and E are still repository-defined REPORT gates. The one
 Docker-only nginx check could not run because Docker Desktop was unavailable.
 
+Pre-payment pricing evidence is now fixed at fixed-price booking creation and
+accepted-quote boundaries. Payment authorization preserves those earlier fee,
+cancellation, guarantee, and commission inputs; it does not reread newer
+settings for the already-priced booking. Change orders continue from the latest
+immutable terms version.
+
 This approval does not authorize a blind production backfill. Production
 deployment remains blocked until all paid/held/unreleased legacy bookings can
-be inventoried and reviewed, and until pre-payment pricing evidence is fixed at
-the authoritative pricing boundary so a configuration change between quote
-and payment cannot alter the agreed inputs.
+be inventoried, reviewed, and reconciled.

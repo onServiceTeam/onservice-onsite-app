@@ -20,10 +20,13 @@
   excluding provider and booking exceptions.
 - Gives providers a redacted lead detail and quote path with the applicable
   booking commission preview.
+- Records fixed-price creation and accepted-quote pricing evidence inside the
+  same transaction as the booking change. Payment authorization carries that
+  evidence forward instead of rereading newer fee or cancellation settings.
 
 ## Verification completed
 
-- API: 656 suites passed, 1 suite skipped by its own config, 3,159 tests passed.
+- API: 661 suites passed, 1 suite skipped by its own config, 3,164 tests passed.
 - Admin: 244 files passed, 1 skipped, 336 tests passed, 3 existing todos.
 - Mobile: 501 suites passed, 880 tests passed, 84 existing todos.
 - API, admin, and mobile typechecks passed.
@@ -33,8 +36,8 @@
 - Gate A passed all 10 blocking fragments.
 - Gate C and all six gate smoke-test groups passed.
 - Gate D and Gate E exited successfully in their repository-defined REPORT mode.
-- All 151 migrations, including migration 162, previously applied successfully
-  to a disposable PostgreSQL 17 database with the repository's uuidv7 shim.
+- All 151 migrations, including the amended migration 162, applied successfully
+  to a fresh disposable PostgreSQL 17 database with the repository's uuidv7 shim.
 
 The Docker-only nginx certificate-revocation test was not executable because
 Docker Desktop's daemon was unavailable. This is an environment limitation,
@@ -42,16 +45,13 @@ not a passing result.
 
 ## Remaining money-path work before production
 
-1. Persist pre-payment pricing evidence when booking, quote, change-order, or
-   other authoritative pricing is accepted. Payment authorization must preserve
-   that evidence rather than reading whatever fee settings happen to be current.
-2. Inventory every production paid/held/unreleased booking.
-3. Review and approve each legacy booking's historical terms through the queue.
-4. Reconcile each record before release-path rollout.
-5. Add explicit operator adjustment, partial-refund, rate-reduction, and
+1. Inventory every production paid/held/unreleased booking.
+2. Review and approve each legacy booking's historical terms through the queue.
+3. Reconcile each record before release-path rollout.
+4. Add explicit operator adjustment, partial-refund, rate-reduction, and
    provider/customer exception workflows linked to Booking 360 and support cases.
-6. Re-audit the remaining source-regex tests and replace them with real behavior
+5. Re-audit the remaining source-regex tests and replace them with real behavior
    tests or honest todos.
 
-Do not merge or deploy this checkpoint until the first four items are satisfied
+Do not merge or deploy this checkpoint until the first three items are satisfied
 and the deployment runbook includes a rollback-safe migration sequence.
