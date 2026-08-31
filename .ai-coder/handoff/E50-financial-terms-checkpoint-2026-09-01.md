@@ -52,6 +52,12 @@
   executed behavior. Full-refund, partial-release, and provider-release
   failures now prove their exact durable retry payloads; the worker proves its
   bounded batch size and five-minute repeat registration.
+- Replaces the MED-N19, MED-N155, and MED-N160 source scans with executed
+  dispute and webhook behavior. Automatic no-show refunds now prove database
+  rollback when the ledger write fails; mounted dispute routes prove the
+  read-only ordinary-admin and mutating super-admin boundary; signed payment
+  amount mismatches prove exact alert metadata, best-effort alert failure
+  handling, completed idempotency state, and zero money movement.
 - Fixes OPS-299/OPS-300 in the provider payout handoff. The wallet facade now
   shares the canonical payout request schema, so account-holder name and notes
   are no longer stripped before payout creation. The responsive provider
@@ -60,7 +66,7 @@
 
 ## Verification completed
 
-- API: 675 suites passed, 1 suite skipped by its own config, 3,155 tests passed.
+- API: 675 suites passed, 1 suite skipped by its own config, 3,133 tests passed.
 - Admin: 248 files passed, 1 skipped, 340 tests passed, 3 existing todos.
 - Mobile: 502 suites passed, 881 tests passed, 84 existing todos.
 - API, admin, and mobile typechecks passed.

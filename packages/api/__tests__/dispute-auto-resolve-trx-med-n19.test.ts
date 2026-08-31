@@ -1,54 +1,191 @@
-// MED-N19 fix verified — auto-resolved dispute refund now runs
-// INSIDE the same transaction as the dispute/booking status flip.
-//
-// Pre-fix: inside the transaction, dispute=resolved + booking.escrow_status=
-// refunded. Then OUTSIDE the transaction, escrow refund executed. If the
-// refund failed, the dispute and booking were durably 'resolved' but no
-// money moved. Customer expected refund, didn't get it.
-//
-// Post-fix: refundFromEscrowInTransaction (the trx-aware variant)
-// reuses the same pg client, so any failure rolls back the whole
-// auto-resolution including the dispute INSERT and the booking
-// status flip.
+const dbQueryMock = jest.fn();
+const dbTransactionMock = jest.fn();
+const refundInTransactionMock = jest.fn();
+const legacyRefundMock = jest.fn();
+const emitAdminEventMock = jest.fn();
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+jest.mock('../src/models/db', () => ({
+  db: {
+    query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (...args: unknown[]) => dbTransactionMock(...args),
+  },
+}));
+jest.mock('../src/services/escrow.service', () => ({
+  refundFromEscrowInTransaction: (...args: unknown[]) => refundInTransactionMock(...args),
+  refundFromEscrow: (...args: unknown[]) => legacyRefundMock(...args),
+}));
+jest.mock('../src/services/socket.service', () => ({
+  ADMIN_EVENTS: { DISPUTE_FILED: 'dispute:filed' },
+  emitAdminEvent: (...args: unknown[]) => emitAdminEventMock(...args),
+}));
+jest.mock('../src/services/settings.service', () => ({
+  getSettingInteger: jest.fn(async () => 30),
+}));
+jest.mock('../src/services/gateway-retry.service', () => ({ enqueueRetry: jest.fn() }));
+jest.mock('../src/utils/logger', () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}));
 
-const SVC = readFileSync(
-  resolve(__dirname, '../src/services/dispute.service.ts'),
-  'utf8',
-);
+import { fileDispute } from '../src/services/dispute.service';
 
-describe('MED-N19 — dispute auto-resolution refund is transactional', () => {
-  it('attemptAutoResolution calls refundFromEscrowInTransaction (trx-aware variant)', () => {
-    expect(SVC).toMatch(/escrowService\.refundFromEscrowInTransaction\(/);
-    // Inside attemptAutoResolution function, anchored on the surrounding
-    // logic (UPDATE disputes ... auto_resolved = TRUE).
-    const block = SVC.match(/auto_resolved = TRUE[\s\S]{0,1500}refundFromEscrowInTransaction/);
-    expect(block).not.toBeNull();
+interface AutoResolutionState {
+  bookingStatus: string;
+  escrowStatus: string;
+  disputeExists: boolean;
+  disputeStatus: string | null;
+  refundMoved: boolean;
+}
+
+it('MED-N19 - a failed automatic no-show refund rolls back the dispute and booking resolution together', async () => {
+  const scheduledAt = new Date(Date.now() - 3 * 60 * 1000);
+  const completedAt = new Date(Date.now() - 60 * 1000);
+  const state: AutoResolutionState = {
+    bookingStatus: 'completed_by_provider',
+    escrowStatus: 'held',
+    disputeExists: false,
+    disputeStatus: null,
+    refundMoved: false,
+  };
+  let failRefund = false;
+  let activeTransactionClient: { query: jest.Mock } | null = null;
+
+  const disputeRow = () => ({
+    id: 'dispute-med-n19',
+    booking_id: 'booking-med-n19',
+    filed_by: 'customer-med-n19',
+    type: 'no_show',
+    description: 'The provider marked this job complete without doing the scheduled work.',
+    status: state.disputeStatus ?? 'open',
+    tier: 1,
+    assigned_to: null,
+    resolution_type: state.disputeStatus === 'resolved' ? 'full_refund' : null,
+    refund_amount: state.disputeStatus === 'resolved' ? '12000' : '0',
+    refund_percent: state.disputeStatus === 'resolved' ? '100' : null,
+    decision_notes: null,
+    internal_notes: null,
+    provider_response: null,
+    provider_responded_at: null,
+    auto_resolved: state.disputeStatus === 'resolved',
+    resolved_at: state.disputeStatus === 'resolved' ? new Date() : null,
+    resolved_by: null,
+    created_at: new Date(),
+    updated_at: new Date(),
   });
 
-  it('the refund call passes the same `client` the rest of the transaction uses', () => {
-    expect(SVC).toMatch(/refundFromEscrowInTransaction\(\s*client as unknown/);
+  dbQueryMock.mockImplementation(async (sql: string) => {
+    if (sql.includes('FROM bookings WHERE id')) {
+      return {
+        rows: [{
+          id: 'booking-med-n19',
+          customer_id: 'customer-med-n19',
+          provider_id: 'provider-med-n19',
+          status: state.bookingStatus,
+          escrow_status: state.escrowStatus,
+          total_amount: '12000',
+          scheduled_at: scheduledAt,
+          completed_at: completedAt,
+          confirmed_at: null,
+        }],
+        rowCount: 1,
+      };
+    }
+    if (sql.includes('COUNT(*)::text as count')) {
+      return { rows: [{ count: state.disputeExists ? '1' : '0' }], rowCount: 1 };
+    }
+    throw new Error(`Unexpected outer query: ${sql}`);
   });
 
-  it('the post-commit refund block is REMOVED', () => {
-    // The pre-fix code matched: `if (dispute.status === 'resolved' && dispute.auto_resolved && Number(dispute.refund_amount) > 0) { try { await escrowService.refundFromEscrow(...`
-    // After the fix that block is gone (or remains only as a comment).
-    expect(SVC).not.toMatch(/await escrowService\.refundFromEscrow\(bookingId, Number\(dispute\.refund_amount\)/);
+  dbTransactionMock.mockImplementation(async (
+    callback: (client: { query: jest.Mock }) => Promise<unknown>,
+  ) => {
+    const snapshot = { ...state };
+    const client = {
+      query: jest.fn(async (sql: string) => {
+        if (sql.includes('INSERT INTO disputes')) {
+          state.disputeExists = true;
+          state.disputeStatus = 'open';
+          return { rows: [disputeRow()], rowCount: 1 };
+        }
+        if (sql.includes("status = 'disputed'")) {
+          state.bookingStatus = 'disputed';
+          state.escrowStatus = 'held';
+          return { rows: [], rowCount: 1 };
+        }
+        if (sql.includes('SELECT scheduled_at, completed_at')) {
+          return { rows: [{ scheduled_at: scheduledAt, completed_at: completedAt }], rowCount: 1 };
+        }
+        if (sql.includes('UPDATE disputes SET')) {
+          state.disputeStatus = 'resolved';
+          return { rows: [], rowCount: 1 };
+        }
+        if (sql.includes("status = 'resolved', escrow_status = 'refunded'")) {
+          state.bookingStatus = 'resolved';
+          state.escrowStatus = 'refunded';
+          return { rows: [], rowCount: 1 };
+        }
+        if (sql.includes('SELECT * FROM disputes')) {
+          return { rows: [disputeRow()], rowCount: 1 };
+        }
+        throw new Error(`Unexpected transaction query: ${sql}`);
+      }),
+    };
+    activeTransactionClient = client;
+    try {
+      return await callback(client);
+    } catch (error) {
+      Object.assign(state, snapshot);
+      throw error;
+    }
   });
 
-  it('comment documents the MED-N19 fix rationale', () => {
-    expect(SVC).toMatch(/MED-N19 fix.*?refund/s);
+  refundInTransactionMock.mockImplementation(async (client: unknown) => {
+    expect(client).toBe(activeTransactionClient);
+    state.refundMoved = true;
+    if (failRefund) throw new Error('simulated refund ledger failure');
   });
 
-  it('no calls to the non-trx escrowService.refundFromEscrow remain in the dispute file flow', () => {
-    // refundFromEscrow (no In Transaction) should NOT appear at all
-    // within the fileDispute / attemptAutoResolution scope. The
-    // overall dispute.service.ts may use it elsewhere; we limit the
-    // assertion to the file-dispute block.
-    const fileDisputeBlock = SVC.match(/export async function fileDispute[\s\S]*?return dispute;\s*\}/);
-    expect(fileDisputeBlock).not.toBeNull();
-    expect(fileDisputeBlock![0]).not.toMatch(/refundFromEscrow\(bookingId,/);
+  const input = {
+    type: 'no_show' as const,
+    description: 'The provider marked this job complete without doing the scheduled work.',
+  };
+  const resolved = await fileDispute('booking-med-n19', 'customer-med-n19', input);
+
+  expect(resolved.status).toBe('resolved');
+  expect(state).toEqual({
+    bookingStatus: 'resolved',
+    escrowStatus: 'refunded',
+    disputeExists: true,
+    disputeStatus: 'resolved',
+    refundMoved: true,
   });
+  expect(refundInTransactionMock).toHaveBeenCalledWith(
+    expect.objectContaining({ query: expect.any(Function) }),
+    'booking-med-n19',
+    12000,
+    'Auto-resolved dispute refund',
+  );
+  expect(legacyRefundMock).not.toHaveBeenCalled();
+
+  Object.assign(state, {
+    bookingStatus: 'completed_by_provider',
+    escrowStatus: 'held',
+    disputeExists: false,
+    disputeStatus: null,
+    refundMoved: false,
+  });
+  failRefund = true;
+  emitAdminEventMock.mockClear();
+
+  await expect(
+    fileDispute('booking-med-n19', 'customer-med-n19', input),
+  ).rejects.toThrow('simulated refund ledger failure');
+  expect(state).toEqual({
+    bookingStatus: 'completed_by_provider',
+    escrowStatus: 'held',
+    disputeExists: false,
+    disputeStatus: null,
+    refundMoved: false,
+  });
+  expect(emitAdminEventMock).not.toHaveBeenCalled();
+  expect(legacyRefundMock).not.toHaveBeenCalled();
 });
