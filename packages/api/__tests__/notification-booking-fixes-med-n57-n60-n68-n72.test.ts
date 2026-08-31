@@ -1,4 +1,4 @@
-// MED-N57 / MED-N60 / MED-N68 / MED-N72 fixes verified.
+// MED-N57 / MED-N60 / MED-N72 fixes verified.
 // Service-level behavior tests for the post-fix shapes.
 
 const dbQueryMock = jest.fn();
@@ -29,7 +29,6 @@ beforeEach(() => {
     });
   });
 });
-
 describe('MED-N60 — createNotification preserves caller-supplied data keys', () => {
   it("MED-N60 — caller's data.type is preserved (not silently overwritten)", async () => {
     dbQueryMock.mockResolvedValueOnce({
@@ -166,67 +165,3 @@ describe('MED-N57 — enqueuePushRetry inserts a pending row on push delivery fa
   });
 });
 
-// MED-N68 is a structural fix on booking.service.transitionBookingStatus.
-// The full statement-by-statement behavior is hard to drive without a
-// real DB; assert the post-fix shape via source-content scan (same
-// approach as the booking-confirmation-tx test for CRIT-N10 already in
-// master).
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
-
-const BOOKING_SERVICE = readFileSync(
-  resolve(__dirname, '../src/services/booking.service.ts'),
-  'utf8',
-);
-
-describe('MED-N68 — provider cancellation tracking runs inside the parent transaction without double-counting', () => {
-  it('MED-N68 — uses client.query (in-trx) not db.query', () => {
-    // Anchor on the unique comment marker we placed on the fix, and
-    // scope to the immediate `if (newStatus === 'cancelled_by_provider'
-    // && updated.provider_id) { ... }` block.
-    const anchor = BOOKING_SERVICE.indexOf('MED-N68 fix');
-    expect(anchor).toBeGreaterThan(0);
-    const ifStart = BOOKING_SERVICE.indexOf(
-      "if (newStatus === 'cancelled_by_provider' && updated.provider_id)",
-      anchor,
-    );
-    expect(ifStart).toBeGreaterThan(anchor);
-    // Find the matching closing brace by counting depth.
-    let depth = 0;
-    let cursor = BOOKING_SERVICE.indexOf('{', ifStart);
-    let blockEnd = cursor;
-    for (let i = cursor; i < BOOKING_SERVICE.length; i++) {
-      const ch = BOOKING_SERVICE[i];
-      if (ch === '{') depth++;
-      else if (ch === '}') {
-        depth--;
-        if (depth === 0) { blockEnd = i + 1; break; }
-      }
-    }
-    const block = BOOKING_SERVICE.slice(ifStart, blockEnd);
-
-    expect(block).toMatch(/await client\.query/);
-    expect(block).toMatch(/UPDATE providers/);
-    // Must NOT use bare db.query inside the fix block.
-    expect(block).not.toMatch(/\bdb\.query/);
-  });
-
-  it('MED-N68 — COUNT subquery does not add `+ 1` (just-cancelled row already visible in same trx)', () => {
-    const anchor = BOOKING_SERVICE.indexOf('MED-N68 fix');
-    const block = BOOKING_SERVICE.slice(anchor, anchor + 1800);
-
-    expect(block).toMatch(/cancellations_last_30d = \(/);
-    // The COUNT subquery must end with a `)` and `,` (closing the
-    // subquery + comma to next column) — NOT `) + 1,`.
-    expect(block).toMatch(/SELECT COUNT\(\*\) FROM bookings[\s\S]*?'30 days'\s*\n?\s*\)\s*,/);
-    // Defensive: explicitly assert no `+ 1` after the closing paren.
-    expect(block).not.toMatch(/'30 days'\s*\n?\s*\)\s*\+\s*1\s*,/);
-  });
-
-  it('MED-N68 — re-throws the error so the parent transaction rolls back', () => {
-    const anchor = BOOKING_SERVICE.indexOf('MED-N68 fix');
-    const block = BOOKING_SERVICE.slice(anchor, anchor + 1800);
-    // catch (err) { ... throw err; }
-    expect(block).toMatch(/} catch \(err[\s\S]*?throw err;/);
-  });
-});

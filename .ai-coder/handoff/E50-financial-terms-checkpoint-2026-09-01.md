@@ -61,6 +61,27 @@
 - Replaces the MED-N42 consent source scan with executed rollback behavior. A
   failed revocation-history insert now proves the prior active consent remains
   active and no phantom revocation event is stored.
+- Replaces the MED-N02, MED-N73, and launch-limit #12 admin-control source
+  scans with executed behavior. Mounted routes now prove audit-filter
+  validation, super-admin boundaries for bulk password rotation, DPO access to
+  self-service rotation only, and mandatory-rotation signaling across password,
+  TOTP, and forced-enrollment login paths. Escrow release tests now execute both
+  standalone and composed release paths and stop before wallet/terms work when
+  the assigned provider was suspended during the booking.
+- Replaces MED-N86 and MED-N96 route-security source scans with mounted HTTP
+  behavior. Customer direct assignment records exact security metadata without
+  making audit availability part of booking availability; admin assignment is
+  not mislabeled. Anonymous provider-detail access is blocked while the
+  authenticated services, schedule, ratings, portfolio, certifications, and
+  suki-count response remains intact.
+- Replaces MED-N08 and MED-N09 Booking 360 evidence source scans with executed
+  service contracts. The admin evidence view consumes legacy and current
+  non-deleted photos in one normalized chronological result and retains stable
+  empty GPS/receipt fields without querying nonexistent tables.
+- Replaces the MED-N68 provider-cancellation source scan with transaction
+  behavior. The provider penalty update uses the booking transaction client,
+  counts the freshly cancelled row once, and aborts the parent transaction when
+  cancellation accounting cannot be recorded.
 - Fixes OPS-299/OPS-300 in the provider payout handoff. The wallet facade now
   shares the canonical payout request schema, so account-holder name and notes
   are no longer stripped before payout creation. The responsive provider
@@ -69,7 +90,7 @@
 
 ## Verification completed
 
-- API: 675 suites passed, 1 suite skipped by its own config, 3,130 tests passed.
+- API: 678 suites passed, 1 suite skipped by its own config, 3,101 tests passed.
 - Admin: 248 files passed, 1 skipped, 340 tests passed, 3 existing todos.
 - Mobile: 502 suites passed, 881 tests passed, 84 existing todos.
 - API, admin, and mobile typechecks passed.
