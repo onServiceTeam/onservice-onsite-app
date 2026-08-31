@@ -45,6 +45,13 @@
   proves commit, rollback, and post-commit receipt-failure behavior; the
   withdrawal test proves provider-only delegation and service-error
   propagation.
+- Replaces the CRIT-N11 admin-session source scan with executed login, TOTP
+  verification, forced-enrollment, and refresh requests. Each path proves the
+  bearer secrets remain in HttpOnly cookies and never enter response JSON.
+- Replaces the remaining MED-N28 admin-dispute and scheduler source scans with
+  executed behavior. Full-refund, partial-release, and provider-release
+  failures now prove their exact durable retry payloads; the worker proves its
+  bounded batch size and five-minute repeat registration.
 - Fixes OPS-299/OPS-300 in the provider payout handoff. The wallet facade now
   shares the canonical payout request schema, so account-holder name and notes
   are no longer stripped before payout creation. The responsive provider
@@ -53,7 +60,7 @@
 
 ## Verification completed
 
-- API: 674 suites passed, 1 suite skipped by its own config, 3,163 tests passed.
+- API: 675 suites passed, 1 suite skipped by its own config, 3,155 tests passed.
 - Admin: 248 files passed, 1 skipped, 340 tests passed, 3 existing todos.
 - Mobile: 502 suites passed, 881 tests passed, 84 existing todos.
 - API, admin, and mobile typechecks passed.
