@@ -116,6 +116,8 @@ const PROVIDER_ID = 'p0000000-0000-0000-0000-000000000001';
 const ADMIN_ID = 'a0000000-0000-0000-0000-000000000001';
 const DISPUTE_ID = 'd0000000-0000-0000-0000-000000000001';
 const CUSTOMER_ID = 'c0000000-0000-0000-0000-000000000001';
+const SUPPORT_TICKET_ID = '33333333-3333-4333-8333-333333333333';
+const REFUND_REQUEST_ID = '44444444-4444-4444-8444-444444444444';
 
 beforeEach(() => {
   dbQueryMock.mockReset();
@@ -451,25 +453,39 @@ describe('manualReleaseEscrow', () => {
 describe('refundBookingEscrow', () => {
   it('rejects refundAmount <= 0', async () => {
     await expect(
-      bookingSvc.refundBookingEscrow(BOOKING_ID, 0, 'A reasonable reason here', ADMIN_ID),
+      bookingSvc.refundBookingEscrow(
+        BOOKING_ID, 0, 'A reasonable reason here', ADMIN_ID, SUPPORT_TICKET_ID, REFUND_REQUEST_ID,
+      ),
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
   it('rejects non-integer refundAmount', async () => {
     await expect(
-      bookingSvc.refundBookingEscrow(BOOKING_ID, 12.5, 'A reasonable reason here', ADMIN_ID),
+      bookingSvc.refundBookingEscrow(
+        BOOKING_ID, 12.5, 'A reasonable reason here', ADMIN_ID, SUPPORT_TICKET_ID, REFUND_REQUEST_ID,
+      ),
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
   it('rejects short reason', async () => {
     await expect(
-      bookingSvc.refundBookingEscrow(BOOKING_ID, 5000, 'short', ADMIN_ID),
+      bookingSvc.refundBookingEscrow(
+        BOOKING_ID, 5000, 'short', ADMIN_ID, SUPPORT_TICKET_ID, REFUND_REQUEST_ID,
+      ),
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
   it('happy path: delegates to refundFromEscrowInTransaction with EXACT amount + INSERTs refund_issued (Bug 71)', async () => {
-    escrowMocks.refundFromEscrowInTransaction.mockResolvedValueOnce(undefined as never);
+    escrowMocks.refundFromEscrowInTransaction.mockResolvedValueOnce({
+      remainingEscrowCentavos: 2223,
+      paymentMethod: 'wallet',
+      customerWalletCredited: true,
+    });
     const calls = setupTxRecorder(async (sql) => {
+      if (/FROM support_tickets/.test(sql)) {
+        return rows([{ id: SUPPORT_TICKET_ID, ticket_number: 'SUP-1001' }]);
+      }
+      if (/INSERT INTO gateway_retry_queue/.test(sql)) return rows([{ id: 'retry-ref' }]);
       if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-ref' }]);
       return rows([]);
     });
@@ -478,6 +494,8 @@ describe('refundBookingEscrow', () => {
       7777,
       'Customer requested partial refund',
       ADMIN_ID,
+      SUPPORT_TICKET_ID,
+      REFUND_REQUEST_ID,
     );
     // Phase 14 Dispatch 06 — Bug 71. The trx-aware helper composes
     // atomically with the admin_actions audit row.
@@ -497,6 +515,8 @@ describe('refundBookingEscrow', () => {
     expect(out.refundedAmount).toBe(7777);
     expect(out.bookingId).toBe(BOOKING_ID);
     expect(out.adminActionId).toBe('aa-ref');
+    expect(out.supportTicketId).toBe(SUPPORT_TICKET_ID);
+    expect(out.remainingEscrowAmount).toBe(2223);
   });
 });
 

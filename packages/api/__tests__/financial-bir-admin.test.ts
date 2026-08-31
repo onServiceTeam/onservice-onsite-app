@@ -1623,6 +1623,7 @@ describe('escrow → orService.issueOR hook', () => {
             service_fee: '1200',
             total_amount: '11200',
             status: 'confirmed',
+            escrow_status: 'held',
             scheduled_at: new Date('2026-04-15T05:00:00Z'),
           },
             ]);
@@ -1637,6 +1638,7 @@ describe('escrow → orService.issueOR hook', () => {
           }
           if (/UPDATE bookings/.test(sql)) return rows([{ id: BOOKING_ID }]);
           if (/SELECT pending_balance/.test(sql)) return rows([{ pending_balance: '11200' }]);
+          if (/COALESCE\(SUM\(amount\), 0\)/.test(sql)) return rows([{ remaining: '11200' }]);
           return rows([]);
         }),
       };

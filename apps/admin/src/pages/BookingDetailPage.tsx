@@ -269,6 +269,13 @@ interface BookingMoney {
   }>;
 }
 
+interface RefundSupportCase {
+  id: string;
+  ticket_number: string;
+  subject: string;
+  status: string;
+}
+
 interface AssignableProvider {
   id: string;
   businessName: string | null;
@@ -470,6 +477,18 @@ function BookingHeader({ detail }: { detail: BookingDetail }): React.ReactElemen
 
 type ActionId = 'release' | 'refund' | 'reassign' | 'cancel' | 'force_complete';
 
+function createRefundIdempotencyKey(): string {
+  if (typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export function BookingActions({
   bookingId,
   currentProviderId = null,
@@ -494,6 +513,8 @@ export function BookingActions({
   const [hoursUntilScheduled, setHoursUntilScheduled] = useState('');
   const [providerArrived, setProviderArrived] = useState(false);
   const [customerNoShow, setCustomerNoShow] = useState(false);
+  const [refundSupportTicketId, setRefundSupportTicketId] = useState('');
+  const [refundIdempotencyKey, setRefundIdempotencyKey] = useState('');
 
   const providersQuery = useQuery({
     queryKey: ['admin-online-providers', 'booking-reassign', providerSearch.trim()],
@@ -506,6 +527,16 @@ export function BookingActions({
       return res.data.rows ?? res.data.data ?? [];
     },
     enabled: open === 'reassign',
+  });
+
+  const refundCasesQuery = useQuery({
+    queryKey: ['admin-booking-refund-support-cases', bookingId],
+    queryFn: async () => {
+      const params = new URLSearchParams({ bookingId, active: '1', page: '1', limit: '100' });
+      const res = await api.get<{ data: RefundSupportCase[] }>(`/api/v1/support-tickets?${params}`);
+      return res.data.data;
+    },
+    enabled: open === 'refund',
   });
 
   const invalidateAll = (): void => {
@@ -527,6 +558,8 @@ export function BookingActions({
     setHoursUntilScheduled('');
     setProviderArrived(false);
     setCustomerNoShow(false);
+    setRefundSupportTicketId('');
+    setRefundIdempotencyKey('');
     setOpen(null);
   };
 
@@ -543,13 +576,39 @@ export function BookingActions({
   });
 
   const refundMut = useMutation({
-    mutationFn: async (input: { amount: number; reason: string }) => {
-      const res = await api.post(`/api/v1/admin/bookings/${bookingId}/escrow/refund`, input);
-      return res.data;
+    mutationFn: async (input: {
+      amount: number;
+      reason: string;
+      supportTicketId: string;
+      idempotencyKey: string;
+    }) => {
+      const res = await api.post<{
+        success: true;
+        data: {
+          customerWalletCredited: boolean;
+          idempotentReplay: boolean;
+          paymentProcessingQueued: boolean;
+          paymentProcessingStatus: 'processed' | 'queued' | 'manual_attention';
+        };
+      }>(`/api/v1/admin/bookings/${bookingId}/escrow/refund`, input);
+      return res.data.data;
     },
-    onSuccess: () => {
-      toast.success('Refund recorded and gateway processing started.');
+    onSuccess: (outcome) => {
+      if (outcome.paymentProcessingStatus === 'manual_attention') {
+        toast.error('Refund recorded, but payment processing requires manual attention. No second refund was issued.');
+      } else if (outcome.idempotentReplay && outcome.paymentProcessingStatus === 'queued') {
+        toast.success('This refund was already recorded and its payment processing is still queued. No second refund was issued.');
+      } else if (outcome.idempotentReplay) {
+        toast.success('This refund request was already recorded. No second refund was issued.');
+      } else if (outcome.paymentProcessingQueued) {
+        toast.success('Refund recorded. Payment processing was queued for retry.');
+      } else if (outcome.customerWalletCredited) {
+        toast.success('Refund recorded and returned to the customer wallet.');
+      } else {
+        toast.success('Refund recorded and payment refund processed.');
+      }
       invalidateAll();
+      queryClient.invalidateQueries({ queryKey: ['admin-booking-refund-support-cases', bookingId] });
       reset();
     },
   });
@@ -619,7 +678,8 @@ export function BookingActions({
     reassignMut.isPending ||
     cancelMut.isPending ||
     forceMut.isPending;
-  const escrowActionAllowed = escrowStatus === 'held';
+  const escrowActionAllowed = escrowStatus === 'held' || escrowStatus === 'partially_refunded';
+  const refundAllowed = escrowStatus === 'held' || escrowStatus === 'partially_refunded';
   const reassignAllowed = !new Set([
     'provider_arrived',
     'in_progress',
@@ -666,7 +726,7 @@ export function BookingActions({
             size="sm"
             variant={open === 'release' ? 'default' : 'secondary'}
             disabled={anyActionPending || !escrowActionAllowed}
-            title={escrowActionAllowed ? undefined : 'Available only while escrow is held'}
+            title={escrowActionAllowed ? undefined : 'Available only while booking escrow remains held'}
             onClick={() => setOpen(open === 'release' ? null : 'release')}
           >
             <Wallet size={14} /> Manual release
@@ -674,9 +734,14 @@ export function BookingActions({
           <Button
             size="sm"
             variant={open === 'refund' ? 'default' : 'secondary'}
-            disabled={anyActionPending || !escrowActionAllowed}
-            title={escrowActionAllowed ? undefined : 'Available only while escrow is held'}
-            onClick={() => setOpen(open === 'refund' ? null : 'refund')}
+            disabled={anyActionPending || !refundAllowed}
+            title={refundAllowed ? undefined : 'Available only while booking escrow remains held'}
+            onClick={() => {
+              const nextOpen = open === 'refund' ? null : 'refund';
+              setOpen(nextOpen);
+              setRefundSupportTicketId('');
+              setRefundIdempotencyKey(nextOpen === 'refund' ? createRefundIdempotencyKey() : '');
+            }}
           >
             <Coins size={14} /> Refund
           </Button>
@@ -724,23 +789,56 @@ export function BookingActions({
           </p>
 
           {open === 'refund' && (
-            <div>
-              <label
-                htmlFor="booking-refund-amount"
-                className="text-xs text-[var(--color-text-secondary)]"
-              >
-                Refund amount (PHP)
-              </label>
-              <input
-                id="booking-refund-amount"
-                type="number"
-                step="0.01"
-                value={amountPesos}
-                onChange={(e) => setAmountPesos(e.target.value)}
-                placeholder="100.00"
-                disabled={anyActionPending}
-                className="min-h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm"
-              />
+            <div className="space-y-3">
+              <div>
+                <label
+                  htmlFor="booking-refund-amount"
+                  className="text-xs text-[var(--color-text-secondary)]"
+                >
+                  Refund amount (PHP)
+                </label>
+                <input
+                  id="booking-refund-amount"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={amountPesos}
+                  onChange={(e) => setAmountPesos(e.target.value)}
+                  placeholder="100.00"
+                  disabled={anyActionPending}
+                  className="min-h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm"
+                />
+                <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                  The server caps this against this booking's own remaining escrow, not the platform's shared wallet balance.
+                </p>
+              </div>
+              <div>
+                <label htmlFor="booking-refund-support-case" className="text-xs text-[var(--color-text-secondary)]">
+                  Active linked support case (required)
+                </label>
+                <select
+                  id="booking-refund-support-case"
+                  value={refundSupportTicketId}
+                  onChange={(event) => setRefundSupportTicketId(event.target.value)}
+                  disabled={refundCasesQuery.isLoading || refundCasesQuery.isError || anyActionPending}
+                  className="min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 text-sm"
+                >
+                  <option value="">
+                    {refundCasesQuery.isLoading ? 'Loading support cases...' : 'Select the case authorizing this refund'}
+                  </option>
+                  {(refundCasesQuery.data ?? []).map((ticket) => (
+                    <option key={ticket.id} value={ticket.id}>
+                      {ticket.ticket_number} · {ticket.subject}
+                    </option>
+                  ))}
+                </select>
+                {refundCasesQuery.isError && <p role="alert" className="mt-1 text-xs text-red-600">Support cases could not be loaded. Refund is blocked.</p>}
+                {!refundCasesQuery.isLoading && !refundCasesQuery.isError && (refundCasesQuery.data ?? []).length === 0 && (
+                  <p className="mt-1 text-xs text-amber-800">
+                    No active case is linked. <Link to={`/support-tickets?bookingId=${encodeURIComponent(bookingId)}&new=1`} className="font-semibold underline">Create a support case first</Link>.
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
@@ -903,15 +1001,20 @@ export function BookingActions({
             {open === 'refund' && (
               <Button
                 size="sm"
-                disabled={!reasonOk || refundAmtCentavos === 0 || refundMut.isPending}
+                disabled={!reasonOk || refundAmtCentavos === 0 || !refundSupportTicketId || !refundIdempotencyKey || refundMut.isPending}
                 onClick={() => {
                   void confirm({
                     title: `Refund ${fmtCentavos(refundAmtCentavos)}?`,
-                    description: 'This debits held escrow and starts the gateway refund path. Verify the amount and the evidence before continuing.',
+                    description: 'This debits only this booking’s remaining escrow, records the decision in the selected support case, and returns wallet-funded payments to the customer wallet. Verify the amount and evidence before continuing.',
                     confirmLabel: 'Issue refund',
                     tone: 'destructive',
                   }).then((approved) => {
-                    if (approved) refundMut.mutate({ amount: refundAmtCentavos, reason: reason.trim() });
+                    if (approved) refundMut.mutate({
+                      amount: refundAmtCentavos,
+                      reason: reason.trim(),
+                      supportTicketId: refundSupportTicketId,
+                      idempotencyKey: refundIdempotencyKey,
+                    });
                   });
                 }}
               >

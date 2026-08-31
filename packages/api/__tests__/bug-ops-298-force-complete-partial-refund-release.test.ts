@@ -20,31 +20,30 @@ jest.mock('../src/utils/logger', () => ({
 
 import { forceCompleteBooking } from '../src/services/booking-admin.service';
 
-it('Bug MED-N10 — force-complete releases held escrow and records payout-ready atomically', async () => {
-  const writes: string[] = [];
+it('Bug OPS-298 — force-complete releases the provider remainder after a partial refund', async () => {
   let queryNumber = 0;
   transactionMock.mockImplementation(async (callback: (client: { query: jest.Mock }) => Promise<unknown>) => {
     const client = {
       query: jest.fn(async (sql: string) => {
         queryNumber += 1;
-        writes.push(sql);
-        if (queryNumber === 1) return { rows: [{ id: 'booking-med-n10', status: 'in_progress' }], rowCount: 1 };
-        if (sql.includes('SELECT escrow_status')) return { rows: [{ escrow_status: 'held' }], rowCount: 1 };
-        if (sql.includes('INSERT INTO admin_actions')) return { rows: [{ id: 'action-med-n10' }], rowCount: 1 };
+        if (queryNumber === 1) return { rows: [{ id: 'booking-298', status: 'completed_by_provider' }], rowCount: 1 };
+        if (sql.includes('SELECT escrow_status')) {
+          return { rows: [{ escrow_status: 'partially_refunded' }], rowCount: 1 };
+        }
+        if (sql.includes('INSERT INTO admin_actions')) return { rows: [{ id: 'action-298' }], rowCount: 1 };
         return { rows: [], rowCount: 1 };
       }),
     };
     const result = await callback(client);
-    expect(releaseEscrowMock).toHaveBeenCalledWith(client, 'booking-med-n10');
+    expect(releaseEscrowMock).toHaveBeenCalledWith(client, 'booking-298');
     return result;
   });
 
   await forceCompleteBooking(
-    'booking-med-n10',
-    'Support verified the completion evidence and customer confirmation gap',
-    'admin-med-n10',
+    'booking-298',
+    'Support verified all completion evidence after the partial refund',
+    'admin-298',
   );
 
-  expect(writes.some((sql) => sql.includes("status = 'payout_ready'"))).toBe(true);
-  expect(writes.some((sql) => sql.includes("'booking_force_completed'"))).toBe(true);
+  expect(releaseEscrowMock).toHaveBeenCalledTimes(1);
 });

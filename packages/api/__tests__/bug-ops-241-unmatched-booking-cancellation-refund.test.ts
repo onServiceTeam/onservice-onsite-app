@@ -55,11 +55,20 @@ it('Bug OPS-241 — an unmatched paid booking can cancel against provisional ter
           rowCount: 1,
         };
       }
+      if (sql.includes('SELECT customer_id, payment_method') && sql.includes('FROM bookings')) {
+        return {
+          rows: [{ customer_id: 'customer-1', payment_method: 'gcash' }],
+          rowCount: 1,
+        };
+      }
       if (sql.includes('type = ANY')) {
         return { rows: [{ id: 'escrow-wallet', type: 'platform_escrow' }], rowCount: 1 };
       }
       if (sql.includes('SELECT pending_balance FROM wallets')) {
         return { rows: [{ pending_balance: '110000' }], rowCount: 1 };
+      }
+      if (sql.includes('COALESCE(SUM(amount), 0)')) {
+        return { rows: [{ remaining: '110000' }], rowCount: 1 };
       }
       return { rows: [], rowCount: 1 };
     }),

@@ -20,6 +20,7 @@ jest.mock('../../src/models/db', () => {
 
 jest.mock('../../src/services/wallet.service', () => ({
   getPlatformWallet: jest.fn(),
+  getUserWalletInTransaction: jest.fn(),
   lockWalletsForUpdate: jest.fn(),
 }));
 jest.mock('../../src/services/payment.service', () => ({ processRefund: jest.fn() }));
@@ -55,7 +56,9 @@ describe('A4/A5 — refundFromEscrow atomicity + double-refund rejection', () =>
     setTxQueryImpl(
       makeRouter([
         { match: /SELECT id, type[\s\S]*FROM wallets/, rows: [{ id: ESCROW_ID, type: 'platform_escrow' }], rowCount: 1 },
-        { match: /SELECT pending_balance FROM wallets WHERE id = \$1 FOR UPDATE/, rows: [{ pending_balance: '5000' }], rowCount: 1 },
+        { match: /SELECT customer_id, payment_method[\s\S]*FROM bookings/, rows: [{ customer_id: 'customer-1', payment_method: 'gcash' }], rowCount: 1 },
+        { match: /SELECT pending_balance FROM wallets WHERE id = \$1/, rows: [{ pending_balance: '5000' }], rowCount: 1 },
+        { match: /COALESCE\(SUM\(amount\), 0\)/, rows: [{ remaining: '5000' }], rowCount: 1 },
         { match: /UPDATE wallets SET pending_balance/, rowCount: 1 },
         { match: /INSERT INTO wallet_transactions/, rowCount: 1 },
       ]),
@@ -65,11 +68,15 @@ describe('A4/A5 — refundFromEscrow atomicity + double-refund rejection', () =>
 
     const txCalls = getTxCalls();
     expect(getTransactionInvocations()).toBe(1);
-    const lockIdx = txCalls.findIndex((c) => /FOR UPDATE/.test(c.sql));
+    expect(walletService.lockWalletsForUpdate).toHaveBeenCalledWith(
+      expect.anything(), [ESCROW_ID, undefined],
+    );
+    const balanceIdx = txCalls.findIndex((c) => /SELECT pending_balance/.test(c.sql));
     const debitIdx = txCalls.findIndex((c) => /UPDATE wallets SET pending_balance/.test(c.sql));
-    // ...and the debit happens AFTER the lock (check-then-act is now atomic).
-    expect(lockIdx).toBeGreaterThanOrEqual(0);
-    expect(debitIdx).toBeGreaterThan(lockIdx);
+    // The debit happens after the balance and booking-ledger checks while the
+    // wallet lock is held.
+    expect(balanceIdx).toBeGreaterThanOrEqual(0);
+    expect(debitIdx).toBeGreaterThan(balanceIdx);
     // Gateway refund fires post-commit.
     expect(paymentService.processRefund).toHaveBeenCalledTimes(1);
   });
@@ -80,7 +87,8 @@ describe('A4/A5 — refundFromEscrow atomicity + double-refund rejection', () =>
     setTxQueryImpl(
       makeRouter([
         { match: /SELECT id, type[\s\S]*FROM wallets/, rows: [{ id: ESCROW_ID, type: 'platform_escrow' }], rowCount: 1 },
-        { match: /SELECT pending_balance FROM wallets WHERE id = \$1 FOR UPDATE/, rows: [{ pending_balance: '1000' }], rowCount: 1 },
+        { match: /SELECT customer_id, payment_method[\s\S]*FROM bookings/, rows: [{ customer_id: 'customer-1', payment_method: 'gcash' }], rowCount: 1 },
+        { match: /SELECT pending_balance FROM wallets WHERE id = \$1/, rows: [{ pending_balance: '1000' }], rowCount: 1 },
         { match: /UPDATE wallets SET pending_balance/, rowCount: 1 },
         { match: /INSERT INTO wallet_transactions/, rowCount: 1 },
       ]),

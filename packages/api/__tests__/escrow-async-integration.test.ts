@@ -84,6 +84,9 @@ function captureClientCalls(
   return {
     query: jest.fn(async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
+      if (sql.includes('SELECT customer_id, payment_method') && sql.includes('FROM bookings')) {
+        return { rows: [{ customer_id: 'c1', payment_method: 'gcash' }], rowCount: 1 };
+      }
       if (sql.includes('FROM bookings') && sql.includes('FOR UPDATE')) {
         return dbQueryMock(sql, params);
       }
@@ -102,6 +105,9 @@ function captureClientCalls(
       }
       if (sql.includes('SELECT pending_balance')) {
         return { rows: [{ pending_balance: '1000000' }], rowCount: 1 };
+      }
+      if (sql.includes('COALESCE(SUM(amount), 0)')) {
+        return { rows: [{ remaining: '110000' }], rowCount: 1 };
       }
       if (sql.includes('SELECT service_fee FROM bookings')) {
         return { rows: [{ service_fee: '10000' }], rowCount: 1 };
@@ -221,6 +227,7 @@ describe('releaseEscrow', () => {
     service_fee: '10000',
     total_amount: '110000',
     status: 'confirmed',
+    escrow_status: 'held',
     scheduled_at: new Date(),
   };
 
@@ -312,7 +319,7 @@ describe('releaseEscrow', () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [{
       id: 'b1', customer_id: 'c1', provider_id: 'p1',
       service_price: '100000', service_fee: '10000', total_amount: '110000',
-      status: 'confirmed', scheduled_at: new Date(),
+      status: 'confirmed', escrow_status: 'held', scheduled_at: new Date(),
     }] });
     dbQueryMock.mockResolvedValueOnce({ rows: [{ user_id: 'u1', tier: 'pro' }] });
     getCommissionRateMock.mockResolvedValueOnce(0.11);
@@ -584,6 +591,17 @@ describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via cli
         bookingSelectIdx = calls.length - 1;
         return opts.bookingRow ? { rows: [opts.bookingRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
+      if (sql.includes('SELECT customer_id, payment_method') && sql.includes('FROM bookings')) {
+        return opts.bookingRow
+          ? {
+              rows: [{
+                customer_id: String(opts.bookingRow.customer_id),
+                payment_method: 'gcash',
+              }],
+              rowCount: 1,
+            }
+          : { rows: [], rowCount: 0 };
+      }
       if (sql.includes('SELECT user_id, tier FROM providers WHERE id = $1')) {
         providerSelectIdx = calls.length - 1;
         return opts.providerRow ? { rows: [opts.providerRow], rowCount: 1 } : { rows: [], rowCount: 0 };
@@ -595,9 +613,11 @@ describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via cli
           rowCount: requested.length,
         };
       }
-      // refundFromEscrowInTransaction: SELECT wallet
-      if (sql.includes('FROM wallets WHERE id = $1') && sql.includes('FOR UPDATE')) {
-        return { rows: [{ id: 'wallet-platform_escrow', pending_balance: '1000000' }], rowCount: 1 };
+      if (sql.includes('SELECT pending_balance FROM wallets WHERE id = $1')) {
+        return { rows: [{ pending_balance: '1000000' }], rowCount: 1 };
+      }
+      if (sql.includes('COALESCE(SUM(amount), 0)')) {
+        return { rows: [{ remaining: '110000' }], rowCount: 1 };
       }
       if (sql.includes('SELECT service_fee FROM bookings')) {
         return { rows: [{ service_fee: '10000' }], rowCount: 1 };
@@ -768,10 +788,15 @@ describe('refundFromEscrow', () => {
     dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
       return cb({
         query: jest.fn(async (sql: string) => {
+          if (sql.includes('SELECT customer_id, payment_method')) {
+            return { rows: [{ customer_id: 'c1', payment_method: 'gcash' }], rowCount: 1 };
+          }
           if (sql.includes('type = ANY')) {
             return { rows: [{ id: 'wallet-platform_escrow', type: 'platform_escrow' }], rowCount: 1 };
           }
-          if (/FOR UPDATE/.test(sql)) return { rows: [{ pending_balance: '100' }], rowCount: 1 };
+          if (sql.includes('SELECT pending_balance')) {
+            return { rows: [{ pending_balance: '100' }], rowCount: 1 };
+          }
           return { rows: [], rowCount: 1 };
         }),
       });
@@ -788,11 +813,13 @@ describe('refundFromEscrow', () => {
       return cb(captureClientCalls(calls));
     });
     await escrowService.refundFromEscrow('b1', 50000, 'cancellation');
-    expect(calls.length).toBe(4);
-    expect(calls[0]!.sql).toContain('type = ANY');
-    expect(calls[1]!.sql).toMatch(/FOR UPDATE/);
-    expect(calls[2]!.params).toEqual([50000, 'wallet-platform_escrow']);
-    expect(calls[3]!.params[2]).toBe(-50000);
+    expect(calls.find((call) => call.sql.includes('SELECT customer_id, payment_method'))).toBeDefined();
+    expect(calls.find((call) => call.sql.includes('COALESCE(SUM(amount), 0)'))?.params)
+      .toEqual(['wallet-platform_escrow', 'b1']);
+    const debit = calls.find((call) => call.sql.includes('pending_balance = pending_balance - $1'))!;
+    const ledger = calls.find((call) => call.sql.includes("VALUES ($1, $2, 'refund'"))!;
+    expect(debit.params).toEqual([50000, 'wallet-platform_escrow']);
+    expect(ledger.params[2]).toBe(-50000);
     expect(processRefundMock).toHaveBeenCalledWith('b1', 50000, 'cancellation');
   });
 });

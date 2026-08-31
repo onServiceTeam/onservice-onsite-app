@@ -377,43 +377,42 @@ export async function refundFromEscrow(
   refundAmount: number,
   reason: string,
 ): Promise<void> {
-  if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
+  if (!Number.isSafeInteger(refundAmount) || refundAmount <= 0) {
+    throw createAppError('Refund amount must be a positive integer (centavos).', 400);
+  }
+  const movement = await db.transaction((client) => (
+    refundFromEscrowInTransaction(client, bookingId, refundAmount, reason)
+  ));
 
-  await db.transaction(async (client) => {
-    // A4 + A5 — lock the escrow wallet row and re-check the balance INSIDE the
-    // transaction. Pre-fix the sufficiency check read the balance OUTSIDE the
-    // transaction (check-then-act): two concurrent refunds could both pass the
-    // check and over-drain the shared escrow pool (a double refund). Under FOR
-    // UPDATE the check + debit are one atomic step, so a duplicate/concurrent
-    // refund that would exceed the held balance is rejected with 409 instead.
-    const wallets = await resolvePlatformWalletsInTransaction(client, ['platform_escrow']);
-    const escrowWalletId = wallets.get('platform_escrow')!;
-    const locked = await client.query<{ pending_balance: string }>(
-      `SELECT pending_balance FROM wallets WHERE id = $1 FOR UPDATE`,
-      [escrowWalletId],
-    );
-    if (locked.rows.length === 0) {
-      throw createAppError('Platform escrow wallet not found.', 500);
+  // The local escrow and (for wallet-funded bookings) customer-wallet
+  // movements are already committed. A failed payment-intent/PayMongo update
+  // must therefore retry only that external/accounting step. Retrying this
+  // whole function would debit the booking's escrow a second time.
+  try {
+    await paymentService.processRefund(bookingId, refundAmount, reason);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (movement.paymentMethod === 'wallet' && /no payment found/i.test(errMsg)) {
+      logger.info('Wallet refund completed without a payment-intent row', {
+        bookingId,
+        refundAmount,
+      });
+    } else {
+      logger.error('Payment refund failed after local escrow refund; enqueueing payment-only retry', {
+        bookingId,
+        refundAmount,
+        error: errMsg,
+      });
+      const gatewayRetryService = await import('./gateway-retry.service');
+      await gatewayRetryService.enqueueRetry({
+        actionType: 'process_payment_refund',
+        bookingId,
+        amountCentavos: refundAmount,
+        description: reason,
+        initialError: errMsg,
+      });
     }
-    if (Number(locked.rows[0]!.pending_balance) < refundAmount) {
-      throw createAppError('Insufficient escrow balance for refund.', 409);
-    }
-
-    await client.query(
-      `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-      [refundAmount, escrowWalletId],
-    );
-
-    await client.query(
-      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-       VALUES ($1, $2, 'refund', $3,
-               (SELECT pending_balance FROM wallets WHERE id = $1),
-               $4)`,
-      [escrowWalletId, bookingId, -refundAmount, `Refund: ${reason}`],
-    );
-  });
-
-  await paymentService.processRefund(bookingId, refundAmount, reason);
+  }
   logger.info('Escrow refund processed', { bookingId, refundAmount, reason });
 }
 
@@ -463,8 +462,9 @@ export async function handleCancellation(
   // the platform_escrow wallet but no caller invoked paymentService
   // .processRefund, so escrow shrank but PayMongo never refunded —
   // every customer cancellation since MED-N27 lost money. Now: post-
-  // commit gateway call mirrors the dispute-resolve pattern — failure
-  // enqueues to gateway_retry_queue (action_type='refund_from_escrow').
+  // commit gateway call mirrors the dispute-resolve pattern. Because the
+  // local escrow movement has committed, a failure enqueues only the payment
+  // processing step and must never debit escrow again.
   if (!customerNoShow && refund.customerRefundAmount > 0) {
     const totalCustomerRefund = refund.customerRefundAmount + serviceFee;
     // gate-c-allowed: post-commit-gateway-refund
@@ -493,7 +493,7 @@ export async function handleCancellation(
         });
         const gatewayRetryService = await import('./gateway-retry.service');
         await gatewayRetryService.enqueueRetry({
-          actionType: 'refund_from_escrow',
+          actionType: 'process_payment_refund',
           bookingId,
           amountCentavos: totalCustomerRefund,
           description: 'Customer cancellation refund',
@@ -534,7 +534,7 @@ export async function releaseEscrowInTransaction(
   bookingId: string,
 ): Promise<commissionService.CommissionBreakdown> {
   const booking = await client.query<BookingAmountRow & { provider_suspended_during_booking_at: Date | null }>(
-    `SELECT b.id, b.customer_id, b.provider_id, b.service_price, b.service_fee, b.total_amount, b.status, b.scheduled_at,
+    `SELECT b.id, b.customer_id, b.provider_id, b.service_price, b.service_fee, b.total_amount, b.status, b.escrow_status, b.scheduled_at,
             b.provider_suspended_during_booking_at
      FROM bookings b WHERE b.id = $1 FOR UPDATE`,
     [bookingId],
@@ -559,6 +559,9 @@ export async function releaseEscrowInTransaction(
   }
 
   if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
+  if (bk.escrow_status !== 'held' && bk.escrow_status !== 'partially_refunded') {
+    throw createAppError(`Cannot release escrow in state "${bk.escrow_status ?? 'none'}".`, 409);
+  }
 
   const terms = await financialTermsService.getLatestTermsInTransaction(client, bookingId);
   if (terms.providerId !== bk.provider_id) {
@@ -583,27 +586,80 @@ export async function releaseEscrowInTransaction(
     throw createAppError('Final financial terms are incomplete. Release is blocked.', 409);
   }
 
-  const allocation: ReleaseAllocation = {
-    servicePrice: terms.servicePriceCentavos,
-    serviceFee: terms.serviceFeeAmountCentavos,
-    totalAmount: terms.totalAmountCentavos,
-    commissionRate: terms.commissionRateBasisPoints / 10000,
-    commissionAmount: terms.commissionAmountCentavos,
-    serviceFeeRate: terms.serviceFeeRateBasisPoints / 10000,
-    guaranteeFundContribution: terms.guaranteeFundAmountCentavos,
-    providerReceives: terms.providerReceivesCentavos,
-    platformRetains: terms.platformRetainsCentavos,
-  };
   const wallets = await resolveReleaseWallets(client, bk.provider_id);
+  const bookingEscrow = await client.query<{ remaining: string }>(
+    `SELECT COALESCE(SUM(amount), 0)::text AS remaining
+       FROM wallet_transactions
+      WHERE wallet_id = $1
+        AND booking_id = $2`,
+    [wallets.escrowWalletId, bookingId],
+  );
+  const remainingEscrow = Number(bookingEscrow.rows[0]?.remaining ?? 0);
+  if (!Number.isSafeInteger(remainingEscrow) || remainingEscrow <= 0) {
+    throw createAppError('This booking has no positive escrow balance to release.', 409);
+  }
+
+  let allocation: ReleaseAllocation;
+  let expectedEscrowStatus: 'held' | 'partially_refunded';
+  let providerDescription: string;
+  let platformDescription: string;
+  let guaranteeDescription: string;
+  if (bk.escrow_status === 'held') {
+    if (remainingEscrow !== terms.totalAmountCentavos) {
+      throw createAppError(
+        'Held escrow does not match this booking\'s immutable financial terms. Release is blocked for operations review.',
+        409,
+      );
+    }
+    allocation = {
+      servicePrice: terms.servicePriceCentavos,
+      serviceFee: terms.serviceFeeAmountCentavos,
+      totalAmount: terms.totalAmountCentavos,
+      commissionRate: terms.commissionRateBasisPoints / 10000,
+      commissionAmount: terms.commissionAmountCentavos,
+      serviceFeeRate: terms.serviceFeeRateBasisPoints / 10000,
+      guaranteeFundContribution: terms.guaranteeFundAmountCentavos,
+      providerReceives: terms.providerReceivesCentavos,
+      platformRetains: terms.platformRetainsCentavos,
+    };
+    expectedEscrowStatus = 'held';
+    providerDescription = `Payment using financial terms v${terms.version} (${terms.commissionRateBasisPoints / 100}% commission)`;
+    platformDescription = `Commission and service fee using financial terms v${terms.version}`;
+    guaranteeDescription = `Guarantee allocation using financial terms v${terms.version}`;
+  } else {
+    if (remainingEscrow >= terms.totalAmountCentavos) {
+      throw createAppError(
+        'Partial-refund status does not match this booking\'s escrow ledger. Release is blocked for operations review.',
+        409,
+      );
+    }
+    const prorated = financialTermsService.prorateFinalTerms(terms, remainingEscrow);
+    allocation = {
+      servicePrice: prorated.servicePriceCentavos,
+      serviceFee: prorated.serviceFeeAmountCentavos,
+      totalAmount: prorated.totalAmountCentavos,
+      commissionRate: terms.commissionRateBasisPoints / 10000,
+      commissionAmount: prorated.commissionAmountCentavos,
+      serviceFeeRate: terms.serviceFeeRateBasisPoints / 10000,
+      guaranteeFundContribution: prorated.guaranteeFundAmountCentavos,
+      providerReceives: prorated.providerReceivesCentavos,
+      platformRetains: prorated.platformRetainsCentavos,
+    };
+    const refundPercent = Math.round((1 - remainingEscrow / terms.totalAmountCentavos) * 100);
+    expectedEscrowStatus = 'partially_refunded';
+    providerDescription = `Remaining payment after ${refundPercent}% operator refund using financial terms v${terms.version}`;
+    platformDescription = `Prorated commission and fee after operator refund using financial terms v${terms.version}`;
+    guaranteeDescription = `Prorated guarantee allocation after operator refund using financial terms v${terms.version}`;
+  }
   await writeReleaseMovements(
     client,
     {
       bookingId,
-      expectedEscrowStatus: 'held',
+      expectedEscrowStatus,
       allocation,
-      providerDescription: `Payment using financial terms v${terms.version} (${terms.commissionRateBasisPoints / 100}% commission)`,
-      platformDescription: `Commission and service fee using financial terms v${terms.version}`,
-      guaranteeDescription: `Guarantee allocation using financial terms v${terms.version}`,
+      providerDescription,
+      platformDescription,
+      guaranteeDescription,
     },
     wallets,
   );
@@ -742,16 +798,37 @@ export async function refundFromEscrowInTransaction(
   bookingId: string,
   refundAmount: number,
   reason: string,
-): Promise<void> {
-  if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
+): Promise<{
+  remainingEscrowCentavos: number;
+  paymentMethod: string | null;
+  customerWalletCredited: boolean;
+}> {
+  if (!Number.isSafeInteger(refundAmount) || refundAmount <= 0) {
+    throw createAppError('Refund amount must be a positive integer (centavos).', 400);
+  }
+
+  const bookingResult = await client.query<{
+    customer_id: string;
+    payment_method: string | null;
+  }>(
+    `SELECT customer_id, payment_method
+       FROM bookings
+      WHERE id = $1
+      FOR UPDATE`,
+    [bookingId],
+  );
+  const booking = bookingResult.rows[0];
+  if (!booking) throw createAppError('Booking not found.', 404);
 
   const wallets = await resolvePlatformWalletsInTransaction(client, ['platform_escrow']);
   const escrowWalletId = wallets.get('platform_escrow')!;
-  // A4 + A5 — lock the escrow row and re-check the balance under the lock,
-  // inside the caller's transaction, so the check + debit are atomic and two
-  // concurrent refunds can't both pass and over-drain the shared escrow pool.
+  const customerWallet = booking.payment_method === 'wallet'
+    ? await walletService.getUserWalletInTransaction(client, booking.customer_id, 'customer')
+    : null;
+  await walletService.lockWalletsForUpdate(client, [escrowWalletId, customerWallet?.id]);
+
   const locked = await client.query<{ pending_balance: string }>(
-    `SELECT pending_balance FROM wallets WHERE id = $1 FOR UPDATE`,
+    `SELECT pending_balance FROM wallets WHERE id = $1`,
     [escrowWalletId],
   );
   if (locked.rows.length === 0) {
@@ -759,6 +836,24 @@ export async function refundFromEscrowInTransaction(
   }
   if (Number(locked.rows[0]!.pending_balance) < refundAmount) {
     throw createAppError('Insufficient escrow balance for refund.', 409);
+  }
+
+  // The platform escrow wallet is shared by every booking. Its total balance
+  // is not evidence that this booking still owns the requested amount. Sum the
+  // booking's own immutable ledger under the wallet lock before moving money.
+  const bookingEscrow = await client.query<{ remaining: string }>(
+    `SELECT COALESCE(SUM(amount), 0)::text AS remaining
+       FROM wallet_transactions
+      WHERE wallet_id = $1
+        AND booking_id = $2`,
+    [escrowWalletId, bookingId],
+  );
+  const remainingBefore = Number(bookingEscrow.rows[0]?.remaining ?? 0);
+  if (!Number.isSafeInteger(remainingBefore) || remainingBefore < refundAmount) {
+    throw createAppError(
+      `Refund exceeds this booking's remaining escrow (${Math.max(0, remainingBefore)} centavos).`,
+      409,
+    );
   }
 
   await client.query(
@@ -773,6 +868,27 @@ export async function refundFromEscrowInTransaction(
              $4)`,
     [escrowWalletId, bookingId, -refundAmount, `Refund: ${reason}`],
   );
+
+  if (customerWallet) {
+    await client.query(
+      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+      [refundAmount, customerWallet.id],
+    );
+    await client.query(
+      `INSERT INTO wallet_transactions
+         (wallet_id, booking_id, type, amount, balance_after, description, reference_id)
+       VALUES ($1, $2, 'refund', $3,
+               (SELECT available_balance FROM wallets WHERE id = $1),
+               $4, $5)`,
+      [customerWallet.id, bookingId, refundAmount, `Wallet refund: ${reason}`, bookingId],
+    );
+  }
+
+  return {
+    remainingEscrowCentavos: remainingBefore - refundAmount,
+    paymentMethod: booking.payment_method,
+    customerWalletCredited: customerWallet !== null,
+  };
 }
 
 /**

@@ -47,7 +47,7 @@ it('Bug OPS-249 — hourly settlement resolves every refund wallet through the c
         return { rows: [{
           id: 'booking-1', customer_id: 'customer-1', provider_id: 'provider-1',
           service_price: '50000', service_fee: '5000', total_amount: '55000',
-          status: 'confirmed', scheduled_at: new Date(), provider_suspended_during_booking_at: null,
+          status: 'confirmed', escrow_status: 'held', scheduled_at: new Date(), provider_suspended_during_booking_at: null,
         }], rowCount: 1 };
       }
       if (sql.includes('SELECT user_id FROM providers')) {
@@ -62,6 +62,9 @@ it('Bug OPS-249 — hourly settlement resolves every refund wallet through the c
       }
       if (sql.includes('SELECT pending_balance')) {
         return { rows: [{ pending_balance: '1000000' }], rowCount: 1 };
+      }
+      if (sql.includes('COALESCE(SUM(amount), 0)')) {
+        return { rows: [{ remaining: '55000' }], rowCount: 1 };
       }
       if (sql.includes('UPDATE bookings SET escrow_status')) {
         return { rows: [{ id: 'booking-1' }], rowCount: 1 };

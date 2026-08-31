@@ -1226,12 +1226,20 @@ uploads + presigned option all shipped, no further code is required for §35a.
   UPDATEs; a PayMongo failure in prod rolls the trx back so no partial state is
   recorded. Test: `b-crit01-crit02-partial-refund.test.ts` (FOR-UPDATE shape).
 - `escrow.service.refundFromEscrow` debits escrow in a trx, then calls
-  `processRefund` OUTSIDE it. A mid-failure leaves escrow debited but the intent
-  not updated. **Mitigated (2026-06-04):** every caller now enqueues a
-  gateway-retry on failure (see below), so the eventual-consistency retry brings
-  the intent in line. Full single-transaction atomicity (escrow ledger +
-  PayMongo) is impractical because PayMongo is an external call; the retry queue
-  is the accepted reconciliation path. Tracked for the v1.1 rework below.
+  `processRefund` OUTSIDE it. Full single-transaction atomicity (escrow ledger +
+  PayMongo) is impossible because PayMongo is external. **Corrected again
+  2026-09-01:** the shared refund primitive now caps against the booking's own
+  immutable escrow ledger, credits wallet-funded refunds back to the customer
+  wallet in the same transaction, and gateway failure queues
+  `process_payment_refund`, which cannot touch escrow. Booking 360 additionally
+  creates that payment-only work item inside the same transaction as the local
+  refund, support-case note, and admin audit, closing the commit-to-enqueue crash
+  window for operator refunds. Its first worker attempt is delayed by ten
+  minutes so it cannot race the request handler's immediate payment attempt.
+  The normal confirmation, auto-confirm, force-complete, and manual-release
+  paths now release a partially refunded booking's ledger remainder using a
+  prorated copy of its immutable terms instead of stranding or over-releasing
+  the remainder.
 - `dispute.service` (resolveDispute / acceptPartialOffer / addProviderResponse) —
   **RESOLVED (2026-06-04).** Pre-fix these three paths committed the booking to
   `status='resolved'` and then, post-commit, called `refundFromEscrow` /
@@ -1246,19 +1254,24 @@ uploads + presigned option all shipped, no further code is required for §35a.
 These are low-probability today (refunds/disputes are admin-driven and serialized
 in practice) but are real correctness/money-integrity gaps.
 
-> **Newly found while fixing §35b (low-probability, retry-only) — `refund_from_escrow`
-> retry can double-debit escrow.** The gateway-retry worker's `refund_from_escrow`
-> action replays the WHOLE `refundFromEscrow` (escrow ledger debit + PayMongo). If
-> the original post-commit call committed the escrow debit and then PayMongo
-> failed, the enqueued retry re-debits the platform-escrow wallet. It only fires
-> when a refund's PayMongo leg fails after the escrow leg committed (rare), and
-> the existing `handleCancellation` + `dispute-admin` paths already carry the same
-> latent issue — the §35b dispute fix did not introduce it, it made those paths
-> consistent. **v1.1 fix (proposed):** split the escrow-ledger move (do it inside
-> the resolution transaction, atomic with the status flip) from the PayMongo leg
-> (post-commit), and add a `paymongo_refund_only` retry action that replays ONLY
-> `processRefund` (which is now itself `FOR UPDATE`-locked and cap-revalidated, so
-> it is safe to replay). Then no retry ever re-touches the escrow ledger.
+> **`refund_from_escrow` double-debit risk — RESOLVED IN CODE 2026-09-01.**
+> Post-commit payment failures in customer cancellation, admin cancellation,
+> dispute refunds, and Booking 360 now enqueue `process_payment_refund`, not a
+> second escrow movement. The legacy `refund_from_escrow` action remains only
+> for a failure before the local escrow transaction commits. Migration 163
+> widens the queue constraint. Behavioral coverage is OPS-283 through OPS-298.
+
+**Remaining external-provider limitation:** the current PayMongo integration
+does not send or persist a provider idempotency key for refunds. If PayMongo
+accepts a refund but the process dies before the local payment-intent update or
+queue-success marker commits, an automatic retry is ambiguous. A missing or
+invalid production payment ID now blocks the local payment-intent update and
+surfaces reconciliation rather than falsely reporting success. New external
+payment authorization is held under E14, so this cannot affect a new launch
+transaction while that hold remains. Before E14 is lifted, implement a
+gateway-reconciled refund-operation state machine or obtain verified provider
+idempotency behavior; do not treat an uncertain network outcome as safe to
+blindly replay.
 
 ### 35c. File-upload defense-in-depth — RESOLVED (2026-06-04)
 Pre-fix: `upload.service.validateFile` checked the CLIENT-SUPPLIED MIME +

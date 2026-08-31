@@ -58,6 +58,9 @@ it('Bug OPS-233 — escrow release consumes the immutable allocation and conserv
     if (/SELECT pending_balance::text/.test(sql)) {
       return { rows: [{ pending_balance: '110000' }], rowCount: 1 };
     }
+    if (/COALESCE\(SUM\(amount\), 0\)/.test(sql)) {
+      return { rows: [{ remaining: '110000' }], rowCount: 1 };
+    }
     return { rows: [], rowCount: 1 };
   });
 

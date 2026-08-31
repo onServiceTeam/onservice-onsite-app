@@ -54,7 +54,7 @@ describe('Phase B CRIT-03 — escrow refuses to release on corrupt booking row',
       rows: [{
         id: 'booking-1', customer_id: 'customer-1', provider_id: 'provider-1',
         service_price: '10000', service_fee: '1200', total_amount: '11201',
-        status: 'confirmed', scheduled_at: new Date('2026-01-01T00:00:00.000Z'),
+        status: 'confirmed', escrow_status: 'held', scheduled_at: new Date('2026-01-01T00:00:00.000Z'),
         provider_suspended_during_booking_at: null,
       }],
       rowCount: 1,

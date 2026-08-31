@@ -154,6 +154,12 @@ export interface RefundResult {
   refundedAmount: number;
   reason: string;
   adminActionId: string;
+  supportTicketId: string;
+  remainingEscrowAmount: number;
+  customerWalletCredited: boolean;
+  idempotentReplay: boolean;
+  paymentProcessingQueued: boolean;
+  paymentProcessingStatus: 'processed' | 'queued' | 'manual_attention';
 }
 
 export interface ReassignResult {
@@ -780,7 +786,9 @@ export async function manualReleaseEscrow(
   const result = await db.transaction(async (client) => {
     const breakdown = await escrowService.releaseEscrowInTransaction(client, bookingId);
     const releasedAmount =
-      Number(breakdown.providerReceives ?? 0) + Number(breakdown.platformRetains ?? 0);
+      Number(breakdown.providerReceives ?? 0)
+      + Number(breakdown.platformRetains ?? 0)
+      + Number(breakdown.guaranteeFundContribution ?? 0);
 
     const actionResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
@@ -846,6 +854,8 @@ export async function refundBookingEscrow(
   refundAmount: number,
   reason: string,
   adminUserId: string,
+  supportTicketId: string,
+  idempotencyKey: string,
 ): Promise<RefundResult> {
   if (
     !Number.isFinite(refundAmount) ||
@@ -855,6 +865,13 @@ export async function refundBookingEscrow(
     throw createAppError('refundAmount must be a positive integer (centavos).', 400);
   }
   const trimmedReason = requireReason(reason, 10);
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(supportTicketId)) {
+    throw createAppError('supportTicketId must be a valid UUID.', 400);
+  }
+  if (!uuidPattern.test(idempotencyKey)) {
+    throw createAppError('idempotencyKey must be a valid UUID.', 400);
+  }
 
   // Phase 14 Dispatch 06 — Bug 71. Pre-D06 the escrow refund ran in
   // escrowService.refundFromEscrow's internal transaction, then the
@@ -863,15 +880,102 @@ export async function refundBookingEscrow(
   // escrow pending_balance debit) without an audit trail. Now: ONE
   // outer transaction wraps the trx-aware refund helper + the
   // admin_actions INSERT. Gateway refund (paymentService.processRefund)
-  // stays post-commit per the documented pattern (gateway calls are
-  // idempotent and tolerate retry).
+  // stays post-commit per the documented pattern. Its retry action never
+  // repeats the already-committed escrow movement.
   const result = await db.transaction(async (client) => {
-    await escrowService.refundFromEscrowInTransaction(
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [idempotencyKey]);
+    const replayResult = await client.query<{
+      id: string;
+      details: Record<string, unknown>;
+      reason: string;
+    }>(
+      `SELECT id, details, reason
+         FROM admin_actions
+        WHERE action_type = 'refund_issued'
+          AND details ->> 'idempotencyKey' = $1
+        LIMIT 1`,
+      [idempotencyKey],
+    );
+    const replay = replayResult.rows[0];
+    if (replay) {
+      if (String(replay.details.bookingId) !== bookingId) {
+        throw createAppError('This refund request key belongs to a different booking.', 409);
+      }
+      if (
+        Number(replay.details.refundAmount) !== refundAmount
+        || String(replay.details.supportTicketId) !== supportTicketId
+        || replay.reason !== trimmedReason
+      ) {
+        throw createAppError('This refund request key was already used with different parameters.', 409);
+      }
+      const paymentRetryId = String(replay.details.paymentRetryId ?? '');
+      const retryStatus = paymentRetryId
+        ? await client.query<{ status: string }>(
+            'SELECT status FROM gateway_retry_queue WHERE id = $1',
+            [paymentRetryId],
+          )
+        : null;
+      const persistedRetryStatus = retryStatus?.rows[0]?.status;
+      const paymentProcessingStatus: RefundResult['paymentProcessingStatus'] = persistedRetryStatus === 'succeeded'
+        ? 'processed'
+        : persistedRetryStatus === 'pending' || persistedRetryStatus === 'in_progress'
+          ? 'queued'
+          : 'manual_attention';
+      return {
+        adminActionId: replay.id,
+        supportTicketId: String(replay.details.supportTicketId),
+        remainingEscrowAmount: Number(replay.details.remainingEscrowAmount),
+        customerWalletCredited: replay.details.customerWalletCredited === true,
+        idempotentReplay: true,
+        paymentRetryId,
+        paymentProcessingQueued: paymentProcessingStatus === 'queued',
+        paymentProcessingStatus,
+      };
+    }
+
+    const ticketResult = await client.query<{ id: string; ticket_number: string }>(
+      `SELECT id, ticket_number
+         FROM support_tickets
+        WHERE id = $1
+          AND booking_id = $2
+          AND status NOT IN ('resolved', 'closed')
+        FOR SHARE`,
+      [supportTicketId, bookingId],
+    );
+    const ticket = ticketResult.rows[0];
+    if (!ticket) {
+      throw createAppError('Select an active support case linked to this booking before issuing a refund.', 409);
+    }
+
+    const movement = await escrowService.refundFromEscrowInTransaction(
       client,
       bookingId,
       refundAmount,
       trimmedReason,
     );
+    const nextEscrowStatus = movement.remainingEscrowCentavos === 0
+      ? 'refunded'
+      : 'partially_refunded';
+    await client.query(
+      `UPDATE bookings SET escrow_status = $2, updated_at = NOW() WHERE id = $1`,
+      [bookingId, nextEscrowStatus],
+    );
+
+    // Durable outbox: create the payment-only work item before the local
+    // refund commits. A process stop between COMMIT and the immediate gateway
+    // call can no longer strand the customer refund. The worker never repeats
+    // the escrow debit.
+    const retryResult = await client.query<{ id: string }>(
+      `INSERT INTO gateway_retry_queue
+         (action_type, booking_id, amount_centavos, description, last_error, status, next_retry_at)
+       VALUES ('process_payment_refund', $1, $2, $3, $4, 'pending', NOW() + INTERVAL '10 minutes')
+       RETURNING id`,
+      [bookingId, refundAmount, trimmedReason, 'Initial payment refund attempt pending'],
+    );
+    const paymentRetryId = retryResult.rows[0]?.id;
+    if (!paymentRetryId) {
+      throw createAppError('Failed to create durable payment refund operation.', 500);
+    }
 
     const actionResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
@@ -880,7 +984,18 @@ export async function refundBookingEscrow(
       [
         adminUserId,
         bookingId,
-        JSON.stringify({ bookingId, refundAmount }),
+        JSON.stringify({
+          bookingId,
+          refundAmount,
+          supportTicketId,
+          supportTicketNumber: ticket.ticket_number,
+          idempotencyKey,
+          remainingEscrowAmount: movement.remainingEscrowCentavos,
+          customerWalletCredited: movement.customerWalletCredited,
+          paymentMethod: movement.paymentMethod,
+          nextEscrowStatus,
+          paymentRetryId,
+        }),
         trimmedReason.slice(0, 500),
         trimmedReason,
       ],
@@ -890,7 +1005,31 @@ export async function refundBookingEscrow(
       throw createAppError('Failed to record refund admin action.', 500);
     }
 
-    return { adminActionId };
+    await client.query(
+      `INSERT INTO support_ticket_messages
+         (ticket_id, sender_id, sender_role, message, is_internal_note)
+       VALUES ($1, $2, 'super_admin', $3, TRUE)`,
+      [
+        supportTicketId,
+        adminUserId,
+        `Refund issued: ${refundAmount} centavos. Remaining booking escrow: ${movement.remainingEscrowCentavos} centavos. Admin action: ${adminActionId}. Reason: ${trimmedReason}`,
+      ],
+    );
+    await client.query(
+      `UPDATE support_tickets SET updated_at = NOW() WHERE id = $1`,
+      [supportTicketId],
+    );
+
+    return {
+      adminActionId,
+      supportTicketId,
+      remainingEscrowAmount: movement.remainingEscrowCentavos,
+      customerWalletCredited: movement.customerWalletCredited,
+      idempotentReplay: false,
+      paymentRetryId,
+      paymentProcessingQueued: true,
+      paymentProcessingStatus: 'queued' as const,
+    };
   });
 
   logger.info('Booking escrow refund executed', {
@@ -905,14 +1044,100 @@ export async function refundBookingEscrow(
   // ordering. Failure here is logged but does not roll back the money/audit
   // pair, which are already durable — the gateway dispute resolution lives
   // outside our transaction boundary.
-  try {
-    await paymentService.processRefund(bookingId, refundAmount, trimmedReason);
-  } catch (err) {
-    logger.error('Gateway refund call failed after escrow + audit committed (logged, not rolled back)', {
-      bookingId,
-      refundAmount,
-      error: err instanceof Error ? err.message : String(err),
-    });
+  let paymentProcessingQueued = result.paymentProcessingQueued;
+  let paymentProcessingStatus = result.paymentProcessingStatus;
+  if (!result.idempotentReplay) {
+    try {
+      await paymentService.processRefund(bookingId, refundAmount, trimmedReason);
+      try {
+        const marked = await db.query(
+          `UPDATE gateway_retry_queue
+              SET status = 'succeeded', attempts = 1, last_attempted_at = NOW(),
+                  succeeded_at = NOW(), updated_at = NOW(), last_error = NULL
+            WHERE id = $1 AND status = 'pending'`,
+          [result.paymentRetryId],
+        );
+        if ((marked.rowCount ?? 0) === 1) {
+          paymentProcessingQueued = false;
+          paymentProcessingStatus = 'processed';
+        } else {
+          paymentProcessingQueued = false;
+          paymentProcessingStatus = 'manual_attention';
+          logger.error('Payment refund succeeded but its durable operation was not pending', {
+            bookingId,
+            paymentRetryId: result.paymentRetryId,
+          });
+        }
+      } catch (markErr) {
+        paymentProcessingQueued = false;
+        paymentProcessingStatus = 'manual_attention';
+        logger.error('Payment refund succeeded but its durable operation could not be marked succeeded', {
+          bookingId,
+          paymentRetryId: result.paymentRetryId,
+          error: markErr instanceof Error ? markErr.message : String(markErr),
+        });
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      if (result.customerWalletCredited && /no payment found/i.test(error)) {
+        logger.info('Wallet admin refund completed without a payment-intent row', {
+          bookingId,
+          refundAmount,
+        });
+        try {
+          const marked = await db.query(
+            `UPDATE gateway_retry_queue
+                SET status = 'succeeded', attempts = 1, last_attempted_at = NOW(),
+                    succeeded_at = NOW(), updated_at = NOW(), last_error = NULL
+              WHERE id = $1 AND status = 'pending'`,
+            [result.paymentRetryId],
+          );
+          if ((marked.rowCount ?? 0) === 1) {
+            paymentProcessingQueued = false;
+            paymentProcessingStatus = 'processed';
+          } else {
+            paymentProcessingQueued = false;
+            paymentProcessingStatus = 'manual_attention';
+            logger.error('Wallet refund completed but its durable operation was not pending', {
+              bookingId,
+              paymentRetryId: result.paymentRetryId,
+            });
+          }
+        } catch (markErr) {
+          paymentProcessingQueued = false;
+          paymentProcessingStatus = 'manual_attention';
+          logger.error('Wallet refund completed but its durable operation could not be marked succeeded', {
+            bookingId,
+            paymentRetryId: result.paymentRetryId,
+            error: markErr instanceof Error ? markErr.message : String(markErr),
+          });
+        }
+      } else {
+        logger.error('Payment refund processing failed after escrow + audit committed; durable retry remains pending', {
+          bookingId,
+          refundAmount,
+          paymentRetryId: result.paymentRetryId,
+          error,
+        });
+        try {
+          await db.query(
+            `UPDATE gateway_retry_queue
+                SET attempts = 1, last_attempted_at = NOW(), last_error = $2,
+                    next_retry_at = NOW() + INTERVAL '2 minutes', updated_at = NOW()
+              WHERE id = $1 AND status = 'pending'`,
+            [result.paymentRetryId, error.slice(0, 2000)],
+          );
+        } catch (markErr) {
+          logger.error('Durable payment refund retry exists but its initial error could not be recorded', {
+            bookingId,
+            paymentRetryId: result.paymentRetryId,
+            error: markErr instanceof Error ? markErr.message : String(markErr),
+          });
+        }
+        paymentProcessingQueued = true;
+        paymentProcessingStatus = 'queued';
+      }
+    }
   }
 
   return {
@@ -920,6 +1145,12 @@ export async function refundBookingEscrow(
     refundedAmount: refundAmount,
     reason: trimmedReason,
     adminActionId: result.adminActionId,
+    supportTicketId: result.supportTicketId,
+    remainingEscrowAmount: result.remainingEscrowAmount,
+    customerWalletCredited: result.customerWalletCredited,
+    idempotentReplay: result.idempotentReplay,
+    paymentProcessingQueued,
+    paymentProcessingStatus,
   };
 }
 
@@ -1320,7 +1551,7 @@ export async function cancelBookingAsAdmin(
           bookingId, totalCustomerRefund, error: errMsg,
         });
         await gatewayRetryService.enqueueRetry({
-          actionType: 'refund_from_escrow',
+          actionType: 'process_payment_refund',
           bookingId,
           amountCentavos: totalCustomerRefund,
           description: 'Admin cancellation refund',
@@ -1373,14 +1604,16 @@ export async function forceCompleteBooking(
     // waited up to a full day after explicit admin force-complete
     // to actually receive their money. Now: release escrow + flip
     // to 'payout_ready' inside the SAME transaction when the
-    // booking has escrow held. Pre-check escrow_status so we don't
-    // throw on bookings that never had a payment captured.
+    // booking has escrow held. A prior operator partial refund still leaves a
+    // provider/platform remainder that must be released here. Pre-check
+    // escrow_status so we don't throw on bookings that never had a payment
+    // captured.
     const escrowStatusRow = await client.query<{ escrow_status: string | null }>(
       `SELECT escrow_status FROM bookings WHERE id = $1`,
       [bookingId],
     );
     const escrowStatus = escrowStatusRow.rows[0]?.escrow_status ?? null;
-    const releasable = escrowStatus === 'held';
+    const releasable = escrowStatus === 'held' || escrowStatus === 'partially_refunded';
     let escrowReleased = false;
     if (releasable) {
       await escrowService.releaseEscrowInTransaction(client, bookingId);
