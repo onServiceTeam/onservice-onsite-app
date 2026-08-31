@@ -18,6 +18,7 @@ import * as reconciliationService from '../services/reconciliation.service';
 import * as financialAdminService from '../services/financial-admin.service';
 
 const router = Router();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
@@ -55,6 +56,14 @@ function parseOptionalNumber(value: unknown, name: string): number | undefined {
   const n = Number(value);
   if (!Number.isFinite(n)) throw createAppError(`Invalid ${name}.`, 400);
   return n;
+}
+
+function requireUuid(value: string | string[] | undefined, name: string): string {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (!candidate || !UUID_REGEX.test(candidate)) {
+    throw createAppError(`${name} must be a valid UUID.`, 400);
+  }
+  return candidate;
 }
 
 // ─── VAT monthly reports ────────────────────────────────────────────────────
@@ -268,7 +277,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       requireAdmin(req);
-      const data = await reconciliationService.getSnapshotById(req.params.id as string);
+      const data = await reconciliationService.getSnapshotById(requireUuid(req.params.id, 'Reconciliation ID'));
       if (!data) throw createAppError('Reconciliation snapshot not found.', 404);
       res.json({ success: true, data });
     } catch (error) { next(error); }
@@ -286,10 +295,16 @@ router.post(
         paymongoBalance?: number;
         notes?: string;
       };
+      if (!Number.isSafeInteger(body.paymongoBalance) || (body.paymongoBalance as number) < 0) {
+        throw createAppError('paymongoBalance is required and must be a non-negative integer in centavos.', 400);
+      }
+      if (body.notes !== undefined && (typeof body.notes !== 'string' || body.notes.trim().length > 1000)) {
+        throw createAppError('notes must be at most 1000 characters.', 400);
+      }
       const data = await reconciliationService.runDailyReconciliation({
         snapshotDate: body.snapshotDate,
         paymongoBalance: body.paymongoBalance,
-        notes: body.notes,
+        notes: body.notes?.trim() || undefined,
         adminUserId: req.user!.userId,
       });
       res.status(201).json({ success: true, data });
@@ -304,10 +319,12 @@ router.post(
     try {
       requireSuperAdmin(req);
       const { note } = (req.body ?? {}) as { note?: string };
-      if (!note) throw createAppError('note required', 400);
+      if (!note || typeof note !== 'string' || note.trim().length < 5 || note.trim().length > 1000) {
+        throw createAppError('note must be 5 to 1000 characters.', 400);
+      }
       const data = await reconciliationService.acknowledgeDiscrepancy(
-        req.params.id as string,
-        String(note),
+        requireUuid(req.params.id, 'Reconciliation ID'),
+        note.trim(),
         req.user!.userId,
       );
       res.json({ success: true, data });

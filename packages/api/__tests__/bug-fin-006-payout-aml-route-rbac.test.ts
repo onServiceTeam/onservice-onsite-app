@@ -3,6 +3,7 @@ import request from 'supertest';
 
 let currentRole: 'admin' | 'super_admin' = 'admin';
 const clearAmlReviewMock = jest.fn();
+const payoutId = '11111111-1111-4111-8111-111111111111';
 
 jest.mock('../src/middleware/auth.middleware', () => ({
   authMiddleware: (
@@ -39,19 +40,19 @@ it('Bug FIN-006 — AML review route blocks junior admins and passes a reasoned 
 
   currentRole = 'admin';
   const denied = await request(app)
-    .put('/payouts/payout-1/clear-aml-review')
+    .put(`/payouts/${payoutId}/clear-aml-review`)
     .send({ reason: 'Junior admin attempted clearance.' });
   expect(denied.status).toBe(403);
   expect(clearAmlReviewMock).not.toHaveBeenCalled();
 
   currentRole = 'super_admin';
-  clearAmlReviewMock.mockResolvedValueOnce({ id: 'payout-1', status: 'pending' });
+  clearAmlReviewMock.mockResolvedValueOnce({ id: payoutId, status: 'pending' });
   const allowed = await request(app)
-    .put('/payouts/payout-1/clear-aml-review')
+    .put(`/payouts/${payoutId}/clear-aml-review`)
     .send({ reason: 'Identity and transaction context were reviewed.' });
   expect(allowed.status).toBe(200);
   expect(clearAmlReviewMock).toHaveBeenCalledWith(
-    'payout-1',
+    payoutId,
     'admin-user-1',
     'Identity and transaction context were reviewed.',
   );

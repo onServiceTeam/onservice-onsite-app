@@ -4,7 +4,7 @@
 
 This is the resumable record for the suspicion-first admin/company stage that follows the provider and customer desktop/linkage audits. It records what was inspected, what was changed, what was proven by executed tests, and what remains. It does not treat the existence of a route, table, button, or old test as proof that an operator workflow is feasible.
 
-The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover Business Account 360, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, and the current Booking 360/Dispatch integrity pass. The remaining admin surfaces continue after these checkpoints.
+The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover Business Account 360, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, Booking 360/Dispatch integrity, and the current financial-operations truth pass. The remaining admin surfaces continue after these checkpoints.
 
 Production synchronization is not claimed. Escalation E32 still records that the supplied SSH identities are rejected by the production host. Local and GitHub code may be aligned after CI, but production cannot be updated until an authorized server identity is available.
 
@@ -163,23 +163,54 @@ The cancellation timing/arrival/no-show inputs still feed the live System A refu
 
 Executed regression coverage: Bugs UX-704 through UX-718, plus the existing Booking 360, Dispatch, reassignment, cancellation-transaction, proof, money-trail, and support-message suites. The reviewed visual contract now includes default/loading/empty/error states at 820, 1024, 1280, 1440, and 1920 pixels for Booking 360 and Dispatch.
 
-## Verification at checkpoints D through F
+## Checkpoint G: financial operations truth and payout feasibility
+
+### Findings
+
+- The Overview headline used commission/service-fee ledger revenue, but every category/city/tier/payment-method chart summed full completed booking value and labelled it revenue. The same screen therefore used two incompatible meanings for company revenue.
+- Refund totals summed the absolute value of every refund ledger row. Wallet refunds record a negative escrow debit and a positive customer credit, so one customer refund could be counted twice.
+- The payout summary treated only the legacy `processing` state as open. The launch path uses internal-review, pending, and approved states, so real provider money work could appear as zero.
+- Payment intents and failed gateway refund/release retries had no company operations workspace. Support and finance could not see attempt truth and unresolved post-commit failures together.
+- A manual reconciliation could omit PayMongo balance; the stored null was rendered as ₱0 with an OK/zero-discrepancy conclusion.
+- Payout operators had to paste a provider UUID, ordinary admins received full destination account data, list failure still left an empty table visible, and completion called every bank/wallet reference a PayMongo transfer ID.
+- Escrow and legacy sales-record APIs exposed complete counts, but the client discarded those totals and silently showed only the capped first list.
+- Payout/receipt/reconciliation path identifiers were not consistently rejected before service/database work, and the provider approval notification said processing had begun before the manual transfer step existed.
+
+### Implemented boundary
+
+- All revenue breakdowns now use the same recognized commission/service-fee ledger as the headline. Full completed booking value remains GMV. Unlinked ledger revenue is explicitly **Unattributed** rather than silently dropped or called unknown.
+- Financial Overview and the retained legacy revenue-report endpoint count the negative refund debit once. No refund percentage, transfer, escrow, or settlement rule was changed.
+- Open payout counts include internal-review, pending, approved-awaiting-transfer, and legacy-processing stages, each visible separately. Missing payout storage and request failures fail closed instead of becoming clean zero/empty signals.
+- Added a Payments & Refunds workspace with payment-attempt status, booking/customer exits, active retry counts, permanent-failure errors, a paginated unresolved retry queue, and a clear E14 evidence warning.
+- New manual reconciliation snapshots require a verified non-negative PayMongo balance entered in PHP with no more than two decimals; the client converts it exactly to the API's integer-centavo boundary. Historical null-balance snapshots remain retained but display **Not supplied / Not compared / Expected only**.
+- Payout search accepts business name, provider account-holder name, or ID and returns a human display-name fallback. Ordinary admins receive masked destination/account-holder data; super_admin retains the complete value needed for the authorized manual transfer.
+- Approval copy now says the request is queued for manual transfer, and completion accepts a method-neutral external transfer reference. The action still only records an already completed external send.
+- Escrow shows the exact pending count and paginates the complete pending-release queue in bounded 50-row pages. Legacy sales-record search preserves the API total and paginates instead of implying the first page is complete.
+- Payout action IDs, payout status filters, receipt IDs, and reconciliation IDs fail at the route boundary when malformed. Cancellation reasons and manual reconciliation notes are bounded.
+- Financial navigation is a touch-sized two-row tablet grid so no section label is clipped. Financial and Payout workspaces now have default/loading/empty/error baselines at 820, 1024, 1280, 1440, and 1920 pixels; every financial section is separately captured at 820, 1024, and 1280.
+
+E09, E14, E18, E22, E24, and D27p5 remain open. This checkpoint did not activate external checkout, invent AMLA legal conclusions, authorize BIR documents, change cancellation percentages, release held money, or alter dispute settlement semantics.
+
+Executed focused regression coverage: Bugs UX-719 through UX-743 plus the existing payout atomicity/RBAC/validator, reconciliation, escrow, revenue-degradation, Financials, Payouts, E22, and money-trail suites.
+
+## Verification at checkpoints D through G
 
 - All three workspace TypeScript checks: passed.
 - Admin production build: passed.
 - API production build: passed.
 - Full repository ESLint: passed.
-- Admin full suite: 198 passed files, 1 skipped file; 308 passed tests and 3 explicit todos.
-- API full locally runnable run: 545 passed suites, 1 skipped suite; 3,137 passed tests and 1 intentional skip. The Docker-dependent nginx certificate configuration test was excluded because Docker Desktop is unavailable in the local environment; CI remains the execution gate for that check.
+- Admin full suite: 207 passed files, 1 skipped file; 317 passed tests and 3 explicit todos.
+- API full locally runnable run: 562 passed suites, 1 skipped suite; 3,142 passed tests and 1 intentional skip. The Docker-dependent nginx certificate configuration test was excluded because Docker Desktop is unavailable in the local environment; CI remains the execution gate for that check.
+- Financials and Payouts strict visual comparison: 61 passed at 820, 1024, 1280, 1440, and 1920 pixels with no baseline updates during the verification run.
+- Gate A and Gate C: passed with zero blocking/report failures. No-phantom-test scan: passed. Money-conservation checkpoint: 115 focused state, pricing, escrow, commission, refund, and wallet assertions passed.
 - `git diff --check`: passed.
 
 ## Next admin/company audit queue
 
 The next continuous loop starts from the admin navigation inventory and rechecks each remaining page against the operating questions above. Priority order is:
 
-1. Financial operations: payment intents/events, refunds, invoices, payouts, AML holds, reconciliations, and immutable money/audit boundaries.
-2. Customer and Provider 360 action feasibility, including enforcement impact, support ownership, sessions, documents, service areas, staff, and history.
-3. Catalog, service-area, cancellation-policy, compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
-4. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
+1. Customer and Provider 360 action feasibility, including enforcement impact, support ownership, sessions, documents, service areas, staff, and history.
+2. Catalog, service-area, cancellation-policy, compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
+3. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
 
 Existing legal, money, production-data, and privileged-identity escalation boundaries still apply. A page-local visual improvement is not permission to invent legal wording, mutate production money, or bypass those controls.

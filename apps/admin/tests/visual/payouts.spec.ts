@@ -9,7 +9,7 @@ const VISUAL_PAYOUT = {
   providerId: 'provider-visual-1',
   walletId: 'wallet-visual-1',
   amount: 52_500_000,
-  method: 'bank_transfer',
+  method: 'bank_instapay',
   destinationAccount: '•••• 2481',
   accountName: 'Visual Provider Co.',
   status: 'aml_review_pending',
@@ -54,7 +54,7 @@ async function mockPayouts(page: Page, mode: ListMode): Promise<void> {
 }
 
 test.describe('PayoutsPage', () => {
-  for (const width of [1280, 1440, 1920]) {
+  for (const width of [820, 1024, 1280, 1440, 1920]) {
     test.describe(`@${width}`, () => {
       test.use({ viewport: { width, height: 800 } });
 
@@ -83,7 +83,8 @@ test.describe('PayoutsPage', () => {
       test('error state', async ({ page }) => {
         await mockPayouts(page, 'error');
         await page.goto(ROUTE);
-        await expect(page.getByText('Failed to load payouts. Please try refreshing the page.')).toBeVisible();
+        await expect(page.getByText('Payout queue unavailable')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Retry payout queue' })).toBeVisible();
         await expect(page.getByText('Loading...')).toHaveCount(0);
         await expect(page).toHaveScreenshot(`payouts-error-${width}.png`, { fullPage: true, maxDiffPixelRatio: 0.01 });
       });

@@ -145,20 +145,75 @@ const FINANCIALS_BREAKDOWN = [
   { label: 'Aircon Services', revenue: 191_600, bookings: 4 },
 ];
 const FINANCIALS_ESCROW = {
-  totalInEscrow: 0,
-  aging: [],
-  pendingReleaseList: [],
+  totalInEscrow: 430_000,
+  pendingReleaseCount: 2,
+  aging: [
+    { bucket: '48-168h', count: 1, total: 280_000 },
+    { bucket: '168h+', count: 1, total: 150_000 },
+  ],
+  pendingReleaseList: [
+    {
+      bookingId: 'BK-ESCROW-0001', customerName: 'Visual Customer',
+      providerName: 'Cebu Home Care', amount: 280_000,
+      completedAt: '2026-08-28T04:00:00.000Z',
+    },
+    {
+      bookingId: 'BK-ESCROW-0002', customerName: 'BuildRight Cebu',
+      providerName: 'Cebu Pro Cleaners', amount: 150_000,
+      completedAt: '2026-08-20T04:00:00.000Z',
+    },
+  ],
+};
+const FINANCIALS_PAYMENTS = {
+  paymentIntentsAvailable: true,
+  gatewayRetriesAvailable: true,
+  totalAttempts: 8,
+  awaitingPaymentCount: 2,
+  processingCount: 1,
+  succeededCount: 2,
+  failedCount: 1,
+  refundedCount: 1,
+  partiallyRefundedCount: 1,
+  pendingGatewayRetries: 1,
+  inProgressGatewayRetries: 0,
+  permanentGatewayFailures: 1,
+  recentIntents: [{
+    id: 'PI-0001', bookingId: 'BK-0001', topupId: null,
+    customerName: 'Visual Baseline', amountCentavos: 310_000,
+    refundedAmountCentavos: 30_000, paymentMethod: 'gcash',
+    status: 'partially_refunded', createdAt: '2026-08-30T05:00:00.000Z',
+    updatedAt: '2026-08-30T08:00:00.000Z',
+  }],
+  gatewayRetries: [{
+    id: 'RETRY-0001', bookingId: 'BK-0001', disputeId: 'DSP-0001',
+    actionType: 'refund_from_escrow', amountCentavos: 30_000,
+    status: 'failed_permanent', attempts: 5, maxAttempts: 5,
+    nextRetryAt: '2026-08-30T08:00:00.000Z',
+    lastAttemptedAt: '2026-08-30T08:00:00.000Z',
+    lastError: 'Visual gateway failure requiring manual investigation.',
+  }],
 };
 const FINANCIALS_PAYOUTS = {
+  available: true, message: null,
   pendingCount: 0, pendingTotal: 0,
+  internalReviewCount: 0, awaitingApprovalCount: 0,
+  approvedAwaitingTransferCount: 0, processingCount: 0,
   todayCompletedCount: 0, todayCompletedTotal: 0,
-  failedCount: 0, upcomingScheduled: 0,
+  failedCount: 0,
   recentFailed: [],
 };
 const FINANCIALS_GUARANTEE = {
   currentBalance: 0, inflow30d: 0, outflow30d: 0, net30d: 0,
   avgMonthlyOutflow: 0, runwayMonths: null, needsReplenishment: false,
 };
+const FINANCIALS_RECONCILIATION = [{
+  id: '11111111-1111-4111-8111-111111111111',
+  snapshotDate: '2026-08-30',
+  paymongoBalance: null,
+  expectedTotal: 1_250_000,
+  discrepancy: 0,
+  alertSent: false,
+}];
 const FINANCIALS_BIR_OVERVIEW = {
   year: 2026, totalOutputVat: 0, totalVatPayable: 0,
   monthsFinalized: 0, monthlyReports: [], quarterlyBatches: [],
@@ -544,10 +599,14 @@ export const test = base.extend<VisualFixtureOptions>({
         };
       } else if (url.includes('/admin/financials/escrow')) {
         body = { success: true, data: FINANCIALS_ESCROW };
+      } else if (url.includes('/admin/financials/payments')) {
+        body = { success: true, data: FINANCIALS_PAYMENTS };
       } else if (url.includes('/admin/financials/payouts')) {
         body = { success: true, data: FINANCIALS_PAYOUTS };
       } else if (url.includes('/admin/financials/guarantee-fund')) {
         body = { success: true, data: FINANCIALS_GUARANTEE };
+      } else if (url.includes('/admin/bir/reconciliation/recent')) {
+        body = { success: true, data: FINANCIALS_RECONCILIATION };
       } else if (url.includes('/admin/financials/bir-2307/overview')
               || url.includes('/admin/bir/overview')) {
         body = { success: true, data: FINANCIALS_BIR_OVERVIEW };

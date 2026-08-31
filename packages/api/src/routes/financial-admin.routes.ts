@@ -16,6 +16,7 @@ import * as financialAdminService from '../services/financial-admin.service';
 import * as orService from '../services/or.service';
 
 const router = Router();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
@@ -122,7 +123,15 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       requireAdmin(req);
-      const data = await financialAdminService.getEscrowSummary();
+      const limit = parseOptionalNumber(req.query.limit, 'limit');
+      const offset = parseOptionalNumber(req.query.offset, 'offset');
+      if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 100)) {
+        throw createAppError('limit must be an integer between 1 and 100.', 400);
+      }
+      if (offset !== undefined && (!Number.isInteger(offset) || offset < 0)) {
+        throw createAppError('offset must be a non-negative integer.', 400);
+      }
+      const data = await financialAdminService.getEscrowSummary({ limit, offset });
       res.json({ success: true, data });
     } catch (error) { next(error); }
   },
@@ -135,6 +144,26 @@ router.get(
     try {
       requireAdmin(req);
       const data = await financialAdminService.getPayoutsSummary();
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
+  '/payments',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      requireAdmin(req);
+      const retryLimit = parseOptionalNumber(req.query.retryLimit, 'retryLimit');
+      const retryOffset = parseOptionalNumber(req.query.retryOffset, 'retryOffset');
+      if (retryLimit !== undefined && (!Number.isInteger(retryLimit) || retryLimit < 1 || retryLimit > 100)) {
+        throw createAppError('retryLimit must be an integer between 1 and 100.', 400);
+      }
+      if (retryOffset !== undefined && (!Number.isInteger(retryOffset) || retryOffset < 0)) {
+        throw createAppError('retryOffset must be a non-negative integer.', 400);
+      }
+      const data = await financialAdminService.getPaymentOperationsSummary({ retryLimit, retryOffset });
       res.json({ success: true, data });
     } catch (error) { next(error); }
   },
@@ -189,6 +218,9 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       requireAdmin(req);
+      if (!UUID_REGEX.test(req.params.id as string)) {
+        throw createAppError('Receipt ID must be a valid UUID.', 400);
+      }
       const data = await orService.getOrById(req.params.id as string);
       if (!data) throw createAppError('Official receipt not found.', 404);
       res.json({ success: true, data });
@@ -202,11 +234,16 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       requireSuperAdmin(req);
+      if (!UUID_REGEX.test(req.params.id as string)) {
+        throw createAppError('Receipt ID must be a valid UUID.', 400);
+      }
       const { reason } = (req.body ?? {}) as { reason?: string };
-      if (!reason) throw createAppError('reason is required.', 400);
+      if (!reason || typeof reason !== 'string' || reason.trim().length < 10 || reason.trim().length > 1000) {
+        throw createAppError('reason must be 10 to 1000 characters.', 400);
+      }
       const data = await orService.cancelOR(
         req.params.id as string,
-        String(reason),
+        reason.trim(),
         req.user!.userId,
       );
       res.status(201).json({ success: true, data });

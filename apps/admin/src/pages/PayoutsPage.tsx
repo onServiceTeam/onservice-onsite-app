@@ -2,10 +2,11 @@ import React, { useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
-import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { DataTable, Badge, Button, ErrorState, Pagination, type Column } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 
 interface Payout {
@@ -15,7 +16,7 @@ interface Payout {
   amount: number;
   method: string;
   destinationAccount: string;
-  accountName: string;
+  accountName: string | null;
   status: string;
   paymongoTransferId: string | null;
   failureReason: string | null;
@@ -75,8 +76,10 @@ export default function PayoutsPage(): React.ReactElement {
   const page = parsePage(searchParams.get('page'));
   const statusFilter = parseStatus(searchParams.get('status'));
   const payoutId = searchParams.get('payoutId')?.trim() ?? '';
-  const search = searchParams.get('providerId')?.trim() ?? '';
-  const [searchInput, setSearchInput] = useState(search);
+  const providerIdFilter = searchParams.get('providerId')?.trim() ?? '';
+  const directorySearch = searchParams.get('search')?.trim() ?? '';
+  const [searchInput, setSearchInput] = useState(directorySearch);
+  const [filterError, setFilterError] = useState('');
 
   const [selectedPayout, setSelectedPayout] = useState<Payout | null>(null);
   const [actionType, setActionType] = useState<'clearAml' | 'approve' | 'reject' | 'complete' | null>(null);
@@ -85,17 +88,19 @@ export default function PayoutsPage(): React.ReactElement {
   const [transferId, setTransferId] = useState('');
   const [actionError, setActionError] = useState('');
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['adminPayouts', page, statusFilter, search, payoutId],
+  const payoutsQuery = useQuery({
+    queryKey: ['adminPayouts', page, statusFilter, providerIdFilter, directorySearch, payoutId],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (statusFilter) params.status = statusFilter;
-      if (search) params.providerId = search;
+      if (providerIdFilter) params.providerId = providerIdFilter;
+      if (directorySearch) params.search = directorySearch;
       if (payoutId) params.payoutId = payoutId;
       const res = await api.get<PaginatedResult>('/api/v1/payouts', { params });
       return res.data;
     },
   });
+  const { data, isLoading, isError } = payoutsQuery;
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -114,6 +119,14 @@ export default function PayoutsPage(): React.ReactElement {
       }
     },
     onSuccess: () => {
+      const label = actionType === 'clearAml'
+        ? 'Internal review hold cleared. The payout still requires approval.'
+        : actionType === 'approve'
+          ? 'Payout approved and queued for the manual transfer step.'
+          : actionType === 'reject'
+            ? 'Payout rejected and its reservation returned.'
+            : 'Payout recorded as sent.';
+      toast.success(label);
       void queryClient.invalidateQueries({ queryKey: ['adminPayouts'] });
       closeModal();
     },
@@ -169,7 +182,7 @@ export default function PayoutsPage(): React.ReactElement {
     }
     const providerName = selectedPayout.providerBusinessName ?? 'this provider';
     const actionLabel = actionType === 'clearAml'
-      ? 'Clear compliance review for'
+      ? 'Clear internal review hold for'
       : actionType === 'complete'
         ? 'Mark completed'
         : `${actionType.charAt(0).toUpperCase() + actionType.slice(1)}`;
@@ -181,12 +194,18 @@ export default function PayoutsPage(): React.ReactElement {
   const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
     const trimmed = searchInput.trim();
+    if (trimmed.length === 1 || trimmed.length > 100) {
+      setFilterError('Provider search must be empty or 2 to 100 characters.');
+      return;
+    }
+    setFilterError('');
     setSearchParams((current) => {
       const params = new URLSearchParams(current);
       params.delete('page');
       params.delete('payoutId');
-      if (trimmed) params.set('providerId', trimmed);
-      else params.delete('providerId');
+      params.delete('providerId');
+      if (trimmed) params.set('search', trimmed);
+      else params.delete('search');
       return params;
     });
   };
@@ -280,17 +299,17 @@ export default function PayoutsPage(): React.ReactElement {
               <>
                 <button
                   type="button"
-                  aria-label={`Clear compliance review for payout ${r.id}`}
+                  aria-label={`Clear internal review hold for payout ${r.id}`}
                   onClick={(e) => { e.stopPropagation(); openAction(r, 'clearAml'); }}
-                  className="px-2 py-1 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-md transition-colors"
+                  className="min-h-11 px-2 py-2 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-md transition-colors"
                 >
-                  Clear review
+                  Clear hold
                 </button>
                 <button
                   type="button"
-                  aria-label={`Reject compliance-held payout ${r.id}`}
+                  aria-label={`Reject internal-review-held payout ${r.id}`}
                   onClick={(e) => { e.stopPropagation(); openAction(r, 'reject'); }}
-                  className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md transition-colors"
+                  className="min-h-11 px-2 py-2 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md transition-colors"
                 >
                   Reject
                 </button>
@@ -302,7 +321,7 @@ export default function PayoutsPage(): React.ReactElement {
                   type="button"
                   aria-label={`Approve payout ${r.id}`}
                   onClick={(e) => { e.stopPropagation(); openAction(r, 'approve'); }}
-                  className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
+                  className="min-h-11 px-2 py-2 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
                 >
                   Approve
                 </button>
@@ -310,7 +329,7 @@ export default function PayoutsPage(): React.ReactElement {
                   type="button"
                   aria-label={`Reject payout ${r.id}`}
                   onClick={(e) => { e.stopPropagation(); openAction(r, 'reject'); }}
-                  className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                  className="min-h-11 px-2 py-2 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
                 >
                   Reject
                 </button>
@@ -321,7 +340,7 @@ export default function PayoutsPage(): React.ReactElement {
                 type="button"
                 aria-label={`Complete payout ${r.id}`}
                 onClick={(e) => { e.stopPropagation(); openAction(r, 'complete'); }}
-                className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
+                className="min-h-11 px-2 py-2 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
               >
                 Complete
               </button>
@@ -365,24 +384,24 @@ export default function PayoutsPage(): React.ReactElement {
           </div>
         )}
         <form onSubmit={handleSearch} className="flex gap-2">
-          <label htmlFor="payout-provider-filter" className="sr-only">Filter by provider ID</label>
+          <label htmlFor="payout-provider-filter" className="sr-only">Search providers by name or ID</label>
           <input
             id="payout-provider-filter"
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Filter by provider ID..."
-            className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+            placeholder="Search provider name or ID..."
+            className="min-h-11 px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm w-72 max-w-full focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
           />
-          <button type="submit" className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-lg hover:opacity-90 transition-opacity">
-            Filter
+          <button type="submit" className="min-h-11 px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-lg hover:opacity-90 transition-opacity">
+            Search
           </button>
         </form>
         <select
           aria-label="Filter payouts by status"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+          className="min-h-11 px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
         >
           <option value="">All Statuses</option>
           <option value="aml_review_pending">Internal Large Payout Review</option>
@@ -395,13 +414,18 @@ export default function PayoutsPage(): React.ReactElement {
         </select>
       </div>
 
+      {filterError && <p role="alert" className="mb-4 text-sm text-red-600">{filterError}</p>}
+
       {isError && (
-        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-          Failed to load payouts. Please try refreshing the page.
-        </div>
+        <ErrorState
+          className="mb-4"
+          title="Payout queue unavailable"
+          description="The provider withdrawal queue could not be loaded. Do not treat it as empty."
+          action={<Button variant="outline" className="min-h-11" onClick={() => { void payoutsQuery.refetch(); }}>Retry payout queue</Button>}
+        />
       )}
 
-      <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No payout requests found." />
+      {!isError && <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No payout requests found." />}
 
       {data && data.pagination.totalPages > 1 && (
         <Pagination {...data.pagination} onPageChange={setPage} />
@@ -417,7 +441,7 @@ export default function PayoutsPage(): React.ReactElement {
           >
             <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1">
               <span id="payout-action-title">
-              {actionType === 'clearAml' ? 'Clear Compliance Review' : `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} Payout`}
+              {actionType === 'clearAml' ? 'Clear Internal Review Hold' : `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} Payout`}
               </span>
             </h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
@@ -450,22 +474,24 @@ export default function PayoutsPage(): React.ReactElement {
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
                   rows={3}
+                  maxLength={1000}
                   placeholder="Explain why this payout is being rejected (min 10 characters)..."
-                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+                  className="min-h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                 />
               </div>
             )}
 
             {actionType === 'complete' && (
               <div className="mb-4">
-                <label htmlFor="payout-transfer-id" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">PayMongo Transfer ID (optional)</label>
+                <label htmlFor="payout-transfer-id" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">External Transfer Reference (optional, max 100 chars)</label>
                 <input
                   id="payout-transfer-id"
                   type="text"
                   value={transferId}
                   onChange={(e) => setTransferId(e.target.value)}
-                  placeholder="e.g. trsf_xxxxxxxxxxxxx"
-                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+                  maxLength={100}
+                  placeholder="Bank, wallet, or gateway reference"
+                  className="min-h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                 />
               </div>
             )}
@@ -482,11 +508,11 @@ export default function PayoutsPage(): React.ReactElement {
                   rows={3}
                   maxLength={1000}
                   placeholder={actionType === 'clearAml'
-                    ? 'Record why the compliance hold can be cleared (min 10 characters)...'
+                    ? 'Record why the internal review hold can be cleared (min 10 characters)...'
                     : actionType === 'approve'
                       ? 'Record what was checked before approval (min 10 characters)...'
                       : 'Record how and when the external transfer was sent (min 10 characters)...'}
-                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+                  className="min-h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
                 />
               </div>
             )}
@@ -495,7 +521,8 @@ export default function PayoutsPage(): React.ReactElement {
               <button
                 type="button"
                 onClick={closeModal}
-                className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
+                disabled={mutation.isPending}
+                className="min-h-11 px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
               >
                 Cancel
               </button>
@@ -505,11 +532,11 @@ export default function PayoutsPage(): React.ReactElement {
                 disabled={mutation.isPending
                   || (actionType === 'reject' && rejectReason.trim().length < 10)
                   || ((actionType === 'clearAml' || actionType === 'approve' || actionType === 'complete') && actionReason.trim().length < 10)}
-                className={`px-4 py-2 text-sm text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
+                className={`min-h-11 px-4 py-2 text-sm text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity ${
                   actionType === 'reject' ? 'bg-red-600' : actionType === 'approve' ? 'bg-emerald-600' : 'bg-[var(--color-primary)]'
                 }`}
               >
-                {mutation.isPending ? 'Processing...' : actionType === 'clearAml' ? 'Confirm Review Cleared' : actionType === 'approve' ? 'Approve' : actionType === 'reject' ? 'Reject' : 'Mark Completed'}
+                {mutation.isPending ? 'Processing...' : actionType === 'clearAml' ? 'Confirm Hold Cleared' : actionType === 'approve' ? 'Approve' : actionType === 'reject' ? 'Reject' : 'Mark Completed'}
               </button>
             </div>
           </div>

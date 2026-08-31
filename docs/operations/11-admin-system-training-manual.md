@@ -290,25 +290,30 @@ How to resolve a dispute:
 
 ### 2.13 Financials (`/financials`)
 
-7 tabs: Overview (GMV, revenue, refunds, net revenue, avg ticket, breakdowns by category/city/tier/payment-method), Escrow (total held plus aging buckets and a pending-release list), Payouts (pending/completed/failed counts), Guarantee Fund (balance, 30d in/out, runway, replenishment status), Reconciliation (PayMongo vs expected balance; super_admin can Run reconciliation and Acknowledge discrepancies), Tax Workpapers (Held) (internal VAT summaries and retained 2307 data), Legacy Sales Records (search retained OR-labelled records).
+8 tabs: Overview (GMV plus recognized platform revenue/refunds/net revenue, avg ticket, and recognized-revenue breakdowns by category/city/tier/payment method), Escrow (total held, aging buckets, the exact pending-release count, and the paginated detail queue), Payments & Refunds (payment-attempt states plus a paginated queue of active and permanently failed gateway refund/release retries), Payouts (every open internal-review/pending/approved/legacy-processing stage plus completed/failed signals), Guarantee Fund (balance, 30d in/out, runway, replenishment status), Reconciliation (verified PayMongo balance vs expected balance; super_admin can Run reconciliation and Acknowledge discrepancies), Tax Workpapers (Held) (internal VAT summaries and retained 2307 data), Legacy Sales Records (paginated search of retained OR-labelled records).
 
 Most of this is read-only for plain admins. Run reconciliation remains a
-super_admin action. BIR generation/finalization actions are disabled for every
+super_admin action and requires a verified PayMongo balance entered in PHP; the
+client converts it to the server's integer-centavo money boundary. An old
+snapshot that did not record that external balance is marked **Expected only / Not
+compared**, never a successful zero-discrepancy reconciliation. Payment attempts
+and redirects are not collection evidence; permanently failed gateway retries need
+manual investigation. BIR generation/finalization actions are disabled for every
 role while E22 is open. Staff must not treat workpapers, OR identifiers, or
 historical PDFs as approved returns/invoices. See
 `10-money-and-compliance-ops.md`.
 
 ### 2.14 Payouts (`/payouts`)
 
-The provider payout request and compliance queue. Filter by provider ID and status (`aml_review_pending`, `pending`, `approved`, `processing`, `completed`, `rejected`, `failed`). Each row shows provider, amount, method, destination account, status context, and any failure or rejection reason.
+The provider payout request and internal-review queue. Search by provider business name, account-holder name, or provider ID and filter by status (`aml_review_pending`, `pending`, `approved`, `processing`, `completed`, `rejected`, `failed`). Each row shows provider, amount, method, destination account, status context, and any failure or rejection reason. Ordinary admins see masked payout destinations and remain read-only; super_admin sees the complete destination needed for the authorized transfer step.
 
-Super_admin actions: Clear internal large-payout review or directly Reject (reason at least 10) on internally held requests; Approve / Reject (reason at least 10) on pending requests; Complete (reason at least 10, optional transfer ID) on approved ones. Plain admins are read-only. These controls do not claim an AMLA filing or legal classification.
+Super_admin actions: Clear internal large-payout review or directly Reject (reason at least 10) on internally held requests; Approve / Reject (reason at least 10) on pending requests; Complete (reason at least 10, optional external bank/wallet/gateway reference) on approved ones. Plain admins are read-only. These controls do not claim an AMLA filing or legal classification.
 
 How to run a payout (super_admin):
 1. Open the request. Confirm the provider is approved, amount matches the reserved pending wallet balance, and destination account looks right (GCash/Maya is an 11-digit 09xxxxxxxxx number; bank is 8-16 digits).
 2. If the status is `aml_review_pending`, complete the required review. Clear with a written reason to move it to `pending`, or reject directly with a written reason to return the reservation. Neither action sends money.
 3. Click Approve and record what was checked (at least 10 characters). The provider is notified.
-4. Send the money through the authorized external PayMongo/bank process. Only after that succeeds, click Complete, record how/when it was sent (at least 10 characters), and paste the transfer ID if available. The provider gets "Payout Sent."
+4. Send the money through the authorized external wallet/bank/gateway process. Only after that succeeds, click Complete, record how/when it was sent (at least 10 characters), and paste the external transfer reference if available. Complete records evidence; it does not send money. The provider gets "Payout Sent."
 5. If something is wrong while pending, Reject with a clear reason; the transaction returns the full reserved amount to the provider's available balance. If the reservation is inconsistent, the action rolls back and Finance must investigate rather than manually compensating around it.
 
 Note: a payout at or above the internal review threshold (default ₱500,000) lands in `aml_review_pending`. It counts as the provider's one-in-flight request and needs a reasoned super_admin clear-or-reject decision before ordinary approval can continue. This state does not itself mean a legal report was filed or required. See `10-money-and-compliance-ops.md`.

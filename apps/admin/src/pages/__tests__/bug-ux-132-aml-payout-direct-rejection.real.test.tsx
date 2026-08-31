@@ -15,7 +15,7 @@ vi.mock('@/stores/auth.store', () => ({
 import api from '@/lib/api';
 import PayoutsPage from '../PayoutsPage';
 
-it('Bug UX-132 — an AML-held payout offers direct rejection with a required written reason', async () => {
+it('Bug UX-132 — an internal-review-held payout offers direct rejection with a required written reason', async () => {
   vi.mocked(api.get).mockResolvedValueOnce({
     data: {
       success: true,
@@ -38,7 +38,7 @@ it('Bug UX-132 — an AML-held payout offers direct rejection with a required wr
     </QueryClientProvider>,
   );
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Reject compliance-held payout payout-aml-1' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Reject internal-review-held payout payout-aml-1' }));
   const submit = screen.getByRole('button', { name: 'Reject' });
   expect(submit).toBeDisabled();
   expect(screen.getByLabelText('Rejection Reason *')).toBeTruthy();

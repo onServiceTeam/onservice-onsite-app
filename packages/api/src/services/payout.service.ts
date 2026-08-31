@@ -5,6 +5,7 @@ import { platformConfig } from '../config/platform.config';
 import * as walletService from './wallet.service';
 import * as settingsService from './settings.service';
 import { formatPHP } from '../utils/currency';
+import { maskPhilippinePhone } from '../utils/pii-mask';
 
 // MED-N78 fix: per-method destination account format validation.
 // Without these, a typo in destinationAccount silently routes
@@ -268,7 +269,7 @@ export async function approvePayout(payoutId: string, adminId: string, reason: s
          VALUES ($1, 'payout', 'Payout Approved', $2, $3)`,
         [
           prov.rows[0].user_id,
-          `Your payout of ${formatPHP(Number(result.rows[0]!.amount))} has been approved and is being processed.`,
+          `Your payout of ${formatPHP(Number(result.rows[0]!.amount))} has been approved and is queued for the manual transfer step. We will notify you after the transfer is recorded as sent.`,
           JSON.stringify({ payoutId, amount: Number(result.rows[0]!.amount) }),
         ],
       );
@@ -399,7 +400,7 @@ export async function completePayout(
 }
 
 export async function listPayouts(
-  filters: { payoutId?: string; providerId?: string; status?: string; page: number; pageSize: number },
+  filters: { payoutId?: string; providerId?: string; search?: string; status?: string; page: number; pageSize: number },
 ): Promise<{ payouts: PayoutRow[]; total: number }> {
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -413,6 +414,15 @@ export async function listPayouts(
     conditions.push(`p.provider_id = $${paramIdx++}`);
     params.push(filters.providerId);
   }
+  if (filters.search) {
+    conditions.push(`(
+      pr.business_name ILIKE $${paramIdx}
+      OR TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) ILIKE $${paramIdx}
+      OR p.provider_id::text ILIKE $${paramIdx}
+    )`);
+    params.push(`%${filters.search}%`);
+    paramIdx += 1;
+  }
   if (filters.status) {
     conditions.push(`p.status = $${paramIdx++}`);
     params.push(filters.status);
@@ -421,7 +431,11 @@ export async function listPayouts(
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const countResult = await db.query<CountRow>(
-    `SELECT COUNT(*)::text as count FROM payouts p ${whereClause}`,
+    `SELECT COUNT(*)::text as count
+       FROM payouts p
+       LEFT JOIN providers pr ON pr.id = p.provider_id
+       LEFT JOIN users u ON u.id = pr.user_id
+       ${whereClause}`,
     params,
   );
 
@@ -430,9 +444,14 @@ export async function listPayouts(
   // show "{provider business name}" alongside the opaque providerId.
   // Pre-fix admins saw only "PA-12345678" with no indication of who.
   const dataResult = await db.query<PayoutRow>(
-    `SELECT p.*, pr.business_name AS provider_business_name
+    `SELECT p.*,
+            COALESCE(
+              NULLIF(TRIM(pr.business_name), ''),
+              NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), '')
+            ) AS provider_business_name
      FROM payouts p
      LEFT JOIN providers pr ON pr.id = p.provider_id
+     LEFT JOIN users u ON u.id = pr.user_id
      ${whereClause}
      ORDER BY p.created_at DESC
      LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
@@ -461,15 +480,27 @@ export async function getPayoutById(payoutId: string): Promise<PayoutRow> {
   return result.rows[0]!;
 }
 
-export function formatPayout(p: PayoutRow): Record<string, unknown> {
+function maskDestinationAccount(method: string, account: string): string {
+  if (method === 'gcash' || method === 'maya') return maskPhilippinePhone(account);
+  const digits = account.replace(/\D/g, '');
+  return digits.length >= 4 ? `••••${digits.slice(-4)}` : 'masked';
+}
+
+export function formatPayout(
+  p: PayoutRow,
+  options: { maskSensitive?: boolean } = {},
+): Record<string, unknown> {
+  const maskSensitive = options.maskSensitive === true;
   return {
     id: p.id,
     providerId: p.provider_id,
     walletId: p.wallet_id,
     amount: Number(p.amount),
     method: p.method,
-    destinationAccount: p.destination_account,
-    accountName: p.account_name,
+    destinationAccount: maskSensitive
+      ? maskDestinationAccount(p.method, p.destination_account)
+      : p.destination_account,
+    accountName: maskSensitive ? null : p.account_name,
     status: p.status,
     paymongoTransferId: p.paymongo_transfer_id,
     failureReason: p.failure_reason,

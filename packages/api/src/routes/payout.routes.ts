@@ -15,11 +15,31 @@ import { db } from '../models/db';
 
 const router = Router();
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PAYOUT_STATUSES = new Set([
+  'aml_review_pending', 'pending', 'approved', 'processing', 'completed', 'rejected', 'failed',
+]);
+
+function parsePayoutStatus(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.trim() === '') return undefined;
+  const status = value.trim();
+  if (!PAYOUT_STATUSES.has(status)) {
+    throw createAppError('status must be a recognized payout status.', 400);
+  }
+  return status;
+}
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
     throw createAppError('Admin access required.', 403);
   }
+}
+
+function requirePayoutId(req: AuthenticatedRequest): string {
+  const id = req.params['id'];
+  if (typeof id !== 'string' || !UUID_REGEX.test(id)) {
+    throw createAppError('Payout ID must be a valid UUID.', 400);
+  }
+  return id;
 }
 
 // MED-N159 fix — money-moving payout endpoints (approve/reject/complete)
@@ -54,13 +74,13 @@ router.get(
       if (req.user!.role !== 'provider') throw createAppError('Only providers can view payouts.', 403);
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
-      const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+      const status = parsePayoutStatus(req.query.status);
 
       const { payouts, total } = await payoutService.getMyPayouts(req.user!.userId, { status, page, pageSize });
 
       res.json({
         success: true,
-        data: payouts.map(payoutService.formatPayout),
+        data: payouts.map((payout) => payoutService.formatPayout(payout)),
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
       });
     } catch (error) {
@@ -74,8 +94,7 @@ router.get(
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const id = req.params['id'];
-      if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
+      const id = requirePayoutId(req);
 
       const payout = await payoutService.getPayoutById(id);
 
@@ -91,7 +110,12 @@ router.get(
         }
       }
 
-      res.json({ success: true, data: payoutService.formatPayout(payout) });
+      res.json({
+        success: true,
+        data: payoutService.formatPayout(payout, {
+          maskSensitive: req.user!.role === 'admin',
+        }),
+      });
     } catch (error) {
       next(error);
     }
@@ -106,9 +130,10 @@ router.get(
       requireAdmin(req);
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
-      const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+      const status = parsePayoutStatus(req.query.status);
       const providerId = typeof req.query.providerId === 'string' ? req.query.providerId : undefined;
       const payoutId = typeof req.query.payoutId === 'string' ? req.query.payoutId : undefined;
+      const search = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
 
       if (providerId && !UUID_REGEX.test(providerId)) {
         throw createAppError('providerId must be a valid UUID.', 400);
@@ -116,12 +141,17 @@ router.get(
       if (payoutId && !UUID_REGEX.test(payoutId)) {
         throw createAppError('payoutId must be a valid UUID.', 400);
       }
+      if (search && (search.length < 2 || search.length > 100)) {
+        throw createAppError('search must be 2 to 100 characters.', 400);
+      }
 
-      const { payouts, total } = await payoutService.listPayouts({ payoutId, providerId, status, page, pageSize });
+      const { payouts, total } = await payoutService.listPayouts({ payoutId, providerId, search, status, page, pageSize });
 
       res.json({
         success: true,
-        data: payouts.map(payoutService.formatPayout),
+        data: payouts.map((payout) => payoutService.formatPayout(payout, {
+          maskSensitive: req.user!.role === 'admin',
+        })),
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
       });
     } catch (error) {
@@ -138,8 +168,7 @@ router.put(
     try {
       // MED-N159 fix — super_admin only.
       requireSuperAdmin(req);
-      const id = req.params['id'];
-      if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
+      const id = requirePayoutId(req);
 
       const payout = await payoutService.approvePayout(id, req.user!.userId, req.body.reason);
       res.json({ success: true, data: payoutService.formatPayout(payout) });
@@ -157,8 +186,7 @@ router.put(
     try {
       // MED-N159 fix — super_admin only.
       requireSuperAdmin(req);
-      const id = req.params['id'];
-      if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
+      const id = requirePayoutId(req);
 
       const payout = await payoutService.rejectPayout(id, req.user!.userId, req.body.reason);
       res.json({ success: true, data: payoutService.formatPayout(payout) });
@@ -180,8 +208,7 @@ router.put(
     try {
       // MED-N159 fix — super_admin only.
       requireSuperAdmin(req);
-      const id = req.params['id'];
-      if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
+      const id = requirePayoutId(req);
 
       const payout = await payoutService.completePayout(
         id,
@@ -207,8 +234,7 @@ router.put(
   validationMiddleware(clearAmlReviewSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const id = req.params['id'];
-      if (typeof id !== 'string' || !id) throw createAppError('Payout ID is required.', 400);
+      const id = requirePayoutId(req);
 
       const payout = await payoutService.clearAmlReview(id, req.user!.userId, req.body.reason);
       res.json({ success: true, data: payoutService.formatPayout(payout) });

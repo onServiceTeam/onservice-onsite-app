@@ -1,0 +1,34 @@
+const queryMock = jest.fn();
+const getCommissionRateMock = jest.fn();
+
+jest.mock('../src/models/db', () => ({
+  db: { query: (...args: unknown[]) => queryMock(...args) },
+}));
+jest.mock('../src/services/settings.service', () => ({
+  getCommissionRate: (...args: unknown[]) => getCommissionRateMock(...args),
+}));
+
+import * as providerToolsService from '../src/services/provider-tools.service';
+
+it('Bug MED-N34 — provider pending escrow is reported net of the provider tier commission', async () => {
+  queryMock
+    .mockResolvedValueOnce({
+      rows: [{
+        earned_today: '9000', earned_this_week: '18000', earned_this_month: '27000',
+        pending_escrow: '0', total_jobs_today: '1', total_jobs_week: '2', total_jobs_month: '3',
+      }],
+      rowCount: 1,
+    })
+    .mockResolvedValueOnce({ rows: [{ tier: 'gold' }], rowCount: 1 })
+    .mockResolvedValueOnce({ rows: [{ pending_gross: '100000' }], rowCount: 1 });
+  getCommissionRateMock.mockResolvedValue(0.10);
+
+  const result = await providerToolsService.getEarningsSummary('provider-1');
+
+  expect(getCommissionRateMock).toHaveBeenCalledWith('gold');
+  expect(result).toMatchObject({
+    earnedToday: 9000,
+    pendingEscrow: 90000,
+    jobsThisMonth: 3,
+  });
+});

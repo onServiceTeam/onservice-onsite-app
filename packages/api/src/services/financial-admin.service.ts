@@ -1,9 +1,9 @@
 /**
  * Phase 08 — Financial admin aggregation service.
  *
- * READ-ONLY aggregation that powers the admin Financials page (7 tabs):
- * Overview, Revenue Breakdown, Escrow, Payouts, Guarantee Fund,
- * Reconciliation, BIR Reports, and Receipts search.
+ * READ-ONLY aggregation that powers the admin Financials page (8 tabs):
+ * Overview, Escrow, Payments & Refunds, Payouts, Guarantee Fund,
+ * Reconciliation, Tax Workpapers, and Legacy Sales Records.
  *
  * Sacred-file note: this service performs ZERO money writes. It does NOT
  * create wallet_transactions, does NOT touch wallet balances, and does NOT
@@ -125,8 +125,14 @@ export interface EscrowSummary {
 // ─────────────────────────────────────────────────────────────────
 
 export interface PayoutsSummary {
+  available: boolean;
+  message: string | null;
   pendingCount: number;
   pendingTotalCentavos: number;
+  internalReviewCount: number;
+  awaitingApprovalCount: number;
+  approvedAwaitingTransferCount: number;
+  processingCount: number;
   todayCompletedCount: number;
   todayCompletedCentavos: number;
   failedCount: number;
@@ -137,6 +143,50 @@ export interface PayoutsSummary {
     amountCentavos: number;
     failedAt: string;
     failureReason: string | null;
+  }>;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Types — Payment operations tab
+// ─────────────────────────────────────────────────────────────────
+
+export interface PaymentOperationsSummary {
+  paymentIntentsAvailable: boolean;
+  gatewayRetriesAvailable: boolean;
+  totalAttempts: number;
+  awaitingPaymentCount: number;
+  processingCount: number;
+  succeededCount: number;
+  failedCount: number;
+  refundedCount: number;
+  partiallyRefundedCount: number;
+  pendingGatewayRetries: number;
+  inProgressGatewayRetries: number;
+  permanentGatewayFailures: number;
+  recentIntents: Array<{
+    id: string;
+    bookingId: string | null;
+    topupId: string | null;
+    customerName: string | null;
+    amountCentavos: number;
+    refundedAmountCentavos: number;
+    paymentMethod: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  gatewayRetries: Array<{
+    id: string;
+    bookingId: string;
+    disputeId: string | null;
+    actionType: string;
+    amountCentavos: number | null;
+    status: string;
+    attempts: number;
+    maxAttempts: number;
+    nextRetryAt: string;
+    lastAttemptedAt: string | null;
+    lastError: string | null;
   }>;
 }
 
@@ -238,10 +288,10 @@ interface OverviewTxnRow {
  * inside the inclusive [from, to] window (00:00:00 UTC of `from` through
  * 23:59:59.999 UTC of `to`). Platform revenue is summed from
  * `wallet_transactions` of types 'commission' and 'service_fee' over the
- * same window. Refunds use type='refund' and are taken as the absolute
- * value because refund rows are recorded as negative amounts on the
- * customer/escrow wallet but as positive amounts on the platform_revenue
- * wallet — `ABS()` makes either ledger orientation safe.
+ * same window. Refunds count only the escrow debit (negative refund row),
+ * which records the customer-facing amount exactly once. Some wallet refunds
+ * also have a positive customer-wallet row, so summing ABS(refund) would
+ * double-count those operations.
  */
 export async function getFinancialOverview(
   from: string,
@@ -271,8 +321,8 @@ export async function getFinancialOverview(
     ),
     db.query<OverviewTxnRow>(
       `SELECT
-         COALESCE(SUM(CASE WHEN type IN ('commission', 'service_fee') THEN ABS(amount) ELSE 0 END), 0)::text AS revenue,
-         COALESCE(SUM(CASE WHEN type = 'refund' THEN ABS(amount) ELSE 0 END), 0)::text                       AS refunds
+         COALESCE(SUM(CASE WHEN type IN ('commission', 'service_fee') THEN amount ELSE 0 END), 0)::text AS revenue,
+         COALESCE(SUM(CASE WHEN type = 'refund' AND amount < 0 THEN -amount ELSE 0 END), 0)::text        AS refunds
          FROM wallet_transactions
         WHERE created_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
           AND created_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')`,
@@ -305,9 +355,10 @@ interface RevenueByCategoryRow {
 }
 
 /**
- * Tab 2 — revenue grouped by service category. Revenue here is the sum of
- * `total_amount` for completed bookings in the window grouped by
- * `bookings.category_id`, joined to `service_categories.name`.
+ * Tab 2 — recognized platform revenue grouped by service category. The
+ * source is the same commission/service-fee ledger used by the overview KPI,
+ * joined through wallet_transactions.booking_id. Booking totals are GMV and
+ * must not be presented as company revenue.
  */
 export async function getRevenueByCategory(
   from: string,
@@ -317,24 +368,24 @@ export async function getRevenueByCategory(
 
   const r = await db.query<RevenueByCategoryRow>(
     `SELECT
-       b.category_id::text                        AS category_id,
-       sc.name                                    AS category_name,
-       COALESCE(SUM(b.total_amount), 0)::text     AS revenue,
-       COUNT(*)::text                             AS bookings
-       FROM bookings b
+       b.category_id::text                            AS category_id,
+       sc.name                                        AS category_name,
+       COALESCE(SUM(wt.amount), 0)::text              AS revenue,
+       COUNT(DISTINCT wt.booking_id)::text            AS bookings
+       FROM wallet_transactions wt
+       LEFT JOIN bookings b ON b.id = wt.booking_id
        LEFT JOIN service_categories sc ON sc.id = b.category_id
-      WHERE b.status IN ${COMPLETED_STATUSES_SQL}
-        AND b.completed_at IS NOT NULL
-        AND b.completed_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
-        AND b.completed_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
+      WHERE wt.type IN ('commission', 'service_fee')
+        AND wt.created_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
+        AND wt.created_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
       GROUP BY b.category_id, sc.name
       ORDER BY revenue DESC`,
     [from, to],
   );
 
   return r.rows.map((row) => ({
-    dimension: row.category_id ?? 'unknown',
-    label: row.category_name ?? 'Uncategorized',
+    dimension: row.category_id ?? 'unattributed',
+    label: row.category_name ?? 'Unattributed',
     revenueCentavos: Number(row.revenue ?? 0),
     bookings: Number(row.bookings),
   }));
@@ -361,22 +412,22 @@ export async function getRevenueByCity(
 
   const r = await db.query<RevenueByCityRow>(
     `SELECT
-       NULLIF(TRIM(city), '')                     AS city,
-       COALESCE(SUM(total_amount), 0)::text       AS revenue,
-       COUNT(*)::text                             AS bookings
-       FROM bookings
-      WHERE status IN ${COMPLETED_STATUSES_SQL}
-        AND completed_at IS NOT NULL
-        AND completed_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
-        AND completed_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
-      GROUP BY NULLIF(TRIM(city), '')
+       NULLIF(TRIM(b.city), '')                   AS city,
+       COALESCE(SUM(wt.amount), 0)::text          AS revenue,
+       COUNT(DISTINCT wt.booking_id)::text        AS bookings
+       FROM wallet_transactions wt
+       LEFT JOIN bookings b ON b.id = wt.booking_id
+      WHERE wt.type IN ('commission', 'service_fee')
+        AND wt.created_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
+        AND wt.created_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
+      GROUP BY NULLIF(TRIM(b.city), '')
       ORDER BY revenue DESC
       LIMIT $3`,
     [from, to, safeLimit],
   );
 
   return r.rows.map((row) => {
-    const city = row.city ?? 'Unknown';
+    const city = row.city ?? 'Unattributed';
     return {
       dimension: city.toLowerCase(),
       label: city,
@@ -405,21 +456,21 @@ export async function getRevenueByTier(
   const r = await db.query<RevenueByTierRow>(
     `SELECT
        p.tier                                     AS tier,
-       COALESCE(SUM(b.total_amount), 0)::text     AS revenue,
-       COUNT(*)::text                             AS bookings
-       FROM bookings b
-       JOIN providers p ON p.id = b.provider_id
-      WHERE b.status IN ${COMPLETED_STATUSES_SQL}
-        AND b.completed_at IS NOT NULL
-        AND b.completed_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
-        AND b.completed_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
+       COALESCE(SUM(wt.amount), 0)::text          AS revenue,
+       COUNT(DISTINCT wt.booking_id)::text        AS bookings
+       FROM wallet_transactions wt
+       LEFT JOIN bookings b ON b.id = wt.booking_id
+       LEFT JOIN providers p ON p.id = b.provider_id
+      WHERE wt.type IN ('commission', 'service_fee')
+        AND wt.created_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
+        AND wt.created_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
       GROUP BY p.tier
       ORDER BY revenue DESC`,
     [from, to],
   );
 
   return r.rows.map((row) => {
-    const tier = row.tier ?? 'unknown';
+    const tier = row.tier ?? 'unattributed';
     return {
       dimension: tier,
       label: tier.charAt(0).toUpperCase() + tier.slice(1),
@@ -461,15 +512,15 @@ export async function getRevenueByPaymentMethod(
   try {
     const r = await db.query<RevenueByPaymentMethodRow>(
       `SELECT
-         NULLIF(TRIM(payment_method), '')         AS method,
-         COALESCE(SUM(total_amount), 0)::text     AS revenue,
-         COUNT(*)::text                           AS bookings
-         FROM bookings
-        WHERE status IN ${COMPLETED_STATUSES_SQL}
-          AND completed_at IS NOT NULL
-          AND completed_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
-          AND completed_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
-        GROUP BY NULLIF(TRIM(payment_method), '')
+         NULLIF(TRIM(b.payment_method), '')       AS method,
+         COALESCE(SUM(wt.amount), 0)::text        AS revenue,
+         COUNT(DISTINCT wt.booking_id)::text      AS bookings
+         FROM wallet_transactions wt
+         LEFT JOIN bookings b ON b.id = wt.booking_id
+        WHERE wt.type IN ('commission', 'service_fee')
+          AND wt.created_at >= (($1::date) AT TIME ZONE 'Asia/Manila')
+          AND wt.created_at <  (($2::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila')
+        GROUP BY NULLIF(TRIM(b.payment_method), '')
         ORDER BY revenue DESC`,
       [from, to],
     );
@@ -478,7 +529,7 @@ export async function getRevenueByPaymentMethod(
         const method = row.method ?? 'unknown';
         return {
           dimension: method,
-          label: method === 'unknown' ? 'Unknown' : method.toUpperCase(),
+          label: method === 'unknown' ? 'Unattributed' : method.toUpperCase(),
           revenueCentavos: Number(row.revenue ?? 0),
           bookings: Number(row.bookings),
         };
@@ -523,19 +574,20 @@ interface EscrowPendingRow {
 /**
  * Tab 3 — escrow snapshot. Returns the total currently held in the
  * `platform_escrow` wallet plus a per-booking aging breakdown for bookings
- * that are completed but whose escrow has not yet been released. Two
- * queries: wallet balance + per-booking list (we derive aging buckets from
- * the same list to stay within the 3-query cap).
+ * that are completed but whose escrow has not yet been released. Three
+ * queries: wallet balance, unbounded aging aggregates, and one bounded page
+ * of booking detail.
  */
-export async function getEscrowSummary(): Promise<EscrowSummary> {
+export async function getEscrowSummary(
+  options: { limit?: number; offset?: number } = {},
+): Promise<EscrowSummary> {
   // MED-N12 fix: pre-fix derived aging-bucket counts FROM the
   // LIMIT 500 list, so any backlog above 500 silently undercounted.
   // Now: separate aggregate query (no LIMIT) for the bucket
-  // counts/totals, and the displayed list keeps its 500 cap to
-  // bound payload size. The full count is exposed via
-  // pendingReleaseCount so admin UI can show "showing 500 of N
-  // total" when the list is truncated.
-  const PENDING_LIST_LIMIT = 500;
+  // counts/totals, while the detail query is paginated to keep payloads
+  // bounded without making records beyond an arbitrary cap unreachable.
+  const safeLimit = clampLimit(options.limit);
+  const safeOffset = clampOffset(options.offset);
   const [walletRes, aggRes, listRes] = await Promise.all([
     db.query<EscrowWalletRow>(
       `SELECT
@@ -581,8 +633,9 @@ export async function getEscrowSummary(): Promise<EscrowSummary> {
          LEFT JOIN providers p ON p.id = b.provider_id
         WHERE b.escrow_status = 'held'
           AND b.status IN ('completed_by_provider', 'confirmed')
-        ORDER BY b.completed_at NULLS LAST
-        LIMIT ${PENDING_LIST_LIMIT}`,
+        ORDER BY b.completed_at NULLS LAST, b.id
+        LIMIT $1 OFFSET $2`,
+      [safeLimit, safeOffset],
     ),
   ]);
 
@@ -631,6 +684,10 @@ export async function getEscrowSummary(): Promise<EscrowSummary> {
 interface PayoutAggRow {
   pending_count: string;
   pending_total: string | null;
+  internal_review_count: string;
+  awaiting_approval_count: string;
+  approved_awaiting_transfer_count: string;
+  processing_count: string;
   today_completed_count: string;
   today_completed_total: string | null;
   failed_count: string;
@@ -661,8 +718,14 @@ export async function getPayoutsSummary(): Promise<PayoutsSummary> {
   if (!(await tableExists('payouts'))) {
     logger.warn('getPayoutsSummary: payouts table not present; returning zeros');
     return {
+      available: false,
+      message: 'Payout reporting is unavailable because the payouts table is missing.',
       pendingCount: 0,
       pendingTotalCentavos: 0,
+      internalReviewCount: 0,
+      awaitingApprovalCount: 0,
+      approvedAwaitingTransferCount: 0,
+      processingCount: 0,
       todayCompletedCount: 0,
       todayCompletedCentavos: 0,
       failedCount: 0,
@@ -673,8 +736,12 @@ export async function getPayoutsSummary(): Promise<PayoutsSummary> {
   const [aggRes, failedRes] = await Promise.all([
     db.query<PayoutAggRow>(
       `SELECT
-         COUNT(*) FILTER (WHERE status = 'processing')::text                                  AS pending_count,
-         COALESCE(SUM(amount) FILTER (WHERE status = 'processing'), 0)::text                  AS pending_total,
+         COUNT(*) FILTER (WHERE status IN ('aml_review_pending', 'pending', 'approved', 'processing'))::text AS pending_count,
+         COALESCE(SUM(amount) FILTER (WHERE status IN ('aml_review_pending', 'pending', 'approved', 'processing')), 0)::text AS pending_total,
+         COUNT(*) FILTER (WHERE status = 'aml_review_pending')::text                          AS internal_review_count,
+         COUNT(*) FILTER (WHERE status = 'pending')::text                                     AS awaiting_approval_count,
+         COUNT(*) FILTER (WHERE status = 'approved')::text                                    AS approved_awaiting_transfer_count,
+         COUNT(*) FILTER (WHERE status = 'processing')::text                                  AS processing_count,
          COUNT(*) FILTER (WHERE status = 'completed' AND (completed_at AT TIME ZONE 'Asia/Manila')::date = (NOW() AT TIME ZONE 'Asia/Manila')::date)::text   AS today_completed_count,
          COALESCE(SUM(amount) FILTER (WHERE status = 'completed' AND (completed_at AT TIME ZONE 'Asia/Manila')::date = (NOW() AT TIME ZONE 'Asia/Manila')::date), 0)::text AS today_completed_total,
          COUNT(*) FILTER (WHERE status = 'failed')::text                                      AS failed_count
@@ -700,8 +767,14 @@ export async function getPayoutsSummary(): Promise<PayoutsSummary> {
   const pendingCount = Number(a?.pending_count ?? 0);
 
   return {
+    available: true,
+    message: null,
     pendingCount,
     pendingTotalCentavos: Number(a?.pending_total ?? 0),
+    internalReviewCount: Number(a?.internal_review_count ?? 0),
+    awaitingApprovalCount: Number(a?.awaiting_approval_count ?? 0),
+    approvedAwaitingTransferCount: Number(a?.approved_awaiting_transfer_count ?? 0),
+    processingCount: Number(a?.processing_count ?? 0),
     todayCompletedCount: Number(a?.today_completed_count ?? 0),
     todayCompletedCentavos: Number(a?.today_completed_total ?? 0),
     failedCount: Number(a?.failed_count ?? 0),
@@ -712,6 +785,182 @@ export async function getPayoutsSummary(): Promise<PayoutsSummary> {
       amountCentavos: Number(row.amount),
       failedAt: row.failed_at.toISOString(),
       failureReason: row.failure_reason,
+    })),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Payment attempts and post-commit gateway retries
+// ─────────────────────────────────────────────────────────────────
+
+interface PaymentIntentOpsRow {
+  id: string;
+  booking_id: string | null;
+  topup_id: string | null;
+  customer_name: string | null;
+  amount: string;
+  refunded_amount: string;
+  payment_method: string;
+  status: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface GatewayRetryOpsRow {
+  id: string;
+  booking_id: string;
+  dispute_id: string | null;
+  action_type: string;
+  amount_centavos: string | null;
+  status: string;
+  attempts: number;
+  max_attempts: number;
+  next_retry_at: Date;
+  last_attempted_at: Date | null;
+  last_error: string | null;
+}
+
+export async function getPaymentOperationsSummary(
+  options: { retryLimit?: number; retryOffset?: number } = {},
+): Promise<PaymentOperationsSummary> {
+  const retryLimit = clampLimit(options.retryLimit);
+  const retryOffset = clampOffset(options.retryOffset);
+  const [paymentIntentsAvailable, gatewayRetriesAvailable] = await Promise.all([
+    tableExists('payment_intents'),
+    tableExists('gateway_retry_queue'),
+  ]);
+
+  const emptyCounts = {
+    totalAttempts: 0,
+    awaitingPaymentCount: 0,
+    processingCount: 0,
+    succeededCount: 0,
+    failedCount: 0,
+    refundedCount: 0,
+    partiallyRefundedCount: 0,
+  };
+  const emptyRetries = {
+    pendingGatewayRetries: 0,
+    inProgressGatewayRetries: 0,
+    permanentGatewayFailures: 0,
+  };
+
+  const [intentAggRes, intentsRes, retryAggRes, retriesRes] = await Promise.all([
+    paymentIntentsAvailable
+      ? db.query<{
+          total: string;
+          awaiting: string;
+          processing: string;
+          succeeded: string;
+          failed: string;
+          refunded: string;
+          partially_refunded: string;
+        }>(
+          `SELECT
+             COUNT(*)::text AS total,
+             COUNT(*) FILTER (WHERE status IN ('pending', 'awaiting_payment'))::text AS awaiting,
+             COUNT(*) FILTER (WHERE status = 'processing')::text AS processing,
+             COUNT(*) FILTER (WHERE status = 'succeeded')::text AS succeeded,
+             COUNT(*) FILTER (WHERE status = 'failed')::text AS failed,
+             COUNT(*) FILTER (WHERE status = 'refunded')::text AS refunded,
+             COUNT(*) FILTER (WHERE status = 'partially_refunded')::text AS partially_refunded
+             FROM payment_intents`,
+        )
+      : Promise.resolve({ rows: [] }),
+    paymentIntentsAvailable
+      ? db.query<PaymentIntentOpsRow>(
+          `SELECT
+             pi.id::text AS id,
+             pi.booking_id::text AS booking_id,
+             pi.topup_id,
+             CASE WHEN pi.booking_id IS NULL THEN NULL
+                  ELSE TRIM(COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, ''))
+             END AS customer_name,
+             pi.amount::text AS amount,
+             COALESCE(pi.refunded_amount, 0)::text AS refunded_amount,
+             pi.payment_method,
+             pi.status,
+             pi.created_at,
+             pi.updated_at
+             FROM payment_intents pi
+            LEFT JOIN bookings b ON b.id = pi.booking_id
+             LEFT JOIN users cu ON cu.id = b.customer_id
+            ORDER BY pi.updated_at DESC
+            LIMIT 50`,
+        )
+      : Promise.resolve({ rows: [] as PaymentIntentOpsRow[] }),
+    gatewayRetriesAvailable
+      ? db.query<{ pending: string; in_progress: string; failed_permanent: string }>(
+          `SELECT
+             COUNT(*) FILTER (WHERE status = 'pending')::text AS pending,
+             COUNT(*) FILTER (WHERE status = 'in_progress')::text AS in_progress,
+             COUNT(*) FILTER (WHERE status = 'failed_permanent')::text AS failed_permanent
+             FROM gateway_retry_queue`,
+        )
+      : Promise.resolve({ rows: [] }),
+    gatewayRetriesAvailable
+      ? db.query<GatewayRetryOpsRow>(
+          `SELECT id::text, booking_id::text, dispute_id::text, action_type,
+                  amount_centavos::text, status, attempts, max_attempts,
+                  next_retry_at, last_attempted_at, last_error
+             FROM gateway_retry_queue
+            WHERE status IN ('pending', 'in_progress', 'failed_permanent')
+            ORDER BY CASE status WHEN 'failed_permanent' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
+                     next_retry_at ASC
+            LIMIT $1 OFFSET $2`,
+          [retryLimit, retryOffset],
+        )
+      : Promise.resolve({ rows: [] as GatewayRetryOpsRow[] }),
+  ]);
+
+  const intentAgg = intentAggRes.rows[0];
+  const retryAgg = retryAggRes.rows[0];
+
+  return {
+    paymentIntentsAvailable,
+    gatewayRetriesAvailable,
+    ...(intentAgg
+      ? {
+          totalAttempts: Number(intentAgg.total),
+          awaitingPaymentCount: Number(intentAgg.awaiting),
+          processingCount: Number(intentAgg.processing),
+          succeededCount: Number(intentAgg.succeeded),
+          failedCount: Number(intentAgg.failed),
+          refundedCount: Number(intentAgg.refunded),
+          partiallyRefundedCount: Number(intentAgg.partially_refunded),
+        }
+      : emptyCounts),
+    ...(retryAgg
+      ? {
+          pendingGatewayRetries: Number(retryAgg.pending),
+          inProgressGatewayRetries: Number(retryAgg.in_progress),
+          permanentGatewayFailures: Number(retryAgg.failed_permanent),
+        }
+      : emptyRetries),
+    recentIntents: intentsRes.rows.map((row) => ({
+      id: row.id,
+      bookingId: row.booking_id,
+      topupId: row.topup_id,
+      customerName: row.customer_name?.trim() || null,
+      amountCentavos: Number(row.amount),
+      refundedAmountCentavos: Number(row.refunded_amount),
+      paymentMethod: row.payment_method,
+      status: row.status,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+    })),
+    gatewayRetries: retriesRes.rows.map((row) => ({
+      id: row.id,
+      bookingId: row.booking_id,
+      disputeId: row.dispute_id,
+      actionType: row.action_type,
+      amountCentavos: row.amount_centavos == null ? null : Number(row.amount_centavos),
+      status: row.status,
+      attempts: Number(row.attempts),
+      maxAttempts: Number(row.max_attempts),
+      nextRetryAt: row.next_retry_at.toISOString(),
+      lastAttemptedAt: row.last_attempted_at?.toISOString() ?? null,
+      lastError: row.last_error,
     })),
   };
 }
