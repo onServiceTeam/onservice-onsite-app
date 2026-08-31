@@ -113,7 +113,13 @@ router.get(
     try {
       requireAdmin(req);
       const limit = parseQueueLimit(req.query.limit);
-      const data = await areaChange.listPending(limit);
+      const providerId = typeof req.query.providerId === 'string' && req.query.providerId.trim()
+        ? req.query.providerId.trim()
+        : undefined;
+      if (providerId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(providerId)) {
+        throw createAppError('providerId must be a valid UUID.', 400);
+      }
+      const data = await areaChange.listPending(limit, providerId);
       res.json({ success: true, data });
     } catch (error) { next(error); }
   },

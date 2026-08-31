@@ -182,12 +182,12 @@ describe('Bug 82 — createProviderNote transactional + audit', () => {
 describe('Bug 80 — deleteProviderNote soft delete transactional + audit', () => {
   it('UPDATEs deleted_at + writes admin_actions audit inside one transaction (no hard DELETE)', async () => {
     setTxQueryImpl(makeRouter([
-      { match: /SELECT author_id, provider_id, deleted_at FROM provider_admin_notes/, rows: [{ author_id: ADMIN_ID, provider_id: PROVIDER_ID, deleted_at: null }], rowCount: 1 },
+      { match: /SELECT author_id, provider_id, deleted_at\s+FROM provider_admin_notes/, rows: [{ author_id: ADMIN_ID, provider_id: PROVIDER_ID, deleted_at: null }], rowCount: 1 },
       { match: /UPDATE provider_admin_notes\s+SET deleted_at = NOW\(\)/, rowCount: 1 },
       { match: /INSERT INTO admin_actions/, rows: [{ id: 'audit-del' }], rowCount: 1 },
     ]));
 
-    await deleteProviderNote(NOTE_ID, ADMIN_ID, false, 'no longer relevant');
+    await deleteProviderNote(PROVIDER_ID, NOTE_ID, ADMIN_ID, false, 'no longer relevant');
 
     const txCalls = getTxCalls();
     expect(txCalls.find((c) => /UPDATE provider_admin_notes/.test(c.sql))).toBeDefined();
@@ -200,29 +200,29 @@ describe('Bug 80 — deleteProviderNote soft delete transactional + audit', () =
 
   it('rejects already-deleted note with 409', async () => {
     setTxQueryImpl(makeRouter([
-      { match: /SELECT author_id, provider_id, deleted_at FROM provider_admin_notes/, rows: [{ author_id: ADMIN_ID, provider_id: PROVIDER_ID, deleted_at: new Date() }], rowCount: 1 },
+      { match: /SELECT author_id, provider_id, deleted_at\s+FROM provider_admin_notes/, rows: [{ author_id: ADMIN_ID, provider_id: PROVIDER_ID, deleted_at: new Date() }], rowCount: 1 },
     ]));
     await expect(
-      deleteProviderNote(NOTE_ID, ADMIN_ID, false),
+      deleteProviderNote(PROVIDER_ID, NOTE_ID, ADMIN_ID, false),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it('rejects non-author non-super-admin (403)', async () => {
     setTxQueryImpl(makeRouter([
-      { match: /SELECT author_id, provider_id, deleted_at FROM provider_admin_notes/, rows: [{ author_id: 'someone-else', provider_id: PROVIDER_ID, deleted_at: null }], rowCount: 1 },
+      { match: /SELECT author_id, provider_id, deleted_at\s+FROM provider_admin_notes/, rows: [{ author_id: 'someone-else', provider_id: PROVIDER_ID, deleted_at: null }], rowCount: 1 },
     ]));
     await expect(
-      deleteProviderNote(NOTE_ID, ADMIN_ID, false),
+      deleteProviderNote(PROVIDER_ID, NOTE_ID, ADMIN_ID, false),
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 
   it('allows super-admin override', async () => {
     setTxQueryImpl(makeRouter([
-      { match: /SELECT author_id, provider_id, deleted_at FROM provider_admin_notes/, rows: [{ author_id: 'someone-else', provider_id: PROVIDER_ID, deleted_at: null }], rowCount: 1 },
+      { match: /SELECT author_id, provider_id, deleted_at\s+FROM provider_admin_notes/, rows: [{ author_id: 'someone-else', provider_id: PROVIDER_ID, deleted_at: null }], rowCount: 1 },
       { match: /UPDATE provider_admin_notes/, rowCount: 1 },
       { match: /INSERT INTO admin_actions/, rows: [{ id: 'audit-del-sa' }], rowCount: 1 },
     ]));
-    await deleteProviderNote(NOTE_ID, ADMIN_ID, true, 'super-admin override');
+    await deleteProviderNote(PROVIDER_ID, NOTE_ID, ADMIN_ID, true, 'super-admin override');
     const txCalls = getTxCalls();
     expect(txCalls.find((c) => /UPDATE provider_admin_notes/.test(c.sql))).toBeDefined();
   });
@@ -230,13 +230,13 @@ describe('Bug 80 — deleteProviderNote soft delete transactional + audit', () =
   it('rolls back when admin_actions INSERT throws (Bug 80 audit-failure)', async () => {
     const auditErr = new Error('simulated audit failure');
     setTxQueryImpl(makeRouter([
-      { match: /SELECT author_id, provider_id, deleted_at FROM provider_admin_notes/, rows: [{ author_id: ADMIN_ID, provider_id: PROVIDER_ID, deleted_at: null }], rowCount: 1 },
+      { match: /SELECT author_id, provider_id, deleted_at\s+FROM provider_admin_notes/, rows: [{ author_id: ADMIN_ID, provider_id: PROVIDER_ID, deleted_at: null }], rowCount: 1 },
       { match: /UPDATE provider_admin_notes/, rowCount: 1 },
       { match: /INSERT INTO admin_actions/, throwError: auditErr },
     ]));
 
     await expect(
-      deleteProviderNote(NOTE_ID, ADMIN_ID, false, 'document cleanup'),
+      deleteProviderNote(PROVIDER_ID, NOTE_ID, ADMIN_ID, false, 'document cleanup'),
     ).rejects.toThrow(/simulated audit failure/);
   });
 });

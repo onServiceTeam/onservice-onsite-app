@@ -33,7 +33,8 @@ it('Bug UX-440 — customer suspension revokes refresh sessions, records the sta
   const result = await updateCustomerStatus('customer-1', 'suspend', reason, 'admin-1');
 
   expect(result).toEqual({ isActive: false });
-  expect(calls.some((call) => /UPDATE users SET is_active/.test(call.sql))).toBe(true);
+  expect(calls.some((call) => /UPDATE users\s+SET is_active/.test(call.sql))).toBe(true);
+  expect(calls.some((call) => /session_version = session_version \+ 1/.test(call.sql))).toBe(true);
   expect(calls.some((call) => /DELETE FROM refresh_tokens/.test(call.sql))).toBe(true);
 
   const audit = calls.find((call) => /INSERT INTO admin_actions/.test(call.sql));
@@ -42,6 +43,7 @@ it('Bug UX-440 — customer suspension revokes refresh sessions, records the sta
     previousIsActive: true,
     nextIsActive: false,
     revokedSessionCount: 3,
+    allAccessCredentialsInvalidated: true,
   });
   expect(audit?.params[4]).toBe(reason);
 

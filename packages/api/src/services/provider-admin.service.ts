@@ -62,6 +62,12 @@ export interface ProviderProfile {
   longitude: number | null;
   createdAt: string;
   updatedAt: string;
+  activeRefreshSessions: number;
+  openSupportCases: number;
+  urgentSupportCases: number;
+  unassignedSupportCases: number;
+  supportOwnerNames: string[];
+  pendingServiceAreaChanges: number;
   user: {
     id: string;
     firstName: string;
@@ -303,10 +309,70 @@ export async function getProviderProfile(
     avatar_url: string | null;
     is_verified: boolean;
     is_active: boolean;
+    active_refresh_sessions: string;
+    open_support_cases: string;
+    urgent_support_cases: string;
+    unassigned_support_cases: string;
+    support_owner_names: string[] | null;
+    pending_service_area_changes: string;
     last_login_at: Date | null;
   }>(
     `SELECT p.*, u.id AS u_id, u.first_name, u.last_name, u.phone, u.email,
-            u.avatar_url, u.is_verified, u.is_active, u.last_login_at
+            u.avatar_url, u.is_verified, u.is_active, u.last_login_at,
+            (SELECT COUNT(*)::text FROM refresh_tokens rt WHERE rt.user_id = u.id) AS active_refresh_sessions,
+            (SELECT COUNT(*)::text
+               FROM support_tickets st
+               LEFT JOIN bookings support_booking ON support_booking.id = st.booking_id
+              WHERE (
+                st.user_id = u.id
+                OR support_booking.provider_id = p.id
+                OR EXISTS (
+                  SELECT 1 FROM provider_staff support_staff
+                   WHERE support_staff.provider_id = p.id AND support_staff.user_id = st.user_id
+                )
+              ) AND st.status NOT IN ('resolved', 'closed')) AS open_support_cases,
+            (SELECT COUNT(*)::text
+               FROM support_tickets st
+               LEFT JOIN bookings support_booking ON support_booking.id = st.booking_id
+              WHERE (
+                st.user_id = u.id
+                OR support_booking.provider_id = p.id
+                OR EXISTS (
+                  SELECT 1 FROM provider_staff support_staff
+                   WHERE support_staff.provider_id = p.id AND support_staff.user_id = st.user_id
+                )
+              ) AND st.status NOT IN ('resolved', 'closed')
+                AND st.priority = 'urgent') AS urgent_support_cases,
+            (SELECT COUNT(*)::text
+               FROM support_tickets st
+               LEFT JOIN bookings support_booking ON support_booking.id = st.booking_id
+              WHERE (
+                st.user_id = u.id
+                OR support_booking.provider_id = p.id
+                OR EXISTS (
+                  SELECT 1 FROM provider_staff support_staff
+                   WHERE support_staff.provider_id = p.id AND support_staff.user_id = st.user_id
+                )
+              ) AND st.status NOT IN ('resolved', 'closed')
+                AND st.assigned_agent_id IS NULL) AS unassigned_support_cases,
+            ARRAY(
+              SELECT DISTINCT NULLIF(CONCAT_WS(' ', owner.first_name, owner.last_name), '')
+                FROM support_tickets st
+                LEFT JOIN bookings support_booking ON support_booking.id = st.booking_id
+                JOIN users owner ON owner.id = st.assigned_agent_id
+               WHERE (
+                 st.user_id = u.id
+                 OR support_booking.provider_id = p.id
+                 OR EXISTS (
+                   SELECT 1 FROM provider_staff support_staff
+                    WHERE support_staff.provider_id = p.id AND support_staff.user_id = st.user_id
+                 )
+               ) AND st.status NOT IN ('resolved', 'closed')
+               ORDER BY NULLIF(CONCAT_WS(' ', owner.first_name, owner.last_name), '')
+            ) AS support_owner_names,
+            (SELECT COUNT(*)::text
+               FROM service_area_change_requests sar
+              WHERE sar.provider_id = u.id AND sar.status = 'pending') AS pending_service_area_changes
        FROM providers p
        JOIN users u ON u.id = p.user_id
       WHERE p.id = $1`,
@@ -399,6 +465,12 @@ export async function getProviderProfile(
     longitude: p.longitude !== null ? Number(p.longitude) : null,
     createdAt: p.created_at.toISOString(),
     updatedAt: p.updated_at.toISOString(),
+    activeRefreshSessions: Number(p.active_refresh_sessions ?? 0),
+    openSupportCases: Number(p.open_support_cases ?? 0),
+    urgentSupportCases: Number(p.urgent_support_cases ?? 0),
+    unassignedSupportCases: Number(p.unassigned_support_cases ?? 0),
+    supportOwnerNames: (p.support_owner_names ?? []).filter(Boolean),
+    pendingServiceAreaChanges: Number(p.pending_service_area_changes ?? 0),
     user: {
       id: p.u_id,
       firstName: p.first_name,
@@ -1117,6 +1189,7 @@ export async function getProviderActivity(
            OR (a.target_type = 'review' AND EXISTS (
                  SELECT 1 FROM reviews r WHERE r.id = a.target_id AND r.provider_id = $1
               ))
+           OR (a.target_type = 'user' AND a.target_id = $2)
         ORDER BY a.created_at DESC
         LIMIT $3`,
       [providerId, userId, safeLimit],
@@ -1190,6 +1263,49 @@ export async function getProviderActivity(
     .slice(0, safeLimit);
 }
 
+export async function revokeProviderSessions(
+  providerId: string,
+  reason: string,
+  adminUserId: string,
+): Promise<{ revokedRefreshSessions: number; sessionVersion: number }> {
+  const trimmedReason = reason?.trim();
+  if (!trimmedReason || trimmedReason.length < 10 || trimmedReason.length > 1000) {
+    throw createAppError('reason must be between 10 and 1000 characters.', 400);
+  }
+
+  return db.transaction(async (client) => {
+    const updated = await client.query<{ id: string; session_version: number | string }>(
+      `UPDATE users
+          SET session_version = session_version + 1,
+              updated_at = NOW()
+        WHERE id = (SELECT user_id FROM providers WHERE id = $1)
+        RETURNING id, session_version`,
+      [providerId],
+    );
+    const account = updated.rows[0];
+    if (!account) throw createAppError('Provider not found.', 404);
+
+    const revoked = await client.query(`DELETE FROM refresh_tokens WHERE user_id = $1`, [account.id]);
+    const revokedRefreshSessions = revoked.rowCount ?? 0;
+    const sessionVersion = Number(account.session_version);
+
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details, reason, full_notes)
+       VALUES ($1, 'user_force_logout', 'user', $2, $3::jsonb, $4, $5)`,
+      [
+        adminUserId,
+        account.id,
+        JSON.stringify({ accountType: 'provider', providerId, revokedRefreshSessions, sessionVersion }),
+        trimmedReason.slice(0, 500),
+        trimmedReason,
+      ],
+    );
+
+    return { revokedRefreshSessions, sessionVersion };
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Notes (provider_admin_notes)
 // ─────────────────────────────────────────────────────────────────
@@ -1238,6 +1354,7 @@ export async function createProviderNote(
   pinned: boolean,
 ): Promise<ProviderNote> {
   if (!body.trim()) throw createAppError('Note body required.', 400);
+  if (body.trim().length > 5000) throw createAppError('Note body must be ≤ 5000 characters.', 400);
   if (!isNoteCategory(category)) throw createAppError('Invalid category.', 400);
 
   // Phase 14 Dispatch 06 — Bug 82. Note INSERT + admin_actions audit
@@ -1303,25 +1420,19 @@ export async function createProviderNote(
 }
 
 export async function updateProviderNote(
+  providerId: string,
   noteId: string,
   authorId: string,
   isSuperAdmin: boolean,
   patch: { body?: string; category?: NoteCategory; pinned?: boolean },
 ): Promise<void> {
-  const existing = await db.query<{ author_id: string }>(
-    `SELECT author_id FROM provider_admin_notes WHERE id = $1`,
-    [noteId],
-  );
-  const row = existing.rows[0];
-  if (!row) throw createAppError('Note not found.', 404);
-  if (row.author_id !== authorId && !isSuperAdmin) {
-    throw createAppError('You can only edit your own notes.', 403);
-  }
-
   const sets: string[] = [];
   const values: unknown[] = [];
   if (patch.body !== undefined) {
     if (!patch.body.trim()) throw createAppError('Note body required.', 400);
+    if (patch.body.trim().length > 5000) {
+      throw createAppError('Note body must be ≤ 5000 characters.', 400);
+    }
     values.push(patch.body.trim());
     sets.push(`body = $${values.length}`);
   }
@@ -1336,16 +1447,54 @@ export async function updateProviderNote(
   }
   if (sets.length === 0) return;
 
-  values.push(noteId);
-  await db.query(
-    `UPDATE provider_admin_notes
-        SET ${sets.join(', ')}, updated_at = NOW()
-      WHERE id = $${values.length}`,
-    values,
-  );
+  await db.transaction(async (client) => {
+    const existing = await client.query<{
+      author_id: string;
+      category: NoteCategory;
+      body: string;
+      pinned: boolean;
+    }>(
+      `SELECT author_id, category, body, pinned
+         FROM provider_admin_notes
+        WHERE id = $1 AND provider_id = $2 AND deleted_at IS NULL
+        FOR UPDATE`,
+      [noteId, providerId],
+    );
+    const row = existing.rows[0];
+    if (!row) throw createAppError('Note not found for this provider.', 404);
+    if (row.author_id !== authorId && !isSuperAdmin) {
+      throw createAppError('You can only edit your own notes.', 403);
+    }
+
+    const updateValues = [...values, noteId, providerId];
+    await client.query(
+      `UPDATE provider_admin_notes
+          SET ${sets.join(', ')}, updated_at = NOW()
+        WHERE id = $${values.length + 1} AND provider_id = $${values.length + 2}`,
+      updateValues,
+    );
+
+    await client.query(
+      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
+       VALUES ($1, 'provider_note_updated', 'provider_note', $2, $3::jsonb, 'Provider note updated.')`,
+      [
+        authorId,
+        noteId,
+        JSON.stringify({
+          providerId,
+          bodyChanged: patch.body !== undefined && patch.body.trim() !== row.body,
+          categoryBefore: row.category,
+          categoryAfter: patch.category ?? row.category,
+          pinnedBefore: row.pinned,
+          pinnedAfter: patch.pinned ?? row.pinned,
+        }),
+      ],
+    );
+  });
 }
 
 export async function deleteProviderNote(
+  providerId: string,
   noteId: string,
   authorId: string,
   isSuperAdmin: boolean,
@@ -1361,11 +1510,14 @@ export async function deleteProviderNote(
       author_id: string;
       provider_id: string;
       deleted_at: Date | null;
-    }>(`SELECT author_id, provider_id, deleted_at FROM provider_admin_notes WHERE id = $1`, [
-      noteId,
-    ]);
+    }>(
+      `SELECT author_id, provider_id, deleted_at
+         FROM provider_admin_notes
+        WHERE id = $1 AND provider_id = $2`,
+      [noteId, providerId],
+    );
     const row = existing.rows[0];
-    if (!row) throw createAppError('Note not found.', 404);
+    if (!row) throw createAppError('Note not found for this provider.', 404);
     if (row.deleted_at) throw createAppError('Note already deleted.', 409);
     if (row.author_id !== authorId && !isSuperAdmin) {
       throw createAppError('You can only delete your own notes.', 403);

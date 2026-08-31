@@ -88,6 +88,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireProvider(req);
+      await providerService.getProviderByUserId(req.user!.userId);
       const data = await serviceAreaChangeService.getProviderAreaChangeState(req.user!.userId);
       res.json({ success: true, data });
     } catch (error) {
@@ -103,6 +104,7 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireProvider(req);
+      await providerService.getProviderByUserId(req.user!.userId);
       const data = await serviceAreaChangeService.requestChange({
         providerId: req.user!.userId,
         requestedAreaId: req.body.areaId,
@@ -124,6 +126,7 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireProvider(req);
+      await providerService.getProviderByUserId(req.user!.userId);
       const data = await serviceAreaChangeService.cancelPending(req.user!.userId);
       res.json({ success: true, data });
     } catch (error) {
@@ -1040,6 +1043,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireProvider(req);
+      await providerService.getProviderByUserId(req.user!.userId);
       const data = await jobLeadsService.getOpenJobRequestsForProvider(req.user!.userId, {
         page: Number(req.query.page ?? 1),
         pageSize: Number(req.query.pageSize ?? 20),

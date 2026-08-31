@@ -4,7 +4,7 @@
 
 This is the resumable record for the suspicion-first admin/company stage that follows the provider and customer desktop/linkage audits. It records what was inspected, what was changed, what was proven by executed tests, and what remains. It does not treat the existence of a route, table, button, or old test as proof that an operator workflow is feasible.
 
-The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover Business Account 360, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, Booking 360/Dispatch integrity, and the current financial-operations truth pass. The remaining admin surfaces continue after these checkpoints.
+The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover Business Account 360, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, Booking 360/Dispatch integrity, financial-operations truth, and Customer/Provider 360 account-support authority. The remaining admin surfaces continue after these checkpoints.
 
 Production synchronization is not claimed. Escalation E32 still records that the supplied SSH identities are rejected by the production host. Local and GitHub code may be aligned after CI, but production cannot be updated until an authorized server identity is available.
 
@@ -193,24 +193,52 @@ E09, E14, E18, E22, E24, and D27p5 remain open. This checkpoint did not activate
 
 Executed focused regression coverage: Bugs UX-719 through UX-743 plus the existing payout atomicity/RBAC/validator, reconciliation, escrow, revenue-degradation, Financials, Payouts, E22, and money-trail suites.
 
-## Verification at checkpoints D through G
+## Checkpoint H: Customer and Provider 360 account-support authority
+
+### Findings
+
+- Both 360 headers omitted support ownership, active-case urgency, and remembered-session context, so staff had to reconstruct account risk from separate screens.
+- Customer dispute history omitted provider-filed disputes on the customer's bookings.
+- Support-history exits scoped only to the account owner's user ID, omitting cases linked through a booking and provider-staff cases.
+- Customer/provider suspension deleted refresh tokens but did not advance the session generation used to invalidate existing access tokens. Some provider-only routes also bypassed the approved-profile workspace gate.
+- Provider area requests could not be reliably opened from Provider 360 because the provider filter was not applied before the queue limit.
+- Provider note updates/deletes were not provider-scoped, updates lacked a dedicated transactional audit event, and the UI could not edit a note.
+- Normal admins received raw provider-staff invite phone/email despite the existing masked-contact policy.
+- Dense Customer/Provider 360 tab sets did not provide a stable touch-sized tablet rail.
+
+### Implemented boundary
+
+- Added open/urgent/unassigned support counts, current support owners, remembered sign-ins, reasoned force sign-out, and exact suspension/status effects to both account headers.
+- Related customer support includes direct and booking-linked cases. Related provider support includes owner, staff, and booking-linked cases. The Support Tickets page preserves and labels that account scope.
+- Customer disputes include every dispute on the customer's bookings and identify the filer; fraud-pattern aggregation remains customer-filed only.
+- Customer/provider suspension advances `session_version` and deletes refresh tokens transactionally. Provider service-area and job-request routes enforce approved provider status.
+- Provider 360 links into provider-filtered Service Area operations; filtering occurs before the queue limit.
+- Provider notes are provider-scoped for update/delete, updates are transactionally audited, and the bounded editor handles failures visibly.
+- Provider-staff invite contact is masked for normal admins and explicitly labelled as masked; super-admin retains the authorized raw view.
+- Both 360 workspaces use horizontally scrollable touch-sized tab rails and responsive header/action layouts.
+
+E29, E30, E31, E35, E36, E37, and E39 remain documented hard stops. This checkpoint did not invent active staff-assignment behavior, clear fraud markers, change wallet limits, merge onboarding state models, tighten production KYC approval without data evidence, claim global audit coverage, or create privileged admin-account lifecycle actions.
+
+Executed regression coverage: Bugs UX-744 through UX-762. Strict Customer/Provider 360 visual comparison passed 37 tests at 820, 1024, 1280, 1440, and 1920 pixels without baseline updates, including the provider-team privacy/review state. Detailed trace: `docs/audits/CUSTOMER-PROVIDER-360-AUDIT-2026-08-31.md`.
+
+## Verification at checkpoints D through H
 
 - All three workspace TypeScript checks: passed.
 - Admin production build: passed.
 - API production build: passed.
 - Full repository ESLint: passed.
-- Admin full suite: 207 passed files, 1 skipped file; 317 passed tests and 3 explicit todos.
-- API full locally runnable run: 562 passed suites, 1 skipped suite; 3,142 passed tests and 1 intentional skip. The Docker-dependent nginx certificate configuration test was excluded because Docker Desktop is unavailable in the local environment; CI remains the execution gate for that check.
-- Financials and Payouts strict visual comparison: 61 passed at 820, 1024, 1280, 1440, and 1920 pixels with no baseline updates during the verification run.
-- Gate A and Gate C: passed with zero blocking/report failures. No-phantom-test scan: passed. Money-conservation checkpoint: 115 focused state, pricing, escrow, commission, refund, and wallet assertions passed.
+- Admin full suite: 213 passed files, 1 skipped file; 323 passed tests and 3 explicit todos.
+- API full locally runnable run: 575 passed suites, 1 skipped suite; 3,155 passed tests and 1 intentional skip. The Docker-dependent nginx certificate configuration test was excluded because Docker Desktop is unavailable in the local environment; CI remains the execution gate for that check.
+- Mobile full suite: 495 passed suites and 874 passed tests, with 84 explicit device-baseline todos.
+- Financials and Payouts strict visual comparison: 61 passed at 820, 1024, 1280, 1440, and 1920 pixels with no baseline updates during the verification run. Customer/Provider 360 strict visual comparison: 37 passed at the same reviewed width range.
+- API smoke: 13/13. Environment contract: 80/80. Gate A and Gate C: passed with zero blocking/report failures. All six gate self-tests and the no-phantom-test scan passed. The N+1 heuristic retained the same 30 review locations with no unjustified marker. Money-conservation checkpoint: 115 focused state, pricing, escrow, commission, refund, and wallet assertions passed.
 - `git diff --check`: passed.
 
 ## Next admin/company audit queue
 
 The next continuous loop starts from the admin navigation inventory and rechecks each remaining page against the operating questions above. Priority order is:
 
-1. Customer and Provider 360 action feasibility, including enforcement impact, support ownership, sessions, documents, service areas, staff, and history.
-2. Catalog, service-area, cancellation-policy, compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
-3. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
+1. Catalog, service-area, cancellation-policy, compliance, data-protection, analytics, settings, roles, and all remaining configuration fields.
+2. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
 
 Existing legal, money, production-data, and privileged-identity escalation boundaries still apply. A page-local visual improvement is not permission to invent legal wording, mutate production money, or bypass those controls.

@@ -118,6 +118,7 @@ export default function ServiceAreasPage(): React.ReactElement {
   const page = parsePage(searchParams.get('page'));
   const statusFilter = parseStatus(searchParams.get('status'));
   const search = searchParams.get('search')?.trim() ?? '';
+  const providerFilter = searchParams.get('providerId')?.trim() ?? '';
   const [searchInput, setSearchInput] = useState(search);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [form, setForm] = useState<CreateAreaForm>({ ...EMPTY_FORM });
@@ -157,11 +158,11 @@ export default function ServiceAreasPage(): React.ReactElement {
   });
 
   const changeRequestsQuery = useQuery({
-    queryKey: ['adminServiceAreaChanges'],
+    queryKey: ['adminServiceAreaChanges', providerFilter],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: ServiceAreaChangeRequest[] }>(
         '/api/v1/admin/service-area-changes',
-        { params: { limit: 200 } },
+        { params: { limit: 200, ...(providerFilter ? { providerId: providerFilter } : {}) } },
       );
       return res.data.data;
     },
@@ -526,7 +527,10 @@ export default function ServiceAreasPage(): React.ReactElement {
   const areas = data?.data ?? [];
   const pagination = data?.pagination;
   const stats = statsData;
-  const pendingRequests = changeRequestsQuery.data ?? [];
+  const allPendingRequests = changeRequestsQuery.data ?? [];
+  const pendingRequests = providerFilter
+    ? allPendingRequests.filter((request) => request.providerRecordId === providerFilter)
+    : allPendingRequests;
 
   return (
     <div className="space-y-6">
@@ -571,6 +575,19 @@ export default function ServiceAreasPage(): React.ReactElement {
               <Badge variant={pendingRequests.length > 0 ? 'warning' : 'success'} label={`${pendingRequests.length} pending`} />
             </div>
             <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Review the requested market, location pin, and radius before changing provider matching coverage.</p>
+            {providerFilter && (
+              <button
+                type="button"
+                className="mt-2 text-xs font-medium text-[var(--color-primary)] hover:underline"
+                onClick={() => {
+                  const next = new URLSearchParams(searchParams);
+                  next.delete('providerId');
+                  setSearchParams(next);
+                }}
+              >
+                Showing one Provider 360 record · clear provider filter
+              </button>
+            )}
           </div>
           {!isSuperAdmin && (
             <p className="rounded-lg bg-[var(--color-surface-muted)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">Visible to support. Approval and rejection require super admin.</p>
@@ -580,7 +597,11 @@ export default function ServiceAreasPage(): React.ReactElement {
         {changeRequestsQuery.isLoading && <p className="mt-4 text-sm text-[var(--color-text-secondary)]">Loading provider requests…</p>}
         {changeRequestsQuery.isError && <p role="alert" className="mt-4 text-sm text-[var(--color-error)]">Failed to load provider service-area requests.</p>}
         {!changeRequestsQuery.isLoading && !changeRequestsQuery.isError && pendingRequests.length === 0 && (
-          <div className="mt-4 rounded-lg border border-dashed border-[var(--color-border)] p-5 text-center text-sm text-[var(--color-text-secondary)]">No provider service-area changes are waiting for review.</div>
+          <div className="mt-4 rounded-lg border border-dashed border-[var(--color-border)] p-5 text-center text-sm text-[var(--color-text-secondary)]">
+            {providerFilter
+              ? 'This provider has no service-area changes waiting for review.'
+              : 'No provider service-area changes are waiting for review.'}
+          </div>
         )}
         {pendingRequests.length > 0 && (
           <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">

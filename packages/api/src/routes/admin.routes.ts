@@ -34,6 +34,20 @@ import {
 } from '../utils/pii-mask';
 
 const router = Router();
+const PROVIDER_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateProviderId(
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction,
+): void {
+  const providerId = req.params.id;
+  if (typeof providerId !== 'string' || !PROVIDER_ID_REGEX.test(providerId)) {
+    next(createAppError('Provider ID must be a valid UUID.', 400));
+    return;
+  }
+  next();
+}
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
@@ -183,6 +197,7 @@ router.get(
 router.put(
   '/providers/:id/approve',
   authMiddleware,
+  validateProviderId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -204,6 +219,7 @@ router.put(
 router.put(
   '/providers/:id/reject',
   authMiddleware,
+  validateProviderId,
   validationMiddleware(suspendProviderSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
@@ -222,6 +238,7 @@ router.put(
 router.put(
   '/providers/:id/suspend',
   authMiddleware,
+  validateProviderId,
   validationMiddleware(suspendProviderSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
@@ -240,6 +257,7 @@ router.put(
 router.put(
   '/providers/:id/reactivate',
   authMiddleware,
+  validateProviderId,
   validationMiddleware(suspendProviderSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
@@ -258,6 +276,7 @@ router.put(
 router.put(
   '/providers/:id/tier',
   authMiddleware,
+  validateProviderId,
   validationMiddleware(changeProviderTierSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {

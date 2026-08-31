@@ -21,20 +21,29 @@ it('Bug UX-444 — provider-warning and provider-suspension refunds do not count
     'refund_with_warning',
     'refund_with_suspension',
   ];
-  queryMock.mockResolvedValueOnce({
-    rows: outcomes.map((resolutionType, index) => ({
-      id: `dispute-${index}`,
-      booking_id: `booking-${index}`,
-      provider_id: 'provider-1',
-      business_name: 'Cebu Home Care',
-      type: 'quality',
-      status: 'resolved',
-      resolution_type: resolutionType,
-      refund_amount: resolutionType === 'no_refund' ? 0 : 5000,
-      created_at: new Date(now - (index + 1) * 24 * 60 * 60 * 1000),
-    })),
-    rowCount: outcomes.length,
-  });
+  queryMock
+    .mockResolvedValueOnce({ rows: [{ count: '5' }], rowCount: 1 })
+    .mockResolvedValueOnce({
+      rows: outcomes.map((resolutionType, index) => ({
+        id: `dispute-${index}`,
+        booking_id: `booking-${index}`,
+        provider_id: 'provider-1',
+        business_name: 'Cebu Home Care',
+        type: 'quality',
+        status: 'resolved',
+        resolution_type: resolutionType,
+        refund_amount: resolutionType === 'no_refund' ? 0 : 5000,
+        filed_by: 'customer-1',
+        filed_by_role: 'customer',
+        filed_by_name: 'Customer Example',
+        created_at: new Date(now - (index + 1) * 24 * 60 * 60 * 1000),
+      })),
+      rowCount: outcomes.length,
+    })
+    .mockResolvedValueOnce({
+      rows: [{ disputes_in_window: '5', resolved_in_window: '5', no_refund_in_window: '3' }],
+      rowCount: 1,
+    });
 
   const result = await getCustomerDisputes('customer-1');
 

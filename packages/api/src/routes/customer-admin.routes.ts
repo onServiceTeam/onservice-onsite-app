@@ -13,8 +13,40 @@ import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import * as customerAdminService from '../services/customer-admin.service';
+import { ALL_BOOKING_STATUSES } from '../types/booking.types';
 
 const router = Router();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateCustomerId(
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction,
+): void {
+  const customerId = req.params.id;
+  if (typeof customerId !== 'string' || !UUID_REGEX.test(customerId)) {
+    next(createAppError('Customer ID must be a valid UUID.', 400));
+    return;
+  }
+  next();
+}
+
+function positiveIntegerQuery(
+  value: unknown,
+  name: string,
+  defaultValue: number,
+  maximum: number,
+): number {
+  if (value === undefined) return defaultValue;
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) {
+    throw createAppError(`${name} must be a positive integer.`, 400);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > maximum) {
+    throw createAppError(`${name} must be between 1 and ${maximum}.`, 400);
+  }
+  return parsed;
+}
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
@@ -33,6 +65,7 @@ function requireSuperAdmin(req: AuthenticatedRequest): void {
 router.get(
   '/:id',
   authMiddleware,
+  validateCustomerId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -50,6 +83,7 @@ router.get(
 router.post(
   '/:id/reveal-contact',
   authMiddleware,
+  validateCustomerId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -66,12 +100,16 @@ router.post(
 router.get(
   '/:id/bookings',
   authMiddleware,
+  validateCustomerId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const page = Number(req.query.page ?? 1);
-      const pageSize = Number(req.query.pageSize ?? 20);
+      const page = positiveIntegerQuery(req.query.page, 'page', 1, 100_000);
+      const pageSize = positiveIntegerQuery(req.query.pageSize, 'pageSize', 20, 100);
       const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+      if (status && !ALL_BOOKING_STATUSES.includes(status as never)) {
+        throw createAppError('status must be a known booking status.', 400);
+      }
       const data = await customerAdminService.getCustomerBookings(
         (req.params.id as string),
         page,
@@ -90,6 +128,7 @@ router.get(
 router.get(
   '/:id/payments',
   authMiddleware,
+  validateCustomerId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -106,10 +145,17 @@ router.get(
 router.get(
   '/:id/disputes',
   authMiddleware,
+  validateCustomerId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const data = await customerAdminService.getCustomerDisputes((req.params.id as string));
+      const page = positiveIntegerQuery(req.query.page, 'page', 1, 100_000);
+      const pageSize = positiveIntegerQuery(req.query.pageSize, 'pageSize', 20, 100);
+      const data = await customerAdminService.getCustomerDisputes(
+        req.params.id as string,
+        page,
+        pageSize,
+      );
       res.json({ success: true, data });
     } catch (error) {
       next(error);
@@ -122,6 +168,7 @@ router.get(
 router.get(
   '/:id/referrals',
   authMiddleware,
+  validateCustomerId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -138,10 +185,11 @@ router.get(
 router.get(
   '/:id/activity',
   authMiddleware,
+  validateCustomerId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const limit = Number(req.query.limit ?? 50);
+      const limit = positiveIntegerQuery(req.query.limit, 'limit', 50, 200);
       // Forward the authorized operations role so super_admin receives the
       // intended forensic view while plain admin remains masked. DPO is
       // rejected by requireAdmin above and is never upgraded here.
@@ -161,6 +209,7 @@ router.get(
 router.put(
   '/:id/status',
   authMiddleware,
+  validateCustomerId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
@@ -181,11 +230,31 @@ router.put(
   },
 );
 
+router.post(
+  '/:id/revoke-sessions',
+  authMiddleware,
+  validateCustomerId,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const data = await customerAdminService.revokeCustomerSessions(
+        req.params.id as string,
+        String(req.body?.reason ?? ''),
+        req.user!.userId,
+      );
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 // ─── Wallet credit (super admin) ────────────────────────────────────────────
 
 router.post(
   '/:id/credit',
   authMiddleware,
+  validateCustomerId,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);

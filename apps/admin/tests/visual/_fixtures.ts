@@ -234,6 +234,9 @@ const CUSTOMER_PROFILE = {
   lifetimeBookings: 8, lifetimeSpent: 1_840_000,
   activeBookings: 1, openDisputes: 0,
   averageRatingGiven: 4.8, totalReviewsGiven: 6,
+  activeRefreshSessions: 2,
+  openSupportCases: 2, urgentSupportCases: 1, unassignedSupportCases: 0,
+  supportOwnerNames: ['Mia Support'],
   addresses: [{
     id: 'ADDR-0001', label: 'Home',
     fullAddress: '12 Mango Avenue, Lahug', barangay: 'Lahug',
@@ -269,6 +272,9 @@ const PROVIDER_PROFILE = {
   latitude: 10.3157, longitude: 123.8854,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-08-30T00:00:00.000Z',
+  activeRefreshSessions: 3,
+  openSupportCases: 2, urgentSupportCases: 1, unassignedSupportCases: 1,
+  supportOwnerNames: ['Mia Support'], pendingServiceAreaChanges: 1,
   user: {
     id: 'U-0001', fullName: 'Maria Dela Cruz', phone: '+639180000001',
     email: 'provider@onservice.test', contactMasked: false, avatarUrl: null,
@@ -643,6 +649,57 @@ export const test = base.extend<VisualFixtureOptions>({
         };
       } else if (path === '/api/v1/admin/service-area-changes') {
         body = { success: true, data: [] };
+      } else if (url.match(/\/admin\/customers\/[^/]+\/disputes/)) {
+        body = {
+          success: true,
+          data: {
+            rows: [{
+              id: 'DSP-0001', bookingId: 'BK-0001', providerId: 'PV-0001',
+              providerBusinessName: 'Cebu Home Care', type: 'quality', status: 'under_review',
+              resolutionType: null, refundAmount: 0, filedById: 'U-0001',
+              filedByRole: 'provider', filedByName: 'Cebu Home Care',
+              createdAt: '2026-08-30T04:00:00.000Z',
+            }],
+            total: 1, page: 1, pageSize: 20,
+            fraudPattern: {
+              disputesInWindow: 0, windowDays: 30, favorProviderRate: null,
+              flagged: false, reason: null,
+            },
+          },
+        };
+      } else if (url.match(/\/admin\/providers\/[^/]+\/notes/)) {
+        body = {
+          success: true,
+          data: [{
+            id: 'NOTE-0001', providerId: 'PV-0001', authorId: 'admin-visual',
+            authorName: 'Mia Support', category: 'quality',
+            body: 'Customer callback completed. Evidence review remains open.',
+            pinned: true, createdAt: '2026-08-30T04:00:00.000Z',
+            updatedAt: '2026-08-30T04:00:00.000Z',
+          }],
+        };
+      } else if (url.match(/\/admin\/providers\/[^/]+\/staff/)) {
+        body = {
+          success: true,
+          data: [
+            {
+              id: 'STAFF-0001', userId: 'U-STAFF-0001', userName: 'Joel Santos',
+              roleTitle: 'Team lead', status: 'approved',
+              invitePhone: '+63 9XX XXX 4321', inviteEmail: 'j•••@example.com',
+              contactMasked: true, adminDecisionReason: null, isAssignable: true,
+              createdAt: '2026-06-01T00:00:00.000Z',
+              performance: { totalJobs: 38, totalReviews: 31, averageRating: 4.87 },
+            },
+            {
+              id: 'STAFF-0002', userId: null, userName: null,
+              roleTitle: 'Aircon technician', status: 'pending_review',
+              invitePhone: '+63 9XX XXX 8765', inviteEmail: null,
+              contactMasked: true, adminDecisionReason: null, isAssignable: false,
+              createdAt: '2026-08-28T00:00:00.000Z',
+              performance: { totalJobs: 0, totalReviews: 0, averageRating: 0 },
+            },
+          ],
+        };
       } else if (url.match(/\/admin\/customers\/[^/]+(\?|$)/) && !url.includes('/customers/CU-0001/')) {
         // /admin/customers/:id (no path suffix) — profile object
         body = { success: true, data: CUSTOMER_PROFILE };

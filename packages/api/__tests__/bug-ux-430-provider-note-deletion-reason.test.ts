@@ -25,7 +25,9 @@ it('Bug UX-430 — the provider-note deletion service rejects a missing audit re
     rowCount: 1,
   });
 
-  await expect(deleteProviderNote('note-1', 'admin-1', false)).rejects.toMatchObject({
+  await expect(
+    deleteProviderNote('provider-1', 'note-1', 'admin-1', false),
+  ).rejects.toMatchObject({
     statusCode: 400,
     message: 'reason must be at least 10 characters.',
   });

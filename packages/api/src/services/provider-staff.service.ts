@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { maskEmail, maskPhilippinePhone, type ActorRole } from '../utils/pii-mask';
 import * as notificationService from './notification.service';
 
 // Provider staff / team members — D23. Phase-1 foundation: the approval state
@@ -100,6 +101,23 @@ export function formatProviderStaff(s: ProviderStaffRow): Record<string, unknown
   };
 }
 
+export function formatProviderStaffForAdmin(
+  s: ProviderStaffRow,
+  viewerRole: ActorRole,
+): Record<string, unknown> {
+  const contactMasked = viewerRole !== 'super_admin';
+  return {
+    ...formatProviderStaff(s),
+    invitePhone: contactMasked && s.invite_phone
+      ? maskPhilippinePhone(s.invite_phone)
+      : s.invite_phone,
+    inviteEmail: contactMasked && s.invite_email
+      ? maskEmail(s.invite_email)
+      : s.invite_email,
+    contactMasked,
+  };
+}
+
 // ── DB operations ────────────────────────────────────────────────────────────
 
 export async function listStaffByProvider(providerId: string): Promise<ProviderStaffRow[]> {
@@ -126,6 +144,7 @@ export async function getStaffById(staffId: string): Promise<ProviderStaffRow | 
 // (computed from real bookings/reviews, not the advisory cached columns).
 export async function listStaffWithPerformance(
   providerId: string,
+  viewerRole?: ActorRole,
 ): Promise<Array<Record<string, unknown>>> {
   const rows = await listStaffByProvider(providerId);
   if (rows.length === 0) return [];
@@ -149,7 +168,7 @@ export async function listStaffWithPerformance(
     averageRating: p.avg_rating ? Number(Number(p.avg_rating).toFixed(2)) : 0,
   }]));
   return rows.map((r) => ({
-    ...formatProviderStaff(r),
+    ...(viewerRole ? formatProviderStaffForAdmin(r, viewerRole) : formatProviderStaff(r)),
     performance: perfById.get(r.id) ?? { totalJobs: 0, totalReviews: 0, averageRating: 0 },
   }));
 }

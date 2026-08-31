@@ -58,7 +58,11 @@ export async function getProviderByUserId(userId: string): Promise<ProviderRow> 
     [userId],
   );
   if (result.rows.length === 0) throw createAppError('Provider profile not found.', 404);
-  return result.rows[0]!;
+  const provider = result.rows[0]!;
+  if (provider.status !== 'approved') {
+    throw createAppError('Provider workspace access is unavailable while this account is not approved.', 403);
+  }
+  return provider;
 }
 
 export async function getProviderById(providerId: string): Promise<ProviderRow & { first_name?: string; last_name?: string }> {

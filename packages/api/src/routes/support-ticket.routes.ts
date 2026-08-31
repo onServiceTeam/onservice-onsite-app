@@ -32,7 +32,10 @@ router.get(
   validationMiddleware({ query: supportTicketListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { page, limit, status, type, priority, assignedAgentId, unassigned, active, search, bookingId, userId } =
+      const {
+        page, limit, status, type, priority, assignedAgentId, unassigned, active,
+        search, bookingId, userId, relatedCustomerId, relatedProviderId,
+      } =
         req.query as unknown as {
           page: number;
           limit: number;
@@ -45,6 +48,8 @@ router.get(
           search?: string;
           bookingId?: string;
           userId?: string;
+          relatedCustomerId?: string;
+          relatedProviderId?: string;
         };
       const result = await supportTicketService.listTickets({
         page,
@@ -58,6 +63,8 @@ router.get(
         search,
         bookingId,
         userId,
+        relatedCustomerId,
+        relatedProviderId,
       });
       const tickets = result.tickets.map((ticket) =>
         supportTicketService.maskTicketForRole(ticket, req.user!.role),
