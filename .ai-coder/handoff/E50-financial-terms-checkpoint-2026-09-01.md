@@ -82,6 +82,12 @@
   behavior. The provider penalty update uses the booking transaction client,
   counts the freshly cancelled row once, and aborts the parent transaction when
   cancellation accounting cannot be recorded.
+- Replaces the MED-N29 and MED-N102 admin-tunability source scans with executed
+  service behavior. A newly configured marketing channel is accepted without a
+  deploy, operator tier weights reorder providers in both matching paths, and
+  unreadable values use canonical fallbacks. The settings transaction test now
+  also proves a successful audited save invalidates both the per-key and grouped
+  settings caches before downstream readers continue.
 - Fixes OPS-299/OPS-300 in the provider payout handoff. The wallet facade now
   shares the canonical payout request schema, so account-holder name and notes
   are no longer stripped before payout creation. The responsive provider
@@ -90,7 +96,7 @@
 
 ## Verification completed
 
-- API: 678 suites passed, 1 suite skipped by its own config, 3,101 tests passed.
+- API: 679 suites passed, 1 suite skipped by its own config, 3,087 tests passed.
 - Admin: 248 files passed, 1 skipped, 340 tests passed, 3 existing todos.
 - Mobile: 502 suites passed, 881 tests passed, 84 existing todos.
 - API, admin, and mobile typechecks passed.

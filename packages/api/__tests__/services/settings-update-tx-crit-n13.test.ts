@@ -39,6 +39,7 @@ import { updateSetting } from '../../src/services/settings.service';
 beforeEach(() => {
   dbQueryMock.mockReset();
   dbTransactionMock.mockReset();
+  redisMock.del.mockReset();
   redisMock.del.mockResolvedValue(0);
   redisMock.get.mockResolvedValue(null);
 });
@@ -113,6 +114,8 @@ describe('CRIT-N13 — settings.updateSetting wraps update + audit in transactio
     expect(txCalls[2]!.params[3]).toBe('12'); // new_value
     expect(txCalls[2]!.params[4]).toBe('admin-user-1'); // changed_by
     expect(txCalls[2]!.params[5]).toBe('Approved fee increase.'); // change_reason
+    expect(redisMock.del).toHaveBeenCalledWith('settings:service_fee_rate');
+    expect(redisMock.del).toHaveBeenCalledWith('settings:__all_active__');
   });
 
   it('CRIT-N13 — audit insert failure rolls back the value UPDATE (transaction unit)', async () => {

@@ -32,7 +32,18 @@ beforeEach(() => {
 describe('MED-N60 — createNotification preserves caller-supplied data keys', () => {
   it("MED-N60 — caller's data.type is preserved (not silently overwritten)", async () => {
     dbQueryMock.mockResolvedValueOnce({
-      rows: [{ id: 'n1', user_id: 'u1', type: 'booking_confirmed', title: 't', body: 'b', data: {}, is_read: false, created_at: new Date() }],
+      rows: [
+        {
+          id: 'n1',
+          user_id: 'u1',
+          type: 'booking_confirmed',
+          title: 't',
+          body: 'b',
+          data: {},
+          is_read: false,
+          created_at: new Date(),
+        },
+      ],
       rowCount: 1,
     });
     await createNotification({
@@ -56,7 +67,18 @@ describe('MED-N60 — createNotification preserves caller-supplied data keys', (
 
   it('MED-N60 — when caller did not set data.type, the back-compat field carries the notification type', async () => {
     dbQueryMock.mockResolvedValueOnce({
-      rows: [{ id: 'n2', user_id: 'u1', type: 'provider_assigned', title: 't', body: 'b', data: {}, is_read: false, created_at: new Date() }],
+      rows: [
+        {
+          id: 'n2',
+          user_id: 'u1',
+          type: 'provider_assigned',
+          title: 't',
+          body: 'b',
+          data: {},
+          is_read: false,
+          created_at: new Date(),
+        },
+      ],
       rowCount: 1,
     });
     await createNotification({
@@ -75,7 +97,18 @@ describe('MED-N60 — createNotification preserves caller-supplied data keys', (
 
   it('MED-N60 — notificationType is canonical and unaffected by caller data.notificationType', async () => {
     dbQueryMock.mockResolvedValueOnce({
-      rows: [{ id: 'n3', user_id: 'u1', type: 'rating_received', title: 't', body: 'b', data: {}, is_read: false, created_at: new Date() }],
+      rows: [
+        {
+          id: 'n3',
+          user_id: 'u1',
+          type: 'rating_received',
+          title: 't',
+          body: 'b',
+          data: {},
+          is_read: false,
+          created_at: new Date(),
+        },
+      ],
       rowCount: 1,
     });
     await createNotification({
@@ -164,4 +197,3 @@ describe('MED-N57 — enqueuePushRetry inserts a pending row on push delivery fa
     ).resolves.toBeUndefined();
   });
 });
-
