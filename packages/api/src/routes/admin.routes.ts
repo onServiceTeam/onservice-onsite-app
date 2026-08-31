@@ -311,12 +311,16 @@ router.get(
       const search = typeof req.query.search === 'string' ? req.query.search : undefined;
       const view = typeof req.query.view === 'string' ? req.query.view : undefined;
       const sort = typeof req.query.sort === 'string' ? req.query.sort : undefined;
+      const businessAccountId = typeof req.query.businessAccountId === 'string'
+        ? req.query.businessAccountId
+        : undefined;
 
       const { bookings, total, summary } = await adminService.listBookingsAdmin({
         status,
         search,
         view,
         sort,
+        businessAccountId,
         page,
         pageSize,
       });
@@ -921,6 +925,27 @@ router.post(
       const invoice = await invoiceService.markInvoicePaid(id, paymentReference);
 
       res.json({ success: true, data: invoiceService.formatInvoice(invoice) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/invoices/:id',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const id = req.params.id as string;
+      const detail = await invoiceService.getInvoiceDetailAdmin(id);
+      res.json({
+        success: true,
+        data: {
+          invoice: invoiceService.formatInvoice(detail.invoice),
+          items: detail.items.map(invoiceService.formatInvoiceItem),
+        },
+      });
     } catch (error) {
       next(error);
     }

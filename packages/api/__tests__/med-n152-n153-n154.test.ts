@@ -17,6 +17,7 @@ jest.mock('../src/services/wallet.service', () => ({
 jest.mock('../src/services/settings.service', () => ({
   getSettingNumber: jest.fn().mockResolvedValue(500000), // ₱5000 max tip
   getSetting: jest.fn().mockResolvedValue('500000'),
+  getSettingBoolean: jest.fn().mockResolvedValue(true),
 }));
 
 import { sendTip } from '../src/services/tip.service';

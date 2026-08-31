@@ -10,7 +10,12 @@ import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { createAppError } from '../middleware/error.middleware';
-import { createPromoCodeSchema } from '../validators/promo.validators';
+import {
+  createMarketingCampaignSchema,
+  createPromoCodeSchema,
+  updateMarketingCampaignSchema,
+  updatePromoCodeSchema,
+} from '../validators/promo.validators';
 import * as marketingAdminService from '../services/marketing-admin.service';
 
 const router = Router();
@@ -45,6 +50,18 @@ function parseOptionalString(value: unknown): string | undefined {
 }
 
 // ─── Promo codes ────────────────────────────────────────────────────────────
+
+router.get(
+  '/channels',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const data = await marketingAdminService.listAllowedMarketingChannels();
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
 
 router.get(
   '/promos',
@@ -124,6 +141,7 @@ router.post(
 router.patch(
   '/promos/:id',
   authMiddleware,
+  validationMiddleware(updatePromoCodeSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
@@ -136,6 +154,9 @@ router.patch(
       if (body.usageLimitTotal !== undefined) {
         patch.usageLimitTotal =
           body.usageLimitTotal === null ? null : Number(body.usageLimitTotal);
+      }
+      if (body.usageLimitPerCustomer !== undefined) {
+        patch.usageLimitPerCustomer = Number(body.usageLimitPerCustomer);
       }
       if (body.validUntil !== undefined) {
         patch.validUntil = body.validUntil === null ? null : String(body.validUntil);
@@ -203,6 +224,7 @@ router.get(
 router.post(
   '/campaigns',
   authMiddleware,
+  validationMiddleware(createMarketingCampaignSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
@@ -231,6 +253,7 @@ router.post(
 router.patch(
   '/campaigns/:id',
   authMiddleware,
+  validationMiddleware(updateMarketingCampaignSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
@@ -241,15 +264,6 @@ router.patch(
         patch.endedAt = body.endedAt === null ? null : String(body.endedAt);
       }
       if (body.spendCentavos !== undefined) patch.spendCentavos = Number(body.spendCentavos);
-      if (body.attributedSignups !== undefined) {
-        patch.attributedSignups = Number(body.attributedSignups);
-      }
-      if (body.attributedFirstBookings !== undefined) {
-        patch.attributedFirstBookings = Number(body.attributedFirstBookings);
-      }
-      if (body.attributedRevenueCentavos !== undefined) {
-        patch.attributedRevenueCentavos = Number(body.attributedRevenueCentavos);
-      }
       if (body.notes !== undefined) {
         patch.notes = body.notes === null ? null : String(body.notes);
       }

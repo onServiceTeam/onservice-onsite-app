@@ -9,6 +9,11 @@ jest.mock('../../../src/models/db', () => ({
   db: { query: jest.fn() },
 }));
 
+const getSettingBooleanMock = jest.fn().mockResolvedValue(true);
+jest.mock('../../../src/services/settings.service', () => ({
+  getSettingBoolean: (...args: unknown[]) => getSettingBooleanMock(...args),
+}));
+
 import { db } from '../../../src/models/db';
 import { resolvePromo } from '../../../src/services/booking/promo.service';
 
@@ -47,6 +52,8 @@ const baseInput = {
 
 beforeEach(() => {
   mockedQuery.mockReset();
+  getSettingBooleanMock.mockReset();
+  getSettingBooleanMock.mockResolvedValue(true);
 });
 
 describe('Bug 261 — promo.service resolvePromo (server-canonical discount)', () => {

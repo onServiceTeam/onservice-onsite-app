@@ -65,6 +65,9 @@ interface BusinessContractRow {
   terms: string | null;
   created_at: Date;
   updated_at: Date;
+  category_name?: string | null;
+  subcategory_name?: string | null;
+  provider_name?: string | null;
 }
 
 interface CountRow { count: string }
@@ -679,7 +682,14 @@ export async function getContracts(
 
   const [dataResult, countResult] = await Promise.all([
     db.query<BusinessContractRow>(
-      `SELECT bc.* FROM business_contracts bc
+      `SELECT bc.*,
+              sc.name AS category_name,
+              ss.name AS subcategory_name,
+              p.business_name AS provider_name
+         FROM business_contracts bc
+         JOIN service_categories sc ON sc.id = bc.category_id
+         LEFT JOIN service_subcategories ss ON ss.id = bc.subcategory_id
+         LEFT JOIN providers p ON p.id = bc.provider_id
        WHERE bc.business_account_id = $1
        ORDER BY bc.status ASC, bc.start_date DESC
        LIMIT $2 OFFSET $3`,
@@ -890,7 +900,14 @@ export async function getContractsAdmin(
   const offset = (page - 1) * pageSize;
   const [dataResult, countResult] = await Promise.all([
     db.query<BusinessContractRow>(
-      `SELECT bc.* FROM business_contracts bc
+      `SELECT bc.*,
+              sc.name AS category_name,
+              ss.name AS subcategory_name,
+              p.business_name AS provider_name
+         FROM business_contracts bc
+         JOIN service_categories sc ON sc.id = bc.category_id
+         LEFT JOIN service_subcategories ss ON ss.id = bc.subcategory_id
+         LEFT JOIN providers p ON p.id = bc.provider_id
        WHERE bc.business_account_id = $1
        ORDER BY bc.status ASC, bc.start_date DESC
        LIMIT $2 OFFSET $3`,
@@ -1018,6 +1035,9 @@ export function formatContract(c: BusinessContractRow): Record<string, unknown> 
     categoryId: c.category_id,
     subcategoryId: c.subcategory_id,
     providerId: c.provider_id,
+    categoryName: c.category_name ?? null,
+    subcategoryName: c.subcategory_name ?? null,
+    providerName: c.provider_name ?? null,
     contractType: c.contract_type,
     frequency: c.frequency,
     agreedRate: c.agreed_rate,

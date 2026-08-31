@@ -13,6 +13,14 @@ interface Booking {
   customerId: string;
   providerId: string | null;
   categoryId: string;
+  bookingType?: string;
+  businessAccountId?: string | null;
+  businessAccountName?: string | null;
+  contractId?: string | null;
+  contractType?: string | null;
+  invoiceId?: string | null;
+  invoiceNumber?: string | null;
+  invoiceStatus?: string | null;
   status: string;
   escrowStatus: string;
   totalAmount: number;
@@ -89,6 +97,7 @@ export default function BookingsPage(): React.ReactElement {
   const [searchInput, setSearchInput] = useState(() => searchParams.get('search') ?? '');
   const [view, setView] = useState(() => parseView(searchParams.get('view')));
   const [sort, setSort] = useState(() => parseSort(searchParams.get('sort')));
+  const businessAccountId = searchParams.get('businessAccountId') ?? '';
 
   useEffect(() => {
     const nextSearch = searchParams.get('search') ?? '';
@@ -121,13 +130,14 @@ export default function BookingsPage(): React.ReactElement {
   });
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['adminBookings', page, search, statusFilter, view, sort],
+    queryKey: ['adminBookings', page, search, statusFilter, view, sort, businessAccountId],
     queryFn: async () => {
       const params: Record<string, string | number> = {
         page, pageSize: adminConfig.defaultPageSize, view, sort,
       };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
+      if (businessAccountId) params.businessAccountId = businessAccountId;
       const response = await api.get<PaginatedResult>('/api/v1/admin/bookings', { params });
       return response.data;
     },
@@ -156,6 +166,21 @@ export default function BookingsPage(): React.ReactElement {
           Prioritize assignment, participant support, disputes, and past-scheduled work across the complete booking lifecycle.
         </p>
       </header>
+
+      {businessAccountId ? (
+        <section className="flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 sm:flex-row sm:items-center sm:justify-between" aria-label="Business account booking scope">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-sky-800">Business account scope</p>
+            <Link to={`/business-accounts/${businessAccountId}`} className="mt-1 block font-semibold text-sky-950 hover:underline">
+              {data?.data[0]?.businessAccountName || `Business account ${businessAccountId.slice(0, 8)}`}
+            </Link>
+            <p className="mt-1 text-xs text-sky-900">Queue counts and rows are limited to bookings explicitly stamped with this account.</p>
+          </div>
+          <Link to="/bookings" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-sky-300 bg-white px-4 py-2 text-sm font-semibold text-sky-900 hover:bg-sky-100">
+            Clear business scope
+          </Link>
+        </section>
+      ) : null}
 
       <section aria-label="Booking queue signals" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         <QueueSignal label="All bookings" value={summary?.totalBookings ?? 0} detail="Every lifecycle state" selected={view === 'all' && !statusFilter} onClick={() => selectView('all')} />
@@ -292,6 +317,15 @@ function BookingRows({ bookings, isLoading, isError }: { bookings: Booking[]; is
               <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Gross booking total</p>
               <p className="font-semibold text-[var(--color-text)]">{formatCurrency(booking.totalAmount)}</p>
               <p className="mt-1 text-[11px] text-[var(--color-text-secondary)]">Payment and refund truth lives in Booking 360.</p>
+              {booking.businessAccountId ? (
+                <div className="mt-3 border-t border-[var(--color-border)] pt-2 text-xs text-[var(--color-text-secondary)]">
+                  <Link to={`/business-accounts/${booking.businessAccountId}`} className="font-semibold text-[var(--color-secondary)] hover:underline">
+                    {booking.businessAccountName || 'Business account'}
+                  </Link>
+                  <p>{booking.contractId ? `${formatStatus(booking.contractType || 'contract')} pricing` : 'No linked contract'}</p>
+                  <p>{booking.invoiceNumber ? `${booking.invoiceNumber} · ${formatStatus(booking.invoiceStatus || 'unknown')}` : 'Not yet included on an invoice'}</p>
+                </div>
+              ) : null}
             </div>
           </article>
         );

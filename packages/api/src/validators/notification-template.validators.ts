@@ -10,6 +10,7 @@ export const createTemplateSchema = z.object({
     'payout', 'referral', 'suki', 'promo', 'system',
   ]),
   channel: z.enum(['in_app', 'push', 'sms', 'email', 'all']).default('in_app'),
+  isActive: z.boolean().default(true),
   variables: z.array(z.string().max(50)).max(20).optional(),
 });
 

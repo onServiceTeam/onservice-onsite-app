@@ -19,6 +19,62 @@ interface TemplateRow {
 
 interface CountRow { count: string }
 
+const RUNTIME_TEMPLATE_VARIABLES: Readonly<Record<string, readonly string[]>> = {
+  new_job_available: ['bookingId', 'serviceName', 'amount', 'city'],
+  booking_matched: ['bookingId', 'providerName'],
+};
+
+const VALID_PLACEHOLDER = /{{([A-Za-z][A-Za-z0-9_]{0,49})}}/g;
+
+/**
+ * Notification copy is the source of truth for its placeholders. Keeping a
+ * second, manually maintained variables list let the admin preview claim a
+ * template was valid while the live copy still contained unresolved tokens.
+ */
+export function deriveTemplateVariables(titleTemplate: string, bodyTemplate: string): string[] {
+  const source = `${titleTemplate}\n${bodyTemplate}`;
+  const variables = new Set<string>();
+  for (const match of source.matchAll(VALID_PLACEHOLDER)) {
+    variables.add(match[1]!);
+  }
+
+  const withoutValidPlaceholders = source.replace(VALID_PLACEHOLDER, '');
+  if (withoutValidPlaceholders.includes('{{') || withoutValidPlaceholders.includes('}}')) {
+    throw createAppError(
+      'Template contains a malformed placeholder. Use {{variableName}} with letters, numbers, and underscores only.',
+      400,
+    );
+  }
+  if (variables.size > 20) {
+    throw createAppError('Template cannot contain more than 20 variables.', 400);
+  }
+  return [...variables];
+}
+
+function validateTemplateContent(
+  slug: string,
+  titleTemplate: string,
+  bodyTemplate: string,
+): string[] {
+  const variables = deriveTemplateVariables(titleTemplate, bodyTemplate);
+  const runtimeVariables = RUNTIME_TEMPLATE_VARIABLES[slug];
+  if (!runtimeVariables) return variables;
+
+  const unsupported = variables.filter((variable) => !runtimeVariables.includes(variable));
+  if (unsupported.length > 0) {
+    throw createAppError(
+      `The ${slug} workflow cannot supply: ${unsupported.map((value) => `{{${value}}}`).join(', ')}.`,
+      400,
+    );
+  }
+  return variables;
+}
+
+export function getRuntimeTemplateVariables(slug: string): string[] | null {
+  const variables = RUNTIME_TEMPLATE_VARIABLES[slug];
+  return variables ? [...variables] : null;
+}
+
 export async function listTemplates(
   filters: { type?: string; channel?: string; isActive?: boolean; page: number; pageSize: number },
 ): Promise<{ templates: TemplateRow[]; total: number }> {
@@ -83,33 +139,59 @@ export async function createTemplate(
     bodyTemplate: string;
     type: string;
     channel?: string;
+    isActive?: boolean;
     variables?: string[];
   },
 ): Promise<TemplateRow> {
-  const existing = await db.query<CountRow>(
-    `SELECT COUNT(*)::text as count FROM notification_templates WHERE slug = $1`,
-    [data.slug],
-  );
-  if (Number(existing.rows[0]?.count ?? 0) > 0) {
-    throw createAppError('A template with this slug already exists.', 409);
-  }
+  const variables = validateTemplateContent(data.slug, data.titleTemplate, data.bodyTemplate);
 
-  const result = await db.query<TemplateRow>(
-    `INSERT INTO notification_templates (slug, title_template, body_template, type, channel, variables, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [
-      data.slug,
-      data.titleTemplate,
-      data.bodyTemplate,
-      data.type,
-      data.channel ?? 'in_app',
-      JSON.stringify(data.variables ?? []),
-      adminId,
-    ],
-  );
+  return db.transaction(async (client) => {
+    const existing = await client.query<CountRow>(
+      `SELECT COUNT(*)::text as count FROM notification_templates WHERE slug = $1`,
+      [data.slug],
+    );
+    if (Number(existing.rows[0]?.count ?? 0) > 0) {
+      throw createAppError('A template with this slug already exists.', 409);
+    }
 
-  logger.info('Notification template created', { slug: data.slug, adminId });
-  return result.rows[0]!;
+    const result = await client.query<TemplateRow>(
+      `INSERT INTO notification_templates
+         (slug, title_template, body_template, type, channel, is_active, variables, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [
+        data.slug,
+        data.titleTemplate,
+        data.bodyTemplate,
+        data.type,
+        data.channel ?? 'in_app',
+        data.isActive ?? true,
+        JSON.stringify(variables),
+        adminId,
+      ],
+    );
+    const created = result.rows[0]!;
+
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'config_changed', 'notification_template', $2, $3::jsonb)`,
+      [
+        adminId,
+        created.id,
+        JSON.stringify({
+          op: 'create',
+          slug: created.slug,
+          type: created.type,
+          channel: created.channel,
+          isActive: created.is_active,
+          variables,
+        }),
+      ],
+    );
+
+    logger.info('Notification template created', { slug: data.slug, adminId });
+    return created;
+  });
 }
 
 export async function updateTemplate(
@@ -124,33 +206,74 @@ export async function updateTemplate(
     variables?: string[];
   },
 ): Promise<TemplateRow> {
-  const current = await getTemplateById(templateId);
+  return db.transaction(async (client) => {
+    const before = await client.query<TemplateRow>(
+      `SELECT * FROM notification_templates WHERE id = $1 FOR UPDATE`,
+      [templateId],
+    );
+    if (before.rows.length === 0) throw createAppError('Template not found.', 404);
+    const current = before.rows[0]!;
+    const titleTemplate = data.titleTemplate ?? current.title_template;
+    const bodyTemplate = data.bodyTemplate ?? current.body_template;
+    const variables = validateTemplateContent(current.slug, titleTemplate, bodyTemplate);
 
-  const result = await db.query<TemplateRow>(
-    `UPDATE notification_templates SET
-       title_template = COALESCE($1, title_template),
-       body_template = COALESCE($2, body_template),
-       type = COALESCE($3, type),
-       channel = COALESCE($4, channel),
-       is_active = COALESCE($5, is_active),
-       variables = COALESCE($6, variables),
-       updated_by = $7,
-       updated_at = NOW()
-     WHERE id = $8 RETURNING *`,
-    [
-      data.titleTemplate ?? null,
-      data.bodyTemplate ?? null,
-      data.type ?? null,
-      data.channel ?? null,
-      data.isActive ?? null,
-      data.variables ? JSON.stringify(data.variables) : null,
-      adminId,
-      templateId,
-    ],
-  );
+    const result = await client.query<TemplateRow>(
+      `UPDATE notification_templates SET
+         title_template = $1,
+         body_template = $2,
+         type = COALESCE($3, type),
+         channel = COALESCE($4, channel),
+         is_active = COALESCE($5, is_active),
+         variables = $6,
+         updated_by = $7,
+         updated_at = NOW()
+       WHERE id = $8 RETURNING *`,
+      [
+        titleTemplate,
+        bodyTemplate,
+        data.type ?? null,
+        data.channel ?? null,
+        data.isActive ?? null,
+        JSON.stringify(variables),
+        adminId,
+        templateId,
+      ],
+    );
+    const updated = result.rows[0]!;
 
-  logger.info('Notification template updated', { templateId, slug: current.slug, adminId });
-  return result.rows[0]!;
+    await client.query(
+      `INSERT INTO admin_actions
+         (admin_id, action_type, target_type, target_id, details)
+       VALUES ($1, 'config_changed', 'notification_template', $2, $3::jsonb)`,
+      [
+        adminId,
+        templateId,
+        JSON.stringify({
+          op: 'update',
+          slug: current.slug,
+          before: {
+            titleTemplate: current.title_template,
+            bodyTemplate: current.body_template,
+            type: current.type,
+            channel: current.channel,
+            isActive: current.is_active,
+            variables: current.variables,
+          },
+          after: {
+            titleTemplate: updated.title_template,
+            bodyTemplate: updated.body_template,
+            type: updated.type,
+            channel: updated.channel,
+            isActive: updated.is_active,
+            variables,
+          },
+        }),
+      ],
+    );
+
+    logger.info('Notification template updated', { templateId, slug: current.slug, adminId });
+    return updated;
+  });
 }
 
 // MED-N142 fix — pre-fix this did a hard DELETE with no
@@ -204,6 +327,17 @@ export function renderTemplate(
   template: TemplateRow,
   variables: Record<string, string>,
 ): { title: string; body: string } {
+  const requiredVariables = deriveTemplateVariables(template.title_template, template.body_template);
+  const missingVariable = requiredVariables.find(
+    (variable) => !Object.prototype.hasOwnProperty.call(variables, variable),
+  );
+  if (missingVariable) {
+    throw createAppError(
+      `Notification template ${template.slug} is missing runtime variable ${missingVariable}.`,
+      500,
+    );
+  }
+
   let title = template.title_template;
   let body = template.body_template;
 
@@ -217,6 +351,7 @@ export function renderTemplate(
 }
 
 export function formatTemplate(t: TemplateRow): Record<string, unknown> {
+  const runtimeVariables = getRuntimeTemplateVariables(t.slug);
   return {
     id: t.id,
     slug: t.slug,
@@ -226,6 +361,8 @@ export function formatTemplate(t: TemplateRow): Record<string, unknown> {
     channel: t.channel,
     isActive: t.is_active,
     variables: t.variables,
+    runtimeStatus: runtimeVariables ? 'connected' : 'reference_only',
+    runtimeVariables,
     createdBy: t.created_by,
     updatedBy: t.updated_by,
     createdAt: t.created_at,

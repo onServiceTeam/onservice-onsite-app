@@ -81,6 +81,14 @@ interface BookingAdminRow {
   customer_id: string;
   provider_id: string | null;
   category_id: string;
+  booking_type: string;
+  business_account_id: string | null;
+  business_account_name: string | null;
+  contract_id: string | null;
+  contract_type: string | null;
+  invoice_id: string | null;
+  invoice_number: string | null;
+  invoice_status: string | null;
   status: string;
   escrow_status: string;
   total_amount: string;
@@ -616,6 +624,7 @@ export async function listBookingsAdmin(
     search?: string;
     view?: string;
     sort?: string;
+    businessAccountId?: string;
     page: number;
     pageSize: number;
   },
@@ -627,6 +636,9 @@ export async function listBookingsAdmin(
 
   if (filters.status && filters.status !== 'active' && !ALL_BOOKING_STATUSES.includes(filters.status as never)) {
     throw createAppError('Invalid booking status filter.', 400);
+  }
+  if (filters.businessAccountId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(filters.businessAccountId)) {
+    throw createAppError('Invalid business account filter.', 400);
   }
   if (!queueViews.has(view)) throw createAppError('Invalid booking queue view.', 400);
   if (!queueSorts.has(sort)) throw createAppError('Invalid booking queue sort.', 400);
@@ -647,6 +659,11 @@ export async function listBookingsAdmin(
   // unmatched booking an assignment exception. Requested/quoted/payment-pending
   // bookings must not be promoted as ready for provider assignment.
   const assignmentAttentionSql = `b.provider_id IS NULL AND b.status = 'paid'`;
+
+  if (filters.businessAccountId) {
+    conditions.push(`b.business_account_id = $${paramIdx++}`);
+    params.push(filters.businessAccountId);
+  }
 
   if (filters.status) {
     // Phase 200 fix — "active" is a logical bucket, not a stored status.
@@ -678,6 +695,8 @@ export async function listBookingsAdmin(
       OR COALESCE(pu.phone, '') ILIKE $${paramIdx}
       OR COALESCE(ss.name, '') ILIKE $${paramIdx}
       OR COALESCE(sc.name, '') ILIKE $${paramIdx}
+      OR COALESCE(ba.company_name, '') ILIKE $${paramIdx}
+      OR COALESCE(latest_invoice.invoice_number, '') ILIKE $${paramIdx}
     )`);
     params.push(`%${filters.search}%`);
     paramIdx++;
@@ -702,7 +721,17 @@ export async function listBookingsAdmin(
     LEFT JOIN providers p ON p.id = b.provider_id
     LEFT JOIN users pu ON pu.id = p.user_id
     LEFT JOIN service_subcategories ss ON ss.id = b.subcategory_id
-    LEFT JOIN service_categories sc ON sc.id = b.category_id`;
+    LEFT JOIN service_categories sc ON sc.id = b.category_id
+    LEFT JOIN business_accounts ba ON ba.id = b.business_account_id
+    LEFT JOIN business_contracts bc ON bc.id = b.contract_id
+    LEFT JOIN LATERAL (
+      SELECT bi.id, bi.invoice_number, bi.status
+        FROM business_invoice_items bii
+        JOIN business_invoices bi ON bi.id = bii.invoice_id
+       WHERE bii.booking_id = b.id
+       ORDER BY bi.billing_period_end DESC, bi.created_at DESC, bi.id DESC
+       LIMIT 1
+    ) latest_invoice ON TRUE`;
 
   const openSupportCountSql = `(SELECT COUNT(*) FROM support_tickets st WHERE st.booking_id = b.id AND st.status NOT IN ('resolved', 'closed'))`;
   const unassignedSupportCountSql = `(SELECT COUNT(*) FROM support_tickets st WHERE st.booking_id = b.id AND st.status NOT IN ('resolved', 'closed') AND st.assigned_agent_id IS NULL)`;
@@ -728,13 +757,21 @@ export async function listBookingsAdmin(
               COUNT(*) FILTER (WHERE ${openSupportSql})::text AS open_support_bookings,
               COUNT(*) FILTER (WHERE b.status = 'disputed' OR ${openDisputeSql})::text AS disputed_bookings,
               COUNT(*) FILTER (WHERE b.scheduled_at < NOW() AND b.status IN (${activeStatusesSql}))::text AS past_scheduled_bookings
-         FROM bookings b`,
+         FROM bookings b
+         ${filters.businessAccountId ? 'WHERE b.business_account_id = $1' : ''}`,
+      filters.businessAccountId ? [filters.businessAccountId] : [],
     ),
   ]);
 
   const offset = (filters.page - 1) * filters.pageSize;
   const dataResult = await db.query<BookingAdminRow>(
-    `SELECT b.id, b.customer_id, b.provider_id, b.category_id, b.status,
+    `SELECT b.id, b.customer_id, b.provider_id, b.category_id, b.booking_type,
+       b.business_account_id, ba.company_name AS business_account_name,
+       b.contract_id, bc.contract_type,
+       latest_invoice.id AS invoice_id,
+       latest_invoice.invoice_number,
+       latest_invoice.status AS invoice_status,
+       b.status,
        b.escrow_status, b.total_amount::text, b.city, b.scheduled_at, b.created_at,
        b.latitude::text AS latitude, b.longitude::text AS longitude,
        CONCAT(u.first_name, ' ', u.last_name) AS customer_name,
@@ -919,6 +956,14 @@ export function formatBookingAdmin(b: BookingAdminRow): Record<string, unknown> 
     customerId: b.customer_id,
     providerId: b.provider_id,
     categoryId: b.category_id,
+    bookingType: b.booking_type,
+    businessAccountId: b.business_account_id,
+    businessAccountName: b.business_account_name,
+    contractId: b.contract_id,
+    contractType: b.contract_type,
+    invoiceId: b.invoice_id,
+    invoiceNumber: b.invoice_number,
+    invoiceStatus: b.invoice_status,
     status: b.status,
     escrowStatus: b.escrow_status,
     totalAmount: Number(b.total_amount),

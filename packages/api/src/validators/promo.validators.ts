@@ -57,3 +57,35 @@ export const applyPromoSchema = z
     code: z.string().min(1).max(40),
   })
   .strict();
+
+export const updatePromoCodeSchema = z.object({
+  description: z.string().max(500).optional(),
+  minimumOrderCentavos: z.number().int().min(0).optional(),
+  usageLimitTotal: z.number().int().positive().nullable().optional(),
+  usageLimitPerCustomer: z.number().int().positive().optional(),
+  validUntil: z.string().datetime({ offset: true }).nullable().optional(),
+  active: z.boolean().optional(),
+}).strict();
+
+const campaignDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must use YYYY-MM-DD.');
+
+export const createMarketingCampaignSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  channel: z.string().trim().min(1).max(100),
+  startedAt: campaignDate,
+  endedAt: campaignDate.nullable().optional(),
+  spendCentavos: z.number().int().min(0).optional(),
+  notes: z.string().max(2000).nullable().optional(),
+}).strict();
+
+/**
+ * Attribution counters are intentionally absent. Directly overwriting them
+ * made the KPI dashboard unauditable. A future evidence-backed adjustment
+ * endpoint can add deltas without rewriting the historical base counters.
+ */
+export const updateMarketingCampaignSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  endedAt: campaignDate.nullable().optional(),
+  spendCentavos: z.number().int().min(0).optional(),
+  notes: z.string().max(2000).nullable().optional(),
+}).strict();

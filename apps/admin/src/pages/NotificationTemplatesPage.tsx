@@ -8,6 +8,15 @@ import {
   DataTable,
   Badge,
   Pagination,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  ErrorState,
+  LoadingState,
   useConfirmationDialog,
   type Column,
 } from '@/components/ui';
@@ -22,6 +31,8 @@ interface Template {
   channel: string;
   isActive: boolean;
   variables: string[];
+  runtimeStatus: 'connected' | 'reference_only';
+  runtimeVariables: string[] | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -41,6 +52,51 @@ const CHANNEL_VARIANT: Record<string, 'info' | 'success' | 'warning' | 'default'
 
 const TYPE_OPTIONS = new Set(['booking_update', 'payment', 'dispute_update', 'tier_upgrade', 'payout', 'referral', 'suki', 'promo', 'system']);
 const CHANNEL_OPTIONS = new Set(['all', 'push', 'sms', 'email', 'in_app']);
+const RUNTIME_VARIABLES: Readonly<Record<string, readonly string[]>> = {
+  new_job_available: ['bookingId', 'serviceName', 'amount', 'city'],
+  booking_matched: ['bookingId', 'providerName'],
+};
+const PREVIEW_VALUES: Readonly<Record<string, string>> = {
+  bookingId: 'OS-1042',
+  serviceName: 'Aircon cleaning',
+  amount: '₱1,500.00',
+  city: 'Cebu City',
+  providerName: 'Maria Santos',
+  scheduledTime: 'September 2 at 10:00 AM',
+  method: 'GCash',
+  resolution: 'Refund approved',
+  refereeName: 'Juan Dela Cruz',
+  tier: 'Gold',
+  discount: '10',
+  code: 'WELCOME10',
+};
+
+interface PlaceholderState {
+  variables: string[];
+  malformed: boolean;
+}
+
+export function inspectPlaceholders(title: string, body: string): PlaceholderState {
+  const source = `${title}\n${body}`;
+  const validPlaceholder = /{{([A-Za-z][A-Za-z0-9_]{0,49})}}/g;
+  const variables = [...new Set([...source.matchAll(validPlaceholder)].map((match) => match[1]!))];
+  const withoutValid = source.replace(validPlaceholder, '');
+  return {
+    variables,
+    malformed: withoutValid.includes('{{') || withoutValid.includes('}}'),
+  };
+}
+
+function renderPreview(copy: string, variables: string[]): string {
+  return variables.reduce(
+    (rendered, variable) => rendered.split(`{{${variable}}}`).join(PREVIEW_VALUES[variable] ?? `[${variable}]`),
+    copy,
+  );
+}
+
+function runtimeVariablesFor(slug: string): readonly string[] | null {
+  return RUNTIME_VARIABLES[slug] ?? null;
+}
 
 function parsePage(value: string | null): number {
   const parsed = Number(value);
@@ -77,7 +133,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
   const [formError, setFormError] = useState('');
   const [actionError, setActionError] = useState('');
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['adminTemplates', page, typeFilter, channelFilter],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
@@ -90,8 +146,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const body = {
-        slug: formSlug.trim(),
+      const editableFields = {
         titleTemplate: formTitle.trim(),
         bodyTemplate: formBody.trim(),
         type: formType,
@@ -99,9 +154,12 @@ export default function NotificationTemplatesPage(): React.ReactElement {
         isActive: formActive,
       };
       if (editing) {
-        await api.put(`/api/v1/admin/notification-templates/${editing.id}`, body);
+        await api.put(`/api/v1/admin/notification-templates/${editing.id}`, editableFields);
       } else {
-        await api.post('/api/v1/admin/notification-templates', body);
+        await api.post('/api/v1/admin/notification-templates', {
+          slug: formSlug.trim(),
+          ...editableFields,
+        });
       }
     },
     onSuccess: () => {
@@ -163,6 +221,19 @@ export default function NotificationTemplatesPage(): React.ReactElement {
     setFormError('');
   }
 
+  const placeholderState = inspectPlaceholders(formTitle, formBody);
+  const connectedVariables = runtimeVariablesFor(formSlug.trim());
+  const unsupportedVariables = connectedVariables
+    ? placeholderState.variables.filter((variable) => !connectedVariables.includes(variable))
+    : [];
+  const slugIsValid = /^[a-z0-9_]{3,100}$/.test(formSlug.trim());
+  const formIsValid = slugIsValid
+    && formTitle.trim().length >= 3
+    && formBody.trim().length >= 10
+    && !placeholderState.malformed
+    && placeholderState.variables.length <= 20
+    && unsupportedVariables.length === 0;
+
   function setPage(nextPage: number): void {
     setSearchParams((current) => {
       const params = new URLSearchParams(current);
@@ -193,14 +264,33 @@ export default function NotificationTemplatesPage(): React.ReactElement {
   }
 
   async function submitSave(): Promise<void> {
-    if (!formSlug.trim() || !formTitle.trim() || !formBody.trim()) {
-      setFormError('Slug, title template, and body template are required.');
+    if (!slugIsValid) {
+      setFormError('Slug must be 3–100 lowercase letters, numbers, or underscores.');
+      return;
+    }
+    if (formTitle.trim().length < 3 || formBody.trim().length < 10) {
+      setFormError('Title must be at least 3 characters and body must be at least 10 characters.');
+      return;
+    }
+    if (placeholderState.malformed) {
+      setFormError('A placeholder is malformed. Use {{variableName}} with letters, numbers, and underscores only.');
+      return;
+    }
+    if (placeholderState.variables.length > 20) {
+      setFormError('A template can contain no more than 20 variables.');
+      return;
+    }
+    if (unsupportedVariables.length > 0) {
+      setFormError(`This live workflow cannot supply: ${unsupportedVariables.map((value) => `{{${value}}}`).join(', ')}.`);
       return;
     }
     const action = editing ? 'Update' : 'Create';
+    const runtimeDescription = connectedVariables
+      ? `It controls the live “${formSlug.trim()}” workflow when active.`
+      : 'It is reference-only until engineering connects this slug to a delivery workflow.';
     const accepted = await confirm({
       title: `${action} notification template?`,
-      description: `This will ${action.toLowerCase()} “${formSlug.trim()}” for ${formChannel.replace('_', '-')} delivery. Review all variables before continuing.`,
+      description: `This will ${action.toLowerCase()} “${formSlug.trim()}” for ${formChannel.replace('_', '-')} delivery. ${runtimeDescription}`,
       confirmLabel: action,
     });
     if (!accepted) return;
@@ -212,9 +302,11 @@ export default function NotificationTemplatesPage(): React.ReactElement {
     const action = nextActive ? 'Activate' : 'Deactivate';
     const accepted = await confirm({
       title: `${action} notification template?`,
-      description: nextActive
-        ? `“${template.slug}” will become available to customer and provider messaging workflows.`
-        : `“${template.slug}” will stop being available to customer and provider messaging workflows.`,
+      description: template.runtimeStatus === 'connected'
+        ? nextActive
+          ? `“${template.slug}” will replace its built-in fallback copy in the connected live workflow.`
+          : `“${template.slug}” will stop overriding its connected workflow. Built-in fallback copy will continue to send.`
+        : `“${template.slug}” is reference-only. This changes its catalog status but does not affect live messages.`,
       confirmLabel: action,
       tone: nextActive ? 'default' : 'destructive',
     });
@@ -262,6 +354,15 @@ export default function NotificationTemplatesPage(): React.ReactElement {
       ),
     },
     {
+      key: 'runtime',
+      header: 'Runtime',
+      render: (r) => r.runtimeStatus === 'connected' ? (
+        <Badge label="Connected" variant="success" />
+      ) : (
+        <Badge label="Reference only" variant="default" />
+      ),
+    },
+    {
       key: 'status',
       header: 'Active',
       render: (r) => (
@@ -273,9 +374,11 @@ export default function NotificationTemplatesPage(): React.ReactElement {
           }}
           aria-label={`Toggle template ${r.slug} ${r.isActive ? 'inactive' : 'active'}`}
           aria-pressed={r.isActive}
-          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${r.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-secondary)]"
         >
-          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${r.isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
+          <span className={`relative inline-flex h-5 w-9 items-center rounded-full ${r.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+            <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${r.isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
+          </span>
         </button>
       ),
     },
@@ -297,27 +400,31 @@ export default function NotificationTemplatesPage(): React.ReactElement {
       key: 'actions',
       header: 'Actions',
       render: (r) => (
-        <div className="flex items-center gap-1">
-          <button
+        <div className="flex flex-wrap items-center gap-1">
+          <Button
             type="button"
+            size="sm"
+            variant="ghost"
             aria-label={`Edit template ${r.slug}`}
             onClick={(e) => { e.stopPropagation(); openEdit(r); }}
-            className="px-2 py-1 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
+            className="text-sky-700 hover:bg-sky-50"
           >
             Edit
-          </button>
+          </Button>
           {isSuperAdmin && (
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="ghost"
               aria-label={`Delete template ${r.slug}`}
               onClick={(e) => {
                 e.stopPropagation();
                 void deleteTemplate(r);
               }}
-              className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+              className="text-red-700 hover:bg-red-50"
             >
               Delete
-            </button>
+            </Button>
           )}
         </div>
       ),
@@ -326,28 +433,36 @@ export default function NotificationTemplatesPage(): React.ReactElement {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-[var(--color-text)]">Notification Templates</h1>
           <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
-            Manage push, SMS, and email notification templates
+            Review message copy, runtime linkage, channels, and placeholders before it reaches a customer or provider.
           </p>
         </div>
-        <button
+        <Button
           type="button"
           onClick={openCreate}
-          className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-lg hover:opacity-90 transition-opacity"
+          className="w-full sm:w-auto"
         >
           + New Template
-        </button>
+        </Button>
       </div>
 
-      <div className="flex items-center gap-3 mb-4">
+      <section aria-label="Notification template runtime coverage" className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
+        <p className="text-sm font-semibold text-sky-950">2 workflows currently use admin-managed copy</p>
+        <p className="mt-1 text-sm text-sky-800">
+          <span className="font-mono">new_job_available</span> and <span className="font-mono">booking_matched</span> are connected.
+          Other rows are reference-only and do not change live messages until engineering connects their slug.
+        </p>
+      </section>
+
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
           aria-label="Filter templates by type"
-          className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+          className="min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)] sm:w-auto"
         >
           <option value="">All Types</option>
           <option value="booking_update">Booking</option>
@@ -364,7 +479,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
           value={channelFilter}
           onChange={(e) => setChannelFilter(e.target.value)}
           aria-label="Filter templates by channel"
-          className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+          className="min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)] sm:w-auto"
         >
           <option value="">All Channels</option>
           <option value="all">All (Multi-channel)</option>
@@ -375,144 +490,193 @@ export default function NotificationTemplatesPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p role="alert" className="text-sm text-red-600 mb-4">Failed to load templates. Please try again.</p>}
       {actionError && <p role="alert" className="text-sm text-red-600 mb-4">{actionError}</p>}
 
-      <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No templates found." />
+      {isLoading ? (
+        <LoadingState label="Loading notification templates…" />
+      ) : isError ? (
+        <ErrorState
+          title="Notification templates could not be loaded"
+          description={getErrorMessage(error)}
+          action={<Button type="button" variant="outline" onClick={() => void refetch()}>Try again</Button>}
+        />
+      ) : (
+        <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} emptyMessage="No templates match these filters." />
+      )}
 
       {data && data.pagination.totalPages > 1 && (
         <Pagination {...data.pagination} onPageChange={setPage} />
       )}
 
-      {(editing || creating) && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="template-dialog-title"
-            className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-xl p-6 max-h-[90vh] overflow-y-auto"
-          >
-            <h3 id="template-dialog-title" className="text-lg font-semibold text-[var(--color-text)] mb-4">
-              {editing ? 'Edit Template' : 'New Template'}
-            </h3>
+      <Dialog open={Boolean(editing || creating)} onOpenChange={(open) => { if (!open) closeModal(); }}>
+        <DialogContent className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Edit notification template' : 'New notification template'}</DialogTitle>
+            <DialogDescription>
+              Preview the exact copy and verify the runtime boundary before saving. The slug becomes an immutable routing key after creation.
+            </DialogDescription>
+          </DialogHeader>
 
-            {formError && (
-              <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                {formError}
+          {formError && (
+            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {formError}
+            </div>
+          )}
+
+          <div className="space-y-5">
+            <div>
+              <label htmlFor="template-slug" className="mb-1.5 block text-sm font-medium text-[var(--color-text)]">Slug *</label>
+              <input
+                id="template-slug"
+                type="text"
+                value={formSlug}
+                onChange={(e) => setFormSlug(e.target.value)}
+                disabled={Boolean(editing)}
+                aria-describedby="template-slug-help"
+                placeholder="e.g. booking_confirmed"
+                className="min-h-11 w-full rounded-lg border border-[var(--color-border)] px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-600"
+              />
+              <p id="template-slug-help" className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                {editing ? 'Routing keys cannot be renamed. Create a new slug if a workflow needs a different key.' : 'Use 3–100 lowercase letters, numbers, or underscores.'}
+              </p>
+            </div>
+
+            <div className={`rounded-lg border p-3 ${connectedVariables ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+              <p className={`text-sm font-semibold ${connectedVariables ? 'text-emerald-950' : 'text-amber-950'}`}>
+                {connectedVariables ? 'Connected to a live workflow' : 'Reference-only template'}
+              </p>
+              <p className={`mt-1 text-xs ${connectedVariables ? 'text-emerald-800' : 'text-amber-800'}`}>
+                {connectedVariables
+                  ? `This workflow can supply only: ${connectedVariables.map((value) => `{{${value}}}`).join(', ')}.`
+                  : 'Saving this copy does not make it send. Engineering must explicitly connect this slug to a workflow.'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="template-type" className="mb-1.5 block text-sm font-medium text-[var(--color-text)]">Type</label>
+                <select
+                  id="template-type"
+                  value={formType}
+                  onChange={(e) => setFormType(e.target.value)}
+                  className="min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+                >
+                  <option value="booking_update">Booking</option>
+                  <option value="payment">Payment</option>
+                  <option value="dispute_update">Dispute</option>
+                  <option value="tier_upgrade">Tier Upgrade</option>
+                  <option value="payout">Payout</option>
+                  <option value="referral">Referral</option>
+                  <option value="suki">Suki</option>
+                  <option value="promo">Promo</option>
+                  <option value="system">System</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="template-channel" className="mb-1.5 block text-sm font-medium text-[var(--color-text)]">Channel</label>
+                <select
+                  id="template-channel"
+                  value={formChannel}
+                  onChange={(e) => setFormChannel(e.target.value)}
+                  className="min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+                >
+                  <option value="all">All Channels</option>
+                  <option value="push">Push</option>
+                  <option value="sms">SMS</option>
+                  <option value="email">Email</option>
+                  <option value="in_app">In-App</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="template-title" className="mb-1.5 block text-sm font-medium text-[var(--color-text)]">Title template *</label>
+              <input
+                id="template-title"
+                type="text"
+                value={formTitle}
+                onChange={(e) => setFormTitle(e.target.value)}
+                placeholder="e.g. Booking {{bookingId}} confirmed"
+                className="min-h-11 w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="template-body" className="mb-1.5 block text-sm font-medium text-[var(--color-text)]">Body template *</label>
+              <textarea
+                id="template-body"
+                value={formBody}
+                onChange={(e) => setFormBody(e.target.value)}
+                rows={4}
+                placeholder="e.g. {{providerName}} has been assigned to booking {{bookingId}}."
+                className="w-full resize-y rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+              />
+              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                Use {'{{variableName}}'} for dynamic content. Variables are derived automatically from this copy.
+              </p>
+            </div>
+
+            {(placeholderState.malformed || unsupportedVariables.length > 0) && (
+              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {placeholderState.malformed
+                  ? 'One or more placeholders are malformed.'
+                  : `The connected workflow cannot supply: ${unsupportedVariables.map((value) => `{{${value}}}`).join(', ')}.`}
               </div>
             )}
 
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="template-slug" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Slug *</label>
-                <input
-                  id="template-slug"
-                  type="text"
-                  value={formSlug}
-                  onChange={(e) => setFormSlug(e.target.value)}
-                  placeholder="e.g. booking_confirmed"
-                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            <section aria-label="Template preview" className="rounded-xl border border-[var(--color-border)] bg-slate-50 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <label htmlFor="template-type" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Type</label>
-                  <select
-                    id="template-type"
-                    value={formType}
-                    onChange={(e) => setFormType(e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
-                  >
-                    <option value="booking_update">Booking</option>
-                    <option value="payment">Payment</option>
-                    <option value="dispute_update">Dispute</option>
-                    <option value="tier_upgrade">Tier Upgrade</option>
-                    <option value="payout">Payout</option>
-                    <option value="referral">Referral</option>
-                    <option value="suki">Suki</option>
-                    <option value="promo">Promo</option>
-                    <option value="system">System</option>
-                  </select>
+                  <h4 className="text-sm font-semibold text-[var(--color-text)]">Sample preview</h4>
+                  <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Sample values only. Saving does not send a message.</p>
                 </div>
-                <div>
-                  <label htmlFor="template-channel" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Channel</label>
-                  <select
-                    id="template-channel"
-                    value={formChannel}
-                    onChange={(e) => setFormChannel(e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
-                  >
-                    <option value="all">All Channels</option>
-                    <option value="push">Push</option>
-                    <option value="sms">SMS</option>
-                    <option value="email">Email</option>
-                    <option value="in_app">In-App</option>
-                  </select>
+                <div className="flex flex-wrap gap-1">
+                  {placeholderState.variables.length === 0 ? (
+                    <span className="text-xs text-slate-500">No variables</span>
+                  ) : placeholderState.variables.map((variable) => (
+                    <span key={variable} className="rounded bg-white px-2 py-1 font-mono text-xs text-slate-700 ring-1 ring-slate-200">
+                      {`{{${variable}}}`}
+                    </span>
+                  ))}
                 </div>
               </div>
-
-              <div>
-                <label htmlFor="template-title" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Title Template *</label>
-                <input
-                  id="template-title"
-                  type="text"
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="e.g. Booking {{bookingId}} confirmed"
-                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
-                />
+              <div className="mt-3 rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                <p className="text-sm font-semibold text-slate-950">{renderPreview(formTitle, placeholderState.variables) || 'Notification title'}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{renderPreview(formBody, placeholderState.variables) || 'Notification body'}</p>
               </div>
+            </section>
 
-              <div>
-                <label htmlFor="template-body" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Body Template *</label>
-                <textarea
-                  id="template-body"
-                  value={formBody}
-                  onChange={(e) => setFormBody(e.target.value)}
-                  rows={4}
-                  placeholder="e.g. Your booking has been confirmed. Provider {{providerName}} will arrive at {{scheduledTime}}."
-                  className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
-                />
-                <p className="text-xs text-[var(--color-text-secondary)] mt-1">
-                  Use {'{{variableName}}'} for dynamic content.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFormActive(!formActive)}
-                  aria-label={`Toggle template ${formActive ? 'inactive' : 'active'}`}
-                  aria-pressed={formActive}
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${formActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                >
-                  <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${formActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                </button>
-                <span className="text-sm text-[var(--color-text)]">Active</span>
-              </div>
-            </div>
-
-            <div className="flex gap-2 justify-end mt-6">
-              <button
-                type="button"
-                onClick={closeModal}
-                className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void submitSave()}
-                disabled={saveMutation.isPending || !formSlug.trim() || !formTitle.trim() || !formBody.trim()}
-                className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-              >
-                {saveMutation.isPending ? 'Saving...' : editing ? 'Update' : 'Create'}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setFormActive(!formActive)}
+              aria-label={`Toggle template ${formActive ? 'inactive' : 'active'}`}
+              aria-pressed={formActive}
+              className="flex min-h-11 w-full items-center gap-3 rounded-lg px-2 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-secondary)]"
+            >
+              <span className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full ${formActive ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${formActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </span>
+              <span>
+                <span className="block text-sm font-medium text-[var(--color-text)]">{formActive ? 'Active' : 'Inactive'}</span>
+                <span className="block text-xs text-[var(--color-text-secondary)]">
+                  {connectedVariables ? 'Inactive connected templates use built-in fallback copy.' : 'Reference status only; no live workflow consumes this slug.'}
+                </span>
+              </span>
+            </button>
           </div>
-        </div>
-      )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
+            <Button
+              type="button"
+              onClick={() => void submitSave()}
+              disabled={saveMutation.isPending || !formIsValid}
+            >
+              {saveMutation.isPending ? 'Saving…' : editing ? 'Update template' : 'Create template'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {confirmationDialog}
     </div>
   );
