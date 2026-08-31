@@ -3,17 +3,18 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
+import { getBookingById } from '@/services/booking.service';
 import { getErrorMessage } from '@/utils/errors';
-import { Button } from '@/components/ui';
+import { Button, ErrorState, SkeletonCard } from '@/components/ui';
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
 import { CheckCircle2, Lock, Clock } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
-import { Routes } from '@/config/navigation';
+import { buildRoute, Routes } from '@/config/navigation';
 
 export default function JobCompletionScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
@@ -21,6 +22,13 @@ export default function JobCompletionScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { isPhone } = useResponsive();
+
+  const bookingQuery = useQuery({
+    queryKey: ['booking', bookingId],
+    queryFn: () => getBookingById(bookingId ?? ''),
+    enabled: !!bookingId,
+    staleTime: 30 * 1000,
+  });
 
   const confirmMutation = useMutation({
     mutationFn: async () => {
@@ -53,6 +61,50 @@ export default function JobCompletionScreen(): React.ReactElement {
     );
   }
 
+  if (bookingQuery.isLoading) {
+    return (
+      <View style={[styles.container, styles.stateContainer, { paddingTop: insets.top + spacing.xl }]}>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      </View>
+    );
+  }
+
+  if (bookingQuery.isError || !bookingQuery.data) {
+    return (
+      <View style={[styles.container, styles.stateContainer, { paddingTop: insets.top + spacing.xl }]}>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <ErrorState
+            message="We couldn't verify this completed booking. Retry before confirming the work or releasing payment."
+            onRetry={() => void bookingQuery.refetch()}
+          />
+        </View>
+      </View>
+    );
+  }
+
+  if (bookingQuery.data.status !== 'completed_by_provider') {
+    const alreadyConfirmed = ['confirmed', 'payout_ready', 'paid_out'].includes(
+      bookingQuery.data.status,
+    );
+    return (
+      <View style={[styles.container, styles.stateContainer, { paddingTop: insets.top + spacing.xl }]}>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <ErrorState
+            message={
+              alreadyConfirmed
+                ? 'This booking has already been confirmed. Open the booking record for its current payment and review status.'
+                : 'This booking is not ready for completion confirmation. The provider must finish the job first.'
+            }
+            onRetry={() => void bookingQuery.refetch()}
+          />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <ScrollView
@@ -70,9 +122,22 @@ export default function JobCompletionScreen(): React.ReactElement {
 
         <Text style={styles.title}>Job Complete!</Text>
         <Text style={styles.subtitle}>
-          Your provider has marked the service as complete.{'\n'}
+          {bookingQuery.data.providerName ?? 'Your provider'} has marked{' '}
+          {bookingQuery.data.serviceName ?? bookingQuery.data.categoryName ?? 'the service'} as complete.{'\n'}
           Please confirm if everything looks good.
         </Text>
+
+        <View style={styles.reviewCard}>
+          <Text style={styles.reviewTitle}>Review the work record first</Text>
+          <Text style={styles.reviewText}>
+            Check the agreed scope, checklist progress, provider evidence, approved changes, and any support or dispute record before deciding.
+          </Text>
+          <Button
+            title="Review work record"
+            variant="outline"
+            onPress={() => router.push(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: bookingId }))}
+          />
+        </View>
 
         <View style={styles.infoCard}>
           <View style={styles.infoIconWrap}><Lock size={20} color={colors.primary} /></View>
@@ -119,6 +184,9 @@ export default function JobCompletionScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
+  stateContainer: { paddingHorizontal: spacing.lg },
+  stateContent: { width: '100%', gap: spacing.md },
+  stateContentWide: { maxWidth: 760, alignSelf: 'center' },
   scrollContent: { flexGrow: 1, padding: spacing.lg, paddingTop: spacing.xxl },
   scrollContentWide: { padding: spacing.xxl, justifyContent: 'center' },
   workspace: { width: '100%', maxWidth: 560, alignSelf: 'center', flex: 1 },
@@ -146,6 +214,17 @@ const styles = StyleSheet.create({
 
   title: { ...typography.h1, color: colors.text, textAlign: 'center', marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.lg },
+  reviewCard: {
+    width: '100%',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.md,
+  },
+  reviewTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
+  reviewText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.md },
 
   infoCard: {
     flexDirection: 'row',

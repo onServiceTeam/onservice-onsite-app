@@ -5,6 +5,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
+import { ErrorState, SkeletonCard } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertCircle } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -44,14 +45,15 @@ export default function PaymentFailedScreen(): React.ReactElement {
   const router = useRouter();
   const { isPhone } = useResponsive();
   const { reason, bookingId } = useLocalSearchParams<{ reason?: string; bookingId?: string }>();
+  const validBookingId = typeof bookingId === 'string' ? bookingId.trim() : '';
   const [secondsLeft, setSecondsLeft] = useState(HOLD_SECONDS);
 
   // BUG-PHASE90-01 — fetch the booking so the countdown can anchor
   // on the actual creation time rather than always restarting at 72h.
   const bookingQuery = useQuery({
-    queryKey: ['booking', bookingId],
-    queryFn: () => getBookingById(bookingId ?? ''),
-    enabled: !!bookingId,
+    queryKey: ['booking', validBookingId],
+    queryFn: () => getBookingById(validBookingId),
+    enabled: validBookingId.length > 0,
     staleTime: 60 * 1000,
   });
 
@@ -77,6 +79,39 @@ export default function PaymentFailedScreen(): React.ReactElement {
   const failureMessage = reason && reason.trim().length > 0
     ? reason
     : "We couldn't process your payment.";
+
+  if (!validBookingId || bookingQuery.isError || (bookingQuery.data && bookingQuery.data.status !== 'payment_pending')) {
+    const message = !validBookingId
+      ? 'We could not identify the booking for this payment attempt. Open My Bookings to check its verified status before trying again.'
+      : bookingQuery.data
+        ? 'This booking is no longer awaiting payment. Open the booking record to see its current verified status.'
+        : "We couldn't verify that this booking is still awaiting payment. Retry before paying again.";
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <ErrorState
+            message={message}
+            onRetry={
+              bookingQuery.isError
+                ? () => void bookingQuery.refetch()
+                : () => router.replace(Routes.TABS.BOOKINGS)
+            }
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (bookingQuery.isLoading || !bookingQuery.data) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -180,6 +215,8 @@ export default function PaymentFailedScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
+  stateContent: { flex: 1, width: '100%', padding: spacing.lg, gap: spacing.md },
+  stateContentWide: { maxWidth: 760, alignSelf: 'center', justifyContent: 'center' },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,

@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Input, SkeletonCard } from '@/components/ui';
+import { Button, ErrorState, Input, SkeletonCard } from '@/components/ui';
 import { ChevronLeft } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
 import { showToast } from '@/lib/toast';
@@ -209,9 +209,12 @@ export function NotificationPreferencesScreen({
     >
       {isError && (
         <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>
-            Failed to load notification settings. Retry before making changes so saved choices are not overwritten.
-          </Text>
+          <ErrorState
+            compact
+            title="Settings unavailable"
+            message="We could not load your saved notification choices. Retry before making changes so existing preferences are not overwritten."
+            onRetry={() => void refetch()}
+          />
         </View>
       )}
 
@@ -355,12 +358,11 @@ const styles = StyleSheet.create({
   loadingContent: { padding: spacing.base },
   errorBanner: {
     backgroundColor: colors.errorLight,
-    padding: spacing.base,
     borderRadius: borderRadius.lg,
     margin: spacing.base,
     marginBottom: 0,
+    overflow: 'hidden',
   },
-  errorText: { ...typography.bodySmall, color: colors.error, textAlign: 'center' },
   header: { paddingHorizontal: spacing.base, paddingTop: spacing.base, paddingBottom: spacing.base },
   backBtn: {
     marginBottom: spacing.sm,

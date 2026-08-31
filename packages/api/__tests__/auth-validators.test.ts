@@ -93,19 +93,14 @@ describe('Auth Validators', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should accept email update only', () => {
+    it('Bug UX-654 — rejects unverified email changes through the generic profile contract', () => {
       const result = updateProfileSchema.safeParse({ email: 'maria@test.ph' });
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
     });
 
     it('should accept empty body (all optional)', () => {
       const result = updateProfileSchema.safeParse({});
       expect(result.success).toBe(true);
-    });
-
-    it('should reject invalid email', () => {
-      const result = updateProfileSchema.safeParse({ email: 'not-an-email' });
-      expect(result.success).toBe(false);
     });
 
     it('should reject empty first name', () => {

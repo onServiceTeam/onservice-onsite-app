@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }) }));
 jest.mock('@/hooks/useResponsive', () => ({
@@ -10,6 +10,7 @@ jest.mock('@/hooks/useResponsive', () => ({
 import SafetyAndSupportScreen from '../app/customer/safety-and-support';
 
 it('Bug UX-389 — safety actions and FAQ disclosures expose their purpose and expanded state to assistive users', () => {
+  const platformSpy = jest.replaceProperty(Platform, 'OS', 'ios');
   const callSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
   render(<SafetyAndSupportScreen />);
 
@@ -24,4 +25,5 @@ it('Bug UX-389 — safety actions and FAQ disclosures expose their purpose and e
   expect(screen.getByRole('button', { name: 'What should I do before the provider arrives?, expanded' })).toBeTruthy();
   expect(screen.getByText(/Lock away valuables/i)).toBeTruthy();
   callSpy.mockRestore();
+  platformSpy.restore();
 });

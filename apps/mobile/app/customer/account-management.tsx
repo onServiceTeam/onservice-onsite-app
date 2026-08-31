@@ -281,6 +281,20 @@ export default function AccountManagementScreen(): React.ReactElement {
 
           {isDeletionLoading ? (
             <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: spacing.lg }} />
+          ) : deletionError ? (
+            <View style={styles.actionUnavailable} accessibilityRole="alert">
+              <Text style={styles.actionUnavailableText}>
+                We couldn't verify whether a deactivation request already exists. Retry before changing your account status.
+              </Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Retry account deactivation status"
+                style={styles.retryButton}
+                onPress={() => void deletionQuery.refetch()}
+              >
+                <Text style={styles.retryButtonText}>Try again</Text>
+              </TouchableOpacity>
+            </View>
           ) : hasPendingDeletion ? (
             <View style={styles.deletionActive}>
               <View style={styles.warningBanner}>
@@ -431,6 +445,8 @@ const styles = StyleSheet.create({
   errorBanner: { backgroundColor: colors.errorLight, padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.md, alignItems: 'center' as const },
   retryButton: { marginTop: spacing.sm, minHeight: 44, justifyContent: 'center' as const, paddingHorizontal: spacing.md },
   retryButtonText: { ...typography.bodySmall, color: colors.error, fontWeight: '700' as const },
+  actionUnavailable: { backgroundColor: colors.errorLight, padding: spacing.md, borderRadius: borderRadius.md },
+  actionUnavailableText: { ...typography.bodySmall, color: colors.error, lineHeight: 20, textAlign: 'center' as const },
 
   section: { marginBottom: spacing.lg },
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },

@@ -18,15 +18,22 @@ jest.mock('@/hooks/useImagePicker', () => ({
     isUploading: false,
   }),
 }));
-jest.mock('@/services/booking.service', () => ({ fileDispute: jest.fn() }));
+jest.mock('@/services/booking.service', () => ({
+  getBookingById: jest.fn().mockResolvedValue({
+    id: 'booking-1',
+    status: 'completed_by_provider',
+    completedAt: new Date().toISOString(),
+  }),
+  fileDispute: jest.fn(),
+}));
 
 import DisputeScreen from '../app/customer/booking/dispute';
 
-it('Bug UX-377 — tablet dispute filing separates reason selection from evidence and exposes every decision control accessibly', () => {
+it('Bug UX-377 — tablet dispute filing separates reason selection from evidence and exposes every decision control accessibly', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   render(<QueryClientProvider client={client}><DisputeScreen /></QueryClientProvider>);
 
-  expect(screen.getByLabelText('Wide dispute review form')).toBeTruthy();
+  expect(await screen.findByLabelText('Wide dispute review form')).toBeTruthy();
   expect(screen.getAllByRole('radio')).toHaveLength(7);
   expect(screen.getByLabelText('Dispute description')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Add dispute evidence photo' })).toBeTruthy();

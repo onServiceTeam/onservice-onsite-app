@@ -166,6 +166,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
   const membershipsQuery = useQuery({
     queryKey: ['sukiMemberships'],
     queryFn: getMemberships,
+    enabled: !!id,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -260,7 +261,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={providerRefetching || reviewsRefetching}
+            refreshing={providerRefetching || reviewsRefetching || membershipsQuery.isRefetching}
             onRefresh={onRefresh}
           />
         }
@@ -344,6 +345,24 @@ export default function ProviderProfileScreen(): React.ReactElement {
                 )}
               </View>
             </View>
+
+            {membershipsQuery.isError && (
+              <View style={styles.relationshipError} accessibilityRole="alert">
+                <Text style={styles.relationshipErrorText}>
+                  Your Suki relationship could not be checked. This does not mean you have no history with this provider.
+                </Text>
+                <TouchableOpacity
+                  style={styles.relationshipRetry}
+                  onPress={() => void membershipsQuery.refetch()}
+                  disabled={membershipsQuery.isFetching}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry provider Suki relationship"
+                  accessibilityState={{ disabled: membershipsQuery.isFetching, busy: membershipsQuery.isFetching }}
+                >
+                  <Text style={styles.relationshipRetryText}>{membershipsQuery.isFetching ? 'Retrying…' : 'Try again'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {membership && (
               <View
@@ -745,6 +764,10 @@ const styles = StyleSheet.create({
   },
   relationshipCopy: { ...typography.bodySmall, color: colors.text, marginBottom: spacing.sm },
   relationshipNotice: { ...typography.caption, color: colors.textSecondary, lineHeight: 18 },
+  relationshipError: { backgroundColor: colors.warningLight, borderWidth: 1, borderColor: colors.warning, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.base },
+  relationshipErrorText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 19 },
+  relationshipRetry: { minHeight: 44, justifyContent: 'center', alignItems: 'flex-start', marginTop: spacing.xs },
+  relationshipRetryText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
 
   serviceRow: {
     flexDirection: 'row',

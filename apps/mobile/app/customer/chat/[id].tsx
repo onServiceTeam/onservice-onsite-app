@@ -40,7 +40,7 @@ import {
   emitMarkRead,
 } from '@/services/socket.service';
 import { uploadImages } from '@/services/upload.service';
-import { LazyImage, StatusBadge } from '@/components/ui';
+import { ErrorState, LazyImage, StatusBadge } from '@/components/ui';
 import { formatDateTime, formatTime } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -68,6 +68,7 @@ export default function ChatScreen(): React.ReactElement {
 
   useEffect(() => {
     async function initConversation(): Promise<void> {
+      if (!bookingId) return;
       try {
         setInitError(false);
         const conversations = await getConversations();
@@ -303,6 +304,18 @@ export default function ChatScreen(): React.ReactElement {
       }
     })();
   }, [bookingId]);
+
+  if (!bookingId) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          title="Booking chat unavailable"
+          message="This link does not identify a booking. Open chat from the booking record and try again."
+          onRetry={() => router.back()}
+        />
+      </View>
+    );
+  }
 
   if (initError) {
     return (

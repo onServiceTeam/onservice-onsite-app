@@ -79,13 +79,19 @@ export default function WalletScreen(): React.ReactElement {
   });
 
   const transactionsQuery = useInfiniteQuery({
-    queryKey: ['walletTransactions'],
+    queryKey: ['walletTransactions', txFilter],
     queryFn: async ({ pageParam }) => {
       const res = await api.get<{
         success: boolean;
         data: Transaction[];
         pagination: { total: number };
-      }>('/api/v1/wallet/transactions', { params: { page: pageParam, pageSize: 20 } });
+      }>('/api/v1/wallet/transactions', {
+        params: {
+          page: pageParam,
+          pageSize: 20,
+          ...(txFilter === 'all' ? {} : { group: txFilter }),
+        },
+      });
       return {
         transactions: res.data.data,
         page: pageParam,
@@ -108,31 +114,7 @@ export default function WalletScreen(): React.ReactElement {
 
   const wallet = walletQuery.data;
   const allTransactions = transactionsQuery.data?.pages.flatMap((page) => page.transactions) ?? [];
-  // BUG-PHASE53-02 fix — pre-fix the FilterChips set `txFilter` but
-  // the transactions array was rendered as-is. Filter chips were
-  // dead — clicking them did nothing visible. Phase 14 R5 wired
-  // the component but missed the actual filter application. Now:
-  // client-side filter on the type column. (The API doesn't accept
-  // a `type` filter param yet; client-side filter works on the
-  // first 20-row page.)
-  const transactions = React.useMemo(() => {
-    if (txFilter === 'all') return allTransactions;
-    if (txFilter === 'topup') {
-      return allTransactions.filter(
-        (t) =>
-          t.type === 'topup' ||
-          t.type === 'wallet_topup' ||
-          (t.description ?? '').toLowerCase().includes('top-up'),
-      );
-    }
-    if (txFilter === 'payment') {
-      return allTransactions.filter((t) => t.type === 'payment' || t.type === 'escrow_hold');
-    }
-    if (txFilter === 'refund') {
-      return allTransactions.filter((t) => t.type === 'refund');
-    }
-    return allTransactions;
-  }, [allTransactions, txFilter]);
+  const transactions = allTransactions;
 
   const renderBalanceCard = (): React.ReactElement => (
     <View
@@ -221,12 +203,12 @@ export default function WalletScreen(): React.ReactElement {
           <EmptyState
             icon={<CreditCard size={48} color={colors.textTertiary} />}
             title={
-              allTransactions.length === 0
+              txFilter === 'all'
                 ? 'No transactions yet'
                 : `No ${txFilter === 'topup' ? 'top-ups' : txFilter === 'payment' ? 'payments' : txFilter === 'refund' ? 'refunds' : 'transactions'} in this view`
             }
             description={
-              allTransactions.length === 0
+              txFilter === 'all'
                 ? 'Pay for a booking with your existing wallet balance to see history here. New top-ups are temporarily unavailable.'
                 : undefined
             }

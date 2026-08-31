@@ -6,7 +6,7 @@ import { useBookingStore, type BookingDraft } from '@/stores/booking.store';
 import { createBooking } from '@/services/booking.service';
 import { createPaymentIntent, getWalletBalance } from '@/services/payment.service';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, TrustStrip } from '@/components/ui';
+import { Button, Card, TrustStrip, EmptyState } from '@/components/ui';
 // B2 — inline validation feedback (toast for screen-level, inline for field).
 import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
@@ -173,6 +173,39 @@ export default function CheckoutScreen(): React.ReactElement {
       setLoading(false);
     }
   };
+
+  const bookingSetupComplete = Boolean(
+    draft.categoryId &&
+    draft.subcategoryId &&
+    draft.categoryName &&
+    draft.subcategoryName &&
+    draft.basePrice > 0 &&
+    draft.scheduledDate &&
+    draft.scheduledTime &&
+    draft.address &&
+    draft.barangay &&
+    draft.latitude != null &&
+    draft.longitude != null,
+  );
+
+  if (!bookingSetupComplete) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Back from checkout">
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Checkout</Text>
+        </View>
+        <EmptyState
+          title="Booking details are incomplete"
+          description="Return to services and complete the service, schedule, and exact address before choosing payment. No booking or charge was created."
+          actionLabel="Browse services"
+          onAction={() => router.replace(Routes.TABS.HOME)}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

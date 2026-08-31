@@ -49,6 +49,7 @@ import type { ComponentType } from 'react';
 import { CheckCircle2, Lock, MapPin, MessageSquare, AlertTriangle, ChevronLeft } from '@/components/icons';
 import { Routes } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
+import { showToast } from '@/lib/toast';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -61,8 +62,8 @@ const SAFETY_ITEMS: Array<{ icon: IconComponent; iconColor: string; title: strin
   {
     icon: CheckCircle2,
     iconColor: colors.success,
-    title: 'NBI-cleared pros',
-    desc: 'Active providers must have an approved identity and NBI-clearance review before taking jobs.',
+    title: 'Provider document review',
+    desc: 'Provider onboarding collects a government ID, selfie identity check, and NBI clearance for platform review. Use the provider profile and booking record to confirm current platform approval.',
   },
   {
     icon: Lock,
@@ -141,7 +142,14 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
   const { isPhone } = useResponsive();
 
   const handleEmergencyCall = useCallback(() => {
-    Linking.openURL('tel:911');
+    if (Platform.OS === 'web') {
+      showToast('For immediate danger, call 911 from your phone.', 'error');
+      return;
+    }
+
+    void Linking.openURL('tel:911').catch(() => {
+      showToast('For immediate danger, call 911 from your phone.', 'error');
+    });
   }, []);
 
   return (

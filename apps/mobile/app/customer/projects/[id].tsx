@@ -63,6 +63,19 @@ export default function ProjectDetailScreen(): React.ReactElement {
     onError: (e) => showToast(getErrorMessage(e, 'Could not add the choice.'), 'error'),
   });
 
+  if (!id) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.body}>
+          <ErrorState
+            title="Project unavailable"
+            message="This link does not identify a project. Return to Projects and open it again."
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (q.isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>

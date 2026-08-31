@@ -43,7 +43,13 @@ export default function AddressPickerScreen(): React.ReactElement {
   const setAddress = useBookingStore((s) => s.setAddress);
   const mapRef = useRef<MapView>(null);
   const { isAvailable: gpsAvailable, isLoading: gpsLoading, getCurrentLocation } = useLocation();
-  const { areas, defaultRegion, isLoading: areasLoading } = useServiceAreaDefaults();
+  const {
+    areas,
+    defaultRegion,
+    isLoading: areasLoading,
+    isError: areasError,
+    refetch: refetchAreas,
+  } = useServiceAreaDefaults();
   const { isPhone } = useResponsive();
   const recenteredOnDefault = useRef(false);
 
@@ -56,11 +62,12 @@ export default function AddressPickerScreen(): React.ReactElement {
   const [hasExactCoordinates, setHasExactCoordinates] = useState(false);
   const [checkingCoverage, setCheckingCoverage] = useState(false);
 
-  const { data: savedAddresses } = useQuery({
+  const savedAddressesQuery = useQuery({
     queryKey: ['saved-addresses'],
     queryFn: addressService.getAddresses,
     staleTime: 60 * 1000,
   });
+  const savedAddresses = savedAddressesQuery.data;
 
   // Once the configured default area loads, recenter the map there — but only
   // if the user hasn't already dropped a pin or picked an address, and only
@@ -107,6 +114,10 @@ export default function AddressPickerScreen(): React.ReactElement {
   }, []);
 
   const handleUseMyLocation = useCallback(async () => {
+    if (areasError) {
+      showToast('Active service areas are unavailable. Retry before selecting a booking address.', 'error');
+      return;
+    }
     const coords = await getCurrentLocation();
     if (!coords) return;
 
@@ -133,9 +144,13 @@ export default function AddressPickerScreen(): React.ReactElement {
       latitudeDelta: 0.01,
       longitudeDelta: 0.01,
     });
-  }, [areas, barangayText, getCurrentLocation, searchText]);
+  }, [areas, areasError, barangayText, getCurrentLocation, searchText]);
 
   const handleMapPress = useCallback((e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
+    if (areasError) {
+      showToast('Active service areas are unavailable. Retry before selecting a booking address.', 'error');
+      return;
+    }
     const { latitude, longitude } = e.nativeEvent.coordinate;
     if (latitude < 4.5 || latitude > 21.5 || longitude < 116 || longitude > 127.5) {
       showToast('Please select a location within the Philippines.', 'warning');
@@ -155,10 +170,14 @@ export default function AddressPickerScreen(): React.ReactElement {
     setSearchResults([]);
     setHasExactCoordinates(true);
     setSearchMessage('');
-  }, [areas, barangayText, searchText]);
+  }, [areas, areasError, barangayText, searchText]);
 
   const handleSearch = useCallback(() => {
     if (!searchText.trim()) return;
+    if (areasError) {
+      setSearchMessage('Active service areas could not be loaded. Retry before searching for a booking address.');
+      return;
+    }
     if (areasLoading) {
       setSearchMessage('Loading active service areas. Please try again in a moment.');
       return;
@@ -183,7 +202,7 @@ export default function AddressPickerScreen(): React.ReactElement {
         `We could not match that address to an active service area. Try including one of: ${areas.map((area) => area.city).join(', ') || 'an active city'}.`,
       );
     }
-  }, [areas, areasLoading, searchText]);
+  }, [areas, areasError, areasLoading, searchText]);
 
   const handleSelectResult = (result: GeoResult): void => {
     // A city-center search result is only a map starting point. It is not an
@@ -283,7 +302,7 @@ export default function AddressPickerScreen(): React.ReactElement {
         title="Confirm Address"
         onPress={() => void handleConfirm()}
         loading={checkingCoverage}
-        disabled={!selectedAddress || !hasExactCoordinates || !barangayText.trim() || checkingCoverage}
+        disabled={!selectedAddress || !hasExactCoordinates || !barangayText.trim() || checkingCoverage || areasError}
       />
     </View>
   );
@@ -314,6 +333,36 @@ export default function AddressPickerScreen(): React.ReactElement {
         showsVerticalScrollIndicator={false}
       >
       {/* Search */}
+      {areasError && (
+        <View style={styles.sourceError} accessibilityRole="alert">
+          <Text style={styles.sourceErrorText}>
+            Active service areas could not be loaded. Address selection is paused so we do not send a provider to an unverified location.
+          </Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Retry active service areas"
+            style={styles.sourceRetry}
+            onPress={refetchAreas}
+          >
+            <Text style={styles.sourceRetryText}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {savedAddressesQuery.isError && (
+        <View style={styles.savedWarning} accessibilityRole="alert">
+          <Text style={styles.savedWarningText}>
+            Saved addresses could not be loaded. Retry them, or select a new exact location after service areas are available.
+          </Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Retry saved addresses"
+            style={styles.sourceRetry}
+            onPress={() => void savedAddressesQuery.refetch()}
+          >
+            <Text style={styles.sourceRetryText}>Retry saved addresses</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <View style={styles.searchContainer}>
         <View style={styles.searchRow}>
           <TextInput
@@ -329,8 +378,10 @@ export default function AddressPickerScreen(): React.ReactElement {
           <TouchableOpacity
             style={styles.searchButton}
             onPress={handleSearch}
+            disabled={areasError}
             accessibilityRole="button"
             accessibilityLabel="Search active service areas"
+            accessibilityState={{ disabled: areasError }}
           >
             <Text style={styles.searchButtonText}>Search</Text>
           </TouchableOpacity>
@@ -402,10 +453,11 @@ export default function AddressPickerScreen(): React.ReactElement {
         <TouchableOpacity
           style={styles.myLocationButton}
           onPress={() => void handleUseMyLocation()}
-          disabled={gpsLoading}
+          disabled={gpsLoading || areasError}
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel="Use this device location"
+          accessibilityState={{ disabled: gpsLoading || areasError }}
         >
           {gpsLoading ? (
             <ActivityIndicator size="small" color={colors.primary} />
@@ -485,6 +537,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     zIndex: 10,
   },
+  sourceError: {
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: colors.errorLight,
+    borderRadius: borderRadius.md,
+  },
+  sourceErrorText: { ...typography.bodySmall, color: colors.error, lineHeight: 20 },
+  sourceRetry: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', marginTop: spacing.xs },
+  sourceRetryText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
+  savedWarning: {
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: colors.warningLight,
+    borderRadius: borderRadius.md,
+  },
+  savedWarningText: { ...typography.bodySmall, color: colors.warningDark, lineHeight: 20 },
   searchRow: { flexDirection: 'row', gap: spacing.sm },
   searchInput: {
     ...typography.body,

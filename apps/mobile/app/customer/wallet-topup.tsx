@@ -48,10 +48,24 @@ export default function WalletTopUpScreen(): React.ReactElement {
           <View style={[styles.balanceCard, !isPhone && styles.balanceCardWide]} accessibilityLabel="Current wallet balance">
             <Text style={styles.balanceLabel}>Current Balance</Text>
             <Text style={styles.balanceAmount}>
-              {walletQuery.data ? formatPHP(walletQuery.data.availableBalance) : '---'}
+              {walletQuery.isLoading
+                ? 'Loading…'
+                : walletQuery.data
+                  ? formatPHP(walletQuery.data.availableBalance)
+                  : 'Unavailable'}
             </Text>
             {walletQuery.isError ? (
-              <Text style={styles.balanceError}>We could not load your balance. Please try again later.</Text>
+              <View style={styles.balanceRecovery}>
+                <Text style={styles.balanceError}>We could not verify your current balance.</Text>
+                <TouchableOpacity
+                  style={styles.balanceRetry}
+                  onPress={() => void walletQuery.refetch()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loading wallet balance"
+                >
+                  <Text style={styles.balanceRetryText}>Try Again</Text>
+                </TouchableOpacity>
+              </View>
             ) : null}
           </View>
 
@@ -132,6 +146,17 @@ const styles = StyleSheet.create({
   balanceLabel: { ...typography.bodySmall, color: colors.white, marginBottom: spacing.xs },
   balanceAmount: { fontSize: 28, fontWeight: '800', color: colors.white },
   balanceError: { ...typography.caption, color: colors.white, marginTop: spacing.sm, textAlign: 'center' },
+  balanceRecovery: { alignItems: 'center' },
+  balanceRetry: {
+    minHeight: 44,
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.white,
+    borderRadius: borderRadius.md,
+  },
+  balanceRetryText: { ...typography.bodySmall, color: colors.white, fontWeight: '700' },
   holdCard: {
     flexDirection: 'row',
     backgroundColor: colors.warningLight,

@@ -49,6 +49,13 @@ export default function AddressesScreen(): React.ReactElement {
   const [longitude, setLongitude] = useState<number | null>(null);
   const [locationMessage, setLocationMessage] = useState('');
 
+  const invalidateVerifiedLocation = (): void => {
+    if (latitude == null && longitude == null) return;
+    setLatitude(null);
+    setLongitude(null);
+    setLocationMessage('Address details changed. Verify the exact service location again before booking.');
+  };
+
   const { data: addresses = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['addresses'],
     queryFn: addressService.getAddresses,
@@ -298,7 +305,7 @@ export default function AddressesScreen(): React.ReactElement {
             placeholder="e.g. Purok 3, Brgy. San Antonio"
             placeholderTextColor={colors.textTertiary}
             value={fullAddress}
-            onChangeText={setFullAddress}
+            onChangeText={(value) => { invalidateVerifiedLocation(); setFullAddress(value); }}
             multiline
             maxLength={500}
             accessibilityLabel="Full address"
@@ -310,7 +317,7 @@ export default function AddressesScreen(): React.ReactElement {
             placeholder="e.g. San Antonio"
             placeholderTextColor={colors.textTertiary}
             value={barangay}
-            onChangeText={setBarangay}
+            onChangeText={(value) => { invalidateVerifiedLocation(); setBarangay(value); }}
             maxLength={100}
             accessibilityLabel="Barangay"
           />
@@ -321,7 +328,7 @@ export default function AddressesScreen(): React.ReactElement {
             placeholder="e.g. Cebu City"
             placeholderTextColor={colors.textTertiary}
             value={city}
-            onChangeText={setCity}
+            onChangeText={(value) => { invalidateVerifiedLocation(); setCity(value); }}
             maxLength={100}
             accessibilityLabel="City or municipality"
           />
@@ -332,7 +339,7 @@ export default function AddressesScreen(): React.ReactElement {
             placeholder="e.g. Cebu"
             placeholderTextColor={colors.textTertiary}
             value={province}
-            onChangeText={setProvince}
+            onChangeText={(value) => { invalidateVerifiedLocation(); setProvince(value); }}
             maxLength={100}
             accessibilityLabel="Province"
           />

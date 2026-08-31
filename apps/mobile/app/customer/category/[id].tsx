@@ -54,6 +54,10 @@ export default function SubcategoryListScreen(): React.ReactElement {
     !isHourly(sub) && (sub.pricingType === 'quote' || sub.pricingType === 'per_unit' || sub.basePrice == null);
 
   const handleSelect = (sub: Subcategory): void => {
+    // Close the native/web modal before changing routes. Expo keeps previous
+    // stack screens mounted, so closing after router.push can leave the old
+    // dialog in the browser accessibility tree over later booking steps.
+    setSelectedSubcategory(null);
     if (sub.categoryId) {
       setCategory(
         sub.categoryId,
@@ -78,7 +82,6 @@ export default function SubcategoryListScreen(): React.ReactElement {
       });
       router.push(Routes.CUSTOMER.BOOKING_CONFIGURE);
     }
-    setSelectedSubcategory(null);
   };
 
   const tint = getCategoryTint(slug);
@@ -135,6 +138,24 @@ export default function SubcategoryListScreen(): React.ReactElement {
       </TouchableOpacity>
     );
   };
+
+  if (!slug) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back from services">
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Services</Text>
+        </View>
+        <ErrorState
+          title="Category unavailable"
+          message="This link does not identify a service category. Return to Home and choose the category again."
+          onRetry={() => router.push(Routes.TABS.HOME)}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

@@ -42,8 +42,9 @@ router.get(
 
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
+      const group = (['topup', 'payment', 'refund'] as const).find((value) => value === req.query.group);
 
-      const { transactions, total } = await walletService.getWalletTransactions(wallet.id, page, pageSize);
+      const { transactions, total } = await walletService.getWalletTransactions(wallet.id, page, pageSize, group);
       res.json({
         success: true,
         data: transactions.map(walletService.formatTransaction),

@@ -1,0 +1,233 @@
+[
+  {
+    "width": 768,
+    "completed": true,
+    "payloadSafe": true,
+    "steps": [
+      {
+        "name": "catalog",
+        "path": "/customer/category/renovation",
+        "text": "Renovation Custom Cabinets Custom cabinetry quoted from measurements, materials, site photos, and required job details. Get Quote",
+        "overflow": 0
+      },
+      {
+        "name": "job-request",
+        "path": "/customer/booking/job-request",
+        "text": "Request Custom Quote Service Category Renovation Custom Cabinets What this service covers Custom cabinetry quoted from measurements, materials, site photos, and required job details. Describe the Job * Minimum 50 characters. Be specific about the problem. 0/50 min Job Details These help providers send you an accurate quote. Installation area * Approximate floor area of the installation zone. sqm Preferred material * Marine plywood Hardwood Is the site occupied? * Yes No Photos * At least 2 photos required (max 10). Show the job site and issue clearly. + Add Photo Urgency Same Day Within 4 hours Within 3 Days Flexible scheduling Within a Week No rush Flexible Provider suggests time Budget Range (optional) Helps providers understand your expectations ₱ — ₱ Location * No address selected — tap to choose Please answer all required job-detail fields (marked *). Submit Job Request Up to 5 providers can send quotes. You can compare the scope, price, and timing before choosing. Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "address-picker",
+        "path": "/customer/address-picker",
+        "text": "← Select Address Search Saved Addresses Project site 42 Governor Cuenco Avenue, Kasambagan, Cebu City Default Use My Location Booking in a browser Search for the address, enter its barangay, then use this device's location while you are at the service property. For another property, set the exact pin in the mobile app. Confirm Address Map preview The interactive map is available in the onService mobile app. Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "job-request-with-address",
+        "path": "/customer/booking/job-request",
+        "text": "Request Custom Quote Service Category Renovation Custom Cabinets What this service covers Custom cabinetry quoted from measurements, materials, site photos, and required job details. Describe the Job * Minimum 50 characters. Be specific about the problem. 0/50 min Job Details These help providers send you an accurate quote. Installation area * Approximate floor area of the installation zone. sqm Preferred material * Marine plywood Hardwood Is the site occupied? * Yes No Photos * At least 2 photos required (max 10). Show the job site and issue clearly. + Add Photo Urgency Same Day Within 4 hours Within 3 Days Flexible scheduling Within a Week No rush Flexible Provider suggests time Budget Range (optional) Helps providers understand your expectations ₱ — ₱ Location * 42 Governor Cuenco Avenue, Kasambagan, Cebu City, Cebu Please answer all required job-detail fields (marked *). Submit Job Request Up to 5 providers can send quotes. You can compare the scope, price, and timing before choosing.",
+        "overflow": 0
+      },
+      {
+        "name": "booking-detail",
+        "path": "/customer/booking/quote-booking",
+        "text": "Job request submitted. Providers will send quotes soon. ← Booking Details Looking for provider #OS-2026-KING SERVICE Custom Cabinets Build fitted kitchen cabinets with durable moisture-resistant materials and concealed hinges. Work record Requested Scope, provider checklist, photos, changes, and closeout stay connected to this booking. Checklist Not opened After photos 0/2 Changes 0 No current provider-completion blockers are recorded. SCHEDULE To be agreed after you accept a quote LOCATION 42 Governor Cuenco Avenue, Kasambagan, Cebu City Quote pricing No service price or payment is due yet. Compare provider quotes, then accept one to set the booking scope and total. View Quotes View Job Photos Cancel Booking Get Support",
+        "overflow": 0
+      }
+    ],
+    "writes": [
+      {
+        "method": "POST",
+        "pathname": "/api/v1/uploads",
+        "body": "[multipart image payload]",
+        "contentType": "multipart/form-data; boundary=----WebKitFormBoundary0zhsmQjpLJCNlU7B"
+      },
+      {
+        "method": "POST",
+        "pathname": "/api/v1/bookings/job-request",
+        "body": {
+          "categoryId": "category-renovation",
+          "subcategoryId": "subcategory-cabinets",
+          "description": "Build fitted kitchen cabinets with durable moisture-resistant materials and concealed hinges.",
+          "address": "42 Governor Cuenco Avenue",
+          "barangay": "Kasambagan",
+          "city": "Cebu City",
+          "province": "Cebu",
+          "latitude": 10.3294,
+          "longitude": 123.9124,
+          "urgency": "within_3_days",
+          "budgetMin": 5000000,
+          "budgetMax": 8000000,
+          "jobPhotos": [
+            "https://cdn.invalid/job-1.png",
+            "https://cdn.invalid/job-2.png"
+          ],
+          "intakeAnswers": {
+            "area_sqm": 24,
+            "material": "Marine plywood",
+            "occupied": true
+          }
+        },
+        "contentType": "application/json"
+      }
+    ],
+    "unmatchedApi": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failed": false
+  },
+  {
+    "width": 1024,
+    "completed": true,
+    "payloadSafe": true,
+    "steps": [
+      {
+        "name": "catalog",
+        "path": "/customer/category/renovation",
+        "text": "Renovation Custom Cabinets Custom cabinetry quoted from measurements, materials, site photos, and required job details. Get Quote",
+        "overflow": 0
+      },
+      {
+        "name": "job-request",
+        "path": "/customer/booking/job-request",
+        "text": "Request Custom Quote Service Category Renovation Custom Cabinets What this service covers Custom cabinetry quoted from measurements, materials, site photos, and required job details. Describe the Job * Minimum 50 characters. Be specific about the problem. 0/50 min Job Details These help providers send you an accurate quote. Installation area * Approximate floor area of the installation zone. sqm Preferred material * Marine plywood Hardwood Is the site occupied? * Yes No Photos * At least 2 photos required (max 10). Show the job site and issue clearly. + Add Photo Urgency Same Day Within 4 hours Within 3 Days Flexible scheduling Within a Week No rush Flexible Provider suggests time Budget Range (optional) Helps providers understand your expectations ₱ — ₱ Location * No address selected — tap to choose Please answer all required job-detail fields (marked *). Submit Job Request Up to 5 providers can send quotes. You can compare the scope, price, and timing before choosing. Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "address-picker",
+        "path": "/customer/address-picker",
+        "text": "← Select Address Search Saved Addresses Project site 42 Governor Cuenco Avenue, Kasambagan, Cebu City Default Use My Location Booking in a browser Search for the address, enter its barangay, then use this device's location while you are at the service property. For another property, set the exact pin in the mobile app. Confirm Address Map preview The interactive map is available in the onService mobile app. Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "job-request-with-address",
+        "path": "/customer/booking/job-request",
+        "text": "Request Custom Quote Service Category Renovation Custom Cabinets What this service covers Custom cabinetry quoted from measurements, materials, site photos, and required job details. Describe the Job * Minimum 50 characters. Be specific about the problem. 0/50 min Job Details These help providers send you an accurate quote. Installation area * Approximate floor area of the installation zone. sqm Preferred material * Marine plywood Hardwood Is the site occupied? * Yes No Photos * At least 2 photos required (max 10). Show the job site and issue clearly. + Add Photo Urgency Same Day Within 4 hours Within 3 Days Flexible scheduling Within a Week No rush Flexible Provider suggests time Budget Range (optional) Helps providers understand your expectations ₱ — ₱ Location * 42 Governor Cuenco Avenue, Kasambagan, Cebu City, Cebu Please answer all required job-detail fields (marked *). Submit Job Request Up to 5 providers can send quotes. You can compare the scope, price, and timing before choosing. Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "booking-detail",
+        "path": "/customer/booking/quote-booking",
+        "text": "Job request submitted. Providers will send quotes soon. ← Booking Details Looking for provider #OS-2026-KING SERVICE Custom Cabinets Build fitted kitchen cabinets with durable moisture-resistant materials and concealed hinges. Work record Requested Scope, provider checklist, photos, changes, and closeout stay connected to this booking. Checklist Not opened After photos 0/2 Changes 0 No current provider-completion blockers are recorded. SCHEDULE To be agreed after you accept a quote LOCATION 42 Governor Cuenco Avenue, Kasambagan, Cebu City Quote pricing No service price or payment is due yet. Compare provider quotes, then accept one to set the booking scope and total. View Quotes View Job Photos Cancel Booking Get Support",
+        "overflow": 0
+      }
+    ],
+    "writes": [
+      {
+        "method": "POST",
+        "pathname": "/api/v1/uploads",
+        "body": "[multipart image payload]",
+        "contentType": "multipart/form-data; boundary=----WebKitFormBoundarytor5oOEPUSoPLJH7"
+      },
+      {
+        "method": "POST",
+        "pathname": "/api/v1/bookings/job-request",
+        "body": {
+          "categoryId": "category-renovation",
+          "subcategoryId": "subcategory-cabinets",
+          "description": "Build fitted kitchen cabinets with durable moisture-resistant materials and concealed hinges.",
+          "address": "42 Governor Cuenco Avenue",
+          "barangay": "Kasambagan",
+          "city": "Cebu City",
+          "province": "Cebu",
+          "latitude": 10.3294,
+          "longitude": 123.9124,
+          "urgency": "within_3_days",
+          "budgetMin": 5000000,
+          "budgetMax": 8000000,
+          "jobPhotos": [
+            "https://cdn.invalid/job-1.png",
+            "https://cdn.invalid/job-2.png"
+          ],
+          "intakeAnswers": {
+            "area_sqm": 24,
+            "material": "Marine plywood",
+            "occupied": true
+          }
+        },
+        "contentType": "application/json"
+      }
+    ],
+    "unmatchedApi": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failed": false
+  },
+  {
+    "width": 1366,
+    "completed": true,
+    "payloadSafe": true,
+    "steps": [
+      {
+        "name": "catalog",
+        "path": "/customer/category/renovation",
+        "text": "oS onService PH Customer workspace WORKSPACE Home Bookings Wallet Projects Suki Pros Team Invitations Support Profile M Mara Santos Customer Renovation Custom Cabinets Custom cabinetry quoted from measurements, materials, site photos, and required job details. Get Quote",
+        "overflow": 0
+      },
+      {
+        "name": "job-request",
+        "path": "/customer/booking/job-request",
+        "text": "oS onService PH Customer workspace WORKSPACE Home Bookings Wallet Projects Suki Pros Team Invitations Support Profile M Mara Santos Customer Request Custom Quote Service Category Renovation Custom Cabinets What this service covers Custom cabinetry quoted from measurements, materials, site photos, and required job details. Describe the Job * Minimum 50 characters. Be specific about the problem. 0/50 min Job Details These help providers send you an accurate quote. Installation area * Approximate floor area of the installation zone. sqm Preferred material * Marine plywood Hardwood Is the site occupied? * Yes No Photos * At least 2 photos required (max 10). Show the job site and issue clearly. + Add Photo Urgency Same Day Within 4 hours Within 3 Days Flexible scheduling Within a Week No rush Flexible Provider suggests time Budget Range (optional) Helps providers understand your expectations ₱ — ₱ Location * No address selected — tap to choose Please answer all required job-detail fields (marked *). Submit Job Request Up to 5 providers can send quotes. You can compare the scope, price, and timing before choosing. Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "address-picker",
+        "path": "/customer/address-picker",
+        "text": "oS onService PH Customer workspace WORKSPACE Home Bookings Wallet Projects Suki Pros Team Invitations Support Profile M Mara Santos Customer ← Select Address Search Saved Addresses Project site 42 Governor Cuenco Avenue, Kasambagan, Cebu City Default Use My Location Booking in a browser Search for the address, enter its barangay, then use this device's location while you are at the service property. For another property, set the exact pin in the mobile app. Confirm Address Map preview The interactive map is available in the onService mobile app. Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "job-request-with-address",
+        "path": "/customer/booking/job-request",
+        "text": "oS onService PH Customer workspace WORKSPACE Home Bookings Wallet Projects Suki Pros Team Invitations Support Profile M Mara Santos Customer Request Custom Quote Service Category Renovation Custom Cabinets What this service covers Custom cabinetry quoted from measurements, materials, site photos, and required job details. Describe the Job * Minimum 50 characters. Be specific about the problem. 0/50 min Job Details These help providers send you an accurate quote. Installation area * Approximate floor area of the installation zone. sqm Preferred material * Marine plywood Hardwood Is the site occupied? * Yes No Photos * At least 2 photos required (max 10). Show the job site and issue clearly. + Add Photo Urgency Same Day Within 4 hours Within 3 Days Flexible scheduling Within a Week No rush Flexible Provider suggests time Budget Range (optional) Helps providers understand your expectations ₱ — ₱ Location * 42 Governor Cuenco Avenue, Kasambagan, Cebu City, Cebu Please answer all required job-detail fields (marked *). Submit Job Request Up to 5 providers can send quotes. You can compare the scope, price, and timing before choosing. Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "booking-detail",
+        "path": "/customer/booking/quote-booking",
+        "text": "oS onService PH Customer workspace WORKSPACE Home Bookings Wallet Projects Suki Pros Team Invitations Support Profile M Mara Santos Customer Job request submitted. Providers will send quotes soon. ← Booking Details Looking for provider #OS-2026-KING SERVICE Custom Cabinets Build fitted kitchen cabinets with durable moisture-resistant materials and concealed hinges. Work record Requested Scope, provider checklist, photos, changes, and closeout stay connected to this booking. Checklist Not opened After photos 0/2 Changes 0 No current provider-completion blockers are recorded. SCHEDULE To be agreed after you accept a quote LOCATION 42 Governor Cuenco Avenue, Kasambagan, Cebu City Quote pricing No service price or payment is due yet. Compare provider quotes, then accept one to set the booking scope and total. View Quotes View Job Photos Cancel Booking Get Support",
+        "overflow": 0
+      }
+    ],
+    "writes": [
+      {
+        "method": "POST",
+        "pathname": "/api/v1/uploads",
+        "body": "[multipart image payload]",
+        "contentType": "multipart/form-data; boundary=----WebKitFormBoundary6I0Gs5bAL8H6bfZx"
+      },
+      {
+        "method": "POST",
+        "pathname": "/api/v1/bookings/job-request",
+        "body": {
+          "categoryId": "category-renovation",
+          "subcategoryId": "subcategory-cabinets",
+          "description": "Build fitted kitchen cabinets with durable moisture-resistant materials and concealed hinges.",
+          "address": "42 Governor Cuenco Avenue",
+          "barangay": "Kasambagan",
+          "city": "Cebu City",
+          "province": "Cebu",
+          "latitude": 10.3294,
+          "longitude": 123.9124,
+          "urgency": "within_3_days",
+          "budgetMin": 5000000,
+          "budgetMax": 8000000,
+          "jobPhotos": [
+            "https://cdn.invalid/job-1.png",
+            "https://cdn.invalid/job-2.png"
+          ],
+          "intakeAnswers": {
+            "area_sqm": 24,
+            "material": "Marine plywood",
+            "occupied": true
+          }
+        },
+        "contentType": "application/json"
+      }
+    ],
+    "unmatchedApi": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failed": false
+  }
+]

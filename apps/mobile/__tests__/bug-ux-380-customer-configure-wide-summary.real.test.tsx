@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const mockStoreState = {
   draft: {
+    categoryId: 'category-1',
+    categoryName: 'Cleaning',
     categorySlug: 'cleaning',
     subcategoryId: 'subcategory-1',
     subcategoryName: 'Home Cleaning',

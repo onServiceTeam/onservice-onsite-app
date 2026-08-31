@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { useBookingStore, type SelectedAddon } from '@/stores/booking.store';
-import { Button, SkeletonCard, Card, SectionHeader } from '@/components/ui';
+import { Button, SkeletonCard, Card, SectionHeader, EmptyState } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { ChevronLeft, Check } from '@/components/icons';
@@ -79,6 +79,25 @@ export default function ConfigureScreen(): React.ReactElement {
     setAddons([]);
     router.push(Routes.CUSTOMER.BOOKING_FORM);
   }, [setAddons, router]);
+
+  if (!draft.categoryId || !draft.subcategoryId || !draft.categoryName || !draft.subcategoryName) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Back from service customization">
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Customize Your Service</Text>
+        </View>
+        <EmptyState
+          title="Choose a service first"
+          description="This booking setup is missing its service selection. Browse services again so prices and scope come from the live catalog."
+          actionLabel="Browse services"
+          onAction={() => router.replace(Routes.TABS.HOME)}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

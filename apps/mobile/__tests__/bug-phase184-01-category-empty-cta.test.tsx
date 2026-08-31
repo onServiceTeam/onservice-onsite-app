@@ -10,6 +10,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 jest.mock('@/services/catalog.service', () => ({
   getSubcategories: jest.fn().mockResolvedValue({ categoryName: 'Cleaning', subcategories: [] }),
 }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
+  useLocalSearchParams: () => ({ id: 'cleaning' }),
+}));
 
 import SubcategoryListScreen from '../app/customer/category/[id]';
 

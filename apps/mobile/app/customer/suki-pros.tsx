@@ -242,7 +242,7 @@ export default function SukiProsScreen(): React.ReactElement {
     queryFn: getMemberships,
   });
 
-  const { data: tiers, isError: tiersError } = useQuery({
+  const { data: tiers, isError: tiersError, isFetching: tiersFetching, refetch: refetchTiers } = useQuery({
     queryKey: ['sukiTiers'],
     queryFn: getTiers,
   });
@@ -318,8 +318,18 @@ export default function SukiProsScreen(): React.ReactElement {
                 }}
               >
                 <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>
-                  Failed to load loyalty tiers. Pull to refresh.
+                  Loyalty tier rules could not be loaded. Points and tier benefits may be incomplete.
                 </Text>
+                <TouchableOpacity
+                  style={styles.tierRetry}
+                  onPress={() => void refetchTiers()}
+                  disabled={tiersFetching}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loyalty tiers"
+                  accessibilityState={{ disabled: tiersFetching, busy: tiersFetching }}
+                >
+                  <Text style={styles.tierRetryText}>{tiersFetching ? 'Retrying…' : 'Try again'}</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -447,6 +457,8 @@ const styles = StyleSheet.create({
   },
   tiersCardWide: { flex: 1, marginBottom: 0 },
   tiersTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: spacing.md },
+  tierRetry: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: spacing.sm },
+  tierRetryText: { fontSize: 13, fontWeight: '700', color: colors.error },
   tierRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   tierName: { fontSize: 14, fontWeight: '600', color: colors.text },
   tierReq: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },

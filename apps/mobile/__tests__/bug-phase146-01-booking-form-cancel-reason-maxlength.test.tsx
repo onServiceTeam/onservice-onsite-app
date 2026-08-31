@@ -40,6 +40,11 @@ function client(): QueryClient {
 
 it('Bug PHASE146-01 — booking notes and both participant cancellation reasons enforce their rendered server limits', async () => {
   useBookingStore.getState().reset();
+  useBookingStore.getState().setCategory('category-1', 'Air Conditioning', 'air-conditioning');
+  useBookingStore.getState().setSubcategory('subcategory-1', 'Aircon Cleaning', 120000, {
+    description: 'Clean one split-type unit.',
+    pricingType: 'fixed',
+  });
   const form = render(<BookingFormScreen />);
   expect(screen.getByPlaceholderText('Describe any special requirements...').getAttribute('maxlength')).toBe('2000');
   form.unmount();

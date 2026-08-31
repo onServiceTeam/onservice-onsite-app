@@ -38,8 +38,12 @@ const FILTERS: { label: string; value: StatusFilter }[] = [
 
 async function fetchBookings({ pageParam = 1, queryKey }: { pageParam?: number; queryKey: string[] }): Promise<{ bookings: Booking[]; meta: { page: number; pageSize: number; total: number; totalPages: number } }> {
   const statusFilter = queryKey[1];
+  const sort = queryKey[2];
+  const periodDays = queryKey[3];
   const params: Record<string, unknown> = { page: pageParam, pageSize: 15 };
   if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
+  if (sort === 'newest' || sort === 'oldest') params.sort = sort;
+  if (periodDays === '30' || periodDays === '90') params.periodDays = Number(periodDays);
 
   const res = await api.get<{
     success: boolean;
@@ -57,6 +61,12 @@ export default function BookingsScreen(): React.ReactElement {
   // Phase 14 R5-complete — FilterModal for date-range + provider filters.
   const [advancedFiltersVisible, setAdvancedFiltersVisible] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<Record<string, string[]>>({});
+  const sortFilter = advancedFilters.sort?.[0] ?? '';
+  const periodFilter = advancedFilters.period?.[0] === '30d'
+    ? '30'
+    : advancedFilters.period?.[0] === '90d'
+      ? '90'
+      : '';
 
   const {
     data,
@@ -68,7 +78,7 @@ export default function BookingsScreen(): React.ReactElement {
     isFetchingNextPage,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ['bookings', filter],
+    queryKey: ['bookings', filter, sortFilter, periodFilter],
     queryFn: fetchBookings,
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
@@ -80,30 +90,9 @@ export default function BookingsScreen(): React.ReactElement {
 
   const rawBookings = data?.pages.flatMap((p) => p.bookings) ?? [];
 
-  // BUG-PHASE84-01 fix — pre-fix the FilterModal at line 215+ stored
-  // advancedFilters in state and showed the count badge, but the
-  // bookings list was rendered unfiltered. Same dead-wire pattern
-  // as Phase 64-03 for provider jobs. Now the filters are applied
-  // client-side (the bookings API doesn't accept sort/period params,
-  // so client-side is the only honest place to do the work).
-  const bookings = (() => {
-    let list = [...rawBookings];
-    const period = advancedFilters.period?.[0];
-    if (period) {
-      const days = period === '30d' ? 30 : period === '90d' ? 90 : period === 'year' ? 365 : 0;
-      if (days > 0) {
-        const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
-        list = list.filter((b) => new Date(b.scheduledAt).getTime() >= cutoffMs);
-      }
-    }
-    const sort = advancedFilters.sort?.[0];
-    if (sort === 'oldest') {
-      list.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
-    } else if (sort === 'newest') {
-      list.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
-    }
-    return list;
-  })();
+  // Sort and period belong in the API query so they apply to the entire history,
+  // not just whichever 15-row page the customer has loaded so far.
+  const bookings = rawBookings;
 
   const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
 
@@ -263,7 +252,6 @@ export default function BookingsScreen(): React.ReactElement {
             options: [
               { value: '30d', label: 'Last 30 days' },
               { value: '90d', label: 'Last 90 days' },
-              { value: 'year', label: 'This year' },
             ],
           },
         ]}

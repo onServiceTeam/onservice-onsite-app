@@ -155,6 +155,18 @@ export default function MakeRecurringScreen(): React.ReactElement {
     router.replace(Routes.TABS.BOOKINGS);
   }, [router]);
 
+  if (!bookingId) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          title="Recurring setup unavailable"
+          message="This link does not identify a completed booking. Open recurring setup from an eligible booking."
+          onRetry={handleSkip}
+        />
+      </View>
+    );
+  }
+
   if (isLoading || (canPreview && pricePreviewQuery.isLoading)) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -177,8 +189,16 @@ export default function MakeRecurringScreen(): React.ReactElement {
     );
   }
 
-  if (!bookingId || !booking) {
-    return <View style={styles.container} />;
+  if (!booking) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          title="Recurring setup unavailable"
+          message="This booking could not be verified for recurring setup. Return to your bookings and try again."
+          onRetry={handleSkip}
+        />
+      </View>
+    );
   }
 
   if (!canPreview) {

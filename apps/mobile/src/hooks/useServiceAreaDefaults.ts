@@ -47,14 +47,26 @@ export function useServiceAreaDefaults(): {
   defaultArea: ServiceArea | null;
   defaultRegion: MapRegion;
   isLoading: boolean;
+  isError: boolean;
+  refetch: () => void;
 } {
-  const { data, isLoading } = useQuery({
+  const query = useQuery({
     queryKey: ['serviceAreas'],
     queryFn: getActiveServiceAreas,
     staleTime: 30 * 60 * 1000,
   });
+  const { data, isLoading, isError } = query;
   const areas = data ?? [];
   const defaultArea = areas.find((a) => a.isDefault) ?? areas[0] ?? null;
   const defaultRegion = defaultArea ? regionForArea(defaultArea) : FALLBACK_REGION;
-  return { areas, defaultArea, defaultRegion, isLoading };
+  return {
+    areas,
+    defaultArea,
+    defaultRegion,
+    isLoading,
+    isError,
+    refetch: () => {
+      void query.refetch();
+    },
+  };
 }

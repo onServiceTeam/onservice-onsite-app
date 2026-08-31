@@ -1,9 +1,7 @@
 // B2 — checkout validation no longer uses blocking modal alerts.
 //
-// Reachable validation path: a payment method IS selected (Pay button enabled)
-// but the booking draft is incomplete (its fields live on earlier steps, so
-// there's nothing to highlight on this screen) -> a single summary TOAST, not
-// Alert.alert. Real render test (jsdom + RTL) that drives the actual button.
+// A partially completed draft is rejected before payment controls render. The
+// recovery is inline and never falls back to a blocking Alert.alert modal.
 
 import React from 'react';
 import { render, waitFor, act } from '@testing-library/react';
@@ -45,31 +43,13 @@ beforeEach(() => {
 });
 
 describe('B2 — checkout uses inline/toast validation, not modal alerts', () => {
-  it('shows a summary toast (not Alert.alert) when the booking draft is incomplete', async () => {
-    // Select a method so the Pay button is enabled; leave the draft incomplete.
-    act(() => {
-    useBookingStore.getState().setPaymentMethod('wallet');
-    });
-
+  it('shows inline recovery without Alert.alert when the booking draft is incomplete', async () => {
     const { container } = renderCheckout();
-
-    // Target the Pay CTA specifically by its aria-label (= Button title,
-    // "Pay ₱..."). The method cards say "Pay with GCash" and have no
-    // aria-label, so query by the labelled button to avoid hitting a card.
-    const payBtn = await waitFor(() => {
-      const button = container.querySelector('button[aria-label^="Pay"]') as HTMLButtonElement | null;
-      expect(button).toBeTruthy();
-      expect(button!.disabled).toBe(false);
-      return button!;
-    });
-
-    act(() => {
-      payBtn!.click();
-    });
 
     await waitFor(() => {
       expect(container.textContent).toContain('Booking details are incomplete');
     });
+    expect(container.querySelector('button[aria-label^="Pay"]')).toBeNull();
     // The whole point of B2: no blocking modal alert for this validation.
     expect(Alert.alert).not.toHaveBeenCalled();
   });

@@ -190,6 +190,26 @@ export default function QuotesScreen(): React.ReactElement {
     setPendingDecision({ type: 'decline', quoteId });
   };
 
+  if (!bookingId) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back from quote comparison">
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Compare Quotes</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <EmptyState
+          title="Quote request unavailable"
+          description="Open quote comparison from a customer booking so provider quotes stay attached to the correct work request."
+          actionLabel="View bookings"
+          onAction={() => router.replace(Routes.TABS.BOOKINGS)}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>

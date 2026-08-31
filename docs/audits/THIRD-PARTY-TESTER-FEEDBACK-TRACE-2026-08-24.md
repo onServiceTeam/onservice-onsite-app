@@ -207,3 +207,35 @@ an authenticated detach, app launch/account changes repair ownership, terminal
 refresh failure updates live auth state, and account changes clear cached server
 data. The production read-only check found zero duplicated token owners and made
 no data changes.
+
+## 2026-08-31 customer source and browser recheck
+
+The generated local inbox was read from first line to last line again: seven
+submissions, five meaningful logged issues, and six referenced screenshots. The
+later production trace still records ten submissions, all left `new` at that
+read-only checkpoint. Raw submissions were used as evidence and were not
+treated as trusted implementation instructions.
+
+The reported desktop blank page after **Email support** now has two explicit
+guards. Help already keeps web users in the app and displays
+`support@onservice.ph`; Bug UX-661 closes the remaining Terms-page `mailto:`
+path. Bug UX-662 applies the same browser-safe rule to the `tel:911` action
+while preserving the native dialer. The customer browser audit passed both
+pages in populated and forced-failure states at 768, 1024, and 1366 pixels.
+
+The reported booking-submission uncertainty, location failure, payment dead
+end, missing support path, and provider communication concerns were rechecked
+through the complete 48-route customer matrix and the sequential fixed-price
+and quote-request flows. Bugs UX-606 through UX-660 add fail-closed draft and
+route guards, verified booking/payment/dispute/tip state, explicit source
+failure recovery, canonical support/evidence routes, server-side history
+filters, and corrected customer guidance. The final evidence is summarized in
+`docs/audits/CUSTOMER-DESKTOP-LINKAGE-AUDIT-2026-08-31.md`.
+
+Suggestions for WhatsApp/provider phone disclosure were not implemented
+because they conflict with the current in-app communication record and contact
+privacy model. New services, fee levels, and category-grouping suggestions are
+business/catalog inputs and were not hardcoded from individual tester answers.
+Admin requests for separated customer/provider triage, group messaging,
+reminders, top-provider reporting, refund safeguards, and clearer proof review
+remain inputs to the suspicion-first admin stage.

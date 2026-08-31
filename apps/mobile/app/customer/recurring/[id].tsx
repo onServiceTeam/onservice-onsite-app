@@ -166,6 +166,18 @@ export default function RecurringDetailScreen(): React.ReactElement {
     setPendingScheduleAction('skip');
   }, [recurring]);
 
+  if (!id) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          title="Recurring booking unavailable"
+          message="This link does not identify a recurring booking. Return to your recurring services and open it again."
+          onRetry={() => router.back()}
+        />
+      </View>
+    );
+  }
+
   if (isLoading || !recurring) {
     if (isError) {
       return (

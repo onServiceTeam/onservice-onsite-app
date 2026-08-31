@@ -17,12 +17,13 @@ import { useBookingStore } from '@/stores/booking.store';
 import { getCategories, getActivePromotions, type Category, type Promotion } from '@/services/catalog.service';
 import { getActiveBookings, getRecentBookings } from '@/services/booking.service';
 // Phase K MED-K09 fix — fetch saved addresses so the home header
-// can display the customer's selected location instead of the
+// can display the customer's default saved address instead of the
 // generic "Select your address" placeholder. Pre-fix the user could
 // have a default Home address saved but the header said nothing
 // about it; now the header shows label + city of the default
-// address (or first address if none marked default), and tapping
-// it goes to the address picker as before.
+// address (or first address if none marked default). This is account address
+// management, not a booking-location selector; service selection resets the
+// booking draft and the exact service location is chosen in the booking flow.
 import { getAddresses, type SavedAddress } from '@/services/address.service';
 import api from '@/services/api';
 // A7 — shared UI kit for the top-level loading + error states.
@@ -176,7 +177,11 @@ export default function HomeScreen(): React.ReactElement {
   const isRefreshing =
     categoriesQuery.isRefetching ||
     activeBookingsQuery.isRefetching ||
-    recentBookingsQuery.isRefetching;
+    recentBookingsQuery.isRefetching ||
+    promosQuery.isRefetching ||
+    sukiQuery.isRefetching ||
+    unreadQuery.isRefetching ||
+    addressesQuery.isRefetching;
 
   const onRefresh = useCallback(() => {
     void categoriesQuery.refetch();
@@ -185,7 +190,8 @@ export default function HomeScreen(): React.ReactElement {
     void promosQuery.refetch();
     void sukiQuery.refetch();
     void unreadQuery.refetch();
-  }, [categoriesQuery, activeBookingsQuery, recentBookingsQuery, promosQuery, sukiQuery, unreadQuery]);
+    void addressesQuery.refetch();
+  }, [categoriesQuery, activeBookingsQuery, recentBookingsQuery, promosQuery, sukiQuery, unreadQuery, addressesQuery]);
 
   const handleCategoryPress = (cat: Category): void => {
     setCategory(cat.id, cat.name, cat.slug);
@@ -218,23 +224,27 @@ export default function HomeScreen(): React.ReactElement {
 
         <TouchableOpacity
           style={styles.locationSelector}
-          onPress={() => router.push(Routes.CUSTOMER.ADDRESS_PICKER)}
+          onPress={() => router.push(Routes.CUSTOMER.ADDRESSES)}
           accessibilityLabel={
-            headerAddress
-              ? `Current location: ${headerAddress.label} in ${headerAddress.city}. Tap to change.`
-              : 'No location selected. Tap to add an address.'
+            addressesQuery.isError
+              ? 'Saved addresses unavailable. Open address management to retry.'
+              : headerAddress
+                ? `Default address: ${headerAddress.label} in ${headerAddress.city}. Tap to manage addresses.`
+                : 'No default address saved. Tap to add an address.'
           }
           accessibilityRole="button"
         >
-          <Text style={styles.locationLabel}>Current Location</Text>
+          <Text style={styles.locationLabel}>Default Address</Text>
           <View style={styles.locationValueRow}>
             {/* Phase K MED-K09 fix — show selected location instead
                  of generic placeholder. Phase 200 — the dropdown affordance
                  is now a ChevronDown icon, not a ▾ glyph appended to the text. */}
             <Text style={styles.locationValue} numberOfLines={1}>
-              {headerAddress
-                ? `${headerAddress.label} · ${headerAddress.city}`
-                : 'Select your address'}
+              {addressesQuery.isError
+                ? 'Address unavailable'
+                : headerAddress
+                  ? `${headerAddress.label} · ${headerAddress.city}`
+                  : 'Add an address'}
             </Text>
             <ChevronDown size={14} color={colors.text} />
           </View>
@@ -459,7 +469,7 @@ export default function HomeScreen(): React.ReactElement {
                   <Text style={styles.sukiDiscount}>{item.discount}% off</Text>
                 )}
                 <View style={styles.sukiBookBtn}>
-                  <Text style={styles.sukiBookText}>Book</Text>
+                  <Text style={styles.sukiBookText}>View services</Text>
                 </View>
               </TouchableOpacity>
             )}
@@ -553,7 +563,7 @@ export default function HomeScreen(): React.ReactElement {
       </View>
 
       {/* Empty state for new users */}
-      {activeBookings.length === 0 && recentBookings.length === 0 && (
+      {!activeBookingsError && !recentBookingsError && activeBookings.length === 0 && recentBookings.length === 0 && (
         <View style={styles.emptyState}>
           <View style={styles.emptyIconWrap}><HomeIcon size={48} color={colors.textSecondary} /></View>
           <Text style={styles.emptyTitle}>Book your first service!</Text>

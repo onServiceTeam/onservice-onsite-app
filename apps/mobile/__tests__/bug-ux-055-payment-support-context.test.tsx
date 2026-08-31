@@ -11,16 +11,16 @@ jest.mock('expo-router', () => ({
   }),
 }));
 jest.mock('@/services/booking.service', () => ({
-  getBookingById: jest.fn().mockResolvedValue({ createdAt: new Date().toISOString() }),
+  getBookingById: jest.fn().mockResolvedValue({ status: 'payment_pending', createdAt: new Date().toISOString() }),
 }));
 
 import PaymentFailedScreen from '../app/customer/booking/payment-failed';
 
-it('Bug UX-055 — payment failure opens a prefilled support case linked to the affected booking', () => {
+it('Bug UX-055 — payment failure opens a prefilled support case linked to the affected booking', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><PaymentFailedScreen /></QueryClientProvider>);
 
-  fireEvent.click(screen.getByRole('button', { name: 'Contact support about payment failure' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Contact support about payment failure' }));
 
   expect(mockPush).toHaveBeenCalledWith({
     pathname: '/support/new',
