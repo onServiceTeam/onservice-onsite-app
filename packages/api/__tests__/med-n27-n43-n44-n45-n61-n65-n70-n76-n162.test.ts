@@ -64,20 +64,6 @@ beforeEach(() => {
 });
 
 describe('MED-N27 — handleCancellation wraps trx-aware variant in single transaction', () => {
-  it('MED-N27 — legacy handleCancellation now delegates to handleCancellationInTransaction', () => {
-    // Source-shape check: the legacy entry calls
-    // db.transaction((client) => handleCancellationInTransaction(...))
-    // somewhere in its body. BUG-PHASE78-01 — pre-fix this test
-    // demanded `db.transaction` come immediately after the opener
-    // (`{\s*\n\s*return db.transaction`). BUG-PHASE26-01 (Phase 26)
-    // introduced a `db.query SELECT service_fee` BEFORE the trx so
-    // the post-commit PayMongo refund knows the total. The MED-N27
-    // intent (single trx for the wallet movements) still holds —
-    // it's just no longer the FIRST line. Relaxed to "somewhere in
-    // the function" but still anchored to the function declaration.
-    expect(ESCROW_SVC).toMatch(/export async function handleCancellation\([\s\S]*?\): Promise<commissionService\.CancellationRefund> \{[\s\S]*?const refund = await db\.transaction\(\(client\) =>\s*\n\s*handleCancellationInTransaction\(/);
-  });
-
   it('MED-N27 — old multi-trx body removed (no second db.transaction(async (client) => after the wrapper)', () => {
     // Slice the function from `export async function handleCancellation(`
     // to the next `export ` to be sure we're checking inside the function.

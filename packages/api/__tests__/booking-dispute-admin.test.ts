@@ -68,6 +68,12 @@ jest.mock('../src/services/socket.service', () => ({
   emitToUser: jest.fn(),
 }));
 
+const appendProviderAssignmentTermsMock = jest.fn();
+jest.mock('../src/services/booking-financial-terms.service', () => ({
+  appendProviderAssignmentTermsInTransaction: (...args: unknown[]) =>
+    appendProviderAssignmentTermsMock(...args),
+}));
+
 import * as bookingSvc from '../src/services/booking-admin.service';
 import * as disputeAdminSvc from '../src/services/dispute-admin.service';
 import * as escrowService from '../src/services/escrow.service';
@@ -127,6 +133,8 @@ beforeEach(() => {
   createPushNotificationMock.mockReset();
   createPushNotificationMock.mockResolvedValue({ id: 'notification-1' });
   emitAdminEventMock.mockReset();
+  appendProviderAssignmentTermsMock.mockReset();
+  appendProviderAssignmentTermsMock.mockResolvedValue(null);
 });
 
 // ─── booking-admin: getBookingDetail ────────────────────────────────────────
@@ -578,6 +586,15 @@ describe('reassignBookingProvider', () => {
     expect(calls.find((c) => /UPDATE booking_offers/.test(c.sql))).toBeDefined();
     const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
     expect(insert?.sql).toContain("'booking_reassigned'");
+    expect(appendProviderAssignmentTermsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        bookingId: BOOKING_ID,
+        providerId: PROVIDER_ID,
+        event: 'provider_reassigned',
+        sourceEventId: 'aa-ras',
+      }),
+    );
     expect(createPushNotificationMock).toHaveBeenCalledTimes(3);
     expect(emitAdminEventMock).toHaveBeenCalledWith('booking:provider_assigned', {
       id: BOOKING_ID,

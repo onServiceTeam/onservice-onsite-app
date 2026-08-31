@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { useAuthStore } from '@/stores/auth.store';
+import { CommissionControlsPanel } from '@/components/financials/CommissionControlsPanel';
+import { LegacyFinancialReviewPanel } from '@/components/financials/LegacyFinancialReviewPanel';
 import {
   Badge,
   Button,
@@ -33,6 +35,8 @@ type TabKey =
   | 'overview'
   | 'escrow'
   | 'payments'
+  | 'legacy'
+  | 'commission'
   | 'payouts'
   | 'guarantee'
   | 'reconciliation'
@@ -48,6 +52,8 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'escrow', label: 'Escrow' },
   { key: 'payments', label: 'Payments & Refunds' },
+  { key: 'legacy', label: 'Legacy Review' },
+  { key: 'commission', label: 'Commission Controls' },
   { key: 'payouts', label: 'Payouts' },
   { key: 'guarantee', label: 'Guarantee Fund' },
   { key: 'reconciliation', label: 'Reconciliation' },
@@ -2021,7 +2027,7 @@ export default function FinancialsPage(): React.ReactElement {
       <div
         role="tablist"
         aria-label="Financials sections"
-        className="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 md:grid-cols-4 2xl:grid-cols-8"
+        className="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-10"
       >
         {TABS.map((t) => {
           const active = tab === t.key;
@@ -2047,6 +2053,8 @@ export default function FinancialsPage(): React.ReactElement {
       {tab === 'overview' && <OverviewPanel />}
       {tab === 'escrow' && <EscrowPanel />}
       {tab === 'payments' && <PaymentsPanel />}
+      {tab === 'legacy' && <LegacyFinancialReviewPanel />}
+      {tab === 'commission' && <CommissionControlsPanel />}
       {tab === 'payouts' && <PayoutsPanel />}
       {tab === 'guarantee' && <GuaranteeFundPanel />}
       {tab === 'reconciliation' && <ReconciliationPanel isSuperAdmin={isSuperAdmin} />}

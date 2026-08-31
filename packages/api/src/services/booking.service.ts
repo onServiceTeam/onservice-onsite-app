@@ -13,6 +13,8 @@ import * as businessService from './business.service';
 import * as serviceAreaService from './service-area.service';
 import * as settingsService from './settings.service';
 import { formatPHP } from '../utils/currency';
+import * as financialTermsService from './booking-financial-terms.service';
+import * as escrowService from './escrow.service';
 
 interface BookingRow {
   id: string;
@@ -1514,20 +1516,21 @@ export async function respondToChangeOrder(
   customerId: string,
   approved: boolean,
 ): Promise<Record<string, unknown>> {
-  const coResult = await db.query<ChangeOrderRow>(
-    `SELECT co.* FROM change_orders co
-     JOIN bookings b ON b.id = co.booking_id
-     WHERE co.id = $1 AND b.customer_id = $2 AND co.status = 'pending'`,
-    [changeOrderId, customerId],
-  );
-  if (coResult.rows.length === 0) {
-    throw createAppError('Change order not found or already resolved.', 404);
-  }
-
-  const co = coResult.rows[0]!;
   const newStatus = approved ? 'approved' : 'declined';
 
-  await db.transaction(async (client) => {
+  return db.transaction(async (client) => {
+    const coResult = await client.query<ChangeOrderRow>(
+      `SELECT co.* FROM change_orders co
+       JOIN bookings b ON b.id = co.booking_id
+       WHERE co.id = $1 AND b.customer_id = $2 AND co.status = 'pending'
+       FOR UPDATE OF co, b`,
+      [changeOrderId, customerId],
+    );
+    if (coResult.rows.length === 0) {
+      throw createAppError('Change order not found or already resolved.', 404);
+    }
+    const co = coResult.rows[0]!;
+
     const updateResult = await client.query(
       `UPDATE change_orders SET status = $2, customer_responded_at = NOW(), updated_at = NOW()
        WHERE id = $1 AND status = 'pending' RETURNING id`,
@@ -1539,19 +1542,19 @@ export async function respondToChangeOrder(
 
     if (!approved) {
       logger.info('Change order declined', { changeOrderId });
+      return { id: changeOrderId, status: newStatus, paymentRequired: false };
     }
-  });
 
-  if (approved) {
-    const bookingResult = await db.query<{ service_price: number; service_fee: number; total_amount: number }>(
-      `SELECT service_price, service_fee, total_amount FROM bookings WHERE id = $1`,
+    const bookingResult = await client.query<{ service_price: number; service_fee: number; total_amount: number }>(
+      `SELECT service_price, service_fee, total_amount FROM bookings WHERE id = $1 FOR UPDATE`,
       [co.booking_id],
     );
     const current = bookingResult.rows[0];
     if (!current) throw createAppError('Booking not found.', 404);
 
+    const terms = await financialTermsService.getLatestFinalTermsInTransaction(client, co.booking_id);
     const newServicePrice = current.service_price + co.additional_amount;
-    const newServiceFee = await calculateServiceFee(newServicePrice);
+    const newServiceFee = financialTermsService.calculateServiceFeeFromTerms(newServicePrice, terms);
     const newTotalAmount = newServicePrice + newServiceFee;
     const additionalTotal = newTotalAmount - current.total_amount;
     const additionalServiceFee = additionalTotal - co.additional_amount;
@@ -1572,9 +1575,7 @@ export async function respondToChangeOrder(
       additionalServiceFee,
       additionalTotal,
     };
-  }
-
-  return { id: changeOrderId, status: newStatus, paymentRequired: false };
+  });
 }
 
 /**
@@ -1755,8 +1756,9 @@ export async function finalizeChangeOrderPayment(
       );
     }
 
+    const currentTerms = await financialTermsService.getLatestFinalTermsInTransaction(client, co.booking_id);
     const newServicePrice = current.service_price + co.additional_amount;
-    const newServiceFee = await calculateServiceFee(newServicePrice);
+    const newServiceFee = financialTermsService.calculateServiceFeeFromTerms(newServicePrice, currentTerms);
     const newTotalAmount = newServicePrice + newServiceFee;
     const additionalTotal = newTotalAmount - current.total_amount;
 
@@ -1848,6 +1850,26 @@ export async function finalizeChangeOrderPayment(
       [co.booking_id, newServicePrice, newServiceFee, newTotalAmount],
     );
 
+    // E50: an authorized change order appends a new immutable terms version
+    // using the booking's original commission and fee agreement. The added
+    // escrow hold is part of this same transaction, so price, customer debit,
+    // financial evidence, and held funds cannot diverge.
+    await financialTermsService.appendAmendedTermsInTransaction(
+      client,
+      {
+        bookingId: co.booking_id,
+        event: 'change_order_authorized',
+        sourceEventId: changeOrderId,
+        createdBy: customerId,
+        metadata: {
+          paymentKind: paymentProof.kind,
+          additionalServiceAmountCentavos: co.additional_amount,
+          additionalTotalCentavos: additionalTotal,
+        },
+      },
+    );
+    await escrowService.holdInEscrowInTransaction(client, co.booking_id, additionalTotal);
+
     logger.info('Change order payment finalized — booking amounts updated', {
       changeOrderId,
       bookingId: co.booking_id,
@@ -1921,18 +1943,27 @@ export async function getChangeOrders(bookingId: string): Promise<Record<string,
     [bookingId],
   );
   const baseline = bookingRow.rows[0];
+  const latestTerms = baseline ? await financialTermsService.getLatestTermsOrNull(bookingId) : null;
+  const terms = latestTerms?.termsState === 'final' ? latestTerms : null;
+  const financialTermsReviewRequired = baseline !== undefined && terms === null;
 
   return Promise.all(
     result.rows.map(async (co) => {
       let additionalServiceFee: number | null = null;
       let additionalTotal: number | null = null;
-      if (baseline) {
+      if (baseline && terms) {
         const newServicePrice = baseline.service_price + co.additional_amount;
-        const newServiceFee = await calculateServiceFee(newServicePrice);
+        const newServiceFee = financialTermsService.calculateServiceFeeFromTerms(newServicePrice, terms);
         additionalTotal = (newServicePrice + newServiceFee) - baseline.total_amount;
         additionalServiceFee = additionalTotal - co.additional_amount;
       }
-      return formatChangeOrder(co, additionalServiceFee, additionalTotal, lineItemsMap[co.id] ?? []);
+      return formatChangeOrder(
+        co,
+        additionalServiceFee,
+        additionalTotal,
+        lineItemsMap[co.id] ?? [],
+        financialTermsReviewRequired,
+      );
     }),
   );
 }
@@ -1942,6 +1973,7 @@ function formatChangeOrder(
   additionalServiceFee: number | null = null,
   additionalTotal: number | null = null,
   lineItems: Record<string, unknown>[] = [],
+  financialTermsReviewRequired = false,
 ): Record<string, unknown> {
   return {
     id: co.id,
@@ -1951,6 +1983,7 @@ function formatChangeOrder(
     additionalAmount: co.additional_amount,
     additionalServiceFee,
     additionalTotal,
+    financialTermsReviewRequired,
     lineItems,
     photos: co.photos ?? [],
     status: co.status,

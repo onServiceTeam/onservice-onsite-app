@@ -1,7 +1,7 @@
 # E50 — Commission settings can retroactively change unsettled bookings
 
 **Date:** 2026-09-01
-**Status:** HARD STOP — money-path and production-data migration decision
+**Status:** OPTION A APPROVED BY KEN; implementation checkpoint is on a money-path topic branch and production remains blocked pending legacy review
 **Scope:** System Settings, booking financial terms, escrow release, partial dispute settlement, provider-specific commission controls
 
 ## Bad news
@@ -153,3 +153,25 @@ recalculation at release.
 Per AGENTS.md, this finding is both a money risk and a production-data
 migration decision. Implementation and production synchronization must pause
 until the model and legacy-booking treatment are approved.
+
+## Decision and implementation update — 2026-09-01
+
+Ken approved Option A and authorized the recommended future-safe design.
+
+The `codex/system-settings-control-fix` topic branch now contains the additive
+schema, effective-dated tier/provider agreement controls, immutable booking
+financial terms, snapshot-based escrow/release/cancellation paths, fail-closed
+legacy handling, and a super-admin legacy financial review queue. The queue
+requires cited evidence and an exact reproduction of the recorded service fee;
+it does not blindly infer historical terms from today's settings or tier.
+
+The branch has passed the complete API, admin, and mobile executable suites,
+all typechecks, lint, API/admin production builds, Gate A, Gate C, and the Gate C
+smoke tests. Gates D and E are still repository-defined REPORT gates. The one
+Docker-only nginx check could not run because Docker Desktop was unavailable.
+
+This approval does not authorize a blind production backfill. Production
+deployment remains blocked until all paid/held/unreleased legacy bookings can
+be inventoried and reviewed, and until pre-payment pricing evidence is fixed at
+the authoritative pricing boundary so a configuration change between quote
+and payment cannot alter the agreed inputs.

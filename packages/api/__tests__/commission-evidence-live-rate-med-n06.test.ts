@@ -10,7 +10,7 @@ jest.mock('../src/utils/logger', () => ({
 import { getCommissionEvidence } from '../src/services/admin-analytics.service';
 import { platformConfig } from '../src/config/platform.config';
 
-it('MED-N06 — commission evidence reads every current tier rate from platform settings in one aggregate query', async () => {
+it('MED-N06 — commission evidence reads every current tier rate in one aggregate query', async () => {
   const tiers = Object.keys(platformConfig.commissionRates);
   dbQueryMock.mockResolvedValueOnce({
     rows: tiers.map((tier) => ({
@@ -26,12 +26,8 @@ it('MED-N06 — commission evidence reads every current tier rate from platform 
   const evidence = await getCommissionEvidence();
 
   expect(dbQueryMock).toHaveBeenCalledTimes(1);
-  expect(dbQueryMock.mock.calls[0]?.[0]).toContain('platform_settings');
-  expect(dbQueryMock.mock.calls[0]?.[1]).toEqual([
-    tiers,
-    tiers.map((tier) => platformConfig.commissionRates[tier]),
-    tiers.map((tier) => `commission_rate_${tier}`),
-  ]);
+  expect(dbQueryMock.mock.calls[0]?.[0]).toContain('commission_rate_versions');
+  expect(dbQueryMock.mock.calls[0]?.[1]).toEqual([tiers]);
   expect(evidence).toHaveLength(tiers.length);
   expect(evidence.every((row) => row.currentRate === 0.12)).toBe(true);
 });

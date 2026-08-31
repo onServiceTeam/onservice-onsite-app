@@ -3,6 +3,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as uploadService from './upload.service';
 import * as settingsService from './settings.service';
+import { getProviderTierCommissionOverview } from './booking-financial-terms.service';
 
 interface ProviderRow {
   id: string;
@@ -1107,29 +1108,26 @@ function tierFacts(tier: ProviderTier, commission: number): string[] {
     return [
       'Invite-only status assigned by a super-admin',
       'Parallel to the New to Elite progression ladder',
-      `Live commission rate: ${commission}%`,
+      `Current base commission rate: ${commission}%`,
     ];
   }
 
   const label = tier.charAt(0).toUpperCase() + tier.slice(1);
   return [
     `${label} status is displayed on your provider profile`,
-    `Live commission rate: ${commission}%`,
+    `Current base commission rate: ${commission}%`,
     tier === 'new'
       ? 'Starting point for admin-reviewed progression'
       : 'Tier contributes to the provider-matching score',
   ];
 }
 
-async function resolveTierLadder(): Promise<TierRequirement[]> {
-  const commissions = await Promise.all(
-    TIER_DEFINITIONS.map(async ({ tier }) => percentageFromDecimal(
-      await settingsService.getCommissionRate(tier),
-    )),
-  );
-
-  return TIER_DEFINITIONS.map((definition, index) => {
-    const commission = commissions[index]!;
+function resolveTierLadder(commissionsByTier: ReadonlyMap<string, number>): TierRequirement[] {
+  return TIER_DEFINITIONS.map((definition) => {
+    const commission = commissionsByTier.get(definition.tier);
+    if (commission === undefined) {
+      throw createAppError(`Provider tier "${definition.tier}" has no effective base commission agreement.`, 409);
+    }
     return {
       ...definition,
       commission,
@@ -1141,6 +1139,8 @@ async function resolveTierLadder(): Promise<TierRequirement[]> {
 export interface TierProgressionData {
   currentTier: ProviderTier;
   currentCommission: number;
+  currentCommissionSource: 'tier_default' | 'provider_contract';
+  currentCommissionRateVersionId: string;
   progressionTrack: 'founding' | 'standard';
   promotionMode: 'admin_review';
   nextTier: TierRequirement | null;
@@ -1161,7 +1161,7 @@ export interface TierProgressionData {
 }
 
 export async function getTierProgression(providerId: string): Promise<TierProgressionData> {
-  const [provider, certResult, disputeResult, tierLadder] = await Promise.all([
+  const [provider, certResult, disputeResult, commissionOverview] = await Promise.all([
     db.query<{ tier: ProviderTier; completed_jobs: number; rating: string | null }>(
       `SELECT p.tier, p.rating,
               COUNT(b.id) FILTER (
@@ -1190,11 +1190,17 @@ export async function getTierProgression(providerId: string): Promise<TierProgre
           AND d.status <> 'resolved'`,
       [providerId],
     ),
-    resolveTierLadder(),
+    getProviderTierCommissionOverview(providerId, TIER_DEFINITIONS.map(({ tier }) => tier)),
   ]);
   if (!provider.rows[0]) throw createAppError('Provider not found.', 404);
 
   const row = provider.rows[0];
+  const tierLadder = resolveTierLadder(new Map(
+    commissionOverview.tierBaseRates.map((rate) => [
+      rate.tier,
+      percentageFromDecimal(rate.commissionRate),
+    ]),
+  ));
   const currentTier = tierLadder.find((tier) => tier.tier === row.tier);
   if (!currentTier) throw createAppError('Provider tier is invalid.', 500);
   const progressionTiers = tierLadder.filter((tier) => STANDARD_TIER_NAMES.includes(tier.tier));
@@ -1220,7 +1226,12 @@ export async function getTierProgression(providerId: string): Promise<TierProgre
 
   return {
     currentTier: row.tier,
-    currentCommission: currentTier.commission,
+    currentCommission: percentageFromDecimal(
+      commissionOverview.currentProviderAgreement.commissionRate,
+    ),
+    currentCommissionSource: commissionOverview.currentProviderAgreement.commissionSource,
+    currentCommissionRateVersionId:
+      commissionOverview.currentProviderAgreement.commissionRateVersionId,
     progressionTrack: row.tier === 'founding' ? 'founding' : 'standard',
     promotionMode: 'admin_review',
     nextTier,

@@ -4,9 +4,9 @@ import { logger } from '../utils/logger';
 import * as walletService from './wallet.service';
 import * as commissionService from './commission.service';
 import * as paymentService from './payment.service';
-import * as settingsService from './settings.service';
 import * as orService from './or.service';
 import { computeHourlySettlement } from './booking/pricing.service';
+import * as financialTermsService from './booking-financial-terms.service';
 
 interface BookingAmountRow {
   id: string;
@@ -74,6 +74,193 @@ export async function holdInEscrowInTransaction(
   logger.info('Escrow hold created (in-trx)', { bookingId, amount });
 }
 
+interface ReleaseAllocation {
+  servicePrice: number;
+  serviceFee: number;
+  totalAmount: number;
+  commissionRate: number;
+  commissionAmount: number;
+  serviceFeeRate: number;
+  guaranteeFundContribution: number;
+  providerReceives: number;
+  platformRetains: number;
+}
+
+async function resolveReleaseWallets(
+  client: PgClient,
+  providerId: string,
+): Promise<{
+  escrowWalletId: string;
+  revenueWalletId: string;
+  guaranteeWalletId: string;
+  providerWalletId: string;
+}> {
+  const provider = await client.query<{ user_id: string }>(
+    `SELECT user_id FROM providers WHERE id = $1`,
+    [providerId],
+  );
+  const providerUserId = provider.rows[0]?.user_id;
+  if (!providerUserId) throw createAppError('Provider not found.', 404);
+
+  const platform = await client.query<{ id: string; type: string }>(
+    `SELECT id, type
+       FROM wallets
+      WHERE user_id IS NULL
+        AND type = ANY($1::text[])`,
+    [['platform_escrow', 'platform_revenue', 'guarantee_fund']],
+  );
+  const byType = new Map(platform.rows.map((wallet) => [wallet.type, wallet.id]));
+  const escrowWalletId = byType.get('platform_escrow');
+  const revenueWalletId = byType.get('platform_revenue');
+  const guaranteeWalletId = byType.get('guarantee_fund');
+  if (!escrowWalletId || !revenueWalletId || !guaranteeWalletId) {
+    throw createAppError('Required platform wallets are not configured.', 500);
+  }
+
+  const providerWallet = await walletService.getUserWalletInTransaction(
+    client,
+    providerUserId,
+    'provider',
+  );
+  return {
+    escrowWalletId,
+    revenueWalletId,
+    guaranteeWalletId,
+    providerWalletId: providerWallet.id,
+  };
+}
+
+async function resolvePlatformWalletsInTransaction(
+  client: PgClient,
+  types: Array<'platform_escrow' | 'platform_revenue' | 'guarantee_fund'>,
+): Promise<Map<string, string>> {
+  const result = await client.query<{ id: string; type: string }>(
+    `SELECT id, type
+       FROM wallets
+      WHERE user_id IS NULL
+        AND type = ANY($1::text[])`,
+    [types],
+  );
+  const byType = new Map(result.rows.map((wallet) => [wallet.type, wallet.id]));
+  for (const type of types) {
+    if (!byType.has(type)) {
+      throw createAppError(`Platform wallet "${type}" is not configured.`, 500);
+    }
+  }
+  return byType;
+}
+
+async function writeReleaseMovements(
+  client: PgClient,
+  input: {
+    bookingId: string;
+    expectedEscrowStatus: 'held' | 'partially_refunded';
+    allocation: ReleaseAllocation;
+    providerDescription: string;
+    platformDescription: string;
+    guaranteeDescription: string;
+  },
+  wallets: Awaited<ReturnType<typeof resolveReleaseWallets>>,
+): Promise<void> {
+  const { allocation } = input;
+  const totalOut = allocation.providerReceives
+    + allocation.platformRetains
+    + allocation.guaranteeFundContribution;
+  if (totalOut !== allocation.totalAmount) {
+    throw createAppError('Snapshotted release allocation does not conserve money.', 500);
+  }
+
+  const escrowGuard = await client.query(
+    `UPDATE bookings SET escrow_status = 'released', updated_at = NOW()
+     WHERE id = $1 AND escrow_status = $2 RETURNING id`,
+    [input.bookingId, input.expectedEscrowStatus],
+  );
+  if ((escrowGuard.rowCount ?? 0) === 0) {
+    throw createAppError(
+      `Escrow is not in the expected ${input.expectedEscrowStatus} state for this booking.`,
+      409,
+    );
+  }
+
+  await walletService.lockWalletsForUpdate(client, [
+    wallets.escrowWalletId,
+    wallets.providerWalletId,
+    wallets.revenueWalletId,
+    wallets.guaranteeWalletId,
+  ]);
+  const escrowBalance = await client.query<{ pending_balance: string }>(
+    `SELECT pending_balance::text AS pending_balance FROM wallets WHERE id = $1`,
+    [wallets.escrowWalletId],
+  );
+  if (Number(escrowBalance.rows[0]?.pending_balance ?? 0) < allocation.totalAmount) {
+    throw createAppError('Insufficient held escrow for this booking release.', 409);
+  }
+
+  await client.query(
+    `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
+    [allocation.totalAmount, wallets.escrowWalletId],
+  );
+  await client.query(
+    `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+     VALUES ($1, $2, 'escrow_release', $3,
+             (SELECT pending_balance FROM wallets WHERE id = $1),
+             'Escrow release for booking')`,
+    [wallets.escrowWalletId, input.bookingId, -allocation.totalAmount],
+  );
+
+  if (allocation.providerReceives > 0) {
+    await client.query(
+      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+      [allocation.providerReceives, wallets.providerWalletId],
+    );
+    await client.query(
+      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+       VALUES ($1, $2, 'escrow_release', $3,
+               (SELECT available_balance FROM wallets WHERE id = $1), $4)`,
+      [wallets.providerWalletId, input.bookingId, allocation.providerReceives, input.providerDescription],
+    );
+  }
+
+  if (allocation.platformRetains > 0) {
+    await client.query(
+      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+      [allocation.platformRetains, wallets.revenueWalletId],
+    );
+    await client.query(
+      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+       VALUES ($1, $2, 'commission', $3,
+               (SELECT available_balance FROM wallets WHERE id = $1), $4)`,
+      [wallets.revenueWalletId, input.bookingId, allocation.platformRetains, input.platformDescription],
+    );
+  }
+
+  if (allocation.guaranteeFundContribution > 0) {
+    await client.query(
+      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
+      [allocation.guaranteeFundContribution, wallets.guaranteeWalletId],
+    );
+    await client.query(
+      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
+       VALUES ($1, $2, 'guarantee_contribution', $3,
+               (SELECT available_balance FROM wallets WHERE id = $1), $4)`,
+      [wallets.guaranteeWalletId, input.bookingId, allocation.guaranteeFundContribution, input.guaranteeDescription],
+    );
+  }
+}
+
+function breakdownFromAllocation(allocation: ReleaseAllocation): commissionService.CommissionBreakdown {
+  return {
+    servicePrice: allocation.servicePrice,
+    commissionRate: allocation.commissionRate,
+    commissionAmount: allocation.commissionAmount,
+    serviceFeeRate: allocation.serviceFeeRate,
+    serviceFeeAmount: allocation.serviceFee,
+    guaranteeFundContribution: allocation.guaranteeFundContribution,
+    providerReceives: allocation.providerReceives,
+    platformRetains: allocation.platformRetains,
+  };
+}
+
 /**
  * Release escrow after customer confirmation (FR-101).
  * 1. Deducts commission from service price
@@ -83,170 +270,7 @@ export async function holdInEscrowInTransaction(
  * 5. Reduces platform escrow pending balance
  */
 export async function releaseEscrow(bookingId: string): Promise<commissionService.CommissionBreakdown> {
-  const booking = await db.query<BookingAmountRow & { provider_suspended_during_booking_at: Date | null }>(
-    `SELECT b.id, b.customer_id, b.provider_id, b.service_price, b.service_fee, b.total_amount, b.status, b.scheduled_at,
-            b.provider_suspended_during_booking_at
-     FROM bookings b WHERE b.id = $1`,
-    [bookingId],
-  );
-
-  if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
-  const bk = booking.rows[0]!;
-
-  const releasableStatuses = new Set(['confirmed', 'paid', 'resolved']);
-  if (!releasableStatuses.has(bk.status)) {
-    throw createAppError(`Cannot release escrow — booking status is "${bk.status}".`, 409);
-  }
-
-  // MED-N73 fix: refuse to disburse to a provider who was suspended
-  // while this booking was in flight. Admin must explicitly resolve
-  // (manual refund or revoke suspension to clear the flag) before
-  // escrow can release.
-  if (bk.provider_suspended_during_booking_at != null) {
-    throw createAppError(
-      'Cannot release escrow — provider was suspended during this booking. Admin must resolve before disbursement.',
-      409,
-    );
-  }
-
-  if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
-
-  const servicePrice = Number(bk.service_price);
-  const serviceFee = Number(bk.service_fee);
-  const totalAmount = Number(bk.total_amount);
-  if (servicePrice <= 0) throw createAppError('Invalid booking amount.', 400);
-
-  // Phase B CRIT-03 fix — refuse to disburse on a corrupt booking row.
-  // Pre-fix this only logged the mismatch and proceeded with whatever
-  // numbers were stored, so a booking with total_amount=1500 and
-  // service_price+service_fee=1400 would release 1500 from escrow but
-  // distribute 1400 + 100-of-thin-air to provider/platform. The
-  // downstream MONEY CONSERVATION check at line 138 catches a
-  // different invariant (sum of distributions = total) but doesn't
-  // catch a corrupt input row whose totals are internally consistent.
-  // Throwing here forces an admin to investigate before any movement.
-  if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 2) {
-    logger.error('Booking amount mismatch — refusing escrow release', {
-      bookingId, servicePrice, serviceFee, totalAmount,
-      expected: servicePrice + serviceFee,
-    });
-    throw createAppError(
-      `Booking amount mismatch: total_amount=${totalAmount} but service_price+service_fee=${servicePrice + serviceFee}. Refusing release; admin must reconcile.`,
-      500,
-    );
-  }
-
-  const providerRow = await db.query<ProviderRow>(
-    `SELECT user_id, tier FROM providers WHERE id = $1`,
-    [bk.provider_id],
-  );
-  if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
-  const provider = providerRow.rows[0]!;
-
-  const commissionRate = await settingsService.getCommissionRate(provider.tier);
-  const commissionAmount = Math.round(servicePrice * commissionRate);
-  const guaranteeFundRate = await settingsService.getSettingPercent('guarantee_fund_rate');
-  const guaranteeFundContribution = Math.round(serviceFee * guaranteeFundRate);
-
-  const providerReceives = servicePrice - commissionAmount;
-  const platformRetains = commissionAmount + serviceFee - guaranteeFundContribution;
-
-  const totalOut = providerReceives + platformRetains + guaranteeFundContribution;
-  if (totalOut !== totalAmount) {
-    const diff = totalAmount - totalOut;
-    if (Math.abs(diff) <= 2) {
-      logger.debug('Rounding adjustment in escrow release', { bookingId, diff });
-    } else {
-      logger.error('MONEY CONSERVATION VIOLATION in escrow release', {
-        bookingId, servicePrice, serviceFee, totalAmount, totalOut, diff,
-        providerReceives, platformRetains, guaranteeFundContribution,
-      });
-      throw createAppError('Internal accounting error. Please contact support.', 500);
-    }
-  }
-
-  const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
-  const revenueWallet = await walletService.getPlatformWallet('platform_revenue');
-  const guaranteeWallet = await walletService.getPlatformWallet('guarantee_fund');
-  const providerWallet = await walletService.getUserWallet(provider.user_id, 'provider');
-
-  await db.transaction(async (client) => {
-    const escrowGuard = await client.query(
-      `UPDATE bookings SET escrow_status = 'released', updated_at = NOW()
-       WHERE id = $1 AND escrow_status = 'held' RETURNING id`,
-      [bookingId],
-    );
-    if ((escrowGuard.rowCount ?? 0) === 0) {
-      throw createAppError('Escrow already released or not held for this booking.', 409);
-    }
-
-    // A5 — lock every wallet this release touches, in id order, before any
-    // balance read/write so concurrent money transactions serialize instead
-    // of racing on balance_after. (Deadlock-free: single id-ordered lock.)
-    await walletService.lockWalletsForUpdate(client, [
-      escrowWallet.id, providerWallet.id, revenueWallet.id, guaranteeWallet.id,
-    ]);
-
-    await client.query(
-      `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-      [totalAmount, escrowWallet.id],
-    );
-    await client.query(
-      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-       VALUES ($1, $2, 'escrow_release', $3,
-               (SELECT pending_balance FROM wallets WHERE id = $1),
-               'Escrow release for booking')`,
-      [escrowWallet.id, bookingId, -totalAmount],
-    );
-
-    await client.query(
-      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-      [providerReceives, providerWallet.id],
-    );
-    await client.query(
-      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-       VALUES ($1, $2, 'escrow_release', $3,
-               (SELECT available_balance FROM wallets WHERE id = $1),
-               $4)`,
-      [providerWallet.id, bookingId, providerReceives,
-       `Payment for booking (${Math.round(commissionRate * 100)}% commission deducted)`],
-    );
-
-    await client.query(
-      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-      [platformRetains, revenueWallet.id],
-    );
-    await client.query(
-      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-       VALUES ($1, $2, 'commission', $3,
-               (SELECT available_balance FROM wallets WHERE id = $1),
-               'Commission + service fee from booking')`,
-      [revenueWallet.id, bookingId, platformRetains],
-    );
-
-    await client.query(
-      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-      [guaranteeFundContribution, guaranteeWallet.id],
-    );
-    await client.query(
-      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-       VALUES ($1, $2, 'guarantee_contribution', $3,
-               (SELECT available_balance FROM wallets WHERE id = $1),
-               'Guarantee fund contribution')`,
-      [guaranteeWallet.id, bookingId, guaranteeFundContribution],
-    );
-  });
-
-  const breakdown: commissionService.CommissionBreakdown = {
-    servicePrice,
-    commissionRate,
-    commissionAmount,
-    serviceFeeRate: await settingsService.getSettingPercent('service_fee_rate'),
-    serviceFeeAmount: serviceFee,
-    guaranteeFundContribution,
-    providerReceives,
-    platformRetains,
-  };
+  const breakdown = await db.transaction((client) => releaseEscrowInTransaction(client, bookingId));
 
   logger.info('Escrow released', { bookingId, breakdown });
 
@@ -255,10 +279,10 @@ export async function releaseEscrow(bookingId: string): Promise<commissionServic
   try {
     await orService.issueOR({
       bookingId,
-      commissionAmount,
-      serviceFeeAmount: serviceFee,
-      providerReceived: providerReceives,
-      platformRetained: platformRetains,
+      commissionAmount: breakdown.commissionAmount,
+      serviceFeeAmount: breakdown.serviceFeeAmount,
+      providerReceived: breakdown.providerReceives,
+      platformRetained: breakdown.platformRetains,
     });
   } catch (orErr) {
     logger.error('OR issuance failed after escrow release (audit-only side effect)', {
@@ -279,141 +303,65 @@ export async function releasePartialEscrow(
   bookingId: string,
   remainingAmount: number,
 ): Promise<commissionService.CommissionBreakdown> {
-  const booking = await db.query<BookingAmountRow>(
-    `SELECT b.id, b.customer_id, b.provider_id, b.service_price, b.service_fee, b.total_amount, b.status, b.scheduled_at
-     FROM bookings b WHERE b.id = $1`,
-    [bookingId],
-  );
-
-  if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
-  const bk = booking.rows[0]!;
-
-  if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
-  if (remainingAmount <= 0) throw createAppError('No remaining amount to release.', 400);
-
-  const totalAmount = Number(bk.total_amount);
-  if (totalAmount <= 0) throw createAppError('Booking total amount is zero — cannot calculate partial release.', 409);
-  const retentionFactor = remainingAmount / totalAmount;
-  const proportionalServicePrice = Math.round(Number(bk.service_price) * retentionFactor);
-
-  const providerRow = await db.query<ProviderRow>(
-    `SELECT user_id, tier FROM providers WHERE id = $1`,
-    [bk.provider_id],
-  );
-  if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
-  const provider = providerRow.rows[0]!;
-
-  const breakdown = await commissionService.calculateCommission(proportionalServicePrice, provider.tier);
-
-  // MED-N25 + MED-N26 fix: pre-flight money math validation BEFORE
-  // we touch any wallet. Two distinct guards:
-  //
-  //   (a) MED-N25 — platformAmount (= remainingAmount - providerReceives
-  //       - guaranteeContribution) cannot be negative. If proportional
-  //       commission yields providerReceives + guarantee > remainingAmount
-  //       (possible in edge cases where serviceFee dominates total),
-  //       the platform revenue wallet would receive a NEGATIVE credit
-  //       recorded as 'commission' — money creation. Refuse.
-  //
-  //   (b) MED-N26 — sum of disbursements MUST equal remainingAmount
-  //       (mirrors the CRIT-N04 conservation check on the full release
-  //       path). Without this, a future code change to commission
-  //       math could silently break partial-release conservation.
-  const platformAmount = remainingAmount - breakdown.providerReceives - breakdown.guaranteeFundContribution;
-  if (platformAmount < 0) {
-    logger.error('PARTIAL ESCROW NEGATIVE PLATFORM AMOUNT', {
-      bookingId, remainingAmount,
-      providerReceives: breakdown.providerReceives,
-      guaranteeContribution: breakdown.guaranteeFundContribution,
-      platformAmount,
-    });
-    throw createAppError('Internal accounting error in partial release. Please contact support.', 500);
-  }
-  const totalOut = breakdown.providerReceives + platformAmount + breakdown.guaranteeFundContribution;
-  if (totalOut !== remainingAmount) {
-    const diff = remainingAmount - totalOut;
-    if (Math.abs(diff) <= 2) {
-      logger.debug('Rounding adjustment in partial escrow release', { bookingId, diff });
-    } else {
-      logger.error('MONEY CONSERVATION VIOLATION in partial escrow release', {
-        bookingId, remainingAmount, totalOut, diff,
-        providerReceives: breakdown.providerReceives,
-        platformAmount,
-        guaranteeContribution: breakdown.guaranteeFundContribution,
-      });
-      throw createAppError('Internal accounting error in partial release. Please contact support.', 500);
-    }
-  }
-
-  const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
-  const revenueWallet = await walletService.getPlatformWallet('platform_revenue');
-  const guaranteeWallet = await walletService.getPlatformWallet('guarantee_fund');
-  const providerWallet = await walletService.getUserWallet(provider.user_id, 'provider');
-
-  await db.transaction(async (client) => {
-    const escrowGuard = await client.query(
-      `UPDATE bookings SET escrow_status = 'released', updated_at = NOW()
-       WHERE id = $1 AND escrow_status = 'partially_refunded' RETURNING id`,
+  const breakdown = await db.transaction(async (client) => {
+    const booking = await client.query<BookingAmountRow & { provider_suspended_during_booking_at: Date | null }>(
+      `SELECT id, customer_id, provider_id, service_price, service_fee,
+              total_amount, status, escrow_status, scheduled_at,
+              provider_suspended_during_booking_at
+         FROM bookings
+        WHERE id = $1
+        FOR UPDATE`,
       [bookingId],
     );
-    if ((escrowGuard.rowCount ?? 0) === 0) {
-      throw createAppError('Escrow not in partially-refunded state for this booking.', 409);
+    const bk = booking.rows[0];
+    if (!bk) throw createAppError('Booking not found.', 404);
+    if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
+    if (bk.provider_suspended_during_booking_at != null) {
+      throw createAppError(
+        'Cannot release escrow because the provider was suspended during this booking. Admin must resolve the dispute before disbursement.',
+        409,
+      );
     }
 
-    // A5 — lock all touched wallets in id order before any balance write.
-    await walletService.lockWalletsForUpdate(client, [
-      escrowWallet.id, providerWallet.id, revenueWallet.id, guaranteeWallet.id,
-    ]);
+    const terms = await financialTermsService.getLatestFinalTermsInTransaction(client, bookingId);
+    if (terms.providerId !== bk.provider_id) {
+      throw createAppError('Booking provider does not match its snapshotted financial terms.', 409);
+    }
+    if (
+      terms.servicePriceCentavos !== Number(bk.service_price)
+      || terms.serviceFeeAmountCentavos !== Number(bk.service_fee)
+      || terms.totalAmountCentavos !== Number(bk.total_amount)
+    ) {
+      throw createAppError('Booking amounts do not match its latest financial terms.', 409);
+    }
 
-    await client.query(
-      `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-      [remainingAmount, escrowWallet.id],
+    const prorated = financialTermsService.prorateFinalTerms(terms, remainingAmount);
+    const allocation: ReleaseAllocation = {
+      servicePrice: prorated.servicePriceCentavos,
+      serviceFee: prorated.serviceFeeAmountCentavos,
+      totalAmount: prorated.totalAmountCentavos,
+      commissionRate: (terms.commissionRateBasisPoints ?? 0) / 10000,
+      commissionAmount: prorated.commissionAmountCentavos,
+      serviceFeeRate: terms.serviceFeeRateBasisPoints / 10000,
+      guaranteeFundContribution: prorated.guaranteeFundAmountCentavos,
+      providerReceives: prorated.providerReceivesCentavos,
+      platformRetains: prorated.platformRetainsCentavos,
+    };
+    const wallets = await resolveReleaseWallets(client, bk.provider_id);
+    const refundPercent = Math.round((1 - remainingAmount / terms.totalAmountCentavos) * 100);
+    await writeReleaseMovements(
+      client,
+      {
+        bookingId,
+        expectedEscrowStatus: 'partially_refunded',
+        allocation,
+        providerDescription: `Partial payment after ${refundPercent}% refund using financial terms v${terms.version}`,
+        platformDescription: `Partial commission and fee using financial terms v${terms.version}`,
+        guaranteeDescription: `Partial guarantee allocation using financial terms v${terms.version}`,
+      },
+      wallets,
     );
-    await client.query(
-      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-       VALUES ($1, $2, 'escrow_release', $3,
-               (SELECT pending_balance FROM wallets WHERE id = $1),
-               'Partial escrow release — remaining after dispute refund')`,
-      [escrowWallet.id, bookingId, -remainingAmount],
-    );
-
-    await client.query(
-      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-      [breakdown.providerReceives, providerWallet.id],
-    );
-    await client.query(
-      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-       VALUES ($1, $2, 'escrow_release', $3,
-               (SELECT available_balance FROM wallets WHERE id = $1),
-               $4)`,
-      [providerWallet.id, bookingId, breakdown.providerReceives,
-       `Partial payment for booking (after ${Math.round((1 - retentionFactor) * 100)}% refund, ${Math.round(breakdown.commissionRate * 100)}% commission deducted)`],
-    );
-
-    // platformAmount + conservation already validated above (MED-N25/N26).
-    await client.query(
-      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-      [platformAmount, revenueWallet.id],
-    );
-    await client.query(
-      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-       VALUES ($1, $2, 'commission', $3,
-               (SELECT available_balance FROM wallets WHERE id = $1),
-               'Partial commission + fee from dispute resolution')`,
-      [revenueWallet.id, bookingId, platformAmount],
-    );
-
-    await client.query(
-      `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-      [breakdown.guaranteeFundContribution, guaranteeWallet.id],
-    );
-    await client.query(
-      `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-       VALUES ($1, $2, 'guarantee_contribution', $3,
-               (SELECT available_balance FROM wallets WHERE id = $1),
-               'Guarantee fund contribution from partial dispute release')`,
-      [guaranteeWallet.id, bookingId, breakdown.guaranteeFundContribution],
-    );
+    return breakdownFromAllocation(allocation);
   });
 
   logger.info('Partial escrow released', { bookingId, remainingAmount, breakdown });
@@ -431,10 +379,6 @@ export async function refundFromEscrow(
 ): Promise<void> {
   if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
 
-  // getPlatformWallet only gives us the (stable) wallet id; the authoritative
-  // balance check happens under a row lock inside the transaction below.
-  const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
-
   await db.transaction(async (client) => {
     // A4 + A5 — lock the escrow wallet row and re-check the balance INSIDE the
     // transaction. Pre-fix the sufficiency check read the balance OUTSIDE the
@@ -442,9 +386,11 @@ export async function refundFromEscrow(
     // check and over-drain the shared escrow pool (a double refund). Under FOR
     // UPDATE the check + debit are one atomic step, so a duplicate/concurrent
     // refund that would exceed the held balance is rejected with 409 instead.
+    const wallets = await resolvePlatformWalletsInTransaction(client, ['platform_escrow']);
+    const escrowWalletId = wallets.get('platform_escrow')!;
     const locked = await client.query<{ pending_balance: string }>(
       `SELECT pending_balance FROM wallets WHERE id = $1 FOR UPDATE`,
-      [escrowWallet.id],
+      [escrowWalletId],
     );
     if (locked.rows.length === 0) {
       throw createAppError('Platform escrow wallet not found.', 500);
@@ -455,7 +401,7 @@ export async function refundFromEscrow(
 
     await client.query(
       `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-      [refundAmount, escrowWallet.id],
+      [refundAmount, escrowWalletId],
     );
 
     await client.query(
@@ -463,7 +409,7 @@ export async function refundFromEscrow(
        VALUES ($1, $2, 'refund', $3,
                (SELECT pending_balance FROM wallets WHERE id = $1),
                $4)`,
-      [escrowWallet.id, bookingId, -refundAmount, `Refund: ${reason}`],
+      [escrowWalletId, bookingId, -refundAmount, `Refund: ${reason}`],
     );
   });
 
@@ -492,25 +438,24 @@ export async function handleCancellation(
   providerArrived: boolean,
   customerNoShow = false,
 ): Promise<commissionService.CancellationRefund> {
-  // Capture booking's service_fee BEFORE the trx so we can compute the
-  // total customer refund (service portion + service fee) to pass to
-  // PayMongo post-commit. Reading inside the trx is also fine but this
-  // avoids having to thread the value back through.
-  const feeRow = await db.query<{ service_fee: string | number }>(
-    `SELECT service_fee FROM bookings WHERE id = $1`,
-    [bookingId],
-  );
-  const serviceFee = feeRow.rows[0] ? Number(feeRow.rows[0].service_fee) : 0;
-
-  const refund = await db.transaction((client) =>
-    handleCancellationInTransaction(
+  const outcome = await db.transaction(async (client) => {
+    const refund = await handleCancellationInTransaction(
       client,
       bookingId,
       hoursUntilScheduled,
       providerArrived,
       customerNoShow,
-    ),
-  );
+    );
+    const feeRow = await client.query<{ service_fee: string | number }>(
+      `SELECT service_fee FROM bookings WHERE id = $1`,
+      [bookingId],
+    );
+    return {
+      refund,
+      serviceFee: feeRow.rows[0] ? Number(feeRow.rows[0].service_fee) : 0,
+    };
+  });
+  const { refund, serviceFee } = outcome;
 
   // BUG-PHASE26-01 fix: trigger the PayMongo refund post-commit so the
   // money debited from escrow actually returns to the customer's bank.
@@ -615,139 +560,55 @@ export async function releaseEscrowInTransaction(
 
   if (!bk.provider_id) throw createAppError('No provider assigned to this booking.', 409);
 
-  const servicePrice = Number(bk.service_price);
-  const serviceFee = Number(bk.service_fee);
-  const totalAmount = Number(bk.total_amount);
-  if (servicePrice <= 0) throw createAppError('Invalid booking amount.', 400);
-
-  // Phase B CRIT-03 fix (also applied here in the trx variant) —
-  // refuse to disburse on a corrupt input row. Mirror the eager check
-  // from releaseEscrow above. Throwing inside the trx rolls back the
-  // FOR UPDATE row lock cleanly.
-  if (Math.abs(totalAmount - (servicePrice + serviceFee)) > 2) {
-    logger.error('Booking amount mismatch — refusing escrow release (trx)', {
-      bookingId, servicePrice, serviceFee, totalAmount,
-      expected: servicePrice + serviceFee,
-    });
+  const terms = await financialTermsService.getLatestTermsInTransaction(client, bookingId);
+  if (terms.providerId !== bk.provider_id) {
+    throw createAppError('Booking provider does not match its snapshotted financial terms.', 409);
+  }
+  if (
+    terms.servicePriceCentavos !== Number(bk.service_price)
+    || terms.serviceFeeAmountCentavos !== Number(bk.service_fee)
+    || terms.totalAmountCentavos !== Number(bk.total_amount)
+  ) {
     throw createAppError(
-      `Booking amount mismatch: total_amount=${totalAmount} but service_price+service_fee=${servicePrice + serviceFee}. Refusing release; admin must reconcile.`,
-      500,
+      'Booking amounts do not match the latest immutable financial terms. Release is blocked for operations review.',
+      409,
     );
   }
-
-  const providerRow = await client.query<ProviderRow>(
-    `SELECT user_id, tier FROM providers WHERE id = $1`,
-    [bk.provider_id],
-  );
-  if (providerRow.rows.length === 0) throw createAppError('Provider not found.', 404);
-  const provider = providerRow.rows[0]!;
-
-  const commissionRate = await settingsService.getCommissionRate(provider.tier);
-  const commissionAmount = Math.round(servicePrice * commissionRate);
-  const guaranteeFundRate = await settingsService.getSettingPercent('guarantee_fund_rate');
-  const guaranteeFundContribution = Math.round(serviceFee * guaranteeFundRate);
-
-  const providerReceives = servicePrice - commissionAmount;
-  const platformRetains = commissionAmount + serviceFee - guaranteeFundContribution;
-
-  // CRIT-N04 fix: money-conservation guard. The legacy releaseEscrow has
-  // this check (lines 90-102); the trx-aware variant was missing it,
-  // meaning settings drift (e.g., commission rate change) could silently
-  // mint or burn money inside the transaction. Mirror the legacy check
-  // exactly: tolerate up to 2 centavos of rounding error, throw on more.
-  const totalOut = providerReceives + platformRetains + guaranteeFundContribution;
-  if (totalOut !== totalAmount) {
-    const diff = totalAmount - totalOut;
-    if (Math.abs(diff) <= 2) {
-      logger.debug('Rounding adjustment in escrow release (trx)', { bookingId, diff });
-    } else {
-      logger.error('MONEY CONSERVATION VIOLATION in releaseEscrowInTransaction', {
-        bookingId, servicePrice, serviceFee, totalAmount, totalOut, diff,
-        providerReceives, platformRetains, guaranteeFundContribution,
-      });
-      throw createAppError('Internal accounting error. Please contact support.', 500);
-    }
+  if (
+    terms.commissionRateBasisPoints === null
+    || terms.commissionAmountCentavos === null
+    || terms.providerReceivesCentavos === null
+    || terms.platformRetainsCentavos === null
+  ) {
+    throw createAppError('Final financial terms are incomplete. Release is blocked.', 409);
   }
 
-  const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
-  const revenueWallet = await walletService.getPlatformWallet('platform_revenue');
-  const guaranteeWallet = await walletService.getPlatformWallet('guarantee_fund');
-  const providerWallet = await walletService.getUserWallet(provider.user_id, 'provider');
-
-  const escrowGuard = await client.query(
-    `UPDATE bookings SET escrow_status = 'released', updated_at = NOW()
-     WHERE id = $1 AND escrow_status = 'held' RETURNING id`,
-    [bookingId],
-  );
-  if ((escrowGuard.rowCount ?? 0) === 0) {
-    throw createAppError('Escrow already released or not held for this booking.', 409);
-  }
-
-  // A5 — lock all touched wallets in id order before any balance write so
-  // this release serializes cleanly with other money transactions.
-  await walletService.lockWalletsForUpdate(client, [
-    escrowWallet.id, providerWallet.id, revenueWallet.id, guaranteeWallet.id,
-  ]);
-
-  await client.query(
-    `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-    [totalAmount, escrowWallet.id],
-  );
-  await client.query(
-    `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-     VALUES ($1, $2, 'escrow_release', $3,
-             (SELECT pending_balance FROM wallets WHERE id = $1),
-             'Escrow release for booking')`,
-    [escrowWallet.id, bookingId, -totalAmount],
-  );
-
-  await client.query(
-    `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-    [providerReceives, providerWallet.id],
-  );
-  await client.query(
-    `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-     VALUES ($1, $2, 'escrow_release', $3,
-             (SELECT available_balance FROM wallets WHERE id = $1),
-             $4)`,
-    [providerWallet.id, bookingId, providerReceives,
-     `Payment for booking (${Math.round(commissionRate * 100)}% commission deducted)`],
-  );
-
-  await client.query(
-    `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-    [platformRetains, revenueWallet.id],
-  );
-  await client.query(
-    `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-     VALUES ($1, $2, 'commission', $3,
-             (SELECT available_balance FROM wallets WHERE id = $1),
-             'Commission + service fee from booking')`,
-    [revenueWallet.id, bookingId, platformRetains],
-  );
-
-  await client.query(
-    `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-    [guaranteeFundContribution, guaranteeWallet.id],
-  );
-  await client.query(
-    `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
-     VALUES ($1, $2, 'guarantee_contribution', $3,
-             (SELECT available_balance FROM wallets WHERE id = $1),
-             'Guarantee fund contribution')`,
-    [guaranteeWallet.id, bookingId, guaranteeFundContribution],
-  );
-
-  return {
-    servicePrice,
-    commissionRate,
-    commissionAmount,
-    serviceFeeRate: await settingsService.getSettingPercent('service_fee_rate'),
-    serviceFeeAmount: serviceFee,
-    guaranteeFundContribution,
-    providerReceives,
-    platformRetains,
+  const allocation: ReleaseAllocation = {
+    servicePrice: terms.servicePriceCentavos,
+    serviceFee: terms.serviceFeeAmountCentavos,
+    totalAmount: terms.totalAmountCentavos,
+    commissionRate: terms.commissionRateBasisPoints / 10000,
+    commissionAmount: terms.commissionAmountCentavos,
+    serviceFeeRate: terms.serviceFeeRateBasisPoints / 10000,
+    guaranteeFundContribution: terms.guaranteeFundAmountCentavos,
+    providerReceives: terms.providerReceivesCentavos,
+    platformRetains: terms.platformRetainsCentavos,
   };
+  const wallets = await resolveReleaseWallets(client, bk.provider_id);
+  await writeReleaseMovements(
+    client,
+    {
+      bookingId,
+      expectedEscrowStatus: 'held',
+      allocation,
+      providerDescription: `Payment using financial terms v${terms.version} (${terms.commissionRateBasisPoints / 100}% commission)`,
+      platformDescription: `Commission and service fee using financial terms v${terms.version}`,
+      guaranteeDescription: `Guarantee allocation using financial terms v${terms.version}`,
+    },
+    wallets,
+  );
+
+  return breakdownFromAllocation(allocation);
 }
 
 /**
@@ -816,24 +677,42 @@ export async function settleHourlyAndReleaseInTransaction(
     [bookingId, newServicePrice, newServiceFee, newTotal, billedHours],
   );
 
+  // E50: hourly settlement is a legitimate contract amendment, not a rewrite
+  // of the authorization snapshot. Append a final version that preserves the
+  // original commission/fee policy and records the server-clocked settlement.
+  await financialTermsService.appendAmendedTermsInTransaction(
+    client,
+    {
+      bookingId,
+      event: 'hourly_settled',
+      sourceEventId: 'server-clock-v1',
+      metadata: {
+        estimatedHours,
+        billedHours,
+        refundRemainderCentavos: refundRemainder,
+      },
+    },
+  );
+
   if (refundRemainder > 0) {
-    const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
-    const customerWallet = await walletService.getUserWallet(bk.customer_id, 'customer');
-    await walletService.lockWalletsForUpdate(client, [escrowWallet.id, customerWallet.id]);
+    const platformWallets = await resolvePlatformWalletsInTransaction(client, ['platform_escrow']);
+    const escrowWalletId = platformWallets.get('platform_escrow')!;
+    const customerWallet = await walletService.getUserWalletInTransaction(client, bk.customer_id, 'customer');
+    await walletService.lockWalletsForUpdate(client, [escrowWalletId, customerWallet.id]);
     const locked = await client.query<{ pending_balance: string }>(
-      `SELECT pending_balance FROM wallets WHERE id = $1`, [escrowWallet.id],
+      `SELECT pending_balance FROM wallets WHERE id = $1`, [escrowWalletId],
     );
     if (Number(locked.rows[0]?.pending_balance ?? 0) < refundRemainder) {
       throw createAppError('Insufficient escrow balance for hourly refund.', 409);
     }
     await client.query(
       `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-      [refundRemainder, escrowWallet.id],
+      [refundRemainder, escrowWalletId],
     );
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
        VALUES ($1, $2, 'refund', $3, (SELECT pending_balance FROM wallets WHERE id = $1), $4)`,
-      [escrowWallet.id, bookingId, -refundRemainder, `Hourly unused-time release (${billedHours}h of ${estimatedHours}h)`],
+      [escrowWalletId, bookingId, -refundRemainder, `Hourly unused-time release (${billedHours}h of ${estimatedHours}h)`],
     );
     await client.query(
       `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
@@ -866,13 +745,14 @@ export async function refundFromEscrowInTransaction(
 ): Promise<void> {
   if (refundAmount <= 0) throw createAppError('Refund amount must be positive.', 400);
 
-  const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+  const wallets = await resolvePlatformWalletsInTransaction(client, ['platform_escrow']);
+  const escrowWalletId = wallets.get('platform_escrow')!;
   // A4 + A5 — lock the escrow row and re-check the balance under the lock,
   // inside the caller's transaction, so the check + debit are atomic and two
   // concurrent refunds can't both pass and over-drain the shared escrow pool.
   const locked = await client.query<{ pending_balance: string }>(
     `SELECT pending_balance FROM wallets WHERE id = $1 FOR UPDATE`,
-    [escrowWallet.id],
+    [escrowWalletId],
   );
   if (locked.rows.length === 0) {
     throw createAppError('Platform escrow wallet not found.', 500);
@@ -883,7 +763,7 @@ export async function refundFromEscrowInTransaction(
 
   await client.query(
     `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-    [refundAmount, escrowWallet.id],
+    [refundAmount, escrowWalletId],
   );
 
   await client.query(
@@ -891,7 +771,7 @@ export async function refundFromEscrowInTransaction(
      VALUES ($1, $2, 'refund', $3,
              (SELECT pending_balance FROM wallets WHERE id = $1),
              $4)`,
-    [escrowWallet.id, bookingId, -refundAmount, `Refund: ${reason}`],
+    [escrowWalletId, bookingId, -refundAmount, `Refund: ${reason}`],
   );
 }
 
@@ -927,11 +807,26 @@ export async function handleCancellationInTransaction(
   const cancellationBase = Number(bk.service_price);
   const serviceFee = Number(bk.service_fee);
 
-  const refund = await commissionService.calculateCancellationRefund(
+  const terms = await financialTermsService.getLatestTermsInTransaction(client, bookingId);
+  if (
+    terms.providerId !== bk.provider_id
+    || terms.servicePriceCentavos !== cancellationBase
+    || terms.serviceFeeAmountCentavos !== serviceFee
+    || terms.totalAmountCentavos !== Number(bk.total_amount)
+  ) {
+    throw createAppError(
+      'Booking does not match its immutable financial terms. Cancellation money movement is blocked for operations review.',
+      409,
+    );
+  }
+
+  const refund = financialTermsService.calculateCancellationFromTerms(
     cancellationBase,
+    terms,
     hoursUntilScheduled,
     providerArrived,
     customerNoShow,
+    bk.provider_id !== null,
   );
 
   const feeRefund = customerNoShow ? 0 : serviceFee;
@@ -945,23 +840,25 @@ export async function handleCancellationInTransaction(
   const needsProviderComp = refund.providerCompensationAmount > 0 && !!bk.provider_id;
   const needsNoShowFee = customerNoShow && serviceFee > 0;
 
-  const escrowWallet = await walletService.getPlatformWallet('platform_escrow');
+  const platformWalletTypes: Array<'platform_escrow' | 'platform_revenue'> = needsNoShowFee
+    ? ['platform_escrow', 'platform_revenue']
+    : ['platform_escrow'];
+  const platformWallets = await resolvePlatformWalletsInTransaction(client, platformWalletTypes);
+  const escrowWalletId = platformWallets.get('platform_escrow')!;
   let providerWallet: { id: string } | null = null;
   if (needsProviderComp) {
     const providerRow = await client.query<ProviderRow>(
       `SELECT user_id, tier FROM providers WHERE id = $1`,
       [bk.provider_id],
     );
-    if (providerRow.rows.length > 0) {
-      providerWallet = await walletService.getUserWallet(providerRow.rows[0]!.user_id, 'provider');
-    }
+    const providerUserId = providerRow.rows[0]?.user_id;
+    if (!providerUserId) throw createAppError('Provider not found.', 404);
+    providerWallet = await walletService.getUserWalletInTransaction(client, providerUserId, 'provider');
   }
-  const revenueWallet = needsNoShowFee
-    ? await walletService.getPlatformWallet('platform_revenue')
-    : null;
+  const revenueWalletId = needsNoShowFee ? platformWallets.get('platform_revenue')! : null;
 
   await walletService.lockWalletsForUpdate(client, [
-    escrowWallet.id, providerWallet?.id, revenueWallet?.id,
+    escrowWalletId, providerWallet?.id, revenueWalletId,
   ]);
 
   if (totalCustomerRefund > 0) {
@@ -976,14 +873,14 @@ export async function handleCancellationInTransaction(
   if (providerWallet) {
     await client.query(
       `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-      [refund.providerCompensationAmount, escrowWallet.id],
+      [refund.providerCompensationAmount, escrowWalletId],
     );
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
        VALUES ($1, $2, 'escrow_release', $3,
                (SELECT pending_balance FROM wallets WHERE id = $1),
                'Escrow release for provider cancellation compensation')`,
-      [escrowWallet.id, bookingId, -refund.providerCompensationAmount],
+      [escrowWalletId, bookingId, -refund.providerCompensationAmount],
     );
 
     await client.query(
@@ -999,28 +896,28 @@ export async function handleCancellationInTransaction(
     );
   }
 
-  if (revenueWallet) {
+  if (revenueWalletId) {
     await client.query(
       `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
-      [serviceFee, escrowWallet.id],
+      [serviceFee, escrowWalletId],
     );
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
        VALUES ($1, $2, 'escrow_release', $3,
                (SELECT pending_balance FROM wallets WHERE id = $1),
                'Service fee retained — customer no-show')`,
-      [escrowWallet.id, bookingId, -serviceFee],
+      [escrowWalletId, bookingId, -serviceFee],
     );
     await client.query(
       `UPDATE wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE id = $2`,
-      [serviceFee, revenueWallet.id],
+      [serviceFee, revenueWalletId],
     );
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, booking_id, type, amount, balance_after, description)
        VALUES ($1, $2, 'commission', $3,
                (SELECT available_balance FROM wallets WHERE id = $1),
                'Service fee from customer no-show')`,
-      [revenueWallet.id, bookingId, serviceFee],
+      [revenueWalletId, bookingId, serviceFee],
     );
   }
 

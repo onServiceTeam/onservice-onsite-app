@@ -60,11 +60,10 @@ describe('getCommissionEvidence — single GROUP BY query (Phase 13 Dispatch E)'
       expect(s.legacyQualitySampleCount).toBe(12);
       expect(s.currentRate).toBe(platformConfig.commissionRates[s.tier]);
     }
-    expect(dbQueryMock.mock.calls[0]?.[0]).toContain('platform_settings');
+    expect(dbQueryMock.mock.calls[0]?.[0]).toContain('commission_rate_versions');
   });
 
-  test('tiers absent from query result fall back to sentinel defaults', async () => {
-    // DB returns only one tier; the others must still appear with defaults.
+  test('tiers absent from the effective agreement result fail closed', async () => {
     const tiers = Object.keys(platformConfig.commissionRates);
     const firstTier = tiers[0]!;
     dbQueryMock.mockResolvedValueOnce({
@@ -80,22 +79,8 @@ describe('getCommissionEvidence — single GROUP BY query (Phase 13 Dispatch E)'
       rowCount: 1,
     });
 
-    const evidence = await analyticsService.getCommissionEvidence();
-
+    await expect(analyticsService.getCommissionEvidence()).rejects.toMatchObject({ statusCode: 409 });
     expect(dbQueryMock.mock.calls.length).toBe(1);
-    expect(evidence).toHaveLength(tiers.length);
-
-    const first = evidence.find((s) => s.tier === firstTier)!;
-    expect(first.providerCount).toBe(8);
-    expect(first.currentRate).toBe(0.17);
-
-    for (const s of evidence) {
-      if (s.tier === firstTier) continue;
-      expect(s.providerCount).toBe(0);
-      expect(s.legacyQualitySampleCount).toBe(0);
-      expect(s.sampleStatus).toBe('insufficient');
-      expect(s.currentRate).toBe(platformConfig.commissionRates[s.tier]);
-    }
   });
 
   test('returns empty array (no db.query) when no tiers configured', async () => {

@@ -74,10 +74,27 @@ BEGIN
     RAISE NOTICE 'Migration 157 — provider staff, certification, and review targets already allowed.';
   ELSE
     ALTER TABLE admin_actions DROP CONSTRAINT admin_actions_target_type_check;
-    EXECUTE format(
-      'ALTER TABLE admin_actions ADD CONSTRAINT admin_actions_target_type_check %s',
-      regexp_replace(current_def, '\]\)\)\)$', ', ' || appendage || '])))')
-    );
+    IF current_def ~ '\]\)::text\[\]\)\)\)$' THEN
+      -- PostgreSQL may preserve the older whole-array cast shape:
+      --   ANY ((ARRAY['a'::varchar, ...])::text[])
+      -- Insert before that array's closing bracket. Anchoring only on the
+      -- final `])))` would match the bracket in `text[]` and produce the
+      -- invalid token `text[, ...]` on a fresh database.
+      EXECUTE format(
+        'ALTER TABLE admin_actions ADD CONSTRAINT admin_actions_target_type_check %s',
+        regexp_replace(
+          current_def,
+          '\]\)::text\[\]\)\)\)$',
+          ', ' || appendage || '])::text[])))'
+        )
+      );
+    ELSE
+      -- Newer constraints are normally deparsed in per-element-cast form.
+      EXECUTE format(
+        'ALTER TABLE admin_actions ADD CONSTRAINT admin_actions_target_type_check %s',
+        regexp_replace(current_def, '\]\)\)\)$', ', ' || appendage || '])))')
+      );
+    END IF;
   END IF;
 END
 $migration_157_target$;

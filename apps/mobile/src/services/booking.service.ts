@@ -119,6 +119,27 @@ export async function getBookingById(id: string): Promise<Booking> {
   return res.data.data;
 }
 
+export type ProviderJobRequest = Pick<Booking,
+  'id' | 'categoryId' | 'subcategoryId' | 'description' | 'jobPhotos'
+  | 'intakeAnswers' | 'urgency' | 'budgetMin' | 'budgetMax' | 'jobVideoUrl'
+> & {
+  categoryName: string;
+  serviceName: string;
+  barangay: string | null;
+  city: string | null;
+  province: string | null;
+  customerName: string;
+  distanceKm: number | null;
+  createdAt: string;
+};
+
+export async function getProviderJobRequest(id: string): Promise<ProviderJobRequest> {
+  const res = await api.get<ApiResponse<ProviderJobRequest>>(
+    `/api/v1/providers/me/job-requests/${id}`,
+  );
+  return res.data.data;
+}
+
 export interface JobRequestPayload {
   categoryId: string;
   subcategoryId?: string;
@@ -267,6 +288,7 @@ export interface ChangeOrder {
   // balance. Null only if the parent booking could not be read.
   additionalServiceFee: number | null;
   additionalTotal: number | null;
+  financialTermsReviewRequired: boolean;
   // D27 Phase 3 — itemized breakdown (empty for legacy lump-sum change orders).
   lineItems: ChangeOrderLineItem[];
   photos: string[];

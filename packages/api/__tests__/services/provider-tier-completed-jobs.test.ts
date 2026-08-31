@@ -4,10 +4,17 @@ jest.mock('../../src/models/db', () => ({
   db: { query: (...args: unknown[]) => dbQueryMock(...args) },
 }));
 
-jest.mock('../../src/services/settings.service', () => ({
-  getCommissionRate: jest.fn(async (tier: string) => ({
-    founding: 0.10, new: 0.15, verified: 0.13, pro: 0.11, elite: 0.09,
-  }[tier])),
+jest.mock('../../src/services/booking-financial-terms.service', () => ({
+  getProviderTierCommissionOverview: jest.fn(async () => ({
+    currentProviderAgreement: {
+      commissionRate: 0.15,
+      commissionSource: 'tier_default',
+      commissionRateVersionId: 'new-rate',
+    },
+    tierBaseRates: [
+      ['founding', 0.10], ['new', 0.15], ['verified', 0.13], ['pro', 0.11], ['elite', 0.09],
+    ].map(([tier, commissionRate]) => ({ tier, commissionRate })),
+  })),
 }));
 
 jest.mock('../../src/utils/logger', () => ({

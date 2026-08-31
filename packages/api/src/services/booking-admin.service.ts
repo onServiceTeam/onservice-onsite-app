@@ -22,6 +22,7 @@ import * as paymentService from './payment.service';
 import * as gatewayRetryService from './gateway-retry.service';
 import * as socketService from './socket.service';
 import * as matchingService from './matching.service';
+import * as financialTermsService from './booking-financial-terms.service';
 import { maskEmail, maskPhilippinePhone, type ActorRole } from '../utils/pii-mask';
 import { canTransition, type BookingStatus } from '../types/booking.types';
 
@@ -1093,6 +1094,24 @@ export async function reassignBookingProvider(
     if (!adminActionId) {
       throw createAppError('Failed to record reassign admin action.', 500);
     }
+
+    // E50: a reassignment changes which provider agreement governs future
+    // disbursement. Append a new immutable version in the same transaction;
+    // pre-payment reassignments intentionally have no financial terms yet.
+    await financialTermsService.appendProviderAssignmentTermsInTransaction(
+      client,
+      {
+        bookingId,
+        providerId: newProviderId,
+        event: 'provider_reassigned',
+        sourceEventId: adminActionId,
+        createdBy: adminUserId,
+        metadata: {
+          oldProviderId: booking.provider_id,
+          reason: trimmedReason,
+        },
+      },
+    );
 
     logger.info('Booking provider reassigned', {
       bookingId,

@@ -15,10 +15,6 @@ jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
-const ESCROW_SVC = readFileSync(
-  resolve(__dirname, '../src/services/escrow.service.ts'),
-  'utf8',
-);
 const FROM_QUOTE_SVC = readFileSync(
   resolve(__dirname, '../src/services/booking/from-quote.service.ts'),
   'utf8',
@@ -38,20 +34,39 @@ beforeEach(() => {
 });
 
 describe('Phase B CRIT-03 — escrow refuses to release on corrupt booking row', () => {
-  it('CRIT-03 — releaseEscrow throws (not just logs) on totalAmount mismatch > 2 cents', () => {
-    expect(ESCROW_SVC).toMatch(/Booking amount mismatch — refusing escrow release/);
-    // The throw must follow the log.
-    expect(ESCROW_SVC).toMatch(/Booking amount mismatch: total_amount=\$\{totalAmount\} but service_price\+service_fee=\$\{servicePrice \+ serviceFee\}/);
-  });
-  it('CRIT-03 — releaseEscrowInTransaction (trx variant) ALSO throws on the same mismatch', () => {
-    // The eager check must appear in BOTH releaseEscrow and
-    // releaseEscrowInTransaction. Find both.
-    const matches = ESCROW_SVC.match(/Booking amount mismatch — refusing escrow release/g);
-    expect(matches).not.toBeNull();
-    expect(matches!.length).toBeGreaterThanOrEqual(2);
-  });
-  it('CRIT-03 — error message includes total_amount and expected sum for forensics', () => {
-    expect(ESCROW_SVC).toMatch(/Refusing release; admin must reconcile/);
+  it('CRIT-03 — release rejects a booking whose amounts differ from immutable financial terms', async () => {
+    jest.resetModules();
+    const termsLookup = jest.fn().mockResolvedValue({
+      providerId: 'provider-1',
+      servicePriceCentavos: 10000,
+      serviceFeeAmountCentavos: 1200,
+      totalAmountCentavos: 11200,
+    });
+    jest.doMock('../src/services/booking-financial-terms.service', () => ({
+      getLatestTermsInTransaction: (...args: unknown[]) => termsLookup(...args),
+    }));
+    jest.doMock('../src/services/wallet.service', () => ({
+      getUserWalletInTransaction: jest.fn(),
+      lockWalletsForUpdate: jest.fn(),
+    }));
+    jest.doMock('../src/services/or.service', () => ({ issueOR: jest.fn() }));
+    const clientQuery = jest.fn().mockResolvedValueOnce({
+      rows: [{
+        id: 'booking-1', customer_id: 'customer-1', provider_id: 'provider-1',
+        service_price: '10000', service_fee: '1200', total_amount: '11201',
+        status: 'confirmed', scheduled_at: new Date('2026-01-01T00:00:00.000Z'),
+        provider_suspended_during_booking_at: null,
+      }],
+      rowCount: 1,
+    });
+    const { releaseEscrowInTransaction } = await import('../src/services/escrow.service');
+
+    await expect(releaseEscrowInTransaction(
+      { query: clientQuery } as never,
+      'booking-1',
+    )).rejects.toMatchObject({ statusCode: 409 });
+    expect(termsLookup).toHaveBeenCalledTimes(1);
+    expect(clientQuery).toHaveBeenCalledTimes(1);
   });
 });
 

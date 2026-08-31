@@ -255,6 +255,11 @@ const NOT_CONNECTED_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
 };
 
 const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
+  commission_rate_founding: 'Legacy direct commission editing is retired under E50. Schedule a prospective, effective-dated tier or provider agreement in Commission Controls; existing booking snapshots never change.',
+  commission_rate_new: 'Legacy direct commission editing is retired under E50. Schedule a prospective, effective-dated tier or provider agreement in Commission Controls; existing booking snapshots never change.',
+  commission_rate_verified: 'Legacy direct commission editing is retired under E50. Schedule a prospective, effective-dated tier or provider agreement in Commission Controls; existing booking snapshots never change.',
+  commission_rate_pro: 'Legacy direct commission editing is retired under E50. Schedule a prospective, effective-dated tier or provider agreement in Commission Controls; existing booking snapshots never change.',
+  commission_rate_elite: 'Legacy direct commission editing is retired under E50. Schedule a prospective, effective-dated tier or provider agreement in Commission Controls; existing booking snapshots never change.',
   guarantee_fund_rate: 'This rate moves live money, but E10 holds the guarantee policy, eligibility, cap, funding, and recovery model. Editing is blocked until that product and accounting design is approved.',
   bir_filer_company_name: 'BIR-labelled document issuance is disabled under E22 until the taxpayer profile, document type, numbering authority, cancellation, retention, and filing model are approved.',
   bir_filer_tin: 'BIR-labelled document issuance is disabled under E22 until the taxpayer profile, document type, numbering authority, cancellation, retention, and filing model are approved.',

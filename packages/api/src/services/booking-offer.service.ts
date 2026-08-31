@@ -28,6 +28,7 @@ import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
 import * as matchingService from './matching.service';
 import * as notificationService from './notification.service';
+import * as financialTermsService from './booking-financial-terms.service';
 
 const OFFER_TIMEOUT_SECONDS = 45;
 const MAX_OFFER_ATTEMPTS = 10;
@@ -250,7 +251,31 @@ export async function acceptOffer(
   providerUserId: string,
 ): Promise<{ booking_id: string; provider_id: string }> {
   return db.transaction(async (client) => {
-    // Lock the offer row so concurrent accept/decline calls serialise.
+    // Resolve the booking without taking an offer lock, then lock the booking
+    // before any offer. Every competing acceptance for this booking now queues
+    // on the same row instead of locking different offers and overwriting the
+    // winner. The offer is re-read under lock after the booking lock.
+    const locator = await client.query<{ booking_id: string }>(
+      `SELECT booking_id FROM booking_offers WHERE id = $1`,
+      [offerId],
+    );
+    const bookingId = locator.rows[0]?.booking_id;
+    if (!bookingId) throw createAppError('Offer not found.', 404);
+
+    const bookingRow = await client.query<{ provider_id: string | null; status: string }>(
+      `SELECT provider_id, status FROM bookings WHERE id = $1 FOR UPDATE`,
+      [bookingId],
+    );
+    const booking = bookingRow.rows[0];
+    if (!booking) throw createAppError('Booking not found.', 404);
+    if (booking.provider_id) {
+      throw createAppError('This booking has already been assigned to a provider.', 409);
+    }
+    const assignableStatuses = new Set(['requested', 'quoted', 'payment_pending', 'paid']);
+    if (!assignableStatuses.has(booking.status)) {
+      throw createAppError(`This booking can no longer accept an offer (current: ${booking.status}).`, 409);
+    }
+
     const offerRow = await client.query<OfferRow & { provider_user_id: string }>(
       `SELECT bo.*, p.user_id AS provider_user_id
          FROM booking_offers bo
@@ -260,6 +285,9 @@ export async function acceptOffer(
       [offerId]);
     if (offerRow.rows.length === 0) throw createAppError('Offer not found.', 404);
     const offer = offerRow.rows[0]!;
+    if (offer.booking_id !== bookingId) {
+      throw createAppError('Offer booking changed during acceptance.', 409);
+    }
 
     if (offer.provider_user_id !== providerUserId) {
       throw createAppError('You are not the recipient of this offer.', 403);
@@ -302,6 +330,20 @@ export async function acceptOffer(
               updated_at=NOW()
         WHERE id=$2`,
       [offer.provider_id, offer.booking_id]);
+
+    // E50: instant-pay bookings are already held when the provider accepts.
+    // Append the provider-specific final terms now. Match-first bookings have
+    // no held money yet, so authorization will create their first version.
+    await financialTermsService.appendProviderAssignmentTermsInTransaction(
+      client,
+      {
+        bookingId: offer.booking_id,
+        providerId: offer.provider_id,
+        event: 'provider_assigned',
+        sourceEventId: offer.id,
+        metadata: { assignmentSource: 'provider_offer_acceptance' },
+      },
+    );
 
     logger.info('Offer accepted', {
       offerId, bookingId: offer.booking_id, providerId: offer.provider_id,

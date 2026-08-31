@@ -725,8 +725,8 @@ function CommissionTab(): React.ReactElement {
     <div className="space-y-4">
       <SourceContract
         tone="amber"
-        definition="Read-only evidence by provider tier: current live commission rate, approved provider count, average completed bookings per approved provider, average gross face value per completed booking, and legacy quality snapshot count."
-        source="Live tier commission settings, approved provider profiles, current legacy quality snapshots, and confirmed/resolved/payout-ready/paid-out bookings from the last 90 days."
+        definition="Read-only evidence by provider tier: current effective base agreement, approved provider count, average completed bookings per approved provider, average gross face value per completed booking, and legacy quality snapshot count."
+        source="Effective-dated tier agreement versions, approved provider profiles, current legacy quality snapshots, and confirmed/resolved/payout-ready/paid-out bookings from the last 90 days."
         freshness={dataUpdatedAt ? `Generated ${formatManilaDateTime(dataUpdatedAt)} PHT.` : 'Waiting for the current query.'}
         boundary="E48 removes automated rate advice. These figures do not forecast provider behavior, calculate provider earnings, approve a price change, or publish a setting."
       />
@@ -749,7 +749,7 @@ function CommissionTab(): React.ReactElement {
                     <p className="mt-1 text-xs text-slate-500">90-day read-only evidence</p>
                   </div>
                   <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-900">
-                    Current live rate {(s.currentRate * 100).toFixed(0)}%
+                    Current base agreement {(s.currentRate * 100).toFixed(2)}%
                   </span>
                 </div>
                 <dl className="grid gap-3 sm:grid-cols-2">

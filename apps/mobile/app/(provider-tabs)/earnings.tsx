@@ -221,6 +221,11 @@ export default function EarningsScreen(): React.ReactElement {
                     ? 'Unavailable'
                     : formatPHP(summary?.pendingEscrow ?? 0)}
               </Text>
+              {(summary?.pendingEscrowReviewCount ?? 0) > 0 && (
+                <Text style={styles.balanceNote} accessibilityLabel="Pending earnings support review">
+                  {summary!.pendingEscrowReviewCount} job{summary!.pendingEscrowReviewCount === 1 ? '' : 's'} pending support review
+                </Text>
+              )}
             </View>
             <View style={styles.infoCard}>
               <BarChart3 size={22} color={colors.primary} style={styles.infoIconImg} />

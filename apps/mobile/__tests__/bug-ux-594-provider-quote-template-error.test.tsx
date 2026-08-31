@@ -10,7 +10,7 @@ jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1100, breakpoint: 'desktop', isPhone: false, isTablet: false, isDesktop: true }),
 }));
 jest.mock('@/services/booking.service', () => ({
-  getBookingById: jest.fn().mockResolvedValue({
+  getProviderJobRequest: jest.fn().mockResolvedValue({
     id: 'booking-1', serviceName: 'Aircon repair', description: 'Aircon is not cooling',
     jobPhotos: [], intakeAnswers: null,
   }),

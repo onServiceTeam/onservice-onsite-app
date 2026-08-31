@@ -29,8 +29,12 @@ jest.mock('../src/services/payment.service', () => ({
   updatePaymentStatusInTransaction: (...args: unknown[]) => updatePaymentStatusInTransactionMock(...args),
 }));
 const holdInEscrowMock = jest.fn();
+const appendFinancialTermsMock = jest.fn();
 jest.mock('../src/services/escrow.service', () => ({
   holdInEscrowInTransaction: (...args: unknown[]) => holdInEscrowMock(...args),
+}));
+jest.mock('../src/services/booking-financial-terms.service', () => ({
+  appendAuthorizationTermsInTransaction: (...args: unknown[]) => appendFinancialTermsMock(...args),
 }));
 jest.mock('../src/services/wallet.service', () => ({}));
 jest.mock('../src/services/notification.service', () => ({ notifyBookingStatusChange: jest.fn() }));
@@ -60,6 +64,7 @@ describe('OPS-216 — booking payment webhook is atomic', () => {
       }),
     };
     transactionMock.mockImplementation(async (callback: (tx: typeof client) => Promise<unknown>) => callback(client));
+    appendFinancialTermsMock.mockResolvedValue({ id: 'terms-1' });
     holdInEscrowMock.mockRejectedValue(new Error('escrow unavailable'));
     dbQueryMock.mockImplementation(async (sql: string) => {
       if (/INSERT INTO webhook_events/.test(sql)) return { rows: [{ event_id: 'event-1' }], rowCount: 1 };
@@ -85,6 +90,11 @@ describe('OPS-216 — booking payment webhook is atomic', () => {
       .set('paymongo-signature', signedHeader(body)).send(body);
 
     expect(response.status).toBe(500);
+    expect(appendFinancialTermsMock).toHaveBeenCalledWith(client, expect.objectContaining({
+      bookingId: 'booking-1',
+      event: 'external_payment_authorized',
+      sourceEventId: 'intent-1',
+    }));
     expect(holdInEscrowMock).toHaveBeenCalledWith(client, 'booking-1', 50000);
     expect(updatePaymentStatusMock).not.toHaveBeenCalled();
     expect(updatePaymentStatusInTransactionMock).not.toHaveBeenCalled();

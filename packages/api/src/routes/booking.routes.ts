@@ -394,7 +394,6 @@ router.post(
         userId,
         { kind: 'wallet' },
       );
-      await escrowService.holdInEscrow(result.bookingId, result.additionalTotal);
 
       res.json({
         success: true,

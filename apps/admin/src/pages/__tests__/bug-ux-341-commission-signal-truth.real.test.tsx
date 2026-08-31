@@ -31,7 +31,7 @@ it('Bug UX-341 — commission analytics presents evidence without an automated r
   );
 
   expect(screen.getByText(/E48 removes automated rate advice/)).toBeInTheDocument();
-  expect(await screen.findByText('Current live rate 13%')).toBeInTheDocument();
+  expect(await screen.findByText('Current base agreement 13.00%')).toBeInTheDocument();
   expect(screen.getByText(/Evidence is too small for comparison/)).toBeInTheDocument();
   expect(screen.queryByText(/Rule output:/)).not.toBeInTheDocument();
   expect(screen.queryByText(/Suggested:/)).not.toBeInTheDocument();
