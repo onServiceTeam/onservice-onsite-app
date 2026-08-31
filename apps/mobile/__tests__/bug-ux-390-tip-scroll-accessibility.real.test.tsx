@@ -9,7 +9,7 @@ jest.mock('expo-router', () => ({
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 390, breakpoint: 'phone', isPhone: true, isTablet: false, isDesktop: false }),
 }));
-jest.mock('@/services/booking.service', () => ({ getBookingById: jest.fn().mockResolvedValue({ id: 'booking-1', servicePrice: 100000 }) }));
+jest.mock('@/services/booking.service', () => ({ getBookingById: jest.fn().mockResolvedValue({ id: 'booking-1', servicePrice: 100000, status: 'confirmed', providerId: 'provider-1' }) }));
 jest.mock('@/services/payment.service', () => ({ getWalletBalance: jest.fn().mockResolvedValue({ availableBalance: 500000, pendingBalance: 0 }) }));
 jest.mock('@/services/tip.service', () => ({ sendTip: jest.fn() }));
 jest.mock('@/services/api', () => ({ __esModule: true, default: { get: jest.fn().mockResolvedValue({ data: { data: { minCents: 100, maxCents: 500000 } } }) } }));

@@ -36,6 +36,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Shield, FileText, AlertTriangle, CheckCircle2, ChevronLeft } from '@/components/icons';
 import { getErrorMessage } from '@/utils/errors';
 import { useResponsive } from '@/hooks/useResponsive';
+import { ErrorState } from '@/components/ui';
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
 
@@ -58,7 +59,7 @@ const FLOWS: FlowConfig[] = [
     title: 'Download My Data',
     shortDescription: 'Get a copy of the personal data we hold about you.',
     longDescription:
-      'You have the right under the Data Privacy Act (RA 10173) to access and receive a copy of your personal data. We will compile your profile, bookings, reviews, messages, and wallet history and send a download link to your registered email within 15 days.',
+      'You have the right under the Data Privacy Act (RA 10173) to access and receive a copy of your personal data. We will compile your profile, bookings, reviews, messages, and wallet history and update this request within 15 days. The DPO may contact you through your registered details if information or a secure delivery method is needed.',
     ctaLabel: 'Request my data',
     requireDeleteConfirmation: false,
   },
@@ -258,7 +259,8 @@ export default function DataRightsScreen(): React.ReactElement {
         </View>
         <Text style={styles.confirmBody}>
           Our Data Protection Officer will respond by {dueDate} (within 15 days as required by the
-          Data Privacy Act). We will contact you at your registered email.
+          Data Privacy Act). Track the request below; the DPO may also contact you through your
+          registered details if more information or a secure delivery method is needed.
         </Text>
         <Text style={styles.confirmFootnote}>
           Keep this reference number for your records. You can submit another request at any time.
@@ -299,8 +301,11 @@ export default function DataRightsScreen(): React.ReactElement {
         contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
         refreshControl={
           <RefreshControl
-            refreshing={myRequestsQuery.isRefetching}
-            onRefresh={() => void myRequestsQuery.refetch()}
+            refreshing={myRequestsQuery.isRefetching || pendingConsentsQuery.isRefetching}
+            onRefresh={() => {
+              void myRequestsQuery.refetch();
+              void pendingConsentsQuery.refetch();
+            }}
           />
         }
       >
@@ -333,6 +338,17 @@ export default function DataRightsScreen(): React.ReactElement {
             entering the screen. Each row gets an inline "I agree"
             button that hits POST /api/v1/compliance/consent with the
             latest version. */}
+        {!lastResult && !activeFlow && pendingConsentsQuery.isError ? (
+          <View style={styles.consentQueryError}>
+            <ErrorState
+              compact
+              title="Policy acknowledgement status unavailable"
+              message="We cannot verify whether an updated privacy policy needs your acknowledgement. Retry to load the current record."
+              onRetry={() => void pendingConsentsQuery.refetch()}
+            />
+          </View>
+        ) : null}
+
         {!lastResult && !activeFlow
           && (pendingConsentsQuery.data?.length ?? 0) > 0 && (
           <View style={styles.consentBanner}>
@@ -650,6 +666,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     borderWidth: 1,
     borderColor: colors.warning ?? colors.error,
+  },
+  consentQueryError: {
+    backgroundColor: colors.errorLight,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.base,
+    overflow: 'hidden',
   },
   consentBannerHeader: {
     flexDirection: 'row',

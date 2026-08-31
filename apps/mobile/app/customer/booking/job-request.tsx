@@ -17,6 +17,7 @@ import { buildRoute, Routes } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
 import ServiceScopeNotice from '@/components/ServiceScopeNotice';
 import { getConfig } from '@/services/config.service';
+import { EmptyState, ErrorState } from '@/components/ui';
 
 const URGENCY_OPTIONS = [
   { value: 'same_day' as const, label: 'Same Day', desc: 'Within 4 hours' },
@@ -163,6 +164,9 @@ export default function JobRequestScreen(): React.ReactElement {
       if (!draft.categoryId || !draft.address || !draft.barangay || draft.latitude == null || draft.longitude == null) {
         throw new Error('Missing category or address');
       }
+      if (draft.subcategoryId && !fieldsQuery.isSuccess) {
+        throw new Error('Required job questions are not available yet');
+      }
       const uploadedUrls = await imagePicker.uploadAll();
       return createJobRequest({
         categoryId: draft.categoryId,
@@ -210,7 +214,28 @@ export default function JobRequestScreen(): React.ReactElement {
     draft.longitude != null &&
     hasMinPhotos &&
     budgetValid &&
-    intakeComplete;
+    intakeComplete &&
+    (!draft.subcategoryId || fieldsQuery.isSuccess);
+
+  if (!draft.categoryId || !draft.categoryName) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back from custom quote request">
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Request Custom Quote</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <EmptyState
+          title="Choose a service category first"
+          description="Start from the service catalog so providers receive the correct scope and configured job questions."
+          actionLabel="Browse services"
+          onAction={() => router.replace(Routes.TABS.HOME)}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -269,6 +294,16 @@ export default function JobRequestScreen(): React.ReactElement {
         {fieldsQuery.isLoading && !!draft.subcategoryId && (
           <View style={styles.section}>
             <ActivityIndicator size="small" color={colors.info} />
+          </View>
+        )}
+        {fieldsQuery.isError && !!draft.subcategoryId && (
+          <View style={styles.section}>
+            <ErrorState
+              compact
+              title="Job questions unavailable"
+              message="We could not load the service questions providers need for an accurate quote. Try again before submitting this request."
+              onRetry={() => fieldsQuery.refetch()}
+            />
           </View>
         )}
         {intakeFields.length > 0 && (

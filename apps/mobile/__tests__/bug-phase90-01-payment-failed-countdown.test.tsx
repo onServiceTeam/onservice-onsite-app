@@ -12,6 +12,7 @@ jest.mock('@/hooks/useResponsive', () => ({
 jest.mock('@/services/booking.service', () => ({
   getBookingById: jest.fn().mockImplementation(async () => ({
     id: 'booking-five-hours-old',
+    status: 'payment_pending',
     createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
   })),
 }));

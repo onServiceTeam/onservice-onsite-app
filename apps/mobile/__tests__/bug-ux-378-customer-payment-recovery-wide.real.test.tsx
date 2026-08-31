@@ -12,6 +12,7 @@ jest.mock('@/hooks/useResponsive', () => ({
 jest.mock('@/services/booking.service', () => ({
   getBookingById: jest.fn().mockResolvedValue({
     id: 'booking-1',
+    status: 'payment_pending',
     createdAt: '2026-08-24T00:00:00.000Z',
   }),
 }));
@@ -22,10 +23,10 @@ it('Bug UX-378 — tablet payment failure presents one bounded recovery workspac
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   render(<QueryClientProvider client={client}><PaymentFailedScreen /></QueryClientProvider>);
 
-  expect(screen.getByLabelText('Wide payment recovery workspace')).toBeTruthy();
+  expect(await screen.findByLabelText('Wide payment recovery workspace')).toBeTruthy();
   expect(screen.getByText('Card authorization was declined.')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Retry booking payment' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Use a different payment method' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Contact support about payment failure' })).toBeTruthy();
-  expect(await screen.findByText(/Your booking is held for up to 72 hours/i)).toBeTruthy();
+  expect(screen.getByText(/Your booking is held for up to 72 hours/i)).toBeTruthy();
 });

@@ -71,8 +71,13 @@ export const logoutSchema = z.object({
   refreshToken: z.string().optional(),
 });
 
+// Bug UX-654 — changing a contact email through the generic profile endpoint
+// bypassed ownership verification. The active customer product deliberately
+// does not offer email editing until a verified pending-email workflow exists,
+// so fail closed at the request boundary instead of silently accepting an
+// unverified identity change. `.strict()` also prevents Zod from stripping an
+// attempted email field and letting a mixed name+email request partially pass.
 export const updateProfileSchema = z.object({
   firstName: z.string().min(1).max(100).optional(),
   lastName: z.string().min(1).max(100).optional(),
-  email: z.string().email('Invalid email address').optional(),
-});
+}).strict();

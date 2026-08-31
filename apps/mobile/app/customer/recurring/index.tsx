@@ -163,7 +163,7 @@ export default function RecurringListScreen(): React.ReactElement {
             <EmptyState
               icon={<Repeat size={48} color={colors.textTertiary} />}
               title="No recurring bookings"
-              description="After completing a booking, you can set it to repeat automatically."
+              description="After an eligible completed booking, you can save a repeating schedule. Each visit is reviewed and paid separately before it becomes a job."
               actionLabel="Browse Services"
               onAction={() => router.push(Routes.TABS.HOME)}
             />

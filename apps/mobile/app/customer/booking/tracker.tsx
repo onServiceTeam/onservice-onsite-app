@@ -82,6 +82,18 @@ export default function BookingTrackerScreen(): React.ReactElement {
       }
     : undefined;
 
+  if (!bookingId) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          title="Booking tracker unavailable"
+          message="This link does not identify a booking. Open tracking from an active booking and try again."
+          onRetry={() => router.back()}
+        />
+      </View>
+    );
+  }
+
   if (isLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>

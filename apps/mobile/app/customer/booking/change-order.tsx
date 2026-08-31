@@ -30,6 +30,7 @@ import { SkeletonCard, EmptyState, ErrorState, TrustStrip } from '@/components/u
 import { showToast } from '@/lib/toast';
 import { useResponsive } from '@/hooks/useResponsive';
 import ConfirmModal from '@/components/ConfirmModal';
+import { Routes } from '@/config/navigation';
 
 const PAYMENT_METHOD = { id: 'wallet', label: 'Wallet Balance' } as const;
 
@@ -110,6 +111,26 @@ export default function ChangeOrderScreen(): React.ReactElement {
   const handleRespond = (order: ChangeOrder, approved: boolean): void => {
     setPendingDecision({ order, approved });
   };
+
+  if (!bookingId) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from change orders" onPress={() => router.back()} style={styles.backBtn}>
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Change Orders</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <EmptyState
+          title="Booking context required"
+          description="Open change orders from a customer booking so every scope decision and payment stays attached to the correct work order."
+          actionLabel="View bookings"
+          onAction={() => router.replace(Routes.TABS.BOOKINGS)}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

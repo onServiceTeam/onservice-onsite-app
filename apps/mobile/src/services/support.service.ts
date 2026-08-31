@@ -103,6 +103,18 @@ export const SUPPORT_STATUS_LABELS: Record<SupportTicketStatus, string> = {
   closed: 'Closed',
 };
 
+export function getSupportStatusLabel(status: SupportTicketStatus, viewerRole?: string): string {
+  if (status === 'waiting_on_customer') {
+    return viewerRole === 'customer' ? 'Waiting on you' : 'Waiting on customer';
+  }
+  if (status === 'waiting_on_provider') {
+    return viewerRole === 'provider' || viewerRole === 'provider_staff'
+      ? 'Waiting on you'
+      : 'Waiting on provider';
+  }
+  return SUPPORT_STATUS_LABELS[status] ?? status;
+}
+
 // A ticket the user can still reply to (resolved/closed are read-only).
 export function isTicketOpen(status: SupportTicketStatus): boolean {
   return status !== 'resolved' && status !== 'closed';

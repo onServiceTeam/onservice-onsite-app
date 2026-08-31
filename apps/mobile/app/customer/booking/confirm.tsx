@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
-import { Button, SkeletonCard, Card, TrustStrip } from '@/components/ui';
+import { Button, SkeletonCard, Card, TrustStrip, ErrorState } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatDate, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -18,20 +18,58 @@ export default function BookingConfirmScreen(): React.ReactElement {
   const { isPhone } = useResponsive();
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
 
-  const { data: booking, isLoading, isError } = useQuery({
+  const { data: booking, isLoading, isError, refetch } = useQuery({
     queryKey: ['bookingDetail', bookingId],
     queryFn: () => getBookingById(bookingId ?? ''),
     enabled: !!bookingId,
   });
 
   const isPaymentHeld = booking?.escrowStatus === 'held';
-  const isPaid = booking?.status === 'paid' || isPaymentHeld;
-  const titleText = isPaid ? 'Booking Confirmed!' : 'Booking Submitted!';
-  const subtitleText = isPaid
-    ? isPaymentHeld
-      ? 'Your booking shows paid with escrow held. We\'re finding the best provider for you.'
-      : 'Your booking shows paid. We\'re finding the best provider for you.'
-    : 'Complete your payment to confirm this booking.';
+  const isPaid = booking?.status === 'paid';
+  const isConfirmationStage = booking?.status === 'payment_pending' || isPaid;
+  const statusLabel = booking?.status
+    ? booking.status.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+    : '';
+  const titleText = !isConfirmationStage
+    ? 'Booking Status Updated'
+    : isPaid
+      ? 'Booking Confirmed!'
+      : 'Booking Submitted!';
+  const subtitleText = !isConfirmationStage
+    ? `This booking is now ${statusLabel}. Open the booking record for its current actions and support history.`
+    : isPaid
+      ? isPaymentHeld
+        ? 'Your booking shows paid with escrow held. We\'re finding the best provider for you.'
+        : 'Your booking shows paid. We\'re finding the best provider for you.'
+      : 'Complete your payment to confirm this booking.';
+
+  if (!bookingId || isError) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + spacing.xxl }]}>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <ErrorState
+            message={
+              bookingId
+                ? "We couldn't verify this booking. Check My Bookings before paying or submitting another request."
+                : 'No booking was provided. Open My Bookings to check your current requests.'
+            }
+            onRetry={bookingId ? () => void refetch() : () => router.replace(Routes.TABS.BOOKINGS)}
+          />
+        </View>
+      </View>
+    );
+  }
+
+  if (isLoading || !booking) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + spacing.xxl }]}>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -58,16 +96,6 @@ export default function BookingConfirmScreen(): React.ReactElement {
           <View style={styles.bookingIdCard}>
             <Text style={styles.bookingIdLabel}>Booking ID</Text>
             <Text style={styles.bookingIdValue}>#{formatBookingRef(bookingId)}</Text>
-          </View>
-        )}
-
-        {isLoading && <SkeletonCard />}
-
-        {isError && (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorText}>
-              Could not load booking details. Your booking was created — check My Bookings.
-            </Text>
           </View>
         )}
 
@@ -117,27 +145,29 @@ export default function BookingConfirmScreen(): React.ReactElement {
           </TouchableOpacity>
         )}
 
-        <Card style={styles.stepsCard}>
-          <Text style={styles.stepsTitle}>What happens next?</Text>
-          <View style={styles.step}>
-            <View style={styles.stepDot} />
-            <Text style={styles.stepText}>
-              We'll match you with a verified provider in your area
-            </Text>
-          </View>
-          <View style={styles.step}>
-            <View style={styles.stepDot} />
-            <Text style={styles.stepText}>
-              You'll receive a notification once a provider accepts
-            </Text>
-          </View>
-          <View style={styles.step}>
-            <View style={styles.stepDot} />
-            <Text style={styles.stepText}>
-              Track your provider's status in real-time on booking day
-            </Text>
-          </View>
-        </Card>
+        {isConfirmationStage ? (
+          <Card style={styles.stepsCard}>
+            <Text style={styles.stepsTitle}>What happens next?</Text>
+            <View style={styles.step}>
+              <View style={styles.stepDot} />
+              <Text style={styles.stepText}>
+                We'll match you with a verified provider in your area
+              </Text>
+            </View>
+            <View style={styles.step}>
+              <View style={styles.stepDot} />
+              <Text style={styles.stepText}>
+                You'll receive a notification once a provider accepts
+              </Text>
+            </View>
+            <View style={styles.step}>
+              <View style={styles.stepDot} />
+              <Text style={styles.stepText}>
+                Track your provider's status in real-time on booking day
+              </Text>
+            </View>
+          </Card>
+        ) : null}
       </View>
       </ScrollView>
 
@@ -150,7 +180,7 @@ export default function BookingConfirmScreen(): React.ReactElement {
             tap "View Booking" and then find "Complete Payment" on the
             booking detail screen — two taps where one should do. Now
             we surface the direct CTA when status is payment_pending. */}
-        {bookingId && booking && !isPaid && (
+        {bookingId && booking?.status === 'payment_pending' && (
           <Button
             title="Complete Payment"
             onPress={() => router.replace({ pathname: Routes.CUSTOMER.BOOKING_PAY, params: { bookingId } })}
@@ -189,6 +219,8 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, paddingBottom: spacing.lg },
   scrollContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center' },
   content: { flex: 1, alignItems: 'center' },
+  stateContent: { flex: 1, width: '100%', gap: spacing.md },
+  stateContentWide: { maxWidth: 760, alignSelf: 'center', justifyContent: 'center' },
   loadingIndicator: { marginBottom: spacing.lg },
 
   successCircle: {

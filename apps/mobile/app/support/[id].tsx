@@ -13,10 +13,11 @@ import {
   getMyTicket,
   addTicketMessage,
   isTicketOpen,
-  SUPPORT_STATUS_LABELS,
+  getSupportStatusLabel,
   type SupportTicketMessage,
 } from '@/services/support.service';
 import { useResponsive } from '@/hooks/useResponsive';
+import { ErrorState } from '@/components/ui';
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -30,6 +31,7 @@ export default function SupportThreadScreen(): React.ReactElement {
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
   const myUserId = useAuthStore((s) => s.user?.id);
+  const viewerRole = useAuthStore((s) => s.user?.role);
   const scrollRef = useRef<ScrollView>(null);
   const [draft, setDraft] = useState('');
 
@@ -66,6 +68,18 @@ export default function SupportThreadScreen(): React.ReactElement {
     mutation.mutate(text);
   };
 
+  if (!id) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ErrorState
+          title="Support request unavailable"
+          message="This link does not identify a support request. Return to Support and open the request again."
+          onRetry={() => router.back()}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -76,7 +90,7 @@ export default function SupportThreadScreen(): React.ReactElement {
           <Text style={styles.title} numberOfLines={1}>{ticket?.subject ?? 'Support'}</Text>
           {ticket ? (
             <Text style={styles.subtitle}>
-              {ticket.ticket_number} · {SUPPORT_STATUS_LABELS[ticket.status] ?? ticket.status}
+              {ticket.ticket_number} · {getSupportStatusLabel(ticket.status, viewerRole)}
             </Text>
           ) : null}
         </View>
@@ -127,7 +141,7 @@ export default function SupportThreadScreen(): React.ReactElement {
               {!open ? (
                 <View style={styles.closedNote}>
                   <Text style={styles.closedNoteText}>
-                    This request is {SUPPORT_STATUS_LABELS[ticket.status].toLowerCase()}. Start a new request if you still need help.
+                    This request is {getSupportStatusLabel(ticket.status, viewerRole).toLowerCase()}. Start a new request if you still need help.
                   </Text>
                 </View>
               ) : null}

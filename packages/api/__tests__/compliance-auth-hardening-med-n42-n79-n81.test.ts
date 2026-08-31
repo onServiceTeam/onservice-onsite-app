@@ -1,4 +1,4 @@
-// MED-N42 + MED-N79 + MED-N81 fix verified.
+// MED-N42 + MED-N79 fixes verified.
 //
 // MED-N42: compliance.recordConsent's revoke UPDATE + insert
 // were two separate db.query calls. If UPDATE succeeded but
@@ -11,11 +11,9 @@
 // (unbounded suffix). NPC docs specify exactly 6 alphanumeric
 // after the year. Tightened to {6}.
 //
-// MED-N81: auth /me PATCH allowed email update with no
-// uniqueness check. UNIQUE-violation surfaced as raw 23505 SQL
-// error (or worse, no error at all). Now: pre-check
-// `LOWER(email) = LOWER($1) AND id != $2` before the UPDATE
-// and throw 409 on conflict.
+// MED-N81's direct email-update behavior was later removed by Bug UX-654.
+// Email ownership verification does not exist yet, so /auth/me now rejects
+// that field rather than trying only to make an unsafe update unique.
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -26,10 +24,6 @@ const COMPLIANCE = readFileSync(
 );
 const BREACH = readFileSync(
   resolve(__dirname, '../src/services/breach-log.service.ts'),
-  'utf8',
-);
-const AUTH_ROUTES = readFileSync(
-  resolve(__dirname, '../src/routes/auth.routes.ts'),
   'utf8',
 );
 
@@ -54,7 +48,6 @@ describe('MED-N42 — compliance.recordConsent revoke + insert atomic', () => {
     expect(block![0]).not.toMatch(/await db\.query/);
   });
 });
-
 describe('MED-N79 — breach-log NPC reference regex tightened to exactly 6 alphanumerics', () => {
   it('regex uses {6} not {6,}', () => {
     expect(BREACH).toMatch(/NPC_REF_REGEX = \/\^NPC-\\d\{4\}-\[A-Z0-9\]\{6\}\$\//);
@@ -88,28 +81,5 @@ describe('MED-N79 — regex behavioral smoke', () => {
 
   it('rejects lowercase suffix', () => {
     expect(NPC_REF_REGEX.test('NPC-2026-abc123')).toBe(false);
-  });
-});
-
-describe('MED-N81 — auth /me PATCH email uniqueness pre-check', () => {
-  it('uses case-insensitive LOWER comparison', () => {
-    expect(AUTH_ROUTES).toMatch(/MED-N81 fix/);
-    expect(AUTH_ROUTES).toMatch(/SELECT id FROM users WHERE LOWER\(email\) = LOWER\(\$1\) AND id != \$2 LIMIT 1/);
-  });
-
-  it('throws 409 with friendly message on conflict', () => {
-    expect(AUTH_ROUTES).toMatch(/That email is already in use by another account/);
-    expect(AUTH_ROUTES).toMatch(/statusCode: 409/);
-  });
-
-  it('only fires the check when email is being updated', () => {
-    // The pre-check is gated inside `if (email !== undefined)`.
-    expect(AUTH_ROUTES).toMatch(/if \(email !== undefined\) \{[\s\S]{0,500}MED-N81 fix/);
-  });
-
-  it('UPDATE proceeds when no duplicate found', () => {
-    // After the dup check, the email gets pushed onto sets/vals
-    // exactly as before.
-    expect(AUTH_ROUTES).toMatch(/sets\.push\(`email = \$\$\{idx\+\+\}`\)/);
   });
 });

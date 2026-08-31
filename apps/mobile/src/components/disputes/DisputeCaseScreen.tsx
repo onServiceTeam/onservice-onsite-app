@@ -122,6 +122,18 @@ export default function DisputeCaseScreen({ role }: { role: DisputeRole }): Reac
     setConfirmProviderAction(true);
   };
 
+  if (!id) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          title="Dispute unavailable"
+          message="This link does not identify a dispute case. Return to your dispute inbox and open the case again."
+          onRetry={() => router.back()}
+        />
+      </View>
+    );
+  }
+
   if (disputeQuery.isLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -193,6 +205,23 @@ export default function DisputeCaseScreen({ role }: { role: DisputeRole }): Reac
                 <Text style={styles.value}>{formatBookingRef(dispute.bookingId, booking?.createdAt ?? dispute.createdAt)}</Text>
                 <Text style={styles.label}>{role === 'customer' ? 'Provider' : 'Customer'}</Text>
                 <Text style={styles.value}>{counterparty || booking?.providerName || booking?.customerName || 'Booking participant'}</Text>
+                {bookingQuery.isError ? (
+                  <View style={styles.bookingContextError} accessibilityRole="alert">
+                    <Text style={styles.bookingContextErrorText}>
+                      Booking service and total could not be verified. The dispute case is still available.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.bookingContextRetry}
+                      onPress={() => void bookingQuery.refetch()}
+                      disabled={bookingQuery.isFetching}
+                      accessibilityRole="button"
+                      accessibilityLabel="Retry dispute booking context"
+                      accessibilityState={{ disabled: bookingQuery.isFetching, busy: bookingQuery.isFetching }}
+                    >
+                      <Text style={styles.bookingContextRetryText}>{bookingQuery.isFetching ? 'Retrying…' : 'Try again'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
                 {booking ? (
                   <>
                     <Text style={styles.label}>Service</Text>
@@ -372,6 +401,10 @@ const styles = StyleSheet.create({
   description: { ...typography.body, color: colors.textSecondary, lineHeight: 22, marginTop: spacing.md },
   label: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.md, marginBottom: 2 },
   value: { ...typography.body, color: colors.text, fontWeight: '600', marginBottom: spacing.sm },
+  bookingContextError: { backgroundColor: colors.warningLight, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.md },
+  bookingContextErrorText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 19 },
+  bookingContextRetry: { minHeight: 44, justifyContent: 'center', alignItems: 'flex-start', marginTop: spacing.xs },
+  bookingContextRetryText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
   muted: { ...typography.bodySmall, color: colors.textTertiary },
   refundValue: { ...typography.h3, color: colors.success, marginTop: spacing.sm },
   evidenceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },

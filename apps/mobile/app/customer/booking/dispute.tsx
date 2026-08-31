@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { fileDispute, type DisputeEvidence } from '@/services/booking.service';
+import { fileDispute, getBookingById, type DisputeEvidence } from '@/services/booking.service';
 import { getErrorMessage } from '@/utils/errors';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { colors, spacing, borderRadius } from '@/config/theme';
@@ -15,6 +15,7 @@ import { showToast } from '@/lib/toast';
 import { platformConfig } from '@/config/platform.config';
 import { buildRoute, Routes } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
+import { ErrorState, SkeletonCard } from '@/components/ui';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -39,6 +40,14 @@ export default function DisputeScreen(): React.ReactElement {
   const [disputeType, setDisputeType] = useState('');
   const [description, setDescription] = useState('');
   const imagePicker = useImagePicker({ context: 'dispute', maxImages: 10 });
+  const validBookingId = typeof bookingId === 'string' ? bookingId.trim() : '';
+
+  const bookingQuery = useQuery({
+    queryKey: ['booking', validBookingId],
+    queryFn: () => getBookingById(validBookingId),
+    enabled: validBookingId.length > 0,
+    staleTime: 30 * 1000,
+  });
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -48,7 +57,7 @@ export default function DisputeScreen(): React.ReactElement {
         type: 'photo' as const,
       }));
       return fileDispute({
-        bookingId: bookingId ?? '',
+        bookingId: validBookingId,
         type: disputeType,
         description,
         evidenceUrls: evidence.length > 0 ? evidence : undefined,
@@ -66,8 +75,60 @@ export default function DisputeScreen(): React.ReactElement {
 
   const needsEvidence = EVIDENCE_REQUIRED.has(disputeType);
   const hasEvidence = imagePicker.localUris.length > 0;
-  const hasValidBooking = !!bookingId && bookingId.length > 0;
-  const isValid = hasValidBooking && !!disputeType && description.length >= 50 && (!needsEvidence || hasEvidence);
+  const hasValidBooking = validBookingId.length > 0;
+  const isEligibleStatus = bookingQuery.data
+    ? ['completed_by_provider', 'confirmed'].includes(bookingQuery.data.status)
+    : false;
+  const isPastDeadline = bookingQuery.data?.completedAt
+    ? Date.now() - new Date(bookingQuery.data.completedAt).getTime() >
+      platformConfig.escrowDisputeWindowHours * 60 * 60 * 1000
+    : false;
+  const isValid = hasValidBooking && isEligibleStatus && !isPastDeadline && !!disputeType && description.length >= 50 && (!needsEvidence || hasEvidence);
+
+  if (!hasValidBooking || bookingQuery.isError || (bookingQuery.data && (!isEligibleStatus || isPastDeadline))) {
+    const message = !hasValidBooking
+      ? 'No booking was provided. Open the dispute form from an eligible completed booking.'
+      : bookingQuery.isError
+        ? "We couldn't verify this booking or its dispute eligibility. Retry before submitting evidence."
+        : isPastDeadline
+          ? `The ${platformConfig.escrowDisputeWindowHours}-hour filing window for this booking has ended. Contact support if you still need help.`
+          : 'This booking is not eligible for a dispute yet. The provider must mark the job complete first.';
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back from dispute form">
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>File a Dispute</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <ErrorState
+            message={message}
+            onRetry={bookingQuery.isError ? () => void bookingQuery.refetch() : () => router.back()}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (bookingQuery.isLoading || !bookingQuery.data) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back from dispute form">
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>File a Dispute</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -229,6 +290,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   placeholder: { width: 30 },
   body: { flex: 1 },
+  stateContent: { flex: 1, padding: spacing.base, gap: spacing.md },
+  stateContentWide: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: spacing.xl },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
   bodyContentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: spacing.xl },
   formWorkspace: { width: '100%' },

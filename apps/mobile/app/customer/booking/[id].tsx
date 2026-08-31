@@ -125,6 +125,24 @@ export default function BookingDetailScreen(): React.ReactElement {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const handleCancelConfirm = (): void => setShowCancelConfirm(true);
 
+  if (!id) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Booking Details</Text>
+        </View>
+        <ErrorState
+          title="Booking unavailable"
+          message="This link does not identify a booking. Return to your bookings and open the record again."
+          onRetry={() => router.back()}
+        />
+      </View>
+    );
+  }
+
   if (isLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -365,7 +383,13 @@ export default function BookingDetailScreen(): React.ReactElement {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Schedule</Text>
-          <Text style={styles.detailText}>{formatDateTime(booking.scheduledAt)}</Text>
+          <Text style={styles.detailText}>
+            {booking.scheduledAt
+              ? formatDateTime(booking.scheduledAt)
+              : booking.bookingType === 'quote_based'
+                ? 'To be agreed after you accept a quote'
+                : 'Schedule not set'}
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -405,6 +429,14 @@ export default function BookingDetailScreen(): React.ReactElement {
             accessibilityLabel="Booking summary and actions"
           >
 
+        {canViewQuotes ? (
+          <View style={styles.receipt} accessibilityLabel="Quote pricing pending">
+            <Text style={styles.receiptTitle}>Quote pricing</Text>
+            <Text style={styles.quotePricingText}>
+              No service price or payment is due yet. Compare provider quotes, then accept one to set the booking scope and total.
+            </Text>
+          </View>
+        ) : (
         <View style={styles.receipt}>
           <Text style={styles.receiptTitle}>Receipt</Text>
           <View style={styles.receiptRow}>
@@ -459,6 +491,7 @@ export default function BookingDetailScreen(): React.ReactElement {
             </View>
           )}
         </View>
+        )}
             {isWide && <View style={styles.desktopActions}>{bookingActions}</View>}
           </View>
         </View>
@@ -578,6 +611,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.base,
   },
   receiptTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
+  quotePricingText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20 },
   receiptRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

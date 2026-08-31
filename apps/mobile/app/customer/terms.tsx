@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import { ScrollText, Lock } from '@/components/icons';
 import { fetchCancellationPolicy, policyToTermsText } from '@/utils/cancellation-policy';
 import { platformConfig } from '@/config/platform.config';
 import { useResponsive } from '@/hooks/useResponsive';
+import { showToast } from '@/lib/toast';
 
 interface Section {
   title: string;
@@ -19,6 +20,18 @@ interface Section {
 
 // Operating entity. Update if the registered business name/owner changes.
 const ENTITY = 'onService PH';
+const SUPPORT_EMAIL = 'support@onservice.ph';
+
+function openSupportEmail(): void {
+  if (Platform.OS === 'web') {
+    showToast(`Email support at ${SUPPORT_EMAIL}`, 'info');
+    return;
+  }
+
+  void Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => {
+    showToast(`Email support at ${SUPPORT_EMAIL}`, 'info');
+  });
+}
 
 const TOS_SECTIONS: Section[] = [
   {
@@ -356,8 +369,8 @@ export default function TermsScreen(): React.ReactElement {
           <Text style={styles.contactDesc}>
             If you have questions about our terms or privacy practices, contact us.
           </Text>
-          <TouchableOpacity onPress={() => void Linking.openURL('mailto:support@onservice.ph')} accessibilityRole="link" accessibilityLabel="Email onService support">
-            <Text style={styles.contactLink}>support@onservice.ph</Text>
+          <TouchableOpacity onPress={openSupportEmail} accessibilityRole="link" accessibilityLabel="Email onService support">
+            <Text style={styles.contactLink}>{SUPPORT_EMAIL}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

@@ -79,7 +79,7 @@ export default function TipScreen(): React.ReactElement {
     },
     staleTime: 5 * 60 * 1000,
   });
-  const platformTipMax = tipLimitsQuery.data?.maxCents ?? 500_000;
+  const platformTipMax = tipLimitsQuery.data?.maxCents ?? 0;
 
   const servicePrice = booking?.servicePrice ?? 0;
 
@@ -147,12 +147,53 @@ export default function TipScreen(): React.ReactElement {
     );
   }
 
-  if (bookingError) {
+  if (bookingError || !bookingId || !booking) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
         <ErrorState
-          message="We couldn't load this booking. Please check your connection and try again."
+          title="Tip unavailable"
+          message={bookingId
+            ? "We couldn't load this booking. Please check your connection and try again."
+            : 'Open the tip form from a completed booking so the correct provider and work record are attached.'}
           onRetry={() => void refetch()}
+        />
+      </View>
+    );
+  }
+
+  if (!['completed_by_provider', 'confirmed', 'resolved'].includes(booking.status) || !booking.providerId) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
+        <ErrorState
+          title="Tip not available for this booking"
+          message="Tips can be sent only after the assigned provider completes the work."
+          onRetry={() => router.back()}
+        />
+      </View>
+    );
+  }
+
+  if (walletQuery.isPending || tipLimitsQuery.isPending) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
+        <View style={{ padding: spacing.base }}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      </View>
+    );
+  }
+
+  if (walletQuery.isError || tipLimitsQuery.isError) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
+        <ErrorState
+          title="Tip details unavailable"
+          message="We could not verify your wallet balance and the current tip limit. Try again before sending money."
+          onRetry={() => {
+            void walletQuery.refetch();
+            void tipLimitsQuery.refetch();
+          }}
         />
       </View>
     );

@@ -70,7 +70,12 @@ export default function PayExistingBookingScreen(): React.ReactElement {
 
   // Wallet balance — so a customer paying from their onService wallet is told
   // up front if it's short, instead of failing server-side after tapping Pay.
-  const walletQuery = useQuery({ queryKey: ['wallet'], queryFn: getWalletBalance, staleTime: 30_000 });
+  const walletQuery = useQuery({
+    queryKey: ['wallet'],
+    queryFn: getWalletBalance,
+    enabled: !!bookingId,
+    staleTime: 30_000,
+  });
   const walletBalance = walletQuery.data?.availableBalance ?? 0;
   const total = booking?.totalAmount ?? 0;
   const walletSelected = selectedMethod === 'wallet';
@@ -106,6 +111,18 @@ export default function PayExistingBookingScreen(): React.ReactElement {
       setLoading(false);
     }
   };
+
+  if (!bookingId) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          title="Payment unavailable"
+          message="This link does not identify a booking awaiting payment. Return to your bookings and open the payment action again."
+          onRetry={() => router.back()}
+        />
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (

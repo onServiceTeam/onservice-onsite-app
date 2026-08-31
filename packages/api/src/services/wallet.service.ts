@@ -263,16 +263,27 @@ export async function getWalletTransactions(
   walletId: string,
   page = 1,
   pageSize = 20,
+  group?: 'topup' | 'payment' | 'refund',
 ): Promise<{ transactions: TransactionRow[]; total: number }> {
   const offset = (page - 1) * pageSize;
+  const groupClause = group === 'topup'
+    ? ` AND (type IN ('topup', 'wallet_topup') OR LOWER(description) LIKE '%top-up%')`
+    : group === 'payment'
+      // Top-ups are historically recorded as type='payment' too, but unlike a
+      // booking payment they have no booking_id. Keep the customer-facing
+      // Payments bucket limited to money attached to an actual booking.
+      ? ` AND type IN ('payment', 'escrow_hold') AND booking_id IS NOT NULL`
+      : group === 'refund'
+        ? ` AND type = 'refund'`
+        : '';
 
   const [countResult, dataResult] = await Promise.all([
     db.query<CountRow>(
-      `SELECT COUNT(*)::text as count FROM wallet_transactions WHERE wallet_id = $1`,
+      `SELECT COUNT(*)::text as count FROM wallet_transactions WHERE wallet_id = $1${groupClause}`,
       [walletId],
     ),
     db.query<TransactionRow>(
-      `SELECT * FROM wallet_transactions WHERE wallet_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+      `SELECT * FROM wallet_transactions WHERE wallet_id = $1${groupClause} ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
       [walletId, pageSize, offset],
     ),
   ]);

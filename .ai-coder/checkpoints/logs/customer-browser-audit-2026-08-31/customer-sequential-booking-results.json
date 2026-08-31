@@ -1,0 +1,242 @@
+[
+  {
+    "width": 768,
+    "completed": true,
+    "payloadSafe": true,
+    "steps": [
+      {
+        "name": "catalog",
+        "path": "/customer/category/air-conditioning",
+        "text": "Air Conditioning Aircon Cleaning Cleaning of one wall-mounted split-type air-conditioning unit, including before and after evidence. 120 min Starting at ₱1,500.00",
+        "overflow": 0
+      },
+      {
+        "name": "configure",
+        "path": "/customer/booking/configure",
+        "text": "Customize Your Service Aircon Cleaning ₱1,500.00 What this service covers Cleaning of one wall-mounted split-type air-conditioning unit, including before and after evidence. No add-ons available for this service. Price Summary Base Service ₱1,500.00 Service Fee ₱0.00 Estimated Total ₱1,500.00 The final checkout shows the service, add-ons, fee, schedule, and payment method before you submit. Continue Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "form",
+        "path": "/customer/booking/form",
+        "text": "Book Service Aircon Cleaning ₱1,500.00 Service Address Tap to select your address Select Date Tue, Sep 1 Wed, Sep 2 Thu, Sep 3 Fri, Sep 4 Sat, Sep 5 Sun, Sep 6 Mon, Sep 7 Tue, Sep 8 Wed, Sep 9 Thu, Sep 10 Fri, Sep 11 Sat, Sep 12 Sun, Sep 13 Mon, Sep 14 Select Time 08:00 09:00 10:00 11:00 13:00 14:00 15:00 16:00 17:00 Additional Notes (optional) Price Breakdown Service Price ₱1,500.00 Platform Service Fee ₱0.00 Total ₱1,500.00 Proceed to Payment • ₱1,500.00 Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "address-picker",
+        "path": "/customer/address-picker",
+        "text": "← Select Address Search Saved Addresses Home 88 Banilad Road, Banilad, Mandaue City Default Use My Location Booking in a browser Search for the address, enter its barangay, then use this device's location while you are at the service property. For another property, set the exact pin in the mobile app. Confirm Address Map preview The interactive map is available in the onService mobile app. Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "form-with-address",
+        "path": "/customer/booking/form",
+        "text": "Book Service Aircon Cleaning ₱1,500.00 Service Address 88 Banilad Road, Banilad, Mandaue City Select Date Tue, Sep 1 Wed, Sep 2 Thu, Sep 3 Fri, Sep 4 Sat, Sep 5 Sun, Sep 6 Mon, Sep 7 Tue, Sep 8 Wed, Sep 9 Thu, Sep 10 Fri, Sep 11 Sat, Sep 12 Sun, Sep 13 Mon, Sep 14 Select Time 08:00 09:00 10:00 11:00 13:00 14:00 15:00 16:00 17:00 Additional Notes (optional) Price Breakdown Service Price ₱1,500.00 Platform Service Fee ₱0.00 Total ₱1,500.00 Proceed to Payment • ₱1,500.00",
+        "overflow": 0
+      },
+      {
+        "name": "checkout",
+        "path": "/customer/booking/checkout",
+        "text": "← Checkout Booking Summary Service Aircon Cleaning Date September 1, 2026 Time 08:00 Address 88 Banilad Road Choose Payment Method External payments temporarily unavailable Card, GCash, Maya, and QR Ph are paused while we correct the payment authorization flow. No external payment will be created. You can still use an existing wallet balance. GCash Temporarily unavailable Maya Temporarily unavailable Credit/Debit Card Temporarily unavailable Wallet Balance Pay from your existing onService balance QR Ph Temporarily unavailable After a wallet payment succeeds, your booking shows its paid and escrow status. Release follows customer confirmation or the platform completion timer. Tap for details. Service Price ₱1,500.00 Platform fee Free Total ₱1,500.00 The itemized total above is the amount this wallet payment will charge Server-verified payment and escrow status stays visible in your booking Dispute filing and evidence review start from the booking record Eligible completed bookings earn Suki points Vetted pros Verified escrow Case tracking By proceeding, you agree to our Terms of Service and Privacy Policy. Existing wallet payments are processed within onService. External PayMongo payment methods are currently unavailable. Pay ₱1,500.00",
+        "overflow": 0
+      },
+      {
+        "name": "confirmed",
+        "path": "/customer/booking/confirm?bookingId=sequential-booking",
+        "text": "Booking Confirmed! Your booking shows paid with escrow held. We're finding the best provider for you. Booking ID #OS-2026-KING Service Air Conditioning Scheduled September 2, 2026 Location 88 Banilad Road Total ₱1,500.00 Vetted pros Verified escrow Case tracking This booking currently shows escrow held. Release follows customer confirmation or the platform completion timer; check the booking for its current status. What happens next? We'll match you with a verified provider in your area You'll receive a notification once a provider accepts Track your provider's status in real-time on booking day View Booking Back to Home",
+        "overflow": 0
+      }
+    ],
+    "writes": [
+      {
+        "method": "POST",
+        "pathname": "/api/v1/bookings",
+        "body": {
+          "categoryId": "category-1",
+          "subcategoryId": "subcategory-1",
+          "bookingType": "fixed_price",
+          "description": "Aircon Cleaning – 2026-09-01",
+          "address": "88 Banilad Road",
+          "barangay": "Banilad",
+          "city": "Mandaue City",
+          "province": "Cebu",
+          "latitude": 10.335,
+          "longitude": 123.91,
+          "scheduledAt": "2026-09-01T00:00:00.000Z"
+        }
+      },
+      {
+        "method": "POST",
+        "pathname": "/api/v1/payments/intent",
+        "body": {
+          "bookingId": "sequential-booking",
+          "paymentMethod": "wallet"
+        }
+      }
+    ],
+    "unmatchedApi": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failed": false
+  },
+  {
+    "width": 1024,
+    "completed": true,
+    "payloadSafe": true,
+    "steps": [
+      {
+        "name": "catalog",
+        "path": "/customer/category/air-conditioning",
+        "text": "Air Conditioning Aircon Cleaning Cleaning of one wall-mounted split-type air-conditioning unit, including before and after evidence. 120 min Starting at ₱1,500.00",
+        "overflow": 0
+      },
+      {
+        "name": "configure",
+        "path": "/customer/booking/configure",
+        "text": "Customize Your Service Aircon Cleaning ₱1,500.00 What this service covers Cleaning of one wall-mounted split-type air-conditioning unit, including before and after evidence. No add-ons available for this service. Price Summary Base Service ₱1,500.00 Service Fee ₱0.00 Estimated Total ₱1,500.00 The final checkout shows the service, add-ons, fee, schedule, and payment method before you submit. Continue Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "form",
+        "path": "/customer/booking/form",
+        "text": "Book Service Aircon Cleaning ₱1,500.00 Service Address Tap to select your address Select Date Tue, Sep 1 Wed, Sep 2 Thu, Sep 3 Fri, Sep 4 Sat, Sep 5 Sun, Sep 6 Mon, Sep 7 Tue, Sep 8 Wed, Sep 9 Thu, Sep 10 Fri, Sep 11 Sat, Sep 12 Sun, Sep 13 Mon, Sep 14 Select Time 08:00 09:00 10:00 11:00 13:00 14:00 15:00 16:00 17:00 Additional Notes (optional) Price Breakdown Service Price ₱1,500.00 Platform Service Fee ₱0.00 Total ₱1,500.00 Proceed to Payment • ₱1,500.00 Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "address-picker",
+        "path": "/customer/address-picker",
+        "text": "← Select Address Search Saved Addresses Home 88 Banilad Road, Banilad, Mandaue City Default Use My Location Booking in a browser Search for the address, enter its barangay, then use this device's location while you are at the service property. For another property, set the exact pin in the mobile app. Confirm Address Map preview The interactive map is available in the onService mobile app. Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "form-with-address",
+        "path": "/customer/booking/form",
+        "text": "Book Service Aircon Cleaning ₱1,500.00 Service Address 88 Banilad Road, Banilad, Mandaue City Select Date Tue, Sep 1 Wed, Sep 2 Thu, Sep 3 Fri, Sep 4 Sat, Sep 5 Sun, Sep 6 Mon, Sep 7 Tue, Sep 8 Wed, Sep 9 Thu, Sep 10 Fri, Sep 11 Sat, Sep 12 Sun, Sep 13 Mon, Sep 14 Select Time 08:00 09:00 10:00 11:00 13:00 14:00 15:00 16:00 17:00 Additional Notes (optional) Price Breakdown Service Price ₱1,500.00 Platform Service Fee ₱0.00 Total ₱1,500.00 Proceed to Payment • ₱1,500.00",
+        "overflow": 0
+      },
+      {
+        "name": "checkout",
+        "path": "/customer/booking/checkout",
+        "text": "← Checkout Booking Summary Service Aircon Cleaning Date September 1, 2026 Time 08:00 Address 88 Banilad Road Choose Payment Method External payments temporarily unavailable Card, GCash, Maya, and QR Ph are paused while we correct the payment authorization flow. No external payment will be created. You can still use an existing wallet balance. GCash Temporarily unavailable Maya Temporarily unavailable Credit/Debit Card Temporarily unavailable Wallet Balance Pay from your existing onService balance QR Ph Temporarily unavailable After a wallet payment succeeds, your booking shows its paid and escrow status. Release follows customer confirmation or the platform completion timer. Tap for details. Service Price ₱1,500.00 Platform fee Free Total ₱1,500.00 The itemized total above is the amount this wallet payment will charge Server-verified payment and escrow status stays visible in your booking Dispute filing and evidence review start from the booking record Eligible completed bookings earn Suki points Vetted pros Verified escrow Case tracking By proceeding, you agree to our Terms of Service and Privacy Policy. Existing wallet payments are processed within onService. External PayMongo payment methods are currently unavailable. Pay ₱1,500.00",
+        "overflow": 0
+      },
+      {
+        "name": "confirmed",
+        "path": "/customer/booking/confirm?bookingId=sequential-booking",
+        "text": "Booking Confirmed! Your booking shows paid with escrow held. We're finding the best provider for you. Booking ID #OS-2026-KING Service Air Conditioning Scheduled September 2, 2026 Location 88 Banilad Road Total ₱1,500.00 Vetted pros Verified escrow Case tracking This booking currently shows escrow held. Release follows customer confirmation or the platform completion timer; check the booking for its current status. What happens next? We'll match you with a verified provider in your area You'll receive a notification once a provider accepts Track your provider's status in real-time on booking day View Booking Back to Home",
+        "overflow": 0
+      }
+    ],
+    "writes": [
+      {
+        "method": "POST",
+        "pathname": "/api/v1/bookings",
+        "body": {
+          "categoryId": "category-1",
+          "subcategoryId": "subcategory-1",
+          "bookingType": "fixed_price",
+          "description": "Aircon Cleaning – 2026-09-01",
+          "address": "88 Banilad Road",
+          "barangay": "Banilad",
+          "city": "Mandaue City",
+          "province": "Cebu",
+          "latitude": 10.335,
+          "longitude": 123.91,
+          "scheduledAt": "2026-09-01T00:00:00.000Z"
+        }
+      },
+      {
+        "method": "POST",
+        "pathname": "/api/v1/payments/intent",
+        "body": {
+          "bookingId": "sequential-booking",
+          "paymentMethod": "wallet"
+        }
+      }
+    ],
+    "unmatchedApi": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failed": false
+  },
+  {
+    "width": 1366,
+    "completed": true,
+    "payloadSafe": true,
+    "steps": [
+      {
+        "name": "catalog",
+        "path": "/customer/category/air-conditioning",
+        "text": "oS onService PH Customer workspace WORKSPACE Home Bookings Wallet Projects Suki Pros Team Invitations Support Profile P Paolo Garcia Customer Air Conditioning Aircon Cleaning Cleaning of one wall-mounted split-type air-conditioning unit, including before and after evidence. 120 min Starting at ₱1,500.00",
+        "overflow": 0
+      },
+      {
+        "name": "configure",
+        "path": "/customer/booking/configure",
+        "text": "oS onService PH Customer workspace WORKSPACE Home Bookings Wallet Projects Suki Pros Team Invitations Support Profile P Paolo Garcia Customer Customize Your Service Aircon Cleaning ₱1,500.00 What this service covers Cleaning of one wall-mounted split-type air-conditioning unit, including before and after evidence. No add-ons available for this service. Price Summary Base Service ₱1,500.00 Service Fee ₱0.00 Estimated Total ₱1,500.00 The final checkout shows the service, add-ons, fee, schedule, and payment method before you submit. Continue Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "form",
+        "path": "/customer/booking/form",
+        "text": "oS onService PH Customer workspace WORKSPACE Home Bookings Wallet Projects Suki Pros Team Invitations Support Profile P Paolo Garcia Customer Book Service Aircon Cleaning ₱1,500.00 Service Address Tap to select your address Select Date Tue, Sep 1 Wed, Sep 2 Thu, Sep 3 Fri, Sep 4 Sat, Sep 5 Sun, Sep 6 Mon, Sep 7 Tue, Sep 8 Wed, Sep 9 Thu, Sep 10 Fri, Sep 11 Sat, Sep 12 Sun, Sep 13 Mon, Sep 14 Select Time 08:00 09:00 10:00 11:00 13:00 14:00 15:00 16:00 17:00 Additional Notes (optional) Price Breakdown Service Price ₱1,500.00 Platform Service Fee ₱0.00 Total ₱1,500.00 Proceed to Payment • ₱1,500.00 Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "address-picker",
+        "path": "/customer/address-picker",
+        "text": "oS onService PH Customer workspace WORKSPACE Home Bookings Wallet Projects Suki Pros Team Invitations Support Profile P Paolo Garcia Customer ← Select Address Search Saved Addresses Home 88 Banilad Road, Banilad, Mandaue City Default Use My Location Booking in a browser Search for the address, enter its barangay, then use this device's location while you are at the service property. For another property, set the exact pin in the mobile app. Confirm Address Map preview The interactive map is available in the onService mobile app. Service details Back Customize service",
+        "overflow": 0
+      },
+      {
+        "name": "form-with-address",
+        "path": "/customer/booking/form",
+        "text": "oS onService PH Customer workspace WORKSPACE Home Bookings Wallet Projects Suki Pros Team Invitations Support Profile P Paolo Garcia Customer Book Service Aircon Cleaning ₱1,500.00 Service Address 88 Banilad Road, Banilad, Mandaue City Select Date Tue, Sep 1 Wed, Sep 2 Thu, Sep 3 Fri, Sep 4 Sat, Sep 5 Sun, Sep 6 Mon, Sep 7 Tue, Sep 8 Wed, Sep 9 Thu, Sep 10 Fri, Sep 11 Sat, Sep 12 Sun, Sep 13 Mon, Sep 14 Select Time 08:00 09:00 10:00 11:00 13:00 14:00 15:00 16:00 17:00 Additional Notes (optional) Price Breakdown Service Price ₱1,500.00 Platform Service Fee ₱0.00 Total ₱1,500.00 Proceed to Payment • ₱1,500.00",
+        "overflow": 0
+      },
+      {
+        "name": "checkout",
+        "path": "/customer/booking/checkout",
+        "text": "oS onService PH Customer workspace WORKSPACE Home Bookings Wallet Projects Suki Pros Team Invitations Support Profile P Paolo Garcia Customer ← Checkout Booking Summary Service Aircon Cleaning Date September 1, 2026 Time 08:00 Address 88 Banilad Road Choose Payment Method External payments temporarily unavailable Card, GCash, Maya, and QR Ph are paused while we correct the payment authorization flow. No external payment will be created. You can still use an existing wallet balance. GCash Temporarily unavailable Maya Temporarily unavailable Credit/Debit Card Temporarily unavailable Wallet Balance Pay from your existing onService balance QR Ph Temporarily unavailable After a wallet payment succeeds, your booking shows its paid and escrow status. Release follows customer confirmation or the platform completion timer. Tap for details. Service Price ₱1,500.00 Platform fee Free Total ₱1,500.00 The itemized total above is the amount this wallet payment will charge Server-verified payment and escrow status stays visible in your booking Dispute filing and evidence review start from the booking record Eligible completed bookings earn Suki points Vetted pros Verified escrow Case tracking By proceeding, you agree to our Terms of Service and Privacy Policy. Existing wallet payments are processed within onService. External PayMongo payment methods are currently unavailable. Pay ₱1,500.00",
+        "overflow": 0
+      },
+      {
+        "name": "confirmed",
+        "path": "/customer/booking/confirm?bookingId=sequential-booking",
+        "text": "oS onService PH Customer workspace WORKSPACE Home Bookings Wallet Projects Suki Pros Team Invitations Support Profile P Paolo Garcia Customer Booking Confirmed! Your booking shows paid with escrow held. We're finding the best provider for you. Booking ID #OS-2026-KING Service Air Conditioning Scheduled September 2, 2026 Location 88 Banilad Road Total ₱1,500.00 Vetted pros Verified escrow Case tracking This booking currently shows escrow held. Release follows customer confirmation or the platform completion timer; check the booking for its current status. What happens next? We'll match you with a verified provider in your area You'll receive a notification once a provider accepts Track your provider's status in real-time on booking day View Booking Back to Home",
+        "overflow": 0
+      }
+    ],
+    "writes": [
+      {
+        "method": "POST",
+        "pathname": "/api/v1/bookings",
+        "body": {
+          "categoryId": "category-1",
+          "subcategoryId": "subcategory-1",
+          "bookingType": "fixed_price",
+          "description": "Aircon Cleaning – 2026-09-01",
+          "address": "88 Banilad Road",
+          "barangay": "Banilad",
+          "city": "Mandaue City",
+          "province": "Cebu",
+          "latitude": 10.335,
+          "longitude": 123.91,
+          "scheduledAt": "2026-09-01T00:00:00.000Z"
+        }
+      },
+      {
+        "method": "POST",
+        "pathname": "/api/v1/payments/intent",
+        "body": {
+          "bookingId": "sequential-booking",
+          "paymentMethod": "wallet"
+        }
+      }
+    ],
+    "unmatchedApi": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "failed": false
+  }
+]

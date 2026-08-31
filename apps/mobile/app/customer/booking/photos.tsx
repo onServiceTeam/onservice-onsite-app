@@ -184,6 +184,25 @@ export default function BookingPhotosScreen(): React.ReactElement {
           ? 'The provider has not uploaded completion evidence yet.'
           : 'No customer-submitted job photos are on this booking.';
 
+  if (!bookingId) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Job Evidence</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <ErrorState
+          title="Booking evidence unavailable"
+          message="Open job evidence from a customer booking so photos and uploader records stay attached to the correct work order."
+          onRetry={() => router.back()}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -230,7 +249,9 @@ export default function BookingPhotosScreen(): React.ReactElement {
                 <Text style={styles.contextLine}>Site: {bookingQuery.data.address}</Text>
               ) : null}
               <View style={styles.contextDivider} />
-              <Text style={styles.contextCount}>{photosQuery.data?.length ?? 0}</Text>
+              <Text style={styles.contextCount}>
+                {photosQuery.isLoading || photosQuery.isError ? '—' : (photosQuery.data?.length ?? 0)}
+              </Text>
               <Text style={styles.contextLine}>canonical evidence records</Text>
               <Text style={styles.contextNote}>
                 Each canonical item keeps its uploader role, evidence type, and upload time. Legacy

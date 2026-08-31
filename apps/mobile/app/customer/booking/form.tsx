@@ -10,7 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBookingStore } from '@/stores/booking.store';
-import { Button, Input, Card } from '@/components/ui';
+import { Button, Input, Card, EmptyState } from '@/components/ui';
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
@@ -91,6 +91,27 @@ export default function BookingFormScreen(): React.ReactElement {
     setDescription(notes);
     router.push(Routes.CUSTOMER.CHECKOUT);
   };
+
+  if (!draft.categoryId || !draft.subcategoryId || !draft.categoryName || !draft.subcategoryName || draft.basePrice <= 0) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <View style={[styles.headerInner, !isPhone && styles.headerInnerWide]}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back from booking">
+              <ChevronLeft size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.title}>Book Service</Text>
+          </View>
+        </View>
+        <EmptyState
+          title="Booking setup expired"
+          description="Choose the service again before selecting a schedule or address. This prevents an incomplete or ₱0 booking from reaching payment."
+          actionLabel="Browse services"
+          onAction={() => router.replace(Routes.TABS.HOME)}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

@@ -10,7 +10,7 @@ jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1280, breakpoint: 'desktop', isPhone: false, isTablet: false, isDesktop: true }),
 }));
 jest.mock('@/services/booking.service', () => ({
-  getBookingById: jest.fn().mockResolvedValue({ id: 'booking-1', servicePrice: 100000 }),
+  getBookingById: jest.fn().mockResolvedValue({ id: 'booking-1', servicePrice: 100000, status: 'confirmed', providerId: 'provider-1' }),
 }));
 jest.mock('@/services/payment.service', () => ({
   getWalletBalance: jest.fn().mockResolvedValue({ availableBalance: 10000, pendingBalance: 0 }),

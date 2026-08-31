@@ -56,6 +56,7 @@ export function resolveNotificationRoute(
   if (type === 'tier_upgrade' || type === 'provider_tier_changed') return Routes.PROVIDER.TIER_PROGRESSION;
   if (type === 'provider_certification_verified' || type === 'provider_certification_unverified') return Routes.PROVIDER.CERTIFICATIONS;
   if (type === 'provider_staff_approved' || type === 'provider_staff_rejected') return Routes.PROVIDER.TEAM;
+  if (type === 'service_area_change_approved' || type === 'service_area_change_rejected') return Routes.PROVIDER.SERVICE_AREA;
   if (['nbi_expiring', 'provider_approved', 'provider_rejected', 'provider_suspended', 'provider_reactivated'].includes(type)) {
     return Routes.PROVIDER.ACCOUNT_MANAGEMENT;
   }

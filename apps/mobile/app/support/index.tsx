@@ -10,24 +10,26 @@ import { Routes, buildRoute } from '@/config/navigation';
 import {
   listMyTickets,
   SUPPORT_TYPE_LABELS,
-  SUPPORT_STATUS_LABELS,
+  getSupportStatusLabel,
   type SupportTicket,
   type SupportTicketStatus,
 } from '@/services/support.service';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useAuthStore } from '@/stores/auth.store';
 
 // Colour cue for the ticket status chip. Open/active = info, waiting-on-you =
 // warning, resolved/closed = muted, escalated = danger.
-function statusColor(status: SupportTicketStatus): { bg: string; fg: string } {
+function statusColor(status: SupportTicketStatus, viewerRole?: string): { bg: string; fg: string } {
   switch (status) {
     case 'resolved':
     case 'closed':
       return { bg: colors.surfaceMuted, fg: colors.textSecondary };
-    case 'waiting_on_customer':
-      return { bg: colors.warningLight, fg: colors.warningDark };
     case 'escalated':
       return { bg: colors.errorLight, fg: colors.error };
     default:
+      if (getSupportStatusLabel(status, viewerRole) === 'Waiting on you') {
+        return { bg: colors.warningLight, fg: colors.warningDark };
+      }
       return { bg: colors.infoLight, fg: colors.infoDark };
   }
 }
@@ -41,6 +43,7 @@ function formatWhen(iso: string): string {
 export default function SupportInboxScreen(): React.ReactElement {
   const router = useRouter();
   const { isPhone } = useResponsive();
+  const viewerRole = useAuthStore((state) => state.user?.role);
 
   const ticketsQuery = useQuery({
     queryKey: ['support', 'mine'],
@@ -103,7 +106,7 @@ export default function SupportInboxScreen(): React.ReactElement {
         ) : (
           <View style={[styles.ticketGrid, !isPhone && styles.ticketGridWide]}>
           {tickets.map((t: SupportTicket) => {
-            const sc = statusColor(t.status);
+            const sc = statusColor(t.status, viewerRole);
             const unread = parseInt(t.message_count ?? '0', 10);
             return (
               <TouchableOpacity
@@ -117,7 +120,7 @@ export default function SupportInboxScreen(): React.ReactElement {
                 <View style={styles.ticketTop}>
                   <View style={[styles.statusChip, { backgroundColor: sc.bg }]}>
                     <Text style={[styles.statusChipText, { color: sc.fg }]}>
-                      {SUPPORT_STATUS_LABELS[t.status] ?? t.status}
+                      {getSupportStatusLabel(t.status, viewerRole)}
                     </Text>
                   </View>
                   <Text style={styles.ticketWhen}>{formatWhen(t.updated_at)}</Text>

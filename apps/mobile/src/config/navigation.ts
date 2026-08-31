@@ -39,13 +39,11 @@ export const Routes = {
   },
 
   CUSTOMER: {
-    HOME: '/customer/home',
     SEARCH: '/customer/search',
     CATEGORY: '/customer/category/[id]',
     BOOKING_FORM: '/customer/booking/form',
     CHECKOUT: '/customer/booking/checkout',
     BOOKING_CONFIRM: '/customer/booking/confirm',
-    BOOKING_HISTORY: '/customer/bookings',
     BOOKING_DETAIL: '/customer/booking/[id]',
     BOOKING_CONFIGURE: '/customer/booking/configure',
     BOOKING_JOB_REQUEST: '/customer/booking/job-request',
@@ -95,7 +93,11 @@ export const Routes = {
     TERMS: '/customer/terms',
     ACCOUNT_MANAGEMENT: '/customer/account-management',
     DATA_RIGHTS: '/customer/data-rights',
-    // BUG-PHASE126-01 — pre-fix this block had 24 entries pointing at
+    // BUG-PHASE126-01 / Bug UX-659 — dead entries point at screens that do
+    // not exist on disk and have no consumers. Removed HOME and
+    // BOOKING_HISTORY in UX-659 after they escaped the original cleanup;
+    // the real destinations are TABS.HOME and TABS.BOOKINGS.
+    // The original cleanup removed 24 additional entries pointing at
     // screens that don't exist on disk and have no consumers anywhere
     // in the app (verified 2026-05-05 via grep across apps/mobile/app
     // + apps/mobile/src for both `Routes.CUSTOMER.X` form and raw

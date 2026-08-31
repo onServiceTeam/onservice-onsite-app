@@ -81,7 +81,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
     items: [
       {
         q: 'Are providers background-checked?',
-        a: 'Yes. All providers must submit a valid government ID and NBI clearance. We verify their identity through selfie matching and ongoing background checks.',
+        a: 'Providers must submit a government ID, selfie identity check, and NBI clearance for platform review. Approval and document-expiry status are recorded in onService. This does not mean a new background check is run before every booking.',
       },
       // Phase 14 Remediation #10 (partial). Interim wording \u2014 pending
       // attorney review.
@@ -96,7 +96,7 @@ const FAQ_SECTIONS: { title: string; items: FAQItem[] }[] = [
     items: [
       {
         q: 'How do I update my profile?',
-        a: 'Open the Profile tab and choose Edit Profile to update your name. Phone-number changes require OTP re-verification through Account & Data. The current app does not offer email or profile-photo editing.',
+        a: 'Open the Profile tab and choose Edit Profile to update your name. For a verified phone-number change, use the account-support link in Edit Profile so support can verify the request. The current app does not offer email or profile-photo editing.',
       },
       {
         q: 'How do I delete my account?',
@@ -120,7 +120,24 @@ export default function HelpScreen(): React.ReactElement {
   });
 
   const sections = useMemo(() => {
-    if (!policyQuery.data) return FAQ_SECTIONS;
+    if (!policyQuery.data) {
+      if (!policyQuery.isError) return FAQ_SECTIONS;
+      return FAQ_SECTIONS.map((section) =>
+        section.title === 'Booking & Services'
+          ? {
+              ...section,
+              items: section.items.map((item) =>
+                item.q === 'Can I cancel a booking?'
+                  ? {
+                      ...item,
+                      a: 'The current cancellation policy could not be loaded. Retry before relying on refund or fee information, and check the policy recorded on your booking.',
+                    }
+                  : item,
+                ),
+            }
+          : section,
+      );
+    }
     return FAQ_SECTIONS.map((section) =>
       section.title === 'Booking & Services'
         ? {
@@ -133,7 +150,7 @@ export default function HelpScreen(): React.ReactElement {
           }
         : section,
     );
-  }, [policyQuery.data]);
+  }, [policyQuery.data, policyQuery.isError]);
 
   const toggleFAQ = (key: string): void => {
     setExpanded((prev) => (prev === key ? null : key));
@@ -161,6 +178,22 @@ export default function HelpScreen(): React.ReactElement {
             Browse frequently asked questions or contact our support team.
           </Text>
         </View>
+
+        {policyQuery.isError && (
+          <View style={styles.policyError} accessibilityRole="alert">
+            <Text style={styles.policyErrorText}>
+              Current cancellation terms are unavailable. Retry before relying on cancellation or refund guidance.
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Retry cancellation policy"
+              style={styles.policyRetry}
+              onPress={() => void policyQuery.refetch()}
+            >
+              <Text style={styles.policyRetryText}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* BUG-PHASE57-02 fix — pre-fix this map used the constant
              FAQ_SECTIONS instead of the `sections` memo above (line
@@ -274,6 +307,10 @@ const styles = StyleSheet.create({
   heroIcon: { fontSize: 40, marginBottom: spacing.sm },
   heroTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
   heroSubtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  policyError: { backgroundColor: colors.errorLight, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.lg },
+  policyErrorText: { ...typography.bodySmall, color: colors.error, lineHeight: 20 },
+  policyRetry: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', marginTop: spacing.xs },
+  policyRetryText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
   section: { marginBottom: spacing.lg },
   sectionTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
   faqItem: {
