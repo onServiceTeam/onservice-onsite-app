@@ -102,4 +102,4 @@ it('Bug UX-860 — Nginx blocks direct feedback evidence while retaining ordinar
     spawnSync('docker', ['rm', '-f', containerName], { encoding: 'utf8', timeout: 10_000 });
     rmSync(tempRoot, { recursive: true, force: true });
   }
-});
+}, 60_000);
