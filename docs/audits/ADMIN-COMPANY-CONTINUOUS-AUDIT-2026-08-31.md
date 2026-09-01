@@ -1002,7 +1002,9 @@ Bugs UX-909/910/913 and OPS-321 add whole-result support metrics, strict
 URL-preserved discovery, an exact-series workspace, canonical Customer 360,
 Provider 360, source-booking, generated-booking, and Support exits, plus atomic
 reasoned cancellation. Bugs UX-911/912 expose all customer series and generated
-history through explicit pagination. SEC-020 blocks provider, provider-staff,
+history through explicit pagination. Bug UX-914 preserves the customer's typed
+cancellation reason after a server rejection so retry does not erase their
+work. SEC-020 blocks provider, provider-staff,
 and Admin identities from the customer recurring API. SEC-021 requires an owned,
 customer-confirmed, completed fixed-price source booking for the same service.
 SEC-022 rejects malformed Admin controls before database access. SEC-023 does
@@ -1032,3 +1034,40 @@ failed the native EAS configuration guard; the deterministic web-target rerun
 is the claimed pass. E20, D29/E41, and E32 remain active. No automatic charge,
 provider-assignment redesign, master promotion, or production deployment is
 claimed.
+
+## Checkpoint AA: pricing-rule publication control
+
+The former Pricing Rules page could omit category and service-area scope, which
+made a new row global; database defaults activated it immediately; a valid 0%
+platform surge share was converted to 50%; ordinary admins could mutate it;
+published terms could be edited or hard-deleted; and no booking-authoritative
+preview explained the winner or provider/platform allocation.
+
+Ken approved E28/E54 Option A. Bugs OPS-322 through OPS-326 implement an
+inactive audited draft, draft-only editing, canonical service/area preview
+through the booking resolver, preview-bound atomic publication, and reasoned
+retirement without deleting rule or booking history. SEC-024 restricts every
+mutation to super-admin. SEC-025 rejects a preview after the active rule set
+changes. SEC-026 retires the old direct create/update/toggle/delete entry points.
+SEC-027 rejects stale browser edits. Bugs UX-915/916 add explicit scope and
+lifecycle evidence, a global-scope warning, responsive tablet cards and desktop
+table, read-only ordinary-admin posture, representative sample controls, winner
+and overlap evidence, exact customer/provider/platform amounts, and separate
+publication and retirement reasons. Existing booking financial snapshots are
+not updated.
+
+The code checkpoint is `db98bbb` on the money-path topic branch. All workspace
+TypeScript checks, repository ESLint, and API/Admin production builds pass.
+Admin passes 278 files and 367 assertions with one skipped file and three todos.
+Mobile passes 523 suites and 902 assertions with 84 device-baseline todos. API
+passes 732 suites and 3,109 assertions; its only two failures require Docker to
+launch Nginx and are environmental, not counted as passes. Docker Desktop was
+started but its engine did not become ready, so migration 165 and those two
+Nginx checks remain honestly unexecuted.
+
+Production is not changed. The runbook at
+`docs/runbooks/pricing-rule-publication.md` requires a private inventory of
+every existing rule, global scope, overlap order, and referencing booking count
+before migration. E32 still blocks server inspection and synchronization. No
+master merge, GitHub push, production migration, or live publication is claimed
+at this checkpoint.

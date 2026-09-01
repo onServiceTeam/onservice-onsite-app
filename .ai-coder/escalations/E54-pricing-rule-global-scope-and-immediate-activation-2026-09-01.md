@@ -1,7 +1,7 @@
 # E54 - Pricing rules can become global and active without an authoritative preview
 
 **Date:** 2026-09-01
-**Status:** OPTION A APPROVED 2026-09-02; IMPLEMENTATION IN PROGRESS ON MONEY-PATH TOPIC BRANCH
+**Status:** OPTION A IMPLEMENTED LOCALLY; PRODUCTION INVENTORY, MIGRATION, AND DEPLOYMENT HELD BY E32
 **Hard stop:** customer price, provider surge allocation, platform revenue, and production rule history
 **Extends:** E28 admin pricing-rule preview and publication
 

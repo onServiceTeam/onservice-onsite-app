@@ -1,7 +1,7 @@
 # E28 — Admin pricing rules lack authoritative preview and staged publication
 
 **Date:** 2026-08-25  
-**Status:** OPTION 1 APPROVED 2026-09-02; IMPLEMENTATION IN PROGRESS
+**Status:** OPTION 1 IMPLEMENTED LOCALLY; PRODUCTION INVENTORY, MIGRATION, AND DEPLOYMENT HELD BY E32
 **Hard stop:** money-path behavior and customer/provider revenue allocation
 
 ## What the admin audit found

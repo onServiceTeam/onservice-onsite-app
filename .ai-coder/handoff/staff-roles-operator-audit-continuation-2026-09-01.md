@@ -1,7 +1,7 @@
 # Staff & Roles operator audit continuation
 
-**Date:** 2026-09-01  
-**Branch:** `codex/system-settings-control-fix`  
+**Date:** 2026-09-01
+**Branch:** `codex/system-settings-control-fix`
 **Production:** untouched
 
 ## Completed scope

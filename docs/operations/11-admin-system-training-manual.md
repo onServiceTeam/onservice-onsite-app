@@ -245,9 +245,25 @@ At the 2026-08-24 production audit, all 29 active services needed scope (17 fixe
 
 ### 2.10 Pricing Rules (`/pricing-rules`)
 
-Surge/multiplier rules of three types: `rush`, `holiday`, `peak_hours`. Each has a multiplier, optional scope (category or service area), priority, platform surge share, and an active toggle.
+Pricing rules can increase the customer total for new fixed-price bookings and
+split that increase between provider and platform. Ordinary admins may inspect
+scope and lifecycle history. Only super-admin may create/edit a draft, run the
+server preview, publish, or retire.
 
-> **Set (editable):** Surge pricing is off at launch. Turn on a modest `peak_hours` rule only after the live booking curve shows a real demand pattern, and decide which holidays count at that point. _Recommended default. To change it, edit here and anywhere this value is referenced._
+1. Create an inactive draft with an explicit category scope and service-area
+   scope. Global is a deliberate high-impact selection, never a blank default.
+2. Add representative fixed-price services, areas, dates, and times. Preview
+   loads the canonical catalog price and applies the same resolver as booking
+   creation. Review the winner, all overlaps, customer total, platform surge,
+   and provider surge.
+3. Publish only from the current unexpired preview and write what was verified.
+   Draft or active-rule changes make the preview stale.
+4. Retire a rule with a reason instead of deleting it. Published terms are not
+   edited in place. Existing booking and transaction evidence does not change.
+
+Surge pricing remains off by recommended launch posture unless live demand and
+provider-capacity evidence supports a reviewed rule. Follow
+`docs/runbooks/pricing-rule-publication.md` before production migration or use.
 
 ### 2.11 Disputes (`/disputes`)
 
