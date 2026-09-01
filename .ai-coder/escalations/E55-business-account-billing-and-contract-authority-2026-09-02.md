@@ -226,7 +226,17 @@ The implementation currently:
     Philippine time (UTC+8); and
 16. treats approved billing credit as a revolving exposure ceiling, blocks
     unsafe projected-centavo addition, and still permits controlled statements
-    for completed work after an account is suspended from placing new work.
+    for completed work after an account is suspended from placing new work;
+17. confines every customer business-account route to customer identities,
+    prevents direct member creation from minting another owner, accepts only an
+    active customer as a member, and does not report a false failed member-add
+    when best-effort notification delivery fails after the membership commits;
+18. validates every customer business UUID, pagination value, bounded text,
+    calendar date, decimal discount, and centavo input before service or money
+    access, including JavaScript safe-integer protection for estimates; and
+19. classifies the database-constrained account-type and payment-term lists as
+    read-only launch holds under E58 instead of allowing Admin to publish a
+    value that account creation or due-date calculation cannot honor.
 
 The feature flag must remain disabled. The current consumer booking state
 machine assumes escrow prepayment before provider work, while a company-credit
@@ -238,10 +248,17 @@ the safer billing work.
 
 No production migration, backfill, or B2B financial operation is authorized by
 this approval. E32 still blocks the required private production inventory and
-server alignment. The complete admin, mobile, and API TypeScript workspace
-check passed on the current working tree. Focused API Jest, Admin Vitest, and
-Mobile Jest commands were attempted again, but each runner failed before
-loading a test because OneDrive returned `UNKNOWN: unknown error, read` for a
-cloud-placeholder dependency. No behavior assertion is therefore claimed
-locally. A clean Linux CI run must execute the real behavior suites before this
-branch can be considered green.
+server alignment. E57 separately holds a safe, consent-based company-member
+invitation and permission lifecycle; the direct internal-UUID member endpoint
+must not be exposed as customer UI. E58 separately holds governed account-type
+and payment-term catalogs.
+
+Local focused API Jest, Admin Vitest, and Mobile Jest execution remains
+unavailable because the machine-level npm shim is broken and direct runners
+hit the OneDrive sandbox/cloud-placeholder traversal failure before loading the
+suites. No local behavior pass is claimed. GitHub CI run `33566793099` and
+governance run `33566793102` passed the validated customer-authority/input wave,
+including complete API, Admin, Mobile, Docker, and all five gate jobs. Corrected
+commit `dd52ff4` then passed GitHub CI run `33572166256` and governance run
+`33572166236`, including the E57/E58 API and rendered Admin containment tests.
+Neither checkpoint supplies authenticated browser or production evidence.
