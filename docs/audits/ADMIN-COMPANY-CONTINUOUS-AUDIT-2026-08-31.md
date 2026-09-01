@@ -668,3 +668,75 @@ two one-second retry assertions timed out under that machine load. Both passed
 immediately together, and the full suite then passed when rerun alone, so the
 failed saturated run is retained here rather than misreported as a product
 failure or hidden.
+
+## Checkpoint S: Projects planning handoff and Admin authority audit
+
+The project pass treated the feature as the customer planning record that
+exists today, not the broader provider/job system contemplated by D28. The
+Admin queue loaded only the newest 200 rows, held its expanded row in component
+memory, reduced milestone context, and depended on list projections for human
+identity. A refresh or support handoff could not reliably restore an older exact
+record. The customer detail also said a project had no provider link even when a
+pre-containment legacy `providerId` was present.
+
+Bugs UX-881 through UX-884 close the safe linkage and presentation defects:
+
+- A validated `projectId` in the URL is the Admin selection source of truth. An
+  exact known project outside the loaded rows renders in an explicit linked-
+  record section, and selecting a queue row preserves unrelated URL context.
+- Exact project detail now projects the customer name and legacy provider
+  business name. Admin receives canonical Customer 360, customer-scoped Support,
+  and Provider 360 exits rather than dead names or copied UUIDs.
+- Admin milestone evidence includes the written scope and target date. Estimates
+  and milestone amounts remain clearly advisory planning values, not charges or
+  escrow.
+- Customer copy distinguishes a legacy provider link from provider invitation,
+  assignment, booking, quote, and payment. The training manual now uses the same
+  planning-only boundary and directs real work to Booking 360, Dispatch,
+  Financials, and Support.
+
+The authority audit found a separate hard stop. The Admin screen and manual are
+read-only, but the shared project service currently treats Admin/super-admin as
+an owner for project, milestone, choice, and document writes. Those writes have
+no required reason, transactionally coupled audit event, or version conflict
+check. E53 records Option A, enforce read-only Admin mutations now, as the
+immediate recommendation, with only specifically justified governed corrections
+considered later. No authorization change was made while that source-of-truth
+conflict remains open.
+
+The responsive Admin page was inspected with fixture-backed data at 820 and
+1366 pixels. Both widths had no horizontal overflow and no captured browser
+warning or error. The exact outside-list record, participant exits, milestone
+scope/deadline, choice, and document were visible; selecting a loaded row changed
+only `projectId` and retained `source=support`. The current Stitch handoff archive
+does not contain a project-specific screen, so the locked repository design
+contract governed this screen: bounded workspace, solid borders, no decorative
+shadow, touch-sized controls, and stacked-to-wide responsive composition.
+
+Verification passed:
+
+- Admin: 271 files passed, one intentional file skipped; 360 tests passed and
+  three explicit todos remained. An initial full run exposed a one-second
+  retry-test timeout under aggregate load; the real asynchronous behavior was
+  retained with a five-second bound, the two focused tests passed, and the clean
+  full rerun passed.
+- Mobile: 507 suites and 886 tests passed; 84 device-baseline todos remain.
+- API: 705 locally runnable suites passed, one intentional suite skipped; 3,088
+  tests passed and one test skipped. The two Docker/Nginx suites were excluded
+  and are not claimed.
+- Admin, Mobile, and API TypeScript, full repository ESLint, Admin/API production
+  builds, and Expo web export passed. The first export invocation omitted the
+  required explicit `EXPO_OS=web` target and failed after bundling; the corrected
+  run exported all 4,273 modules.
+- Gate A passed 10/10, Gate C passed 6/6, all six gate self-test groups passed,
+  the strict phantom-test scan found no forbidden pattern, and the N+1 heuristic
+  found no unjustified marker. Its Projects warning is formatting over fetched
+  rows, not a query inside the map. `git diff --check` passed.
+
+Open project gaps remain explicit: full server search/pagination, project-scoped
+support, customer metadata editing, complete milestone/choice/document creation,
+a real provider-side project workflow, accepted provider invitation, and
+project-to-booking conversion. D28, D27p5/E12, and E53 block architecture,
+money, and hidden Admin-write changes. E32 still blocks production inventory and
+synchronization, so no production deployment or production-data conclusion is
+claimed.

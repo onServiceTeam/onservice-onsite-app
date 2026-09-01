@@ -15,7 +15,7 @@ it('Bug UX-867 — unavailable feedback decision history blocks triage until an 
   });
   renderFeedbackPage();
 
-  expect(await screen.findByRole('button', { name: 'Retry history' })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: 'Retry history' }, { timeout: 5000 })).toBeInTheDocument();
   fireEvent.change(screen.getByRole('combobox', { name: 'Tester feedback status' }), { target: { value: 'triaged' } });
   fireEvent.change(screen.getByRole('combobox', { name: 'Tester feedback owner' }), { target: { value: 'agent-1' } });
   fireEvent.change(screen.getByRole('textbox', { name: 'Tester feedback triage note' }), {
@@ -24,7 +24,7 @@ it('Bug UX-867 — unavailable feedback decision history blocks triage until an 
   expect(screen.getByRole('button', { name: 'Save triage' })).toBeDisabled();
 
   fireEvent.click(screen.getByRole('button', { name: 'Retry history' }));
-  expect(await screen.findByText('Verified the payment return problem and assigned the checkout fix.')).toBeInTheDocument();
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Save triage' })).toBeEnabled());
+  expect(await screen.findByText('Verified the payment return problem and assigned the checkout fix.', {}, { timeout: 5000 })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save triage' })).toBeEnabled(), { timeout: 5000 });
   expect(historyAttempts).toBe(2);
 });

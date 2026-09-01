@@ -33,7 +33,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/bookings` | Booking operations queue | W6+W8 PARTIAL | The responsive row-grid exposes URL-bound operational views/sorts, whole-queue exception counts, specific service/city/schedule context, Customer/Provider 360 exits, linked support ownership, open disputes, and gross booking value. Only verified-paid unassigned work is labelled **Paid needs assignment**. Named booking ownership is deliberately not duplicated outside support cases; authenticated wide-state evidence remains open. |
 | `/bookings/:id` | Booking 360 and evidence | W6 PARTIAL/HOLD | Conversation and support-case exits, partial-address truth, gateway/wallet/retained-sales money chronology, and rendered action confirmations are connected. Cancellation requires explicit live money inputs but E09 still holds policy/runtime authority; escrow release, refund, cancellation, and force-complete semantics remain money-path controlled. |
 | `/catalog` | Customer bookable scope and provider fulfillment contract | W1 | Service/add-on deactivation now requires audit reason and states customer impact. Continue modal and all pricing-type state visuals. |
-| `/projects` | Larger-work planning oversight | NEXT | Preserve D28 and milestone escrow holds while checking customer/provider linkage and honest capability boundaries. |
+| `/projects` | Larger-work planning oversight | W15 PARTIAL/HOLD | Exact `projectId` handoffs now reopen a known record outside the newest 200 loaded rows, preserve surrounding URL context, project customer/legacy-provider identities, and show milestone scope/deadline details. The screen remains planning-only. E53 holds the conflicting unaudited Admin write authority; D28 holds booking/site/visit linkage and D27p5/E12 holds milestone money. Server search/pagination and the incomplete customer/provider planning tools remain next. |
 | `/disputes` | Trust queue | W9 PARTIAL/HOLD | Exact active and stale whole-queue views are URL-bound and enforced by the API, and list resolution now uses an in-app impact confirmation. Resolution/settlement behavior is unchanged and remains under E18/E24; no unsupported SLA countdown was added. |
 | `/disputes/:id` | Dispute 360 | HOLD/NEXT | Recheck evidence chronology and role exits. Settlement/reopen semantics remain held. |
 | `/financials` | Payments, escrow, tax workpapers, reconciliation | HOLD | No money/tax mutation behavior changed in W1. Requires dedicated finance audit and decision-safe tests. |
@@ -212,6 +212,65 @@ coverage, and they do not change any lifecycle, money, legal, or role authority.
 
 These changes are Bugs UX-541 through UX-557. They do not resolve E34, E38,
 E39, money policy, compliance policy, or production access under E32.
+
+## W15 Projects planning and support-handoff contract
+
+- Project selection is now URL-bound through a validated `projectId`. A copied
+  support handoff opens the exact known planning record even when it is outside
+  the newest 200 rows loaded by the queue, and selecting another row preserves
+  surrounding URL context.
+- Project detail now carries the owning customer's name and any legacy linked
+  provider's business name. Admin can open Customer 360, the customer-scoped
+  Support queue, and Provider 360 without copying an opaque identifier.
+- Milestone detail includes its written scope and target date rather than
+  reducing the plan to a title, amount, and status. Advisory estimates and
+  milestone amounts remain explicitly non-charge, non-escrow planning values.
+- The customer project screen no longer claims a legacy provider-linked record
+  has no provider link. It states the narrower truth that the historical link
+  is not an invitation, assignment, booking, quote, or payment.
+- The operator manual now describes the actual read-only planning workspace and
+  sends staff to Booking 360, Dispatch, Financials, and Support for canonical
+  execution work.
+- E53 records the bad news: the shared API still lets Admin and super-admin
+  mutate customer projects, milestones, choices, and documents without a
+  reason, transactional audit record, or record-version check. That hidden
+  authority conflicts with the read-only screen and manual. Authorization
+  changes remain paused; it is not an approved support procedure.
+
+These changes are Bugs UX-881 through UX-884. They do not add project search or
+pagination, project-scoped support, a provider project workspace, provider
+invitation/acceptance, booking conversion, or milestone money. D28, D27p5/E12,
+and E53 remain the governing holds.
+
+## W15 local verification
+
+- Admin passed 271 test files with one intentional skipped file; 360 tests
+  passed and three explicit todos remained. The first aggregate run exposed a
+  one-second retry-test timeout under full-suite load. Both affected feedback
+  retry tests were kept behavioral and given a five-second asynchronous bound;
+  their focused rerun and the clean full Admin rerun passed.
+- Mobile passed 507 suites and 886 tests, with 84 explicit device-baseline
+  todos. API passed 705 locally runnable suites with one intentional skipped
+  suite; 3,088 tests passed and one test was intentionally skipped. The two
+  Docker/Nginx suites were excluded and are not counted as passes.
+- Admin, Mobile, and API TypeScript checks, full repository ESLint, Admin and
+  API production builds, and the final Expo web export passed. The first Expo
+  invocation omitted the repository-required `EXPO_OS=web` target and failed
+  after bundling; the corrected explicit-web invocation exported all 4,273
+  modules successfully.
+- Browser inspection of the fixture-backed Projects workspace at 820 and 1366
+  pixels showed no horizontal overflow and no captured warning or error. It
+  rendered the exact outside-list handoff, participant exits, milestone scope,
+  target date, choice, and document; selecting a loaded row retained the
+  surrounding `source=support` URL context.
+- Gate A passed all 10 blocking fragments, Gate C passed all six blocking
+  articles, all six gate self-test groups passed, the strict phantom-test scan
+  reported no finding, and the N+1 heuristic reported no unjustified marker.
+  Its 31 review warnings are repository heuristics; the Projects match formats
+  already-fetched rows and performs no query inside the map. `git diff --check`
+  passed before checkpointing.
+- Production remains unchanged under E32. No production project, customer,
+  provider, document, booking, or money record was read or mutated.
 
 ## Remaining browser-native confirmations after W9
 

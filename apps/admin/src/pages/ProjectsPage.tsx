@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 // D27 Phase 5 — admin oversight of the project layer (read-only).
 import { useQuery } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { Badge, Button, EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { Hammer } from '@/components/icons';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 interface Project {
   id: string;
@@ -21,7 +21,7 @@ interface Project {
   providerName?: string | null;
 }
 
-interface Milestone { id: string; title: string; status: string; amount: number | null; targetDate: string | null }
+interface Milestone { id: string; title: string; description: string; status: string; amount: number | null; targetDate: string | null }
 interface Selection { id: string; category: string; label: string; value: string; detail: string | null }
 interface ProjectDoc { id: string; label: string; fileUrl: string; docType: string }
 interface ProjectDetail extends Project {
@@ -33,6 +33,11 @@ interface ProjectDetail extends Project {
 const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
   planning: 'info', active: 'warning', on_hold: 'default', completed: 'success', cancelled: 'danger',
 };
+
+function projectIdFromSearch(searchParams: URLSearchParams): string | null {
+  const projectId = searchParams.get('projectId')?.trim() ?? '';
+  return /^[A-Za-z0-9-]{1,100}$/.test(projectId) ? projectId : null;
+}
 
 function ProjectDetailPanel({ projectId }: { projectId: string }): React.ReactElement {
   const q = useQuery({
@@ -49,6 +54,18 @@ function ProjectDetailPanel({ projectId }: { projectId: string }): React.ReactEl
   const p = q.data;
   return (
     <div className="space-y-4 border-t border-[var(--color-border)] bg-slate-50/60 p-4 sm:p-5">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Selected planning record</p>
+          <p className="font-semibold text-[var(--color-text)]">{p.title}</p>
+          <p className="line-clamp-2 text-xs text-[var(--color-text-secondary)]">{p.description || 'No planning description provided.'}</p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-x-3 gap-y-2 text-xs font-semibold">
+          <Link className="text-[var(--color-secondary)] hover:underline" to={`/customers/${p.customerId}`}>{p.customerName || 'Open Customer 360'}</Link>
+          <Link className="text-[var(--color-secondary)] hover:underline" to={`/support-tickets?userId=${encodeURIComponent(p.customerId)}`}>Open customer support cases</Link>
+          {p.providerId ? <Link className="text-[var(--color-secondary)] hover:underline" to={`/providers/${p.providerId}`}>{p.providerName || 'Open legacy provider'}</Link> : null}
+        </div>
+      </div>
       <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
         Planning record only. This project is not a booking, provider assignment, quote, escrow, or payment record.
       </div>
@@ -60,7 +77,11 @@ function ProjectDetailPanel({ projectId }: { projectId: string }): React.ReactEl
           <div className="mt-1 space-y-1">
             {p.milestones.map((m) => (
               <div key={m.id} className="flex min-h-11 flex-col justify-between gap-2 rounded-md border border-[var(--color-border)] bg-white px-3 py-2 sm:flex-row sm:items-center">
-                <span className="text-sm text-[var(--color-text)]">{m.title}</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-[var(--color-text)]">{m.title}</p>
+                  {m.description ? <p className="text-xs text-[var(--color-text-secondary)]">{m.description}</p> : null}
+                  {m.targetDate ? <p className="text-[11px] text-[var(--color-text-secondary)]">Target date: {m.targetDate}</p> : null}
+                </div>
                 <div className="flex items-center gap-2">
                   {m.amount != null ? <span className="text-xs text-[var(--color-text-secondary)]">{formatCurrency(m.amount)}</span> : null}
                   <Badge label={m.status} variant={m.status === 'completed' ? 'success' : m.status === 'in_progress' ? 'warning' : 'default'} />
@@ -107,7 +128,8 @@ function ProjectDetailPanel({ projectId }: { projectId: string }): React.ReactEl
 }
 
 export default function ProjectsPage(): React.ReactElement {
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const expanded = projectIdFromSearch(searchParams);
   const q = useQuery({
     queryKey: ['admin-projects'],
     queryFn: async () => {
@@ -118,6 +140,14 @@ export default function ProjectsPage(): React.ReactElement {
   const projects = q.data ?? [];
   const activeCount = projects.filter((p) => p.status === 'active').length;
   const linkedProviderCount = projects.filter((p) => Boolean(p.providerId)).length;
+  const expandedInLoadedList = !!expanded && projects.some((project) => project.id === expanded);
+
+  const selectProject = (projectId: string | null): void => {
+    const next = new URLSearchParams(searchParams);
+    if (projectId) next.set('projectId', projectId);
+    else next.delete('projectId');
+    setSearchParams(next);
+  };
 
   return (
     <div className="mx-auto max-w-[1600px]">
@@ -137,6 +167,19 @@ export default function ProjectsPage(): React.ReactElement {
           <div className="rounded-lg border border-[var(--color-border)] bg-white px-4 py-3"><p className="text-xs text-[var(--color-text-secondary)]">Marked active</p><p className="text-xl font-bold text-[var(--color-text)]">{activeCount}</p></div>
           <div className="rounded-lg border border-[var(--color-border)] bg-white px-4 py-3"><p className="text-xs text-[var(--color-text-secondary)]">Legacy provider links</p><p className="text-xl font-bold text-[var(--color-text)]">{linkedProviderCount}</p></div>
         </div>
+      ) : null}
+
+      {!q.isLoading && !q.isError && expanded && !expandedInLoadedList ? (
+        <section className="mb-5 overflow-hidden rounded-xl border border-sky-300 bg-white" aria-label="Linked project planning record">
+          <div className="flex flex-col justify-between gap-3 bg-sky-50 px-4 py-3 sm:flex-row sm:items-center">
+            <div>
+              <p className="text-sm font-semibold text-sky-950">Exact linked project</p>
+              <p className="text-xs text-sky-900">This record is outside the newest planning records loaded below. Actions and links in this panel apply to the exact project in the URL.</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => selectProject(null)}>Close linked project</Button>
+          </div>
+          <ProjectDetailPanel projectId={expanded} />
+        </section>
       ) : null}
 
       {q.isLoading ? (
@@ -180,7 +223,7 @@ export default function ProjectsPage(): React.ReactElement {
                   type="button"
                   aria-expanded={expanded === p.id}
                   aria-controls={`project-detail-${p.id}`}
-                  onClick={() => setExpanded(expanded === p.id ? null : p.id)}
+                  onClick={() => selectProject(expanded === p.id ? null : p.id)}
                   className="min-h-11 rounded-lg px-3 text-sm font-semibold text-[var(--color-primary)] hover:bg-slate-50"
                 >
                   {expanded === p.id ? 'Hide planning details' : 'Review milestones, choices, and documents'}

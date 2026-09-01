@@ -130,7 +130,16 @@ async function loadProjectForRequester(
   projectId: string,
   requester: { userId: string; role: string },
 ): Promise<ProjectRow> {
-  const r = await db.query<ProjectRow>(`SELECT * FROM projects WHERE id = $1`, [projectId]);
+  const r = await db.query<ProjectRow>(
+    `SELECT p.*,
+            TRIM(CONCAT(customer.first_name, ' ', customer.last_name)) AS customer_name,
+            provider.business_name AS provider_name
+       FROM projects p
+       JOIN users customer ON customer.id = p.customer_id
+       LEFT JOIN providers provider ON provider.id = p.provider_id
+      WHERE p.id = $1`,
+    [projectId],
+  );
   const project = r.rows[0];
   if (!project) throw createAppError('Project not found.', 404);
 

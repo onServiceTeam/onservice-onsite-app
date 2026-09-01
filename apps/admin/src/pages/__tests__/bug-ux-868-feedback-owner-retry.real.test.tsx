@@ -15,7 +15,7 @@ it('Bug UX-868 — unavailable feedback owner directory blocks assignment until 
   });
   renderFeedbackPage();
 
-  const retry = await screen.findByRole('button', { name: 'Retry owners' });
+  const retry = await screen.findByRole('button', { name: 'Retry owners' }, { timeout: 5000 });
   const owner = screen.getByRole('combobox', { name: 'Tester feedback owner' });
   expect(owner).toBeDisabled();
   fireEvent.change(screen.getByRole('combobox', { name: 'Tester feedback status' }), { target: { value: 'triaged' } });
@@ -25,8 +25,8 @@ it('Bug UX-868 — unavailable feedback owner directory blocks assignment until 
   expect(screen.getByRole('button', { name: 'Save triage' })).toBeDisabled();
 
   fireEvent.click(retry);
-  await waitFor(() => expect(owner).toBeEnabled());
+  await waitFor(() => expect(owner).toBeEnabled(), { timeout: 5000 });
   fireEvent.change(owner, { target: { value: 'agent-1' } });
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Save triage' })).toBeEnabled());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save triage' })).toBeEnabled(), { timeout: 5000 });
   expect(ownerAttempts).toBe(2);
 });

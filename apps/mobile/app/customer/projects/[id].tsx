@@ -120,8 +120,9 @@ export default function ProjectDetailScreen(): React.ReactElement {
         <View style={styles.planNotice}>
           <Text style={styles.planNoticeTitle}>Planning only · {project.status.replace('_', ' ')}</Text>
           <Text style={styles.planNoticeText}>
-            This project is not a booking and has no assigned provider or payment. Milestones,
-            budgets, choices, and documents here are your planning records.
+            {project.providerId
+              ? 'This planning record has a legacy provider link, but it is not a provider invitation, booking, quote, or payment. The milestones, budgets, choices, and documents here remain planning records.'
+              : 'This project is not a booking and has no provider or payment link. Milestones, budgets, choices, and documents here are your planning records.'}
           </Text>
         </View>
 
