@@ -88,6 +88,14 @@
   unreadable values use canonical fallbacks. The settings transaction test now
   also proves a successful audited save invalidates both the per-key and grouped
   settings caches before downstream readers continue.
+- Removes the combined MED-N27/N43/N44/N45/N61/N65/N70/N76/N162 source-scan
+  file. Existing behavior suites continue to prove cancellation transaction
+  composition, correct DSR completion timestamps, and PII-masked audit exports.
+  New single-concern contracts prove bounded CSV streaming, differentiated
+  notification-template failures with fallback delivery, four-query suspicious
+  IP batching, configured change-order expiry plus hourly scheduling and
+  both-party notices, static revenue periods, and the reasoned super-admin
+  catalog deactivation route through its audited transaction.
 - Fixes OPS-299/OPS-300 in the provider payout handoff. The wallet facade now
   shares the canonical payout request schema, so account-holder name and notes
   are no longer stripped before payout creation. The responsive provider
@@ -101,7 +109,7 @@
 
 ## Verification completed
 
-- API: 679 suites passed, 1 suite skipped by its own config, 3,087 tests passed.
+- API: 684 suites passed, 1 suite skipped by its own config, 3,070 tests passed.
 - Admin: 249 files passed, 1 skipped, 341 tests passed, 3 existing todos.
 - Mobile: 502 suites passed, 881 tests passed, 84 existing todos.
 - API, admin, and mobile typechecks passed.
