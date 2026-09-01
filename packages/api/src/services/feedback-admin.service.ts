@@ -1,6 +1,12 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
-import { maskEmail, maskPhilippinePhone, maskPiiInObject, type Json } from '../utils/pii-mask';
+import {
+  maskEmail,
+  maskPhilippinePhone,
+  maskPiiInObject,
+  maskPiiInString,
+  type Json,
+} from '../utils/pii-mask';
 import { logger } from '../utils/logger';
 
 export type FeedbackStatus = 'new' | 'triaged' | 'done' | 'dismissed';
@@ -39,6 +45,7 @@ export interface FeedbackAdminRecord {
   testerName: string | null;
   testerContact: string | null;
   contactMasked: boolean;
+  piiMasked: boolean;
   role: string | null;
   device: string | null;
   areas: string[];
@@ -112,11 +119,12 @@ function mapRow(row: FeedbackAdminRow, actorRole: string): FeedbackAdminRecord {
     testerName: row.tester_name,
     testerContact: maySeeRawContact ? row.tester_contact : maskContact(row.tester_contact),
     contactMasked: !maySeeRawContact && !!row.tester_contact,
+    piiMasked: !maySeeRawContact,
     role: row.role,
     device: row.device,
     areas: row.areas ?? [],
     nps: row.nps,
-    summary: row.summary,
+    summary: !maySeeRawContact && row.summary ? maskPiiInString(row.summary) : row.summary,
     itemCount: row.item_count,
     payload: maySeeRawContact
       ? (row.payload ?? {})
@@ -124,7 +132,9 @@ function mapRow(row: FeedbackAdminRow, actorRole: string): FeedbackAdminRecord {
     status: row.status,
     assignedAdminId: row.assigned_admin_id,
     assignedAdminName: assignedName || null,
-    triageNote: row.triage_note,
+    triageNote: !maySeeRawContact && row.triage_note
+      ? maskPiiInString(row.triage_note)
+      : row.triage_note,
   };
 }
 
@@ -155,7 +165,10 @@ export async function listFeedbackForAdmin(params: {
     scopeValues.push(params.area);
     scopeWhere.push(`$${scopeValues.length} = ANY(fs.areas)`);
   }
-  const search = String(params.search ?? '').trim().slice(0, 100);
+  const search = String(params.search ?? '').trim();
+  if (search.length > 100) {
+    throw createAppError('Feedback search must be 100 characters or fewer.', 400);
+  }
   if (search) {
     scopeValues.push(`%${search}%`);
     const p = `$${scopeValues.length}`;
@@ -227,7 +240,17 @@ export async function getFeedbackForAdmin(
   return mapRow(row, actorRole);
 }
 
-export async function getFeedbackHistoryForAdmin(feedbackId: string): Promise<FeedbackHistoryEntry[]> {
+export async function getFeedbackHistoryForAdmin(
+  feedbackId: string,
+  actorRole: string,
+): Promise<FeedbackHistoryEntry[]> {
+  const existsResult = await db.query<{ exists: boolean }>(
+    'SELECT EXISTS(SELECT 1 FROM feedback_submissions WHERE id = $1) AS exists',
+    [feedbackId],
+  );
+  if (!existsResult.rows[0]?.exists) {
+    throw createAppError('Feedback submission not found.', 404);
+  }
   const result = await db.query<FeedbackHistoryRow>(
     `SELECT al.id, al.created_at,
             actor.first_name AS admin_first_name,
@@ -267,7 +290,7 @@ export async function getFeedbackHistoryForAdmin(feedbackId: string): Promise<Fe
     nextStatus: row.next_status,
     previousOwnerName: name(row.previous_owner_first_name, row.previous_owner_last_name),
     nextOwnerName: name(row.next_owner_first_name, row.next_owner_last_name),
-    note: row.note ?? '',
+    note: actorRole === 'super_admin' ? (row.note ?? '') : maskPiiInString(row.note ?? ''),
   }));
 }
 
@@ -278,6 +301,7 @@ export async function updateFeedbackTriage(params: {
   status: string;
   assignedAdminId: string | null;
   note: string;
+  expectedUpdatedAt: string;
 }): Promise<FeedbackAdminRecord> {
   if (!STATUSES.includes(params.status as FeedbackStatus)) {
     throw createAppError('Invalid feedback status.', 400);
@@ -292,14 +316,19 @@ export async function updateFeedbackTriage(params: {
   if ((params.status === 'triaged' || params.status === 'done') && !params.assignedAdminId) {
     throw createAppError('An owner is required for triaged or completed feedback.', 400);
   }
+  const expectedUpdatedAt = Date.parse(params.expectedUpdatedAt);
+  if (!Number.isFinite(expectedUpdatedAt)) {
+    throw createAppError('The feedback version is missing or invalid. Reload the submission and try again.', 400);
+  }
 
   await db.transaction(async (client) => {
     const currentResult = await client.query<{
       status: FeedbackStatus;
       assigned_admin_id: string | null;
       triage_note: string | null;
+      updated_at: Date | string;
     }>(
-      `SELECT status, assigned_admin_id, triage_note
+      `SELECT status, assigned_admin_id, triage_note, updated_at
          FROM feedback_submissions
         WHERE id = $1
         FOR UPDATE`,
@@ -307,6 +336,12 @@ export async function updateFeedbackTriage(params: {
     );
     const current = currentResult.rows[0];
     if (!current) throw createAppError('Feedback submission not found.', 404);
+    if (new Date(current.updated_at).getTime() !== expectedUpdatedAt) {
+      throw createAppError(
+        'This feedback submission changed after the screen was loaded. Reload it and review the newer decision before trying again.',
+        409,
+      );
+    }
     if (
       current.status === params.status
       && current.assigned_admin_id === params.assignedAdminId
@@ -333,7 +368,7 @@ export async function updateFeedbackTriage(params: {
           SET status = $2,
               assigned_admin_id = $3,
               triage_note = $4,
-              updated_at = NOW()
+              updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 millisecond')
         WHERE id = $1`,
       [params.feedbackId, params.status, params.assignedAdminId, note],
     );

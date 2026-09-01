@@ -1875,6 +1875,11 @@ vhosts contain an explicit `private, no-store` 404 guard for
 `/uploads/feedback/`. Legacy absolute and current relative storage identifiers
 remain supported without a database migration.
 
+The same pending release also adds version-checked Tester Feedback decisions.
+The API and Admin must be deployed together because the API now requires the
+record's `expectedUpdatedAt` value and rejects a stale operator overwrite with
+409. This is a release-order constraint, not a database migration.
+
 This is not yet resolved in production. E32 prevents the required current
 row/file inventory, backup, deployment, and live validation. Do not delete or
 move existing evidence. Deploy the API/Admin/form support first, verify old and

@@ -492,6 +492,10 @@ How to triage a submission:
 
 Ordinary admins see masked contact details and masked personal data inside free text. Screenshot evidence is private and loads only through the selected feedback record's authenticated Admin proxy. Do not copy, publish, or attempt to open the stored `/uploads/feedback/...` identifier; it is evidence metadata, not a public link. Status, owner, and note changes are permanent audit-log events. The header-keyed pull remains available for authorized private research and backup, but it is not the operating queue.
 
+If the queue, selected record, decision history, or owner directory is unavailable, use that section's Retry action. Do not infer a zero queue or continue triage from stale content. The save action remains unavailable until the selected record, active-owner directory, and append-only history are all current. While a decision is saving, queue navigation is locked to the same record.
+
+If another operator changed the submission after you loaded it, the API rejects your stale decision. Read the conflict message, choose **Reload latest feedback**, review the newer status, owner, and note, then decide whether your intended change is still correct. Never paste the old note back without reconciling the newer decision.
+
 ### 2.32 Projects (`/projects`)
 
 Oversight for larger multi-stage customer projects. Use it to inspect project status, milestones, linked bookings, participants, and exceptions that need operations support. Milestone escrow is not launch-approved until the legal and accounting decision in escalation E12 is resolved, so do not describe a planning milestone as protected escrow.

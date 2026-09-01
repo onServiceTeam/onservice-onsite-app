@@ -60,8 +60,10 @@ establish an authorized server session. Do not skip a step when access returns.
    - the complete uploads volume, including feedback evidence;
    - deployed environment/configuration without exposing secret values;
    - Nginx configuration and the current deployed Git state.
-4. Deploy the API, Admin build, and public feedback form support while retaining
-   the existing direct Nginx behavior temporarily.
+4. Deploy the API, Admin build, and public feedback form support as one release
+   while retaining the existing direct Nginx behavior temporarily. The updated
+   Admin sends the selected record version with every triage decision and the
+   updated API requires it, so do not deploy only one side of that contract.
 5. Before changing Nginx, verify through authenticated/private paths:
    - an old absolute storage identifier renders in its correct Admin record;
    - a current relative identifier renders in its correct Admin record;

@@ -488,10 +488,9 @@ Broad checkpoint verification also passed:
 The next continuous loop starts from the remaining admin navigation inventory
 and rechecks each surface against the operating questions above. Priority order:
 
-1. Complete the page-local Tester Feedback recovery, validation, masking,
-   search, queue-count, and tablet checks after the E52 privacy containment,
-   then trace every stored item to customer, provider, support, product, and
-   admin implications.
+1. Trace every cached Tester Feedback item to customer, provider, support,
+   product, and admin implications without presenting the cached snapshot as
+   current production state.
 2. Dashboard, Disputes, Pricing Rules, Recurring Work, Audit Log, authentication,
    Change Password, shell/navigation, and Not Found coverage not already closed by
    the operational checkpoints.
@@ -549,3 +548,47 @@ reviewed locations with no unjustified marker. Bug UX-860's Docker/Nginx
 execution test was attempted twice but is not counted as passed because the
 local Docker daemon did not start a container before the bounded timeout;
 protected CI or a working Docker host must execute it.
+
+## Checkpoint P: Tester Feedback operator workflow
+
+The page-local audit treated the feedback workspace as an operational case
+queue, not a passive survey viewer. It found that malformed query, path, and
+triage inputs could reach handlers; searches over 100 characters were silently
+truncated; ordinary-admin decision history and current notes were not fully
+masked; a missing feedback record appeared to have an empty history; and source
+failures could be shown as zero counts, stale rows, or stale selected evidence.
+The owner and history dependencies had no local recovery path, and the UI could
+permit a decision without both sources being current.
+
+Bugs UX-863 through UX-876, except unused identifier UX-877, plus UX-878 close
+those page-local gaps. Request schemas now reject unknown or malformed fields
+before service work. Ordinary admins receive
+phone/email masking across the contact, summary, nested payload, current note,
+and historical notes. Queue, detail, history, and owner failures fail closed and
+offer local retry actions. Status counts identify their area/search scope. The
+search control and API share the same 100-character limit. A missing submission
+returns 404 from history rather than a false empty record.
+
+Operator decisions now carry the selected record's `updatedAt` version. The API
+locks the row, rejects a stale overwrite with 409, advances the version by at
+least one millisecond, and writes at most one truthful audit transition when two
+operators race. The Admin offers an in-place reload of the newer decision and
+locks queue, filter, search, and pagination navigation while a save is pending.
+Queue failure and page changes cannot leave an unrelated prior record visible.
+
+The responsive contract was also corrected. The split queue/detail layout now
+begins only when the available workspace is wide enough; 820- and 1024-pixel
+tablet/browser widths use a readable stacked flow. Loading, empty, and error
+states no longer include a contradictory `No feedback selected` panel, and
+source-wide states use the full desktop workspace. Default, loading, empty, and
+error baselines now cover 820, 1024, 1280, 1440, and 1920 pixels.
+
+Verification passed 14 focused API suites/28 tests, 15 focused Admin files/17
+tests, and 23 strict Playwright behavior/visual checks. The full locally
+runnable API aggregate passed 703 suites/3,088 tests with one intentional skip;
+the two Docker-only Nginx suites remain excluded and unclaimed. The full Admin
+aggregate passed 268 files/357 tests with one intentional file skip and three
+todos. API/Admin TypeScript and production builds, repository ESLint,
+`git diff --check`, Gate A's 10 fragments, Gate C's 6 articles, all 6 gate
+self-test groups, the phantom-test scan, and the reviewed N+1 scan passed.
+Production remains unchanged under E32 and E52's staged privacy rollout.
