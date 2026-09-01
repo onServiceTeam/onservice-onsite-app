@@ -109,7 +109,7 @@ function RolesTab(): React.ReactElement {
   const [archiveReason, setArchiveReason] = useState('');
   const [error, setError] = useState('');
 
-  const { data: roles, isLoading, isError: isRolesError } = useQuery({
+  const { data: roles, isLoading, isError: isRolesError, refetch: refetchRoles } = useQuery({
     queryKey: ['adminRoles'],
     queryFn: async () => {
       const res = await api.get('/api/v1/staff/roles');
@@ -117,7 +117,7 @@ function RolesTab(): React.ReactElement {
     },
   });
 
-  const { data: allPermissions, isError: isPermsError } = useQuery({
+  const { data: allPermissions, isError: isPermsError, refetch: refetchPermissions } = useQuery({
     queryKey: ['adminPermissions'],
     queryFn: async () => {
       const res = await api.get('/api/v1/staff/permissions');
@@ -207,6 +207,7 @@ function RolesTab(): React.ReactElement {
   }
 
   const showForm = creating || editing;
+  const roleMutationPending = createMutation.isPending || updateMutation.isPending;
 
   return (
     <div className="space-y-4">
@@ -222,8 +223,9 @@ function RolesTab(): React.ReactElement {
         {!showForm && (
           <button
             type="button"
-            className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg"
-            onClick={() => { setCreating(true); setEditing(null); }}
+            className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isRolesError || isPermsError || !roles || !allPermissions}
+            onClick={() => { setCreating(true); setEditing(null); setError(''); }}
           >
             Create Role
           </button>
@@ -232,13 +234,14 @@ function RolesTab(): React.ReactElement {
 
       {showForm && (
         <form noValidate onSubmit={handleSubmit} className="bg-white border border-[var(--color-border)] rounded-lg p-4 space-y-3">
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 md:flex-row">
             <div className="flex-1">
               <label htmlFor="role-name" className="sr-only">Role name</label>
               <input
                 id="role-name"
                 className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm"
                 placeholder="Role name"
+                maxLength={50}
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
               />
@@ -249,6 +252,7 @@ function RolesTab(): React.ReactElement {
                 id="role-description"
                 className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm"
                 placeholder="Description"
+                maxLength={500}
                 value={formDesc}
                 onChange={(e) => setFormDesc(e.target.value)}
               />
@@ -271,6 +275,7 @@ function RolesTab(): React.ReactElement {
               id="role-change-reason"
               className="mt-1 min-h-20 w-full rounded border border-[var(--color-border)] px-3 py-2 text-sm"
               value={formReason}
+              maxLength={5000}
               onChange={(e) => setFormReason(e.target.value)}
               placeholder="Why this operations role profile is being created or changed"
             />
@@ -280,10 +285,14 @@ function RolesTab(): React.ReactElement {
           </div>
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
-            <button type="submit" className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg">
-              {editing ? 'Update' : 'Create'}
+            <button
+              type="submit"
+              disabled={roleMutationPending || isRolesError || isPermsError}
+              className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {roleMutationPending ? (editing ? 'Updating...' : 'Creating...') : (editing ? 'Update' : 'Create')}
             </button>
-            <button type="button" onClick={resetForm} className="px-4 py-2 border border-[var(--color-border)] text-sm rounded-lg">
+            <button type="button" disabled={roleMutationPending} onClick={resetForm} className="px-4 py-2 border border-[var(--color-border)] text-sm rounded-lg disabled:cursor-not-allowed disabled:opacity-50">
               Cancel
             </button>
           </div>
@@ -291,7 +300,18 @@ function RolesTab(): React.ReactElement {
       )}
 
       {isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Loading...</p>}
-      {(isRolesError || isPermsError) && <p role="alert" className="text-sm text-red-600">Failed to load roles. Please try again.</p>}
+      {isRolesError && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <span>Role profiles are unavailable. Do not create or edit profiles until this source recovers.</span>
+          <button type="button" className="min-h-11 rounded border border-red-300 bg-white px-3 font-semibold" onClick={() => { void refetchRoles(); }}>Retry role profiles</button>
+        </div>
+      )}
+      {isPermsError && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <span>The permission inventory is unavailable. Role editing is disabled so an incomplete profile cannot be saved.</span>
+          <button type="button" className="min-h-11 rounded border border-red-300 bg-white px-3 font-semibold" onClick={() => { void refetchPermissions(); }}>Retry permission inventory</button>
+        </div>
+      )}
 
       <div className="grid gap-3">
         {(roles ?? []).map((role) => (
@@ -326,7 +346,13 @@ function RolesTab(): React.ReactElement {
         ))}
       </div>
 
-      {!showForm && error && <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
+      {!isLoading && !isRolesError && (roles?.length ?? 0) === 0 && (
+        <p className="rounded-lg border border-dashed border-[var(--color-border)] bg-white p-8 text-center text-sm text-[var(--color-text-secondary)]">
+          No operations role profiles exist yet.
+        </p>
+      )}
+
+      {!showForm && !pendingRoleArchive && error && <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
 
       {pendingRoleArchive && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -341,11 +367,13 @@ function RolesTab(): React.ReactElement {
               id="role-archive-reason"
               className="mt-1 min-h-20 w-full rounded border border-[var(--color-border)] px-3 py-2 text-sm"
               value={archiveReason}
+              maxLength={5000}
               onChange={(e) => setArchiveReason(e.target.value)}
               placeholder="Why this role profile is no longer needed"
             />
+            {error && <p role="alert" className="mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm" onClick={() => setPendingRoleArchive(null)}>Cancel</button>
+              <button type="button" disabled={deleteMutation.isPending} className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setPendingRoleArchive(null)}>Cancel</button>
               <button
                 type="button"
                 className="rounded-lg bg-red-700 px-4 py-2 text-sm text-white disabled:opacity-50"
@@ -405,7 +433,7 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
   const [profileActionReason, setProfileActionReason] = useState('');
   const limit = adminConfig.defaultPageSize;
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch: refetchStaff } = useQuery({
     queryKey: ['adminStaff', page, searchFilter, profileStatusFilter, accountStatusFilter, accountRoleFilter, roleProfileFilter],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
@@ -427,7 +455,7 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
     },
   });
 
-  const { data: roles, isError: isRolesError } = useQuery({
+  const { data: roles, isError: isRolesError, refetch: refetchStaffRoles } = useQuery({
     queryKey: ['adminRoles'],
     queryFn: async () => {
       const res = await api.get('/api/v1/staff/roles');
@@ -466,7 +494,18 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
     mutationFn: async ({ id, ...params }: { id: string; roleId?: string; isActive?: boolean; reason: string }) => {
       await api.put(`/api/v1/staff/${id}`, params);
     },
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['adminStaff'] }); setError(''); },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ['adminStaff'] });
+      if (variables.roleId !== undefined) {
+        setPendingRoleChange(null);
+        setRoleChangeReason('');
+      }
+      if (variables.isActive !== undefined) {
+        setPendingProfileAction(null);
+        setProfileActionReason('');
+      }
+      setError('');
+    },
     onError: (e) => setError(getErrorMessage(e)),
   });
 
@@ -474,7 +513,12 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
       await api.delete(`/api/v1/staff/${id}`, { body: { reason } });
     },
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['adminStaff'] }); setError(''); },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['adminStaff'] });
+      setPendingProfileAction(null);
+      setProfileActionReason('');
+      setError('');
+    },
     onError: (e) => setError(getErrorMessage(e)),
   });
 
@@ -533,6 +577,9 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
       </div>
 
       <section aria-label="Staff directory summary" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 sm:col-span-2 xl:col-span-4">
+          Company-wide counts. Search and filters below change the directory results, not these totals.
+        </p>
         {[
           ['Directory profiles', data?.meta?.summary?.totalProfiles ?? data?.meta?.total ?? 0],
           ['Active profiles', data?.meta?.summary?.activeProfiles ?? 0],
@@ -581,6 +628,7 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
             <input
               id="staff-directory-search"
               value={searchDraft}
+              maxLength={100}
               onChange={(event) => setSearchDraft(event.target.value)}
               placeholder="Name, email, or phone"
               className="h-11 min-w-0 flex-1 rounded border border-[var(--color-border)] px-3 text-sm"
@@ -635,6 +683,7 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
               id="staff-candidate-search"
               className="w-full border border-[var(--color-border)] rounded px-3 py-2 text-sm mt-1"
               placeholder="Search name, email, or phone"
+              maxLength={100}
               value={candidateSearch}
               onChange={(e) => {
                 setCandidateSearch(e.target.value);
@@ -657,7 +706,12 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
                 ))}
               </select>
             )}
-            {candidateQuery.isError && <p role="alert" className="mt-1 text-xs text-red-600">Could not search admin-tier accounts.</p>}
+            {candidateQuery.isError && (
+              <div role="alert" className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <span>Could not search admin-tier accounts.</span>
+                <button type="button" className="min-h-11 rounded border border-red-300 bg-white px-3 font-semibold" onClick={() => { void candidateQuery.refetch(); }}>Retry admin-tier account search</button>
+              </div>
+            )}
           </div>
           <div>
             <label htmlFor="staff-role-id" className="text-xs text-[var(--color-text-secondary)]">Directory role profile</label>
@@ -679,19 +733,30 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
               id="staff-add-reason"
               className="mt-1 min-h-20 w-full rounded border border-[var(--color-border)] px-3 py-2 text-sm"
               value={addReason}
+              maxLength={5000}
               onChange={(e) => setAddReason(e.target.value)}
               placeholder="Why this operations-directory profile is needed"
             />
           </div>
-          <button type="submit" className="w-fit px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-lg">
-            Add
+          <button type="submit" disabled={addMutation.isPending || isRolesError} className="w-fit px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-lg disabled:cursor-not-allowed disabled:opacity-50">
+            {addMutation.isPending ? 'Adding...' : 'Add'}
           </button>
         </form>
       )}
 
-      {isError && <p role="alert" className="text-sm text-red-600">Failed to load staff members. Please try again.</p>}
-      {isRolesError && <p role="alert" className="text-sm text-red-600">Failed to load roles for assignment. Please refresh.</p>}
-      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+      {isError && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <span>Staff directory data is unavailable. Do not rely on the counts or results until this source recovers.</span>
+          <button type="button" className="min-h-11 rounded border border-red-300 bg-white px-3 font-semibold" onClick={() => { void refetchStaff(); }}>Retry staff directory</button>
+        </div>
+      )}
+      {isRolesError && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <span>Directory role profiles are unavailable. Profile assignment and role changes are disabled.</span>
+          <button type="button" className="min-h-11 rounded border border-red-300 bg-white px-3 font-semibold" onClick={() => { void refetchStaffRoles(); }}>Retry directory roles</button>
+        </div>
+      )}
+      {!pendingRoleChange && !pendingProfileAction && error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
       {isLoading && <p className="rounded-lg border border-[var(--color-border)] bg-white p-6 text-sm text-[var(--color-text-secondary)]">Loading staff directory...</p>}
       {!isLoading && !isError && (data?.data.length ?? 0) === 0 && (
@@ -750,6 +815,7 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
                           const newRoleName = (roles ?? []).find((role) => role.id === newRoleId)?.name ?? '(unknown)';
                           setPendingRoleChange({ staff: { ...staff, id: profileId }, newRoleId, newRoleName });
                           setRoleChangeReason('');
+                          setError('');
                           event.target.value = profileRoleId;
                         }}
                       >
@@ -798,6 +864,7 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
                       onClick={() => {
                         setPendingProfileAction({ staff: { ...staff, id: profileId }, kind: staff.is_active ? 'deactivate' : 'activate' });
                         setProfileActionReason('');
+                        setError('');
                       }}
                     >
                       {staff.is_active ? 'Deactivate profile' : 'Activate profile'}
@@ -808,6 +875,7 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
                       onClick={() => {
                         setPendingProfileAction({ staff: { ...staff, id: profileId }, kind: 'archive' });
                         setProfileActionReason('');
+                        setError('');
                       }}
                     >
                       Archive profile
@@ -854,13 +922,16 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
               id="staff-role-change-reason"
               className="mt-1 mb-4 min-h-20 w-full rounded border border-[var(--color-border)] px-3 py-2 text-sm"
               value={roleChangeReason}
+              maxLength={5000}
               onChange={(e) => setRoleChangeReason(e.target.value)}
               placeholder="Why this directory role profile is changing"
             />
+            {error && <p role="alert" className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
             <div className="flex gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => setPendingRoleChange(null)}
+                disabled={updateMutation.isPending}
                 className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Cancel
@@ -877,7 +948,6 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
                     roleId: pendingRoleChange.newRoleId,
                     reason: roleChangeReason.trim(),
                   });
-                  setPendingRoleChange(null);
                 }}
                 disabled={updateMutation.isPending}
                 className="px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
@@ -906,11 +976,13 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
               id="staff-profile-action-reason"
               className="mt-1 min-h-20 w-full rounded border border-[var(--color-border)] px-3 py-2 text-sm"
               value={profileActionReason}
+              maxLength={5000}
               onChange={(e) => setProfileActionReason(e.target.value)}
               placeholder="Reason recorded in the audit log"
             />
+            {error && <p role="alert" className="mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm" onClick={() => setPendingProfileAction(null)}>Cancel</button>
+              <button type="button" disabled={updateMutation.isPending || removeMutation.isPending} className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setPendingProfileAction(null)}>Cancel</button>
               <button
                 type="button"
                 className="rounded-lg bg-amber-700 px-4 py-2 text-sm text-white disabled:opacity-50"
@@ -930,7 +1002,6 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
                       reason,
                     });
                   }
-                  setPendingProfileAction(null);
                 }}
               >
                 Confirm {pendingProfileAction.kind}
@@ -1028,7 +1099,12 @@ function DpoTab(): React.ReactElement {
       </div>
 
       {dpoQuery.isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Loading DPO assignment...</p>}
-      {dpoQuery.isError && <p role="alert" className="text-sm text-red-600">Failed to load the DPO assignment.</p>}
+      {dpoQuery.isError && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <span>The DPO assignment is unavailable. Do not begin a handover until this source recovers.</span>
+          <button type="button" className="min-h-11 rounded border border-red-300 bg-white px-3 font-semibold" onClick={() => { void dpoQuery.refetch(); }}>Retry DPO assignment</button>
+        </div>
+      )}
       {dpos.length > 1 && (
         <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           More than one active DPO exists. Do not assign another; complete a controlled handover and review the audit log.
@@ -1062,6 +1138,7 @@ function DpoTab(): React.ReactElement {
               id="dpo-candidate-search"
               className="mt-1 w-full rounded border border-[var(--color-border)] px-3 py-2 text-sm"
               value={candidateSearch}
+              maxLength={100}
               onChange={(e) => { setCandidateSearch(e.target.value); setSelectedCandidateId(''); }}
               placeholder="Search name, email, or phone"
             />
@@ -1081,13 +1158,19 @@ function DpoTab(): React.ReactElement {
               ))}
             </select>
           )}
-          {candidateQuery.isError && <p role="alert" className="text-sm text-red-600">Could not search DPO candidates.</p>}
+          {candidateQuery.isError && (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <span>Could not search DPO candidates.</span>
+              <button type="button" className="min-h-11 rounded border border-red-300 bg-white px-3 font-semibold" onClick={() => { void candidateQuery.refetch(); }}>Retry DPO candidates</button>
+            </div>
+          )}
           <div>
             <label htmlFor="dpo-promote-reason" className="text-sm font-medium">Assignment reason</label>
             <textarea
               id="dpo-promote-reason"
               className="mt-1 min-h-20 w-full rounded border border-[var(--color-border)] px-3 py-2 text-sm"
               value={promoteReason}
+              maxLength={5000}
               onChange={(e) => setPromoteReason(e.target.value)}
               placeholder="Appointment authority and handover context"
             />
@@ -1117,7 +1200,7 @@ function DpoTab(): React.ReactElement {
         </div>
       ))}
 
-      {error && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {!pendingDemotion && error && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
       {pendingDemotion && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1137,11 +1220,13 @@ function DpoTab(): React.ReactElement {
               id="dpo-demote-reason"
               className="mt-1 min-h-20 w-full rounded border border-[var(--color-border)] px-3 py-2 text-sm"
               value={demoteReason}
+              maxLength={5000}
               onChange={(e) => setDemoteReason(e.target.value)}
               placeholder="Appointment end, destination role, and replacement plan"
             />
+            {error && <p role="alert" className="mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm" onClick={() => setPendingDemotion(null)}>Cancel</button>
+              <button type="button" disabled={demoteMutation.isPending} className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setPendingDemotion(null)}>Cancel</button>
               <button
                 type="button"
                 className="rounded-lg bg-red-700 px-4 py-2 text-sm text-white disabled:opacity-50"

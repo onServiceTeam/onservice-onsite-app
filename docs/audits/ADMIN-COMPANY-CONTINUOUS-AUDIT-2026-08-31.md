@@ -395,11 +395,107 @@ Final checkpoint verification passed:
 - Full repository ESLint, Admin/Mobile/API TypeScript checks, API and Admin production builds, Gate A, Gate C, all six gate self-tests, the phantom-test scan, and the strict 35-screenshot follow-up passed. The final service edit also passed targeted ESLint, API typecheck, and API production build.
 - The commission evidence endpoint now reads all five live commission settings and correctly defined tier samples in one database query. The N+1 heuristic dropped from 30 to 29 reviewed locations, contains no Analytics finding, and reports no unjustified marker.
 
+## Checkpoint M — System Settings control-plane truth
+
+System Settings previously let stale browsers overwrite newer values while the
+audit event could preserve the wrong before-state. Several rows also looked
+editable even though deployed code, a launch hold, or another authority owned
+the behavior. The generic JSON editor made valid operational controls needlessly
+dangerous.
+
+The completed code containment covers Bugs UX-833 through UX-849 and OPS-301:
+
+- Single and bulk updates lock the current rows inside the transaction, reject
+  stale `updatedAt` versions and duplicate bulk keys, validate a meaningful
+  reason, and preserve update plus audit evidence atomically.
+- Successful saves invalidate grouped and per-key caches before later runtime
+  readers continue. The browser no longer presents a manual cache-clear action
+  that could imply an unsuccessful write became effective.
+- Every setting reports whether it is a live runtime control, release-coupled,
+  intentionally held, or not connected. Non-authoritative controls are read-only
+  and explain what actually owns the behavior.
+- Sensitive values remain redacted and cannot be recovered through the editor.
+  The history workspace identifies the actor and before/after evidence without
+  turning redaction into a disclosure path.
+- Marketing channels use a bounded slug list and provider tier ranking uses five
+  labelled numeric weights. The page states that new ranking values affect new
+  matches only.
+- Commission-rate settings remain outside the generic editor. The effective-
+  dated Commission Controls work and immutable booking terms are still held from
+  deployment by E50's production-inventory and legacy-reconciliation checkpoint.
+
+E49 is resolved in code only. No production setting, fee, rate, AML threshold,
+refund rule, dispatch rule, or historical transaction was changed. The page was
+manually reviewed and its strict contract covers default, review, loading, empty,
+and error states at 820, 1024, 1280, 1440, and 1920 pixels.
+
+## Checkpoint N — Staff & Roles operator integrity
+
+The page correctly had two different concepts, but mutation recovery and source
+failure behavior made the distinction unsafe in practice. Directory profile
+actions closed before the server confirmed success, several errors instructed an
+operator to retry without a retry control, company-wide totals looked filtered,
+and the API service allowed an internal caller to omit the reason when adding a
+profile.
+
+Remediation landed as Bugs UX-850 through UX-855:
+
+- UX-850: role-profile, activation/deactivation, and archive confirmations remain
+  open on failure, preserve the target and reason, display the failure in the
+  dialog, and close only after server success.
+- UX-851: the directory source has a real retry action and remains fail-closed
+  until the refetch succeeds.
+- UX-852: the role-profile editor is unavailable until both role and permission
+  sources load, bounds its fields to server limits, and exposes pending state
+  without allowing cancellation halfway through the request.
+- UX-853: the summary explicitly says its counts are company-wide and do not
+  follow the result filters.
+- UX-854: adding a directory profile now requires a 10-character audit reason in
+  the service itself before any transaction starts; route validation remains the
+  first boundary.
+- UX-855: a failed admin-tier candidate search can be retried without clearing the
+  operator's search.
+
+Role-profile permission labels remain operations metadata. They do not grant or
+revoke login access. The DPO tab remains the one explicit real account-role
+handover on this page and retains session revocation and audit behavior. E39
+remains open for governed privileged-account provisioning, deactivation,
+emergency recovery, last-super-admin protection, and approval policy. This
+checkpoint does not implement an ad hoc identity lifecycle.
+
+Focused regression passed 13 Admin files and 15 tests plus the new API reason
+guard. The strict Staff & Roles visual contract passed 20 default/loading/empty/
+error states at 820, 1024, 1280, 1440, and 1920 pixels after manual tablet and
+desktop inspection.
+
+Broad checkpoint verification also passed:
+
+- Admin: 258 files passed, 1 skipped; 347 tests passed and 3 explicit todos.
+- API: 694 locally runnable suites passed, 1 skipped; 3,079 tests passed and 1
+  skipped. The Docker-only certificate-revocation test was excluded because the
+  daemon is unavailable and is not counted as a pass.
+- Mobile: 506 suites and 885 tests passed; 84 device-baseline todos remain.
+- Admin, Mobile, and API TypeScript checks; Admin and API production builds; and
+  full repository ESLint passed.
+- Gate A passed 10/10 blocking fragments, Gate C passed 6/6 blocking articles,
+  all six gate self-test groups passed, and the phantom-test scan found no
+  forbidden pattern.
+- The N+1 heuristic retained 31 reviewed/justified locations and reported no
+  unjustified marker. `git diff --check` passed.
+
 ## Next admin/company audit queue
 
-The next continuous loop starts from the admin navigation inventory and rechecks each remaining page against the operating questions above. Priority order is:
+The next continuous loop starts from the remaining admin navigation inventory
+and rechecks each surface against the operating questions above. Priority order:
 
-1. System Settings, then Staff & Roles, including every field, runtime owner, permission, lifecycle action, and audit effect.
-2. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
+1. Tester Feedback and the stored third-party review corpus, tracing every item
+   to customer, provider, support, product, and admin implications.
+2. Dashboard, Disputes, Pricing Rules, Recurring Work, Audit Log, authentication,
+   Change Password, shell/navigation, and Not Found coverage not already closed by
+   the operational checkpoints.
+3. Update the full customer/provider/admin linkage ledger, then rerun the broad
+   suites and protected CI gates before any merge or deployment decision.
 
-Existing legal, money, production-data, and privileged-identity escalation boundaries still apply. A page-local visual improvement is not permission to invent legal wording, mutate production money, or bypass those controls.
+Existing legal, money, production-data, and privileged-identity escalation
+boundaries still apply. A page-local visual improvement is not permission to
+invent legal wording, mutate production money, or bypass those controls.

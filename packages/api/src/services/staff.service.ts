@@ -457,11 +457,14 @@ export async function addStaffMember(params: {
   userId: string;
   roleId: string;
   addedByAdminId: string;
-  reason?: string;
+  reason: string;
 }): Promise<AdminStaff> {
+  const reason = params.reason?.trim() ?? '';
+  if (reason.length < 10) {
+    throw createAppError('Reason must be at least 10 characters.', 400);
+  }
   try {
     return await db.transaction(async (client) => {
-      const reason = (params.reason ?? '').trim();
       const candidate = await client.query<{ id: string; role: string; is_active: boolean }>(
         `SELECT id, role, is_active FROM users WHERE id = $1 FOR SHARE`,
         [params.userId],
@@ -499,8 +502,8 @@ export async function addStaffMember(params: {
             addedRoleId: params.roleId,
             accessSource: 'users.role and route RBAC',
           }),
-          reason || 'Staff directory profile added.',
-          reason || null,
+          reason.slice(0, 500),
+          reason,
         ],
       );
       logger.info('Admin staff member added', {
@@ -623,9 +626,9 @@ export async function updateStaffMember(
 export async function removeStaffMember(
   staffId: string,
   removedByAdminId: string,
-  reason?: string,
+  reason: string,
 ): Promise<void> {
-  const trimmedReason = (reason ?? '').trim();
+  const trimmedReason = reason?.trim() ?? '';
   if (trimmedReason.length < 10) throw createAppError('Reason must be at least 10 characters.', 400);
   return db.transaction(async (client) => {
     const staffRow = await client.query<{ role_name: string; account_role: string; is_active: boolean }>(
