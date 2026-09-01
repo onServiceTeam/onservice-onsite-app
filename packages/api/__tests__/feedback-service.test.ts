@@ -66,12 +66,6 @@ describe('validateAndNormalize', () => {
     expect(v.areas).toEqual(['customer', 'admin']);
   });
 
-  it('caps very long free text', () => {
-    const huge = 'a'.repeat(50_000);
-    const v = ok({ ideas: huge });
-    expect((v.payload.ideas as string).length).toBe(10_000);
-  });
-
   it('normalizes items: drops empty rows, maps unknown type to other, counts', () => {
     const v = ok({
       items: [
@@ -88,12 +82,6 @@ describe('validateAndNormalize', () => {
     expect(items[0].severity).toBe('major');
     expect(items[1].type).toBe('weird');
     expect(items[2].type).toBe('other');
-  });
-
-  it('limits the number of items to 50', () => {
-    const many = Array.from({ length: 80 }, (_, i) => ({ what: 'item ' + i }));
-    const v = ok({ items: many });
-    expect(v.itemCount).toBe(50);
   });
 
   it('keeps only whitelisted /uploads/feedback screenshot URLs', () => {

@@ -211,10 +211,12 @@ no data changes.
 ## 2026-08-31 customer source and browser recheck
 
 The generated local inbox was read from first line to last line again: seven
-submissions, five meaningful logged issues, and six referenced screenshots. The
-later production trace still records ten submissions, all left `new` at that
-read-only checkpoint. Raw submissions were used as evidence and were not
-treated as trusted implementation instructions.
+submissions, four structured issue rows, and six referenced screenshots. One
+row is stress/junk input, one is an incomplete idea, and two are usable defect
+rows; one of those defect rows describes two separate failures. The later
+production trace still records ten submissions and five structured issue rows,
+all left `new` at that read-only checkpoint. Raw submissions were used as
+evidence and were not treated as trusted implementation instructions.
 
 The reported desktop blank page after **Email support** now has two explicit
 guards. Help already keeps web users in the app and displays
@@ -239,3 +241,35 @@ business/catalog inputs and were not hardcoded from individual tester answers.
 Admin requests for separated customer/provider triage, group messaging,
 reminders, top-provider reporting, refund safeguards, and clearer proof review
 remain inputs to the suspicion-first admin stage.
+
+## 2026-09-01 private-cache record trace
+
+The seven-record local cache was traced one record at a time with tester names,
+contacts, opaque record IDs, and raw wording excluded from this repository. The
+labels below exist only to make the audit repeatable; they are not production
+identifiers.
+
+| Cache label | Evidence classification | Customer/provider implication | Admin, support, and company implication | Current disposition |
+| --- | --- | --- | --- | --- |
+| `CACHE-01` | Deliberate oversized stress/junk submission with one issue row and unrelated images | No trustworthy customer/provider product finding | Proves intake abuse, evidence-quality, and dismissal controls matter | Bug UX-879 now rejects over-limit fields instead of silently truncating and storing polluted research. The existing cached row remains historical evidence for an operator to dismiss with a note. |
+| `CACHE-02` | Sparse mixed-role response with an incomplete idea row naming an active-booking location but no problem, expected result, or reproduction | Directional request for a more modern customer presentation; ratings alone do not prove a defect | No action can be assigned from an empty issue description | Retain as low-confidence design signal. The later customer/provider Stitch audits, not this row alone, are the implementation evidence. |
+| `CACHE-03` | Provider/admin questionnaire with no structured issue row | Provider asks to see requested work first and raises contact, proof, service, and promotion ideas | Admin asks for inbox-first work, customer/provider separation, reminders, group messaging, online/nearest/top-provider views, proof review, and refund safeguards | Support separation, action queues, proof workspaces, and reasoned money confirmations are implemented or held in their canonical audits. Contact disclosure is rejected by the privacy model. Group messaging, automation, and provider ranking remain unapproved until audience consent, source, freshness, metric, and audit behavior are defined. |
+| `CACHE-04` | Customer questionnaire with no structured issue row | Wants obvious Home/Profile/booking tracking, highly rated provider discovery, provider contact, late-arrival handling, service grouping, and additional services | Requires navigation, provider eligibility/reviews, support/late-job handling, catalog governance, and contact privacy to agree | Canonical customer navigation, booking tracking, reviews, and in-app support are present. Off-platform contact is not added. Service and price ideas remain catalog/business inputs, not hardcoded changes. |
+| `CACHE-05` | One screenshot-backed customer defect row: Email support opened a blank desktop page | Browser support handoff failed; questionnaire also raises refund wording, support chat, fee clarity, notifications, grouping, and visual direction | Support must preserve context; legal/refund and fee copy must match the real money path | Help already stays in-app on web and Bug UX-661 closes the remaining Terms `mailto:` path. Support entry points are linked. E09/F#10 retain refund/legal wording authority; fee levels and catalog grouping remain business decisions. |
+| `CACHE-06` | One screenshot-backed customer row containing two defects: uncertain booking submission/duplicate appearance and missing address suggestions | Also reports browser camera wording, text contrast, structured job detail, payment trust, provider chat/support, alerts, service grouping, and new-service ideas | Connects Booking 360, Audit Log, Service Areas, Catalog, Support, Communications, Notifications, and Financials | Current route/state/idempotency, address, browser picker, contrast, support, evidence, and confirmation behavior is covered by the named UX regressions in this trace and the 48-route customer audit. D24 still holds paid remote-address autocomplete; E14 holds external payment; new fields/services/prices require canonical product/catalog decisions. |
+| `CACHE-07` | Thin positive customer response with no issue row and mixed customer/provider answers | Mentions receipts, speed, convenience, opportunity, and a car-wash service idea | Too little evidence for a screen or policy change | Retain as low-confidence directional input only. Do not derive a product claim, service launch, price, or provider policy from it. |
+
+The local screenshot directory contains nine filenames, while the seven-record
+JSON references six. The additional three files are not evidence for any cached
+row and were not counted as issue evidence. Their production relationship and
+retention cannot be inferred from this workstation snapshot; the aggregate
+server inventory in the E52 privacy runbook remains required when E32 access is
+restored. The six referenced images retain the earlier visual classifications
+in this document. The OneDrive placeholders did not hydrate reliably during
+this recheck, so they are not falsely claimed as newly inspected.
+
+Bug UX-879 also aligns the public form with the API's existing text limits. The
+browser prevents ordinary typing beyond those boundaries, and the API rejects
+oversized direct requests with a clear error. Exact-boundary text is preserved
+unchanged. This closes the stress-input storage defect without deleting or
+rewriting historical research.

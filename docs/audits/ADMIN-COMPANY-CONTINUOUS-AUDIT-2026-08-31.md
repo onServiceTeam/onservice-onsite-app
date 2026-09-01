@@ -592,3 +592,46 @@ todos. API/Admin TypeScript and production builds, repository ESLint,
 `git diff --check`, Gate A's 10 fragments, Gate C's 6 articles, all 6 gate
 self-test groups, the phantom-test scan, and the reviewed N+1 scan passed.
 Production remains unchanged under E32 and E52's staged privacy rollout.
+
+## Checkpoint Q: cached feedback linkage and intake integrity
+
+The private seven-record workstation cache was traced record by record without
+publishing tester identities, contacts, opaque IDs, or raw submissions. The
+accurate local count is four structured issue rows, not five: one deliberate
+stress/junk row, one incomplete idea row, and two usable defect rows, with one
+of the usable rows describing two failures. The earlier production trace remains
+the latest server evidence at ten submissions and five structured issue rows;
+E32 prevents a current refresh.
+
+The resulting role trace is recorded in
+`docs/audits/THIRD-PARTY-TESTER-FEEDBACK-TRACE-2026-08-24.md`. It carries every
+cached record into its customer, provider, support, product, and admin
+counterpart. It does not implement off-platform contact disclosure, individual
+service/price suggestions, undefined top-provider or nearest-provider metrics,
+bulk messaging, automation, refund percentages, or legal wording from tester
+opinion alone.
+
+The stress row exposed a current intake-integrity defect. Public feedback fields
+were silently sliced to server caps, so an oversized submission became a
+plausible-looking but incomplete research record. Bug UX-879 makes every
+existing cap explicit: the browser applies matching text limits, direct requests
+over those limits are rejected with a clear error, too many answer/issue fields
+are rejected rather than clipped, and exact-boundary text is retained unchanged.
+Historical rows and screenshots are not rewritten or deleted.
+
+The local screenshot folder contains nine filenames but the cached JSON
+references six. The three additional files are not assigned to a cached record
+and are not counted as issue evidence. No production relationship or retention
+decision is inferred from the workstation directory. E52's production inventory
+and E21's retention boundary still govern those questions.
+
+Verification passed the UX-879 rendered-form/service regression, the existing
+feedback normalization suite, and the protected local-preview regression. The
+full locally runnable API aggregate passed 704 suites and 3,087 tests with one
+intentional skip. The two Docker-only Nginx suites were attempted separately
+and are not claimed as passed because Docker Desktop was unavailable. API
+TypeScript and the production build, full repository ESLint, and
+`git diff --check` passed. Gate A passed all 10 blocking fragments, Gate C
+passed all 6 blocking articles, all 6 gate self-test groups passed, the strict
+phantom-test scan found no findings, and the N+1 heuristic retained 31 reviewed
+locations with no unjustified marker.

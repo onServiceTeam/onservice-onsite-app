@@ -2006,6 +2006,25 @@
   (function () {
     var API = '/api/v1/feedback';
 
+    // Mirror the API's text caps in the browser so a tester cannot unknowingly
+    // write more than the server can store. The API remains authoritative for
+    // direct or programmatic requests.
+    function applyTextLimits(scope) {
+      var name = scope.querySelector('[name="testerName"]');
+      var contact = scope.querySelector('[name="testerContact"]');
+      var ideas = scope.querySelector('[name="ideas"]');
+      if (name) name.setAttribute('maxlength', '200');
+      if (contact) contact.setAttribute('maxlength', '200');
+      if (ideas) ideas.setAttribute('maxlength', '10000');
+      scope.querySelectorAll('textarea[name^="answer:"], input[type="text"][name^="answer:"]').forEach(function (field) {
+        field.setAttribute('maxlength', '2000');
+      });
+      scope.querySelectorAll('[data-k="where"], [data-k="what"], [data-k="expected"], [data-k="repro"]').forEach(function (field) {
+        field.setAttribute('maxlength', '3000');
+      });
+    }
+    applyTextLimits(document);
+
     // ---- 1-5 rating scales ----
     document.querySelectorAll('[data-name^="rating:"]').forEach(function (s) {
       var name = s.getAttribute('data-name');
@@ -2115,6 +2134,7 @@
       wrap.className = 'issue';
       wrap.appendChild(tpl.content.cloneNode(true));
       issues.appendChild(wrap);
+      applyTextLimits(wrap);
       var rm = wrap.querySelector('[data-remove]');
       if (rm) rm.addEventListener('click', function () { releaseAllPreviews(wrap); wrap.remove(); });
       bindUploader(wrap);

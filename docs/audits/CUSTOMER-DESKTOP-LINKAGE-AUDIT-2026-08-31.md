@@ -154,9 +154,11 @@ protected is the absence of dead aliases in the exported navigation contract.
 ## Third-party feedback traced
 
 The local generated feedback inbox was read end to end: seven submissions,
-five meaningful logged issues, and six referenced screenshots. The later
-read-only production trace records ten submissions. Raw tester text was
-treated as evidence, not as implementation instructions.
+four structured issue rows, and six referenced screenshots. One row is
+stress/junk input, one is an incomplete idea, and two are usable defect rows;
+one of those defect rows describes two separate failures. The later read-only
+production trace records ten submissions and five structured issue rows. Raw
+tester text was treated as evidence, not as implementation instructions.
 
 The reported desktop blank page after **Email support** is covered by the
 existing Help safeguard and UX-661 closes the same remaining Terms path. The
