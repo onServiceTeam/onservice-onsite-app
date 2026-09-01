@@ -3,12 +3,16 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { rbacMiddleware } from '../middleware/rbac.middleware';
 import { createAppError } from '../middleware/error.middleware';
 import * as feedbackAdminService from '../services/feedback-admin.service';
+import * as feedbackScreenshotService from '../services/feedback-screenshot.service';
 
 const router = Router();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function getId(req: AuthenticatedRequest): string {
   const id = req.params.id;
-  if (typeof id !== 'string' || !id) throw createAppError('Feedback ID is required.', 400);
+  if (typeof id !== 'string' || !UUID_REGEX.test(id)) {
+    throw createAppError('Feedback ID must be a valid UUID.', 400);
+  }
   return id;
 }
 
@@ -27,6 +31,28 @@ router.get(
         actorRole: req.user!.role,
       });
       res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/:id/screenshots/:filename',
+  authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const stream = await feedbackScreenshotService.getFeedbackScreenshotForAdmin(
+        getId(req),
+        req.params.filename,
+      );
+      res.setHeader('Content-Type', stream.contentType);
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      if (stream.contentLength != null) res.setHeader('Content-Length', String(stream.contentLength));
+      stream.body.on('error', (error: Error) => next(error));
+      stream.body.pipe(res);
     } catch (error) {
       next(error);
     }

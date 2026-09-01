@@ -488,8 +488,10 @@ Broad checkpoint verification also passed:
 The next continuous loop starts from the remaining admin navigation inventory
 and rechecks each surface against the operating questions above. Priority order:
 
-1. Tester Feedback and the stored third-party review corpus, tracing every item
-   to customer, provider, support, product, and admin implications.
+1. Complete the page-local Tester Feedback recovery, validation, masking,
+   search, queue-count, and tablet checks after the E52 privacy containment,
+   then trace every stored item to customer, provider, support, product, and
+   admin implications.
 2. Dashboard, Disputes, Pricing Rules, Recurring Work, Audit Log, authentication,
    Change Password, shell/navigation, and Not Found coverage not already closed by
    the operational checkpoints.
@@ -500,7 +502,7 @@ Existing legal, money, production-data, and privileged-identity escalation
 boundaries still apply. A page-local visual improvement is not permission to
 invent legal wording, mutate production money, or bypass those controls.
 
-## Checkpoint O: Tester Feedback privacy hard stop
+## Checkpoint O: Tester Feedback privacy containment
 
 The database-backed tester queue remains separate from marketplace reviews and
 support cases. The local gitignored snapshot was rechecked without publishing
@@ -512,20 +514,38 @@ local count is not presented as current production state.
 
 The intake and operations contract correctly preserve original evidence, named
 ownership, decision notes, and append-only status history. The code audit also
-identified recoverability, request-validation, and ordinary-admin note-masking
-gaps that remain queued for implementation.
+identified recoverability, request-validation, ordinary-admin note-masking,
+search-bound, queue-count, and tablet-layout gaps that remain queued.
 
-Work stopped before those page-local fixes because a higher-severity privacy
-risk was found. Feedback images are stored beneath `uploads/feedback/`, but the
-generic Nginx uploads location serves them without authentication and caches
-them publicly for 30 days. The protected Admin page therefore does not protect
-its image evidence. The public intake can accept screenshots containing names,
-addresses, booking context, messages, or other personal data.
+The higher-severity privacy finding was that feedback images beneath
+`uploads/feedback/` were served without authentication and publicly cached for
+30 days. The protected Admin page therefore did not protect image evidence that
+could contain names, addresses, booking context, messages, or other personal
+data.
 
-E52 records the required decision. The recommended containment preserves every
-existing file and payload, introduces an authenticated Admin evidence proxy and
-a header-keyed private pull path, previews newly selected files locally in the
-public form, then blocks direct `/uploads/feedback/` access in both Nginx vhosts
-after production inventory, backup, and staged verification. No production file,
-database row, Nginx rule, or application artifact was changed during this
-checkpoint.
+Ken approved E52 Option A on 2026-09-01. Bugs UX-856 through UX-862 now preserve
+every existing file and payload while adding an authenticated record-linked
+Admin evidence proxy, a header-only private screenshot pull, local browser
+preview during public intake, stable relative storage identifiers, and explicit
+Nginx 404 guards in both vhosts. Admin image elements and links no longer contain
+raw storage paths. Legacy absolute storage identifiers remain readable through
+the protected translation without a data migration.
+
+Production is not claimed. E32 prevents a current row/file inventory and the
+required staged deployment. The Nginx guard must not be activated on the server
+until database/uploads/config/Git backups exist and API/Admin/form support has
+been deployed and verified against old and new evidence. The operational
+sequence is recorded in `docs/runbooks/tester-feedback-evidence-privacy.md`.
+
+Local verification passed 10 focused API feedback suites/24 tests, 6 focused
+Admin feedback files/8 tests, the full locally runnable API aggregate (699
+suites/3,084 tests with one intentional skip), the full Admin aggregate (259
+files/348 tests with one intentional file skip and three todos), API/Admin
+TypeScript and production builds, full repository ESLint, and
+`git diff --check`. The Admin build transformed 2,842 modules. Gate A passed all 10
+blocking fragments, Gate C passed all 6 blocking articles, all 6 gate self-test
+groups passed, the phantom-test scan passed, and the N+1 heuristic retained 31
+reviewed locations with no unjustified marker. Bug UX-860's Docker/Nginx
+execution test was attempted twice but is not counted as passed because the
+local Docker daemon did not start a container before the bounded timeout;
+protected CI or a working Docker host must execute it.

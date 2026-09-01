@@ -5,9 +5,9 @@
 //   POST /api/v1/feedback            -> public. Accepts a questionnaire body
 //                                       from the /feedback web page. Honeypot +
 //                                       per-IP rate limit guard the open route.
-//   GET  /api/v1/feedback/export.json?key=  -> all submissions as JSON
-//   GET  /api/v1/feedback/export.md?key=    -> Markdown digest (humans + AI coder)
-//   GET  /api/v1/feedback/export.csv?key=   -> CSV (spreadsheet)
+//   GET  /api/v1/feedback/export.json -> all submissions as JSON
+//   GET  /api/v1/feedback/export.md   -> Markdown digest (humans + AI coder)
+//   GET  /api/v1/feedback/export.csv  -> CSV (spreadsheet)
 //
 // The export key is FEEDBACK_EXPORT_KEY in the API env. It is NOT the tester
 // gate password — it protects the *collected* feedback, which is review-only
@@ -33,6 +33,7 @@ import { validateFileSync, assertImageMagicBytes, getUploadDir } from '../servic
 import { platformConfig } from '../config/platform.config';
 import { logger } from '../utils/logger';
 import { isPrivateExportSecretUsable } from '../config/boot-guards';
+import { getFeedbackScreenshotStream } from '../services/feedback-screenshot.service';
 
 interface MulterFile {
   originalname: string;
@@ -73,9 +74,10 @@ const submitLimiter = rateLimit({
 });
 
 // Public screenshot upload for the feedback page. Stored under
-// uploads/feedback/ (served ungated via the app-vhost /uploads/ location), so a
-// tester can attach a picture of a broken screen and the team/AI coder can view
-// it. Image-only, magic-byte verified, size-capped, rate-limited.
+// uploads/feedback/, whose direct Nginx path is blocked. The public form keeps
+// only the storage identifier and previews the local File object; authorized
+// Admin/private-export routes retrieve the evidence. Image-only, magic-byte
+// verified, size-capped, rate-limited.
 const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 80,
@@ -113,9 +115,10 @@ router.post('/upload', uploadLimiter, imageUpload.single('file'), async (req: Re
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, filename), file.buffer);
 
-    const host = (req.headers['x-forwarded-host'] ?? req.headers.host ?? '').toString();
-    const proto = (req.headers['x-forwarded-proto'] ?? 'https').toString();
-    const url = host ? `${proto}://${host}/uploads/feedback/${filename}` : `/uploads/feedback/${filename}`;
+    // This is a storage identifier, not a public download URL. The tester page
+    // previews its local File object; authenticated Admin/private-export routes
+    // stream the stored evidence after submission.
+    const url = `/uploads/feedback/${filename}`;
     logger.info('feedback screenshot uploaded', { filename });
     res.status(201).json({ success: true, url });
   } catch (err) {
@@ -158,7 +161,10 @@ router.post('/', submitLimiter, async (req: Request, res: Response, next: NextFu
 function keyOk(req: Request): boolean {
   const expected = process.env.FEEDBACK_EXPORT_KEY;
   if (!isPrivateExportSecretUsable(expected)) return false;
-  const given = (req.query.key ?? req.headers['x-feedback-key'] ?? '').toString();
+  // Private feedback exports may contain tester PII. Secrets in query strings
+  // can enter browser history, proxy logs, and referrers, so only the dedicated
+  // request header is accepted.
+  const given = (req.headers['x-feedback-key'] ?? '').toString();
   // Constant-time compare to avoid leaking the key byte-by-byte via a timing
   // side-channel. timingSafeEqual requires equal-length buffers, so the length
   // check stays as a (non-secret) precondition.
@@ -207,5 +213,27 @@ router.get('/export.csv', (req, res, next) =>
     r.type('text/csv; charset=utf-8').send(toCsv(rows));
   }),
 );
+
+router.get('/export-screenshot/:filename', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!isPrivateExportSecretUsable(process.env.FEEDBACK_EXPORT_KEY)) {
+      res.status(503).json({ success: false, error: 'Exports are not securely configured.' });
+      return;
+    }
+    if (!keyOk(req)) {
+      res.status(401).json({ success: false, error: 'Invalid or missing key.' });
+      return;
+    }
+    const stream = await getFeedbackScreenshotStream(req.params.filename);
+    res.setHeader('Content-Type', stream.contentType);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (stream.contentLength != null) res.setHeader('Content-Length', String(stream.contentLength));
+    stream.body.on('error', (error: Error) => next(error));
+    stream.body.pipe(res);
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default router;

@@ -1,7 +1,8 @@
 # E52: Tester-feedback screenshots are publicly reachable
 
 **Date:** 2026-09-01
-**Status:** OPEN: privacy containment decision and production inventory required
+**Status:** OPTION A APPROVED; code containment implemented on topic branch;
+production inventory and deployment remain required
 **Scope:** public tester-feedback upload, Admin Tester Feedback evidence, private exports, Nginx upload serving, existing stored screenshots
 
 ## Bad news
@@ -81,15 +82,67 @@ reports unless a reveal workflow is built.
 Not recommended. Random filenames and upload validation do not make screenshots
 private, and a 30-day public cache makes revocation less reliable.
 
-## Decision required
+## Decision
 
-Approve Option A, or choose the stricter Option B. The recommendation is Option
-A now, followed by a separate evidence-retention and audited-access review. It
-removes public access without destroying evidence or blocking the existing
-company triage workflow.
+Ken approved **Option A** on 2026-09-01. Ordinary `admin` and `super_admin`
+accounts may review screenshot evidence attached to a feedback record. Raw
+storage paths are not an access mechanism. The private pull uses the export key
+in the `x-feedback-key` request header. Evidence retention and periodic access
+review remain separate privacy-operations work; this decision does not authorize
+deletion or invent a retention period.
 
-## Work paused
+## Implemented code containment
 
-This is a personal-data access risk and a production-facing evidence change.
-Per `AGENTS.md`, implementation, merge, and deployment pause at this point until
-Ken approves the access model. Production remains untouched.
+- Bug UX-856 adds the authenticated, record-linked Admin screenshot proxy. It
+  validates the feedback UUID and filename, verifies that the selected payload
+  references the file, rejects symlinks/non-files, and returns `private,
+  no-store` evidence.
+- Bug UX-857 adds the private screenshot export route. All tester-data exports,
+  including screenshot retrieval, accept the export secret only in
+  `x-feedback-key`, never in the query string.
+- Bug UX-858 removes direct storage paths from Admin image and full-size links.
+- Bug UX-859 previews a newly selected browser `File` through a temporary object
+  URL and revokes it after removal or submission. The server identifier is never
+  loaded into an image element.
+- Bug UX-860 adds explicit `/uploads/feedback/` 404 guards to both Nginx vhosts
+  without changing ordinary public uploads.
+- Bug UX-861 returns a relative storage identifier from upload intake, so an
+  attacker-controlled Host header cannot become stored evidence metadata.
+- Bug UX-862 makes the private pull send the export key in headers and retrieve
+  screenshots through the protected route. The script reads the key only from
+  its process environment rather than accepting a command-line secret.
+
+Existing database payloads and files remain in place. Legacy absolute
+`onservice.ph` and `onservice.com.ph` storage identifiers are translated by the
+new retrieval paths, so no migration is required.
+
+## Local verification
+
+- The focused feedback API run passed 10 suites and 24 tests. The focused Admin
+  feedback run passed 6 files and 8 rendered behavior tests.
+- The full locally runnable API run passed 699 suites and 3,084 tests with one
+  intentional suite/test skip. Both Docker-only Nginx suites were excluded from
+  that aggregate and are not counted as passes.
+- The full Admin run passed 259 files and 348 tests with one intentional file
+  skip and three explicit todos.
+- API/Admin TypeScript checks, API/Admin production builds, full repository
+  ESLint, targeted ESLint, and `git diff --check` passed. The Admin build
+  transformed 2,842 modules.
+- Gate A passed all 10 blocking fragments, Gate C passed all 6 blocking
+  articles, all 6 gate self-test groups passed, and the phantom-test scan found
+  no forbidden pattern. The N+1 heuristic retained 31 reviewed locations and
+  found no unjustified marker.
+- The new Bug UX-860 executable Nginx test was attempted twice and did not pass
+  locally because Docker could not start a container before the bounded timeout.
+  It remains required on protected CI or a host with a responding Docker engine.
+
+## Remaining production hard stop
+
+Production is untouched. E32 still prevents the required live row/file
+inventory and deployment. Before enabling the Nginx guard, follow
+`docs/runbooks/tester-feedback-evidence-privacy.md`: inventory and back up the
+database, upload volume, configuration, and deployed Git state; deploy the
+API/Admin/form support first; prove old and new evidence works through protected
+paths; then reload Nginx and prove direct evidence is 404 while ordinary uploads
+still work. E50 and E51 separately prevent this topic branch from being merged
+or deployed as a whole.

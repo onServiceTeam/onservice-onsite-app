@@ -490,7 +490,7 @@ How to triage a submission:
 4. Choose `Done` only when the verified work is actually complete. Keep the owner and record the result.
 5. Choose `Dismissed` for spam, stress input, duplicates, or non-actionable content and explain why. Do not silently delete feedback.
 
-Ordinary admins see masked contact details and masked personal data inside free text. Status, owner, and note changes are permanent audit-log events. The key-protected exports remain available for private research and backup, but they are not the operating queue.
+Ordinary admins see masked contact details and masked personal data inside free text. Screenshot evidence is private and loads only through the selected feedback record's authenticated Admin proxy. Do not copy, publish, or attempt to open the stored `/uploads/feedback/...` identifier; it is evidence metadata, not a public link. Status, owner, and note changes are permanent audit-log events. The header-keyed pull remains available for authorized private research and backup, but it is not the operating queue.
 
 ### 2.32 Projects (`/projects`)
 

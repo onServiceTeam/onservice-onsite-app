@@ -105,10 +105,20 @@ function displayValue(value: JsonValue): string {
   return String(value);
 }
 
-function collectScreenshots(payload: { [key: string]: JsonValue }): string[] {
+function protectedScreenshotUrl(recordId: string, value: JsonValue | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const match = value.trim().match(
+    /^(?:https?:\/\/(?:[a-z0-9-]+\.)*onservice(?:\.com)?\.ph)?\/uploads\/feedback\/([A-Za-z0-9][A-Za-z0-9._-]{0,199}\.(?:jpe?g|png|webp))$/i,
+  );
+  if (!match?.[1]) return null;
+  return `/api/v1/admin/feedback/${encodeURIComponent(recordId)}/screenshots/${encodeURIComponent(match[1])}`;
+}
+
+function collectScreenshots(recordId: string, payload: { [key: string]: JsonValue }): string[] {
   const found = new Set<string>();
   const add = (value: JsonValue | undefined): void => {
-    if (typeof value === 'string' && /^(https?:\/\/|\/uploads\/feedback\/)/i.test(value)) found.add(value);
+    const protectedUrl = protectedScreenshotUrl(recordId, value);
+    if (protectedUrl) found.add(protectedUrl);
     if (Array.isArray(value)) value.forEach(add);
   };
   add(payload.screenshots);
@@ -464,7 +474,7 @@ function FeedbackDetail({ record }: { record: FeedbackRecord }): React.ReactElem
   const ratings = nonEmptyEntries(record.payload.ratings);
   const answers = nonEmptyEntries(record.payload.answers);
   const prices = nonEmptyEntries(record.payload.prices);
-  const screenshots = useMemo(() => collectScreenshots(record.payload), [record.payload]);
+  const screenshots = useMemo(() => collectScreenshots(record.id, record.payload), [record.id, record.payload]);
   const ideas = typeof record.payload.ideas === 'string' ? record.payload.ideas.trim() : '';
 
   return (

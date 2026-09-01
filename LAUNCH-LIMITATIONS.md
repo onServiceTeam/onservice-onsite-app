@@ -1859,20 +1859,26 @@ approval and audit workflow, and rollback plan. See
 
 ---
 
-## 60. Tester-feedback screenshots are publicly reachable
+## 60. Tester-feedback screenshot privacy — CODE CONTAINMENT IMPLEMENTED; PRODUCTION PENDING
 
-The public tester-feedback upload stores images under `uploads/feedback/`, and
-both Nginx vhosts currently serve that prefix through the generic public uploads
-location with a 30-day public cache. The Admin Tester Feedback page requires an
-admin session, but its image links point at those same public URLs. A tester can
-therefore attach a customer, provider, or admin screen containing personal data
-that remains retrievable without authentication by anyone who obtains the URL.
+The prior path stored images under `uploads/feedback/`, served the files through
+both generic public Nginx upload locations with a 30-day public cache, and placed
+the same direct URLs in the protected Admin page. A tester could therefore
+attach a customer, provider, or admin screen containing personal data that was
+retrievable without authentication by anyone who obtained the URL.
 
-Do not delete or move existing evidence and do not block the prefix before a
-replacement retrieval path supports old submissions. The recommended
-containment is an authenticated Admin evidence proxy, a key-protected private
-pull endpoint, local browser preview during public intake, and an explicit
-Nginx 404 guard for `/uploads/feedback/` in both vhosts. Production inventory,
-backup, staged validation, and an access-model decision are required before the
-guard is activated. See
+Ken approved E52 Option A on 2026-09-01. The code now preserves old files and
+payloads while retrieving evidence through an authenticated, record-linked
+Admin proxy or a header-keyed private pull route. Admin links never expose the
+raw storage path, new intake previews the local browser file, and both Nginx
+vhosts contain an explicit `private, no-store` 404 guard for
+`/uploads/feedback/`. Legacy absolute and current relative storage identifiers
+remain supported without a database migration.
+
+This is not yet resolved in production. E32 prevents the required current
+row/file inventory, backup, deployment, and live validation. Do not delete or
+move existing evidence. Deploy the API/Admin/form support first, verify old and
+new protected retrieval, then activate the Nginx guard and prove ordinary public
+uploads remain unaffected. Follow
+`docs/runbooks/tester-feedback-evidence-privacy.md` and see
 `.ai-coder/escalations/E52-tester-feedback-screenshots-are-public-2026-09-01.md`.

@@ -12,5 +12,5 @@ it('Bug UX-038 — feedback detail preserves reproduction steps, expected behavi
   expect(screen.getByText('I could not find help.')).toBeTruthy();
   expect(screen.getByText('2')).toBeTruthy();
   const screenshot = screen.getByRole('img', { name: 'Tester evidence 1' });
-  expect(screenshot.getAttribute('src')).toBe('/uploads/feedback/evidence.png');
+  expect(screenshot.getAttribute('src')).toBe('/api/v1/admin/feedback/feedback-1/screenshots/evidence.png');
 });
