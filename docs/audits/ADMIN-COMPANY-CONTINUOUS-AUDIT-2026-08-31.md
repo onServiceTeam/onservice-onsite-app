@@ -827,3 +827,43 @@ unjustified marker. Its 30 broad candidate locations are pre-existing review
 output, not a finding introduced by this checkpoint. E53, D28, D27p5/E12, and
 E32 remain active; no hidden Admin project write, provider-project workflow,
 money change, production migration, or production synchronization is claimed.
+
+## Checkpoint V: customer-owned planning metadata
+
+The next customer trace confirmed that the project API already allowed an owner
+to update planning metadata, but the customer UI could neither maintain those
+fields nor capture the planning address when creating a project. Operators could
+see the record in Admin and Support, while the customer had no direct way to
+correct the title, description, location, or advisory budget. That was a safe UI
+and linkage gap, not permission to expand the project into execution or money.
+
+Bugs UX-896 and UX-897 close that narrow gap:
+
+- Project creation now accepts a planning address and states that any future
+  booking confirms its own service address.
+- The owner-only overview exposes title, description, planning address/city, and
+  advisory budget, then saves those same fields through the existing
+  ownership-checked API contract.
+- Advisory pesos are converted to server centavos and bounded from zero through
+  PHP 20,000,000. Blank optional values clear to `null`.
+- The customer mutation deliberately omits status, provider ID, booking
+  conversion, quotes, escrow, and every payment field. Existing Admin project
+  writes remain held by E53.
+- Exact project and project-list queries are invalidated after save so Customer,
+  Admin discovery, and later project-linked Support intake use current metadata.
+
+Focused executed renders cover desktop owner editing and tablet project creation.
+A fixture-backed real browser session at 820 pixels saved and re-rendered the
+updated title, address, city, and advisory budget without horizontal overflow.
+The 1366-pixel desktop session rendered the full customer navigation workspace,
+exact project context, and support exit without browser errors. Full aggregate
+Mobile verification passes all 512 suites and 891 assertions with 84 existing
+device-baseline todos. Every workspace TypeScript check, repository ESLint, and
+the 4,273-module production web export pass. Gate A passes 10/10, Gate C passes
+6/6, all six gate self-tests pass, the strict phantom-test scan reports no
+finding, and the N+1 heuristic reports no unjustified marker among its 30
+pre-existing review locations.
+
+E53, D28, D27p5/E12, and E32 remain active. This checkpoint does not authorize a
+provider project workspace, Admin mutation, project-to-booking conversion,
+milestone money, production migration, or production synchronization.

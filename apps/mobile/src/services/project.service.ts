@@ -8,6 +8,10 @@ export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'c
 export type MilestoneStatus = 'pending' | 'in_progress' | 'completed';
 export type DocType = 'blueprint' | 'permit' | 'contract' | 'photo' | 'other';
 
+// Mirrors the API validator's 2,000,000,000-centavo ceiling. The API remains
+// authoritative; this value only prevents an avoidable rejected form submit.
+export const PROJECT_ADVISORY_BUDGET_MAX_PESOS = 20_000_000;
+
 export interface Project {
   id: string;
   customerId: string;
@@ -88,7 +92,15 @@ export async function createProject(input: {
   return res.data.data;
 }
 
-export async function updateProject(id: string, patch: Partial<{ title: string; description: string; status: ProjectStatus }>): Promise<Project> {
+export interface UpdateProjectPatch {
+  title?: string;
+  description?: string;
+  address?: string | null;
+  city?: string | null;
+  estimatedTotal?: number | null;
+}
+
+export async function updateProject(id: string, patch: UpdateProjectPatch): Promise<Project> {
   const res = await api.patch<ApiResponse<Project>>(`/api/v1/projects/${id}`, patch);
   return res.data.data;
 }
