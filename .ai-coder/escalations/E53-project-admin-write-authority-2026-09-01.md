@@ -1,7 +1,7 @@
 # E53 — Project Admin write authority conflicts with the read-only operations contract
 
-**Date:** 2026-09-01  
-**Status:** OPEN  
+**Date:** 2026-09-01
+**Status:** OPEN
 **Hard stop:** authorization, customer-owned planning data, and missing audit/concurrency controls
 
 ## What the audit found
