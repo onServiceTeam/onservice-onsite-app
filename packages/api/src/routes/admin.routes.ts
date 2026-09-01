@@ -33,6 +33,15 @@ import * as dataManagementService from '../services/data-management.service';
 import * as securityService from '../services/security.service';
 import * as adminAnalyticsService from '../services/admin-analytics.service';
 import * as settingsService from '../services/settings.service';
+import * as recurringService from '../services/recurring.service';
+import {
+  adminRecurringCancelBodySchema,
+  adminRecurringListQuerySchema,
+  type AdminRecurringListQuery,
+  recurringIdParamsSchema,
+  recurringPaginationQuerySchema,
+  type RecurringPaginationQuery,
+} from '../validators/recurring.validators';
 import { parseAuditTimelineListQuery } from '../validators/admin-audit-log.validators';
 import {
   maskEmail,
@@ -508,48 +517,84 @@ router.get(
 router.get(
   '/recurring',
   authMiddleware,
+  validationMiddleware({ query: adminRecurringListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
-      const status = typeof req.query.status === 'string' ? req.query.status : undefined;
-
-      const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+      const { page, pageSize, status, search = '' } = req.query as unknown as AdminRecurringListQuery;
       const offset = (page - 1) * pageSize;
       const params: unknown[] = [];
       let paramIdx = 1;
       let statusClause = '';
       let searchClause = '';
 
-      if (status && ['active', 'paused', 'cancelled'].includes(status)) {
+      if (status) {
         statusClause = `AND rb.status = $${paramIdx}`;
         params.push(status);
         paramIdx++;
       }
 
       if (search) {
-        searchClause = `AND (u.first_name ILIKE $${paramIdx} OR u.last_name ILIKE $${paramIdx} OR rb.city ILIKE $${paramIdx} OR rb.province ILIKE $${paramIdx})`;
+        // BUG-UX-913: support operators search people by the full name they
+        // see in the queue. Comparing only each name column made a query such
+        // as "Maria Santos" return nothing even when that exact customer was
+        // visible. Match the normalized display name as well as each part.
+        searchClause = `AND (TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) ILIKE $${paramIdx} OR u.first_name ILIKE $${paramIdx} OR u.last_name ILIKE $${paramIdx} OR rb.city ILIKE $${paramIdx} OR rb.province ILIKE $${paramIdx})`;
         params.push(`%${search}%`);
         paramIdx++;
       }
 
-      const countResult = await db.query<{ count: string }>(
-        `SELECT COUNT(*)::text as count FROM recurring_bookings rb
+      const countResult = await db.query<{
+        count: string;
+        active_count: string;
+        attention_count: string;
+        open_support_count: string;
+      }>(
+        `SELECT COUNT(*)::text AS count,
+                COUNT(*) FILTER (WHERE rb.status = 'active')::text AS active_count,
+                COUNT(*) FILTER (WHERE EXISTS (
+                  SELECT 1 FROM recurring_instances ri
+                   WHERE ri.recurring_booking_id = rb.id AND ri.status = 'failed'
+                ))::text AS attention_count,
+                COALESCE(SUM(recurring_support.open_count), 0)::text AS open_support_count
+         FROM recurring_bookings rb
          LEFT JOIN users u ON rb.customer_id = u.id
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS open_count
+             FROM recurring_instances ri
+             JOIN support_tickets st ON st.booking_id = ri.booking_id
+            WHERE ri.recurring_booking_id = rb.id
+              AND st.status NOT IN ('resolved', 'closed')
+         ) recurring_support ON TRUE
          WHERE 1=1 ${statusClause} ${searchClause}`,
         params,
       );
-      const total = Number(countResult.rows[0]?.count ?? 0);
+      const totals = countResult.rows[0];
+      const total = Number(totals?.count ?? 0);
 
       const dataParams = [...params, pageSize, offset];
       const result = await db.query<Record<string, unknown>>(
         `SELECT rb.*,
                 TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS customer_name,
-                sc.name AS category_name
+                sc.name AS category_name,
+                ssc.name AS subcategory_name,
+                COALESCE(
+                  NULLIF(TRIM(p.business_name), ''),
+                  NULLIF(TRIM(COALESCE(pu.first_name, '') || ' ' || COALESCE(pu.last_name, '')), '')
+                ) AS provider_name,
+                (SELECT COUNT(*)::int FROM recurring_instances ri
+                  WHERE ri.recurring_booking_id = rb.id AND ri.status = 'failed') AS failed_instances,
+                (SELECT COUNT(*)::int
+                   FROM recurring_instances ri
+                   JOIN support_tickets st ON st.booking_id = ri.booking_id
+                  WHERE ri.recurring_booking_id = rb.id
+                    AND st.status NOT IN ('resolved', 'closed')) AS open_support_tickets
          FROM recurring_bookings rb
          LEFT JOIN users u ON rb.customer_id = u.id
+         LEFT JOIN providers p ON rb.provider_id = p.id
+         LEFT JOIN users pu ON p.user_id = pu.id
          LEFT JOIN service_categories sc ON rb.category_id = sc.id
+         LEFT JOIN service_subcategories ssc ON rb.subcategory_id = ssc.id
          WHERE 1=1 ${statusClause} ${searchClause}
          ORDER BY rb.created_at DESC
          LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
@@ -575,12 +620,63 @@ router.get(
         createdAt: r.created_at,
         customerName: r.customer_name,
         categoryName: r.category_name,
+        subcategoryName: r.subcategory_name,
+        providerName: r.provider_name,
+        originalBookingId: r.original_booking_id,
+        failedInstances: Number(r.failed_instances ?? 0),
+        openSupportTickets: Number(r.open_support_tickets ?? 0),
       }));
 
       res.json({
         success: true,
         data,
+        summary: {
+          matchingSeries: total,
+          activeSeries: Number(totals?.active_count ?? 0),
+          seriesWithFailedInstances: Number(totals?.attention_count ?? 0),
+          openSupportTickets: Number(totals?.open_support_count ?? 0),
+        },
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/recurring/:id',
+  authMiddleware,
+  validationMiddleware({ params: recurringIdParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const id = req.params.id as string;
+      const detail = await recurringService.getAdminRecurringBooking(id);
+      res.json({ success: true, data: detail });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/recurring/:id/instances',
+  authMiddleware,
+  validationMiddleware({
+    params: recurringIdParamsSchema,
+    query: recurringPaginationQuerySchema,
+  }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const id = req.params.id as string;
+      const { page, pageSize } = req.query as unknown as RecurringPaginationQuery;
+      const result = await recurringService.getAdminRecurringInstances(id, page, pageSize);
+      res.json({
+        success: true,
+        data: result.items,
+        pagination: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
       });
     } catch (error) {
       next(error);
@@ -591,11 +687,15 @@ router.get(
 router.post(
   '/recurring/:id/cancel',
   authMiddleware,
+  validationMiddleware({
+    params: recurringIdParamsSchema,
+    body: adminRecurringCancelBodySchema,
+  }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const id = req.params.id;
-      const { reason } = req.body as { reason?: string };
+      const id = req.params.id as string;
+      const { reason: trimmedReason } = req.body as { reason: string };
 
       // Phase 200 fix — the admin UI requires a >=10-char reason and tells
       // the admin it is "recorded in audit log + sent to customer." Pre-fix
@@ -603,31 +703,29 @@ router.post(
       // no admin_actions row, and no notification — so the modal's promise
       // was false. Enforce the reason, write the audit row, notify the
       // customer.
-      if (!reason || typeof reason !== 'string' || reason.trim().length < 10) {
-        throw createAppError('A cancellation reason (min 10 characters) is required.', 400);
-      }
-      const trimmedReason = reason.trim();
-
-      const result = await db.query<{ customer_id: string; frequency: string }>(
-        `UPDATE recurring_bookings
-         SET status = 'cancelled', cancelled_at = NOW(), cancellation_reason = $1, updated_at = NOW()
-         WHERE id = $2 AND status IN ('active', 'paused')
-         RETURNING customer_id, frequency`,
-        [trimmedReason, id],
-      );
-
-      if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ success: false, message: 'Recurring booking not found or already cancelled.' });
-        return;
-      }
-
-      const cancelled = result.rows[0]!;
-
-      await db.query(
-        `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-         VALUES ($1, 'recurring_booking_cancelled', 'recurring_booking', $2, $3, $4)`,
-        [req.user!.userId, id, JSON.stringify({ frequency: cancelled.frequency }), trimmedReason],
-      );
+      // BUG-OPS-321 — the cancellation and its admin audit evidence are one
+      // decision. Pre-fix, the UPDATE committed first; an admin_actions write
+      // failure left a cancelled series with no operator record even though
+      // the request returned an error. Commit or roll back both together.
+      const cancelled = await db.transaction(async (client) => {
+        const result = await client.query<{ customer_id: string; frequency: string }>(
+          `UPDATE recurring_bookings
+           SET status = 'cancelled', cancelled_at = NOW(), cancellation_reason = $1, updated_at = NOW()
+           WHERE id = $2 AND status IN ('active', 'paused')
+           RETURNING customer_id, frequency`,
+          [trimmedReason, id],
+        );
+        if ((result.rowCount ?? 0) === 0) {
+          throw createAppError('Recurring booking not found or already cancelled.', 404);
+        }
+        const row = result.rows[0]!;
+        await client.query(
+          `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
+           VALUES ($1, 'recurring_booking_cancelled', 'recurring_booking', $2, $3, $4)`,
+          [req.user!.userId, id, JSON.stringify({ frequency: row.frequency }), trimmedReason],
+        );
+        return row;
+      });
 
       try {
         await notificationService.createPushNotification({

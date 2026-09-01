@@ -543,3 +543,39 @@ inventory and migration. The older raw-URL creation and deletion routes remain
 under E53/D28 until an immutable/versioned audit policy is approved. Provider
 planning, project-to-booking conversion, milestone money, and production
 synchronization remain held under D28, D27p5/E12, and E32.
+
+## W22 recurring series support workspace
+
+W22 traces recurring work from the customer-confirmed source booking through the
+series, each generated booking, the legacy provider link, and booking-filtered
+support. It leaves bookings as the work and money source of truth. A series
+cancellation changes only future recurrence and does not revise existing
+bookings, transactions, payment state, refunds, rates, or commissions.
+
+SEC-020/021/022/023 enforce customer-role ownership, an eligible completed
+fixed-price source booking for the same customer and service, strict Admin
+control input, and strict customer ID/page/date/action input. Bugs UX-909/910/913 create result-wide queue counts, full-name
+search, exact-series context, and canonical Customer, Provider, Booking, and
+Support exits. Bugs UX-911/912 remove the customer list/history first-page
+truncation. OPS-321 makes the series cancellation and Admin action one database
+transaction with a bounded reason.
+
+The rendered Admin workspace identifies manual per-booking payment as an E20
+boundary and legacy provider linkage as a D29/E41 hold. It does not expose a
+stored reusable payment identifier or imply that the original provider is
+automatically re-assigned. Fixture-backed browser checks at 820 and 1366 pixels
+found zero horizontal overflow across queue, detail, history, support, and
+cancellation states; a warning-free console is not claimed.
+
+Admin passes 276 files/365 assertions with one skipped file and three todos.
+Mobile passes 522 suites/901 assertions with 84 device-baseline todos. The
+locally runnable API passes 723 suites/3,106 assertions with one intentional
+skip; the two Docker/Nginx environment suites remain excluded and unclaimed.
+All workspace TypeScript checks, repository lint, API/Admin builds, the
+corrected 4,273-module Expo web export, Gate A 10/10, Gate C 6/6, all six gate
+self-test groups, strict phantom-test scanning, the 30-location N+1 review, and
+diff checks pass. The first export command omitted the explicit web target and
+failed the intended native EAS environment guard; only the successful
+deterministic web-target rerun is counted. E20, D29/E41, and E32 remain open, so
+automatic charging, provider-assignment redesign, master promotion, and
+production synchronization are not claimed.

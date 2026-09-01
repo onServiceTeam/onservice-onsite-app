@@ -983,3 +983,52 @@ raw-URL creation/deletion routes remain under E53/D28 without approved
 immutable/versioned audit history. Provider planning, project-to-booking
 conversion, milestone money, and production synchronization remain outside W21
 under D28, D27p5/E12, and E32.
+
+## Checkpoint Z: recurring customer-to-support linkage
+
+This trace keeps bookings as the commercial, work, and money source of truth.
+A recurring series only plans future visits. It does not rewrite a source
+booking, generated booking, payment, refund, commission, or transaction.
+
+The prior Admin page was only a list plus cancellation action. It did not let a
+support operator inspect the completed source booking, generated booking
+history, current provider link, or booking-specific support records. Its queue
+counts described only the current page, full customer-name search failed, and
+the customer list and detail silently stopped after 20 records. Cancellation
+also committed before its Admin action, so an audit-write failure could leave a
+changed series behind an error response.
+
+Bugs UX-909/910/913 and OPS-321 add whole-result support metrics, strict
+URL-preserved discovery, an exact-series workspace, canonical Customer 360,
+Provider 360, source-booking, generated-booking, and Support exits, plus atomic
+reasoned cancellation. Bugs UX-911/912 expose all customer series and generated
+history through explicit pagination. SEC-020 blocks provider, provider-staff,
+and Admin identities from the customer recurring API. SEC-021 requires an owned,
+customer-confirmed, completed fixed-price source booking for the same service.
+SEC-022 rejects malformed Admin controls before database access. SEC-023 does
+the same for customer UUID, pagination, calendar-date, cancellation, and
+attempt-history controls before service or payment-method access.
+
+The operator cancellation dialog explicitly says that only the future recurring
+series stops. Existing generated bookings and transactions stay in their
+canonical workflows. The exact-series panel also labels the E20 manual-payment
+boundary and D29/E41 provider-assignment hold instead of presenting legacy
+stored preferences as active behavior.
+
+Fixture-backed Admin browser checks at 820 and 1366 pixels covered the queue,
+exact-series support workspace, linked records, failure/support history, and
+cancellation impact dialog with zero horizontal overflow. A warning-free
+console is not claimed. Admin passes 276 files and 365 assertions with one
+skipped file and three todos. Mobile passes 522 suites and 901 assertions with
+84 device-baseline todos. The locally runnable API passes 723 suites and 3,106
+assertions with one intentional skip; the two Docker/Nginx suites remain
+excluded and unclaimed.
+
+All workspace TypeScript checks, repository lint, API/Admin production builds,
+the 4,273-module Expo web export, Gate A 10/10, Gate C 6/6, all six gate
+self-test groups, strict phantom-test scanning, the 30-location N+1 review, and
+diff checks pass. The initial export command omitted `EXPO_OS=web` and correctly
+failed the native EAS configuration guard; the deterministic web-target rerun
+is the claimed pass. E20, D29/E41, and E32 remain active. No automatic charge,
+provider-assignment redesign, master promotion, or production deployment is
+claimed.

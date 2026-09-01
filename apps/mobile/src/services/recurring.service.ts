@@ -50,7 +50,7 @@ export interface CreateRecurringParams {
   providerId?: string;
   categoryId: string;
   subcategoryId: string;
-  originalBookingId?: string;
+  originalBookingId: string;
   frequency: 'weekly' | 'bi_weekly' | 'monthly';
   preferredDay: number;
   preferredTime: string;

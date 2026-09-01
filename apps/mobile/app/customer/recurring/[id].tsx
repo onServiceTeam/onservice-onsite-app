@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
@@ -85,20 +85,44 @@ export default function RecurringDetailScreen(): React.ReactElement {
   });
 
   const {
-    data: instances,
+    data: instancePages,
     isLoading: instancesLoading,
     isError: instancesError,
     refetch: refetchInstances,
-  } = useQuery({
+    fetchNextPage: fetchNextInstancePage,
+    hasNextPage: hasMoreInstances,
+    isFetchingNextPage: isFetchingMoreInstances,
+  } = useInfiniteQuery({
     queryKey: ['recurring-instances', id],
-    queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: RecurringInstance[] }>(
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const res = await api.get<{
+        success: boolean;
+        data: RecurringInstance[];
+        pagination?: { page?: number; total: number; totalPages?: number };
+      }>(
         `/api/v1/recurring/${id}/instances`,
+        { params: { page: pageParam, pageSize: 20 } },
       );
-      return res.data.data;
+      return {
+        ...res.data,
+        pagination: res.data.pagination ?? { page: Number(pageParam), total: res.data.data.length },
+      };
     },
     enabled: !!id && showInstances,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((count, result) => count + result.data.length, 0);
+      if (loaded >= lastPage.pagination.total) return undefined;
+      return (lastPage.pagination.page ?? allPages.length) + 1;
+    },
   });
+
+  // BUG-UX-912 — the old detail view fetched only the first 20 visits and
+  // presented that partial set as complete history. Flatten all fetched pages
+  // with ID de-duplication and keep an explicit keyboard-friendly load action.
+  const instances = Array.from(
+    new Map((instancePages?.pages ?? []).flatMap((page) => page.data).map((item) => [item.id, item])).values(),
+  );
 
   const pauseMutation = useMutation({
     mutationFn: () => api.post(`/api/v1/recurring/${id}/pause`),
@@ -387,6 +411,17 @@ export default function RecurringDetailScreen(): React.ReactElement {
                   </View>
                 </TouchableOpacity>
               ))}
+              {!instancesLoading && !instancesError && hasMoreInstances && (
+                <TouchableOpacity
+                  style={styles.loadMoreHistory}
+                  onPress={() => void fetchNextInstancePage()}
+                  disabled={isFetchingMoreInstances}
+                  accessibilityRole="button"
+                  accessibilityLabel="Load more recurring booking history"
+                >
+                  <Text style={styles.loadMoreHistoryText}>{isFetchingMoreInstances ? 'Loading more…' : 'Load More History'}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -551,6 +586,17 @@ const styles = StyleSheet.create({
   instanceCancelled: { color: colors.error },
   openBooking: { ...typography.caption, color: colors.primary, marginTop: 2 },
   historyError: { ...typography.bodySmall, color: colors.error, textAlign: 'center', paddingVertical: spacing.sm },
+  loadMoreHistory: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+  },
+  loadMoreHistoryText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
 
   bottomSpacer: { height: 40 },
 

@@ -9,6 +9,7 @@ import { createRecurringSchema } from '../src/validators/recurring.validators';
 const validRecurring = {
   categoryId: '550e8400-e29b-41d4-a716-446655440000',
   subcategoryId: '550e8400-e29b-41d4-a716-446655440001',
+  originalBookingId: '550e8400-e29b-41d4-a716-446655440002',
   frequency: 'weekly' as const,
   preferredDay: 3,
   preferredTime: '09:30',
