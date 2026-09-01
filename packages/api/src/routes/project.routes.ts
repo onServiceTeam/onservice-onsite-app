@@ -6,7 +6,7 @@ import { createAppError } from '../middleware/error.middleware';
 import * as projectService from '../services/project.service';
 import {
   createProjectSchema, updateProjectSchema, addMilestoneSchema, updateMilestoneSchema,
-  addSelectionSchema, addDocumentSchema,
+  addSelectionSchema, updateSelectionSchema, addDocumentSchema,
 } from '../validators/project.validators';
 
 // D27 Phase 5 — project layer. All routes require auth; the service enforces
@@ -55,6 +55,14 @@ router.delete('/milestones/:milestoneId', authMiddleware,
     try {
       await projectService.deleteMilestone(pathId(req, 'milestoneId'), requester(req));
       res.json({ success: true });
+    } catch (e) { next(e); }
+  });
+
+router.patch('/selections/:selectionId', authMiddleware, validationMiddleware(updateSelectionSchema),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const out = await projectService.updateSelection(pathId(req, 'selectionId'), requester(req), req.body);
+      res.json({ success: true, data: out });
     } catch (e) { next(e); }
   });
 

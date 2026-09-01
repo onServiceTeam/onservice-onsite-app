@@ -36,9 +36,9 @@ it('Bug UX-129 — completed project milestones cannot be reset by a generic tap
   render(<QueryClientProvider client={client}><ProjectDetailScreen /></QueryClientProvider>);
 
   expect(await screen.findByLabelText('Wide project planning workspace')).toBeTruthy();
-  expect(screen.queryByLabelText('Start Measure room')).toBeNull();
-  expect(screen.queryByLabelText('Complete Measure room')).toBeNull();
-  fireEvent.click(screen.getByLabelText('Complete Choose cabinets'));
+  expect(screen.queryByLabelText('Mark Measure room in progress')).toBeNull();
+  expect(screen.queryByLabelText('Mark Measure room complete')).toBeNull();
+  fireEvent.click(screen.getByLabelText('Mark Choose cabinets complete'));
   await waitFor(() => expect(mockUpdateMilestone).toHaveBeenCalledWith('active-1', { status: 'completed' }));
   expect(mockUpdateMilestone).not.toHaveBeenCalledWith('done-1', expect.anything());
 });

@@ -903,3 +903,41 @@ Existing milestone/choice editing or removal and document creation remain open.
 E53 still holds conflicting Admin project writes, D28 still holds provider and
 booking conversion architecture, D27p5/E12 still holds milestone money, and E32
 still prevents production synchronization.
+
+## Checkpoint X: customer planning-record maintenance
+
+The next trace closed only the correction actions that are safe under Option A.
+Customer owners can now edit or remove planning choices and edit or remove a
+milestone before it starts. Every removal uses an in-app impact confirmation
+that says the planning item cannot be restored and that removing it does not
+cancel a booking or payment. Started and completed milestones remain visible
+history and expose no customer edit/remove action.
+
+Bugs UX-901, UX-902, UX-904, and UX-905 execute the exact customer payloads,
+date validation, pending-only milestone controls, and confirmation-before-delete
+behavior. Bug UX-903 executes the strict bounded API route and rejects blank or
+unknown booking/status fields. SEC-016 proves the new choice-update service is
+customer-owner-only; an Admin account does not inherit authority from the older
+E53-held project contract. Correction payloads contain no status, provider,
+booking, quote, commission, refund, escrow, or payment field.
+
+The 820-pixel browser pass exposed a cramped milestone action row. The repaired
+layout moves those actions below the milestone content, keeps the full action
+words visible, and has zero document-level horizontal overflow at 820 and 1366
+pixels. The accumulated development log includes expected framework warnings
+and transient Metro-disconnect entries caused by restarting the local server, so
+this checkpoint does not claim a zero-log browser session.
+
+Mobile passes 519 suites and 898 assertions with 84 existing device-baseline
+todos. The locally runnable API passes 712 suites and 3,095 assertions with one
+intentional suite/test skip; the two Docker/Nginx environment suites remain
+excluded and unclaimed. All workspace TypeScript checks, repository ESLint,
+API/Admin production builds, the 4,273-module Expo web export, Gate A 10/10,
+Gate C 6/6, all six gate self-test groups, the strict phantom-test scan, the
+30-location N+1 review, and `git diff --check` pass.
+
+Bad news retained: the older server deletion and Admin-write paths do not yet
+provide an approved immutable/versioned history contract. E53 therefore remains
+open. Document creation, provider planning, project-to-booking conversion,
+milestone money, production migration, and production synchronization also
+remain outside this checkpoint under D28, D27p5/E12, and E32.

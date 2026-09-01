@@ -110,14 +110,27 @@ export async function addMilestone(projectId: string, input: { title: string; de
   return res.data.data;
 }
 
-export async function updateMilestone(milestoneId: string, patch: Partial<{ title: string; description: string; status: MilestoneStatus; amount: number; targetDate: string }>): Promise<ProjectMilestone> {
+export async function updateMilestone(milestoneId: string, patch: Partial<{ title: string; description: string; status: MilestoneStatus; amount: number | null; targetDate: string | null }>): Promise<ProjectMilestone> {
   const res = await api.patch<ApiResponse<ProjectMilestone>>(`/api/v1/projects/milestones/${milestoneId}`, patch);
   return res.data.data;
+}
+
+export async function deleteMilestone(milestoneId: string): Promise<void> {
+  await api.delete(`/api/v1/projects/milestones/${milestoneId}`);
 }
 
 export async function addSelection(projectId: string, input: { category: string; label: string; value: string; detail?: string; sortOrder?: number }): Promise<ProjectSelection> {
   const res = await api.post<ApiResponse<ProjectSelection>>(`/api/v1/projects/${projectId}/selections`, input);
   return res.data.data;
+}
+
+export async function updateSelection(selectionId: string, patch: Partial<{ category: string; label: string; value: string; detail: string | null; sortOrder: number }>): Promise<ProjectSelection> {
+  const res = await api.patch<ApiResponse<ProjectSelection>>(`/api/v1/projects/selections/${selectionId}`, patch);
+  return res.data.data;
+}
+
+export async function deleteSelection(selectionId: string): Promise<void> {
+  await api.delete(`/api/v1/projects/selections/${selectionId}`);
 }
 
 export async function addDocument(projectId: string, input: { label: string; fileUrl: string; docType?: DocType }): Promise<ProjectDocument> {

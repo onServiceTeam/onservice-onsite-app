@@ -481,6 +481,55 @@ export async function addSelection(
   return formatSelection(r.rows[0]!);
 }
 
+export async function updateSelection(
+  selectionId: string,
+  requester: { userId: string; role: string },
+  patch: { category?: string; label?: string; value?: string; detail?: string | null; sortOrder?: number },
+): Promise<Record<string, unknown>> {
+  const existing = await db.query<{ project_id: string }>(
+    `SELECT project_id FROM project_selections WHERE id = $1`,
+    [selectionId],
+  );
+  const row = existing.rows[0];
+  if (!row) throw createAppError('Selection not found.', 404);
+
+  const project = await loadProjectForRequester(row.project_id, requester);
+  // E53 holds hidden Admin project writes. This new maintenance contract is
+  // deliberately customer-owner-only instead of inheriting isOwnerOrAdmin.
+  if (project.customer_id !== requester.userId) {
+    throw createAppError('Only the project owner can change selections.', 403);
+  }
+
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  const add = (column: string, value: unknown): void => {
+    sets.push(`${column} = $${sets.length + 1}`);
+    values.push(value);
+  };
+  if (patch.category !== undefined && !patch.category.trim()) {
+    throw createAppError('Selection category cannot be empty.', 400);
+  }
+  if (patch.label !== undefined && !patch.label.trim()) {
+    throw createAppError('Selection label cannot be empty.', 400);
+  }
+  if (patch.value !== undefined && !patch.value.trim()) {
+    throw createAppError('Selection value cannot be empty.', 400);
+  }
+  if (patch.category !== undefined) add('category', patch.category.trim());
+  if (patch.label !== undefined) add('label', patch.label.trim());
+  if (patch.value !== undefined) add('value', patch.value.trim());
+  if (patch.detail !== undefined) add('detail', patch.detail?.trim() || null);
+  if (patch.sortOrder !== undefined) add('sort_order', patch.sortOrder);
+  if (sets.length === 0) throw createAppError('No fields to update.', 400);
+  values.push(selectionId);
+
+  const updated = await db.query<SelectionRow>(
+    `UPDATE project_selections SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`,
+    values,
+  );
+  return formatSelection(updated.rows[0]!);
+}
+
 export async function deleteSelection(selectionId: string, requester: { userId: string; role: string }): Promise<void> {
   const existing = await db.query<{ project_id: string }>(`SELECT project_id FROM project_selections WHERE id = $1`, [selectionId]);
   const row = existing.rows[0];

@@ -33,7 +33,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/bookings` | Booking operations queue | W6+W8 PARTIAL | The responsive row-grid exposes URL-bound operational views/sorts, whole-queue exception counts, specific service/city/schedule context, Customer/Provider 360 exits, linked support ownership, open disputes, and gross booking value. Only verified-paid unassigned work is labelled **Paid needs assignment**. Named booking ownership is deliberately not duplicated outside support cases; authenticated wide-state evidence remains open. |
 | `/bookings/:id` | Booking 360 and evidence | W6 PARTIAL/HOLD | Conversation and support-case exits, partial-address truth, gateway/wallet/retained-sales money chronology, and rendered action confirmations are connected. Cancellation requires explicit live money inputs but E09 still holds policy/runtime authority; escrow release, refund, cancellation, and force-complete semantics remain money-path controlled. |
 | `/catalog` | Customer bookable scope and provider fulfillment contract | W1 | Service/add-on deactivation now requires audit reason and states customer impact. Continue modal and all pricing-type state visuals. |
-| `/projects` | Larger-work planning oversight | W15+W16+W17+W18+W19 PARTIAL/HOLD | Full-index project ID/title/description/city/customer/provider search, status filtering, deterministic pagination, result-wide summaries, exact URL-bound records, customer-owned metadata maintenance, complete planning-only milestone/choice creation, and project support handoffs now coexist without changing the customer/provider project-list contract. Customer/legacy-provider identities and milestone scope/deadline remain visible. Support context cannot create a booking, provider assignment, quote, or money relation. E53 holds conflicting unaudited Admin write authority; D28 holds booking/site/visit linkage and D27p5/E12 holds milestone money. Existing milestone/choice editing or removal, document creation, and provider planning tools remain open. |
+| `/projects` | Larger-work planning oversight | W15+W16+W17+W18+W19+W20 PARTIAL/HOLD | Full-index project ID/title/description/city/customer/provider search, status filtering, deterministic pagination, result-wide summaries, exact URL-bound records, customer-owned metadata maintenance, complete planning-only milestone/choice creation, customer correction/removal of choices and pending milestones, and project support handoffs now coexist without changing the customer/provider project-list contract. Started/completed milestone history, customer/legacy-provider identities, scope, and deadline remain visible. Support context cannot create a booking, provider assignment, quote, or money relation. The new choice-update route is customer-owner-only, but E53 still holds older unaudited Admin write/deletion authority; D28 holds booking/site/visit linkage and D27p5/E12 holds milestone money. Document creation, versioned/audited destructive-history policy, and provider planning tools remain open. |
 | `/disputes` | Trust queue | W9 PARTIAL/HOLD | Exact active and stale whole-queue views are URL-bound and enforced by the API, and list resolution now uses an in-app impact confirmation. Resolution/settlement behavior is unchanged and remains under E18/E24; no unsupported SLA countdown was added. |
 | `/disputes/:id` | Dispute 360 | HOLD/NEXT | Recheck evidence chronology and role exits. Settlement/reopen semantics remain held. |
 | `/financials` | Payments, escrow, tax workpapers, reconciliation | HOLD | No money/tax mutation behavior changed in W1. Requires dedicated finance audit and decision-safe tests. |
@@ -479,3 +479,31 @@ comparison 12/12, Gate A 10/10, Gate C 6/6, all six gate self-tests, strict
 phantom-test scanning, the N+1 review, and `git diff --check` pass. E53, D28,
 D27p5/E12, and E32 remain unchanged, so this is not a project execution, money,
 or production-deployment claim.
+
+## W20 customer planning-record maintenance
+
+W20 lets the owning customer correct or remove a planning choice and correct or
+remove a pending milestone without expanding projects into a work-order or money
+system. Started and completed milestones remain visible history without customer
+edit/remove actions. All removals require an in-app irreversible-action
+confirmation and explicitly state that a planning deletion does not cancel any
+booking or payment.
+
+Bugs UX-901/902/904/905 execute exact customer correction and confirmed-removal
+behavior. Bug UX-903 executes strict route validation, and SEC-016 proves the new
+choice-update contract rejects Admin authority instead of inheriting the older
+E53-held mutation path. No correction payload accepts booking, provider, status,
+quote, commission, refund, escrow, or payment authority.
+
+The fixture-backed browser pass found and repaired a cramped 820-pixel milestone
+action layout, then verified the final 820- and 1366-pixel workspaces with zero
+horizontal overflow. Mobile passes 519 suites/898 assertions with 84 device
+todos. The locally runnable API passes 712 suites/3,095 assertions with one
+intentional suite/test skip; the two Docker/Nginx environment suites remain
+excluded. TypeScript, lint, API/Admin builds, the 4,273-module web export, Gate A
+10/10, Gate C 6/6, all six gate self-test groups, the phantom-test scan, the
+30-location N+1 review, and diff checks pass.
+
+E53 remains open because older Admin/deletion paths still lack an approved
+immutable/versioned history contract. D28, D27p5/E12, and E32 remain unchanged;
+no production synchronization or money-path change is claimed.

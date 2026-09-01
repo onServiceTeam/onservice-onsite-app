@@ -66,6 +66,14 @@ export const addSelectionSchema = z.object({
   sortOrder: z.number().int().min(0).max(1000).optional(),
 }).strict();
 
+export const updateSelectionSchema = z.object({
+  category: z.string().trim().min(1).max(80).optional(),
+  label: z.string().trim().min(1).max(120).optional(),
+  value: z.string().trim().min(1).max(200).optional(),
+  detail: z.string().trim().max(200).optional().nullable(),
+  sortOrder: z.number().int().min(0).max(1000).optional(),
+}).strict();
+
 export const addDocumentSchema = z.object({
   label: z.string().trim().min(1).max(160),
   fileUrl: z.string().url().max(1000).refine((value) => {

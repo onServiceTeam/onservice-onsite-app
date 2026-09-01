@@ -4,9 +4,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  getProject, updateProject, addMilestone, updateMilestone, addSelection,
+  getProject, updateProject, addMilestone, updateMilestone, deleteMilestone,
+  addSelection, updateSelection, deleteSelection,
   PROJECT_ADVISORY_BUDGET_MAX_PESOS,
-  type ProjectMilestone, type MilestoneStatus,
+  type ProjectMilestone, type ProjectSelection, type MilestoneStatus,
 } from '@/services/project.service';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatPHP } from '@/utils/currency';
@@ -18,12 +19,19 @@ import { SkeletonCard, ErrorState } from '@/components/ui';
 import { useResponsive } from '@/hooks/useResponsive';
 import { Routes } from '@/config/navigation';
 import { isRealCalendarDate } from '@/utils/date';
+import ConfirmModal from '@/components/ConfirmModal';
 
 const MS_LABEL: Record<MilestoneStatus, string> = { pending: 'Pending', in_progress: 'In progress', completed: 'Completed' };
 const MS_COLOR: Record<MilestoneStatus, string> = { pending: colors.textSecondary, in_progress: colors.warning, completed: colors.success };
 const NEXT_STATUS: Record<Exclude<MilestoneStatus, 'completed'>, MilestoneStatus> = {
   pending: 'in_progress',
   in_progress: 'completed',
+};
+
+type PendingRemoval = {
+  kind: 'milestone' | 'choice';
+  id: string;
+  label: string;
 };
 
 export default function ProjectDetailScreen(): React.ReactElement {
@@ -46,6 +54,17 @@ export default function ProjectDetailScreen(): React.ReactElement {
   const [selLabel, setSelLabel] = useState('');
   const [selValue, setSelValue] = useState('');
   const [selDetail, setSelDetail] = useState('');
+  const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
+  const [editMsTitle, setEditMsTitle] = useState('');
+  const [editMsDescription, setEditMsDescription] = useState('');
+  const [editMsAmount, setEditMsAmount] = useState('');
+  const [editMsTargetDate, setEditMsTargetDate] = useState('');
+  const [editingSelectionId, setEditingSelectionId] = useState<string | null>(null);
+  const [editSelCat, setEditSelCat] = useState('');
+  const [editSelLabel, setEditSelLabel] = useState('');
+  const [editSelValue, setEditSelValue] = useState('');
+  const [editSelDetail, setEditSelDetail] = useState('');
+  const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
   const [showEditProject, setShowEditProject] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -72,6 +91,17 @@ export default function ProjectDetailScreen(): React.ReactElement {
   );
   const msTargetDateValid = msTargetDate.trim() === '' || isRealCalendarDate(msTargetDate.trim());
   const milestoneValid = msTitle.trim().length > 0 && msAmountValid && msTargetDateValid;
+  const editMsAmountValue = Number(editMsAmount);
+  const editMsAmountValid = editMsAmount.trim() === '' || (
+    Number.isFinite(editMsAmountValue)
+    && editMsAmountValue >= 0
+    && editMsAmountValue <= PROJECT_ADVISORY_BUDGET_MAX_PESOS
+  );
+  const editMsTargetDateValid = editMsTargetDate.trim() === '' || isRealCalendarDate(editMsTargetDate.trim());
+  const editMilestoneValid = editMsTitle.trim().length > 0 && editMsAmountValid && editMsTargetDateValid;
+  const editSelectionValid = editSelCat.trim().length > 0
+    && editSelLabel.trim().length > 0
+    && editSelValue.trim().length > 0;
 
   const saveProject = useMutation({
     mutationFn: () => updateProject(id ?? '', {
@@ -98,6 +128,25 @@ export default function ProjectDetailScreen(): React.ReactElement {
     setEditCity(project.city ?? '');
     setEditEstimate(project.estimatedTotal == null ? '' : String(project.estimatedTotal / 100));
     setShowEditProject(true);
+  };
+
+  const beginMilestoneEdit = (milestone: ProjectMilestone): void => {
+    if (milestone.status !== 'pending') return;
+    setShowAddMs(false);
+    setEditingMilestoneId(milestone.id);
+    setEditMsTitle(milestone.title);
+    setEditMsDescription(milestone.description ?? '');
+    setEditMsAmount(milestone.amount == null ? '' : String(milestone.amount / 100));
+    setEditMsTargetDate(milestone.targetDate ?? '');
+  };
+
+  const beginSelectionEdit = (selection: ProjectSelection): void => {
+    setShowAddSel(false);
+    setEditingSelectionId(selection.id);
+    setEditSelCat(selection.category);
+    setEditSelLabel(selection.label);
+    setEditSelValue(selection.value);
+    setEditSelDetail(selection.detail ?? '');
   };
 
   const advanceMs = useMutation({
@@ -145,6 +194,50 @@ export default function ProjectDetailScreen(): React.ReactElement {
       invalidate();
     },
     onError: (e) => showToast(getErrorMessage(e, 'Could not add the choice.'), 'error'),
+  });
+
+  const saveMilestone = useMutation({
+    mutationFn: () => updateMilestone(editingMilestoneId ?? '', {
+      title: editMsTitle.trim(),
+      description: editMsDescription.trim(),
+      amount: editMsAmount.trim() === '' ? null : Math.round(editMsAmountValue * 100),
+      targetDate: editMsTargetDate.trim() || null,
+    }),
+    onSuccess: () => {
+      setEditingMilestoneId(null);
+      invalidate();
+      showToast('Milestone details saved.', 'success');
+    },
+    onError: (e) => showToast(getErrorMessage(e, 'Could not save the milestone.'), 'error'),
+  });
+
+  const saveSelection = useMutation({
+    mutationFn: () => updateSelection(editingSelectionId ?? '', {
+      category: editSelCat.trim(),
+      label: editSelLabel.trim(),
+      value: editSelValue.trim(),
+      detail: editSelDetail.trim() || null,
+    }),
+    onSuccess: () => {
+      setEditingSelectionId(null);
+      invalidate();
+      showToast('Choice saved.', 'success');
+    },
+    onError: (e) => showToast(getErrorMessage(e, 'Could not save the choice.'), 'error'),
+  });
+
+  const removePlanningItem = useMutation({
+    mutationFn: (item: PendingRemoval) => item.kind === 'milestone'
+      ? deleteMilestone(item.id)
+      : deleteSelection(item.id),
+    onSuccess: (_data, item) => {
+      if (item.kind === 'milestone' && editingMilestoneId === item.id) setEditingMilestoneId(null);
+      if (item.kind === 'choice' && editingSelectionId === item.id) setEditingSelectionId(null);
+      setPendingRemoval(null);
+      invalidate();
+      showToast(item.kind === 'milestone' ? 'Pending milestone removed.' : 'Choice removed.', 'success');
+    },
+    onError: (e) => showToast(getErrorMessage(e, 'Could not remove the planning item.'), 'error'),
   });
 
   if (!id) {
@@ -364,8 +457,61 @@ export default function ProjectDetailScreen(): React.ReactElement {
               ) : (
                 project.selections.map((s) => (
                   <View key={s.id} style={styles.selRow}>
-                    <Text style={styles.selLabel}>{s.category} · {s.label}</Text>
-                    <Text style={styles.selValue}>{s.value}{s.detail ? ` (${s.detail})` : ''}</Text>
+                    <View style={styles.itemTopRow}>
+                      <View style={styles.itemContent}>
+                        <Text style={styles.selLabel}>{s.category} · {s.label}</Text>
+                        <Text style={styles.selValue}>{s.value}{s.detail ? ` (${s.detail})` : ''}</Text>
+                      </View>
+                      {isOwner ? (
+                        <View style={styles.itemActions}>
+                          <TouchableOpacity
+                            style={styles.itemAction}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Edit choice ${s.category} ${s.label}`}
+                            onPress={() => beginSelectionEdit(s)}
+                          >
+                            <Text style={styles.itemActionText}>Edit</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.itemAction}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove choice ${s.category} ${s.label}`}
+                            onPress={() => setPendingRemoval({ kind: 'choice', id: s.id, label: `${s.category} · ${s.label}` })}
+                          >
+                            <Text style={styles.itemActionDangerText}>Remove</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
+                    </View>
+                    {editingSelectionId === s.id ? (
+                      <View style={styles.itemEditForm} accessibilityLabel={`Edit ${s.category} ${s.label} choice`}>
+                        <TextInput accessibilityLabel="Edit choice category" style={styles.inlineInput} value={editSelCat} onChangeText={setEditSelCat} maxLength={80} />
+                        <TextInput accessibilityLabel="Edit choice label" style={styles.inlineInput} value={editSelLabel} onChangeText={setEditSelLabel} maxLength={120} />
+                        <TextInput accessibilityLabel="Edit choice value" style={styles.inlineInput} value={editSelValue} onChangeText={setEditSelValue} maxLength={200} />
+                        <TextInput accessibilityLabel="Edit choice detail" style={[styles.inlineInput, styles.inlineTextArea]} value={editSelDetail} onChangeText={setEditSelDetail} multiline numberOfLines={3} textAlignVertical="top" maxLength={200} />
+                        <View style={styles.formActions}>
+                          <TouchableOpacity
+                            style={styles.secondaryBtn}
+                            accessibilityRole="button"
+                            accessibilityLabel="Cancel choice editing"
+                            onPress={() => setEditingSelectionId(null)}
+                            disabled={saveSelection.isPending}
+                          >
+                            <Text style={styles.secondaryBtnText}>Cancel</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.saveBtn, !editSelectionValid && styles.disabled]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Save choice details"
+                            accessibilityState={{ disabled: !editSelectionValid || saveSelection.isPending, busy: saveSelection.isPending }}
+                            onPress={() => saveSelection.mutate()}
+                            disabled={!editSelectionValid || saveSelection.isPending}
+                          >
+                            {saveSelection.isPending ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.saveBtnText}>Save choice</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : null}
                   </View>
                 ))
               )}
@@ -428,33 +574,101 @@ export default function ProjectDetailScreen(): React.ReactElement {
                 <Text style={styles.empty}>No milestones yet.</Text>
               ) : (
                 project.milestones.map((m) => (
-                  <View key={m.id} style={styles.msRow}>
-                    <View style={[styles.msDot, { backgroundColor: MS_COLOR[m.status] }]} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.msTitle}>{m.title}</Text>
-                      {m.description ? <Text style={styles.msDescription}>{m.description}</Text> : null}
-                      <Text style={styles.msMeta}>
-                        {MS_LABEL[m.status]}
-                        {m.amount != null ? ` · ${formatPHP(m.amount)}` : ''}
-                        {m.targetDate ? ` · by ${m.targetDate}` : ''}
-                      </Text>
+                  <View key={m.id} style={styles.msItem}>
+                    <View style={styles.msRow}>
+                      <View style={[styles.msDot, { backgroundColor: MS_COLOR[m.status] }]} />
+                      <View style={styles.itemContent}>
+                        <Text style={styles.msTitle}>{m.title}</Text>
+                        {m.description ? <Text style={styles.msDescription}>{m.description}</Text> : null}
+                        <Text style={styles.msMeta}>
+                          {MS_LABEL[m.status]}
+                          {m.amount != null ? ` · ${formatPHP(m.amount)}` : ''}
+                          {m.targetDate ? ` · by ${m.targetDate}` : ''}
+                        </Text>
+                      </View>
                     </View>
                     {isOwner && m.status !== 'completed' ? (
-                      <TouchableOpacity
-                        style={styles.msAction}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${m.status === 'pending' ? 'Start' : 'Complete'} ${m.title}`}
-                        onPress={() => advanceMs.mutate(m)}
-                        disabled={advanceMs.isPending}
-                      >
-                        <Text style={styles.msActionText}>{m.status === 'pending' ? 'Start' : 'Complete'}</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <Text style={[styles.msStatus, { color: MS_COLOR[m.status] }]}>{MS_LABEL[m.status]}</Text>
-                    )}
+                      <View style={styles.milestoneActions}>
+                        {m.status === 'pending' ? (
+                          <>
+                            <TouchableOpacity
+                              style={styles.itemAction}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Edit milestone ${m.title}`}
+                              onPress={() => beginMilestoneEdit(m)}
+                            >
+                              <Text style={styles.itemActionText}>Edit</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.itemAction}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Remove milestone ${m.title}`}
+                              onPress={() => setPendingRemoval({ kind: 'milestone', id: m.id, label: m.title })}
+                            >
+                              <Text style={styles.itemActionDangerText}>Remove</Text>
+                            </TouchableOpacity>
+                          </>
+                        ) : null}
+                        <TouchableOpacity
+                          style={styles.msAction}
+                          accessibilityRole="button"
+                          accessibilityLabel={m.status === 'pending' ? `Mark ${m.title} in progress` : `Mark ${m.title} complete`}
+                          onPress={() => advanceMs.mutate(m)}
+                          disabled={advanceMs.isPending}
+                        >
+                          <Text style={styles.msActionText}>{m.status === 'pending' ? 'Mark in progress' : 'Mark complete'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+                    {editingMilestoneId === m.id ? (
+                      <View style={styles.itemEditForm} accessibilityLabel={`Edit ${m.title} milestone planning details`}>
+                        <TextInput accessibilityLabel="Edit milestone title" style={styles.inlineInput} value={editMsTitle} onChangeText={setEditMsTitle} maxLength={160} />
+                        <TextInput accessibilityLabel="Edit milestone description" style={[styles.inlineInput, styles.inlineTextArea]} value={editMsDescription} onChangeText={setEditMsDescription} multiline numberOfLines={3} textAlignVertical="top" maxLength={2000} />
+                        <View style={styles.milestoneFieldRow}>
+                          <View style={styles.milestoneField}>
+                            <Text style={styles.fieldLabel}>Advisory milestone budget</Text>
+                            <View style={styles.budgetRow}>
+                              <Text style={styles.budgetPrefix}>₱</Text>
+                              <TextInput accessibilityLabel="Edit milestone advisory budget" style={styles.budgetInput} value={editMsAmount} onChangeText={setEditMsAmount} keyboardType="numeric" />
+                            </View>
+                            <Text style={styles.fieldHint}>Planning only. This does not authorize a quote, charge, escrow hold, or payment.</Text>
+                          </View>
+                          <View style={styles.milestoneField}>
+                            <Text style={styles.fieldLabel}>Planning target date</Text>
+                            <TextInput accessibilityLabel="Edit milestone planning target date" style={styles.inlineInput} value={editMsTargetDate} onChangeText={setEditMsTargetDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textTertiary} autoCapitalize="none" maxLength={10} />
+                          </View>
+                        </View>
+                        {!editMsAmountValid ? <Text style={styles.validationText}>Enter an advisory amount from ₱0 to ₱20,000,000.</Text> : null}
+                        {!editMsTargetDateValid ? <Text style={styles.validationText}>Enter a real date in YYYY-MM-DD format.</Text> : null}
+                        <View style={styles.formActions}>
+                          <TouchableOpacity
+                            style={styles.secondaryBtn}
+                            accessibilityRole="button"
+                            accessibilityLabel="Cancel milestone editing"
+                            onPress={() => setEditingMilestoneId(null)}
+                            disabled={saveMilestone.isPending}
+                          >
+                            <Text style={styles.secondaryBtnText}>Cancel</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.saveBtn, !editMilestoneValid && styles.disabled]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Save milestone details"
+                            accessibilityState={{ disabled: !editMilestoneValid || saveMilestone.isPending, busy: saveMilestone.isPending }}
+                            onPress={() => saveMilestone.mutate()}
+                            disabled={!editMilestoneValid || saveMilestone.isPending}
+                          >
+                            {saveMilestone.isPending ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.saveBtnText}>Save milestone</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : null}
                   </View>
                 ))
               )}
+              {isOwner && project.milestones.length > 0 ? (
+                <Text style={styles.historyHint}>In this workspace, details can be changed or removed before a milestone starts. Started and completed milestones stay in the record.</Text>
+              ) : null}
               {showAddMs && (
                 <View style={styles.milestoneForm} accessibilityLabel="Add milestone planning details">
                   <TextInput accessibilityLabel="Milestone title" style={styles.inlineInput} value={msTitle} onChangeText={setMsTitle} placeholder="Milestone (e.g. Foundation)" placeholderTextColor={colors.textTertiary} maxLength={160} />
@@ -514,6 +728,16 @@ export default function ProjectDetailScreen(): React.ReactElement {
 
         <Text style={styles.footer}>To hire a provider or move money, use the separate booking and quote flow.</Text>
       </ScrollView>
+      <ConfirmModal
+        visible={pendingRemoval != null}
+        title={pendingRemoval?.kind === 'milestone' ? 'Remove pending milestone?' : 'Remove planning choice?'}
+        message={pendingRemoval ? `Remove “${pendingRemoval.label}” from this planning record? This cannot be restored and does not cancel any booking or payment.` : undefined}
+        confirmLabel={pendingRemoval?.kind === 'milestone' ? 'Remove milestone' : 'Remove choice'}
+        destructive
+        loading={removePlanningItem.isPending}
+        onConfirm={() => { if (pendingRemoval) removePlanningItem.mutate(pendingRemoval); }}
+        onCancel={() => { if (!removePlanningItem.isPending) setPendingRemoval(null); }}
+      />
     </SafeAreaView>
   );
 }
@@ -564,7 +788,8 @@ const styles = StyleSheet.create({
   progressPct: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' },
   progressTrack: { height: 8, borderRadius: 4, backgroundColor: colors.surfaceMuted, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: colors.success, borderRadius: 4 },
-  msRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  msItem: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  msRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingVertical: spacing.sm },
   msDot: { width: 12, height: 12, borderRadius: 6 },
   msTitle: { ...typography.body, fontWeight: '600', color: colors.text },
   msDescription: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
@@ -575,6 +800,15 @@ const styles = StyleSheet.create({
   selRow: { paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   selLabel: { ...typography.caption, color: colors.textSecondary },
   selValue: { ...typography.body, color: colors.text, fontWeight: '600', marginTop: 1 },
+  itemTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  itemContent: { flex: 1, minWidth: 0 },
+  itemActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: spacing.xs },
+  milestoneActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: spacing.xs, paddingBottom: spacing.sm },
+  itemAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },
+  itemActionText: { ...typography.caption, color: colors.primary, fontWeight: '700' },
+  itemActionDangerText: { ...typography.caption, color: colors.error, fontWeight: '700' },
+  itemEditForm: { gap: spacing.sm, paddingBottom: spacing.md },
+  historyHint: { ...typography.caption, color: colors.textTertiary, lineHeight: 18, marginTop: spacing.xs },
   docRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   docLabel: { ...typography.body, color: colors.info, fontWeight: '600', flex: 1 },
   docType: { ...typography.caption, color: colors.textTertiary },
