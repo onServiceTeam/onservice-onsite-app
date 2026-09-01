@@ -93,11 +93,16 @@
   are no longer stripped before payout creation. The responsive provider
   withdrawal screen captures an optional account-holder name and sends the
   trimmed value through to the payout record already shown to finance staff.
+- Fixes OPS-301 in System Settings. Marketing channels now use bounded add/remove
+  slug fields with duplicate validation, and provider tier ranking uses five
+  labeled numeric controls bounded from -5 to 5. Both preserve the existing
+  reason, impact-review, confirmation, version-lock, audit, and cache-invalidation
+  controls. The screen states that ranking changes affect new matches only.
 
 ## Verification completed
 
 - API: 679 suites passed, 1 suite skipped by its own config, 3,087 tests passed.
-- Admin: 248 files passed, 1 skipped, 340 tests passed, 3 existing todos.
+- Admin: 249 files passed, 1 skipped, 341 tests passed, 3 existing todos.
 - Mobile: 502 suites passed, 881 tests passed, 84 existing todos.
 - API, admin, and mobile typechecks passed.
 - ESLint passed for `apps` and `packages`.

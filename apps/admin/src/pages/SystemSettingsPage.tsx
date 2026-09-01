@@ -146,6 +146,37 @@ function describeActor(entry: AuditEntry): string {
     || entry.changed_by;
 }
 
+const MARKETING_CHANNEL_SLUG = /^[a-z0-9_-]{1,40}$/;
+const MATCHING_TIER_KEYS = ['founding', 'new', 'verified', 'pro', 'elite'] as const;
+type MatchingTier = typeof MATCHING_TIER_KEYS[number];
+
+function parseMarketingChannels(value: string): string[] | null {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseMatchingTierBonuses(value: string): Record<MatchingTier, number | null> | null {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const record = parsed as Record<string, unknown>;
+    return Object.fromEntries(MATCHING_TIER_KEYS.map((tier) => [
+      tier,
+      typeof record[tier] === 'number' && Number.isFinite(record[tier])
+        ? record[tier]
+        : null,
+    ])) as Record<MatchingTier, number | null>;
+  } catch {
+    return null;
+  }
+}
+
 export default function SystemSettingsPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
@@ -310,6 +341,28 @@ export default function SystemSettingsPage(): React.ReactElement {
     if (setting.allowedValues && !setting.allowedValues.includes(value)) {
       return `Choose one of: ${setting.allowedValues.join(', ')}.`;
     }
+    if (setting.key === 'marketing_channels') {
+      const channels = parseMarketingChannels(value);
+      if (
+        !channels
+        || channels.length === 0
+        || channels.length > 50
+        || channels.some((channel) => !MARKETING_CHANNEL_SLUG.test(channel))
+        || new Set(channels).size !== channels.length
+      ) {
+        return 'Use 1–50 unique lowercase channel slugs containing only letters, numbers, underscores, or hyphens.';
+      }
+    }
+    if (setting.key === 'matching_tier_bonus') {
+      const bonuses = parseMatchingTierBonuses(value);
+      if (
+        !bonuses
+        || MATCHING_TIER_KEYS.some((tier) => bonuses[tier] === null)
+        || Object.values(bonuses).some((bonus) => bonus === null || bonus < -5 || bonus > 5)
+      ) {
+        return 'Enter a ranking bonus from -5 to 5 for every provider tier.';
+      }
+    }
     if (setting.valueType === 'json') {
       try {
         JSON.parse(value);
@@ -359,6 +412,18 @@ export default function SystemSettingsPage(): React.ReactElement {
 
   function formatValue(setting: PlatformSetting, value = setting.value): string {
     if (setting.isSensitive) return '••••••';
+    if (setting.key === 'marketing_channels') {
+      const channels = parseMarketingChannels(value);
+      if (channels) return channels.join(', ');
+    }
+    if (setting.key === 'matching_tier_bonus') {
+      const bonuses = parseMatchingTierBonuses(value);
+      if (bonuses) {
+        return MATCHING_TIER_KEYS
+          .map((tier) => `${humanize(tier)} ${bonuses[tier] ?? 'missing'}`)
+          .join(' · ');
+      }
+    }
     if (setting.unit === '%') return `${value}%`;
     if (setting.unit === 'centavos') {
       const pesos = Number(value) / 100;
@@ -403,6 +468,83 @@ export default function SystemSettingsPage(): React.ReactElement {
             <option key={value} value={value}>{value}</option>
           ))}
         </select>
+      );
+    }
+
+    if (setting.key === 'marketing_channels') {
+      const channels = parseMarketingChannels(editValue) ?? [];
+      return (
+        <div id={`setting-value-${setting.key}`} role="group" aria-label={ariaLabel} className="space-y-2">
+          {channels.map((channel, index) => (
+            <div key={`marketing-channel-${index}`} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="text"
+                value={channel}
+                onChange={(event) => {
+                  const next = [...channels];
+                  next[index] = event.target.value.trim().toLowerCase();
+                  setEditValue(JSON.stringify(next));
+                }}
+                aria-label={`Marketing channel ${index + 1}`}
+                placeholder="example_channel"
+                maxLength={40}
+                className={inputClass}
+                autoFocus={index === 0}
+              />
+              <button
+                type="button"
+                onClick={() => setEditValue(JSON.stringify(channels.filter((_, itemIndex) => itemIndex !== index)))}
+                disabled={channels.length === 1}
+                aria-label={`Remove marketing channel ${index + 1}`}
+                className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => setEditValue(JSON.stringify([...channels, '']))}
+            disabled={channels.length >= 50}
+            className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-medium text-[var(--color-primary)] disabled:opacity-40"
+          >
+            Add marketing channel
+          </button>
+          <p className="text-xs text-[var(--color-text-secondary)]">
+            Lowercase slugs only. Campaign filters use this list immediately after save.
+          </p>
+        </div>
+      );
+    }
+
+    if (setting.key === 'matching_tier_bonus') {
+      const bonuses = parseMatchingTierBonuses(editValue)
+        ?? Object.fromEntries(MATCHING_TIER_KEYS.map((tier) => [tier, null])) as Record<MatchingTier, number | null>;
+      return (
+        <fieldset id={`setting-value-${setting.key}`} aria-label={ariaLabel} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {MATCHING_TIER_KEYS.map((tier) => (
+            <label key={tier} className="text-xs font-semibold text-[var(--color-text-secondary)]">
+              {humanize(tier)} tier bonus
+              <input
+                type="number"
+                min={-5}
+                max={5}
+                step="0.05"
+                value={bonuses[tier] ?? ''}
+                onChange={(event) => {
+                  const next = { ...bonuses, [tier]: event.target.value === '' ? null : Number(event.target.value) };
+                  setEditValue(JSON.stringify(next));
+                }}
+                aria-label={`${humanize(tier)} tier bonus`}
+                className={`${inputClass} mt-1 sm:w-full`}
+                autoFocus={tier === 'founding'}
+              />
+            </label>
+          ))}
+          <p className="text-xs font-normal leading-5 text-[var(--color-text-secondary)] sm:col-span-2 xl:col-span-3">
+            Higher values improve dispatch ranking for new matches only. Existing bookings are unchanged.
+          </p>
+        </fieldset>
       );
     }
 
