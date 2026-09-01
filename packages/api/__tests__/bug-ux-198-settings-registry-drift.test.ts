@@ -15,7 +15,7 @@ import {
   checkSettingsDriftAtBoot,
 } from '../src/services/settings.service';
 
-// Independent snapshot of the active registry after migration 153. Do not
+// Independent snapshot of the active registry after migration 166. Do not
 // derive this from SETTING_DEFAULTS: the test must fail when either side gains
 // or loses a key without the corresponding database/code change.
 const ACTIVE_DATABASE_SETTING_KEYS = [
@@ -42,6 +42,7 @@ const ACTIVE_DATABASE_SETTING_KEYS = [
   'aml_large_transaction_threshold_centavos',
   'feature_flag.promo_redemption_enabled',
   'feature_flag.ab_testing_enabled',
+  'feature_flag.business_contract_booking_enabled',
   'marketing_channels',
   'matching_tier_bonus',
   'fraud_pattern_dispute_count_threshold',

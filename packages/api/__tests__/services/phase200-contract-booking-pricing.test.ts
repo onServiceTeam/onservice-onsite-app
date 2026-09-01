@@ -63,7 +63,7 @@ function mockInsertCapture(): { params: unknown[] } {
 beforeEach(() => {
   dbQueryMock.mockReset();
   dbTransactionMock.mockReset();
-  pricingMock.calculatePricing.mockResolvedValue({ surgeMultiplier: 1, surgeAmount: 0, appliedRule: null });
+  pricingMock.calculatePricing.mockReset().mockResolvedValue({ surgeMultiplier: 1, surgeAmount: 0, appliedRule: null });
   businessMock.resolveBookingContract.mockReset();
   creditMock.assertBusinessCreditAvailableInTransaction.mockClear();
 });

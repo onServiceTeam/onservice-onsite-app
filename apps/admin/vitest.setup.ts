@@ -61,7 +61,7 @@ vi.mock('react-router-dom', async () => {
         ? to
         : `${to.pathname ?? ''}${to.search ?? ''}${to.hash ?? ''}`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (require('react') as any).createElement('a', { ...props, href }, children);
+      return (require('react') as any).createElement('a', { ...props, href, to: href }, children);
     },
   };
 });

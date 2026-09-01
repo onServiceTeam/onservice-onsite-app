@@ -318,6 +318,13 @@ export async function addMember(
   role: string,
   permissions: { canBook?: boolean; canApprove?: boolean; canViewInvoices?: boolean },
 ): Promise<BusinessMemberRow> {
+  if (role === 'owner') {
+    throw createAppError('Use ownership transfer to change the business owner.', 409);
+  }
+  if (!['manager', 'member'].includes(role)) {
+    throw createAppError('Business member role must be manager or member.', 400);
+  }
+
   const inviter = await db.query<BusinessMemberRow>(
     `SELECT role FROM business_members WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [businessId, inviterId],
@@ -325,10 +332,6 @@ export async function addMember(
 
   if (inviter.rows.length === 0 || !['owner', 'manager'].includes(inviter.rows[0]!.role)) {
     throw createAppError('Only owners and managers can add members.', 403);
-  }
-
-  if (role === 'owner' && inviter.rows[0]!.role !== 'owner') {
-    throw createAppError('Only owners can assign the owner role.', 403);
   }
 
   // MED-N40 fix: pre-validate the target user exists. Pre-fix
@@ -340,7 +343,7 @@ export async function addMember(
   // member to a business account always returned 500. Now: gate on
   // is_active = TRUE.
   const userExists = await db.query(
-    `SELECT 1 FROM users WHERE id = $1 AND is_active = TRUE`,
+    `SELECT 1 FROM users WHERE id = $1 AND is_active = TRUE AND role = 'customer'`,
     [targetUserId],
   );
   if (userExists.rows.length === 0) {
@@ -396,13 +399,23 @@ export async function addMember(
     [businessId],
   );
 
-  await notificationService.createPushNotification({
-    userId: targetUserId,
-    type: 'business_update',
-    title: 'Business Account Invitation',
-    body: `You have been added to ${account.rows[0]?.company_name ?? 'a business account'} as a ${role}.`,
-    data: { businessAccountId: businessId, role },
-  });
+  try {
+    await notificationService.createPushNotification({
+      userId: targetUserId,
+      type: 'business_update',
+      title: 'Business Account Invitation',
+      body: `You have been added to ${account.rows[0]?.company_name ?? 'a business account'} as a ${role}.`,
+      data: { businessAccountId: businessId, role },
+    });
+  } catch (error) {
+    // The membership is already durable. A push outage must not turn the
+    // successful write into a 500 that encourages a conflicting retry.
+    logger.warn('Business member notification failed after membership commit', {
+      businessId,
+      targetUserId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   logger.info('Business member added', { businessId, targetUserId, role, inviterId });
   return result.rows[0]!;

@@ -155,6 +155,7 @@ describe('SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants)',
     aml_large_transaction_threshold_centavos: '50000000',
     'feature_flag.promo_redemption_enabled': 'false',
     'feature_flag.ab_testing_enabled': 'false',
+    'feature_flag.business_contract_booking_enabled': 'false',
     marketing_channels: JSON.stringify([
       'facebook_ads', 'google_ads', 'billboard', 'kiosk', 'influencer',
       'sms', 'email', 'referral', 'other',

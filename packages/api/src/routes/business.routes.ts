@@ -9,6 +9,23 @@ import * as businessInvoiceControlService from '../services/business-invoice-con
 
 const router = Router();
 
+function requireCustomer(
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction,
+): void {
+  // BUG-SEC-029: these routes are the customer enterprise workspace. Without
+  // a role boundary, providers, provider staff, and internal operators could
+  // create customer-owned business records under their own user identities.
+  if (req.user?.role !== 'customer') {
+    next(createAppError('Customer access required.', 403));
+    return;
+  }
+  next();
+}
+
+router.use(authMiddleware, requireCustomer);
+
 function getParamId(req: AuthenticatedRequest, param = 'id'): string {
   const id = req.params[param];
   if (typeof id !== 'string' || !id) {
@@ -19,7 +36,6 @@ function getParamId(req: AuthenticatedRequest, param = 'id'): string {
 
 router.post(
   '/',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.userId;
@@ -94,7 +110,6 @@ router.post(
 
 router.get(
   '/',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.userId;
@@ -116,7 +131,6 @@ router.get(
 
 router.get(
   '/:id',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -135,7 +149,6 @@ router.get(
 
 router.patch(
   '/:id',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -162,7 +175,6 @@ router.patch(
 
 router.get(
   '/:id/terms/current',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -179,7 +191,6 @@ router.get(
 
 router.get(
   '/:id/members',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -198,7 +209,6 @@ router.get(
 
 router.post(
   '/:id/members',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -215,8 +225,8 @@ router.post(
         throw createAppError('targetUserId and role are required.', 400);
       }
 
-      if (!['owner', 'manager', 'member'].includes(role)) {
-        throw createAppError('Invalid role. Must be owner, manager, or member.', 400);
+      if (!['manager', 'member'].includes(role)) {
+        throw createAppError('Invalid role. Add members as manager or member; use ownership transfer to change the owner.', 400);
       }
 
       const member = await businessService.addMember(
@@ -236,7 +246,6 @@ router.post(
 
 router.delete(
   '/:id/members/:userId',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -258,7 +267,6 @@ router.delete(
 // (verified inside the service) can call this.
 router.post(
   '/:id/transfer-ownership',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -281,7 +289,6 @@ router.post(
 
 router.get(
   '/:id/contracts',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -304,7 +311,6 @@ router.get(
 
 router.post(
   '/:id/contracts',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -352,7 +358,6 @@ router.post(
 
 router.post(
   '/:id/contracts/:contractId/activate',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const contractId = getParamId(req, 'contractId');
@@ -372,7 +377,6 @@ router.post(
 
 router.post(
   '/:id/contracts/:contractId/cancel',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const contractId = getParamId(req, 'contractId');
@@ -392,7 +396,6 @@ router.post(
 
 router.get(
   '/:id/invoices',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -415,7 +418,6 @@ router.get(
 
 router.get(
   '/:id/invoices/:invoiceId',
-  authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const invoiceId = getParamId(req, 'invoiceId');
