@@ -36,6 +36,24 @@ function httpsGet(port: number, host: string, requestPath: string): Promise<{
   });
 }
 
+async function waitForNginx(port: number, host: string): Promise<void> {
+  const deadline = Date.now() + 15_000;
+  let lastError: unknown;
+
+  while (Date.now() < deadline) {
+    try {
+      await httpsGet(port, host, '/uploads/public.png');
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+
+  const detail = lastError instanceof Error ? lastError.message : 'unknown transport error';
+  throw new Error(`Nginx did not become ready for TLS requests: ${detail}`);
+}
+
 it('Bug UX-860 — Nginx blocks direct feedback evidence while retaining ordinary public uploads', async () => {
   const tempRoot = mkdtempSync(path.join(tmpdir(), 'onservice-feedback-nginx-'));
   const containerName = `onservice-feedback-nginx-${process.pid}-${Date.now()}`;
@@ -88,6 +106,8 @@ it('Bug UX-860 — Nginx blocks direct feedback evidence while retaining ordinar
     expect(portResult.status).toBe(0);
     const port = Number(portResult.stdout.trim().match(/:(\d+)$/)?.[1]);
     expect(Number.isInteger(port)).toBe(true);
+
+    await waitForNginx(port, 'app.onservice.ph');
 
     for (const host of ['app.onservice.ph', 'api.onservice.ph']) {
       const blocked = await httpsGet(port, host, '/uploads/feedback/evidence.png');
