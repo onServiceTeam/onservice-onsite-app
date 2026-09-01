@@ -6,7 +6,7 @@ import * as notificationService from './notification.service';
 import { platformConfig } from '../config/platform.config';
 import { formatPHP } from '../utils/currency';
 
-interface InvoiceRow {
+export interface InvoiceRow {
   id: string;
   business_account_id: string;
   invoice_number: string;

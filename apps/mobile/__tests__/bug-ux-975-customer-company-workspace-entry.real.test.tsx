@@ -1,8 +1,8 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 
-const push = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ push, replace: jest.fn() }) }));
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, replace: jest.fn() }) }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 390, breakpoint: 'phone', isPhone: true, isTablet: false, isDesktop: false }),
 }));
@@ -19,5 +19,5 @@ it('Bug UX-975 — the customer profile provides a named entry to the real compa
   render(<ProfileScreen />);
 
   fireEvent.click(screen.getByRole('button', { name: 'Company Workspaces' }));
-  expect(push).toHaveBeenCalledWith('/customer/business');
+  expect(mockPush).toHaveBeenCalledWith('/customer/business');
 });

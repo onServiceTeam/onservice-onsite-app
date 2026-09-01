@@ -4,6 +4,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import type { PreviewBusinessTermsInput } from '../validators/admin-business.validators';
+import type { BusinessContractRow } from './business.service';
 
 type Queryable = {
   query: <T extends QueryResultRow = QueryResultRow>(
@@ -77,25 +78,9 @@ interface TermsPreviewRow {
   created_at: Date;
 }
 
-interface ContractControlRow {
-  id: string;
-  business_account_id: string;
-  category_id: string;
-  subcategory_id: string | null;
-  provider_id: string | null;
-  contract_type: string;
-  frequency: string | null;
-  agreed_rate: number;
-  discount_percentage: string;
-  estimated_monthly_value: number;
-  start_date: string;
-  end_date: string | null;
-  auto_renew: boolean;
-  status: string;
-  terms: string | null;
+interface ContractControlRow extends BusinessContractRow {
   record_version: number;
   published_at: Date | null;
-  updated_at: Date;
 }
 
 interface ContractPreviewRow {
@@ -639,7 +624,7 @@ export async function previewContractLifecycle(
       throw createAppError('Only a published active contract can be cancelled.', 409);
     }
     const impact = await loadContractImpact(client, accountId, contract, action);
-    if (action === 'publish' && impact.overlappingPublishedContractCount > 0) {
+    if (action === 'publish' && (impact.overlappingPublishedContractCount ?? 0) > 0) {
       throw createAppError('An overlapping published contract already covers this exact scope and date range.', 409);
     }
     const stateFingerprint = fingerprint(contractState(account, contract, currentTerms, impact));

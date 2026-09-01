@@ -52,7 +52,7 @@ interface BusinessMemberRow {
   created_at: Date;
 }
 
-interface BusinessContractRow {
+export interface BusinessContractRow {
   id: string;
   business_account_id: string;
   category_id: string;

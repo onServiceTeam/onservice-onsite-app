@@ -116,7 +116,7 @@ interface BusinessContract {
   providerId: string | null;
   providerName: string | null;
   contractType: string;
-  frequency: string;
+  frequency: string | null;
   agreedRate: number | null; // centavos
   discountPercentage: number; // percent
   estimatedMonthlyValue: number | null; // centavos
@@ -1185,7 +1185,11 @@ export function ContractsTab({ accountId }: { accountId: string }): React.ReactE
     {
       key: 'frequency',
       header: 'Frequency',
-      render: (c) => <span className="text-sm">{fmtLabel(c.frequency)}</span>,
+      render: (c) => (
+        <span className="text-sm">
+          {c.frequency ? fmtLabel(c.frequency) : c.contractType === 'on_demand' ? 'As needed' : 'Not set'}
+        </span>
+      ),
     },
     {
       key: 'agreedRate',

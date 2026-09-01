@@ -5,6 +5,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 import { generateInvoiceNumber } from './invoice.service';
+import type { InvoiceRow } from './invoice.service';
 import type {
   BusinessInvoicePreviewInput,
   RecordBusinessInvoiceAdjustmentInput,
@@ -105,18 +106,7 @@ interface InvoicePreviewRow {
   created_at: Date;
 }
 
-interface ControlledInvoiceRow {
-  id: string;
-  business_account_id: string;
-  invoice_number: string;
-  billing_period_start: string;
-  billing_period_end: string;
-  subtotal: number;
-  discount_amount: number;
-  tax_amount: number;
-  total_amount: number;
-  status: string;
-  due_date: string;
+interface ControlledInvoiceRow extends InvoiceRow {
   record_version: number;
   control_state: string;
   settlement_state: string;
@@ -124,10 +114,7 @@ interface ControlledInvoiceRow {
   account_terms_version_id: string | null;
   preparation_preview_id: string | null;
   manifest_hash: string | null;
-  paid_at: Date | null;
   finalized_at: Date | null;
-  created_at: Date;
-  updated_at: Date;
 }
 
 interface InvoiceBalanceRow {

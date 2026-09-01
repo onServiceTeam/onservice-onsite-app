@@ -50,7 +50,7 @@ it('Bug UX-973 — company detail links role, terms, contracts, statements, and 
 
   expect(await screen.findByText('Cebu Build Co')).toBeTruthy();
   expect(screen.getByText('Company-paid booking is not open yet')).toBeTruthy();
-  expect(screen.getByText('Version 2')).toBeTruthy();
+  expect(await screen.findByText('Version 2')).toBeTruthy();
   expect(screen.getByText('Team and permissions')).toBeTruthy();
   expect(screen.getByText('Provider contracts')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Open statement INV-202609-TEST' })).toBeTruthy();
