@@ -40,7 +40,7 @@ What actually controls what you can click is your single account role on the `us
 
 | Your account role | What you can do |
 |---|---|
-| `super_admin` | All currently enabled money and destructive actions: escrow release/refund, booking force-complete/cancel/reassign, dispute resolve/escalate/reopen, payout internal-review decisions and approve/reject/complete, provider wallet adjust, reconciliation run, settings edit/reset, staff and roles management, cancellation-policy edit, Catalog publishing, Service Areas create/edit/activate/pause/default/waitlist-notify decisions, and delete notification templates. BIR issuance/finalization remains disabled for every role under E22. |
+| `super_admin` | All currently enabled money and destructive actions: escrow release/refund, booking force-complete/cancel/reassign, enabled dispute resolve/escalate actions, payout internal-review decisions and approve/reject/complete, provider wallet adjust, reconciliation run, settings edit/reset, staff and roles management, cancellation-policy edit, Catalog publishing, Service Areas create/edit/activate/pause/default/waitlist-notify decisions, and delete notification templates. Dispute Reopen, free redo, and refund-with-warning remain held under E51. BIR issuance/finalization remains disabled for every role under E22. |
 | `admin` | Read and operational access. You can view every page and do non-money operational work such as provider vetting and support case handling. Catalog publishing and Service Areas market mutation are read-only because the API reserves them for `super_admin`. On money, destructive, and configuration-publishing surfaces you see a read-only banner. |
 | `dpo` | Admin-tier, plus the compliance powers: search consent records and handle Data Subject Requests under the Data Privacy Act. This is a real, separate role required by NPC rules, not a nickname for super_admin. |
 
@@ -258,40 +258,52 @@ age predicate; it is an attention view, not an invented support-SLA countdown.
 The selected view is preserved in the URL and enforced against the whole queue.
 The page live-updates when a dispute is filed.
 
-Super_admin actions: Resolve (choose a resolution type) and Escalate (reason at
-least 10, only when tier < 3). Plain admins see a read-only banner. Resolve now
-opens an in-app confirmation that names the customer-refund/provider-funds
-impact before sending the existing request. The confirmation is not proof that
-money moved; verify the resulting Money and Audit records.
+The queue is read-only for decisions. Open **Review 360** on the case before
+assigning, messaging, escalating, or resolving it. This removes the former
+duplicate quick-resolution form that could move money without the complete
+claim, evidence, history, approved-refund preview, and support context in view.
+Plain admins remain read-only inside Dispute 360; enabled decisions require a
+super-admin account. A decision confirmation is not proof that money moved;
+verify the resulting Money and Audit records.
 
 Resolution types and what they mean:
 
 | Resolution | Refund | Side effect |
 |---|---|---|
 | `full_refund` | 100% | Customer fully refunded. |
-| `refund_with_warning` | 100% | Customer refunded, provider warned. |
+| `refund_with_warning` | 100% | **E51 hold:** the provider warning is not recorded canonically; do not use. |
 | `refund_with_suspension` | 100% | Customer refunded, provider suspended. |
 | `partial_refund` | choose 0-100% | Remainder released to provider. |
 | `split_decision` | choose 0-100% | As above, framed as shared fault. |
 | `no_refund` | 0% | Full escrow released to provider. |
-| `free_redo` | 0% | No refund; provider redoes the job. |
+| `free_redo` | 0% | **E51 hold:** no replacement work order is created; do not use. |
 
 Resolution decision notes must be at least 20 characters. Follow the decision
 tree in `09-trust-safety-and-disputes.md`. Do not improvise refund percentages.
 E18/E24 still hold unsafe settlement paths; the queue redesign did not change
 escrow, refund, filing-window, or direct participant-settlement behavior.
+E51 additionally holds Reopen, `free_redo`, and `refund_with_warning` until
+their real appeal, redo-work-order, and provider-warning workflows exist.
 
 ### 2.12 Dispute detail / Dispute 360 (`/disputes/:id`)
 
 One dispute. Header shows tier, age, priority score. Side-by-side customer claim and provider response. Evidence grouped by who uploaded it. Customer and provider 90-day history with a risk flag (`OK` / `REVIEW_REQUIRED` / `AT_RISK`).
 
-Admin actions: Assign to a named active admin, Resolve & notify (shows an estimated-refund preview and a confirm step, super_admin), Escalate (at least 10 chars), Message parties (customer/provider/both, 5-2000), Reopen a resolved dispute (super_admin, reason at least 20).
+Admin actions: Assign to a named active admin, Resolve & notify (shows an
+approved-refund preview and a confirm step, super_admin), Escalate (at least 10
+chars), and Send case update (customer/provider/both, 5-2000). A case update is
+a one-way notification; use the linked Support case when you need a reply. The
+visible Reopen control is held under E51 even for super-admin because the
+current path does not safely reverse or preserve the prior settlement.
 
 How to resolve a dispute:
 1. Read both sides and all evidence.
 2. Check both parties' 90-day risk flags. `AT_RISK` on the complainer matters.
 3. Apply the decision tree from `09-trust-safety-and-disputes.md`.
-4. Click Resolve & notify, pick the resolution type, write decision notes (at least 20 chars), check the refund preview, confirm. Both parties are notified.
+4. Click Resolve & notify, pick an enabled resolution type, write decision notes
+   (at least 20 chars), check the approved-refund preview, and confirm. Both
+   parties are notified that the decision was recorded. Verify the Booking 360
+   Money view and retry state before saying the refund or release completed.
 
 ### 2.13 Financials (`/financials`)
 

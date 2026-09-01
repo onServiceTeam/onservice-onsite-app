@@ -34,6 +34,7 @@ jest.mock('../src/services/escrow.service', () => ({
 
 jest.mock('../src/services/dispute.service', () => ({
   resolveDisputeInTransaction: (...args: unknown[]) => resolveDisputeInTransactionMock(...args),
+  assertDisputeResolutionAvailable: jest.fn(),
 }));
 
 jest.mock('../src/utils/logger', () => ({

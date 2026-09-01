@@ -43,7 +43,13 @@ Refunds on a verified external payment are intended to return through PayMongo t
 When a refund happens:
 
 - **Cancellation.** Auto-computed per System A above.
-- **Dispute.** Resolved by admin. Resolution types: full refund, partial refund (you set a percent), no refund, free redo, refund with warning, refund with suspension, split decision. Full refund, refund with warning, and refund with suspension are all 100%. Any remaining escrow after a partial refund still goes to the provider.
+- **Dispute.** Resolved by admin. Implemented decision types include full
+  refund, partial refund (you set a percent), no refund, refund with suspension,
+  and split decision. Full refund and refund with suspension are 100%. Any
+  remaining escrow after a partial refund still goes to the provider. E51 holds
+  Reopen, free redo, and refund with warning because the current code lacks a
+  safe appeal/reversal model, a replacement redo work order, and a canonical
+  provider-warning record.
 - **Unresponded dispute.** If the provider does not respond within 48 hours, the worker escalates the case to tier 3 for staff review. Silence does not itself decide or move money.
 - **No-provider-available.** If dispatch never finds a provider, the booking expires (72h cap) and the customer is refunded in full, plus a ₱150 goodwill credit for the platform failure (see `08-dispatch-and-live-operations.md`).
 

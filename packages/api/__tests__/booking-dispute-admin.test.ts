@@ -43,6 +43,7 @@ jest.mock('../src/services/escrow.service', () => ({
 jest.mock('../src/services/dispute.service', () => ({
   resolveDispute: jest.fn(),
   resolveDisputeInTransaction: jest.fn(),
+  assertDisputeResolutionAvailable: jest.fn(),
   assignDispute: jest.fn(),
   escalateDispute: jest.fn(),
 }));
@@ -56,8 +57,10 @@ jest.mock('../src/services/payment.service', () => ({
 }));
 
 const createPushNotificationMock = jest.fn();
+const deliverStoredNotificationPushMock = jest.fn();
 jest.mock('../src/services/notification.service', () => ({
   createPushNotification: (...args: unknown[]) => createPushNotificationMock(...args),
+  deliverStoredNotificationPush: (...args: unknown[]) => deliverStoredNotificationPushMock(...args),
 }));
 
 const emitAdminEventMock = jest.fn();
@@ -130,10 +133,13 @@ beforeEach(() => {
   escrowMocks.handleCancellationInTransaction.mockReset();
   disputeMocks.resolveDispute.mockReset();
   disputeMocks.resolveDisputeInTransaction.mockReset();
+  disputeMocks.assertDisputeResolutionAvailable.mockReset();
   disputeMocks.assignDispute.mockReset();
   disputeMocks.escalateDispute.mockReset();
   createPushNotificationMock.mockReset();
   createPushNotificationMock.mockResolvedValue({ id: 'notification-1' });
+  deliverStoredNotificationPushMock.mockReset();
+  deliverStoredNotificationPushMock.mockResolvedValue(undefined);
   emitAdminEventMock.mockReset();
   appendProviderAssignmentTermsMock.mockReset();
   appendProviderAssignmentTermsMock.mockResolvedValue(null);
@@ -881,13 +887,11 @@ describe('adminAssignDispute', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('happy path: delegates + INSERTs dispute_assigned', async () => {
-    disputeMocks.assignDispute.mockResolvedValueOnce({} as never);
-    dbQueryMock.mockResolvedValueOnce(rows([{ id: 'aa-asg' }]));
+  it('happy path: reuses the canonical transactional dispute_assigned audit', async () => {
+    disputeMocks.assignDispute.mockResolvedValueOnce({ adminActionId: 'aa-asg' } as never);
     const out = await disputeAdminSvc.adminAssignDispute(DISPUTE_ID, 'admin-2', ADMIN_ID);
     expect(disputeMocks.assignDispute).toHaveBeenCalledWith(DISPUTE_ID, ADMIN_ID, 'admin-2');
-    const sql = dbQueryMock.mock.calls[0][0] as string;
-    expect(sql).toContain("'dispute_assigned'");
+    expect(dbQueryMock).not.toHaveBeenCalled();
     expect(out.assignedTo).toBe('admin-2');
     expect(out.adminActionId).toBe('aa-asg');
   });
@@ -985,11 +989,11 @@ describe('adminEscalateDispute', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('happy path: delegates + INSERTs dispute_escalated', async () => {
+  it('happy path: reuses the canonical transactional dispute_escalated audit', async () => {
     disputeMocks.escalateDispute.mockResolvedValueOnce({
       tier: 2,
+      adminActionId: 'aa-esc',
     } as unknown as Awaited<ReturnType<typeof disputeMocks.escalateDispute>>);
-    dbQueryMock.mockResolvedValueOnce(rows([{ id: 'aa-esc' }]));
     const out = await disputeAdminSvc.adminEscalateDispute(
       DISPUTE_ID,
       'Customer pressing for senior review',
@@ -1000,8 +1004,7 @@ describe('adminEscalateDispute', () => {
       ADMIN_ID,
       'Customer pressing for senior review',
     );
-    const sql = dbQueryMock.mock.calls[0][0] as string;
-    expect(sql).toContain("'dispute_escalated'");
+    expect(dbQueryMock).not.toHaveBeenCalled();
     expect(out.newTier).toBe(2);
     expect(out.adminActionId).toBe('aa-esc');
   });
@@ -1034,7 +1037,7 @@ describe('sendDisputeMessage', () => {
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it('happy path: INSERTs dispute_message_sent, truncates reason to 500, stores full body in full_notes (Bug 85)', async () => {
+  it('happy path: durably delivers a participant notification with the audit row', async () => {
     const calls = setupTxRecorder(async (sql) => {
       if (/FROM disputes/.test(sql)) {
         return rows([
@@ -1046,6 +1049,7 @@ describe('sendDisputeMessage', () => {
           },
         ]);
       }
+      if (/INSERT INTO notifications/.test(sql)) return rows([{ id: 'notification-dispute' }]);
       if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-msg' }]);
       return rows([]);
     });
@@ -1057,16 +1061,27 @@ describe('sendDisputeMessage', () => {
       ADMIN_ID,
     );
     expect(out.adminActionId).toBe('aa-msg');
+    expect(out.deliveredTo).toEqual(['customer']);
+    expect(out.notificationIds).toEqual(['notification-dispute']);
     const writes = calls.filter((c) => /INSERT|UPDATE/.test(c.sql));
-    expect(writes).toHaveLength(1);
-    expect(writes[0].sql).toContain("'dispute_message_sent'");
-    expect(writes[0].sql).toContain('full_notes');
+    expect(writes).toHaveLength(2);
+    const notificationWrite = writes.find((call) => /INSERT INTO notifications/.test(call.sql));
+    expect(notificationWrite?.sql).toContain("'dispute_update'");
+    const auditWrite = writes.find((call) => /INSERT INTO admin_actions/.test(call.sql));
+    expect(auditWrite?.sql).toContain("'dispute_message_sent'");
+    expect(auditWrite?.sql).toContain('full_notes');
     // params: [adminUserId, disputeId, JSON, reason(slice 500), full_notes]
-    const reasonParam = writes[0].params[3] as string;
+    const reasonParam = auditWrite!.params[3] as string;
     expect(reasonParam).toHaveLength(500);
-    const fullNotes = writes[0].params[4] as string;
+    const fullNotes = auditWrite!.params[4] as string;
     expect(fullNotes).toBe(longMsg);
     expect(fullNotes).toHaveLength(800);
+    expect(deliverStoredNotificationPushMock).toHaveBeenCalledWith(expect.objectContaining({
+      notificationId: 'notification-dispute',
+      userId: CUSTOMER_ID,
+      type: 'dispute_update',
+      data: expect.objectContaining({ disputeId: DISPUTE_ID, bookingId: BOOKING_ID }),
+    }));
   });
 });
 
@@ -1079,13 +1094,7 @@ describe('reopenDispute', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('throws 409 when status not in (resolved, closed)', async () => {
-    setupTxRecorder(async (sql) => {
-      if (/FROM disputes WHERE id = \$1 FOR UPDATE/.test(sql)) {
-        return rows([{ id: DISPUTE_ID, status: 'open' }]);
-      }
-      return rows([]);
-    });
+  it('blocks reopen under E51 before reading or rewriting the settled dispute', async () => {
     await expect(
       disputeAdminSvc.reopenDispute(
         DISPUTE_ID,
@@ -1093,28 +1102,6 @@ describe('reopenDispute', () => {
         ADMIN_ID,
       ),
     ).rejects.toMatchObject({ statusCode: 409 });
-  });
-
-  it("happy path: UPDATE status='under_review', resolved_at/by NULL + INSERT dispute_reopened", async () => {
-    const calls = setupTxRecorder(async (sql) => {
-      if (/FROM disputes WHERE id = \$1 FOR UPDATE/.test(sql)) {
-        return rows([{ id: DISPUTE_ID, status: 'resolved' }]);
-      }
-      if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-reo' }]);
-      return rows([]);
-    });
-    const out = await disputeAdminSvc.reopenDispute(
-      DISPUTE_ID,
-      'New material evidence has surfaced today',
-      ADMIN_ID,
-    );
-    expect(out.previousStatus).toBe('resolved');
-    expect(out.adminActionId).toBe('aa-reo');
-    const update = calls.find((c) => /UPDATE disputes/.test(c.sql));
-    expect(update?.sql).toMatch(/status\s*=\s*'under_review'/);
-    expect(update?.sql).toMatch(/resolved_at\s*=\s*NULL/);
-    expect(update?.sql).toMatch(/resolved_by\s*=\s*NULL/);
-    const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
-    expect(insert?.sql).toContain("'dispute_reopened'");
+    expect(dbTransactionMock).not.toHaveBeenCalled();
   });
 });

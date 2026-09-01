@@ -459,6 +459,33 @@ async function deliverPushToDevice(
   }
 }
 
+/**
+ * Wake a device for a notification row that another service already inserted
+ * transactionally. This avoids creating a duplicate inbox row while preserving
+ * the same preference, quiet-hours, stale-token, and retry behavior used by
+ * createPushNotification.
+ */
+export async function deliverStoredNotificationPush(params: {
+  notificationId: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+}): Promise<void> {
+  await deliverPushToDevice(
+    params.userId,
+    params.title,
+    params.body,
+    {
+      ...params.data,
+      notificationId: params.notificationId,
+      type: params.type,
+      notificationType: params.type,
+    },
+  );
+}
+
 type PushPreferenceKey =
   | 'bookingUpdates'
   | 'providerActivity'
