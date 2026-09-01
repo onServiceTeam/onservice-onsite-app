@@ -15,6 +15,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft } from '@/components/icons';
 import { SkeletonCard, ErrorState } from '@/components/ui';
 import { useResponsive } from '@/hooks/useResponsive';
+import { Routes } from '@/config/navigation';
 
 const MS_LABEL: Record<MilestoneStatus, string> = { pending: 'Pending', in_progress: 'In progress', completed: 'Completed' };
 const MS_COLOR: Record<MilestoneStatus, string> = { pending: colors.textSecondary, in_progress: colors.warning, completed: colors.success };
@@ -266,6 +267,26 @@ export default function ProjectDetailScreen(): React.ReactElement {
           </View>
         </View>
 
+        {isOwner ? (
+          <TouchableOpacity
+            style={styles.supportAction}
+            accessibilityRole="button"
+            accessibilityLabel={`Get support for project ${project.title}`}
+            onPress={() => router.push({
+              pathname: Routes.SUPPORT.NEW,
+              params: {
+                projectId: project.id,
+                projectTitle: project.title,
+                type: 'general_inquiry',
+                subject: `Help with ${project.title}`,
+              },
+            })}
+          >
+            <Text style={styles.supportActionTitle}>Get help with this project</Text>
+            <Text style={styles.supportActionText}>Send the planning record to support without turning it into a booking or payment case.</Text>
+          </TouchableOpacity>
+        ) : null}
+
         <Text style={styles.footer}>To hire a provider or move money, use the separate booking and quote flow.</Text>
       </ScrollView>
     </SafeAreaView>
@@ -317,5 +338,8 @@ const styles = StyleSheet.create({
   inlineBtn: { minHeight: 44, backgroundColor: colors.primary, borderRadius: borderRadius.md, paddingHorizontal: spacing.base, justifyContent: 'center', alignItems: 'center' },
   inlineBtnText: { ...typography.bodySmall, fontWeight: '700', color: colors.white },
   disabled: { opacity: 0.5 },
+  supportAction: { minHeight: 64, backgroundColor: colors.primary, borderRadius: borderRadius.lg, paddingHorizontal: spacing.base, paddingVertical: spacing.md, justifyContent: 'center' },
+  supportActionTitle: { ...typography.body, color: colors.white, fontWeight: '700' },
+  supportActionText: { ...typography.caption, color: colors.white, marginTop: 2, lineHeight: 18 },
   footer: { ...typography.caption, color: colors.textTertiary, textAlign: 'center', marginTop: spacing.sm },
 });

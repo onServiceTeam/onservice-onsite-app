@@ -437,10 +437,12 @@ The ticket queue. Types: `booking_issue`, `payment_issue`, `provider_no_show`, `
 Customers and providers can open and follow their own tickets in the shared in-app Support screens. Those tickets enter this queue automatically. Contacts received through email (support@onservice.ph for customers, providers@onservice.ph for providers) or Messenger still need an agent-created ticket so they use the same case record.
 
 How to work a ticket:
-1. Find it by ticket number, subject, customer/provider name, phone, email, or provider business. Account and Booking 360 link back to their exact case views.
-2. Open it, confirm priority, and assign it from the active-agent list. Provider cases link to Provider 360; customer cases link to Customer 360.
+1. Find it by ticket number, subject, customer/provider name, phone, email, provider business, or customer project title. Account, Booking 360, and Projects link back to their exact case views.
+2. Open it, confirm priority, and assign it from the active-agent list. Provider cases link to Provider 360; customer cases link to Customer 360; a project-linked customer case also returns to the exact planning record.
 3. Reply to the user, or post an internal note (internal notes are admin-only).
 4. Update status as you go. To mark `resolved` or `closed` you must add resolution notes of at least 10 characters.
+
+A support case can identify one related booking or one related planning project, never both. A project link is case context only. It does not assign a provider, create a booking, authorize a quote, or affect payment. Create the case on behalf of the customer who owns the project; the server rejects unrelated project/customer combinations.
 
 When a user replies to a waiting case, it returns to the active queue. Automated reminders and five-day auto-close are not implemented. Staff must review waiting cases manually and must not assume reminders were sent. See `06-customer-support-sop.md` and `07-provider-support-sop.md` for triage and SLA targets.
 
@@ -500,7 +502,7 @@ If another operator changed the submission after you loaded it, the API rejects 
 
 Read-only oversight for customer-created larger-work planning records. Search the complete planning index by project ID, title, description, city, customer, or legacy provider; narrow by planning status; and use pagination rather than assuming the visible page is the full queue. Applied search, status, page, and exact selected project stay in the URL so a support handoff can reproduce the same context. Use the result-wide summary above the list when reporting queue counts.
 
-Inspect the plan status, advisory estimate, milestones, choices/materials, documents, owning customer, and any legacy provider link. Open Customer 360 or the customer-scoped Support queue from the project record when assistance is needed. Projects do not currently create or link bookings, assign providers, move money, or open project-scoped support cases. Use Booking 360, Dispatch, Financials, and Support Tickets for those canonical operations. Milestone escrow is not launch-approved until the legal and accounting decision in escalation E12 is resolved, so never describe a planning milestone or amount as protected escrow.
+Inspect the plan status, advisory estimate, milestones, choices/materials, documents, owning customer, and any legacy provider link. Open Customer 360, Provider 360 for a historical provider identity, or the exact project-filtered Support queue when assistance is needed. Customers can open a support case from their project and return to that exact plan from the case thread. This linkage is planning context only: Projects do not create or link bookings, assign providers, move money, or change historical transactions. Use Booking 360, Dispatch, and Financials for those canonical operations. Milestone escrow is not launch-approved until the legal and accounting decision in escalation E12 is resolved, so never describe a planning milestone or amount as protected escrow.
 
 ---
 

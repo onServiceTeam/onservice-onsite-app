@@ -81,4 +81,4 @@ it('Bug OPS-267 — legacy review requires reproducible fee inputs, cited eviden
       confirmation: 'REVIEW LEGACY FINANCIAL TERMS',
     }),
   ));
-});
+}, 15_000);

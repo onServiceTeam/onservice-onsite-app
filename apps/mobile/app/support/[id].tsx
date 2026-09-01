@@ -33,6 +33,12 @@ export function getSupportBookingRoute(viewerRole: string | undefined, bookingId
   return null;
 }
 
+export function getSupportProjectRoute(viewerRole: string | undefined, projectId: string): string | null {
+  return viewerRole === 'customer'
+    ? buildRoute(Routes.CUSTOMER.PROJECT_DETAIL, { id: projectId })
+    : null;
+}
+
 export default function SupportThreadScreen(): React.ReactElement {
   const router = useRouter();
   const { isPhone } = useResponsive();
@@ -64,6 +70,10 @@ export default function SupportThreadScreen(): React.ReactElement {
   const relatedBookingId = ticket?.booking_id ?? null;
   const relatedBookingRoute = relatedBookingId
     ? getSupportBookingRoute(viewerRole, relatedBookingId)
+    : null;
+  const relatedProjectId = ticket?.project_id ?? null;
+  const relatedProjectRoute = relatedProjectId
+    ? getSupportProjectRoute(viewerRole, relatedProjectId)
     : null;
 
   useEffect(() => {
@@ -138,6 +148,23 @@ export default function SupportThreadScreen(): React.ReactElement {
                       {viewerRole === 'customer' ? 'Related booking' : 'Related job'}
                     </Text>
                     <Text style={styles.bookingLinkMeta}>Open booking {relatedBookingId.slice(0, 8)}</Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+
+              {relatedProjectRoute && relatedProjectId ? (
+                <TouchableOpacity
+                  style={styles.bookingLink}
+                  onPress={() => router.push(relatedProjectRoute)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open related project"
+                >
+                  <ClipboardList size={18} color={colors.primary} />
+                  <View style={styles.bookingLinkTextWrap}>
+                    <Text style={styles.bookingLinkTitle}>Related planning project</Text>
+                    <Text style={styles.bookingLinkMeta}>
+                      {ticket.project_title?.trim() || `Project ${relatedProjectId.slice(0, 8)}`}
+                    </Text>
                   </View>
                 </TouchableOpacity>
               ) : null}

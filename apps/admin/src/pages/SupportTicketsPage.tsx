@@ -17,6 +17,8 @@ interface Ticket {
   subject: string;
   description: string;
   booking_id: string | null;
+  project_id: string | null;
+  project_title?: string | null;
   resolution_notes: string | null;
   resolved_at: string | null;
   closed_at: string | null;
@@ -185,6 +187,7 @@ export default function SupportTicketsPage(): React.ReactElement {
   const activeFilter = searchParams.get('active') === '1';
   const searchFilter = (searchParams.get('search') ?? '').trim();
   const bookingFilter = searchParams.get('bookingId') ?? '';
+  const projectFilter = searchParams.get('projectId') ?? '';
   const userFilter = searchParams.get('userId') ?? '';
   const relatedCustomerFilter = searchParams.get('relatedCustomerId') ?? '';
   const relatedProviderFilter = searchParams.get('relatedProviderId') ?? '';
@@ -309,6 +312,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       activeFilter,
       searchFilter,
       bookingFilter,
+      projectFilter,
       userFilter,
       relatedCustomerFilter,
       relatedProviderFilter,
@@ -323,6 +327,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       if (activeFilter) params.set('active', '1');
       if (searchFilter) params.set('search', searchFilter);
       if (bookingFilter) params.set('bookingId', bookingFilter);
+      if (projectFilter) params.set('projectId', projectFilter);
       if (userFilter) params.set('userId', userFilter);
       if (relatedCustomerFilter) params.set('relatedCustomerId', relatedCustomerFilter);
       if (relatedProviderFilter) params.set('relatedProviderId', relatedProviderFilter);
@@ -464,6 +469,7 @@ export default function SupportTicketsPage(): React.ReactElement {
         subject: newTicketSubject.trim(),
         description: newTicketDescription.trim(),
         ...(bookingFilter ? { bookingId: bookingFilter } : {}),
+        ...(projectFilter ? { projectId: projectFilter } : {}),
       });
       return res.data.data as Ticket;
     },
@@ -622,6 +628,11 @@ export default function SupportTicketsPage(): React.ReactElement {
             {bookingFilter && (
               <p className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
                 Linked booking: <span className="font-mono">{bookingFilter}</span>
+              </p>
+            )}
+            {projectFilter && (
+              <p className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+                Linked planning project: <span className="font-mono">{projectFilter}</span>. This does not create a booking or payment relationship.
               </p>
             )}
           </div>
@@ -852,17 +863,28 @@ export default function SupportTicketsPage(): React.ReactElement {
             </p>
             {ticket.booking_id ? (
               <p>
-                <strong className="block text-xs uppercase tracking-wide">Related booking</strong>{' '}
+                <strong className="block text-xs uppercase tracking-wide">Related work</strong>{' '}
                 <Link
                   className="font-mono font-semibold text-[var(--color-primary)] hover:underline"
                   to={`/bookings/${ticket.booking_id}`}
                 >
-                  {ticket.booking_id}
+                  Booking {ticket.booking_id}
                 </Link>
+              </p>
+            ) : ticket.project_id ? (
+              <p>
+                <strong className="block text-xs uppercase tracking-wide">Related work</strong>{' '}
+                <Link
+                  className="font-semibold text-[var(--color-primary)] hover:underline"
+                  to={`/projects?projectId=${encodeURIComponent(ticket.project_id)}&source=support&ticketId=${encodeURIComponent(ticket.id)}`}
+                >
+                  {ticket.project_title?.trim() || `Project ${ticket.project_id}`}
+                </Link>
+                <span className="mt-1 block text-xs text-[var(--color-text-tertiary)]">Planning context only</span>
               </p>
             ) : (
               <p>
-                <strong className="block text-xs uppercase tracking-wide">Related booking</strong>{' '}
+                <strong className="block text-xs uppercase tracking-wide">Related work</strong>{' '}
                 None linked
               </p>
             )}
@@ -1245,7 +1267,7 @@ export default function SupportTicketsPage(): React.ReactElement {
             Support Queue
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-[var(--color-text-secondary)]">
-            Triage customer and provider requests, connect each case to its booking and account,
+            Triage customer and provider requests, connect each case to its account and related booking or planning project,
             assign an owner, and keep public replies separate from internal notes.
           </p>
         </div>
@@ -1255,14 +1277,15 @@ export default function SupportTicketsPage(): React.ReactElement {
         </div>
       </div>
 
-      {(bookingFilter || userFilter || relatedCustomerFilter || relatedProviderFilter) && (
+      {(bookingFilter || projectFilter || userFilter || relatedCustomerFilter || relatedProviderFilter) && (
         <div className="flex flex-col justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950 md:flex-row md:items-center">
           <div>
             <strong className="block">Linked-case view</strong>
             {userFilter && <span>Account: {newUserName}</span>}
             {(relatedCustomerFilter || relatedProviderFilter) && <span>Related account: {newUserName}</span>}
-            {(userFilter || relatedCustomerFilter || relatedProviderFilter) && bookingFilter && <span> · </span>}
+            {(userFilter || relatedCustomerFilter || relatedProviderFilter) && (bookingFilter || projectFilter) && <span> · </span>}
             {bookingFilter && <span>Booking: <span className="font-mono">{bookingFilter}</span></span>}
+            {projectFilter && <span>Project: <span className="font-mono">{projectFilter}</span> (planning context)</span>}
           </div>
           <div className="flex flex-wrap gap-2">
             {userFilter && (
@@ -1290,6 +1313,7 @@ export default function SupportTicketsPage(): React.ReactElement {
                 params.delete('relatedCustomerId');
                 params.delete('relatedProviderId');
                 params.delete('bookingId');
+                params.delete('projectId');
                 params.delete('new');
                 params.delete('page');
                 return params;
@@ -1402,7 +1426,7 @@ export default function SupportTicketsPage(): React.ReactElement {
             id="support-ticket-search"
             value={searchDraft}
             onChange={(event) => setSearchDraft(event.target.value)}
-            placeholder="Ticket, subject, name, phone, email, provider"
+            placeholder="Ticket, subject, name, phone, email, provider, project"
             className="h-11 min-w-0 flex-1 rounded-md border border-[var(--color-border)] px-3 text-sm"
           />
           <button type="submit" className="min-h-11 rounded-md bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">

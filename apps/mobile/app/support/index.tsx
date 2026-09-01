@@ -131,6 +131,11 @@ export default function SupportInboxScreen(): React.ReactElement {
                   <Text style={styles.ticketWhen}>{formatWhen(t.updated_at)}</Text>
                 </View>
                 <Text style={styles.ticketSubject} numberOfLines={1}>{t.subject}</Text>
+                {t.project_id ? (
+                  <Text style={styles.ticketContext} numberOfLines={1}>
+                    Project: {t.project_title?.trim() || t.project_id.slice(0, 8)}
+                  </Text>
+                ) : null}
                 <View style={styles.ticketBottom}>
                   <Text style={styles.ticketMeta}>
                     {SUPPORT_TYPE_LABELS[t.type] ?? t.type} · {t.ticket_number}
@@ -213,6 +218,7 @@ const styles = StyleSheet.create({
   statusChipText: { ...typography.caption, fontWeight: '700' },
   ticketWhen: { ...typography.caption, color: colors.textTertiary },
   ticketSubject: { ...typography.body, fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
+  ticketContext: { ...typography.caption, color: colors.primary, fontWeight: '600', marginBottom: spacing.xs },
   ticketBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   ticketMeta: { ...typography.caption, color: colors.textSecondary, flex: 1, marginRight: spacing.sm },
   loadMoreButton: {

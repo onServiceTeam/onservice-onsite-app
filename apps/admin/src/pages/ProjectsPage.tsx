@@ -62,6 +62,16 @@ function appliedSearchFromSearch(searchParams: URLSearchParams): string {
   return search.length >= 2 && search.length <= 100 ? search : '';
 }
 
+function projectSupportPath(project: Pick<Project, 'id' | 'customerId' | 'customerName'>): string {
+  const params = new URLSearchParams({
+    projectId: project.id,
+    userId: project.customerId,
+    userName: project.customerName?.trim() || 'Selected customer',
+    userRole: 'customer',
+  });
+  return `/support-tickets?${params.toString()}`;
+}
+
 function ProjectDetailPanel({ projectId }: { projectId: string }): React.ReactElement {
   const q = useQuery({
     queryKey: ['admin-project', projectId],
@@ -85,7 +95,7 @@ function ProjectDetailPanel({ projectId }: { projectId: string }): React.ReactEl
         </div>
         <div className="flex shrink-0 flex-wrap gap-x-3 gap-y-2 text-xs font-semibold">
           <Link className="text-[var(--color-secondary)] hover:underline" to={`/customers/${p.customerId}`}>{p.customerName || 'Open Customer 360'}</Link>
-          <Link className="text-[var(--color-secondary)] hover:underline" to={`/support-tickets?userId=${encodeURIComponent(p.customerId)}`}>Open customer support cases</Link>
+          <Link className="text-[var(--color-secondary)] hover:underline" to={projectSupportPath(p)}>Open project support cases</Link>
           {p.providerId ? <Link className="text-[var(--color-secondary)] hover:underline" to={`/providers/${p.providerId}`}>{p.providerName || 'Open legacy provider'}</Link> : null}
         </div>
       </div>
@@ -224,7 +234,7 @@ export default function ProjectsPage(): React.ReactElement {
 
       <div className="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
         <p className="font-semibold">Planning-only boundary</p>
-        <p className="mt-1 text-xs">Projects cannot currently invite or assign a provider, create a booking, move money, or open project-scoped support. A provider shown below is a legacy link. Use Customer 360 and the booking/support workspaces for operational action.</p>
+        <p className="mt-1 text-xs">Projects cannot currently invite or assign a provider, create a booking, or move money. Project-scoped support is available as planning context only. A provider shown below is a legacy link.</p>
       </div>
 
       <section className="mb-5 rounded-xl border border-[var(--color-border)] bg-white p-4" aria-label="Project planning queue controls">
@@ -315,7 +325,7 @@ export default function ProjectsPage(): React.ReactElement {
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Customer and support</p>
                   <Link className="block truncate text-sm font-medium text-[var(--color-secondary)] hover:underline" to={`/customers/${p.customerId}`}>{p.customerName || 'Open customer'}</Link>
-                  <Link className="mt-1 block text-xs font-semibold text-[var(--color-secondary)] hover:underline" to={`/support-tickets?userId=${encodeURIComponent(p.customerId)}`}>Open customer support cases</Link>
+                  <Link className="mt-1 block text-xs font-semibold text-[var(--color-secondary)] hover:underline" to={projectSupportPath(p)}>Open project support cases</Link>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Planning context</p>

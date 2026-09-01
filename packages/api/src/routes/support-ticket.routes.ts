@@ -34,7 +34,7 @@ router.get(
     try {
       const {
         page, limit, status, type, priority, assignedAgentId, unassigned, active,
-        search, bookingId, userId, relatedCustomerId, relatedProviderId,
+        search, bookingId, projectId, userId, relatedCustomerId, relatedProviderId,
       } =
         req.query as unknown as {
           page: number;
@@ -47,6 +47,7 @@ router.get(
           active?: boolean;
           search?: string;
           bookingId?: string;
+          projectId?: string;
           userId?: string;
           relatedCustomerId?: string;
           relatedProviderId?: string;
@@ -62,6 +63,7 @@ router.get(
         active,
         search,
         bookingId,
+        projectId,
         userId,
         relatedCustomerId,
         relatedProviderId,
@@ -117,7 +119,7 @@ router.post(
   validationMiddleware(adminCreateSupportTicketSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { userId, type, priority, subject, description, bookingId } = req.body;
+      const { userId, type, priority, subject, description, bookingId, projectId } = req.body;
       const ticket = await supportTicketService.createTicket({
         userId,
         type,
@@ -125,6 +127,7 @@ router.post(
         subject,
         description,
         bookingId,
+        projectId,
         createdByAdminId: req.user!.userId,
       });
       res.status(201).json({ success: true, data: ticket });
@@ -228,7 +231,7 @@ router.post(
   validationMiddleware(createSupportTicketSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { type, priority, subject, description, bookingId } = req.body;
+      const { type, priority, subject, description, bookingId, projectId } = req.body;
       const ticket = await supportTicketService.createTicket({
         userId: req.user!.userId,
         type,
@@ -236,6 +239,7 @@ router.post(
         subject,
         description,
         bookingId,
+        projectId,
       });
       res.status(201).json({ success: true, data: ticket });
     } catch (error) {

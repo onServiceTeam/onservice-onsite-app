@@ -774,3 +774,56 @@ Bash and failed to resolve the Windows worktree/Node environment; the corrected
 Git Bash run passed. E53 still prevents hidden Admin project mutations, D28 still
 holds provider/booking conversion, D27p5/E12 still holds milestone money, and E32
 still prevents production synchronization.
+
+## Checkpoint U: canonical planning-project support context
+
+The next cross-role trace found that a customer planning record could hand an
+operator to the customer-wide Support queue, but the case itself could not retain
+which project needed help. A later operator had to infer the plan from free text,
+and the customer could not return from the case thread to the exact project. This
+was an operational linkage defect, not authority to turn Projects into a second
+booking or payment model.
+
+Bugs UX-888 through UX-895 add one canonical, deliberately narrow relationship:
+
+- Migration 164 adds a nullable project foreign key to support tickets, leaves
+  every historical row unchanged, and enforces that a case identifies one
+  booking or one project, never both.
+- The API validates that project-linked intake uses the owning customer, exposes
+  project title context in list and detail reads, and supports an exact Admin
+  project filter. The Admin create-on-behalf path uses that same ownership check.
+- The customer project detail opens a prefilled Support intake. The new-ticket,
+  support-list, and support-thread surfaces retain the project title and customer-
+  only return link. Providers do not receive access to customer planning records.
+- Admin Projects opens the exact project-filtered support queue; Support shows the
+  linked planning record and returns to it without losing case context. Every
+  surface states that this link does not assign a provider, create a booking,
+  authorize a quote, or move money.
+- The shared Admin table now exposes API failure text as an accessible alert.
+  Forced baseline replacement also removes stale visual evidence that still
+  showed a simultaneous false empty-state message within the allowed pixel
+  tolerance even though the current component's branches were already exclusive.
+
+Executed coverage calls the real service ownership, insert, filter, join, route,
+and rendered customer/Admin handoff behavior. The final local aggregates pass 274
+Admin files/363 assertions with one intentional file skip and three todos; 710
+locally runnable API suites/3,093 assertions with one intentional suite/test skip;
+and the previously completed W17 Mobile aggregate passes 510 suites/889 assertions
+with 84 device-baseline todos. The two Docker/Nginx environment suites are still
+excluded and are not claimed as passes. All workspaces pass TypeScript, repository
+ESLint passes, and Admin/API production builds pass. The 12 Support Queue default,
+loading, empty, and error images at 1280/1440/1920 were deliberately re-captured,
+visually inspected, then matched on a strict no-update run.
+
+The existing OPS-267 financial render kept every assertion unchanged but now has
+a test-local 15-second ceiling. It completed in under one second alone; the prior
+five-second ceiling was exceeded only when the unbounded Windows runner saturated
+fork workers. The final complete Admin aggregate used four workers and is the
+claimed result; invalid process-exhaustion runs are not reported as product passes.
+
+Gate A passes 10/10, Gate C passes 6/6, all six gate self-test groups pass, the
+strict phantom-test scan reports no findings, and the N+1 heuristic reports no
+unjustified marker. Its 30 broad candidate locations are pre-existing review
+output, not a finding introduced by this checkpoint. E53, D28, D27p5/E12, and
+E32 remain active; no hidden Admin project write, provider-project workflow,
+money change, production migration, or production synchronization is claimed.

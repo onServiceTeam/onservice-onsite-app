@@ -32,6 +32,8 @@ export interface SupportTicket {
   subject: string;
   description: string;
   booking_id: string | null;
+  project_id: string | null;
+  project_title?: string | null;
   created_at: string;
   updated_at: string;
   message_count?: string;
@@ -58,6 +60,7 @@ export interface CreateTicketPayload {
   description: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   bookingId?: string;
+  projectId?: string;
 }
 
 export interface SupportTicketPage {

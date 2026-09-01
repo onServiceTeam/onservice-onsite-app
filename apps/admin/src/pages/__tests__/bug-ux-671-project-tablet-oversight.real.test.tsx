@@ -27,7 +27,10 @@ it('Bug UX-671 — project oversight uses a responsive accessible record with su
 
   expect(await screen.findByRole('region', { name: 'Customer project planning records' })).toBeInTheDocument();
   expect(screen.queryByRole('table')).toBeNull();
-  expect(screen.getByRole('link', { name: 'Open customer support cases' })).toHaveAttribute('href', '/support-tickets?userId=customer-1');
+  expect(screen.getByRole('link', { name: 'Open project support cases' })).toHaveAttribute(
+    'href',
+    '/support-tickets?projectId=project-1&userId=customer-1&userName=Maria+Santos&userRole=customer',
+  );
   const detailButton = screen.getByRole('button', { name: 'Review milestones, choices, and documents' });
   expect(detailButton).toHaveAttribute('aria-expanded', 'false');
   fireEvent.click(detailButton);

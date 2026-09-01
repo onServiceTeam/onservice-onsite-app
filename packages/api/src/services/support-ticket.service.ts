@@ -68,6 +68,8 @@ export interface SupportTicket {
   subject: string;
   description: string;
   booking_id: string | null;
+  project_id: string | null;
+  project_title?: string | null;
   resolution_notes: string | null;
   resolved_at: string | null;
   closed_at: string | null;
@@ -113,6 +115,7 @@ interface ListTicketsParams {
   assignedAgentId?: string;
   search?: string;
   bookingId?: string;
+  projectId?: string;
   userId?: string;
   relatedCustomerId?: string;
   relatedProviderId?: string;
@@ -145,7 +148,7 @@ export async function listTickets(
   params: ListTicketsParams,
 ): Promise<{ tickets: SupportTicket[]; total: number }> {
   const {
-    page, limit, status, type, priority, assignedAgentId, search, bookingId,
+    page, limit, status, type, priority, assignedAgentId, search, bookingId, projectId,
     userId, relatedCustomerId, relatedProviderId, unassigned, active,
   } = params;
   const offset = (page - 1) * limit;
@@ -178,6 +181,10 @@ export async function listTickets(
   if (bookingId) {
     conditions.push(`st.booking_id = $${idx++}`);
     values.push(bookingId);
+  }
+  if (projectId) {
+    conditions.push(`st.project_id = $${idx++}`);
+    values.push(projectId);
   }
   if (userId) {
     conditions.push(`st.user_id = $${idx++}`);
@@ -224,6 +231,7 @@ export async function listTickets(
       OR COALESCE(u.phone, '') ILIKE $${idx}
       OR COALESCE(u.email, '') ILIKE $${idx}
       OR COALESCE(direct_provider.business_name, staff_provider.business_name, '') ILIKE $${idx}
+      OR COALESCE(project_context.title, '') ILIKE $${idx}
     )`);
     values.push(`%${search}%`);
     idx += 1;
@@ -246,7 +254,8 @@ export async function listTickets(
        ORDER BY ps.created_at DESC, ps.id
        LIMIT 1
     ) staff_account ON TRUE
-    LEFT JOIN providers staff_provider ON staff_provider.id = staff_account.provider_id`;
+    LEFT JOIN providers staff_provider ON staff_provider.id = staff_account.provider_id
+    LEFT JOIN projects project_context ON project_context.id = st.project_id`;
 
   const countResult = await db.query<{ count: string }>(
     `SELECT COUNT(*) AS count FROM support_tickets st ${joins} ${where}`,
@@ -260,6 +269,7 @@ export async function listTickets(
             u.role AS user_role,
             COALESCE(direct_provider.id, staff_account.provider_id) AS provider_id,
             COALESCE(direct_provider.business_name, staff_provider.business_name) AS provider_business_name,
+            project_context.title AS project_title,
             ag.first_name AS agent_first_name, ag.last_name AS agent_last_name,
             (SELECT COUNT(*) FROM support_ticket_messages stm WHERE stm.ticket_id = st.id) AS message_count
      FROM support_tickets st
@@ -391,10 +401,12 @@ export async function listMyTickets(params: {
 
   const result = await db.query<SupportTicket>(
     `SELECT st.*,
+            project_context.title AS project_title,
             ag.first_name AS agent_first_name, ag.last_name AS agent_last_name,
             (SELECT COUNT(*) FROM support_ticket_messages stm
                WHERE stm.ticket_id = st.id AND stm.is_internal_note = false) AS message_count
      FROM support_tickets st
+     LEFT JOIN projects project_context ON project_context.id = st.project_id
      LEFT JOIN users ag ON st.assigned_agent_id = ag.id
      ${where}
      ORDER BY st.updated_at DESC
@@ -413,6 +425,7 @@ export async function getTicketById(ticketId: string): Promise<SupportTicket | n
             u.role AS user_role,
             COALESCE(direct_provider.id, staff_account.provider_id) AS provider_id,
             COALESCE(direct_provider.business_name, staff_provider.business_name) AS provider_business_name,
+            project_context.title AS project_title,
             ag.first_name AS agent_first_name, ag.last_name AS agent_last_name
      FROM support_tickets st
      LEFT JOIN users u ON st.user_id = u.id
@@ -431,6 +444,7 @@ export async function getTicketById(ticketId: string): Promise<SupportTicket | n
         LIMIT 1
      ) staff_account ON TRUE
      LEFT JOIN providers staff_provider ON staff_provider.id = staff_account.provider_id
+     LEFT JOIN projects project_context ON project_context.id = st.project_id
      LEFT JOIN users ag ON st.assigned_agent_id = ag.id
      WHERE st.id = $1`,
     [ticketId],
@@ -472,6 +486,7 @@ export async function createTicket(params: {
   subject: string;
   description: string;
   bookingId?: string;
+  projectId?: string;
   // MED-N135 fix — when admin creates a ticket on behalf of a user
   // (or system creates one from a webhook), capture the acting admin
   // for the audit trail. Optional for back-compat.
@@ -488,6 +503,9 @@ export async function createTicket(params: {
   }
   if (params.description.length > 5000) {
     throw createAppError('Description must be 5000 characters or fewer.', 400);
+  }
+  if (params.bookingId && params.projectId) {
+    throw createAppError('A support request can be linked to a booking or a project, not both.', 400);
   }
 
   const subject = params.subject.trim();
@@ -531,13 +549,27 @@ export async function createTicket(params: {
       throw createAppError('Booking not found for this account.', 404);
     }
   }
+  if (params.projectId) {
+    const projectResult = await db.query<{ allowed: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+           FROM projects project_context
+          WHERE project_context.id = $1
+            AND project_context.customer_id = $2
+       ) AS allowed`,
+      [params.projectId, params.userId],
+    );
+    if (projectResult.rows[0]?.allowed !== true) {
+      throw createAppError('Project not found for this customer account.', 404);
+    }
+  }
   const ticketNumber = await generateTicketNumber();
 
   // MED-N135 fix — wrap INSERT + (optional) admin_actions audit in trx.
   const ticket = await db.transaction(async (client) => {
     const result = await client.query<SupportTicket>(
-      `INSERT INTO support_tickets (ticket_number, user_id, type, priority, subject, description, booking_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO support_tickets (ticket_number, user_id, type, priority, subject, description, booking_id, project_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
       [
         ticketNumber,
@@ -547,6 +579,7 @@ export async function createTicket(params: {
         subject,
         description,
         params.bookingId ?? null,
+        params.projectId ?? null,
       ],
     );
     if (result.rows.length === 0) throw new Error('Failed to create ticket.');
@@ -564,6 +597,8 @@ export async function createTicket(params: {
             forUserId: params.userId,
             type: params.type,
             priority: params.priority,
+            bookingId: params.bookingId ?? null,
+            projectId: params.projectId ?? null,
           }),
         ],
       );
@@ -602,8 +637,9 @@ export async function addMessage(params: {
       user_id: string;
       ticket_number: string;
       booking_id: string | null;
+      project_id: string | null;
     }>(
-      `SELECT status, assigned_agent_id, user_id, ticket_number, booking_id
+      `SELECT status, assigned_agent_id, user_id, ticket_number, booking_id, project_id
          FROM support_tickets
         WHERE id = $1
         FOR UPDATE`,
@@ -675,20 +711,26 @@ export async function addMessage(params: {
             userId: ticket.user_id,
             ticketNumber: ticket.ticket_number,
             bookingId: ticket.booking_id,
+            projectId: ticket.project_id,
           }
         : null,
     };
   });
 
   if (outcome.participantNotification) {
-    const { userId, ticketNumber, bookingId } = outcome.participantNotification;
+    const { userId, ticketNumber, bookingId, projectId } = outcome.participantNotification;
     try {
       await notificationService.createPushNotification({
         userId,
         type: 'support_update',
         title: `Support update: ${ticketNumber}`,
         body: 'A support agent replied to your request. Open the case to read the update.',
-        data: { ticketId: params.ticketId, ticketNumber, ...(bookingId ? { bookingId } : {}) },
+        data: {
+          ticketId: params.ticketId,
+          ticketNumber,
+          ...(bookingId ? { bookingId } : {}),
+          ...(projectId ? { projectId } : {}),
+        },
       });
     } catch (error) {
       // The message is already durable. Keep the reply successful and leave an

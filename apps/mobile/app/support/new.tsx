@@ -30,6 +30,8 @@ export default function NewSupportRequestScreen(): React.ReactElement {
   const { isPhone } = useResponsive();
   const params = useLocalSearchParams<{
     bookingId?: string;
+    projectId?: string;
+    projectTitle?: string;
     type?: string;
     priority?: string;
     subject?: string;
@@ -75,6 +77,7 @@ export default function NewSupportRequestScreen(): React.ReactElement {
       subject: trimmedSubject,
       description: trimmedBody,
       bookingId: params.bookingId || undefined,
+      projectId: params.projectId || undefined,
       priority: initialPriority,
     });
   };
@@ -99,6 +102,13 @@ export default function NewSupportRequestScreen(): React.ReactElement {
           {params.bookingId ? (
             <View style={styles.bookingTag}>
               <Text style={styles.bookingTagText}>Linked to booking {params.bookingId.slice(0, 8)}</Text>
+            </View>
+          ) : null}
+          {params.projectId ? (
+            <View style={styles.bookingTag}>
+              <Text style={styles.bookingTagText}>
+                Linked to project {params.projectTitle?.trim() || params.projectId.slice(0, 8)}
+              </Text>
             </View>
           ) : null}
 
@@ -146,7 +156,11 @@ export default function NewSupportRequestScreen(): React.ReactElement {
           />
 
           <Text style={styles.hint}>
-            Keeping this conversation in the app means support can see your booking, step in faster, and your messages count as proof if there is ever a dispute.
+            {params.bookingId
+              ? 'Keeping this conversation in the app lets support open the linked booking, respond faster, and preserve the message history if there is a dispute.'
+              : params.projectId
+                ? 'Support will receive this planning project as context. It remains separate from bookings, quotes, and payments.'
+                : 'Keeping this conversation in the app gives support the account context and message history needed to help you.'}
           </Text>
 
           <Button
