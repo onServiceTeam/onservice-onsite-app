@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { MessageSquare, Search } from '@/components/icons';
 import api, { getErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
@@ -64,6 +65,7 @@ interface SupportAgent {
 
 const STATUSES: FeedbackStatus[] = ['new', 'triaged', 'done', 'dismissed'];
 const AREAS = ['customer', 'provider', 'admin'];
+const PAGE_SIZE = 25;
 const STATUS_VARIANTS: Record<FeedbackStatus, 'danger' | 'warning' | 'success' | 'outline'> = {
   new: 'danger',
   triaged: 'warning',
@@ -115,6 +117,29 @@ function protectedScreenshotUrl(recordId: string, value: JsonValue | undefined):
   return `/api/v1/admin/feedback/${encodeURIComponent(recordId)}/screenshots/${encodeURIComponent(match[1])}`;
 }
 
+function parseStatus(value: string | null): FeedbackStatus {
+  return STATUSES.includes(value as FeedbackStatus) ? value as FeedbackStatus : 'new';
+}
+
+function parseArea(value: string | null): string {
+  return value && AREAS.includes(value) ? value : '';
+}
+
+function parsePage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
+}
+
+function parseSearch(value: string | null): string {
+  const parsed = (value ?? '').trim();
+  return parsed.length <= 100 ? parsed : '';
+}
+
+function parseFeedbackId(value: string | null): string | null {
+  const parsed = (value ?? '').trim();
+  return /^[A-Za-z0-9-]{1,100}$/.test(parsed) ? parsed : null;
+}
+
 function collectScreenshots(recordId: string, payload: { [key: string]: JsonValue }): string[] {
   const found = new Set<string>();
   const add = (value: JsonValue | undefined): void => {
@@ -135,12 +160,13 @@ function collectScreenshots(recordId: string, payload: { [key: string]: JsonValu
 
 export default function FeedbackPage(): React.ReactElement {
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<FeedbackStatus>('new');
-  const [area, setArea] = useState('');
-  const [search, setSearch] = useState('');
-  const [searchDraft, setSearchDraft] = useState('');
-  const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const status = parseStatus(searchParams.get('status'));
+  const area = parseArea(searchParams.get('area'));
+  const search = parseSearch(searchParams.get('search'));
+  const page = parsePage(searchParams.get('page'));
+  const selectedId = parseFeedbackId(searchParams.get('feedbackId'));
+  const [searchDraft, setSearchDraft] = useState(search);
   const [editStatus, setEditStatus] = useState<FeedbackStatus>('new');
   const [ownerId, setOwnerId] = useState('');
   const [note, setNote] = useState('');
@@ -149,7 +175,7 @@ export default function FeedbackPage(): React.ReactElement {
     queryKey: ['admin-feedback', status, area, search, page],
     queryFn: async () => {
       const response = await api.get<{ success: boolean; data: FeedbackList }>('/api/v1/admin/feedback', {
-        params: { status, area: area || undefined, search: search.trim() || undefined, page, pageSize: 25 },
+        params: { status, area: area || undefined, search: search || undefined, page, pageSize: PAGE_SIZE },
       });
       return response.data.data;
     },
@@ -159,8 +185,19 @@ export default function FeedbackPage(): React.ReactElement {
   useEffect(() => {
     if (!listQuery.isSuccess) return;
     const rows = listQuery.data.submissions;
-    if (!selectedId || !rows.some((row) => row.id === selectedId)) setSelectedId(rows[0]?.id ?? null);
-  }, [listQuery.data, listQuery.isSuccess, selectedId]);
+    const firstId = rows[0]?.id;
+    if (selectedId || !firstId) return;
+    setSearchParams((current) => {
+      if (parseFeedbackId(current.get('feedbackId'))) return current;
+      const next = new URLSearchParams(current);
+      next.set('feedbackId', firstId);
+      return next;
+    }, { replace: true });
+  }, [listQuery.data, listQuery.isSuccess, selectedId, setSearchParams]);
+
+  useEffect(() => {
+    setSearchDraft(search);
+  }, [search]);
 
   const detailQuery = useQuery({
     queryKey: ['admin-feedback-detail', selectedId],
@@ -218,21 +255,53 @@ export default function FeedbackPage(): React.ReactElement {
     },
   });
   const resetUpdateMutation = updateMutation.reset;
-  const clearSelection = (): void => {
+  const selectFeedback = (feedbackId: string): void => {
     resetUpdateMutation();
-    setSelectedId(null);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('feedbackId', feedbackId);
+      return next;
+    }, { replace: true });
+  };
+  const updateQueueUrl = (changes: {
+    status?: FeedbackStatus;
+    area?: string;
+    search?: string;
+    page?: number;
+  }): void => {
+    resetUpdateMutation();
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (changes.status !== undefined) {
+        if (changes.status === 'new') next.delete('status');
+        else next.set('status', changes.status);
+      }
+      if (changes.area !== undefined) {
+        if (changes.area) next.set('area', changes.area);
+        else next.delete('area');
+      }
+      if (changes.search !== undefined) {
+        const normalized = changes.search.trim();
+        if (normalized) next.set('search', normalized);
+        else next.delete('search');
+      }
+      if (changes.page !== undefined) {
+        if (changes.page <= 1) next.delete('page');
+        else next.set('page', String(changes.page));
+      }
+      next.delete('feedbackId');
+      return next;
+    }, { replace: true });
   };
 
   useEffect(() => {
     if (!listQuery.isError) return;
     resetUpdateMutation();
-    setSelectedId(null);
   }, [listQuery.isError, resetUpdateMutation]);
 
   const detail = detailQuery.data;
-  const selectionAvailable = listQuery.isSuccess
-    && !!selectedId
-    && listRows.some((record) => record.id === selectedId);
+  const selectionAvailable = listQuery.isSuccess && !!selectedId;
+  const selectionInCurrentPage = !!selectedId && listRows.some((record) => record.id === selectedId);
   const detailAvailable = selectionAvailable && detailQuery.isSuccess && !detailQuery.isError && !!detail;
   const updateConflict = updateMutation.error instanceof Error
     && 'status' in updateMutation.error
@@ -252,7 +321,7 @@ export default function FeedbackPage(): React.ReactElement {
     && agentsQuery.isSuccess
     && historyQuery.isSuccess
     && !updateMutation.isPending;
-  const pageCount = Math.max(1, Math.ceil((listQuery.data?.total ?? 0) / 25));
+  const pageCount = Math.max(1, Math.ceil((listQuery.data?.total ?? 0) / PAGE_SIZE));
   const totalLabel = listQuery.isError
     ? 'Unavailable'
     : listQuery.isLoading
@@ -290,7 +359,7 @@ export default function FeedbackPage(): React.ReactElement {
           <button
             key={value}
             type="button"
-            onClick={() => { setStatus(value); setPage(1); clearSelection(); }}
+            onClick={() => updateQueueUrl({ status: value, page: 1 })}
             disabled={updateMutation.isPending}
             aria-pressed={status === value}
             className={`min-h-20 rounded-lg border bg-white p-4 text-left transition-colors ${
@@ -308,9 +377,7 @@ export default function FeedbackPage(): React.ReactElement {
         className="flex flex-col gap-3 rounded-lg border border-[var(--color-border)] bg-white p-4 md:flex-row md:items-center"
         onSubmit={(event) => {
           event.preventDefault();
-          setSearch(searchDraft.trim());
-          setPage(1);
-          clearSelection();
+          updateQueueUrl({ search: searchDraft, page: 1 });
         }}
       >
         <div className="relative min-w-0 flex-1">
@@ -327,7 +394,7 @@ export default function FeedbackPage(): React.ReactElement {
         </div>
         <select
           value={area}
-          onChange={(event) => { setArea(event.target.value); setPage(1); clearSelection(); }}
+          onChange={(event) => updateQueueUrl({ area: event.target.value, page: 1 })}
           aria-label="Filter tester feedback by app area"
           disabled={updateMutation.isPending}
           className="h-11 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-60"
@@ -340,7 +407,7 @@ export default function FeedbackPage(): React.ReactElement {
           <Button
             type="button"
             variant="outline"
-            onClick={() => { setSearch(''); setSearchDraft(''); setPage(1); clearSelection(); }}
+            onClick={() => updateQueueUrl({ search: '', page: 1 })}
             disabled={updateMutation.isPending}
           >
             Clear
@@ -349,7 +416,7 @@ export default function FeedbackPage(): React.ReactElement {
       </form>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
-        <div className={`space-y-2 ${listRows.length === 0 ? 'xl:col-span-2' : ''}`}>
+        <div className={`space-y-2 ${listRows.length === 0 && !selectedId ? 'xl:col-span-2' : ''}`}>
           {listQuery.isLoading && <LoadingState />}
           {listQuery.isError && (
             <ErrorState
@@ -365,7 +432,7 @@ export default function FeedbackPage(): React.ReactElement {
             <button
               key={record.id}
               type="button"
-              onClick={() => { resetUpdateMutation(); setSelectedId(record.id); }}
+              onClick={() => selectFeedback(record.id)}
               disabled={updateMutation.isPending}
               className={`w-full rounded-lg border bg-white p-4 text-left transition-colors ${
                 selectedId === record.id ? 'border-[var(--color-secondary)] ring-2 ring-[var(--color-secondary)]/15' : 'border-[var(--color-border)] hover:bg-[var(--color-surface-hover)]'
@@ -385,9 +452,9 @@ export default function FeedbackPage(): React.ReactElement {
           ))}
           {pageCount > 1 && (
             <div className="flex items-center justify-between pt-2">
-              <Button variant="outline" size="sm" disabled={page <= 1 || updateMutation.isPending} onClick={() => { clearSelection(); setPage((value) => value - 1); }}>Previous</Button>
+              <Button variant="outline" size="sm" disabled={page <= 1 || updateMutation.isPending} onClick={() => updateQueueUrl({ page: page - 1 })}>Previous</Button>
               <span className="text-xs text-[var(--color-text-secondary)]">Page {page} of {pageCount}</span>
-              <Button variant="outline" size="sm" disabled={page >= pageCount || updateMutation.isPending} onClick={() => { clearSelection(); setPage((value) => value + 1); }}>Next</Button>
+              <Button variant="outline" size="sm" disabled={page >= pageCount || updateMutation.isPending} onClick={() => updateQueueUrl({ page: page + 1 })}>Next</Button>
             </div>
           )}
         </div>
@@ -403,6 +470,12 @@ export default function FeedbackPage(): React.ReactElement {
               description={getErrorMessage(detailQuery.error)}
               action={<Button variant="outline" onClick={() => void detailQuery.refetch()}>Retry detail</Button>}
             />
+          )}
+          {detailAvailable && !selectionInCurrentPage && (
+            <div role="status" className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+              This exact submission was opened from a saved link. It is outside the current queue page or filters, so
+              the list may not highlight it. The evidence and decision controls below apply to the linked record.
+            </div>
           )}
           {detailAvailable && <FeedbackDetail record={detail} />}
 

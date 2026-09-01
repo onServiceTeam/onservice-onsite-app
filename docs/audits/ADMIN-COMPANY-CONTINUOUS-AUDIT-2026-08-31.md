@@ -635,3 +635,36 @@ TypeScript and the production build, full repository ESLint, and
 passed all 6 blocking articles, all 6 gate self-test groups passed, the strict
 phantom-test scan found no findings, and the N+1 heuristic retained 31 reviewed
 locations with no unjustified marker.
+
+## Checkpoint R: Tester Feedback exact-case handoff
+
+The next page-local pass found that Tester Feedback kept status, app area,
+applied search, page, and selected submission only in React memory. A refresh,
+copied link, or support handoff reopened the default New queue and silently
+selected its first row. That made an operator's case reference non-reproducible
+even though the surrounding Booking, Support, Communications, Payout, Customer,
+and Audit workspaces already preserve operational URL context.
+
+Bug UX-880 makes the validated URL the queue source of truth. Status, area,
+submitted search, page, and `feedbackId` now survive refresh and can be copied
+as one exact handoff. Selecting a row updates only the record identifier while
+retaining the queue context. A valid exact record can load even when it is not
+on the visible queue page; the workspace identifies that condition instead of
+replacing the requested record with the first result. Queue failure still hides
+the evidence and decision controls, and pending triage still locks navigation.
+
+The real-router regression restores a filtered second-page queue, opens a
+different exact linked record, asserts the API inputs and rendered evidence,
+then proves a card selection updates the URL without dropping the filters. All
+19 Admin feedback test files and 21 assertions pass. The clean full Admin
+aggregate passes 269 files and 358 assertions, with one existing skipped file
+and three explicit todos. Admin TypeScript, the 2,842-module production build,
+full repository ESLint, and `git diff --check` pass. Gate A passes all 10
+blocking fragments, Gate C passes all 6 blocking articles, all 6 gate self-test
+groups pass, the strict phantom-test scan reports no findings, and the N+1
+heuristic retains 31 reviewed locations with no unjustified marker. The first
+full Admin attempt ran concurrently with the production build and full lint;
+two one-second retry assertions timed out under that machine load. Both passed
+immediately together, and the full suite then passed when rerun alone, so the
+failed saturated run is retained here rather than misreported as a product
+failure or hidden.

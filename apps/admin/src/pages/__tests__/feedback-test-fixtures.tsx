@@ -6,6 +6,8 @@ import { vi } from 'vitest';
 import api from '@/lib/api';
 import FeedbackPage from '../FeedbackPage';
 
+vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
+
 export const feedbackRecord = {
   id: 'feedback-1',
   createdAt: '2026-06-30T08:00:00.000Z',
