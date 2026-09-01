@@ -1,11 +1,25 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { createAppError } from '../middleware/error.middleware';
+import { validationMiddleware } from '../middleware/validation.middleware';
 import * as businessService from '../services/business.service';
 import * as invoiceService from '../services/invoice.service';
 import * as settingsService from '../services/settings.service';
 import * as businessControlService from '../services/business-control.service';
 import * as businessInvoiceControlService from '../services/business-invoice-control.service';
+import {
+  addBusinessMemberSchema,
+  businessAccountParamsSchema,
+  businessContractParamsSchema,
+  businessInvoiceParamsSchema,
+  businessMemberParamsSchema,
+  businessPaginationQuerySchema,
+  createBusinessAccountSchema,
+  createBusinessContractSchema,
+  removeBusinessMemberSchema,
+  transferBusinessOwnershipSchema,
+  updateBusinessAccountSchema,
+} from '../validators/business.validators';
 
 const router = Router();
 
@@ -36,6 +50,7 @@ function getParamId(req: AuthenticatedRequest, param = 'id'): string {
 
 router.post(
   '/',
+  validationMiddleware({ body: createBusinessAccountSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.userId;
@@ -110,6 +125,7 @@ router.post(
 
 router.get(
   '/',
+  validationMiddleware({ query: businessPaginationQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.userId;
@@ -131,6 +147,7 @@ router.get(
 
 router.get(
   '/:id',
+  validationMiddleware({ params: businessAccountParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -149,6 +166,7 @@ router.get(
 
 router.patch(
   '/:id',
+  validationMiddleware({ params: businessAccountParamsSchema, body: updateBusinessAccountSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -159,6 +177,18 @@ router.patch(
         province: string; contactPerson: string; contactEmail: string;
         contactPhone: string; notes: string;
       }>;
+
+      if (updates.businessType) {
+        let validTypes: string[];
+        try {
+          validTypes = await settingsService.getSettingArray('business_account_types');
+        } catch {
+          validTypes = ['office', 'condo_management', 'restaurant', 'hotel', 'retail', 'school', 'hospital', 'other'];
+        }
+        if (!validTypes.includes(updates.businessType)) {
+          throw createAppError(`Invalid business type. Must be one of: ${validTypes.join(', ')}`, 400);
+        }
+      }
 
       await businessService.updateBusinessAccount(businessId, userId, updates);
       const account = await businessService.getBusinessAccount(businessId, userId);
@@ -175,6 +205,7 @@ router.patch(
 
 router.get(
   '/:id/terms/current',
+  validationMiddleware({ params: businessAccountParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -191,6 +222,7 @@ router.get(
 
 router.get(
   '/:id/members',
+  validationMiddleware({ params: businessAccountParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -209,6 +241,7 @@ router.get(
 
 router.post(
   '/:id/members',
+  validationMiddleware({ params: businessAccountParamsSchema, body: addBusinessMemberSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -246,6 +279,7 @@ router.post(
 
 router.delete(
   '/:id/members/:userId',
+  validationMiddleware({ params: businessMemberParamsSchema, body: removeBusinessMemberSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -267,6 +301,7 @@ router.delete(
 // (verified inside the service) can call this.
 router.post(
   '/:id/transfer-ownership',
+  validationMiddleware({ params: businessAccountParamsSchema, body: transferBusinessOwnershipSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -289,6 +324,7 @@ router.post(
 
 router.get(
   '/:id/contracts',
+  validationMiddleware({ params: businessAccountParamsSchema, query: businessPaginationQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -311,6 +347,7 @@ router.get(
 
 router.post(
   '/:id/contracts',
+  validationMiddleware({ params: businessAccountParamsSchema, body: createBusinessContractSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -358,6 +395,7 @@ router.post(
 
 router.post(
   '/:id/contracts/:contractId/activate',
+  validationMiddleware({ params: businessContractParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const contractId = getParamId(req, 'contractId');
@@ -377,6 +415,7 @@ router.post(
 
 router.post(
   '/:id/contracts/:contractId/cancel',
+  validationMiddleware({ params: businessContractParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const contractId = getParamId(req, 'contractId');
@@ -396,6 +435,7 @@ router.post(
 
 router.get(
   '/:id/invoices',
+  validationMiddleware({ params: businessAccountParamsSchema, query: businessPaginationQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -418,6 +458,7 @@ router.get(
 
 router.get(
   '/:id/invoices/:invoiceId',
+  validationMiddleware({ params: businessInvoiceParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const invoiceId = getParamId(req, 'invoiceId');

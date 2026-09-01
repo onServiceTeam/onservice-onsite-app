@@ -661,8 +661,8 @@ export async function createContract(
     throw createAppError('Discount percentage must be between 0 and 100.', 400);
   }
   if (params.estimatedMonthlyValue !== undefined &&
-      (!Number.isFinite(params.estimatedMonthlyValue) || params.estimatedMonthlyValue < 0)) {
-    throw createAppError('Estimated monthly value cannot be negative.', 400);
+      (!Number.isSafeInteger(params.estimatedMonthlyValue) || params.estimatedMonthlyValue < 0)) {
+    throw createAppError('Estimated monthly value cannot be negative and must be a safe integer amount in centavos.', 400);
   }
 
   const result = await db.query<BusinessContractRow>(
