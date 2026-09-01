@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Linking } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Linking, Image, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getProject, updateProject, addMilestone, updateMilestone, deleteMilestone,
   addSelection, updateSelection, deleteSelection,
+  uploadProjectDocument, getProjectDocumentAccess,
   PROJECT_ADVISORY_BUDGET_MAX_PESOS,
-  type ProjectMilestone, type ProjectSelection, type MilestoneStatus,
+  type ProjectMilestone, type ProjectSelection, type MilestoneStatus, type DocType,
 } from '@/services/project.service';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatPHP } from '@/utils/currency';
@@ -27,6 +28,17 @@ const NEXT_STATUS: Record<Exclude<MilestoneStatus, 'completed'>, MilestoneStatus
   pending: 'in_progress',
   in_progress: 'completed',
 };
+const DOCUMENT_TYPES: Array<{ value: DocType; label: string }> = [
+  { value: 'blueprint', label: 'Plan' },
+  { value: 'permit', label: 'Permit' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'photo', label: 'Photo' },
+  { value: 'other', label: 'Other' },
+];
+
+function documentTypeLabel(docType: DocType): string {
+  return DOCUMENT_TYPES.find((option) => option.value === docType)?.label ?? docType;
+}
 
 type PendingRemoval = {
   kind: 'milestone' | 'choice';
@@ -65,6 +77,10 @@ export default function ProjectDetailScreen(): React.ReactElement {
   const [editSelValue, setEditSelValue] = useState('');
   const [editSelDetail, setEditSelDetail] = useState('');
   const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
+  const [showAddDocument, setShowAddDocument] = useState(false);
+  const [documentLabel, setDocumentLabel] = useState('');
+  const [documentType, setDocumentType] = useState<DocType>('photo');
+  const [documentUri, setDocumentUri] = useState<string | null>(null);
   const [showEditProject, setShowEditProject] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -102,6 +118,7 @@ export default function ProjectDetailScreen(): React.ReactElement {
   const editSelectionValid = editSelCat.trim().length > 0
     && editSelLabel.trim().length > 0
     && editSelValue.trim().length > 0;
+  const documentValid = documentLabel.trim().length > 0 && documentUri != null;
 
   const saveProject = useMutation({
     mutationFn: () => updateProject(id ?? '', {
@@ -147,6 +164,28 @@ export default function ProjectDetailScreen(): React.ReactElement {
     setEditSelLabel(selection.label);
     setEditSelValue(selection.value);
     setEditSelDetail(selection.detail ?? '');
+  };
+
+  const chooseDocumentImage = async (): Promise<void> => {
+    // Load only when the customer opens the native picker. This keeps SSR and
+    // non-native project renders independent from Expo's device event module.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ImagePicker = require('expo-image-picker') as typeof import('expo-image-picker');
+    if (Platform.OS !== 'web') {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== 'granted') {
+        showToast('Photo library access is needed to attach a planning image.', 'error');
+        return;
+      }
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: false,
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets[0]?.uri) {
+      setDocumentUri(result.assets[0].uri);
+    }
   };
 
   const advanceMs = useMutation({
@@ -238,6 +277,31 @@ export default function ProjectDetailScreen(): React.ReactElement {
       showToast(item.kind === 'milestone' ? 'Pending milestone removed.' : 'Choice removed.', 'success');
     },
     onError: (e) => showToast(getErrorMessage(e, 'Could not remove the planning item.'), 'error'),
+  });
+
+  const createDocument = useMutation({
+    mutationFn: () => uploadProjectDocument(id ?? '', {
+      label: documentLabel.trim(),
+      docType: documentType,
+      uri: documentUri ?? '',
+    }),
+    onSuccess: () => {
+      setDocumentLabel('');
+      setDocumentType('photo');
+      setDocumentUri(null);
+      setShowAddDocument(false);
+      invalidate();
+      showToast('Private planning image attached.', 'success');
+    },
+    onError: (e) => showToast(getErrorMessage(e, 'Could not attach the planning image.'), 'error'),
+  });
+
+  const openDocument = useMutation({
+    mutationFn: (documentId: string) => getProjectDocumentAccess(documentId),
+    onSuccess: async (access) => {
+      await Linking.openURL(access.url);
+    },
+    onError: (e) => showToast(getErrorMessage(e, 'Could not open the private planning image.'), 'error'),
   });
 
   if (!id) {
@@ -536,7 +600,21 @@ export default function ProjectDetailScreen(): React.ReactElement {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Documents</Text>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle}>Documents</Text>
+                {isOwner ? (
+                  <TouchableOpacity
+                    style={styles.addAction}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${showAddDocument ? 'Hide' : 'Show'} attach planning image form`}
+                    accessibilityState={{ expanded: showAddDocument }}
+                    onPress={() => setShowAddDocument((value) => !value)}
+                  >
+                    <Text style={styles.addLink}>+ Attach</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+              <Text style={styles.documentPrivacyHint}>Private planning images open through a short-lived secure link. JPG, PNG, and WebP are supported; PDFs are not yet accepted.</Text>
               {project.documents.length === 0 ? (
                 <Text style={styles.empty}>No documents have been attached to this planning record.</Text>
               ) : (
@@ -546,13 +624,66 @@ export default function ProjectDetailScreen(): React.ReactElement {
                     style={styles.docRow}
                     accessibilityRole="link"
                     accessibilityLabel={`Open project document ${d.label}`}
-                    onPress={() => Linking.openURL(d.fileUrl)}
+                    accessibilityState={{ busy: openDocument.isPending && openDocument.variables === d.id }}
+                    disabled={openDocument.isPending}
+                    onPress={() => openDocument.mutate(d.id)}
                   >
                     <Text style={styles.docLabel}>{d.label}</Text>
-                    <Text style={styles.docType}>{d.docType}</Text>
+                    {openDocument.isPending && openDocument.variables === d.id
+                      ? <ActivityIndicator color={colors.primary} size="small" />
+                      : <Text style={styles.docType}>{documentTypeLabel(d.docType)}</Text>}
                   </TouchableOpacity>
                 ))
               )}
+              {showAddDocument ? (
+                <View style={styles.documentForm} accessibilityLabel="Attach private project planning image">
+                  <TextInput
+                    accessibilityLabel="Planning image label"
+                    style={styles.inlineInput}
+                    value={documentLabel}
+                    onChangeText={setDocumentLabel}
+                    placeholder="Label (e.g. Ground-floor plan)"
+                    placeholderTextColor={colors.textTertiary}
+                    maxLength={160}
+                  />
+                  <View style={styles.documentTypeRow} accessibilityRole="radiogroup" accessibilityLabel="Planning image type">
+                    {DOCUMENT_TYPES.map((option) => (
+                      <TouchableOpacity
+                        key={option.value}
+                        style={[styles.documentTypeOption, documentType === option.value && styles.documentTypeOptionActive]}
+                        accessibilityRole="radio"
+                        accessibilityLabel={`Planning image type ${option.label}`}
+                        accessibilityState={{ checked: documentType === option.value }}
+                        onPress={() => setDocumentType(option.value)}
+                      >
+                        <Text style={[styles.documentTypeOptionText, documentType === option.value && styles.documentTypeOptionTextActive]}>{option.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {documentUri ? <Image source={{ uri: documentUri }} style={styles.documentPreview} accessibilityLabel="Selected planning image preview" /> : null}
+                  <View style={styles.formActions}>
+                    <TouchableOpacity
+                      style={styles.secondaryBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={documentUri ? 'Replace selected planning image' : 'Choose planning image'}
+                      onPress={() => void chooseDocumentImage()}
+                      disabled={createDocument.isPending}
+                    >
+                      <Text style={styles.secondaryBtnText}>{documentUri ? 'Replace image' : 'Choose image'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.saveBtn, !documentValid && styles.disabled]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Attach private planning image"
+                      accessibilityState={{ disabled: !documentValid || createDocument.isPending, busy: createDocument.isPending }}
+                      onPress={() => createDocument.mutate()}
+                      disabled={!documentValid || createDocument.isPending}
+                    >
+                      {createDocument.isPending ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.saveBtnText}>Attach image</Text>}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : null}
             </View>
           </View>
 
@@ -812,6 +943,14 @@ const styles = StyleSheet.create({
   docRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   docLabel: { ...typography.body, color: colors.info, fontWeight: '600', flex: 1 },
   docType: { ...typography.caption, color: colors.textTertiary },
+  documentPrivacyHint: { ...typography.caption, color: colors.textSecondary, lineHeight: 18, marginBottom: spacing.sm },
+  documentForm: { gap: spacing.sm, marginTop: spacing.sm },
+  documentTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  documentTypeOption: { minHeight: 44, justifyContent: 'center', borderRadius: borderRadius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: spacing.md },
+  documentTypeOptionActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+  documentTypeOptionText: { ...typography.caption, color: colors.textSecondary, fontWeight: '700' },
+  documentTypeOptionTextActive: { color: colors.primary },
+  documentPreview: { width: '100%', height: 180, borderRadius: borderRadius.md, backgroundColor: colors.surfaceMuted },
   milestoneForm: { gap: spacing.sm, marginTop: spacing.sm },
   milestoneFieldRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   milestoneField: { flexGrow: 1, flexBasis: 220, minWidth: 0 },

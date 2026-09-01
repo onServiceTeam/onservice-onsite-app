@@ -33,7 +33,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/bookings` | Booking operations queue | W6+W8 PARTIAL | The responsive row-grid exposes URL-bound operational views/sorts, whole-queue exception counts, specific service/city/schedule context, Customer/Provider 360 exits, linked support ownership, open disputes, and gross booking value. Only verified-paid unassigned work is labelled **Paid needs assignment**. Named booking ownership is deliberately not duplicated outside support cases; authenticated wide-state evidence remains open. |
 | `/bookings/:id` | Booking 360 and evidence | W6 PARTIAL/HOLD | Conversation and support-case exits, partial-address truth, gateway/wallet/retained-sales money chronology, and rendered action confirmations are connected. Cancellation requires explicit live money inputs but E09 still holds policy/runtime authority; escrow release, refund, cancellation, and force-complete semantics remain money-path controlled. |
 | `/catalog` | Customer bookable scope and provider fulfillment contract | W1 | Service/add-on deactivation now requires audit reason and states customer impact. Continue modal and all pricing-type state visuals. |
-| `/projects` | Larger-work planning oversight | W15+W16+W17+W18+W19+W20 PARTIAL/HOLD | Full-index project ID/title/description/city/customer/provider search, status filtering, deterministic pagination, result-wide summaries, exact URL-bound records, customer-owned metadata maintenance, complete planning-only milestone/choice creation, customer correction/removal of choices and pending milestones, and project support handoffs now coexist without changing the customer/provider project-list contract. Started/completed milestone history, customer/legacy-provider identities, scope, and deadline remain visible. Support context cannot create a booking, provider assignment, quote, or money relation. The new choice-update route is customer-owner-only, but E53 still holds older unaudited Admin write/deletion authority; D28 holds booking/site/visit linkage and D27p5/E12 holds milestone money. Document creation, versioned/audited destructive-history policy, and provider planning tools remain open. |
+| `/projects` | Larger-work planning oversight | W15+W16+W17+W18+W19+W20+W21 PARTIAL/HOLD | Full-index project search/filter/pagination, exact URL-bound records, customer-owned planning maintenance, customer correction/removal of choices and pending milestones, private owner-only planning-image upload, short-lived owner/Admin image access, and project support handoffs now coexist without changing booking or money authority. Admin receives read-only in-console image preview, never the storage key. Started/completed milestone history, customer/legacy-provider identities, scope, and deadline remain visible. Support context cannot create a booking, provider assignment, quote, or money relation. The new choice-update and private-upload routes are customer-owner-only, but E53 still holds older unaudited Admin write plus legacy URL creation/deletion authority; D28 holds booking/site/visit linkage and D27p5/E12 holds milestone money. PDF support, legacy-row inventory/migration, versioned/audited destructive-history policy, and provider planning tools remain open. |
 | `/disputes` | Trust queue | W9 PARTIAL/HOLD | Exact active and stale whole-queue views are URL-bound and enforced by the API, and list resolution now uses an in-app impact confirmation. Resolution/settlement behavior is unchanged and remains under E18/E24; no unsupported SLA countdown was added. |
 | `/disputes/:id` | Dispute 360 | HOLD/NEXT | Recheck evidence chronology and role exits. Settlement/reopen semantics remain held. |
 | `/financials` | Payments, escrow, tax workpapers, reconciliation | HOLD | No money/tax mutation behavior changed in W1. Requires dedicated finance audit and decision-safe tests. |
@@ -507,3 +507,39 @@ excluded. TypeScript, lint, API/Admin builds, the 4,273-module web export, Gate 
 E53 remains open because older Admin/deletion paths still lack an approved
 immutable/versioned history contract. D28, D27p5/E12, and E32 remain unchanged;
 no production synchronization or money-path change is claimed.
+
+## W21 private project planning images
+
+W21 adds only the safe document behavior implied by Option A. The owning
+customer can attach a JPG, PNG, or WebP planning image with a human-readable
+type. The server validates extension, configured MIME, size, and image magic
+bytes, saves the object as private, and stores only an opaque
+`private-artifacts/` key. Project detail always returns `fileUrl: null` plus an
+authenticated access path, so neither a storage key nor a legacy external URL
+reaches the customer or Admin projection.
+
+The owner and Admin can request a tamper-evident link that expires after 120
+seconds. A legacy linked provider cannot mint one. Admin opens the resulting
+blob inside the exact project case instead of depending on an asynchronous
+popup, and closing the preview revokes its temporary browser URL. Existing
+Nginx rules already block direct `/uploads/private-artifacts/` requests.
+
+Bugs UX-906/907/908 execute the customer flow, bounded multipart route, and
+Admin preview. SEC-017/018/019 execute owner-only private persistence,
+provider denial plus signed download verification, and raw-URL redaction. The
+fixture-backed customer workspace has zero horizontal overflow at 820 and 1366
+pixels, and the exact Admin record plus preview has zero overflow at 820 pixels.
+Mobile passes 520 suites/899 assertions with 84 device todos. Admin passes 275
+files/364 assertions with one skipped file and three todos. The locally runnable
+API passes 716 suites/3,099 assertions with one intentional skip. Docker Desktop
+is unavailable, so the two Docker/Nginx environment tests remain excluded and
+unclaimed. TypeScript, lint, builds, the 4,273-module web export, Gate A 10/10,
+Gate C 6/6, all six gate self-test groups, phantom-test scanning, the N+1
+review, and diff checks pass.
+
+The remaining boundary is deliberate. PDFs need an approved picker and secure
+document-content validation path. Legacy external rows need production
+inventory and migration. The older raw-URL creation and deletion routes remain
+under E53/D28 until an immutable/versioned audit policy is approved. Provider
+planning, project-to-booking conversion, milestone money, and production
+synchronization remain held under D28, D27p5/E12, and E32.

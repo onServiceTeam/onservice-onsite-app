@@ -3,6 +3,8 @@
 // permits, contract). Money does not move per milestone (advisory amounts only).
 import api from './api';
 import type { ApiResponse } from './api';
+import { platformConfig } from '../config/platform.config';
+import { appendImageToFormData } from '../utils/multipart';
 
 export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled';
 export type MilestoneStatus = 'pending' | 'in_progress' | 'completed';
@@ -56,7 +58,8 @@ export interface ProjectDocument {
   id: string;
   projectId: string;
   label: string;
-  fileUrl: string;
+  fileUrl: string | null;
+  accessPath: string;
   docType: DocType;
   uploadedBy: string | null;
   createdAt: string;
@@ -136,4 +139,30 @@ export async function deleteSelection(selectionId: string): Promise<void> {
 export async function addDocument(projectId: string, input: { label: string; fileUrl: string; docType?: DocType }): Promise<ProjectDocument> {
   const res = await api.post<ApiResponse<ProjectDocument>>(`/api/v1/projects/${projectId}/documents`, input);
   return res.data.data;
+}
+
+export async function uploadProjectDocument(
+  projectId: string,
+  input: { label: string; docType: DocType; uri: string },
+): Promise<ProjectDocument> {
+  const form = new FormData();
+  form.append('label', input.label.trim());
+  form.append('docType', input.docType);
+  await appendImageToFormData(form, 'file', input.uri, 'project-document');
+  const res = await api.post<ApiResponse<ProjectDocument>>(
+    `/api/v1/projects/${projectId}/documents/upload`,
+    form,
+  );
+  return res.data.data;
+}
+
+export async function getProjectDocumentAccess(documentId: string): Promise<{ url: string; expiresInSeconds: number }> {
+  const res = await api.get<ApiResponse<{ url: string; expiresInSeconds: number }>>(
+    `/api/v1/projects/documents/${documentId}/access`,
+  );
+  const access = res.data.data;
+  return {
+    ...access,
+    url: /^https?:\/\//.test(access.url) ? access.url : `${platformConfig.apiUrl}${access.url}`,
+  };
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, type FormEvent } from 'react';
 // D27 Phase 5 — admin oversight of the project layer (read-only).
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { Badge, Button, EmptyState, ErrorState, LoadingState, Pagination } from '@/components/ui';
@@ -24,7 +24,14 @@ interface Project {
 
 interface Milestone { id: string; title: string; description: string; status: string; amount: number | null; targetDate: string | null }
 interface Selection { id: string; category: string; label: string; value: string; detail: string | null }
-interface ProjectDoc { id: string; label: string; fileUrl: string; docType: string }
+interface ProjectDoc { id: string; label: string; fileUrl: null; accessPath: string; docType: string }
+const PLANNING_DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  blueprint: 'Plan',
+  permit: 'Permit',
+  contract: 'Contract',
+  photo: 'Photo',
+  other: 'Other',
+};
 interface ProjectDetail extends Project {
   milestones: Milestone[];
   selections: Selection[];
@@ -73,6 +80,7 @@ function projectSupportPath(project: Pick<Project, 'id' | 'customerId' | 'custom
 }
 
 function ProjectDetailPanel({ projectId }: { projectId: string }): React.ReactElement {
+  const [documentPreview, setDocumentPreview] = useState<{ label: string; url: string } | null>(null);
   const q = useQuery({
     queryKey: ['admin-project', projectId],
     queryFn: async () => {
@@ -80,6 +88,21 @@ function ProjectDetailPanel({ projectId }: { projectId: string }): React.ReactEl
       return res.data.data;
     },
   });
+
+  const openPlanningDocument = useMutation({
+    mutationFn: async (document: ProjectDoc) => {
+      const access = await api.get<{ success: boolean; data: { url: string } }>(`/api/v1/projects/documents/${document.id}/access`);
+      const file = await api.get<Blob>(access.data.data.url, { responseType: 'blob' });
+      return { blob: file.data, label: document.label };
+    },
+    onSuccess: ({ blob, label }) => {
+      setDocumentPreview({ label, url: URL.createObjectURL(blob) });
+    },
+  });
+
+  useEffect(() => () => {
+    if (documentPreview) URL.revokeObjectURL(documentPreview.url);
+  }, [documentPreview]);
 
   if (q.isLoading) return <LoadingState label="Loading project planning details…" className="py-6" />;
   if (q.isError || !q.data) return <ErrorState title="Project details unavailable" description={getErrorMessage(q.error)} className="m-4" />;
@@ -143,18 +166,29 @@ function ProjectDetailPanel({ projectId }: { projectId: string }): React.ReactEl
 
       <div>
         <span className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">Documents ({p.documents.length})</span>
+        <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Private planning images open through a short-lived access link. This remains read-only oversight.</p>
+        {openPlanningDocument.isError ? <p role="alert" className="mt-2 text-xs text-red-700">{getErrorMessage(openPlanningDocument.error)}</p> : null}
         {p.documents.length === 0 ? (
           <p className="text-xs text-[var(--color-text-tertiary)]">None</p>
         ) : (
           <div className="mt-1 space-y-1">
             {p.documents.map((d) => (
-              <a key={d.id} href={d.fileUrl} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-[var(--color-border)] bg-white px-3 py-2 hover:bg-slate-50">
+              <button key={d.id} type="button" disabled={openPlanningDocument.isPending} onClick={() => openPlanningDocument.mutate(d)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-left hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60">
                 <span className="text-sm text-sky-700">{d.label}</span>
-                <span className="text-xs text-[var(--color-text-tertiary)]">{d.docType}</span>
-              </a>
+                <span className="text-xs text-[var(--color-text-tertiary)]">{openPlanningDocument.isPending && openPlanningDocument.variables?.id === d.id ? 'Opening securely…' : (PLANNING_DOCUMENT_TYPE_LABELS[d.docType] ?? d.docType)}</span>
+              </button>
             ))}
           </div>
         )}
+        {documentPreview ? (
+          <section aria-label={`Private planning image preview: ${documentPreview.label}`} className="mt-3 rounded-lg border border-[var(--color-border)] bg-slate-50 p-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-[var(--color-text)]">{documentPreview.label}</p>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setDocumentPreview(null)}>Close preview</Button>
+            </div>
+            <img src={documentPreview.url} alt={`Private planning image: ${documentPreview.label}`} className="max-h-[28rem] w-full rounded-md bg-white object-contain" />
+          </section>
+        ) : null}
       </div>
     </div>
   );

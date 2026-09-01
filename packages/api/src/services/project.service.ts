@@ -7,9 +7,13 @@
  * here — milestone.amount is advisory only. Per-milestone escrow is a Ken
  * decision (.ai-coder/decisions/D27p5-milestone-escrow.md).
  */
+import crypto from 'node:crypto';
+import path from 'node:path';
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
+import { isPrivateExportSecretUsable } from '../config/boot-guards';
+import * as uploadService from './upload.service';
 
 export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled';
 export type MilestoneStatus = 'pending' | 'in_progress' | 'completed';
@@ -110,9 +114,37 @@ function formatSelection(s: SelectionRow): Record<string, unknown> {
 
 function formatDocument(d: DocumentRow): Record<string, unknown> {
   return {
-    id: d.id, projectId: d.project_id, label: d.label, fileUrl: d.file_url,
+    id: d.id, projectId: d.project_id, label: d.label, fileUrl: null,
+    accessPath: `/api/v1/projects/documents/${d.id}/access`,
     docType: d.doc_type, uploadedBy: d.uploaded_by, createdAt: d.created_at,
   };
+}
+
+const PROJECT_DOCUMENT_DOWNLOAD_TTL_SECONDS = 2 * 60;
+
+function projectDocumentDownloadSecret(): string {
+  const secret = process.env.DATA_EXPORT_DOWNLOAD_SECRET;
+  if (!isPrivateExportSecretUsable(secret)) {
+    throw createAppError('Private document access is not securely configured.', 503);
+  }
+  return secret;
+}
+
+function signProjectDocumentDownload(documentId: string, expires: number): string {
+  return crypto
+    .createHmac('sha256', projectDocumentDownloadSecret())
+    .update(`project-document:${documentId}:${expires}`)
+    .digest('hex');
+}
+
+async function loadDocument(documentId: string): Promise<DocumentRow> {
+  const result = await db.query<DocumentRow>(
+    `SELECT * FROM project_documents WHERE id = $1`,
+    [documentId],
+  );
+  const document = result.rows[0];
+  if (!document) throw createAppError('Document not found.', 404);
+  return document;
 }
 
 /** Resolve a provider's row id from their user id (null if not a provider). */
@@ -557,6 +589,97 @@ export async function addDocument(
     [projectId, input.label.trim(), input.fileUrl.trim(), input.docType ?? 'other', requester.userId],
   );
   return formatDocument(r.rows[0]!);
+}
+
+export async function uploadPrivateDocument(
+  projectId: string,
+  requester: { userId: string; role: string },
+  input: {
+    label: string;
+    docType?: DocType;
+    buffer: Buffer;
+    originalname: string;
+    mimetype: string;
+    size: number;
+  },
+): Promise<Record<string, unknown>> {
+  const project = await loadProjectForRequester(projectId, requester);
+  // Option A keeps projects customer-owned planning records. This secure upload
+  // path does not inherit the legacy Provider/Admin writes held by D28/E53.
+  if (project.customer_id !== requester.userId) {
+    throw createAppError('Only the project owner can attach planning documents.', 403);
+  }
+  await uploadService.validateFile(input.originalname, input.mimetype, input.size);
+  const saved = await uploadService.saveUploadedFile(
+    input.buffer,
+    input.originalname,
+    input.mimetype,
+    requester.userId,
+    'private-artifacts',
+    'private',
+  );
+
+  try {
+    const inserted = await db.query<DocumentRow>(
+      `INSERT INTO project_documents (project_id, label, file_url, doc_type, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [projectId, input.label.trim(), saved.filename, input.docType ?? 'other', requester.userId],
+    );
+    return formatDocument(inserted.rows[0]!);
+  } catch (error) {
+    await uploadService.deletePrivateArtifact(saved.filename);
+    throw error;
+  }
+}
+
+export async function createDocumentAccessLink(
+  documentId: string,
+  requester: { userId: string; role: string },
+): Promise<{ url: string; expiresInSeconds: number }> {
+  const document = await loadDocument(documentId);
+  const project = await loadProjectForRequester(document.project_id, requester);
+  const isAdmin = requester.role === 'admin' || requester.role === 'super_admin';
+  if (project.customer_id !== requester.userId && !isAdmin) {
+    throw createAppError('You do not have access to this planning document.', 403);
+  }
+  if (!document.file_url.startsWith('private-artifacts/')) {
+    throw createAppError('This legacy document reference is not available through secure access.', 409);
+  }
+  const expires = Math.floor(Date.now() / 1000) + PROJECT_DOCUMENT_DOWNLOAD_TTL_SECONDS;
+  const token = signProjectDocumentDownload(documentId, expires);
+  return {
+    url: `/api/v1/projects/documents/${encodeURIComponent(documentId)}/file?expires=${expires}&token=${token}`,
+    expiresInSeconds: PROJECT_DOCUMENT_DOWNLOAD_TTL_SECONDS,
+  };
+}
+
+export async function getDocumentDownload(
+  documentId: string,
+  expires: number,
+  token: string,
+): Promise<{ stream: uploadService.ObjectStream; filename: string }> {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (!Number.isInteger(expires) || expires < nowSeconds) {
+    throw createAppError('Document link has expired.', 410);
+  }
+  if (expires > nowSeconds + PROJECT_DOCUMENT_DOWNLOAD_TTL_SECONDS + 30) {
+    throw createAppError('Invalid document link.', 403);
+  }
+  const expected = signProjectDocumentDownload(documentId, expires);
+  const supplied = Buffer.from(token, 'utf8');
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  if (supplied.length !== expectedBuffer.length || !crypto.timingSafeEqual(supplied, expectedBuffer)) {
+    throw createAppError('Invalid document link.', 403);
+  }
+
+  const document = await loadDocument(documentId);
+  if (!document.file_url.startsWith('private-artifacts/')) {
+    throw createAppError('Document not found.', 404);
+  }
+  const extension = path.extname(document.file_url).toLowerCase();
+  const safeLabel = document.label.replace(/[^a-z0-9 _-]/gi, '').trim().replace(/\s+/g, '-') || 'project-document';
+  const stream = await uploadService.getPrivateArtifactStream(document.file_url);
+  return { stream, filename: `${safeLabel}${extension}` };
 }
 
 export async function deleteDocument(documentId: string, requester: { userId: string; role: string }): Promise<void> {

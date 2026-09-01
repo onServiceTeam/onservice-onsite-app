@@ -941,3 +941,45 @@ provide an approved immutable/versioned history contract. E53 therefore remains
 open. Document creation, provider planning, project-to-booking conversion,
 milestone money, production migration, and production synchronization also
 remain outside this checkpoint under D28, D27p5/E12, and E32.
+
+## Checkpoint Y: private project planning images
+
+This trace closes first-party image attachment without making Projects a second
+work-order, provider-assignment, or money system. The customer owner can attach
+a labelled JPG, PNG, or WebP reference. The API performs extension, MIME, size,
+and image-content checks, stores the object privately, and persists an opaque
+storage key. Every project projection now redacts `file_url`, including old
+external references, and returns only a secure access endpoint.
+
+The customer owner and Admin can mint a tamper-evident link with a 120-second
+lifetime. A legacy linked provider cannot. The Admin operator sees the image in
+the exact project record through an in-console preview, not a popup, direct
+storage address, edit control, or delete control. Closing the preview revokes
+the temporary browser URL. Existing Nginx configuration already rejects direct
+requests to `/uploads/private-artifacts/`.
+
+Bugs UX-906, UX-907, and UX-908 execute the customer picker/upload/open flow,
+strict multipart route, and Admin preview. SEC-017, SEC-018, and SEC-019 execute
+owner-only persistence, provider denial plus signed download verification, and
+raw URL redaction. Customer browser checks at 820 and 1366 pixels and Admin
+checks at 820 pixels report zero horizontal overflow. The form exposes Plan,
+Permit, Contract, Photo, and Other as human labels and remains disabled until a
+label and image are selected. Existing development-only React Native Web and
+reduced-motion warnings remain, so this checkpoint does not claim a warning-free
+browser log.
+
+Mobile passes 520 suites and 899 assertions with 84 device-baseline todos. Admin
+passes 275 files and 364 assertions with one skipped file and three todos. The
+locally runnable API passes 716 suites and 3,099 assertions with one intentional
+skip. Its complete local run had only the two Docker-dependent Nginx failures
+because Docker Desktop is unavailable; those are not counted as passes.
+TypeScript, repository lint, API/Admin production builds, the 4,273-module Expo
+web export, Gate A 10/10, Gate C 6/6, all six gate self-test groups, strict
+phantom-test scanning, the N+1 review, and diff checks pass.
+
+Bad news retained: PDFs are not yet accepted; legacy external rows are hidden
+but cannot be opened until production inventory and migration; and the older
+raw-URL creation/deletion routes remain under E53/D28 without approved
+immutable/versioned audit history. Provider planning, project-to-booking
+conversion, milestone money, and production synchronization remain outside W21
+under D28, D27p5/E12, and E32.

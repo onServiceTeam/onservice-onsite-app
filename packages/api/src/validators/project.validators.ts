@@ -82,3 +82,8 @@ export const addDocumentSchema = z.object({
   }, 'fileUrl must use http or https'),
   docType: z.enum(DOC_TYPES).optional(),
 }).strict();
+
+export const uploadProjectDocumentSchema = z.object({
+  label: z.string().trim().min(1).max(160),
+  docType: z.enum(DOC_TYPES).optional(),
+}).strict();
