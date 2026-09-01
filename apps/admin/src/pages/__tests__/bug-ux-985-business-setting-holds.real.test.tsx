@@ -1,6 +1,6 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
 
@@ -79,7 +79,12 @@ it('Bug UX-985 — B2B enum controls render as explained read-only holds in Admi
 
   expect(await screen.findByText(/customer account creation cannot accept a value PostgreSQL will reject/i)).toBeVisible();
   expect(screen.getByText(/terms are prospective, versioned definitions with an explicit number of days/i)).toBeVisible();
-  expect(screen.getAllByText('Launch hold')).toHaveLength(2);
+  const accountTypeRow = screen.getByText('Business Account Types').closest('li');
+  const paymentTermRow = screen.getByText('Business Payment Terms').closest('li');
+  expect(accountTypeRow).not.toBeNull();
+  expect(paymentTermRow).not.toBeNull();
+  expect(within(accountTypeRow!).getByText('Launch hold')).toBeVisible();
+  expect(within(paymentTermRow!).getByText('Launch hold')).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Edit setting business_account_types' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Edit setting business_payment_terms' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Reset business_account_types to default' })).not.toBeInTheDocument();
