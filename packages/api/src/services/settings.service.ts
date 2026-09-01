@@ -271,6 +271,8 @@ const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   'feature_flag.promo_redemption_enabled': 'Promo redemption is deferred until its complete customer and settlement pipeline is launched.',
   'feature_flag.ab_testing_enabled': 'A/B assignment is deferred until exposure assignment and reporting are launched.',
   'feature_flag.business_contract_booking_enabled': 'Contract booking is held under E56 until provider funding, cancellation, dispute, and production-history reconciliation are approved and verified end to end.',
+  business_account_types: 'Business account types are constrained by the current database schema. Editing this list is blocked under E58 so customer account creation cannot accept a value PostgreSQL will reject.',
+  business_payment_terms: 'Business payment terms are constrained by the database and due-date calculation code. Editing this list is blocked under E58 until terms are prospective, versioned definitions with an explicit number of days.',
   recurring_auto_charge_max_consecutive_failures: 'Recurring bookings remain manual-payment-only while escalation E20 is open.',
   cancel_refund_over_24h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
   cancel_refund_2_to_24h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',

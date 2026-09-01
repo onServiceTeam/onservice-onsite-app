@@ -79,10 +79,10 @@ router.post(
         throw createAppError('Missing required fields.', 400);
       }
 
-      // MED-N165 fix — pull both whitelists from platform_settings so
-      // admin can grow the lists without a code deploy. Hardcoded
-      // fallbacks preserve current behaviour if the settings table
-      // hasn't been migrated yet (mig 104).
+      // MED-N165 reads the configured registries. E58 now keeps both rows
+      // read-only because the database and due-date logic still enforce the
+      // current literals; the fallbacks preserve availability during a
+      // settings outage without pretending a new value is deploy-free.
       let validTypes: string[];
       try {
         validTypes = await settingsService.getSettingArray('business_account_types');
