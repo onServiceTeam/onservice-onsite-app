@@ -371,6 +371,8 @@ export default function BookingDetailPage(): React.ReactElement {
 
       <BookingActions
         bookingId={bookingId}
+        customerId={detail.customer?.id ?? null}
+        customerName={detail.customer?.fullName ?? null}
         currentProviderId={detail.provider?.id ?? null}
         bookingStatus={detail.status}
         escrowStatus={detail.escrowStatus}
@@ -491,11 +493,15 @@ function createRefundIdempotencyKey(): string {
 
 export function BookingActions({
   bookingId,
+  customerId = null,
+  customerName = null,
   currentProviderId = null,
   bookingStatus = 'requested',
   escrowStatus = 'held',
 }: {
   bookingId: string;
+  customerId?: string | null;
+  customerName?: string | null;
   currentProviderId?: string | null;
   bookingStatus?: string;
   escrowStatus?: string | null;
@@ -715,6 +721,16 @@ export function BookingActions({
     return Number.isFinite(n) ? n : undefined;
   })();
   const cancelInputsOk = reasonOk && cancelHours !== undefined;
+  const createSupportCasePath = (() => {
+    const params = new URLSearchParams({ bookingId });
+    if (customerId) {
+      params.set('userId', customerId);
+      params.set('userName', customerName?.trim() || 'Customer account');
+      params.set('userRole', 'customer');
+      params.set('new', '1');
+    }
+    return `/support-tickets?${params.toString()}`;
+  })();
 
   return (
     <Card className="p-5">
@@ -835,7 +851,10 @@ export function BookingActions({
                 {refundCasesQuery.isError && <p role="alert" className="mt-1 text-xs text-red-600">Support cases could not be loaded. Refund is blocked.</p>}
                 {!refundCasesQuery.isLoading && !refundCasesQuery.isError && (refundCasesQuery.data ?? []).length === 0 && (
                   <p className="mt-1 text-xs text-amber-800">
-                    No active case is linked. <Link to={`/support-tickets?bookingId=${encodeURIComponent(bookingId)}&new=1`} className="font-semibold underline">Create a support case first</Link>.
+                    No active case is linked.{' '}
+                    <Link to={createSupportCasePath} className="font-semibold underline">
+                      {customerId ? 'Create a customer support case first' : 'Open the support queue'}
+                    </Link>.
                   </p>
                 )}
               </div>

@@ -60,9 +60,23 @@ export interface CreateTicketPayload {
   bookingId?: string;
 }
 
-export async function listMyTickets(): Promise<SupportTicket[]> {
-  const res = await api.get<ApiResponse<SupportTicket[]>>('/api/v1/support-tickets/mine');
-  return res.data.data;
+export interface SupportTicketPage {
+  tickets: SupportTicket[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export async function listMyTickets(page = 1, limit = 20): Promise<SupportTicketPage> {
+  const res = await api.get<ApiResponse<SupportTicket[]> & {
+    meta?: { total?: number; page?: number; limit?: number };
+  }>('/api/v1/support-tickets/mine', { params: { page, limit } });
+  return {
+    tickets: res.data.data,
+    total: res.data.meta?.total ?? res.data.data.length,
+    page: res.data.meta?.page ?? page,
+    limit: res.data.meta?.limit ?? limit,
+  };
 }
 
 export async function getMyTicket(id: string): Promise<SupportTicketDetail> {

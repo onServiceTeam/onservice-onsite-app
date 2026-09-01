@@ -22,7 +22,12 @@ export function resolveNotificationRoute(
   const recurringBookingId = stringValue(data, 'recurringBookingId');
   const providerId = stringValue(data, 'providerId');
   const disputeId = stringValue(data, 'disputeId');
+  const ticketId = stringValue(data, 'ticketId');
   const isChat = ['new_message', 'chat_started', 'chat_last_message'].includes(type);
+
+  if (type === 'support_update' && ticketId) {
+    return buildRoute(Routes.SUPPORT.THREAD, { id: ticketId });
+  }
 
   if (role === 'customer') {
     if (disputeId) return buildRoute(Routes.CUSTOMER.DISPUTE_DETAIL, { id: disputeId });

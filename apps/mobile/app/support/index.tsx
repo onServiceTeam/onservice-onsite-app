@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft, ChevronRight, MessageSquare, Plus } from '@/components/icons';
 import { EmptyState } from '@/components/ui';
@@ -45,13 +45,18 @@ export default function SupportInboxScreen(): React.ReactElement {
   const { isPhone } = useResponsive();
   const viewerRole = useAuthStore((state) => state.user?.role);
 
-  const ticketsQuery = useQuery({
+  const ticketsQuery = useInfiniteQuery({
     queryKey: ['support', 'mine'],
-    queryFn: listMyTickets,
+    queryFn: ({ pageParam }) => listMyTickets(pageParam, 20),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, pages) => {
+      const loaded = pages.reduce((sum, current) => sum + current.tickets.length, 0);
+      return loaded < lastPage.total ? lastPage.page + 1 : undefined;
+    },
     staleTime: 30_000,
   });
 
-  const tickets = ticketsQuery.data ?? [];
+  const tickets = ticketsQuery.data?.pages.flatMap((page) => page.tickets) ?? [];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -136,6 +141,22 @@ export default function SupportInboxScreen(): React.ReactElement {
               </TouchableOpacity>
             );
           })}
+          {ticketsQuery.hasNextPage ? (
+            <TouchableOpacity
+              style={styles.loadMoreButton}
+              onPress={() => void ticketsQuery.fetchNextPage()}
+              disabled={ticketsQuery.isFetchingNextPage}
+              accessibilityRole="button"
+              accessibilityLabel="Load earlier support requests"
+              accessibilityState={{ disabled: ticketsQuery.isFetchingNextPage, busy: ticketsQuery.isFetchingNextPage }}
+            >
+              {ticketsQuery.isFetchingNextPage ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={styles.loadMoreText}>Load earlier requests</Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
           </View>
         )}
       </ScrollView>
@@ -194,4 +215,17 @@ const styles = StyleSheet.create({
   ticketSubject: { ...typography.body, fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
   ticketBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   ticketMeta: { ...typography.caption, color: colors.textSecondary, flex: 1, marginRight: spacing.sm },
+  loadMoreButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.surface,
+    marginHorizontal: spacing.xs,
+    marginTop: spacing.sm,
+    marginBottom: spacing.base,
+  },
+  loadMoreText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
 });

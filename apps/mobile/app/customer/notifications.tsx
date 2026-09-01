@@ -57,6 +57,7 @@ const NOTIFICATION_ICONS: Record<string, IconComponent> = {
   new_message: MessageSquare,
   chat_started: MessageSquare,
   chat_last_message: MessageSquare,
+  support_update: MessageSquare,
   // Cancellation lifecycle from notifyBookingStatusChange's
   // statusToType map. Pre-fix all three rendered with the Bell
   // fallback even though we have a proper Ban icon for cancellation.

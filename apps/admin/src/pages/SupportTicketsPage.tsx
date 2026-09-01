@@ -556,10 +556,10 @@ export default function SupportTicketsPage(): React.ReactElement {
       render: (r) => <span className="text-center">{r.message_count ?? 0}</span>,
     },
     {
-      key: 'created',
-      header: 'Created',
+      key: 'updated',
+      header: 'Last activity',
       render: (r) =>
-        new Date(r.created_at).toLocaleString('en-PH', {
+        new Date(r.updated_at).toLocaleString('en-PH', {
           timeZone: 'Asia/Manila',
           month: 'short',
           day: 'numeric',

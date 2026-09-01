@@ -2,6 +2,7 @@ import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
 import { maskPhilippinePhone, maskEmail, type ActorRole } from '../utils/pii-mask';
+import * as notificationService from './notification.service';
 
 // MED-N137 fix — role-aware PII masking for support tickets returned
 // to admin queries. Pre-fix every admin role saw raw user_phone +
@@ -267,6 +268,7 @@ export async function listTickets(
      ${where}
      ORDER BY
        CASE st.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
+       st.updated_at DESC,
        st.created_at DESC
      LIMIT $${idx} OFFSET $${idx + 1}`,
     [...values, limit, offset],
@@ -593,12 +595,15 @@ export async function addMessage(params: {
   // after the INSERT committed, the ticket's updated_at was stale and
   // affected sort order in conversation listings + "new message"
   // notification ordering.
-  return db.transaction(async (client) => {
+  const outcome = await db.transaction(async (client) => {
     const ticketResult = await client.query<{
       status: string;
       assigned_agent_id: string | null;
+      user_id: string;
+      ticket_number: string;
+      booking_id: string | null;
     }>(
-      `SELECT status, assigned_agent_id
+      `SELECT status, assigned_agent_id, user_id, ticket_number, booking_id
          FROM support_tickets
         WHERE id = $1
         FOR UPDATE`,
@@ -663,8 +668,40 @@ export async function addMessage(params: {
     }
     const msg = result.rows[0];
     if (!msg) throw new Error('Failed to add message.');
-    return msg;
+    return {
+      message: msg,
+      participantNotification: !isUserReply && !params.isInternalNote && params.senderId !== ticket.user_id
+        ? {
+            userId: ticket.user_id,
+            ticketNumber: ticket.ticket_number,
+            bookingId: ticket.booking_id,
+          }
+        : null,
+    };
   });
+
+  if (outcome.participantNotification) {
+    const { userId, ticketNumber, bookingId } = outcome.participantNotification;
+    try {
+      await notificationService.createPushNotification({
+        userId,
+        type: 'support_update',
+        title: `Support update: ${ticketNumber}`,
+        body: 'A support agent replied to your request. Open the case to read the update.',
+        data: { ticketId: params.ticketId, ticketNumber, ...(bookingId ? { bookingId } : {}) },
+      });
+    } catch (error) {
+      // The message is already durable. Keep the reply successful and leave an
+      // observable operations signal if the separate notification write fails.
+      logger.warn('Support reply notification failed after durable message commit', {
+        ticketId: params.ticketId,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return outcome.message;
 }
 
 export async function updateTicketStatus(

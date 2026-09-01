@@ -66,7 +66,7 @@ export type NotificationType =
   // Provider credential review in Provider 360.
   | 'provider_certification_verified' | 'provider_certification_unverified'
   // Chat / messaging
-  | 'new_message' | 'chat_started' | 'chat_last_message'
+  | 'new_message' | 'chat_started' | 'chat_last_message' | 'support_update'
   // Quotes
   | 'new_quote' | 'quote_accepted' | 'quote_expired'
   // D27 Phase 1 — provider is notified when a custom-quote job request lands in
@@ -474,7 +474,7 @@ function pushPreferenceForType(
   data?: Record<string, unknown>,
 ): PushPreferenceKey {
   if (!type) return 'system';
-  if (['new_message', 'chat_started', 'chat_last_message'].includes(type)) return 'messages';
+  if (['new_message', 'chat_started', 'chat_last_message', 'support_update'].includes(type)) return 'messages';
   if (['refund_processed', 'payment_released', 'payout', 'recurring_auto_charge_succeeded', 'recurring_auto_charge_failed', 'recurring_auto_charge_suspended'].includes(type)) return 'paymentAlerts';
   if (['provider_assigned', 'provider_en_route', 'provider_arrived'].includes(type)) return 'providerActivity';
   if (['provider_reminder', 'nbi_expiring', 'change_order_expired'].includes(type)) return 'reminders';
