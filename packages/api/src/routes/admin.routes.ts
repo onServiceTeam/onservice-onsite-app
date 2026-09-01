@@ -8,7 +8,18 @@ import {
   suspendProviderSchema,
   changeProviderTierSchema,
 } from '../validators/admin.validators';
-import { createPricingRuleSchema, updatePricingRuleSchema } from '../validators/admin-pricing-rules.validators';
+import {
+  createPricingRuleSchema,
+  pricingRuleIdParamsSchema,
+  pricingRuleListQuerySchema,
+  previewPricingRuleSchema,
+  publishPricingRuleSchema,
+  retirePricingRuleSchema,
+  updatePricingRuleSchema,
+  type CreatePricingRuleInput,
+  type PreviewPricingRuleInput,
+  type UpdatePricingRuleInput,
+} from '../validators/admin-pricing-rules.validators';
 import {
   createServiceAreaSchema,
   serviceAreaIdParamsSchema,
@@ -28,6 +39,7 @@ import * as invoiceService from '../services/invoice.service';
 import * as businessService from '../services/business.service';
 import * as serviceAreaService from '../services/service-area.service';
 import * as pricingService from '../services/pricing.service';
+import * as pricingPublicationService from '../services/pricing-publication.service';
 import * as slotWaitlistService from '../services/slot-waitlist.service';
 import * as dataManagementService from '../services/data-management.service';
 import * as securityService from '../services/security.service';
@@ -1414,21 +1426,23 @@ router.post(
   },
 );
 
-// --- Pricing Rules CRUD ---
+// --- Pricing-rule draft / preview / publish / retire workflow ---
 
 router.get(
   '/pricing-rules',
   authMiddleware,
+  validationMiddleware({ query: pricingRuleListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
+      const page = typeof req.query.page === 'number' ? req.query.page : 1;
+      const pageSize = typeof req.query.pageSize === 'number' ? req.query.pageSize : 20;
       const type = typeof req.query.type === 'string' ? req.query.type : undefined;
-      const isActiveParam = req.query.isActive;
-      const isActive = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : undefined;
+      const status = typeof req.query.status === 'string'
+        ? req.query.status as pricingService.PricingRulePublicationStatus
+        : undefined;
 
-      const result = await pricingService.listPricingRules({ type, isActive, page, pageSize });
+      const result = await pricingService.listPricingRules({ type, status, page, pageSize });
 
       res.json({
         success: true,
@@ -1444,6 +1458,7 @@ router.get(
 router.get(
   '/pricing-rules/:id',
   authMiddleware,
+  validationMiddleware({ params: pricingRuleIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -1456,37 +1471,17 @@ router.get(
   },
 );
 
-// Phase 14 Dispatch 05 — Bug 269.
-// Replaced manual validation with `validationMiddleware(createPricingRuleSchema)`.
-// The new Zod schema enforces `multiplier 1.0..5.0` AND
-// `platformSurgeShare 0..1` (the latter was previously unbounded — a
-// typo could make the platform retain 50× the surge or take a negative
-// split). `.strict()` rejects unknown keys.
 router.post(
   '/pricing-rules',
   authMiddleware,
-  validationMiddleware(createPricingRuleSchema),
+  validationMiddleware({ body: createPricingRuleSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const body = req.body as {
-        name: string;
-        type: 'rush' | 'holiday' | 'peak_hours';
-        multiplier: number;
-        rushHoursThreshold?: number;
-        holidayDate?: string;
-        peakStartTime?: string;
-        peakEndTime?: string;
-        peakDaysOfWeek?: number[];
-        categoryId?: string;
-        serviceAreaId?: string;
-        priority?: number;
-        platformSurgeShare?: number;
-        description?: string;
-      };
-
-      // MED-N110 fix — pass acting admin id so service writes audit row.
-      const rule = await pricingService.createPricingRule(body, req.user!.userId);
+      requireSuperAdmin(req);
+      const rule = await pricingPublicationService.createPricingRuleDraft(
+        req.body as CreatePricingRuleInput,
+        req.user!.userId,
+      );
 
       res.status(201).json({ success: true, data: pricingService.formatPricingRule(rule) });
     } catch (error) {
@@ -1498,13 +1493,16 @@ router.post(
 router.patch(
   '/pricing-rules/:id',
   authMiddleware,
-  validationMiddleware(updatePricingRuleSchema),
+  validationMiddleware({ params: pricingRuleIdParamsSchema, body: updatePricingRuleSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const id = req.params.id as string;
-      // MED-N111 fix — pass acting admin id so service writes audit row.
-      const rule = await pricingService.updatePricingRule(id, req.body, req.user!.userId);
+      const rule = await pricingPublicationService.updatePricingRuleDraft(
+        id,
+        req.body as UpdatePricingRuleInput,
+        req.user!.userId,
+      );
       res.json({ success: true, data: pricingService.formatPricingRule(rule) });
     } catch (error) {
       next(error);
@@ -1513,16 +1511,38 @@ router.patch(
 );
 
 router.post(
-  '/pricing-rules/:id/toggle',
+  '/pricing-rules/:id/preview',
   authMiddleware,
+  validationMiddleware({ params: pricingRuleIdParamsSchema, body: previewPricingRuleSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const id = req.params.id as string;
-      const { isActive } = req.body as { isActive: boolean };
-      if (typeof isActive !== 'boolean') throw createAppError('isActive must be a boolean.', 400);
-      // MED-N111 fix — pass acting admin id so service writes audit row.
-      const rule = await pricingService.togglePricingRule(id, isActive, req.user!.userId);
+      const preview = await pricingPublicationService.previewPricingRuleDraft(
+        id,
+        req.body as PreviewPricingRuleInput,
+        req.user!.userId,
+      );
+      res.json({ success: true, data: preview });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/pricing-rules/:id/publish',
+  authMiddleware,
+  validationMiddleware({ params: pricingRuleIdParamsSchema, body: publishPricingRuleSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const id = req.params.id as string;
+      const rule = await pricingPublicationService.publishPricingRuleDraft(
+        id,
+        req.body as { previewId: string; reason: string },
+        req.user!.userId,
+      );
       res.json({ success: true, data: pricingService.formatPricingRule(rule) });
     } catch (error) {
       next(error);
@@ -1530,16 +1550,20 @@ router.post(
   },
 );
 
-router.delete(
-  '/pricing-rules/:id',
+router.post(
+  '/pricing-rules/:id/retire',
   authMiddleware,
+  validationMiddleware({ params: pricingRuleIdParamsSchema, body: retirePricingRuleSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const id = req.params.id as string;
-      // MED-N111 fix — pass acting admin id so service writes audit row.
-      await pricingService.deletePricingRule(id, req.user!.userId);
-      res.json({ success: true, message: 'Pricing rule deleted.' });
+      const rule = await pricingPublicationService.retirePricingRule(
+        id,
+        req.body as { reason: string },
+        req.user!.userId,
+      );
+      res.json({ success: true, data: pricingService.formatPricingRule(rule) });
     } catch (error) {
       next(error);
     }

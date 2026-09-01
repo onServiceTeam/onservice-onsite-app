@@ -1,11 +1,10 @@
-import React, { useState, type FormEvent } from 'react';
-// Phase 14 remediation — audited (D14r-9 markers pass)
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useMemo, useState, type FormEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
+import { formatCurrency } from '@/lib/format';
 import {
   Badge,
-  Pagination,
   Button,
   Dialog,
   DialogContent,
@@ -13,18 +12,22 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Label,
   Input,
+  Label,
+  Pagination,
   Textarea,
 } from '@/components/ui';
 import { TrendingUp } from '@/components/icons';
+import { useAuthStore } from '@/stores/auth.store';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+type RuleType = 'rush' | 'holiday' | 'peak_hours';
+type PublicationStatus = 'draft' | 'published' | 'retired' | 'legacy_active' | 'legacy_inactive';
 
 interface PricingRule {
   id: string;
   name: string;
-  type: 'rush' | 'holiday' | 'peak_hours';
+  type: RuleType;
   multiplier: number;
   rushHoursThreshold: number | null;
   holidayDate: string | null;
@@ -34,706 +37,837 @@ interface PricingRule {
   categoryId: string | null;
   serviceAreaId: string | null;
   isActive: boolean;
+  publicationStatus: PublicationStatus;
   priority: number;
   platformSurgeShare: number;
   description: string;
   createdAt: string;
+  updatedAt: string;
+  publishReason: string | null;
+  publishedAt: string | null;
+  retireReason: string | null;
+  retiredAt: string | null;
 }
 
-interface PaginatedResult {
+interface Subcategory {
+  id: string;
+  name: string;
+  pricingType: string;
+  basePrice: number | null;
+  isActive: boolean;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  isActive?: boolean;
+  subcategories: Subcategory[];
+}
+
+interface ServiceArea {
+  id: string;
+  name: string;
+  city: string;
+  province: string;
+  status: string;
+}
+
+interface PaginatedResult<T> {
   success: boolean;
-  data: PricingRule[];
+  data: T[];
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
 }
 
-const TYPE_VARIANT: Record<string, 'warning' | 'danger' | 'info'> = {
-  rush: 'warning',
-  holiday: 'danger',
-  peak_hours: 'info',
+interface DraftForm {
+  name: string;
+  type: RuleType;
+  multiplier: string;
+  rushHoursThreshold: string;
+  holidayDate: string;
+  peakStartTime: string;
+  peakEndTime: string;
+  peakDaysOfWeek: number[];
+  categoryMode: 'global' | 'category';
+  categoryId: string;
+  areaMode: 'global' | 'service_area';
+  serviceAreaId: string;
+  priority: string;
+  platformSurgeShare: string;
+  description: string;
+  reason: string;
+}
+
+interface PreviewSampleForm {
+  subcategoryId: string;
+  serviceAreaId: string;
+  scheduledAt: string;
+}
+
+interface PreviewResult {
+  subcategory: { id: string; name: string; categoryId: string; categoryName: string };
+  serviceArea: { id: string; name: string; city: string; province: string };
+  scheduledAt: string;
+  basePrice: number;
+  surgeMultiplier: number;
+  surgeAmount: number;
+  finalPrice: number;
+  platformSurgeShare: number;
+  providerSurgeShare: number;
+  winningRule: { id: string; name: string; type: string; multiplier: number; isDraft: boolean } | null;
+  matchingRules: Array<{
+    id: string;
+    name: string;
+    type: string;
+    multiplier: number;
+    priority: number;
+    isDraft: boolean;
+  }>;
+}
+
+interface PreviewReceipt {
+  id: string;
+  ruleId: string;
+  results: PreviewResult[];
+  expiresAt: string;
+  createdAt: string;
+}
+
+const EMPTY_FORM: DraftForm = {
+  name: '',
+  type: 'rush',
+  multiplier: '1.50',
+  rushHoursThreshold: '3',
+  holidayDate: '',
+  peakStartTime: '18:00',
+  peakEndTime: '21:00',
+  peakDaysOfWeek: [],
+  categoryMode: 'category',
+  categoryId: '',
+  areaMode: 'service_area',
+  serviceAreaId: '',
+  priority: '0',
+  platformSurgeShare: '0.50',
+  description: '',
+  reason: '',
 };
 
-const TYPE_LABELS: Record<string, string> = {
+const TYPE_LABELS: Record<RuleType, string> = {
   rush: 'Rush',
   holiday: 'Holiday',
-  peak_hours: 'Peak Hours',
+  peak_hours: 'Peak hours',
 };
 
-function formatMultiplier(m: number): string {
-  return `×${m.toFixed(2)}`;
-}
-
-function formatTimeRange(start: string | null, end: string | null): string {
-  if (!start || !end) return '—';
-  return `${start} – ${end}`;
-}
-
-function formatDays(days: number[] | null): string {
-  if (!days || days.length === 0) return 'All days';
-  return days.map((d) => DAY_NAMES[d] ?? d).join(', ');
-}
-
-function formatDateOnly(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(`${iso}T00:00:00+08:00`).toLocaleDateString('en-PH', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-}
-
-const EMPTY_FORM = {
-  name: '',
-  type: 'rush' as 'rush' | 'holiday' | 'peak_hours',
-  multiplier: '1.50',
-  rushHoursThreshold: '',
-  holidayDate: '',
-  peakStartTime: '',
-  peakEndTime: '',
-  peakDaysOfWeek: [] as number[],
-  priority: '0',
-  platformSurgeShare: '0.5',
-  description: '',
+const STATUS_LABELS: Record<PublicationStatus, string> = {
+  draft: 'Draft',
+  published: 'Published',
+  retired: 'Retired',
+  legacy_active: 'Legacy active',
+  legacy_inactive: 'Legacy inactive',
 };
+
+const STATUS_VARIANTS: Record<PublicationStatus, 'success' | 'warning' | 'danger' | 'info' | 'default'> = {
+  draft: 'warning',
+  published: 'success',
+  retired: 'default',
+  legacy_active: 'danger',
+  legacy_inactive: 'default',
+};
+
+function dateTimeLocalValue(date: Date): string {
+  const adjusted = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return adjusted.toISOString().slice(0, 16);
+}
+
+function defaultPreviewTime(rule: PricingRule): string {
+  if (rule.type === 'holiday' && rule.holidayDate) {
+    return `${rule.holidayDate}T12:00`;
+  }
+  const date = new Date();
+  if (rule.type === 'rush') {
+    date.setMinutes(date.getMinutes() + Math.max(30, Math.floor((rule.rushHoursThreshold ?? 3) * 30)));
+  } else {
+    date.setDate(date.getDate() + 1);
+    const [hour, minute] = (rule.peakStartTime ?? '18:00').split(':').map(Number);
+    date.setHours(hour ?? 18, minute ?? 0, 0, 0);
+  }
+  return dateTimeLocalValue(date);
+}
+
+function scheduleLabel(rule: PricingRule): string {
+  if (rule.type === 'rush') return `Within ${rule.rushHoursThreshold ?? '?'} hours`;
+  if (rule.type === 'holiday') return rule.holidayDate ?? 'Date missing';
+  const days = !rule.peakDaysOfWeek?.length
+    ? 'all days'
+    : rule.peakDaysOfWeek.map((day) => DAY_NAMES[day] ?? String(day)).join(', ');
+  return `${rule.peakStartTime ?? '?'}–${rule.peakEndTime ?? '?'} · ${days}`;
+}
+
+function lifecycleEvidence(rule: PricingRule): string {
+  if (rule.publicationStatus === 'published') {
+    return `${rule.publishedAt ? new Date(rule.publishedAt).toLocaleString('en-PH') : 'Publication time unavailable'}${rule.publishReason ? ` · ${rule.publishReason}` : ''}`;
+  }
+  if (rule.publicationStatus === 'retired') {
+    return `${rule.retiredAt ? new Date(rule.retiredAt).toLocaleString('en-PH') : 'Retirement time unavailable'}${rule.retireReason ? ` · ${rule.retireReason}` : ''}`;
+  }
+  if (rule.publicationStatus.startsWith('legacy_')) {
+    return 'Pre-workflow record. Production inventory review required.';
+  }
+  return `Last draft change ${new Date(rule.updatedAt).toLocaleString('en-PH')}`;
+}
+
+function parseBoundedNumber(raw: string, label: string, min: number, max: number): number {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < min || value > max) {
+    throw new Error(`${label} must be between ${min} and ${max}.`);
+  }
+  return value;
+}
+
+function ruleToForm(rule: PricingRule): DraftForm {
+  return {
+    name: rule.name,
+    type: rule.type,
+    multiplier: String(rule.multiplier),
+    rushHoursThreshold: rule.rushHoursThreshold === null ? '' : String(rule.rushHoursThreshold),
+    holidayDate: rule.holidayDate ?? '',
+    peakStartTime: rule.peakStartTime?.slice(0, 5) ?? '',
+    peakEndTime: rule.peakEndTime?.slice(0, 5) ?? '',
+    peakDaysOfWeek: rule.peakDaysOfWeek ?? [],
+    categoryMode: rule.categoryId ? 'category' : 'global',
+    categoryId: rule.categoryId ?? '',
+    areaMode: rule.serviceAreaId ? 'service_area' : 'global',
+    serviceAreaId: rule.serviceAreaId ?? '',
+    priority: String(rule.priority),
+    platformSurgeShare: String(rule.platformSurgeShare),
+    description: rule.description,
+    reason: '',
+  };
+}
 
 export default function PricingRulesPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState('');
-  const [activeFilter, setActiveFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [editing, setEditing] = useState<PricingRule | 'new' | null>(null);
+  const [form, setForm] = useState<DraftForm>({ ...EMPTY_FORM });
   const [actionError, setActionError] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
-  const [editing, setEditing] = useState<PricingRule | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<PricingRule | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [previewTarget, setPreviewTarget] = useState<PricingRule | null>(null);
+  const [previewSamples, setPreviewSamples] = useState<PreviewSampleForm[]>([]);
+  const [previewReceipt, setPreviewReceipt] = useState<PreviewReceipt | null>(null);
+  const [publishReason, setPublishReason] = useState('');
+  const [retireTarget, setRetireTarget] = useState<PricingRule | null>(null);
+  const [retireReason, setRetireReason] = useState('');
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['adminPricingRules', page, typeFilter, activeFilter],
+  const rulesQuery = useQuery({
+    queryKey: ['adminPricingRules', page, typeFilter, statusFilter],
     queryFn: async () => {
-      const params: Record<string, string | number> = {
-        page,
-        pageSize: adminConfig.defaultPageSize,
-      };
+      const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
       if (typeFilter) params.type = typeFilter;
-      if (activeFilter) params.isActive = activeFilter;
-      const res = await api.get<PaginatedResult>('/api/v1/admin/pricing-rules', { params });
-      return res.data;
+      if (statusFilter) params.status = statusFilter;
+      const response = await api.get<PaginatedResult<PricingRule>>('/api/v1/admin/pricing-rules', { params });
+      return response.data;
     },
   });
 
-  const createMutation = useMutation({
+  const catalogQuery = useQuery({
+    queryKey: ['adminCatalog', 'pricingRuleScopes'],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: Category[] }>('/api/v1/catalog/admin/full');
+      return response.data.data;
+    },
+    staleTime: 60_000,
+  });
+
+  const areasQuery = useQuery({
+    queryKey: ['adminServiceAreas', 'pricingRuleScopes'],
+    queryFn: async () => {
+      const response = await api.get<PaginatedResult<ServiceArea>>('/api/v1/admin/service-areas', {
+        params: { page: 1, pageSize: 100 },
+      });
+      return response.data.data;
+    },
+    staleTime: 60_000,
+  });
+
+  const categories = catalogQuery.data ?? [];
+  const areas = areasQuery.data ?? [];
+  const categoryById = useMemo(() => new Map(categories.map((item) => [item.id, item])), [categories]);
+  const areaById = useMemo(() => new Map(areas.map((item) => [item.id, item])), [areas]);
+  const fixedSubcategories = useMemo(() => categories.flatMap((category) =>
+    category.subcategories
+      .filter((subcategory) => subcategory.isActive && subcategory.pricingType === 'fixed' && subcategory.basePrice !== null)
+      .map((subcategory) => ({ ...subcategory, categoryId: category.id, categoryName: category.name }))), [categories]);
+
+  const invalidateRules = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ['adminPricingRules'] });
+  };
+
+  const buildDraftBody = (): Record<string, unknown> => {
+    if (!form.name.trim()) throw new Error('Rule name is required.');
+    if (form.reason.trim().length < 10) throw new Error('Explain this draft change in at least 10 characters.');
+    if (form.categoryMode === 'category' && !form.categoryId) throw new Error('Choose a category or explicitly use all categories.');
+    if (form.areaMode === 'service_area' && !form.serviceAreaId) throw new Error('Choose a service area or explicitly use all areas.');
+    const multiplier = parseBoundedNumber(form.multiplier, 'Multiplier', 1, 5);
+    const platformSurgeShare = parseBoundedNumber(form.platformSurgeShare, 'Platform surge share', 0, 1);
+    const priority = parseBoundedNumber(form.priority, 'Priority', 0, 1000);
+    const body: Record<string, unknown> = {
+      name: form.name.trim(),
+      multiplier,
+      categoryScope: form.categoryMode === 'global'
+        ? { mode: 'global' }
+        : { mode: 'category', categoryId: form.categoryId },
+      serviceAreaScope: form.areaMode === 'global'
+        ? { mode: 'global' }
+        : { mode: 'service_area', serviceAreaId: form.serviceAreaId },
+      priority,
+      platformSurgeShare,
+      description: form.description.trim(),
+      reason: form.reason.trim(),
+    };
+    if (form.type === 'rush') {
+      body.rushHoursThreshold = parseBoundedNumber(form.rushHoursThreshold, 'Rush threshold', 1, 24);
+    } else if (form.type === 'holiday') {
+      if (!form.holidayDate) throw new Error('Choose the holiday date.');
+      body.holidayDate = form.holidayDate;
+    } else {
+      if (!form.peakStartTime || !form.peakEndTime) throw new Error('Choose peak start and end times.');
+      body.peakStartTime = form.peakStartTime;
+      body.peakEndTime = form.peakEndTime;
+      body.peakDaysOfWeek = form.peakDaysOfWeek;
+    }
+    return body;
+  };
+
+  const saveMutation = useMutation({
     mutationFn: async () => {
-      const multiplier = Number(form.multiplier);
-      if (!form.name.trim()) throw new Error('Name is required.');
-      if (isNaN(multiplier) || multiplier < 1 || multiplier > 5) {
-        throw new Error('Multiplier must be between 1.0 and 5.0.');
+      const body = buildDraftBody();
+      if (editing === 'new') {
+        await api.post('/api/v1/admin/pricing-rules', { ...body, type: form.type });
+      } else if (editing) {
+        await api.patch(`/api/v1/admin/pricing-rules/${editing.id}`, {
+          ...body,
+          expectedUpdatedAt: editing.updatedAt,
+        });
       }
-
-      const body: Record<string, unknown> = {
-        name: form.name.trim(),
-        type: form.type,
-        multiplier,
-        priority: Number(form.priority) || 0,
-        platformSurgeShare: Number(form.platformSurgeShare) || 0.5,
-        description: form.description.trim(),
-      };
-
-      if (form.type === 'rush') {
-        if (!form.rushHoursThreshold) throw new Error('Rush hours threshold is required.');
-        body.rushHoursThreshold = Number(form.rushHoursThreshold);
-      } else if (form.type === 'holiday') {
-        if (!form.holidayDate) throw new Error('Holiday date is required.');
-        body.holidayDate = form.holidayDate;
-      } else if (form.type === 'peak_hours') {
-        if (!form.peakStartTime || !form.peakEndTime) {
-          throw new Error('Peak start and end time are required.');
-        }
-        body.peakStartTime = form.peakStartTime;
-        body.peakEndTime = form.peakEndTime;
-        if (form.peakDaysOfWeek.length > 0) body.peakDaysOfWeek = form.peakDaysOfWeek;
-      }
-
-      await api.post('/api/v1/admin/pricing-rules', body);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['adminPricingRules'] });
-      setShowCreate(false);
-      setForm(EMPTY_FORM);
-      setActionError('');
-    },
-    onError: (e) => { setActionError(getErrorMessage(e)); },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
-      await api.patch(`/api/v1/admin/pricing-rules/${id}`, updates);
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['adminPricingRules'] });
+      invalidateRules();
       setEditing(null);
-      setForm(EMPTY_FORM);
+      setForm({ ...EMPTY_FORM });
       setActionError('');
     },
-    onError: (e) => { setActionError(getErrorMessage(e)); },
+    onError: (error) => setActionError(getErrorMessage(error)),
   });
 
-  const toggleMutation = useMutation({
-    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      await api.post(`/api/v1/admin/pricing-rules/${id}/toggle`, { isActive });
+  const previewMutation = useMutation({
+    mutationFn: async () => {
+      if (!previewTarget) throw new Error('Choose a draft to preview.');
+      if (previewSamples.length === 0) throw new Error('Add at least one representative sample.');
+      const samples = previewSamples.map((sample) => {
+        if (!sample.subcategoryId || !sample.serviceAreaId || !sample.scheduledAt) {
+          throw new Error('Every preview sample needs a service, area, and scheduled time.');
+        }
+        return {
+          subcategoryId: sample.subcategoryId,
+          serviceAreaId: sample.serviceAreaId,
+          scheduledAt: new Date(sample.scheduledAt).toISOString(),
+        };
+      });
+      const response = await api.post<{ success: boolean; data: PreviewReceipt }>(
+        `/api/v1/admin/pricing-rules/${previewTarget.id}/preview`,
+        { samples },
+      );
+      return response.data.data;
+    },
+    onSuccess: (receipt) => {
+      setPreviewReceipt(receipt);
+      setActionError('');
+    },
+    onError: (error) => setActionError(getErrorMessage(error)),
+  });
+
+  const publishMutation = useMutation({
+    mutationFn: async () => {
+      if (!previewTarget || !previewReceipt) throw new Error('Run a current preview before publishing.');
+      if (publishReason.trim().length < 10) throw new Error('Explain the publication decision in at least 10 characters.');
+      await api.post(`/api/v1/admin/pricing-rules/${previewTarget.id}/publish`, {
+        previewId: previewReceipt.id,
+        reason: publishReason.trim(),
+      });
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['adminPricingRules'] });
-      setActionError('');
+      invalidateRules();
+      closePreview();
     },
-    onError: (e) => { setActionError(getErrorMessage(e)); },
+    onError: (error) => setActionError(getErrorMessage(error)),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await api.delete(`/api/v1/admin/pricing-rules/${id}`);
+  const retireMutation = useMutation({
+    mutationFn: async () => {
+      if (!retireTarget) throw new Error('Choose a pricing rule.');
+      if (retireReason.trim().length < 10) throw new Error('Explain the retirement decision in at least 10 characters.');
+      await api.post(`/api/v1/admin/pricing-rules/${retireTarget.id}/retire`, {
+        reason: retireReason.trim(),
+      });
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['adminPricingRules'] });
+      invalidateRules();
+      setRetireTarget(null);
+      setRetireReason('');
       setActionError('');
     },
-    onError: (e) => { setActionError(getErrorMessage(e)); },
+    onError: (error) => setActionError(getErrorMessage(error)),
   });
 
-  const openCreate = (): void => {
-    setEditing(null);
-    setForm(EMPTY_FORM);
-    setShowCreate(true);
+  const closePreview = (): void => {
+    setPreviewTarget(null);
+    setPreviewSamples([]);
+    setPreviewReceipt(null);
+    setPublishReason('');
     setActionError('');
   };
 
-  const validateForm = (): string | null => {
-    const multiplier = Number(form.multiplier);
-    const priority = Number(form.priority);
-    const platformSurgeShare = Number(form.platformSurgeShare);
-
-    if (!form.name.trim()) return 'Rule name is required.';
-    if (!Number.isFinite(multiplier) || multiplier < 1 || multiplier > 5) {
-      return 'Multiplier must be between 1.0 and 5.0.';
-    }
-    if (!Number.isFinite(priority) || priority < 0 || priority > 100) {
-      return 'Priority must be between 0 and 100.';
-    }
-    if (!Number.isFinite(platformSurgeShare) || platformSurgeShare < 0 || platformSurgeShare > 1) {
-      return 'Platform surge share must be between 0 and 1.';
-    }
-
-    if (form.type === 'rush') {
-      const rushHoursThreshold = Number(form.rushHoursThreshold);
-      // Must match the server validator (admin-pricing-rules.validators.ts: max 24).
-      if (!Number.isFinite(rushHoursThreshold) || rushHoursThreshold < 1 || rushHoursThreshold > 24) {
-        return 'Rush threshold must be between 1 and 24 hours.';
-      }
-    }
-    if (form.type === 'holiday' && !form.holidayDate) {
-      return 'Holiday date is required.';
-    }
-    if (form.type === 'peak_hours') {
-      if (!form.peakStartTime || !form.peakEndTime) return 'Peak start and end time are required.';
-      if (form.peakStartTime >= form.peakEndTime) return 'Peak start time must be before end time.';
-    }
-
-    return null;
+  const openPreview = (rule: PricingRule): void => {
+    const eligibleSubcategory = fixedSubcategories.find((item) => !rule.categoryId || item.categoryId === rule.categoryId);
+    const eligibleArea = rule.serviceAreaId
+      ? areas.find((area) => area.id === rule.serviceAreaId)
+      : areas.find((area) => area.status !== 'retired');
+    setPreviewTarget(rule);
+    setPreviewSamples([{
+      subcategoryId: eligibleSubcategory?.id ?? '',
+      serviceAreaId: eligibleArea?.id ?? '',
+      scheduledAt: defaultPreviewTime(rule),
+    }]);
+    setPreviewReceipt(null);
+    setPublishReason('');
+    setActionError('');
   };
 
-  const openEdit = (rule: PricingRule): void => {
-    setShowCreate(false);
-    setEditing(rule);
+  const setSample = (index: number, patch: Partial<PreviewSampleForm>): void => {
+    setPreviewSamples((samples) => samples.map((sample, sampleIndex) =>
+      sampleIndex === index ? { ...sample, ...patch } : sample));
+    setPreviewReceipt(null);
+  };
+
+  const toggleDay = (day: number): void => {
+    setForm((current) => ({
+      ...current,
+      peakDaysOfWeek: current.peakDaysOfWeek.includes(day)
+        ? current.peakDaysOfWeek.filter((value) => value !== day)
+        : [...current.peakDaysOfWeek, day].sort(),
+    }));
+  };
+
+  const openCreate = (): void => {
+    setEditing('new');
     setForm({
-      name: rule.name,
-      type: rule.type,
-      multiplier: String(rule.multiplier),
-      rushHoursThreshold: rule.rushHoursThreshold != null ? String(rule.rushHoursThreshold) : '',
-      holidayDate: rule.holidayDate ?? '',
-      peakStartTime: rule.peakStartTime ?? '',
-      peakEndTime: rule.peakEndTime ?? '',
-      peakDaysOfWeek: rule.peakDaysOfWeek ?? [],
-      priority: String(rule.priority),
-      platformSurgeShare: String(rule.platformSurgeShare),
-      description: rule.description,
+      ...EMPTY_FORM,
+      categoryId: categories[0]?.id ?? '',
+      serviceAreaId: areas.find((area) => area.status !== 'retired')?.id ?? '',
     });
     setActionError('');
   };
 
-  const handleSubmit = (e: FormEvent): void => {
-    e.preventDefault();
-    const validationError = validateForm();
-    if (validationError) {
-      setActionError(validationError);
-      return;
-    }
+  const submitDraft = (event: FormEvent): void => {
+    event.preventDefault();
     setActionError('');
-    if (editing) {
-      updateMutation.mutate({
-        id: editing.id,
-        updates: {
-          name: form.name.trim(),
-          multiplier: Number(form.multiplier),
-          rushHoursThreshold: form.rushHoursThreshold ? Number(form.rushHoursThreshold) : undefined,
-          holidayDate: form.holidayDate || undefined,
-          peakStartTime: form.peakStartTime || undefined,
-          peakEndTime: form.peakEndTime || undefined,
-          peakDaysOfWeek: form.peakDaysOfWeek.length > 0 ? form.peakDaysOfWeek : undefined,
-          priority: Number(form.priority),
-          platformSurgeShare: Number(form.platformSurgeShare),
-          description: form.description.trim(),
-        },
-      });
-    } else {
-      createMutation.mutate();
-    }
+    saveMutation.mutate();
   };
 
-  const toggleDay = (day: number): void => {
-    setForm((prev) => ({
-      ...prev,
-      peakDaysOfWeek: prev.peakDaysOfWeek.includes(day)
-        ? prev.peakDaysOfWeek.filter((d) => d !== day)
-        : [...prev.peakDaysOfWeek, day],
-    }));
+  const rules = rulesQuery.data?.data ?? [];
+  const isBusy = saveMutation.isPending || previewMutation.isPending || publishMutation.isPending || retireMutation.isPending;
+  const eligiblePreviewSubcategories = fixedSubcategories.filter((item) =>
+    !previewTarget?.categoryId || item.categoryId === previewTarget.categoryId);
+  const eligiblePreviewAreas = areas.filter((area) =>
+    area.status !== 'retired' && (!previewTarget?.serviceAreaId || area.id === previewTarget.serviceAreaId));
+
+  const scopeLabel = (rule: PricingRule): string => {
+    const category = rule.categoryId ? categoryById.get(rule.categoryId)?.name ?? 'Unknown category' : 'All categories';
+    const area = rule.serviceAreaId ? areaById.get(rule.serviceAreaId)?.name ?? 'Unknown area' : 'All service areas';
+    return `${category} · ${area}`;
   };
 
-  const isBusy =
-    createMutation.isPending ||
-    updateMutation.isPending ||
-    toggleMutation.isPending ||
-    deleteMutation.isPending;
-
-  const rules = data?.data ?? [];
+  const actionButtons = (rule: PricingRule): React.ReactElement => (
+    <div className="flex flex-wrap justify-end gap-2">
+      {isSuperAdmin && rule.publicationStatus === 'draft' && (
+        <>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { setEditing(rule); setForm(ruleToForm(rule)); setActionError(''); }}
+            disabled={isBusy}
+          >
+            Edit draft
+          </Button>
+          <Button size="sm" onClick={() => openPreview(rule)} disabled={isBusy}>
+            Preview & publish
+          </Button>
+        </>
+      )}
+      {isSuperAdmin && rule.publicationStatus !== 'retired' && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => { setRetireTarget(rule); setRetireReason(''); setActionError(''); }}
+          disabled={isBusy}
+        >
+          Retire
+        </Button>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--color-text)]">Pricing Rules</h1>
-          <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            Manage surge pricing multipliers for rush hours, holidays, and peak periods.
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge label="Money control" variant="warning" />
+            <span className="text-xs font-medium text-slate-500">New bookings only</span>
+          </div>
+          <h1 className="text-2xl font-bold text-[var(--color-text)]">Pricing rules</h1>
+          <p className="mt-1 max-w-3xl text-sm text-[var(--color-text-secondary)]">
+            Stage surge pricing as a draft, test it with server prices and live scopes, then publish it with an audit reason. Existing booking totals never change.
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
-        >
-          + New Rule
-        </button>
-      </div>
+        {isSuperAdmin && (
+          <Button onClick={openCreate} disabled={editing !== null || isBusy}>Create draft</Button>
+        )}
+      </header>
 
-      {/* Error banner */}
-      {actionError && !showCreate && !editing && (
-        <div role="alert" className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
-          {actionError}
+      {!isSuperAdmin && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+          <p className="font-semibold">Read-only pricing access</p>
+          <p className="mt-1">You can review scope, lifecycle, and publication history. A super-admin must stage or publish customer-price changes.</p>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex gap-3 flex-wrap">
-        <select
-          aria-label="Filter pricing rules by type"
-          value={typeFilter}
-          onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
-          className="text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 bg-white"
-        >
-          <option value="">All Types</option>
-          <option value="rush">Rush</option>
-          <option value="holiday">Holiday</option>
-          <option value="peak_hours">Peak Hours</option>
-        </select>
-        <select
-          aria-label="Filter pricing rules by status"
-          value={activeFilter}
-          onChange={(e) => { setActiveFilter(e.target.value); setPage(1); }}
-          className="text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 bg-white"
-        >
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
-        </select>
-      </div>
+      {(catalogQuery.isError || areasQuery.isError) && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Live catalog or service-area scope data could not be loaded. Draft controls are unavailable until both sources are current.
+        </div>
+      )}
 
-      {/* Create / Edit Form */}
-      {(showCreate || editing) && (
-        <div className="rounded-xl border border-[var(--color-border)] bg-white p-6">
-          <h2 className="text-lg font-semibold text-[var(--color-text)] mb-4">
-            {editing ? 'Edit Pricing Rule' : 'Create Pricing Rule'}
-          </h2>
-          <form onSubmit={handleSubmit} noValidate className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <Label htmlFor="pr-name" className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                  Rule name
-                </Label>
-                <Input
-                  id="pr-name"
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="e.g. Weekend Evening Surge"
-                  required
-                />
+      {actionError && !editing && !previewTarget && !retireTarget && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{actionError}</div>
+      )}
+
+      {editing && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6" aria-labelledby="pricing-draft-heading">
+          <div className="mb-5">
+            <h2 id="pricing-draft-heading" className="text-lg font-semibold text-slate-950">
+              {editing === 'new' ? 'Create pricing draft' : `Edit draft: ${editing.name}`}
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">Saving does not activate this rule. Scope must be explicit.</p>
+          </div>
+          <form onSubmit={submitDraft} className="space-y-5" noValidate>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="md:col-span-2">
+                <Label htmlFor="pricing-name">Rule name</Label>
+                <Input id="pricing-name" value={form.name} onChange={(event) => setForm((value) => ({ ...value, name: event.target.value }))} />
               </div>
-
-              {!editing && (
-                <div>
-                  <Label htmlFor="pr-type" className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                    Type
-                  </Label>
-                  <select
-                    id="pr-type"
-                    value={form.type}
-                    onChange={(e) => setForm((p) => ({ ...p, type: e.target.value as typeof p.type }))}
-                    className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
-                  >
-                    <option value="rush">Rush (booking close to now)</option>
-                    <option value="holiday">Holiday (specific date)</option>
-                    <option value="peak_hours">Peak Hours (time of day)</option>
-                  </select>
-                </div>
-              )}
-
               <div>
-                <Label htmlFor="pr-multiplier" className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                  Multiplier (1.0 – 5.0)
-                </Label>
-                <Input
-                  id="pr-multiplier"
-                  type="number"
-                  min="1.0"
-                  max="5.0"
-                  step="0.05"
-                  value={form.multiplier}
-                  onChange={(e) => setForm((p) => ({ ...p, multiplier: e.target.value }))}
-                  required
-                />
+                <Label htmlFor="pricing-type">Rule type</Label>
+                <select
+                  id="pricing-type"
+                  value={form.type}
+                  disabled={editing !== 'new'}
+                  onChange={(event) => setForm((value) => ({ ...value, type: event.target.value as RuleType }))}
+                  className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100"
+                >
+                  <option value="rush">Rush</option>
+                  <option value="holiday">Holiday</option>
+                  <option value="peak_hours">Peak hours</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="pricing-multiplier">Customer multiplier</Label>
+                <Input id="pricing-multiplier" type="number" min="1" max="5" step="0.05" value={form.multiplier} onChange={(event) => setForm((value) => ({ ...value, multiplier: event.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="pricing-platform-share">Platform share of surge</Label>
+                <Input id="pricing-platform-share" type="number" min="0" max="1" step="0.05" value={form.platformSurgeShare} onChange={(event) => setForm((value) => ({ ...value, platformSurgeShare: event.target.value }))} />
+                <p className="mt-1 text-xs text-slate-500">0 sends all surge revenue to the provider. 1 sends all to the platform.</p>
+              </div>
+              <div>
+                <Label htmlFor="pricing-priority">Priority</Label>
+                <Input id="pricing-priority" type="number" min="0" max="1000" value={form.priority} onChange={(event) => setForm((value) => ({ ...value, priority: event.target.value }))} />
+                <p className="mt-1 text-xs text-slate-500">Higher priority wins; multiplier breaks a tie.</p>
               </div>
 
-              {/* Rush-specific */}
               {form.type === 'rush' && (
                 <div>
-                  <Label htmlFor="pr-rush-threshold" className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                    Rush threshold (hours before service)
-                  </Label>
-                  <Input
-                    id="pr-rush-threshold"
-                    type="number"
-                    min="1"
-                    max="24"
-                    value={form.rushHoursThreshold}
-                    onChange={(e) => setForm((p) => ({ ...p, rushHoursThreshold: e.target.value }))}
-                    placeholder="e.g. 3"
-                  />
+                  <Label htmlFor="pricing-rush">Hours before service</Label>
+                  <Input id="pricing-rush" type="number" min="1" max="24" value={form.rushHoursThreshold} onChange={(event) => setForm((value) => ({ ...value, rushHoursThreshold: event.target.value }))} />
                 </div>
               )}
-
-              {/* Holiday-specific */}
               {form.type === 'holiday' && (
                 <div>
-                  <Label htmlFor="pr-holiday-date" className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                    Holiday date
-                  </Label>
-                  <Input
-                    id="pr-holiday-date"
-                    type="date"
-                    value={form.holidayDate}
-                    onChange={(e) => setForm((p) => ({ ...p, holidayDate: e.target.value }))}
-                  />
+                  <Label htmlFor="pricing-holiday">Holiday date</Label>
+                  <Input id="pricing-holiday" type="date" value={form.holidayDate} onChange={(event) => setForm((value) => ({ ...value, holidayDate: event.target.value }))} />
                 </div>
               )}
-
-              {/* Peak-hours-specific */}
               {form.type === 'peak_hours' && (
                 <>
                   <div>
-                    <Label htmlFor="pr-peak-start" className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                      Peak start time
-                    </Label>
-                    <Input
-                      id="pr-peak-start"
-                      type="time"
-                      value={form.peakStartTime}
-                      onChange={(e) => setForm((p) => ({ ...p, peakStartTime: e.target.value }))}
-                    />
+                    <Label htmlFor="pricing-start">Start time</Label>
+                    <Input id="pricing-start" type="time" value={form.peakStartTime} onChange={(event) => setForm((value) => ({ ...value, peakStartTime: event.target.value }))} />
                   </div>
                   <div>
-                    <Label htmlFor="pr-peak-end" className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                      Peak end time
-                    </Label>
-                    <Input
-                      id="pr-peak-end"
-                      type="time"
-                      value={form.peakEndTime}
-                      onChange={(e) => setForm((p) => ({ ...p, peakEndTime: e.target.value }))}
-                    />
+                    <Label htmlFor="pricing-end">End time</Label>
+                    <Input id="pricing-end" type="time" value={form.peakEndTime} onChange={(event) => setForm((value) => ({ ...value, peakEndTime: event.target.value }))} />
                   </div>
-                  <div className="col-span-2">
-                    <Label className="block text-sm font-medium text-[var(--color-text)] mb-2">
-                      Days of week (leave empty for all days)
-                    </Label>
-                    <div className="flex gap-2 flex-wrap">
-                      {DAY_NAMES.map((day, i) => (
+                  <div className="md:col-span-2 xl:col-span-3">
+                    <Label>Peak days</Label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {DAY_NAMES.map((day, index) => (
                         <button
                           key={day}
                           type="button"
-                          onClick={() => toggleDay(i)}
-                          aria-pressed={form.peakDaysOfWeek.includes(i)}
-                          aria-label={`${form.peakDaysOfWeek.includes(i) ? 'Remove' : 'Add'} ${day} peak day`}
-                          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                            form.peakDaysOfWeek.includes(i)
-                              ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
-                              : 'bg-white text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-primary)]'
-                          }`}
+                          aria-pressed={form.peakDaysOfWeek.includes(index)}
+                          onClick={() => toggleDay(index)}
+                          className={`min-h-10 rounded-full border px-3 text-sm font-medium ${form.peakDaysOfWeek.includes(index) ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white' : 'border-slate-300 bg-white text-slate-700'}`}
                         >
                           {day}
                         </button>
                       ))}
                     </div>
+                    <p className="mt-1 text-xs text-slate-500">No selected days means every day.</p>
                   </div>
                 </>
               )}
 
               <div>
-                <Label htmlFor="pr-priority" className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                  Priority (higher = applied first)
-                </Label>
-                <Input
-                  id="pr-priority"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={form.priority}
-                  onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value }))}
-                />
+                <Label htmlFor="pricing-category-mode">Category scope</Label>
+                <select id="pricing-category-mode" value={form.categoryMode} onChange={(event) => setForm((value) => ({ ...value, categoryMode: event.target.value as DraftForm['categoryMode'] }))} className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
+                  <option value="category">One category</option>
+                  <option value="global">All categories (global)</option>
+                </select>
               </div>
-
+              {form.categoryMode === 'category' && (
+                <div>
+                  <Label htmlFor="pricing-category">Category</Label>
+                  <select id="pricing-category" value={form.categoryId} onChange={(event) => setForm((value) => ({ ...value, categoryId: event.target.value }))} className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
+                    <option value="">Choose category</option>
+                    {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
-                <Label htmlFor="pr-platform-share" className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                  Platform surge share (0–1)
-                </Label>
-                <Input
-                  id="pr-platform-share"
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={form.platformSurgeShare}
-                  onChange={(e) => setForm((p) => ({ ...p, platformSurgeShare: e.target.value }))}
-                  placeholder="0.5 = 50% to platform"
-                />
+                <Label htmlFor="pricing-area-mode">Service-area scope</Label>
+                <select id="pricing-area-mode" value={form.areaMode} onChange={(event) => setForm((value) => ({ ...value, areaMode: event.target.value as DraftForm['areaMode'] }))} className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
+                  <option value="service_area">One service area</option>
+                  <option value="global">All service areas (global)</option>
+                </select>
               </div>
-
-              <div className="col-span-2">
-                <Label htmlFor="pr-description" className="block text-sm font-medium text-[var(--color-text)] mb-1">
-                  Description
-                </Label>
-                <Textarea
-                  id="pr-description"
-                  value={form.description}
-                  onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                  rows={2}
-                  placeholder="Internal notes about this pricing rule"
-                />
+              {form.areaMode === 'service_area' && (
+                <div>
+                  <Label htmlFor="pricing-area">Service area</Label>
+                  <select id="pricing-area" value={form.serviceAreaId} onChange={(event) => setForm((value) => ({ ...value, serviceAreaId: event.target.value }))} className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
+                    <option value="">Choose service area</option>
+                    {areas.filter((area) => area.status !== 'retired').map((area) => <option key={area.id} value={area.id}>{area.name} · {area.city}</option>)}
+                  </select>
+                </div>
+              )}
+              {(form.categoryMode === 'global' || form.areaMode === 'global') && (
+                <div className="md:col-span-2 xl:col-span-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                  <p className="font-semibold">Global scope selected</p>
+                  <p className="mt-1">This draft can affect all categories and/or all service areas selected above. Add representative preview cases before publishing.</p>
+                </div>
+              )}
+              <div className="md:col-span-2 xl:col-span-3">
+                <Label htmlFor="pricing-description">Internal description</Label>
+                <Textarea id="pricing-description" rows={2} value={form.description} onChange={(event) => setForm((value) => ({ ...value, description: event.target.value }))} />
+              </div>
+              <div className="md:col-span-2 xl:col-span-3">
+                <Label htmlFor="pricing-reason">Audit reason</Label>
+                <Textarea id="pricing-reason" rows={3} value={form.reason} onChange={(event) => setForm((value) => ({ ...value, reason: event.target.value }))} placeholder="Why is this draft needed, and what operational evidence supports it?" />
               </div>
             </div>
-
-            {actionError && (
-              <p role="alert" className="text-red-600 text-sm">{actionError}</p>
-            )}
-
-            <div className="flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => { setShowCreate(false); setEditing(null); setForm(EMPTY_FORM); }}
-                className="px-4 py-2 border border-[var(--color-border)] text-sm rounded-lg hover:bg-gray-50"
-                disabled={isBusy}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isBusy}
-                className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed"
-              >
-                {isBusy ? 'Saving…' : editing ? 'Save Changes' : 'Create Rule'}
-              </button>
+            {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => { setEditing(null); setActionError(''); }} disabled={isBusy}>Cancel</Button>
+              <Button type="submit" disabled={isBusy || catalogQuery.isError || areasQuery.isError}>{saveMutation.isPending ? 'Saving draft…' : 'Save draft'}</Button>
             </div>
           </form>
-        </div>
+        </section>
       )}
 
-      {/* Table */}
-      {isLoading ? (
-        <div className="animate-pulse space-y-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-16 bg-gray-100 rounded-lg" />
-          ))}
-        </div>
-      ) : isError ? (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
-          Failed to load pricing rules.
-        </div>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <select aria-label="Filter pricing rules by type" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setPage(1); }} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm">
+          <option value="">All rule types</option>
+          <option value="rush">Rush</option>
+          <option value="holiday">Holiday</option>
+          <option value="peak_hours">Peak hours</option>
+        </select>
+        <select aria-label="Filter pricing rules by lifecycle" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm">
+          <option value="">All lifecycle states</option>
+          {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+      </div>
+
+      {rulesQuery.isLoading ? (
+        <div className="space-y-3">{[1, 2, 3].map((item) => <div key={item} className="h-28 animate-pulse rounded-xl bg-slate-100" />)}</div>
+      ) : rulesQuery.isError ? (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Pricing rules could not be loaded.</div>
       ) : rules.length === 0 ? (
-        <div className="text-center py-16 text-[var(--color-text-secondary)]">
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center text-slate-600">
           <TrendingUp size={40} className="mx-auto mb-3 text-slate-400" />
-          <p className="font-medium">No pricing rules yet.</p>
-          <p className="text-sm mt-1">Create one to enable surge pricing for rush hours, holidays, or peak periods.</p>
+          <p className="font-semibold text-slate-900">No pricing rules match this view</p>
+          <p className="mt-1 text-sm">Clear the filters or create a controlled draft.</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--color-surface-hover)] border-b border-[var(--color-border)]">
-              <tr>
-                <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Name</th>
-                <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Type</th>
-                <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Multiplier</th>
-                <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Details</th>
-                <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Priority</th>
-                {/* BUG-PHASE40-02 fix — platformSurgeShare controls how
-                    surge revenue splits between platform and provider
-                    and is editable in the form, but was never visible
-                    in the table. Admin had to open each rule to see
-                    it. Money-flow setting deserves a column. */}
-                <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Platform share</th>
-                <th className="text-left px-4 py-3 font-semibold text-[var(--color-text)]">Status</th>
-                <th className="text-right px-4 py-3 font-semibold text-[var(--color-text)]">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--color-border)]">
-              {rules.map((rule) => (
-                <tr key={rule.id} className="hover:bg-[var(--color-surface-hover)] transition-colors">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-[var(--color-text)]">{rule.name}</p>
-                    {rule.description && (
-                      <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 max-w-xs truncate">
-                        {rule.description}
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge
-                      label={TYPE_LABELS[rule.type] ?? rule.type}
-                      variant={TYPE_VARIANT[rule.type] ?? 'default'}
-                    />
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-[var(--color-text)]">
-                    {formatMultiplier(rule.multiplier)}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-[var(--color-text-secondary)]">
-                    {rule.type === 'rush' && rule.rushHoursThreshold != null && (
-                      <span>Within {rule.rushHoursThreshold}h of booking</span>
-                    )}
-                    {rule.type === 'holiday' && rule.holidayDate && (
-                      <span>{formatDateOnly(rule.holidayDate)}</span>
-                    )}
-                    {rule.type === 'peak_hours' && (
-                      <div>
-                        <div>{formatTimeRange(rule.peakStartTime, rule.peakEndTime)}</div>
-                        <div>{formatDays(rule.peakDaysOfWeek)}</div>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                    {rule.priority}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--color-text-secondary)]">
-                    {Math.round(rule.platformSurgeShare * 100)}%
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge
-                      label={rule.isActive ? 'Active' : 'Inactive'}
-                      variant={rule.isActive ? 'success' : 'default'}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2 justify-end">
-                      <button
-                        onClick={() => openEdit(rule)}
-                        aria-label={`Edit pricing rule ${rule.name}`}
-                        className="text-xs px-2.5 py-1 border border-[var(--color-border)] rounded-md hover:bg-gray-50 text-[var(--color-text-secondary)]"
-                        disabled={isBusy}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => {
-                          const action = rule.isActive ? 'Disable' : 'Enable';
-                          if (window.confirm(`${action} pricing rule "${rule.name}"?`)) {
-                            toggleMutation.mutate({ id: rule.id, isActive: !rule.isActive });
-                          }
-                        }}
-                        aria-label={`${rule.isActive ? 'Disable' : 'Enable'} pricing rule ${rule.name}`}
-                        className={`text-xs px-2.5 py-1 border rounded-md disabled:opacity-50 ${
-                          rule.isActive
-                            ? 'border-orange-200 text-orange-600 hover:bg-orange-50'
-                            : 'border-green-200 text-green-600 hover:bg-green-50'
-                        }`}
-                        disabled={isBusy}
-                      >
-                        {rule.isActive ? 'Disable' : 'Enable'}
-                      </button>
-                      <button
-                        onClick={() => { setDeleteTarget(rule); }}
-                        aria-label={`Delete pricing rule ${rule.name}`}
-                        className="text-xs px-2.5 py-1 border border-red-200 text-red-600 rounded-md hover:bg-red-50 disabled:opacity-50"
-                        disabled={isBusy}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
+        <>
+          <div className="grid gap-3 lg:hidden">
+            {rules.map((rule) => (
+              <article key={rule.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-950">{rule.name}</p>
+                    <p className="mt-1 text-xs text-slate-500">{TYPE_LABELS[rule.type]} · priority {rule.priority}</p>
+                  </div>
+                  <Badge label={STATUS_LABELS[rule.publicationStatus]} variant={STATUS_VARIANTS[rule.publicationStatus]} />
+                </div>
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                  <div><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Scope</dt><dd className="mt-1 text-slate-800">{scopeLabel(rule)}</dd></div>
+                  <div><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Schedule</dt><dd className="mt-1 text-slate-800">{scheduleLabel(rule)}</dd></div>
+                  <div><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Customer price</dt><dd className="mt-1 font-semibold text-slate-950">×{rule.multiplier.toFixed(2)}</dd></div>
+                  <div><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Surge split</dt><dd className="mt-1 text-slate-800">Platform {Math.round(rule.platformSurgeShare * 100)}% · Provider {Math.round((1 - rule.platformSurgeShare) * 100)}%</dd></div>
+                </dl>
+                {rule.description && <p className="mt-3 border-t border-slate-100 pt-3 text-sm text-slate-600">{rule.description}</p>}
+                <p className="mt-3 text-xs text-slate-500">{lifecycleEvidence(rule)}</p>
+                <div className="mt-4 border-t border-slate-100 pt-3">{actionButtons(rule)}</div>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
+            <table className="w-full min-w-[1050px] text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-600">
+                <tr>
+                  <th className="px-4 py-3">Rule</th>
+                  <th className="px-4 py-3">Scope</th>
+                  <th className="px-4 py-3">Schedule</th>
+                  <th className="px-4 py-3">Customer price</th>
+                  <th className="px-4 py-3">Surge split</th>
+                  <th className="px-4 py-3">Lifecycle</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {rules.map((rule) => (
+                  <tr key={rule.id} className="align-top hover:bg-slate-50">
+                    <td className="px-4 py-4"><p className="font-semibold text-slate-950">{rule.name}</p><p className="mt-1 text-xs text-slate-500">{TYPE_LABELS[rule.type]} · priority {rule.priority}</p></td>
+                    <td className="max-w-56 px-4 py-4 text-slate-700">{scopeLabel(rule)}</td>
+                    <td className="max-w-52 px-4 py-4 text-slate-700">{scheduleLabel(rule)}</td>
+                    <td className="px-4 py-4 font-semibold text-slate-950">×{rule.multiplier.toFixed(2)}<p className="mt-1 text-xs font-normal text-slate-500">+{Math.round((rule.multiplier - 1) * 100)}%</p></td>
+                    <td className="px-4 py-4 text-slate-700">Platform {Math.round(rule.platformSurgeShare * 100)}%<p className="mt-1 text-xs text-slate-500">Provider {Math.round((1 - rule.platformSurgeShare) * 100)}%</p></td>
+                    <td className="max-w-64 px-4 py-4"><Badge label={STATUS_LABELS[rule.publicationStatus]} variant={STATUS_VARIANTS[rule.publicationStatus]} /><p className="mt-2 text-xs leading-5 text-slate-500">{lifecycleEvidence(rule)}</p></td>
+                    <td className="px-4 py-4">{actionButtons(rule)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
-      {/* Pagination */}
-      {data?.pagination && data.pagination.totalPages > 1 && (
-        <Pagination
-          page={data.pagination.page}
-          totalPages={data.pagination.totalPages}
-          total={data.pagination.total}
-          pageSize={data.pagination.pageSize}
-          onPageChange={setPage}
-        />
+      {rulesQuery.data?.pagination && rulesQuery.data.pagination.totalPages > 1 && (
+        <Pagination {...rulesQuery.data.pagination} onPageChange={setPage} />
       )}
 
-      {/* Delete confirmation dialog */}
-      <Dialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+      <Dialog open={previewTarget !== null} onOpenChange={(open) => { if (!open) closePreview(); }}>
+        <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Authoritative preview · {previewTarget?.name}</DialogTitle>
+            <DialogDescription>Use fixed-price services, live service areas, and representative dates. The server resolves overlap using the same rule engine as booking creation.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {previewSamples.map((sample, index) => (
+              <div key={`${index}-${sample.subcategoryId}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-3 flex items-center justify-between"><p className="text-sm font-semibold text-slate-900">Sample {index + 1}</p>{previewSamples.length > 1 && <Button size="sm" variant="outline" onClick={() => { setPreviewSamples((items) => items.filter((_, itemIndex) => itemIndex !== index)); setPreviewReceipt(null); }}>Remove</Button>}</div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div>
+                    <Label htmlFor={`preview-service-${index}`}>Fixed-price service</Label>
+                    <select id={`preview-service-${index}`} value={sample.subcategoryId} onChange={(event) => setSample(index, { subcategoryId: event.target.value })} className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
+                      <option value="">Choose service</option>
+                      {eligiblePreviewSubcategories.map((item) => <option key={item.id} value={item.id}>{item.categoryName} · {item.name} · {formatCurrency(item.basePrice ?? 0)}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor={`preview-area-${index}`}>Service area</Label>
+                    <select id={`preview-area-${index}`} value={sample.serviceAreaId} onChange={(event) => setSample(index, { serviceAreaId: event.target.value })} className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
+                      <option value="">Choose area</option>
+                      {eligiblePreviewAreas.map((area) => <option key={area.id} value={area.id}>{area.name} · {area.city}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor={`preview-time-${index}`}>Scheduled date and time</Label>
+                    <Input id={`preview-time-${index}`} type="datetime-local" value={sample.scheduledAt} onChange={(event) => setSample(index, { scheduledAt: event.target.value })} />
+                  </div>
+                </div>
+              </div>
+            ))}
+            {previewSamples.length < 12 && (
+              <Button type="button" variant="outline" onClick={() => setPreviewSamples((samples) => [...samples, { subcategoryId: eligiblePreviewSubcategories[0]?.id ?? '', serviceAreaId: eligiblePreviewAreas[0]?.id ?? '', scheduledAt: previewTarget ? defaultPreviewTime(previewTarget) : '' }])}>Add representative sample</Button>
+            )}
+            {!previewReceipt && <Button onClick={() => previewMutation.mutate()} disabled={previewMutation.isPending}>{previewMutation.isPending ? 'Running server preview…' : 'Run server preview'}</Button>}
+            {actionError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{actionError}</p>}
+
+            {previewReceipt && (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+                  <p className="font-semibold">Current server preview</p>
+                  <p className="mt-1">Valid until {new Date(previewReceipt.expiresAt).toLocaleString('en-PH')}. Any draft or active-rule change invalidates it.</p>
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full min-w-[850px] text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-600"><tr><th className="px-3 py-3">Case</th><th className="px-3 py-3">Base</th><th className="px-3 py-3">Winner</th><th className="px-3 py-3">Customer total</th><th className="px-3 py-3">Platform surge</th><th className="px-3 py-3">Provider surge</th><th className="px-3 py-3">Overlap</th></tr></thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {previewReceipt.results.map((result, index) => (
+                        <tr key={`${result.subcategory.id}-${index}`}>
+                          <td className="px-3 py-3"><p className="font-medium text-slate-950">{result.subcategory.name}</p><p className="text-xs text-slate-500">{result.serviceArea.name} · {new Date(result.scheduledAt).toLocaleString('en-PH')}</p></td>
+                          <td className="px-3 py-3">{formatCurrency(result.basePrice)}</td>
+                          <td className="px-3 py-3"><span className={result.winningRule?.isDraft ? 'font-semibold text-emerald-700' : 'font-semibold text-red-700'}>{result.winningRule?.name ?? 'No surge'}</span></td>
+                          <td className="px-3 py-3 font-semibold">{formatCurrency(result.finalPrice)}<p className="text-xs font-normal text-slate-500">+{formatCurrency(result.surgeAmount)}</p></td>
+                          <td className="px-3 py-3">{formatCurrency(result.platformSurgeShare)}</td>
+                          <td className="px-3 py-3">{formatCurrency(result.providerSurgeShare)}</td>
+                          <td className="px-3 py-3">{result.matchingRules.length} matching<p className="text-xs text-slate-500">{result.matchingRules.map((rule) => `${rule.name} (P${rule.priority})`).join(', ') || 'None'}</p></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div>
+                  <Label htmlFor="publish-reason">Publication reason</Label>
+                  <Textarea id="publish-reason" rows={3} value={publishReason} onChange={(event) => setPublishReason(event.target.value)} placeholder="What did you verify, and why should this price change become active for future bookings?" />
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closePreview} disabled={isBusy}>Close</Button>
+            {previewReceipt && <Button onClick={() => publishMutation.mutate()} disabled={publishMutation.isPending}>{publishMutation.isPending ? 'Publishing…' : 'Publish for future bookings'}</Button>}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={retireTarget !== null} onOpenChange={(open) => { if (!open) { setRetireTarget(null); setRetireReason(''); setActionError(''); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete pricing rule</DialogTitle>
-            <DialogDescription>
-              {deleteTarget
-                ? `Delete rule “${deleteTarget.name}”? This cannot be undone.`
-                : ''}
-            </DialogDescription>
+            <DialogTitle>Retire pricing rule</DialogTitle>
+            <DialogDescription>Retiring “{retireTarget?.name}” stops it from new pricing decisions. Its record and existing booking evidence remain unchanged.</DialogDescription>
           </DialogHeader>
+          <div>
+            <Label htmlFor="retire-reason">Retirement reason</Label>
+            <Textarea id="retire-reason" rows={3} value={retireReason} onChange={(event) => setRetireReason(event.target.value)} />
+            {actionError && <p role="alert" className="mt-2 text-sm text-red-700">{actionError}</p>}
+          </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteTarget(null)}
-              disabled={deleteMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (deleteTarget) {
-                  deleteMutation.mutate(deleteTarget.id, {
-                    onSettled: () => setDeleteTarget(null),
-                  });
-                }
-              }}
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
-            </Button>
+            <Button variant="outline" onClick={() => { setRetireTarget(null); setRetireReason(''); setActionError(''); }} disabled={retireMutation.isPending}>Cancel</Button>
+            <Button variant="destructive" onClick={() => retireMutation.mutate()} disabled={retireMutation.isPending}>{retireMutation.isPending ? 'Retiring…' : 'Retire rule'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

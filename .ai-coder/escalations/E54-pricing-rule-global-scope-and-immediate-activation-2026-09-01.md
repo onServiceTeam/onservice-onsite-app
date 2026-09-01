@@ -1,7 +1,7 @@
 # E54 - Pricing rules can become global and active without an authoritative preview
 
 **Date:** 2026-09-01
-**Status:** OPEN
+**Status:** OPTION A APPROVED 2026-09-02; IMPLEMENTATION IN PROGRESS ON MONEY-PATH TOPIC BRANCH
 **Hard stop:** customer price, provider surge allocation, platform revenue, and production rule history
 **Extends:** E28 admin pricing-rule preview and publication
 
@@ -88,10 +88,29 @@ all production pricing rules and report at least:
 
 E32 currently blocks that production inspection and synchronization.
 
-## Work paused
+## Decision received
+
+Ken approved Option A in chat on 2026-09-02. Repository policy resolves the
+authority question as follows:
+
+- Admin and super-admin may inspect pricing-rule history and previews.
+- Only super-admin may create or edit a draft, request the authoritative
+  preview, publish a draft, or retire a published rule.
+- No two-person approval is being invented here. The current authorization
+  model has no enforceable dual-control mechanism. If one is required later,
+  it must be designed as a separate policy and data-model change.
+- Existing booking financial snapshots remain immutable. Publication changes
+  only later pricing resolutions for newly created bookings.
+
+Implementation stays isolated on `codex/system-settings-control-fix` until its
+money-path tests and the documented production inventory requirement pass.
+E32 still blocks production inspection and deployment.
+
+## Former work pause
 
 Do not fix the 0-to-0.5 conversion in isolation, add client-only preview, expose
 scope dropdowns that still publish immediately, change role authority, mutate
 existing rules, or replace hard delete until Option A or B and its production
-handling are explicitly approved. Read-only audit of unrelated areas may
-continue in a later task.
+handling are explicitly approved. Option A is now approved, so those changes
+may proceed on the money-path topic branch. Production promotion remains held
+by E32 and the inventory requirement above.
