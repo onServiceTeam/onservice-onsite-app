@@ -53,6 +53,9 @@ export default function CustomerLayout(): React.ReactElement {
       <Stack.Screen name="terms" />
       <Stack.Screen name="account-management" />
       <Stack.Screen name="data-rights" />
+      <Stack.Screen name="business/index" />
+      <Stack.Screen name="business/[id]/index" />
+      <Stack.Screen name="business/[id]/invoices/[invoiceId]" />
       <Stack.Screen name="recurring/index" />
       <Stack.Screen name="recurring/[id]" />
       <Stack.Screen name="projects/index" />

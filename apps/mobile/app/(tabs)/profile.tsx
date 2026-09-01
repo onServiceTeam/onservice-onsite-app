@@ -32,6 +32,7 @@ import {
   UserCheck,
   ChevronRight,
   Scale,
+  Building2,
 } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
 
@@ -114,6 +115,11 @@ export default function ProfileScreen(): React.ReactElement {
   // surfaced via Help & Support → Report a safety concern. Do NOT reintroduce
   // a SiguradoShield menu row without lifting LAUNCH-LIMITATIONS §23.
   const menuItems: Array<{ label: string; icon: IconComponent; onPress: () => void }> = [
+    {
+      label: 'Company Workspaces',
+      icon: Building2,
+      onPress: () => router.push(Routes.CUSTOMER.BUSINESS_ACCOUNTS),
+    },
     { label: 'My Addresses', icon: MapPin, onPress: () => router.push(Routes.CUSTOMER.ADDRESSES) },
     {
       label: 'Payment Methods',

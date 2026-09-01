@@ -44,16 +44,8 @@ describe('Bug 1185 fix verified — buildRoute helper', () => {
   });
 
   it('substitutes multiple params on the same template', () => {
-    // BUG-PHASE126-01 — pre-fix this used Routes.CUSTOMER.BUSINESS_INVOICE_DETAIL
-    // (`/customer/business/[id]/invoices/[invoiceId]`), which was one
-    // of 32 dead route entries in the file (no corresponding screen
-    // existed, no consumers anywhere). Phase 126 removed that entry.
-    // The buildRoute helper still needs a multi-param test, so use a
-    // synthetic template that exercises the same code path. The
-    // contract is: `buildRoute(template, params)` substitutes every
-    // `[paramName]` regardless of the template's source.
-    const synthetic = '/customer/business/[id]/invoices/[invoiceId]';
-    const out = buildRoute(synthetic, {
+    // E55 restores this route at the same time as its real customer screen.
+    const out = buildRoute(Routes.CUSTOMER.BUSINESS_INVOICE_DETAIL, {
       id: 'biz-1',
       invoiceId: 'inv-9',
     });

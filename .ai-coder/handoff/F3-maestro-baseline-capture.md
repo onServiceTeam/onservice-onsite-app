@@ -1,6 +1,6 @@
 # F3 Handoff — Maestro mobile visual baseline capture
 
-**Status:** scaffolded (89 screen flows committed) → awaiting baseline capture against real devices.
+**Status:** scaffolded (92 screen flows committed) → awaiting baseline capture against real devices.
 **Owner after handoff:** Ken / contractor / hosted device farm (BrowserStack / Sauce Labs / AWS Device Farm).
 **Estimated time:** 1 operator-day (4-8 hours of capture + review + commit + push).
 **Estimated cost:** Free (your own simulator) or ~$50-100 for a hosted-farm session.
@@ -9,8 +9,8 @@
 
 ## What's already done (no action needed)
 
-- 89 scaffolded Maestro screen-flow YAML files committed:
-  - `apps/mobile/.maestro/visual/customer/001-…yaml` through `045-…yaml` (45 flows)
+- 92 scaffolded Maestro screen-flow YAML files committed:
+  - `apps/mobile/.maestro/visual/customer/001-…yaml` through `048-…yaml` (48 flows)
   - `apps/mobile/.maestro/visual/provider/001-…yaml` through `044-…yaml` (44 flows)
 - The two `000-setup-login.yaml` helpers are setup flows and are not counted as screen baselines.
 - Each flow loads the app, navigates to the target screen, and runs a `takeScreenshot: <kind>/<slug>/default` capture.
@@ -42,7 +42,9 @@ The flows compile against Maestro's YAML schema as-is and are immediately runnab
 4. **The mobile app loaded in the simulator** with a logged-in test customer + a logged-in test provider account on a separate simulator instance (or you reset between captures).
 
    Export IDs for dynamic routes, including `MAESTRO_BOOKING_ID`,
-   `MAESTRO_JOB_ID`, and an open participant-visible `MAESTRO_DISPUTE_ID`.
+   `MAESTRO_JOB_ID`, an open participant-visible `MAESTRO_DISPUTE_ID`,
+   `MAESTRO_BUSINESS_ACCOUNT_ID`, and a finalized, member-visible
+   `MAESTRO_BUSINESS_INVOICE_ID` belonging to that same account.
 
 5. **Git LFS configured** for the baseline PNGs:
    ```bash
@@ -63,9 +65,9 @@ cd apps/mobile
 maestro test .maestro/visual/customer/ --update-snapshots
 ```
 
-Maestro runs each `001-…yaml` … `045-…yaml` flow in order, navigating + taking screenshots. Output goes to `apps/mobile/.maestro/visual/baselines/customer/<slug>/default.png`.
+Maestro runs each `001-…yaml` … `048-…yaml` flow in order, navigating + taking screenshots. Output goes to `apps/mobile/.maestro/visual/baselines/customer/<slug>/default.png`.
 
-Expected: 45 PNGs created.
+Expected: 48 PNGs created.
 
 ### 2. Capture provider baselines
 
@@ -107,14 +109,14 @@ curl -X POST http://localhost:7381/__test/seed/success -d '{"scope":"bookings"}'
 
 (The `__test` endpoints are gated by `NODE_ENV=test` and only mounted in the local Docker stack — they are NOT in the production server.)
 
-After uncommenting and wiring scripts, re-run each flow to capture the additional 3 states. Total capture target: 89 × 4 = 356 PNGs (or 89 × 1 = 89 if you only do default state for v1.0).
+After uncommenting and wiring scripts, re-run each flow to capture the additional 3 states. Total capture target: 92 × 4 = 368 PNGs (or 92 × 1 = 92 if you only do default state for v1.0).
 
 ### 5. Commit + push
 
 ```bash
 git add apps/mobile/.maestro/visual/baselines/
 git status  # confirm LFS pointer files, NOT raw PNG bytes
-git commit -m "test(r3): Maestro visual baselines for 89 mobile screens (default state)"
+git commit -m "test(r3): Maestro visual baselines for 92 mobile screens (default state)"
 git push
 ```
 
@@ -128,7 +130,7 @@ Edit `scripts/gates/MODES.json`:
   "mode": "BLOCKING",
   "owning_dispatch": "D14r-3",
   "promoted_in": "D14r-3-baselines",
-  "rationale": "Promoted to BLOCKING after F#3 handoff captured 89 default-state baselines (and optionally 267 additional state baselines) on real devices. Gate D now compares each PR's screenshot output against these baselines and fails on visual regression."
+  "rationale": "Promoted to BLOCKING after F#3 handoff captured 92 default-state baselines (and optionally 276 additional state baselines) on real devices. Gate D now compares each PR's screenshot output against these baselines and fails on visual regression."
 }
 ```
 
@@ -157,9 +159,9 @@ The capture procedure is identical; the only difference is `maestro test` runs a
 
 ## What `v0.14.1-remediation-3` represents when tagged
 
-- 89 Maestro screen flows committed.
-- 89 default-state baseline PNGs committed via LFS.
-- (Optional) up to 267 more state baselines for loading/empty/error/success.
+- 92 Maestro screen flows committed.
+- 92 default-state baseline PNGs committed via LFS.
+- (Optional) up to 276 more state baselines for loading/empty/error/success.
 - Gate D promoted to BLOCKING.
 - Future PRs that change UI render output get caught by visual diff.
 

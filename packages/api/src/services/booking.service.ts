@@ -15,6 +15,7 @@ import * as settingsService from './settings.service';
 import { formatPHP } from '../utils/currency';
 import * as financialTermsService from './booking-financial-terms.service';
 import * as escrowService from './escrow.service';
+import * as businessInvoiceControlService from './business-invoice-control.service';
 
 interface BookingRow {
   id: string;
@@ -141,6 +142,26 @@ export async function calculateServiceFee(servicePrice: number): Promise<number>
 
 export async function createBooking(params: CreateBookingParams): Promise<BookingRow> {
   await assertBookableLocation(params.latitude, params.longitude);
+  if (params.businessAccountId && params.bookingType !== 'fixed_price') {
+    throw createAppError(
+      'Business-account billing currently supports fixed-price contracted services only.',
+      400,
+    );
+  }
+  if (params.businessAccountId && params.promoCode) {
+    throw createAppError('Promo codes cannot be combined with a contracted business booking.', 400);
+  }
+  if (params.businessAccountId) {
+    const businessBookingEnabled = await settingsService.getSettingBoolean(
+      'feature_flag.business_contract_booking_enabled',
+    );
+    if (!businessBookingEnabled) {
+      throw createAppError(
+        'Company booking is temporarily held while onService completes the controlled provider-settlement and dispute workflow. Personal booking remains available.',
+        409,
+      );
+    }
+  }
   // Phase 14 Dispatch 05 — Bug 175.
   // Fixed-price bookings now REQUIRE subcategoryId AND a non-null
   // base_price in service_subcategories. There is no fallback to a
@@ -209,18 +230,25 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
   // Inert for normal bookings (businessAccountId is never set by them).
   let businessAccountId: string | null = null;
   let contractId: string | null = null;
+  let businessAccountTermsVersionId: string | null = null;
   if (params.bookingType === 'fixed_price' && params.businessAccountId) {
     const contract = await businessService.resolveBookingContract(
       params.customerId,
       params.businessAccountId,
       params.categoryId,
       params.subcategoryId ?? null,
+      params.scheduledAt,
     );
-    if (contract) {
-      baseServicePrice = contract.agreedRate;
-      businessAccountId = params.businessAccountId;
-      contractId = contract.contractId;
+    if (!contract) {
+      throw createAppError(
+        'This company booking is not eligible. Confirm your booking permission and ask onService to publish matching account terms and a contract.',
+        409,
+      );
     }
+    baseServicePrice = contract.agreedRate;
+    businessAccountId = params.businessAccountId;
+    contractId = contract.contractId;
+    businessAccountTermsVersionId = contract.accountTermsVersionId;
   }
 
   if (params.bookingType === 'fixed_price' && baseServicePrice <= 0) {
@@ -327,6 +355,19 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
   // Also converts the per-addon INSERT loop to a single multi-row INSERT
   // for performance (was 1 round-trip per addon).
   const newBooking = await db.transaction(async (client) => {
+    if (businessAccountId && businessAccountTermsVersionId) {
+      await businessInvoiceControlService.assertBusinessCreditAvailableInTransaction(
+        client,
+        {
+          accountId: businessAccountId,
+          contractId: contractId!,
+          termsVersionId: businessAccountTermsVersionId,
+          customerId: params.customerId,
+          scheduledAt: params.scheduledAt,
+          newBookingAmount: totalAmount,
+        },
+      );
+    }
     const result = await client.query<BookingRow>(
       `INSERT INTO bookings (
         customer_id, category_id, subcategory_id, booking_type,
@@ -335,8 +376,9 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
         service_price, service_fee, total_amount,
         surge_multiplier, surge_amount, pricing_rule_id, rebooked_from_id,
         status, business_account_id, contract_id,
+        business_account_terms_version_id, billing_mode,
         is_hourly, estimated_hours, hourly_rate
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       RETURNING *`,
       [
         params.customerId,
@@ -361,6 +403,8 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
         initialStatus,
         businessAccountId,
         contractId,
+        businessAccountTermsVersionId,
+        businessAccountId ? 'business_terms' : 'consumer_prepay',
         isHourly,
         estimatedHoursCapped,
         hourlyRateSnapshot,

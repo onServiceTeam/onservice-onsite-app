@@ -2,11 +2,13 @@
 
 **Date:** 2026-05-30
 **Author:** AI coder (Phase 200, "do everything next")
-**Status:** FOUNDATION RETAINED; B2B LAUNCH HELD BY E55. The explicit booking
-link and price snapshot remain the correct direction, but the surrounding
-invoice, lifecycle, payment, and customer-workspace controls are not safe to
-operate. The pricing semantics below still require confirmation before B2B
-launch.
+**Status:** EXPLICIT TRIGGER APPROVED UNDER E55 OPTION A; B2B LAUNCH HELD BY
+E56. The explicit booking link and price snapshot remain the correct direction.
+Controlled account, contract, statement, payment-evidence, and read-only
+customer-workspace foundations are implemented on the E55 topic branch, but
+company booking remains disabled until provider funding and settlement are
+approved and verified. The service-fee and add-on semantics below still require
+confirmation before B2B launch.
 
 ## Context
 
@@ -26,14 +28,18 @@ inference:
 1. New nullable `bookings.business_account_id` + `bookings.contract_id`
    (migration 129) — audit/reconciliation link. Null for every normal booking.
 2. `businessService.resolveBookingContract(customerId, businessAccountId,
-   categoryId, subcategoryId)` — returns the agreed_rate to use, or null,
+   categoryId, subcategoryId, scheduledAt)` — returns the agreed_rate to use, or null,
    only when: the customer is a current member of the account, the account is
-   active, a contract is active and within its dates, and the category
-   matches. Subcategory-specific contract beats a category-level one; ties
-   break on most-recent start.
-3. `createBooking` accepts an optional `businessAccountId`. When present AND a
-   contract resolves, the booking is priced at `agreed_rate` and stamped with
-   the account + contract. Otherwise behavior is **100% unchanged**.
+   active, a published provider-pool contract covers the scheduled Manila
+   service date, and the category matches. Subcategory-specific contract beats
+   a category-level one; ties break on most-recent start. Provider-specific
+   publication and resolution remain held under E56.
+3. `createBooking` accepts an optional `businessAccountId`. When present and an
+   eligible contract resolves, the booking is priced at `agreed_rate` and
+   stamped with the account + contract. An explicit company selection fails
+   closed when the feature flag, permission, terms, contract, service date, or
+   credit check is not eligible. Behavior is unchanged only when no company
+   account is selected.
 
 ### Pricing rules for a contract-priced booking (my conservative choice)
 - `agreed_rate` **replaces** the catalog base price.
@@ -54,21 +60,37 @@ client sends it**, so this is inert until the mobile app adds a "book for
   should not make silently.
 - Explicit selection is unambiguous and auditable.
 
-## What Ken needs to decide (before/at B2B launch)
+## Decision status and remaining pricing decisions
 
-1. **Trigger:** explicit "book for business" selection (what I built), or
-   auto-apply to all member bookings? I recommend explicit.
+1. **Trigger:** APPROVED 2026-09-02 under E55 Option A. Company booking must be
+   an explicit customer selection and must fail closed when the account,
+   permission, published terms, contract, or funding state is not eligible.
 2. **Service fee on contract bookings:** keep it (current), or waive it for
    contracted B2B?
 3. **Add-ons on contract bookings:** allowed (current), or contract rate is
    strictly all-in?
+4. **Discount authority:** unresolved. There are currently two stored discount
+   controls: `business_contracts.discount_percentage` and the published account
+   terms `volume_discount_rate`. The controlled statement path applies only the
+   account terms discount, and applies it to the contracted service price before
+   the separate platform fee. The older generator discounted a wider booking
+   total, while the contract discount is displayed but not consumed. These are
+   materially different money rules. Do not combine, compound, or silently pick
+   one before the commercial policy is approved and its historical-effect rule
+   is tested. E55 therefore blocks publication of a draft contract whose
+   contract-level discount is non-zero. Published account terms remain the only
+   discount authority in the controlled statement prototype.
 
-## Remaining work to make it user-visible (v1.1)
+## Remaining work to make booking user-visible
 
-- Mobile checkout: let a business member choose to book for their business
-  account (sends `businessAccountId`).
+- Approve and implement the E56 provider funding/payable model. The current
+  consumer flow cannot release provider earnings without real held escrow.
+- Only after E56 is complete, let an authorized member explicitly select a
+  company account in checkout and send `businessAccountId`.
 - Optionally surface the contract rate + "billed to [company]" in the
-  checkout summary.
+  checkout summary. This is required before launch because the
+  payer, funding mode, provider-pay timing, and personal/company distinction
+  are material commercial terms.
 
 ## 2026-09-02 audit correction
 
@@ -77,7 +99,12 @@ described above and selects work through current membership. It can therefore
 invoice personal bookings. Booking creation also silently falls back to an
 ordinary personal booking when an explicit business selection cannot resolve a
 contract. Do not wire the planned mobile selector to the current behavior.
-Follow E55 Option A only after the production inventory and authority decision.
+E55 Option A was approved on 2026-09-02. The controlled workflow now selects
+only exact booking/account ownership, snapshots prospective terms, separates
+statement preparation from finalization, and uses append-only payment,
+adjustment, reversal, and void evidence. The production inventory remains
+blocked by E32, and `feature_flag.business_contract_booking_enabled` remains
+false under E56 until the provider funding path is approved and tested.
 
 ## Tests
 - `phase200-contract-pricing.test.ts` — resolver returns the agreed rate when

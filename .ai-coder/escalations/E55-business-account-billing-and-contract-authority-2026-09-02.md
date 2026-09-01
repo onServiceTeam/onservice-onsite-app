@@ -1,7 +1,8 @@
 # E55 - Business-account billing and contract authority is not launch-safe
 
 **Date:** 2026-09-02
-**Status:** OPEN
+**Status:** OPTION A APPROVED BY KEN 2026-09-02; IMPLEMENTATION IN PROGRESS;
+PRODUCTION LAUNCH STILL HELD
 **Hard stop:** business-account pricing, invoice generation, payment recording,
 credit terms, and production history
 **Related:** E14 external payments, E22 Philippine invoice/tax design, E32
@@ -176,3 +177,71 @@ production workflow. Do not backfill booking account links, alter existing
 invoice items, or mark historical invoices paid. Local/GitHub audit work that
 does not change B2B financial behavior may continue. Production inspection and
 synchronization remain separately blocked by E32.
+
+## 2026-09-02 approval and implementation checkpoint
+
+Ken approved Option A, provided it remains the safest foundation for a larger
+app and business. The approved direction is now implemented locally on the
+`codex/system-settings-control-fix` topic branch, subject to tests, CI, review,
+production inventory, and the remaining settlement hold.
+
+The implementation currently:
+
+1. selects statement candidates only through the booking's exact
+   `business_account_id`, contract, account-terms version, and final booking
+   financial-terms evidence;
+2. fails explicit company booking closed instead of silently creating a
+   personal booking;
+3. versions commercial account terms prospectively, so existing bookings and
+   statements retain their original snapshots;
+4. requires preview, operator ownership, expiry, stale-state comparison,
+   reason, super-admin authority, and transactional audit for account,
+   contract, terms, and financial decisions;
+5. separates statement preview, controlled draft preparation, and finalization;
+6. replaces `mark paid` with append-only external payment, partial-payment,
+   adjustment, reversal/refund, and void evidence;
+7. records an independent settlement state (`open`, `settled`, `credit_due`,
+   or `void`) so a write-off or rate reduction cannot be presented as cash
+   payment merely because the legacy invoice status is `paid`;
+8. keeps old rows `legacy_unreviewed`, performs no historical relinking or
+   financial backfill, and widens commercial centavo columns from INTEGER to
+   BIGINT without changing values; and
+9. keeps `feature_flag.business_contract_booking_enabled` disabled and held
+   from ordinary Settings changes;
+10. resolves contract eligibility against the scheduled service date, not the
+    day the API happens to run, and repeats that check inside the locked booking
+    transaction; and
+11. holds provider-specific contract publication and resolution under E56 so a
+    negotiated provider rate cannot be paired with an unrelated dispatched
+    provider before assignment and payable semantics exist;
+12. restricts lifecycle, terms, and contract previews to super admins because
+    each preview is owned by the operator who must apply the final decision;
+13. uses integer-exact basis-point arithmetic and blocks a statement group
+    before accumulated centavos exceed JavaScript's exact-integer range;
+14. prevents a write-off from exceeding the remaining positive balance while
+    still allowing an approved credit/rate reduction to create explicit
+    `credit_due` evidence; and
+15. distinguishes intake/current account projections from approved terms and
+    interprets operator-entered payment/reversal timestamps explicitly as
+    Philippine time (UTC+8); and
+16. treats approved billing credit as a revolving exposure ceiling, blocks
+    unsafe projected-centavo addition, and still permits controlled statements
+    for completed work after an account is suspended from placing new work.
+
+The feature flag must remain disabled. The current consumer booking state
+machine assumes escrow prepayment before provider work, while a company-credit
+booking needs a separate source-of-funds and provider-settlement path. Enabling
+company bookings before that path is specified and tested could either strand
+the booking at payment pending or pay a provider without a reconciled funding
+source. This remaining issue is being tracked separately rather than hidden by
+the safer billing work.
+
+No production migration, backfill, or B2B financial operation is authorized by
+this approval. E32 still blocks the required private production inventory and
+server alignment. The complete admin, mobile, and API TypeScript workspace
+check passed on the current working tree. Focused API Jest, Admin Vitest, and
+Mobile Jest commands were attempted again, but each runner failed before
+loading a test because OneDrive returned `UNKNOWN: unknown error, read` for a
+cloud-placeholder dependency. No behavior assertion is therefore claimed
+locally. A clean Linux CI run must execute the real behavior suites before this
+branch can be considered green.

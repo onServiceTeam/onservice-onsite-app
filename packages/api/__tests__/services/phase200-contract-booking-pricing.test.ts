@@ -19,6 +19,7 @@ jest.mock('../../src/services/suki.service', () => ({ calculateSukiDiscountForBo
 jest.mock('../../src/services/socket.service', () => ({ emitAdminEvent: jest.fn(), ADMIN_EVENTS: {} }));
 jest.mock('../../src/services/booking/promo.service', () => ({ resolvePromo: jest.fn(), recordPromoRedemption: jest.fn() }));
 jest.mock('../../src/services/settings.service', () => ({
+  getSettingBoolean: jest.fn().mockResolvedValue(true),
   getSettingPercent: jest.fn().mockResolvedValue(0.1),
   getSettingNumber: jest.fn().mockImplementation((k: string) =>
     Promise.resolve(k === 'service_fee_min' ? 2500 : k === 'service_fee_max' ? 50000 : 0)),
@@ -31,6 +32,8 @@ jest.mock('../../src/services/booking-financial-terms.service', () => ({
 }));
 const businessMock = { resolveBookingContract: jest.fn() };
 jest.mock('../../src/services/business.service', () => businessMock);
+const creditMock = { assertBusinessCreditAvailableInTransaction: jest.fn().mockResolvedValue({}) };
+jest.mock('../../src/services/business-invoice-control.service', () => creditMock);
 
 import { createBooking } from '../../src/services/booking.service';
 
@@ -62,13 +65,16 @@ beforeEach(() => {
   dbTransactionMock.mockReset();
   pricingMock.calculatePricing.mockResolvedValue({ surgeMultiplier: 1, surgeAmount: 0, appliedRule: null });
   businessMock.resolveBookingContract.mockReset();
+  creditMock.assertBusinessCreditAvailableInTransaction.mockClear();
 });
 
 describe('Phase 200 — createBooking contract pricing', () => {
   it('applies the contract agreed_rate, skips surge, and stamps account + contract', async () => {
     // subcategory SELECT (catalog base price 50000 — should be overridden)
     dbQueryMock.mockResolvedValueOnce({ rows: [{ base_price: '50000', pricing_type: 'fixed' }], rowCount: 1 });
-    businessMock.resolveBookingContract.mockResolvedValueOnce({ contractId: 'k-1', agreedRate: 99900 });
+    businessMock.resolveBookingContract.mockResolvedValueOnce({
+      contractId: 'k-1', agreedRate: 99900, accountTermsVersionId: 'terms-1',
+    });
     const cap = mockInsertCapture();
 
     const booking = await createBooking({ ...BASE, businessAccountId: 'ba-1' });
@@ -79,6 +85,14 @@ describe('Phase 200 — createBooking contract pricing', () => {
     // business_account_id (20) + contract_id (21) stamped.
     expect(cap.params[20]).toBe('ba-1');
     expect(cap.params[21]).toBe('k-1');
+    expect(cap.params[22]).toBe('terms-1');
+    expect(cap.params[23]).toBe('business_terms');
+    expect(creditMock.assertBusinessCreditAvailableInTransaction).toHaveBeenCalledWith(
+      expect.anything(), {
+        accountId: 'ba-1', contractId: 'k-1', termsVersionId: 'terms-1',
+        customerId: 'c-1', scheduledAt: BASE.scheduledAt, newBookingAmount: 109890,
+      },
+    );
     // Surge pricing was skipped for the contract booking.
     expect(pricingMock.calculatePricing).not.toHaveBeenCalled();
   });
@@ -93,6 +107,19 @@ describe('Phase 200 — createBooking contract pricing', () => {
     expect(cap.params[12]).toBe(50000); // catalog price
     expect(cap.params[20]).toBeNull();  // business_account_id
     expect(cap.params[21]).toBeNull();  // contract_id
+    expect(cap.params[22]).toBeNull();  // business terms version
+    expect(cap.params[23]).toBe('consumer_prepay');
     expect(pricingMock.calculatePricing).toHaveBeenCalled(); // surge runs normally
+  });
+
+  it('fails closed when an explicitly selected business account has no eligible published contract', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ base_price: '50000', pricing_type: 'fixed' }], rowCount: 1 });
+    businessMock.resolveBookingContract.mockResolvedValueOnce(null);
+
+    await expect(createBooking({ ...BASE, businessAccountId: 'ba-1' }))
+      .rejects.toMatchObject({ statusCode: 409 });
+
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+    expect(pricingMock.calculatePricing).not.toHaveBeenCalled();
   });
 });

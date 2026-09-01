@@ -59,6 +59,7 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   // customer-side pipelines are intentionally launched.
   'feature_flag.promo_redemption_enabled': 'false',
   'feature_flag.ab_testing_enabled': 'false',
+  'feature_flag.business_contract_booking_enabled': 'false',
 
   // MED-N29 fix: marketing channels are admin-editable via the
   // Settings UI. Stored as a JSON array string; marketing-admin.service
@@ -269,6 +270,7 @@ const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   auto_dispatch_enabled: 'Automatic dispatch is frozen under E33 until fixed-price booking creation proves authoritative payment and held escrow before any provider offer can start.',
   'feature_flag.promo_redemption_enabled': 'Promo redemption is deferred until its complete customer and settlement pipeline is launched.',
   'feature_flag.ab_testing_enabled': 'A/B assignment is deferred until exposure assignment and reporting are launched.',
+  'feature_flag.business_contract_booking_enabled': 'Contract booking is held under E56 until provider funding, cancellation, dispute, and production-history reconciliation are approved and verified end to end.',
   recurring_auto_charge_max_consecutive_failures: 'Recurring bookings remain manual-payment-only while escalation E20 is open.',
   cancel_refund_over_24h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
   cancel_refund_2_to_24h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
@@ -1076,6 +1078,7 @@ export async function bustAllCache(): Promise<void> {
 export async function getFeatureFlags(): Promise<{
   promoRedemptionEnabled: boolean;
   abTestingEnabled: boolean;
+  businessContractBookingEnabled: boolean;
 }> {
   const result = await db.query<{ key: string; value: string }>(
     `SELECT key, value FROM platform_settings
@@ -1089,20 +1092,29 @@ export async function getFeatureFlags(): Promise<{
   return {
     promoRedemptionEnabled: isOn('feature_flag.promo_redemption_enabled'),
     abTestingEnabled: isOn('feature_flag.ab_testing_enabled'),
+    businessContractBookingEnabled: isOn('feature_flag.business_contract_booking_enabled'),
   };
 }
 
 export async function getClientConfig(): Promise<Record<string, unknown>> {
   // D13: feature flags surface to mobile clients via the existing
   // /api/v1/config endpoint so no new public route is needed.
-  let featureFlags: { promoRedemptionEnabled: boolean; abTestingEnabled: boolean };
+  let featureFlags: {
+    promoRedemptionEnabled: boolean;
+    abTestingEnabled: boolean;
+    businessContractBookingEnabled: boolean;
+  };
   try {
     featureFlags = await getFeatureFlags();
   } catch (err) {
     logger.warn('feature_flag_read_failed_defaulting_off', {
       error: (err as Error).message,
     });
-    featureFlags = { promoRedemptionEnabled: false, abTestingEnabled: false };
+    featureFlags = {
+      promoRedemptionEnabled: false,
+      abTestingEnabled: false,
+      businessContractBookingEnabled: false,
+    };
   }
 
   // MED-N107 fix — single bulk SELECT instead of 14 sequential

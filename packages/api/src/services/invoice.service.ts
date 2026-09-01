@@ -23,6 +23,20 @@ interface InvoiceRow {
   notes: string | null;
   created_at: Date;
   updated_at: Date;
+  record_version?: number;
+  control_state?: string;
+  settlement_state?: string;
+  document_kind?: string;
+  currency?: string;
+  account_terms_version_id?: string | null;
+  manifest_hash?: string | null;
+  prepared_at?: Date | null;
+  prepared_by?: string | null;
+  preparation_reason?: string | null;
+  preparation_preview_id?: string | null;
+  finalized_at?: Date | null;
+  finalized_by?: string | null;
+  finalization_reason?: string | null;
 }
 
 interface InvoiceItemRow {
@@ -43,6 +57,13 @@ interface InvoiceItemRow {
   provider_id?: string | null;
   provider_name?: string | null;
   service_name?: string | null;
+  account_terms_version_id?: string | null;
+  booking_financial_terms_id?: string | null;
+  source_booking_total?: number | null;
+  service_price_amount?: number | null;
+  service_fee_amount?: number | null;
+  currency?: string;
+  manifest_position?: number | null;
 }
 
 interface BookingForInvoicing {
@@ -134,11 +155,16 @@ function getDueDate(invoiceDate: Date, paymentTerms: string): Date {
 // that already has an invoice for the period), so the admin button is safe to
 // press repeatedly and cannot double-bill.
 export async function generateMonthlyInvoices(): Promise<number> {
-  return runInvoiceGeneration(undefined);
+  logger.warn('Legacy automatic business invoice generation is held by E55; no statement was created.');
+  return 0;
 }
 
 export async function generateInvoiceForAccount(accountId: string): Promise<number> {
-  return runInvoiceGeneration(accountId);
+  void accountId;
+  throw createAppError(
+    'Immediate invoice generation was retired. Use controlled preview, draft preparation, and finalization.',
+    410,
+  );
 }
 
 async function runInvoiceGeneration(accountId: string | undefined): Promise<number> {
@@ -445,13 +471,14 @@ export async function getInvoices(
   const [dataResult, countResult] = await Promise.all([
     db.query<InvoiceRow>(
       `SELECT * FROM business_invoices
-       WHERE business_account_id = $1
+       WHERE business_account_id = $1 AND status <> 'draft'
        ORDER BY billing_period_end DESC
        LIMIT $2 OFFSET $3`,
       [businessId, pageSize, offset],
     ),
     db.query<CountRow>(
-      `SELECT COUNT(*)::text as count FROM business_invoices WHERE business_account_id = $1`,
+      `SELECT COUNT(*)::text as count FROM business_invoices
+        WHERE business_account_id = $1 AND status <> 'draft'`,
       [businessId],
     ),
   ]);
@@ -519,12 +546,14 @@ export async function getInvoiceDetailAdmin(
 }
 
 export async function getInvoiceDetail(
+  businessId: string,
   invoiceId: string,
   userId: string,
 ): Promise<{ invoice: InvoiceRow; items: InvoiceItemRow[] }> {
   const invoice = await db.query<InvoiceRow>(
-    `SELECT * FROM business_invoices WHERE id = $1`,
-    [invoiceId],
+    `SELECT * FROM business_invoices
+      WHERE id = $1 AND business_account_id = $2 AND status <> 'draft'`,
+    [invoiceId, businessId],
   );
 
   if (invoice.rows.length === 0) {
@@ -535,7 +564,7 @@ export async function getInvoiceDetail(
     // Soft-deleted (removed) members must not read invoice detail either.
     `SELECT can_view_invoices, role FROM business_members
      WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
-    [invoice.rows[0]!.business_account_id, userId],
+    [businessId, userId],
   );
 
   if (member.rows.length === 0) {
@@ -559,20 +588,12 @@ export async function markInvoicePaid(
   invoiceId: string,
   paymentReference: string,
 ): Promise<InvoiceRow> {
-  const result = await db.query<InvoiceRow>(
-    `UPDATE business_invoices
-     SET status = 'paid', paid_at = NOW(), payment_reference = $1, updated_at = NOW()
-     WHERE id = $2 AND status IN ('sent', 'overdue')
-     RETURNING *`,
-    [paymentReference, invoiceId],
+  void invoiceId;
+  void paymentReference;
+  throw createAppError(
+    'Mark paid was retired. Record controlled external-payment evidence instead.',
+    410,
   );
-
-  if (result.rows.length === 0) {
-    throw createAppError('Invoice not found or not payable.', 404);
-  }
-
-  logger.info('Invoice marked as paid', { invoiceId, paymentReference });
-  return result.rows[0]!;
 }
 
 export async function checkOverdueInvoices(): Promise<number> {
@@ -648,10 +669,10 @@ export function formatInvoice(inv: InvoiceRow): Record<string, unknown> {
     invoiceNumber: inv.invoice_number,
     billingPeriodStart: inv.billing_period_start,
     billingPeriodEnd: inv.billing_period_end,
-    subtotal: inv.subtotal,
-    discountAmount: inv.discount_amount,
-    taxAmount: inv.tax_amount,
-    totalAmount: inv.total_amount,
+    subtotal: Number(inv.subtotal),
+    discountAmount: Number(inv.discount_amount),
+    taxAmount: Number(inv.tax_amount),
+    totalAmount: Number(inv.total_amount),
     status: inv.status,
     dueDate: inv.due_date,
     paidAt: inv.paid_at,
@@ -659,6 +680,20 @@ export function formatInvoice(inv: InvoiceRow): Record<string, unknown> {
     notes: inv.notes,
     createdAt: inv.created_at,
     updatedAt: inv.updated_at,
+    recordVersion: inv.record_version ?? 1,
+    controlState: inv.control_state ?? 'legacy_unreviewed',
+    settlementState: inv.settlement_state ?? 'legacy_unreviewed',
+    documentKind: inv.document_kind ?? 'commercial_statement',
+    currency: inv.currency ?? 'PHP',
+    accountTermsVersionId: inv.account_terms_version_id ?? null,
+    manifestHash: inv.manifest_hash ?? null,
+    preparedAt: inv.prepared_at ?? null,
+    preparedBy: inv.prepared_by ?? null,
+    preparationReason: inv.preparation_reason ?? null,
+    preparationPreviewId: inv.preparation_preview_id ?? null,
+    finalizedAt: inv.finalized_at ?? null,
+    finalizedBy: inv.finalized_by ?? null,
+    finalizationReason: inv.finalization_reason ?? null,
   };
 }
 
@@ -670,10 +705,10 @@ export function formatInvoiceItem(item: InvoiceItemRow): Record<string, unknown>
     contractId: item.contract_id,
     description: item.description,
     serviceDate: item.service_date,
-    quantity: item.quantity,
-    unitPrice: item.unit_price,
-    discountAmount: item.discount_amount,
-    amount: item.amount,
+    quantity: Number(item.quantity),
+    unitPrice: Number(item.unit_price),
+    discountAmount: Number(item.discount_amount),
+    amount: Number(item.amount),
     createdAt: item.created_at,
     bookingStatus: item.booking_status ?? null,
     customerId: item.customer_id ?? null,
@@ -681,5 +716,15 @@ export function formatInvoiceItem(item: InvoiceItemRow): Record<string, unknown>
     providerId: item.provider_id ?? null,
     providerName: item.provider_name ?? null,
     serviceName: item.service_name ?? null,
+    accountTermsVersionId: item.account_terms_version_id ?? null,
+    bookingFinancialTermsId: item.booking_financial_terms_id ?? null,
+    sourceBookingTotal: item.source_booking_total === null || item.source_booking_total === undefined
+      ? null : Number(item.source_booking_total),
+    servicePriceAmount: item.service_price_amount === null || item.service_price_amount === undefined
+      ? null : Number(item.service_price_amount),
+    serviceFeeAmount: item.service_fee_amount === null || item.service_fee_amount === undefined
+      ? null : Number(item.service_fee_amount),
+    currency: item.currency ?? 'PHP',
+    manifestPosition: item.manifest_position ?? null,
   };
 }

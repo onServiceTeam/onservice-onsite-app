@@ -4,6 +4,8 @@ import { createAppError } from '../middleware/error.middleware';
 import * as businessService from '../services/business.service';
 import * as invoiceService from '../services/invoice.service';
 import * as settingsService from '../services/settings.service';
+import * as businessControlService from '../services/business-control.service';
+import * as businessInvoiceControlService from '../services/business-invoice-control.service';
 
 const router = Router();
 
@@ -78,10 +80,11 @@ router.post(
         contactPerson, contactEmail, contactPhone,
         ownerUserId: userId, paymentTerms, notes,
       });
+      const memberAccount = await businessService.getBusinessAccount(account.id, userId);
 
       res.status(201).json({
         success: true,
-        data: businessService.formatBusinessAccount(account),
+        data: businessService.formatBusinessAccountForMember(memberAccount),
       });
     } catch (err) {
       next(err);
@@ -102,7 +105,7 @@ router.get(
 
       res.json({
         success: true,
-        data: result.items.map(businessService.formatBusinessAccount),
+        data: result.items.map(businessService.formatBusinessAccountForMember),
         pagination: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
       });
     } catch (err) {
@@ -122,7 +125,7 @@ router.get(
 
       res.json({
         success: true,
-        data: businessService.formatBusinessAccount(account),
+        data: businessService.formatBusinessAccountForMember(account),
       });
     } catch (err) {
       next(err);
@@ -141,15 +144,33 @@ router.patch(
         companyName: string; businessType: string; registrationNumber: string;
         taxId: string; billingAddress: string; barangay: string; city: string;
         province: string; contactPerson: string; contactEmail: string;
-        contactPhone: string; paymentTerms: string; notes: string;
+        contactPhone: string; notes: string;
       }>;
 
-      const account = await businessService.updateBusinessAccount(businessId, userId, updates);
+      await businessService.updateBusinessAccount(businessId, userId, updates);
+      const account = await businessService.getBusinessAccount(businessId, userId);
 
       res.json({
         success: true,
-        data: businessService.formatBusinessAccount(account),
+        data: businessService.formatBusinessAccountForMember(account),
       });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.get(
+  '/:id/terms/current',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const businessId = getParamId(req);
+      const terms = await businessControlService.getCurrentBusinessTermsForMember(
+        businessId,
+        req.user!.userId,
+      );
+      res.json({ success: true, data: terms });
     } catch (err) {
       next(err);
     }
@@ -398,15 +419,22 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const invoiceId = getParamId(req, 'invoiceId');
+      const businessId = getParamId(req);
       const userId = req.user!.userId;
 
-      const { invoice, items } = await invoiceService.getInvoiceDetail(invoiceId, userId);
+      const { invoice, items } = await invoiceService.getInvoiceDetail(businessId, invoiceId, userId);
+      const [balance, ledger] = await Promise.all([
+        businessInvoiceControlService.getInvoiceBalance(invoiceId),
+        businessInvoiceControlService.getInvoiceCustomerLedger(invoiceId),
+      ]);
 
       res.json({
         success: true,
         data: {
           ...invoiceService.formatInvoice(invoice),
           items: items.map(invoiceService.formatInvoiceItem),
+          balance,
+          ledger,
         },
       });
     } catch (err) {

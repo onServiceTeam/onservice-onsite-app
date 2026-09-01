@@ -31,6 +31,9 @@ it('Bug UX-660 — the customer stack explicitly registers every previously impl
     'projects/index',
     'projects/new',
     'projects/[id]',
+    'business/index',
+    'business/[id]/index',
+    'business/[id]/invoices/[invoiceId]',
   ]) {
     expect(screen.getByTestId(`route-${name}`)).toBeTruthy();
   }

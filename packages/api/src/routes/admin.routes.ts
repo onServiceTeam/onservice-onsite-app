@@ -21,6 +21,28 @@ import {
   type UpdatePricingRuleInput,
 } from '../validators/admin-pricing-rules.validators';
 import {
+  businessAccountParamsSchema,
+  businessContractParamsSchema,
+  businessInvoiceParamsSchema,
+  businessInvoicePaymentParamsSchema,
+  businessInvoicePreviewSchema,
+  businessLifecycleDecisionSchema,
+  finalizeBusinessInvoiceSchema,
+  prepareBusinessInvoiceSchema,
+  previewBusinessTermsSchema,
+  publishBusinessContractSchema,
+  publishBusinessTermsSchema,
+  recordBusinessInvoiceAdjustmentSchema,
+  recordBusinessInvoicePaymentSchema,
+  reverseBusinessInvoicePaymentSchema,
+  voidBusinessInvoiceSchema,
+  type BusinessInvoicePreviewInput,
+  type PreviewBusinessTermsInput,
+  type RecordBusinessInvoiceAdjustmentInput,
+  type RecordBusinessInvoicePaymentInput,
+  type ReverseBusinessInvoicePaymentInput,
+} from '../validators/admin-business.validators';
+import {
   createServiceAreaSchema,
   serviceAreaIdParamsSchema,
   serviceAreaListQuerySchema,
@@ -35,8 +57,11 @@ import { createAppError } from '../middleware/error.middleware';
 import { db } from '../models/db';
 import * as notificationService from '../services/notification.service';
 import { logger } from '../utils/logger';
+import { formatPHP } from '../utils/currency';
 import * as invoiceService from '../services/invoice.service';
 import * as businessService from '../services/business.service';
+import * as businessControlService from '../services/business-control.service';
+import * as businessInvoiceControlService from '../services/business-invoice-control.service';
 import * as serviceAreaService from '../services/service-area.service';
 import * as pricingService from '../services/pricing.service';
 import * as pricingPublicationService from '../services/pricing-publication.service';
@@ -904,25 +929,74 @@ router.get(
   },
 );
 
-// Phase 200 — admin "generate invoice now". Bills the just-ended month for
-// this one account on demand instead of waiting for the monthly cron.
-// Idempotent: if an invoice for the period already exists, generated = 0.
+// E55 Option A: statement preparation is previewed, stored as a draft, and
+// finalized by a separate super-admin decision. These are commercial
+// statements, not claims of BIR principal-invoice authority (E22 remains).
 router.post(
-  '/business-accounts/:id/generate-invoice',
+  '/business-accounts/:id/invoices/preview',
   authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: businessInvoicePreviewSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const generated = await invoiceService.generateInvoiceForAccount(req.params.id as string);
-      res.json({
-        success: true,
-        data: {
-          generated,
-          message: generated > 0
-            ? 'Invoice generated for last month.'
-            : 'No invoice generated — either there are no billable bookings for last month, or an invoice for that period already exists.',
-        },
+      const preview = await businessInvoiceControlService.previewInvoiceForAccount(
+        req.params.id as string,
+        req.body as BusinessInvoicePreviewInput,
+        req.user!.userId,
+      );
+      res.json({ success: true, data: preview });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/invoices/prepare',
+  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: prepareBusinessInvoiceSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const { previewId, reason } = req.body as { previewId: string; reason: string };
+      const drafts = await businessInvoiceControlService.prepareInvoiceDrafts({
+        accountId: req.params.id as string,
+        previewId,
+        actorId: req.user!.userId,
+        reason,
       });
+      res.status(201).json({
+        success: true,
+        data: drafts.map(invoiceService.formatInvoice),
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/generate-invoice',
+  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      res.status(410).json({
+        success: false,
+        message: 'Immediate invoice generation was retired. Preview candidates, prepare a draft statement, then finalize it separately.',
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/approve/preview',
+  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const preview = await businessControlService.previewAccountLifecycle(
+        req.params.id as string, 'approve', req.user!.userId,
+      );
+      res.json({ success: true, data: preview });
     } catch (error) { next(error); }
   },
 );
@@ -930,38 +1004,28 @@ router.post(
 router.post(
   '/business-accounts/:id/approve',
   authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: businessLifecycleDecisionSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const id = req.params.id;
-
-      const result = await db.query(
-        `UPDATE business_accounts SET status = 'active', updated_at = NOW()
-         WHERE id = $1 AND status = 'pending'`,
-        [id],
-      );
-
-      if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ success: false, message: 'Business account not found or not pending.' });
-        return;
-      }
-
-      const account = await db.query<{ owner_user_id: string; company_name: string }>(
-        `SELECT owner_user_id, company_name FROM business_accounts WHERE id = $1`,
-        [id],
-      );
-
-      if (account.rows[0]) {
+      requireSuperAdmin(req);
+      const id = req.params.id as string;
+      const { previewId, reason } = req.body as { previewId: string; reason: string };
+      const decision = await businessControlService.applyAccountLifecycleDecision({
+        accountId: id, action: 'approve', previewId, actorId: req.user!.userId, reason,
+      });
+      try {
         await notificationService.createPushNotification({
-          userId: account.rows[0].owner_user_id,
+          userId: decision.owner_user_id,
           type: 'business_update',
           title: 'Business Account Approved',
-          body: `Your business account "${account.rows[0].company_name}" has been approved. You can now create contracts and manage team members.`,
+          body: `Your business account "${decision.company_name}" has been approved. Contracted booking starts after onService publishes your commercial terms and contract.`,
           data: { businessAccountId: id },
         });
+      } catch (notifyError) {
+        logger.warn('Business account approval notification failed', { businessAccountId: id, notifyError });
       }
-
-      res.json({ success: true, message: 'Business account approved.' });
+      const account = await businessService.getBusinessAccountAdmin(id);
+      res.json({ success: true, data: businessService.formatBusinessAccount(account) });
     } catch (error) {
       next(error);
     }
@@ -969,26 +1033,45 @@ router.post(
 );
 
 router.post(
-  '/business-accounts/:id/suspend',
+  '/business-accounts/:id/suspend/preview',
   authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const id = req.params.id;
-      const { reason } = req.body as { reason?: string };
-
-      const result = await db.query(
-        `UPDATE business_accounts SET status = 'suspended', notes = COALESCE($1, notes), updated_at = NOW()
-         WHERE id = $2 AND status = 'active'`,
-        [reason ?? null, id],
+      requireSuperAdmin(req);
+      const preview = await businessControlService.previewAccountLifecycle(
+        req.params.id as string, 'suspend', req.user!.userId,
       );
+      res.json({ success: true, data: preview });
+    } catch (error) { next(error); }
+  },
+);
 
-      if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ success: false, message: 'Business account not found or not active.' });
-        return;
+router.post(
+  '/business-accounts/:id/suspend',
+  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: businessLifecycleDecisionSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const id = req.params.id as string;
+      const { previewId, reason } = req.body as { previewId: string; reason: string };
+      const decision = await businessControlService.applyAccountLifecycleDecision({
+        accountId: id, action: 'suspend', previewId, actorId: req.user!.userId, reason,
+      });
+      try {
+        await notificationService.createPushNotification({
+          userId: decision.owner_user_id,
+          type: 'business_update',
+          title: 'Business Account Suspended',
+          body: `Your business account "${decision.company_name}" has been suspended. Existing work remains visible; new company bookings are paused. Contact support if you need help with this decision.`,
+          data: { businessAccountId: id },
+        });
+      } catch (notifyError) {
+        logger.warn('Business account suspension notification failed', { businessAccountId: id, notifyError });
       }
-
-      res.json({ success: true, message: 'Business account suspended.' });
+      const account = await businessService.getBusinessAccountAdmin(id);
+      res.json({ success: true, data: businessService.formatBusinessAccount(account) });
     } catch (error) {
       next(error);
     }
@@ -1017,53 +1100,18 @@ router.post(
 );
 
 router.post(
-  '/business-accounts/:id/set-discount',
+  '/business-accounts/:id/terms/preview',
   authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: previewBusinessTermsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const id = req.params.id;
-      const { volumeDiscountRate, monthlyCreditLimit } = req.body as {
-        volumeDiscountRate?: number;
-        monthlyCreditLimit?: number;
-      };
-
-      const setClauses: string[] = ['updated_at = NOW()'];
-      const params: unknown[] = [];
-      let paramIdx = 1;
-
-      if (volumeDiscountRate !== undefined) {
-        if (typeof volumeDiscountRate !== 'number' || volumeDiscountRate < 0 || volumeDiscountRate > 50) {
-          res.status(400).json({ success: false, message: 'volumeDiscountRate must be between 0 and 50.' });
-          return;
-        }
-        setClauses.push(`volume_discount_rate = $${paramIdx}`);
-        params.push(volumeDiscountRate);
-        paramIdx++;
-      }
-
-      if (monthlyCreditLimit !== undefined) {
-        if (typeof monthlyCreditLimit !== 'number' || monthlyCreditLimit < 0) {
-          res.status(400).json({ success: false, message: 'monthlyCreditLimit must be a non-negative number.' });
-          return;
-        }
-        setClauses.push(`monthly_credit_limit = $${paramIdx}`);
-        params.push(monthlyCreditLimit);
-        paramIdx++;
-      }
-
-      params.push(id);
-      const result = await db.query(
-        `UPDATE business_accounts SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
-        params,
+      requireSuperAdmin(req);
+      const preview = await businessControlService.previewBusinessTerms(
+        req.params.id as string,
+        req.body as PreviewBusinessTermsInput,
+        req.user!.userId,
       );
-
-      if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ success: false, message: 'Business account not found.' });
-        return;
-      }
-
-      res.json({ success: true, message: 'Discount settings updated.' });
+      res.json({ success: true, data: preview });
     } catch (error) {
       next(error);
     }
@@ -1071,22 +1119,20 @@ router.post(
 );
 
 router.post(
-  '/invoices/:id/mark-paid',
+  '/business-accounts/:id/terms/publish',
   authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: publishBusinessTermsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const id = req.params.id as string;
-      const { paymentReference } = req.body as { paymentReference: string };
-
-      if (!paymentReference) {
-        res.status(400).json({ success: false, message: 'paymentReference is required.' });
-        return;
-      }
-
-      const invoice = await invoiceService.markInvoicePaid(id, paymentReference);
-
-      res.json({ success: true, data: invoiceService.formatInvoice(invoice) });
+      requireSuperAdmin(req);
+      const { previewId, reason } = req.body as { previewId: string; reason: string };
+      const terms = await businessControlService.publishBusinessTerms({
+        accountId: req.params.id as string,
+        previewId,
+        actorId: req.user!.userId,
+        reason,
+      });
+      res.json({ success: true, data: businessControlService.formatBusinessTerms(terms) });
     } catch (error) {
       next(error);
     }
@@ -1094,18 +1140,292 @@ router.post(
 );
 
 router.get(
+  '/business-accounts/:id/terms/current',
+  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const terms = await businessControlService.getCurrentBusinessTerms(req.params.id as string);
+      res.json({ success: true, data: terms });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/set-discount',
+  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      res.status(410).json({
+        success: false,
+        message: 'Direct discount and credit edits were retired. Preview and publish a versioned business-terms agreement.',
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/contracts/:contractId/publish/preview',
+  authMiddleware,
+  validationMiddleware({ params: businessContractParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const preview = await businessControlService.previewContractLifecycle(
+        req.params.id as string, req.params.contractId as string, 'publish', req.user!.userId,
+      );
+      res.json({ success: true, data: preview });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/contracts/:contractId/publish',
+  authMiddleware,
+  validationMiddleware({ params: businessContractParamsSchema, body: publishBusinessContractSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const { previewId, reason } = req.body as { previewId: string; reason: string };
+      const contract = await businessControlService.applyContractLifecycleDecision({
+        accountId: req.params.id as string,
+        contractId: req.params.contractId as string,
+        action: 'publish',
+        previewId,
+        actorId: req.user!.userId,
+        reason,
+      });
+      res.json({ success: true, data: businessService.formatContract(contract) });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/contracts/:contractId/cancel/preview',
+  authMiddleware,
+  validationMiddleware({ params: businessContractParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const preview = await businessControlService.previewContractLifecycle(
+        req.params.id as string, req.params.contractId as string, 'cancel', req.user!.userId,
+      );
+      res.json({ success: true, data: preview });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/contracts/:contractId/cancel',
+  authMiddleware,
+  validationMiddleware({ params: businessContractParamsSchema, body: publishBusinessContractSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const { previewId, reason } = req.body as { previewId: string; reason: string };
+      const contract = await businessControlService.applyContractLifecycleDecision({
+        accountId: req.params.id as string,
+        contractId: req.params.contractId as string,
+        action: 'cancel',
+        previewId,
+        actorId: req.user!.userId,
+        reason,
+      });
+      res.json({ success: true, data: businessService.formatContract(contract) });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/invoices/:id/finalize',
+  authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema, body: finalizeBusinessInvoiceSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const { expectedVersion, reason } = req.body as { expectedVersion: number; reason: string };
+      const invoice = await businessInvoiceControlService.finalizeInvoice({
+        invoiceId: req.params.id as string,
+        expectedVersion,
+        actorId: req.user!.userId,
+        reason,
+      });
+      try {
+        await notificationService.createPushNotification({
+          userId: invoice.owner_user_id,
+          type: 'business_update',
+          title: 'Business statement ready',
+          body: `Statement ${invoice.invoice_number} for ${formatPHP(Number(invoice.total_amount))} is ready and due ${invoice.due_date}.`,
+          data: { invoiceId: invoice.id, invoiceNumber: invoice.invoice_number },
+        });
+      } catch (notifyError) {
+        logger.warn('Business statement finalization notification failed', { invoiceId: invoice.id, notifyError });
+      }
+      res.json({ success: true, data: invoiceService.formatInvoice(invoice) });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/invoices/:id/payments',
+  authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema, body: recordBusinessInvoicePaymentSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const result = await businessInvoiceControlService.recordInvoicePayment(
+        req.params.id as string,
+        req.body as RecordBusinessInvoicePaymentInput,
+        req.user!.userId,
+      );
+      res.status(201).json({
+        success: true,
+        data: {
+          invoice: invoiceService.formatInvoice(result.invoice),
+          balance: {
+            adjustmentTotal: result.balance.adjustment_total,
+            paymentTotal: result.balance.payment_total,
+            adjustedTotal: result.balance.adjusted_total,
+            balanceDue: result.balance.balance_due,
+          },
+          paymentId: result.paymentId,
+        },
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/invoices/:id/adjustments',
+  authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema, body: recordBusinessInvoiceAdjustmentSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const result = await businessInvoiceControlService.recordInvoiceAdjustment(
+        req.params.id as string,
+        req.body as RecordBusinessInvoiceAdjustmentInput,
+        req.user!.userId,
+      );
+      res.status(201).json({
+        success: true,
+        data: {
+          invoice: invoiceService.formatInvoice(result.invoice),
+          balance: {
+            adjustmentTotal: result.balance.adjustment_total,
+            paymentTotal: result.balance.payment_total,
+            adjustedTotal: result.balance.adjusted_total,
+            balanceDue: result.balance.balance_due,
+          },
+        },
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/invoices/:id/payments/:paymentId/reverse',
+  authMiddleware,
+  validationMiddleware({
+    params: businessInvoicePaymentParamsSchema,
+    body: reverseBusinessInvoicePaymentSchema,
+  }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const result = await businessInvoiceControlService.reverseInvoicePayment(
+        req.params.id as string,
+        req.params.paymentId as string,
+        req.body as ReverseBusinessInvoicePaymentInput,
+        req.user!.userId,
+      );
+      res.status(201).json({
+        success: true,
+        data: {
+          invoice: invoiceService.formatInvoice(result.invoice),
+          balance: {
+            adjustmentTotal: result.balance.adjustment_total,
+            paymentTotal: result.balance.payment_total,
+            adjustedTotal: result.balance.adjusted_total,
+            balanceDue: result.balance.balance_due,
+          },
+          reversalId: result.reversalId,
+        },
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/invoices/:id/void',
+  authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema, body: voidBusinessInvoiceSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const { expectedVersion, reason } = req.body as { expectedVersion: number; reason: string };
+      const invoice = await businessInvoiceControlService.voidInvoice({
+        invoiceId: req.params.id as string,
+        expectedVersion,
+        actorId: req.user!.userId,
+        reason,
+      });
+      if (invoice.status === 'void' && invoice.finalized_at) {
+        try {
+          await notificationService.createPushNotification({
+            userId: invoice.owner_user_id,
+            type: 'business_update',
+            title: 'Business statement voided',
+            body: `Statement ${invoice.invoice_number} was voided. A replacement may be issued after review.`,
+            data: { invoiceId: invoice.id, invoiceNumber: invoice.invoice_number },
+          });
+        } catch (notifyError) {
+          logger.warn('Business statement void notification failed', { invoiceId: invoice.id, notifyError });
+        }
+      }
+      res.json({ success: true, data: invoiceService.formatInvoice(invoice) });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/invoices/:id/mark-paid',
+  authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      res.status(410).json({
+        success: false,
+        message: 'Mark paid was retired. Record amount, method, effective time, unique reference, evidence, and reason instead.',
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
   '/invoices/:id',
   authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
       const id = req.params.id as string;
-      const detail = await invoiceService.getInvoiceDetailAdmin(id);
+      const [detail, balance, ledger] = await Promise.all([
+        invoiceService.getInvoiceDetailAdmin(id),
+        businessInvoiceControlService.getInvoiceBalance(id),
+        businessInvoiceControlService.getInvoiceLedger(id),
+      ]);
       res.json({
         success: true,
         data: {
           invoice: invoiceService.formatInvoice(detail.invoice),
           items: detail.items.map(invoiceService.formatInvoiceItem),
+          balance,
+          ledger,
         },
       });
     } catch (error) {
