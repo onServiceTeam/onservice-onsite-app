@@ -2,6 +2,13 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  AUDIT_CHROMIUM_ARGS,
+  AUDIT_CONTEXT_OPTIONS,
+  AUDIT_SCREENSHOT_OPTIONS,
+  installFixedBrowserTime,
+  settleBrowserEvidence,
+} from '../browser-audit-clock.mjs';
 
 const BASE_URL = process.env.AUDIT_BASE_URL ?? 'http://127.0.0.1:7390';
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -39,8 +46,12 @@ const area = {
 const envelope = (data, extra = {}) => ({ success: true, data, ...extra });
 
 async function runAtWidth(browser, width) {
-  const context = await browser.newContext({ viewport: { width, height: 900 } });
+  const context = await browser.newContext({
+    ...AUDIT_CONTEXT_OPTIONS,
+    viewport: { width, height: 900 },
+  });
   const page = await context.newPage();
+  await installFixedBrowserTime(page);
   const unmatchedApi = new Set();
   const pageErrors = [];
   const consoleErrors = [];
@@ -141,11 +152,13 @@ async function runAtWidth(browser, width) {
     await mark('checkout', '/customer/booking/checkout', service.name);
     const screenshotDir = path.join(screenshotRoot, String(width));
     await mkdir(screenshotDir, { recursive: true });
-    await page.screenshot({ path: path.join(screenshotDir, 'checkout.png'), fullPage: false });
+    await settleBrowserEvidence(page);
+    await page.screenshot({ path: path.join(screenshotDir, 'checkout.png'), fullPage: false, ...AUDIT_SCREENSHOT_OPTIONS });
     await page.getByRole('radio', { name: 'Wallet Balance, available' }).click();
     await page.getByRole('button', { name: /^Pay ₱/ }).click();
     await mark('confirmed', '/customer/booking/confirm', 'Booking Confirmed!');
-    await page.screenshot({ path: path.join(screenshotDir, 'confirmation.png'), fullPage: false });
+    await settleBrowserEvidence(page);
+    await page.screenshot({ path: path.join(screenshotDir, 'confirmation.png'), fullPage: false, ...AUDIT_SCREENSHOT_OPTIONS });
   } catch (error) {
     steps.push({ name: 'audit-error', error: error instanceof Error ? error.message : String(error), path: `${new URL(page.url()).pathname}${new URL(page.url()).search}` });
   }
@@ -165,7 +178,7 @@ async function runAtWidth(browser, width) {
   return { width, completed, payloadSafe, steps, writes, unmatchedApi: [...unmatchedApi], pageErrors, consoleErrors, failed };
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: AUDIT_CHROMIUM_ARGS });
 const results = [];
 const widths = (process.env.AUDIT_WIDTHS ?? '768,1024,1366')
   .split(',')

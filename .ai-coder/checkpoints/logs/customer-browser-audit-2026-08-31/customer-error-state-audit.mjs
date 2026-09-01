@@ -2,6 +2,13 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  AUDIT_CHROMIUM_ARGS,
+  AUDIT_CONTEXT_OPTIONS,
+  AUDIT_SCREENSHOT_OPTIONS,
+  installFixedBrowserTime,
+  settleBrowserEvidence,
+} from '../browser-audit-clock.mjs';
 
 const BASE_URL = process.env.AUDIT_BASE_URL ?? 'http://127.0.0.1:7390';
 const ROUTE_FILTER = process.env.AUDIT_ROUTE?.trim() || null;
@@ -63,8 +70,12 @@ async function forceApiOutage(page) {
 }
 
 async function auditRoute(browser, { route, width }) {
-  const context = await browser.newContext({ viewport: { width, height: 900 } });
+  const context = await browser.newContext({
+    ...AUDIT_CONTEXT_OPTIONS,
+    viewport: { width, height: 900 },
+  });
   const page = await context.newPage();
+  await installFixedBrowserTime(page);
   const pageErrors = [];
   const consoleErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
@@ -96,11 +107,13 @@ async function auditRoute(browser, { route, width }) {
     await page.waitForTimeout(5_000);
     state = await readState();
   }
+  await settleBrowserEvidence(page);
+  state = await readState();
 
   const screenshotDir = path.join(evidenceRoot, String(width));
   await mkdir(screenshotDir, { recursive: true });
   const screenshot = path.join(screenshotDir, `${safeName(route)}.png`);
-  await page.screenshot({ path: screenshot, fullPage: false });
+  await page.screenshot({ path: screenshot, fullPage: false, ...AUDIT_SCREENSHOT_OPTIONS });
 
   const globalBoundary = state.text.includes('The app ran into an unexpected problem. You can try again.');
   const blank = state.text.length < 4;
@@ -110,7 +123,7 @@ async function auditRoute(browser, { route, width }) {
   return { route, width, actualPath: state.path, textPreview: state.text.slice(0, 1_000), globalBoundary, blank, overflow, pageErrors, consoleErrors, screenshot, failed };
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: AUDIT_CHROMIUM_ARGS });
 const jobs = [768, 1024, 1366].flatMap((width) => routes
   .filter((route) => !ROUTE_FILTER || route === ROUTE_FILTER)
   .map((route) => ({ route, width })));

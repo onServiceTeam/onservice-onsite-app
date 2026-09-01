@@ -2,6 +2,13 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  AUDIT_CHROMIUM_ARGS,
+  AUDIT_CONTEXT_OPTIONS,
+  AUDIT_SCREENSHOT_OPTIONS,
+  installFixedBrowserTime,
+  settleBrowserEvidence,
+} from '../browser-audit-clock.mjs';
 
 const BASE_URL = process.env.AUDIT_BASE_URL ?? 'http://127.0.0.1:7390';
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -59,8 +66,12 @@ const tinyPng = Buffer.from(
 );
 
 async function runAtWidth(browser, width) {
-  const context = await browser.newContext({ viewport: { width, height: 900 } });
+  const context = await browser.newContext({
+    ...AUDIT_CONTEXT_OPTIONS,
+    viewport: { width, height: 900 },
+  });
   const page = await context.newPage();
+  await installFixedBrowserTime(page);
   const unmatchedApi = new Set();
   const pageErrors = [];
   const consoleErrors = [];
@@ -178,10 +189,12 @@ async function runAtWidth(browser, width) {
     await page.waitForFunction(() => document.body.innerText.includes('Remove custom job photo 2') || document.querySelectorAll('img').length >= 2, undefined, { timeout: 15_000 }).catch(() => undefined);
     const screenshotDir = path.join(screenshotRoot, String(width));
     await mkdir(screenshotDir, { recursive: true });
-    await page.screenshot({ path: path.join(screenshotDir, 'completed-request.png'), fullPage: true });
+    await settleBrowserEvidence(page);
+    await page.screenshot({ path: path.join(screenshotDir, 'completed-request.png'), fullPage: true, ...AUDIT_SCREENSHOT_OPTIONS });
     await page.getByRole('button', { name: 'Submit custom job request' }).click();
     await mark('booking-detail', `/customer/booking/${requestedBooking.id}`, 'View Quotes');
-    await page.screenshot({ path: path.join(screenshotDir, 'requested-booking.png'), fullPage: true });
+    await settleBrowserEvidence(page);
+    await page.screenshot({ path: path.join(screenshotDir, 'requested-booking.png'), fullPage: true, ...AUDIT_SCREENSHOT_OPTIONS });
   } catch (error) {
     steps.push({ name: 'audit-error', error: error instanceof Error ? error.message : String(error), path: `${new URL(page.url()).pathname}${new URL(page.url()).search}` });
   }
@@ -211,7 +224,7 @@ async function runAtWidth(browser, width) {
   return { width, completed, payloadSafe, steps, writes, unmatchedApi: [...unmatchedApi], pageErrors, consoleErrors, failed };
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: AUDIT_CHROMIUM_ARGS });
 const results = [];
 const widths = (process.env.AUDIT_WIDTHS ?? '768,1024,1366').split(',').map((value) => Number(value.trim())).filter((value) => Number.isFinite(value) && value > 0);
 try {

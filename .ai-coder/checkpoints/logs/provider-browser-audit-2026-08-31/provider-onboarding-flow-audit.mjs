@@ -2,6 +2,13 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  AUDIT_CHROMIUM_ARGS,
+  AUDIT_CONTEXT_OPTIONS,
+  AUDIT_SCREENSHOT_OPTIONS,
+  installFixedBrowserTime,
+  settleBrowserEvidence,
+} from '../browser-audit-clock.mjs';
 
 const BASE_URL = process.env.AUDIT_BASE_URL ?? 'http://127.0.0.1:7390';
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -63,7 +70,7 @@ async function setImageFromChooser(page, buttonName) {
 async function capture(page, width, step, expectedText, results) {
   await page.getByText(expectedText, { exact: false }).first().waitFor({ state: 'visible', timeout: 15_000 });
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(350);
+  await settleBrowserEvidence(page);
   const state = await page.evaluate(() => ({
     path: `${location.pathname}${location.search}`,
     text: document.body.innerText.replace(/\s+/g, ' ').trim(),
@@ -73,7 +80,7 @@ async function capture(page, width, step, expectedText, results) {
   const directory = path.join(screenshotRoot, String(width));
   await mkdir(directory, { recursive: true });
   const screenshot = path.join(directory, `${step}.png`);
-  await page.screenshot({ path: screenshot, fullPage: false });
+  await page.screenshot({ path: screenshot, fullPage: false, ...AUDIT_SCREENSHOT_OPTIONS });
   results.push({
     width, step, expectedText, actualPath: state.path,
     markerMissing: !state.text.toLocaleLowerCase().includes(expectedText.toLocaleLowerCase()),
@@ -84,11 +91,13 @@ async function capture(page, width, step, expectedText, results) {
 
 async function runFlow(browser, width) {
   const context = await browser.newContext({
+    ...AUDIT_CONTEXT_OPTIONS,
     viewport: { width, height: 900 },
     geolocation: { latitude: 10.3157, longitude: 123.8854 },
     permissions: ['geolocation'],
   });
   const page = await context.newPage();
+  await installFixedBrowserTime(page);
   const results = [];
   const pageErrors = [];
   const consoleErrors = [];
@@ -175,7 +184,7 @@ async function runFlow(browser, width) {
   return { width, failed, pageErrors, consoleErrors, unmatchedApi: [...unmatchedApi], results };
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: AUDIT_CHROMIUM_ARGS });
 const flows = [];
 try {
   for (const width of [768, 1024, 1366]) {

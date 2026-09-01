@@ -36,6 +36,25 @@ reports contain every path, expected marker, overflow result, unmatched API,
 console error, and screenshot path. Contact sheets provide one-page visual
 review at each width.
 
+### Deterministic evidence refresh, 2026-09-01
+
+The populated, forced-failure, and onboarding matrices were regenerated from
+a clean production Expo web export served through the production preview path.
+The harness now pins the fixture clock without freezing timers, waits for the
+expected rendered marker, network idle, and browser fonts, disables
+visual-only motion and caret capture, and uses reduced-motion plus a consistent
+software-rendering configuration. The populated audit also supplies the real
+commission-preview and provider job-request response shapes instead of stale
+generic fixtures. The regenerated results remained 159/159, 159/159, and
+27/27 with no failures.
+
+A repeat six-capture probe isolated the last raw-pixel variance to browser
+anti-aliasing: five images were byte-identical and one 768-pixel Job Detail
+capture changed 57 of 691,200 pixels, each by one colour value on rounded card
+edges. Its path, text, API coverage, overflow result, and report were
+unchanged. This is recorded as renderer noise, not a changing application
+state or a hidden functional pass.
+
 ## Corrections made
 
 | Bug | Surface | Corrected behavior |
@@ -118,8 +137,8 @@ browser matrices.
 
 ## Next stage
 
-The next autonomous stage is the same source-truth, populated-state,
-failure-state, and sequential-flow audit for all customer screens. After that,
-the admin/company stage must recheck every queue and 360 view against the
-customer/provider records rather than treating the existing admin surface as
-presumptively correct.
+The customer source-truth, populated-state, failure-state, fixed-price, and
+custom-quote browser audit is now complete. The next autonomous stage is the
+admin/company overhaul: recheck every queue, field, control, and 360 view
+against the customer/provider records rather than treating the existing admin
+surface as presumptively correct.

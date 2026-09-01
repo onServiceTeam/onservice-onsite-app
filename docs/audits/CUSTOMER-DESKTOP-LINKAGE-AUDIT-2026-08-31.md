@@ -35,6 +35,18 @@ Evidence lives in
 reports contain every route, width, expected marker, actual path, error,
 unmatched API, overflow result, and screenshot path.
 
+### Deterministic evidence refresh, 2026-09-01
+
+All four matrices were regenerated from a clean production Expo web export,
+served through the production preview path rather than the development server.
+The harness now pins the audit clock to the fixture date without freezing
+timers, waits for rendered markers, network idle, and browser fonts, disables
+visual-only motion and caret capture, and uses the same software-rendering
+flags across the customer and provider evidence suites. The regenerated
+results remained 144/144, 144/144, 3/3, and 3/3 with no failures. This corrects
+the earlier evidence risk where relative dates and calendar labels could drift
+with the workstation's real date even though product behavior had not changed.
+
 ## Screen inventory checked
 
 | Customer task group | Route instances checked at all three widths | Main company linkage |

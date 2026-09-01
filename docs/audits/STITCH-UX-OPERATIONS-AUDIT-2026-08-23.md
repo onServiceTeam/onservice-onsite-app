@@ -50,6 +50,27 @@ Stitch can change presentation and information hierarchy. It cannot authorize wa
 
 The package contains 102 ZIP entries and 63 files. Extraction was checked for rooted paths and path traversal before use.
 
+### 2026-09-01 attachment provenance recheck
+
+The later downloads named `STITCHMASTERPROMPT.md`,
+`VistAStitchNEWONLY.zip`, `stitch_vista_evolved_control_surfaces.zip`, and
+`stitch_vista_evolved_control_surfaces (1).zip` are not later onService
+designs. Their prompt and manifests explicitly describe **VistA Evolution**, a
+hosted electronic-health-record product with operator, tenant, clinical,
+patient-safety, infrastructure, and hospital-revenue surfaces. Their SHA-256
+values are, respectively:
+
+- `A7785BB4E4932CB92FAE21A47D99DF24B6C11396F5B12024CE9F339EE11547A9`
+- `DA977DFF96869E201967BCB2154940C270188944B6953518C5FCD1915BE94B0D`
+- `5D179B4FB96C9B1BB38F1BC48EFB47ED52F2CAE8E42A8BEFEF29556EB50FB4BB`
+- `9E510E65C212FEAE78014CBA0356629CFEFC62E57EA77C2C9916786FABA77DA4`
+
+They are rejected as requirements for this repository. They must not replace
+or contaminate the onService design contract, route inventory, terminology,
+or operating model. No newer onService Stitch package was found in that
+download set, so the onService reference package hash recorded above and the
+repository's approved design contract remain the applicable sources.
+
 | Reference family                   |   Promised | Present | Finding                                                  |
 | ---------------------------------- | ---------: | ------: | -------------------------------------------------------- |
 | Overview boards                    |         20 |      16 | Boards 01, 02, 03, and 12 are absent                     |
