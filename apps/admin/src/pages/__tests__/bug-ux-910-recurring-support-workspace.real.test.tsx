@@ -53,7 +53,15 @@ it('Bug UX-910 — Admin recurring support workspace links the customer, provide
   expect(await screen.findByLabelText('Recurring booking support workspace')).toBeVisible();
   expect(screen.getByText('Manual payment boundary')).toBeVisible();
   expect(screen.getByText('Provider assignment hold')).toBeVisible();
+  const customerLinks = screen.getAllByRole('link', { name: 'Maria Santos' });
+  expect(customerLinks).toHaveLength(2);
+  customerLinks.forEach((link) => expect(link).toHaveAttribute('href', '/customers/customer-910'));
+  expect(screen.getByRole('link', { name: 'Customer support cases' })).toHaveAttribute(
+    'href',
+    '/support-tickets?relatedCustomerId=customer-910&userRole=customer&userName=Maria+Santos',
+  );
   expect(screen.getAllByRole('link', { name: 'Open source booking' })[0]).toHaveAttribute('href', `/bookings/${sourceBookingId}`);
+  expect(screen.getByRole('link', { name: 'Source support cases' })).toHaveAttribute('href', `/support-tickets?bookingId=${sourceBookingId}`);
   expect(screen.getByRole('link', { name: 'Open booking' })).toHaveAttribute('href', `/bookings/${generatedBookingId}`);
   expect(screen.getByRole('link', { name: 'Support' })).toHaveAttribute('href', `/support-tickets?bookingId=${generatedBookingId}`);
   expect(screen.getAllByRole('link', { name: 'Cebu Clean Co' })[0]).toHaveAttribute('href', '/providers/provider-910');

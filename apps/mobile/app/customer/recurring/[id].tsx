@@ -149,6 +149,11 @@ export default function RecurringDetailScreen(): React.ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['recurring', id] });
       void queryClient.invalidateQueries({ queryKey: ['recurring-bookings'] });
+      // BUG-UX-914 — preserve the customer's entered reason and keep the
+      // cancellation form visible when the server rejects or cannot process
+      // the request. Clear the form only after a confirmed cancellation.
+      setShowCancelForm(false);
+      setCancelReason('');
       showToast('Recurring booking cancelled.', 'success');
     },
     onError: (err: unknown) => showToast(getErrorMessage(err, 'Operation failed.'), 'error'),
@@ -181,8 +186,6 @@ export default function RecurringDetailScreen(): React.ReactElement {
   const handleCancelConfirm = useCallback(() => {
     const reason = cancelReason.trim();
     cancelMutation.mutate(reason.length > 0 ? reason : 'Cancelled by customer (no reason given)');
-    setShowCancelForm(false);
-    setCancelReason('');
   }, [cancelReason, cancelMutation]);
 
   const handleSkipNext = useCallback(() => {
