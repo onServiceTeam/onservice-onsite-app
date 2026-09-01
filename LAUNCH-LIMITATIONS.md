@@ -1856,3 +1856,23 @@ calculate provider earnings, approve a change, or write a setting. Any future
 rate decision requires an approved policy, minimum evidence standard, human
 approval and audit workflow, and rollback plan. See
 `.ai-coder/escalations/E48-automated-commission-rate-advice-not-approved-2026-08-31.md`.
+
+---
+
+## 60. Tester-feedback screenshots are publicly reachable
+
+The public tester-feedback upload stores images under `uploads/feedback/`, and
+both Nginx vhosts currently serve that prefix through the generic public uploads
+location with a 30-day public cache. The Admin Tester Feedback page requires an
+admin session, but its image links point at those same public URLs. A tester can
+therefore attach a customer, provider, or admin screen containing personal data
+that remains retrievable without authentication by anyone who obtains the URL.
+
+Do not delete or move existing evidence and do not block the prefix before a
+replacement retrieval path supports old submissions. The recommended
+containment is an authenticated Admin evidence proxy, a key-protected private
+pull endpoint, local browser preview during public intake, and an explicit
+Nginx 404 guard for `/uploads/feedback/` in both vhosts. Production inventory,
+backup, staged validation, and an access-model decision are required before the
+guard is activated. See
+`.ai-coder/escalations/E52-tester-feedback-screenshots-are-public-2026-09-01.md`.

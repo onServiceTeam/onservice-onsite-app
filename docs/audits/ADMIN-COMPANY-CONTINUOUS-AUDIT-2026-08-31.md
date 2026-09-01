@@ -499,3 +499,33 @@ and rechecks each surface against the operating questions above. Priority order:
 Existing legal, money, production-data, and privileged-identity escalation
 boundaries still apply. A page-local visual improvement is not permission to
 invent legal wording, mutate production money, or bypass those controls.
+
+## Checkpoint O: Tester Feedback privacy hard stop
+
+The database-backed tester queue remains separate from marketplace reviews and
+support cases. The local gitignored snapshot was rechecked without publishing
+tester identities or contact data: it contains seven submissions, four logged
+issue rows, and six referenced screenshots, all still marked New in that cached
+snapshot. The prior production trace remains the latest production evidence and
+recorded ten submissions. E32 prevents a current server/database refresh, so the
+local count is not presented as current production state.
+
+The intake and operations contract correctly preserve original evidence, named
+ownership, decision notes, and append-only status history. The code audit also
+identified recoverability, request-validation, and ordinary-admin note-masking
+gaps that remain queued for implementation.
+
+Work stopped before those page-local fixes because a higher-severity privacy
+risk was found. Feedback images are stored beneath `uploads/feedback/`, but the
+generic Nginx uploads location serves them without authentication and caches
+them publicly for 30 days. The protected Admin page therefore does not protect
+its image evidence. The public intake can accept screenshots containing names,
+addresses, booking context, messages, or other personal data.
+
+E52 records the required decision. The recommended containment preserves every
+existing file and payload, introduces an authenticated Admin evidence proxy and
+a header-keyed private pull path, previews newly selected files locally in the
+public form, then blocks direct `/uploads/feedback/` access in both Nginx vhosts
+after production inventory, backup, and staged verification. No production file,
+database row, Nginx rule, or application artifact was changed during this
+checkpoint.
