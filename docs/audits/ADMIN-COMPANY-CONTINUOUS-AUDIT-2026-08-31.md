@@ -867,3 +867,39 @@ pre-existing review locations.
 E53, D28, D27p5/E12, and E32 remain active. This checkpoint does not authorize a
 provider project workspace, Admin mutation, project-to-booking conversion,
 milestone money, production migration, or production synchronization.
+
+## Checkpoint W: complete customer milestone and choice context
+
+The next customer trace found that project milestones and choices could be
+created, but the milestone form captured only a title and the choice form omitted
+its existing detail field. That left scope, planning budget, target date, model,
+finish, and supplier context trapped outside the planning record. The work stayed
+within Option A: projects organize planning, while bookings remain the source of
+truth for provider work, schedules, quotes, transactions, payments, refunds, and
+support adjustments.
+
+Bugs UX-898 and UX-899 add optional milestone description, bounded advisory
+amount, real-calendar planning target date, deterministic ordering, and optional
+choice detail. The advisory amount is converted to centavos but is explicitly not
+a quote, charge, escrow hold, or approved price. The mutation omits status,
+booking, provider assignment, and every money-authority field. Bug UX-900 closes
+a defect found during live browser inspection: the API retained milestone scope,
+but the customer card did not render it back after save.
+
+Focused executed renders cover tablet milestone validation/submission, desktop
+choice detail submission, and saved milestone-description visibility. A
+fixture-backed browser session created and re-rendered both records at 820 pixels,
+then verified the role-aware customer workspace at 1366 pixels. Both widths had
+zero horizontal overflow and the browser recorded no error. The complete Mobile
+aggregate passes 515 suites and 894 assertions with 84 existing device-baseline
+todos. All workspace TypeScript checks, repository ESLint, the 4,273-module
+production web export, Gate A 10/10, Gate C 6/6, all six gate self-test groups,
+the strict phantom-test scan, the N+1 review, and `git diff --check` pass. The
+first Gate A launcher followed the Windows WSL file association and could not
+resolve the linked worktree or Windows Node runtime; the direct Git Bash rerun is
+the claimed gate result.
+
+Existing milestone/choice editing or removal and document creation remain open.
+E53 still holds conflicting Admin project writes, D28 still holds provider and
+booking conversion architecture, D27p5/E12 still holds milestone money, and E32
+still prevents production synchronization.

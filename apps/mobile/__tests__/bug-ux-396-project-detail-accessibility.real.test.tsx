@@ -40,10 +40,14 @@ it('Bug UX-396 — project planning controls expose their names, disclosure stat
   expect(screen.getByLabelText('Choice category')).toBeTruthy();
   expect(screen.getByLabelText('Choice label')).toBeTruthy();
   expect(screen.getByLabelText('Choice value')).toBeTruthy();
+  expect(screen.getByLabelText('Choice detail')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Add project choice' }).hasAttribute('disabled')).toBe(true);
 
   fireEvent.click(screen.getByRole('button', { name: 'Show add milestone form' }));
   expect(screen.getByLabelText('Milestone title')).toBeTruthy();
+  expect(screen.getByLabelText('Milestone description')).toBeTruthy();
+  expect(screen.getByLabelText('Milestone advisory budget')).toBeTruthy();
+  expect(screen.getByLabelText('Milestone planning target date')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Add project milestone' }).hasAttribute('disabled')).toBe(true);
 
   fireEvent.click(screen.getByRole('link', { name: 'Open project document Floor plan' }));

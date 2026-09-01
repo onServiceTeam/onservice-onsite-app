@@ -115,7 +115,7 @@ export async function updateMilestone(milestoneId: string, patch: Partial<{ titl
   return res.data.data;
 }
 
-export async function addSelection(projectId: string, input: { category: string; label: string; value: string; detail?: string }): Promise<ProjectSelection> {
+export async function addSelection(projectId: string, input: { category: string; label: string; value: string; detail?: string; sortOrder?: number }): Promise<ProjectSelection> {
   const res = await api.post<ApiResponse<ProjectSelection>>(`/api/v1/projects/${projectId}/selections`, input);
   return res.data.data;
 }

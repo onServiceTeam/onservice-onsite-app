@@ -17,6 +17,7 @@ import { ChevronLeft } from '@/components/icons';
 import { SkeletonCard, ErrorState } from '@/components/ui';
 import { useResponsive } from '@/hooks/useResponsive';
 import { Routes } from '@/config/navigation';
+import { isRealCalendarDate } from '@/utils/date';
 
 const MS_LABEL: Record<MilestoneStatus, string> = { pending: 'Pending', in_progress: 'In progress', completed: 'Completed' };
 const MS_COLOR: Record<MilestoneStatus, string> = { pending: colors.textSecondary, in_progress: colors.warning, completed: colors.success };
@@ -37,10 +38,14 @@ export default function ProjectDetailScreen(): React.ReactElement {
 
   const [showAddMs, setShowAddMs] = useState(false);
   const [msTitle, setMsTitle] = useState('');
+  const [msDescription, setMsDescription] = useState('');
+  const [msAmount, setMsAmount] = useState('');
+  const [msTargetDate, setMsTargetDate] = useState('');
   const [showAddSel, setShowAddSel] = useState(false);
   const [selCat, setSelCat] = useState('');
   const [selLabel, setSelLabel] = useState('');
   const [selValue, setSelValue] = useState('');
+  const [selDetail, setSelDetail] = useState('');
   const [showEditProject, setShowEditProject] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -59,6 +64,14 @@ export default function ProjectDetailScreen(): React.ReactElement {
     && editEstimateValue <= PROJECT_ADVISORY_BUDGET_MAX_PESOS
   );
   const editProjectValid = editTitle.trim().length > 0 && editEstimateValid;
+  const msAmountValue = Number(msAmount);
+  const msAmountValid = msAmount.trim() === '' || (
+    Number.isFinite(msAmountValue)
+    && msAmountValue >= 0
+    && msAmountValue <= PROJECT_ADVISORY_BUDGET_MAX_PESOS
+  );
+  const msTargetDateValid = msTargetDate.trim() === '' || isRealCalendarDate(msTargetDate.trim());
+  const milestoneValid = msTitle.trim().length > 0 && msAmountValid && msTargetDateValid;
 
   const saveProject = useMutation({
     mutationFn: () => updateProject(id ?? '', {
@@ -97,14 +110,40 @@ export default function ProjectDetailScreen(): React.ReactElement {
   });
 
   const createMs = useMutation({
-    mutationFn: () => addMilestone(id ?? '', { title: msTitle.trim(), sortOrder: q.data?.milestones.length ?? 0 }),
-    onSuccess: () => { setMsTitle(''); setShowAddMs(false); invalidate(); },
+    mutationFn: () => addMilestone(id ?? '', {
+      title: msTitle.trim(),
+      description: msDescription.trim() || undefined,
+      sortOrder: q.data?.milestones.length ?? 0,
+      amount: msAmount.trim() === '' ? undefined : Math.round(msAmountValue * 100),
+      targetDate: msTargetDate.trim() || undefined,
+    }),
+    onSuccess: () => {
+      setMsTitle('');
+      setMsDescription('');
+      setMsAmount('');
+      setMsTargetDate('');
+      setShowAddMs(false);
+      invalidate();
+    },
     onError: (e) => showToast(getErrorMessage(e, 'Could not add the milestone.'), 'error'),
   });
 
   const createSel = useMutation({
-    mutationFn: () => addSelection(id ?? '', { category: selCat.trim(), label: selLabel.trim(), value: selValue.trim() }),
-    onSuccess: () => { setSelCat(''); setSelLabel(''); setSelValue(''); setShowAddSel(false); invalidate(); },
+    mutationFn: () => addSelection(id ?? '', {
+      category: selCat.trim(),
+      label: selLabel.trim(),
+      value: selValue.trim(),
+      detail: selDetail.trim() || undefined,
+      sortOrder: q.data?.selections.length ?? 0,
+    }),
+    onSuccess: () => {
+      setSelCat('');
+      setSelLabel('');
+      setSelValue('');
+      setSelDetail('');
+      setShowAddSel(false);
+      invalidate();
+    },
     onError: (e) => showToast(getErrorMessage(e, 'Could not add the choice.'), 'error'),
   });
 
@@ -335,6 +374,7 @@ export default function ProjectDetailScreen(): React.ReactElement {
                   <TextInput accessibilityLabel="Choice category" style={styles.inlineInput} value={selCat} onChangeText={setSelCat} placeholder="Category (e.g. Door)" placeholderTextColor={colors.textTertiary} maxLength={80} />
                   <TextInput accessibilityLabel="Choice label" style={styles.inlineInput} value={selLabel} onChangeText={setSelLabel} placeholder="Label (e.g. Material)" placeholderTextColor={colors.textTertiary} maxLength={120} />
                   <TextInput accessibilityLabel="Choice value" style={styles.inlineInput} value={selValue} onChangeText={setSelValue} placeholder="Value (e.g. Solid oak)" placeholderTextColor={colors.textTertiary} maxLength={200} />
+                  <TextInput accessibilityLabel="Choice detail" style={[styles.inlineInput, styles.inlineTextArea]} value={selDetail} onChangeText={setSelDetail} placeholder="Optional notes, model, finish, or supplier reference" placeholderTextColor={colors.textTertiary} multiline numberOfLines={3} textAlignVertical="top" maxLength={200} />
                   <TouchableOpacity
                     accessibilityRole="button"
                     accessibilityLabel="Add project choice"
@@ -392,6 +432,7 @@ export default function ProjectDetailScreen(): React.ReactElement {
                     <View style={[styles.msDot, { backgroundColor: MS_COLOR[m.status] }]} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.msTitle}>{m.title}</Text>
+                      {m.description ? <Text style={styles.msDescription}>{m.description}</Text> : null}
                       <Text style={styles.msMeta}>
                         {MS_LABEL[m.status]}
                         {m.amount != null ? ` · ${formatPHP(m.amount)}` : ''}
@@ -415,15 +456,33 @@ export default function ProjectDetailScreen(): React.ReactElement {
                 ))
               )}
               {showAddMs && (
-                <View style={styles.inlineForm}>
+                <View style={styles.milestoneForm} accessibilityLabel="Add milestone planning details">
                   <TextInput accessibilityLabel="Milestone title" style={styles.inlineInput} value={msTitle} onChangeText={setMsTitle} placeholder="Milestone (e.g. Foundation)" placeholderTextColor={colors.textTertiary} maxLength={160} />
+                  <TextInput accessibilityLabel="Milestone description" style={[styles.inlineInput, styles.inlineTextArea]} value={msDescription} onChangeText={setMsDescription} placeholder="Optional scope, completion notes, or planning assumptions" placeholderTextColor={colors.textTertiary} multiline numberOfLines={3} textAlignVertical="top" maxLength={2000} />
+                  <View style={styles.milestoneFieldRow}>
+                    <View style={styles.milestoneField}>
+                      <Text style={styles.fieldLabel}>Advisory milestone budget</Text>
+                      <View style={styles.budgetRow}>
+                        <Text style={styles.budgetPrefix}>₱</Text>
+                        <TextInput accessibilityLabel="Milestone advisory budget" style={styles.budgetInput} value={msAmount} onChangeText={setMsAmount} keyboardType="numeric" placeholder="0.00" placeholderTextColor={colors.textTertiary} />
+                      </View>
+                      <Text style={styles.fieldHint}>Planning only. This does not authorize a quote, charge, escrow hold, or payment.</Text>
+                    </View>
+                    <View style={styles.milestoneField}>
+                      <Text style={styles.fieldLabel}>Planning target date</Text>
+                      <TextInput accessibilityLabel="Milestone planning target date" style={styles.inlineInput} value={msTargetDate} onChangeText={setMsTargetDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textTertiary} autoCapitalize="none" maxLength={10} />
+                      <Text style={styles.fieldHint}>A planning target, not a provider booking or confirmed schedule.</Text>
+                    </View>
+                  </View>
+                  {!msAmountValid ? <Text style={styles.validationText}>Enter an advisory amount from ₱0 to ₱20,000,000.</Text> : null}
+                  {!msTargetDateValid ? <Text style={styles.validationText}>Enter a real date in YYYY-MM-DD format.</Text> : null}
                   <TouchableOpacity
                     accessibilityRole="button"
                     accessibilityLabel="Add project milestone"
-                    accessibilityState={{ disabled: !msTitle.trim() || createMs.isPending }}
-                    style={[styles.inlineBtn, !msTitle.trim() && styles.disabled]}
+                    accessibilityState={{ disabled: !milestoneValid || createMs.isPending }}
+                    style={[styles.inlineBtn, !milestoneValid && styles.disabled]}
                     onPress={() => createMs.mutate()}
-                    disabled={!msTitle.trim() || createMs.isPending}
+                    disabled={!milestoneValid || createMs.isPending}
                   >
                     {createMs.isPending ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.inlineBtnText}>Add</Text>}
                   </TouchableOpacity>
@@ -508,6 +567,7 @@ const styles = StyleSheet.create({
   msRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   msDot: { width: 12, height: 12, borderRadius: 6 },
   msTitle: { ...typography.body, fontWeight: '600', color: colors.text },
+  msDescription: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   msMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
   msStatus: { fontSize: 12, fontWeight: '600' },
   msAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: borderRadius.md, backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary },
@@ -518,9 +578,12 @@ const styles = StyleSheet.create({
   docRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   docLabel: { ...typography.body, color: colors.info, fontWeight: '600', flex: 1 },
   docType: { ...typography.caption, color: colors.textTertiary },
-  inlineForm: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  milestoneForm: { gap: spacing.sm, marginTop: spacing.sm },
+  milestoneFieldRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  milestoneField: { flexGrow: 1, flexBasis: 220, minWidth: 0 },
   selForm: { gap: spacing.sm, marginTop: spacing.sm },
   inlineInput: { flex: 1, backgroundColor: colors.surfaceMuted, borderRadius: borderRadius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, fontSize: 14, color: colors.text },
+  inlineTextArea: { minHeight: 80 },
   inlineBtn: { minHeight: 44, backgroundColor: colors.primary, borderRadius: borderRadius.md, paddingHorizontal: spacing.base, justifyContent: 'center', alignItems: 'center' },
   inlineBtnText: { ...typography.bodySmall, fontWeight: '700', color: colors.white },
   disabled: { opacity: 0.5 },
