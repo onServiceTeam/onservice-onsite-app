@@ -2,8 +2,27 @@
 
 **Date:** 2026-09-02
 **Branch:** `codex/system-settings-control-fix`
-**Code checkpoint before this handoff:** `db98bbb`
+**Original code checkpoint:** `db98bbb`
 **Production:** untouched
+
+## Reconnect update
+
+The topic branch is pushed to GitHub as draft PR 80. Commit `3106d76` first
+raised the pre-existing Docker/Nginx privacy integration test above Jest's
+impossible five-second default. The next CI run exposed the real container
+readiness race, so `99e91c9` added bounded TLS readiness polling. GitHub then
+passed the complete API test job and Docker API image build for that revision;
+the pricing migration and all pricing publication tests passed in those runs.
+The five repository gates and Mobile job also passed. Do not infer local Docker
+evidence: the Windows Docker engine still hangs, so local migration execution
+and the two container tests remain unclaimed.
+
+The next customer/provider/admin linkage audit found a separate B2B financial
+hard stop. E55 records that the legacy invoice generator can include personal
+bookings through current membership, explicit business booking can silently
+fall back to personal pricing, commercial writes lack one authority/audit
+contract, manual mark-paid is unverified, and no customer enterprise screens
+exist. No B2B financial behavior or production record was changed.
 
 ## Read first
 

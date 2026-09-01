@@ -1887,3 +1887,35 @@ new protected retrieval, then activate the Nginx guard and prove ordinary public
 uploads remain unaffected. Follow
 `docs/runbooks/tester-feedback-evidence-privacy.md` and see
 `.ai-coder/escalations/E52-tester-feedback-screenshots-are-public-2026-09-01.md`.
+
+---
+
+## 61. Business-account billing and contract operations are not launch-safe
+
+The Business Account 360 read model now links explicitly stamped bookings to
+customers, providers, invoices, support cases, and disputes. The commercial
+write path underneath it is still unsafe.
+
+The monthly generator selects work through current account membership instead
+of requiring the booking's explicit `business_account_id`. It can put a
+member's personal booking on a company invoice, duplicate one person's work
+across companies, and change selection after membership changes. Explicit
+business booking selection can also fall back silently to a personal
+catalog-priced booking when no eligible contract resolves.
+
+Account approval/suspension, contract lifecycle, discount/credit changes,
+invoice generation, and invoice payment recording do not share the required
+super-admin, reason, preview, version, and transactional audit contract. The
+manual mark-paid action accepts an arbitrary text reference without verified
+amount or payment evidence. The customer enterprise workspace has service and
+store code but no routed screens, so no current app flow sends the explicit
+business account into checkout.
+
+Do not operate these controls as a live B2B billing system. Existing records
+must remain unchanged pending a private production inventory; E32 blocks that
+inspection. E22 separately holds Philippine principal-invoice claims and E14
+blocks treating an external redirect/reference as verified payment. The
+recommended remediation is E55 Option A: contain the writes, rebuild explicit
+commercial booking and draft/readiness/finalization controls, and preserve old
+financial records through append-only corrections rather than rewrites. See
+`.ai-coder/escalations/E55-business-account-billing-and-contract-authority-2026-09-02.md`.

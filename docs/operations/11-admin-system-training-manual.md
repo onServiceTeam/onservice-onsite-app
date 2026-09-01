@@ -367,9 +367,18 @@ Recurring-booking subscriptions. Filter by status (`active`, `paused`, `cancelle
 
 ### 2.18 Business Accounts (`/business-accounts`, detail `/business-accounts/:id`)
 
-B2B accounts (office, condo, restaurant, hotel, retail, school, hospital, other). Filter by status (`pending`, `active`, `suspended`, `closed`). Fields include company, contact details, payment terms, volume discount, monthly credit limit. The detail page manages the account.
+B2B accounts (office, condo, restaurant, hotel, retail, school, hospital, other). Filter by status (`pending`, `active`, `suspended`, `closed`). Fields include company, contact details, payment terms, volume discount, monthly credit limit. The detail page is currently a read/investigation workspace, not an approved live billing console. E55 holds account activation, contract publication, discount/credit changes, invoice generation, and manual payment completion pending production inventory and controlled financial workflows.
 
 The detail page identifies the business owner and the internal relationship manager. Only super-admin can change that manager. Select an active admin/super-admin account with an active directory profile and enter a specific reason. The assignment changes internal relationship ownership only: it does not grant account access, move money, alter billing, or reassign support cases. Use the links beside the current manager to inspect their Staff record, active owned support cases, and the exact assignment audit before changing ownership.
+
+The Bookings & support tab is trustworthy only for bookings explicitly stamped
+with this business account. Use it to open Booking 360, Customer 360, Provider
+360, support, dispute, and retained invoice-line context. Do not use Generate
+invoice or Mark paid operationally while E55 is open. The legacy generator can
+select personal bookings through current membership, and Mark paid does not
+verify an amount or external payment record or write the audit trail claimed by
+the old dialog. Preserve every existing invoice and payment reference for
+review; do not delete, relink, regenerate, or overwrite historical records.
 
 ### 2.19 Service Areas (`/service-areas`)
 

@@ -4,7 +4,7 @@
 
 This is the resumable record for the suspicion-first admin/company stage that follows the provider and customer desktop/linkage audits. It records what was inspected, what was changed, what was proven by executed tests, and what remains. It does not treat the existence of a route, table, button, or old test as proof that an operator workflow is feasible.
 
-The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover Business Account 360, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, Booking 360/Dispatch integrity, financial-operations truth, Customer/Provider 360 account-support authority, Catalog publishing, and the unambiguous parts of Service Areas operations. The remaining admin surfaces continue after these checkpoints.
+The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover the Business Account 360 read/linkage layer, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, Booking 360/Dispatch integrity, financial-operations truth outside the E55 business-billing hold, Customer/Provider 360 account-support authority, Catalog publishing, and the unambiguous parts of Service Areas operations. Checkpoint AB supersedes any implication that Business Account 360 is a launch-ready commercial write console. The remaining admin surfaces continue after these checkpoints.
 
 Production synchronization is not claimed. Escalation E32 still records that the supplied SSH identities are rejected by the production host. Local and GitHub code may be aligned after CI, but production cannot be updated until an authorized server identity is available.
 
@@ -1071,3 +1071,72 @@ every existing rule, global scope, overlap order, and referencing booking count
 before migration. E32 still blocks server inspection and synchronization. No
 master merge, GitHub push, production migration, or live publication is claimed
 at this checkpoint.
+
+## Checkpoint AB: Business Account 360 commercial-control re-audit
+
+Checkpoint A correctly improved navigation and read linkage, but it did not
+prove the financial workflow behind the screen. This suspicion-first re-audit
+traced the customer business client/store, public business routes, booking
+price resolver, account/member/contract services, invoice generator, Admin
+routes, Business Accounts queue, Business Account 360, Booking Operations,
+database migrations, tests, D-phase200, D28, E14, E22, and operator guidance.
+
+### Screen and field findings
+
+| Surface or control | Actual behavior | Audit result |
+| --- | --- | --- |
+| Business Accounts search/status/page | Searches company, city, or contact and filters known statuses | Useful read queue; API query validation remains manual |
+| Approve | Direct ordinary-admin `pending -> active` update | No reason, transaction audit, stale guard, or reviewed contract/billing readiness |
+| Suspend + reason | Direct ordinary-admin `active -> suspended`; reason overwrites/generalizes `notes` | UI falsely says audit + notification; neither exists; existing work is not cancelled |
+| Owner/member links | Opens canonical Customer 360 record | Useful linkage; Admin cannot govern member permissions or view membership history |
+| Account manager | Super-admin, active account/profile validation, reasoned transactional audit | Correct implemented boundary; does not reassign support cases or grant business access |
+| Volume discount | Account-level percentage read later by generator | UI is super-admin-only, API is ordinary-admin; no reason/audit/version/notice/effective date |
+| Monthly credit limit | Stored account value | No enforcement was found in booking or invoice generation; label implies a control that is not operational |
+| Contracts | Read-only Admin list of service, provider, type, frequency, rate, discount, estimate, dates, renewal flag, status | No Admin lifecycle evidence; customer API permits reasonless status changes from any state; auto-renew is not implemented |
+| Bookings & support | Exact `bookings.business_account_id` scope with customer/provider/support/dispute/invoice exits | Correct read relationship and safest part of the workspace |
+| Generate invoice | Immediately inserts a `sent` prior-month record | No preview, readiness gate, reason, approval, manifest, or exact-account booking predicate |
+| Invoice detail | Opens line items and underlying Booking/Customer/Provider records | Useful retained evidence; can reveal legacy unlinked or incorrectly selected work |
+| Mark paid | Any ordinary admin supplies arbitrary non-empty text | No amount, method, date, currency, gateway/bank evidence, uniqueness, reason, version, or transactional audit |
+| Customer enterprise workspace | API service and Zustand store only | No routed screens; former route constants were removed as dead links |
+| Checkout business selection | Optional API field only | No client sends it; unresolved account/contract silently falls back to a personal booking |
+
+### Cross-role and financial-truth findings
+
+1. The invoice CTE joins `business_members` to bookings by customer. It does
+   not require `bookings.business_account_id = account.id` and does not exclude
+   removed members. This can invoice personal work, duplicate one member's work
+   across accounts, and make later selection depend on current membership.
+2. Migration 129, D-phase200, Business Account 360, and Booking Operations all
+   establish the explicit booking account link as source of truth. The invoice
+   generator is the contradicting implementation.
+3. Contract price is correctly snapshotted into the booking and the financial
+   terms record. Existing booking amounts are not recalculated when a contract
+   later changes. The unsafe part is eligibility/publication and downstream
+   invoice selection, not retroactive booking repricing.
+4. Account discount is applied only when an invoice is generated. Generated
+   invoice totals remain stored, but there is no effective-dated approval
+   evidence tying the discount version to the billed work.
+5. E22 means these retained records cannot be presented as proof of an
+   authorized Philippine principal invoice. E14 means a typed external
+   reference cannot be treated as verified PayMongo collection.
+6. D28's property/site, visits, proof readiness, corrections, and invoice-ready
+   gate remain planned. Their absence must not be disguised with extra Admin
+   fields or a second money source of truth.
+
+### Test-quality finding
+
+The existing per-account generation test proves only that an account UUID is
+passed as SQL parameter three. It does not execute invoice selection against a
+real schema, and it preserves the unsafe current-member join. The
+contract-booking test proves the positive contract case and ordinary no-account
+case, but has no explicit-account/no-contract fail-closed case. No test proves
+payment evidence or an admin audit because neither exists.
+
+### Result and hold
+
+No B2B financial behavior was changed in this checkpoint. E55 records the
+required hard stop, exact production inventory, and recommended Option A. The
+operator manual and launch limitations now remove the false claim that this is
+a ready billing console. Existing records must be preserved. E32 prevents the
+production inventory, so no account link, invoice item, payment reference,
+contract, or status was backfilled or edited.

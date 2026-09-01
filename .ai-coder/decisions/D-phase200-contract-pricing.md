@@ -2,8 +2,11 @@
 
 **Date:** 2026-05-30
 **Author:** AI coder (Phase 200, "do everything next")
-**Status:** IMPLEMENTED as a safe, opt-in foundation. The pricing SEMANTICS
-below are my conservative choice; Ken should confirm them before B2B launch.
+**Status:** FOUNDATION RETAINED; B2B LAUNCH HELD BY E55. The explicit booking
+link and price snapshot remain the correct direction, but the surrounding
+invoice, lifecycle, payment, and customer-workspace controls are not safe to
+operate. The pricing semantics below still require confirmation before B2B
+launch.
 
 ## Context
 
@@ -66,6 +69,15 @@ client sends it**, so this is inert until the mobile app adds a "book for
   account (sends `businessAccountId`).
 - Optionally surface the contract rate + "billed to [company]" in the
   checkout summary.
+
+## 2026-09-02 audit correction
+
+E55 found that the invoice generator still ignores the explicit booking link
+described above and selects work through current membership. It can therefore
+invoice personal bookings. Booking creation also silently falls back to an
+ordinary personal booking when an explicit business selection cannot resolve a
+contract. Do not wire the planned mobile selector to the current behavior.
+Follow E55 Option A only after the production inventory and authority decision.
 
 ## Tests
 - `phase200-contract-pricing.test.ts` — resolver returns the agreed rate when
