@@ -740,3 +740,37 @@ project-to-booking conversion. D28, D27p5/E12, and E53 block architecture,
 money, and hidden Admin-write changes. E32 still blocks production inventory and
 synchronization, so no production deployment or production-data conclusion is
 claimed.
+
+## Checkpoint T: Projects full-index discovery and missing visual baselines
+
+The next Projects audit found two safe but material defects. Admin still loaded a
+fixed newest-record slice, so operators could not discover older plans by project,
+customer, provider, city, or status. The newer Projects route was also absent from
+the Admin Playwright screen catalog even though F#4's older 29-screen baseline had
+been completed.
+
+Bugs UX-885 through UX-887 add a dedicated read-only Admin list contract with
+strict status/search/page controls, escaped wildcard search over the full joined
+index, deterministic pagination, and result-wide summaries. The Admin screen now
+keeps search, status, page, exact project selection, and incoming support context
+in one reproducible URL. It never changes the existing customer/provider project
+list response. The W15 exact-record detail handoff still works when the selected
+record is outside the current result page.
+
+The visual omission is now closed with 16 reviewed Projects baselines: populated,
+loading, empty, and error at 768, 1280, 1440, and 1920 pixels. A clean second run
+matched every image, and the populated state asserts no document-level horizontal
+overflow at every width. The tablet and desktop results retain the Stitch-derived
+bounded operator workspace, solid borders, compact evidence hierarchy, and
+touch-sized controls.
+
+Verification passed 272 Admin files/361 tests, 707 locally runnable API suites/
+3,090 tests, and 507 Mobile suites/886 tests. Existing one-file/test skips and 3
+Admin plus 84 Mobile todos remain explicit. The two Docker/Nginx suites remain
+excluded and unclaimed. TypeScript, repository lint, Admin/API production builds,
+Gate A 10/10, Gate C 6/6, six gate self-tests, strict phantom-test, N+1 review,
+Playwright 16/16, and diff checks passed. The first Gate A launcher selected WSL
+Bash and failed to resolve the Windows worktree/Node environment; the corrected
+Git Bash run passed. E53 still prevents hidden Admin project mutations, D28 still
+holds provider/booking conversion, D27p5/E12 still holds milestone money, and E32
+still prevents production synchronization.

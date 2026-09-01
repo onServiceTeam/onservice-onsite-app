@@ -11,11 +11,12 @@ vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
 import ProjectsPage from '../ProjectsPage';
 
 it('Bug UX-884 — Admin project oversight renders the milestone scope and target date returned by the planning record', async () => {
-  apiGet.mockImplementation(async (url: string) => url === '/api/v1/projects' ? ({ data: { success: true, data: [{
+  apiGet.mockImplementation(async (url: string) => url === '/api/v1/admin/projects' ? ({ data: { success: true, data: [{
     id: 'project-1', customerId: 'customer-1', providerId: null, customerName: 'Maria Santos', providerName: null,
     title: 'Kitchen plan', description: 'Plan the remodel', city: 'Cebu City', status: 'planning', estimatedTotal: 150000,
     createdAt: '2026-08-24T00:00:00.000Z',
-  }] } } as never) : ({ data: { success: true, data: {
+  }], summary: { totalProjects: 1, activeProjects: 0, legacyProviderLinks: 0 },
+    pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 } } } as never) : ({ data: { success: true, data: {
     id: 'project-1', customerId: 'customer-1', providerId: null, customerName: 'Maria Santos', providerName: null,
     title: 'Kitchen plan', description: 'Plan the remodel', city: 'Cebu City', status: 'planning', estimatedTotal: 150000,
     createdAt: '2026-08-24T00:00:00.000Z', milestones: [{

@@ -108,7 +108,7 @@ This trace exposes the key company rule: admin pages must not invent a second st
 - Dispatch still has a TODO for deriving its initial map center from active/default service-area data.
 - Pricing contains a deferred surge-rule resolution TODO in a money path; this cannot be changed without resolving the current pricing authority and tests.
 - Historical audits and strategy files contained stale screen counts, Boracay-first direction, old fee values, and old server details. They are retained as history but now carry warnings.
-- The 354 admin visual baselines cover the former 29-page catalog. Newer route components need explicit visual-state coverage.
+- The former 29-page catalog's 354 Admin baselines remain intact. Later route-specific matrices bring the current catalog to 33 specs and 552 PNGs; W16 adds Projects populated/loading/empty/error coverage at 768/1280/1440/1920. Any future Admin route still needs explicit visual-state coverage when it lands.
 - Customer/provider web now uses a responsive role workspace, but every inner screen still needs interaction and overflow checks at phone, tablet, and desktop widths. A shared desktop shell does not by itself prove every route is fully responsive.
 - Provider-staff suspension immediately revokes assigned-job access but does not resolve the retained `performer_staff_id`. E29/D31 recommends state-aware reassignment for pre-start work and an explicit provider/admin exception for work already under way; automatic booking or money mutation remains held.
 

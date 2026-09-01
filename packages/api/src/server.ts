@@ -77,6 +77,7 @@ import settingsRoutes from './routes/settings.routes';
 import cancellationPolicyPublicRoutes from './routes/cancellation-policy-public.routes';
 import feedbackRoutes from './routes/feedback.routes';
 import feedbackAdminRoutes from './routes/feedback-admin.routes';
+import projectAdminRoutes from './routes/project-admin.routes';
 import projectRoutes from './routes/project.routes';
 import cancellationPolicyAdminRoutes from './routes/cancellation-policy-admin.routes';
 import * as settingsService from './services/settings.service';
@@ -241,6 +242,10 @@ app.use('/api/v1/admin/conversations', messagingAdminRoutes);
 // specific route before the generic /admin router so feedback IDs are never
 // mistaken for generic admin resources.
 app.use('/api/v1/admin/feedback', feedbackAdminRoutes);
+// W16 — read-only bounded project discovery for company/support operators.
+// Keep the Admin response separate from the customer/provider project list so
+// native clients retain their existing non-paginated ownership projection.
+app.use('/api/v1/admin/projects', projectAdminRoutes);
 // Phase 07: booking 360 + dispute detail sub-routes mounted BEFORE generic
 // admin routes so `/admin/bookings/:id/...` and `/admin/disputes/:id/...` match
 // before any `/admin/bookings` or `/admin/disputes` (list) fallthrough.

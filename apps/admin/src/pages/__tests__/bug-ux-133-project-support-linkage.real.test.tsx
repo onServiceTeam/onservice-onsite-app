@@ -16,6 +16,8 @@ it('Bug UX-133 — project oversight identifies the customer and provider record
         title: 'Kitchen plan', description: 'Plan the remodel', city: 'Cebu City',
         status: 'planning', estimatedTotal: 150_000, createdAt: '2026-08-24T00:00:00.000Z',
       }],
+      summary: { totalProjects: 1, activeProjects: 0, legacyProviderLinks: 1 },
+      pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
     },
   } as never);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

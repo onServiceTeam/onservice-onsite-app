@@ -11,11 +11,12 @@ vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
 import ProjectsPage from '../ProjectsPage';
 
 it('Bug UX-671 — project oversight uses a responsive accessible record with support and expandable planning evidence', async () => {
-  apiGet.mockImplementation(async (url: string) => url === '/api/v1/projects' ? ({ data: { success: true, data: [{
+  apiGet.mockImplementation(async (url: string) => url === '/api/v1/admin/projects' ? ({ data: { success: true, data: [{
     id: 'project-1', customerId: 'customer-1', providerId: null, customerName: 'Maria Santos', providerName: null,
     title: 'Kitchen plan', description: 'Plan the remodel', city: 'Cebu City', status: 'planning', estimatedTotal: 150000,
     createdAt: '2026-08-24T00:00:00.000Z',
-  }] } } as never) : ({ data: { success: true, data: {
+  }], summary: { totalProjects: 1, activeProjects: 0, legacyProviderLinks: 0 },
+    pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 } } } as never) : ({ data: { success: true, data: {
     id: 'project-1', customerId: 'customer-1', providerId: null, title: 'Kitchen plan', description: 'Plan the remodel',
     city: 'Cebu City', status: 'planning', estimatedTotal: 150000, createdAt: '2026-08-24T00:00:00.000Z',
     milestones: [{ id: 'milestone-1', title: 'Approve cabinet layout', status: 'in_progress', amount: null, targetDate: null }],

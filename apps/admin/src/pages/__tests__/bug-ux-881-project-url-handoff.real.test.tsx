@@ -17,12 +17,13 @@ function LocationProbe(): React.ReactElement {
 
 it('Bug UX-881 — an admin project handoff restores the exact linked record outside the loaded list and preserves surrounding URL context', async () => {
   apiGet.mockImplementation(async (url: string) => {
-    if (url === '/api/v1/projects') {
+    if (url === '/api/v1/admin/projects') {
       return { data: { success: true, data: [{
         id: 'project-1', customerId: 'customer-1', providerId: null, customerName: 'Maria Santos', providerName: null,
         title: 'Kitchen plan', description: 'Plan the remodel', city: 'Cebu City', status: 'planning', estimatedTotal: 150000,
         createdAt: '2026-08-24T00:00:00.000Z',
-      }] } };
+      }], summary: { totalProjects: 1, activeProjects: 0, legacyProviderLinks: 0 },
+        pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 } } };
     }
     if (url === '/api/v1/projects/project-2') {
       return { data: { success: true, data: {

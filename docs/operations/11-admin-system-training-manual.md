@@ -498,7 +498,9 @@ If another operator changed the submission after you loaded it, the API rejects 
 
 ### 2.32 Projects (`/projects`)
 
-Read-only oversight for customer-created larger-work planning records. Use it to inspect the plan status, advisory estimate, milestones, choices/materials, documents, owning customer, and any legacy provider link. Open Customer 360 or the customer-scoped Support queue from the project record when assistance is needed. Projects do not currently create or link bookings, assign providers, move money, or open project-scoped support cases. Use Booking 360, Dispatch, Financials, and Support Tickets for those canonical operations. Milestone escrow is not launch-approved until the legal and accounting decision in escalation E12 is resolved, so never describe a planning milestone or amount as protected escrow.
+Read-only oversight for customer-created larger-work planning records. Search the complete planning index by project ID, title, description, city, customer, or legacy provider; narrow by planning status; and use pagination rather than assuming the visible page is the full queue. Applied search, status, page, and exact selected project stay in the URL so a support handoff can reproduce the same context. Use the result-wide summary above the list when reporting queue counts.
+
+Inspect the plan status, advisory estimate, milestones, choices/materials, documents, owning customer, and any legacy provider link. Open Customer 360 or the customer-scoped Support queue from the project record when assistance is needed. Projects do not currently create or link bookings, assign providers, move money, or open project-scoped support cases. Use Booking 360, Dispatch, Financials, and Support Tickets for those canonical operations. Milestone escrow is not launch-approved until the legal and accounting decision in escalation E12 is resolved, so never describe a planning milestone or amount as protected escrow.
 
 ---
 

@@ -235,6 +235,87 @@ export async function listProjects(
   return r.rows.map(formatProject);
 }
 
+export async function listProjectsForAdmin(opts: {
+  search?: string;
+  status?: ProjectStatus;
+  page: number;
+  pageSize: number;
+}): Promise<{
+  projects: Record<string, unknown>[];
+  total: number;
+  page: number;
+  pageSize: number;
+  summary: { totalProjects: number; activeProjects: number; legacyProviderLinks: number };
+}> {
+  const page = Math.max(1, Math.floor(opts.page) || 1);
+  const pageSize = Math.min(100, Math.max(1, Math.floor(opts.pageSize) || 20));
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+
+  if (opts.status) {
+    params.push(opts.status);
+    clauses.push(`p.status = $${params.length}`);
+  }
+  if (opts.search) {
+    const escaped = opts.search.trim().replace(/[%_\\]/g, '\\$&');
+    params.push(`%${escaped}%`);
+    const index = params.length;
+    clauses.push(`(
+      p.id::text ILIKE $${index} ESCAPE '\\'
+      OR p.title ILIKE $${index} ESCAPE '\\'
+      OR p.description ILIKE $${index} ESCAPE '\\'
+      OR COALESCE(p.city, '') ILIKE $${index} ESCAPE '\\'
+      OR TRIM(CONCAT(customer.first_name, ' ', customer.last_name)) ILIKE $${index} ESCAPE '\\'
+      OR COALESCE(provider.business_name, '') ILIKE $${index} ESCAPE '\\'
+    )`);
+  }
+
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  const offset = (page - 1) * pageSize;
+  const dataParams = [...params, pageSize, offset];
+  const [summaryResult, projectsResult] = await Promise.all([
+    db.query<{ total: number; active_projects: number; legacy_provider_links: number }>(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE p.status = 'active')::int AS active_projects,
+              COUNT(*) FILTER (WHERE p.provider_id IS NOT NULL)::int AS legacy_provider_links
+         FROM projects p
+         JOIN users customer ON customer.id = p.customer_id
+         LEFT JOIN providers provider ON provider.id = p.provider_id
+         ${where}`,
+      params,
+    ),
+    db.query<ProjectRow>(
+      `SELECT p.*,
+              TRIM(CONCAT(customer.first_name, ' ', customer.last_name)) AS customer_name,
+              provider.business_name AS provider_name
+         FROM projects p
+         JOIN users customer ON customer.id = p.customer_id
+         LEFT JOIN providers provider ON provider.id = p.provider_id
+         ${where}
+        ORDER BY p.created_at DESC, p.id DESC
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      dataParams,
+    ),
+  ]);
+  const summaryRow = summaryResult.rows[0] ?? {
+    total: 0,
+    active_projects: 0,
+    legacy_provider_links: 0,
+  };
+
+  return {
+    projects: projectsResult.rows.map(formatProject),
+    total: summaryRow.total,
+    page,
+    pageSize,
+    summary: {
+      totalProjects: summaryRow.total,
+      activeProjects: summaryRow.active_projects,
+      legacyProviderLinks: summaryRow.legacy_provider_links,
+    },
+  };
+}
+
 export async function getProjectDetail(
   projectId: string,
   requester: { userId: string; role: string },

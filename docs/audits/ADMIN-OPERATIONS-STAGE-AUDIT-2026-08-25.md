@@ -33,7 +33,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/bookings` | Booking operations queue | W6+W8 PARTIAL | The responsive row-grid exposes URL-bound operational views/sorts, whole-queue exception counts, specific service/city/schedule context, Customer/Provider 360 exits, linked support ownership, open disputes, and gross booking value. Only verified-paid unassigned work is labelled **Paid needs assignment**. Named booking ownership is deliberately not duplicated outside support cases; authenticated wide-state evidence remains open. |
 | `/bookings/:id` | Booking 360 and evidence | W6 PARTIAL/HOLD | Conversation and support-case exits, partial-address truth, gateway/wallet/retained-sales money chronology, and rendered action confirmations are connected. Cancellation requires explicit live money inputs but E09 still holds policy/runtime authority; escrow release, refund, cancellation, and force-complete semantics remain money-path controlled. |
 | `/catalog` | Customer bookable scope and provider fulfillment contract | W1 | Service/add-on deactivation now requires audit reason and states customer impact. Continue modal and all pricing-type state visuals. |
-| `/projects` | Larger-work planning oversight | W15 PARTIAL/HOLD | Exact `projectId` handoffs now reopen a known record outside the newest 200 loaded rows, preserve surrounding URL context, project customer/legacy-provider identities, and show milestone scope/deadline details. The screen remains planning-only. E53 holds the conflicting unaudited Admin write authority; D28 holds booking/site/visit linkage and D27p5/E12 holds milestone money. Server search/pagination and the incomplete customer/provider planning tools remain next. |
+| `/projects` | Larger-work planning oversight | W15+W16 PARTIAL/HOLD | Full-index project ID/title/description/city/customer/provider search, status filtering, deterministic pagination, result-wide summaries, and exact URL-bound `projectId` handoffs now coexist without changing the customer/provider list contract. Customer/legacy-provider identities and milestone scope/deadline remain visible. E53 holds conflicting unaudited Admin write authority; D28 holds booking/site/visit linkage and D27p5/E12 holds milestone money. Project-scoped support and incomplete customer/provider planning tools remain next. |
 | `/disputes` | Trust queue | W9 PARTIAL/HOLD | Exact active and stale whole-queue views are URL-bound and enforced by the API, and list resolution now uses an in-app impact confirmation. Resolution/settlement behavior is unchanged and remains under E18/E24; no unsupported SLA countdown was added. |
 | `/disputes/:id` | Dispute 360 | HOLD/NEXT | Recheck evidence chronology and role exits. Settlement/reopen semantics remain held. |
 | `/financials` | Payments, escrow, tax workpapers, reconciliation | HOLD | No money/tax mutation behavior changed in W1. Requires dedicated finance audit and decision-safe tests. |
@@ -271,6 +271,39 @@ and E53 remain the governing holds.
   passed before checkpointing.
 - Production remains unchanged under E32. No production project, customer,
   provider, document, booking, or money record was read or mutated.
+
+## W16 Projects full-index discovery and visual contract
+
+- A separate read-only `/api/v1/admin/projects` route now searches project ID,
+  title, description, city, owning customer name, and legacy provider business
+  name across the full joined index. Status, page, and page size are strictly
+  validated; SQL wildcard characters are escaped; page size is bounded to 100;
+  and rows use deterministic created-time plus ID ordering.
+- The Admin screen keeps applied search, status, page, exact `projectId`, and
+  unrelated support context in the URL. Search and status reset pagination,
+  one-character searches fail locally with a usable message, and result-wide
+  totals no longer pretend that the visible page is the complete queue.
+- The existing customer/provider `/api/v1/projects` response is unchanged. This
+  prevents an Admin pagination contract from breaking native ownership views.
+- Bugs UX-885 through UX-887 execute the joined bounded query, strict parser,
+  rendered controls, server parameters, summary scope, page transition, and URL
+  preservation. Existing project linkage tests were migrated to the new Admin
+  response rather than left against a dead endpoint.
+- The screen was missing from the Admin Playwright baseline catalog. A new
+  16-state matrix now covers populated, loading, empty, and error surfaces at
+  768, 1280, 1440, and 1920 pixels. All 16 baselines match on a clean rerun,
+  and every populated width asserts no document-level horizontal overflow.
+
+W16 verification passed 272 Admin files and 361 assertions, with one existing
+skipped file and three explicit todos; 707 locally runnable API suites and
+3,090 assertions, with one intentional skipped suite/test; and all 507 Mobile
+suites and 886 assertions, with 84 device-baseline todos. The two Docker/Nginx
+suites remain excluded and unclaimed. Repository TypeScript and ESLint, Admin
+and API production builds, Gate A 10/10, Gate C 6/6, all six gate self-tests,
+the strict phantom-test scan, the N+1 review, Playwright 16/16, and
+`git diff --check` passed. The first Gate A attempt used Windows' WSL `bash`,
+which could not resolve the Git worktree or Windows Node; the corrected Git Bash
+run passed all 10 fragments. Production remains unchanged under E32.
 
 ## Remaining browser-native confirmations after W9
 
