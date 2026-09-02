@@ -15,17 +15,17 @@ vi.mock('@/stores/auth.store', () => ({
 
 import MarketingPage from '../MarketingPage';
 
-it('Bug UX-686 — campaigns use configured channels and cannot masquerade as a messaging or attribution-editing tool', async () => {
+it('Bug UX-1012 — campaign UI distinguishes retired historical filters from channels allowed for new records', async () => {
   getMock.mockImplementation((url: string) => {
     if (url === '/api/v1/config') return Promise.resolve({ data: { data: { featureFlags: { promoRedemptionEnabled: false, abTestingEnabled: false } } } });
     if (url.endsWith('/overview')) return Promise.resolve({ data: { data: {
       totalSpendCentavos: 0, totalSignups: 0, totalRevenueCentavos: 0,
       aggregateCpaCentavos: 0, aggregateRoiPercent: 0, channelBreakdown: [],
     } } });
-    if (url.endsWith('/campaigns/channels')) return Promise.resolve({ data: { data: ['tiktok_ads', 'community_partnership'] } });
-    if (url.endsWith('/channels')) return Promise.resolve({ data: { data: ['tiktok_ads', 'community_partnership'] } });
+    if (url.endsWith('/campaigns/channels')) return Promise.resolve({ data: { data: ['facebook_ads', 'tiktok_ads'] } });
+    if (url.endsWith('/channels')) return Promise.resolve({ data: { data: ['tiktok_ads'] } });
     if (url.endsWith('/campaigns')) return Promise.resolve({ data: { data: { rows: [{
-      id: 'campaign-1', name: 'Cebu launch', channel: 'tiktok_ads',
+      id: 'campaign-1', name: 'Historical campaign', channel: 'facebook_ads',
       startedAt: '2026-08-01T00:00:00.000Z', endedAt: null, spendCentavos: 100_000,
       attributedSignups: 15, attributedFirstBookings: 4, attributedRevenueCentavos: 250_000,
       notes: null, createdAt: '2026-08-01T00:00:00.000Z', cpaCentavos: 6_667, roiPercent: 150,
@@ -36,13 +36,13 @@ it('Bug UX-686 — campaigns use configured channels and cannot masquerade as a 
   render(<QueryClientProvider client={client}><MemoryRouter><MarketingPage /></MemoryRouter></QueryClientProvider>);
 
   fireEvent.mouseDown(await screen.findByRole('tab', { name: 'Campaigns' }), { button: 0, ctrlKey: false });
-  expect(await screen.findByText('Tracking records only')).toBeVisible();
-  expect(screen.getByText(/does not send SMS, email, push notifications/i)).toBeVisible();
-  const channelFilter = screen.getByLabelText('Channel');
-  expect(await within(channelFilter).findByRole('option', { name: 'Tiktok Ads' })).toBeVisible();
-  expect(await within(channelFilter).findByRole('option', { name: 'Community Partnership' })).toBeVisible();
-  fireEvent.click(await screen.findByRole('button', { name: /Edit/i }));
-  expect(screen.getByText(/cannot be overwritten here/i)).toBeVisible();
-  expect(screen.queryByLabelText('Signups')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText('Revenue (centavos)')).not.toBeInTheDocument();
+  const channelFilter = await screen.findByLabelText('Channel');
+  expect(await within(channelFilter).findByRole('option', { name: 'Facebook Ads (retired)' })).toBeVisible();
+  expect(within(channelFilter).getByRole('option', { name: 'Tiktok Ads' })).toBeVisible();
+  expect(screen.getByText(/Retired channels remain available for historical filtering/i)).toBeVisible();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Create Campaign' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Create campaign' });
+  expect(within(dialog).getByRole('combobox', { name: 'Channel' })).toHaveTextContent('Tiktok Ads');
+  expect(within(dialog).queryByText(/Facebook Ads/i)).not.toBeInTheDocument();
 });

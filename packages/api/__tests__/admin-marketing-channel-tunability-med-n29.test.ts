@@ -19,8 +19,7 @@ import {
   listCampaigns,
 } from '../src/services/marketing-admin.service';
 
-it('MED-N29 - changing marketing_channels immediately changes accepted campaign filters with a safe fallback', async () => {
-  mockGetSetting.mockResolvedValueOnce(JSON.stringify(['tiktok_ads', 'community_partnership']));
+it('MED-N29 - changing marketing_channels changes new campaign choices without hiding historical filters', async () => {
   mockDbQuery
     .mockResolvedValueOnce({ rows: [{ cnt: '1' }], rowCount: 1 })
     .mockResolvedValueOnce({
@@ -43,7 +42,7 @@ it('MED-N29 - changing marketing_channels immediately changes accepted campaign 
   const customChannelResult = await listCampaigns({ channel: 'tiktok_ads' });
 
   expect(customChannelResult.rows[0]?.channel).toBe('tiktok_ads');
-  expect(mockGetSetting).toHaveBeenCalledWith('marketing_channels');
+  expect(mockGetSetting).not.toHaveBeenCalled();
   expect(mockDbQuery).toHaveBeenNthCalledWith(
     1,
     expect.stringMatching(/FROM marketing_campaigns WHERE channel = \$1/),
@@ -54,13 +53,6 @@ it('MED-N29 - changing marketing_channels immediately changes accepted campaign 
     expect.stringMatching(/FROM marketing_campaigns[\s\S]*WHERE channel = \$1/),
     ['tiktok_ads'],
   );
-
-  mockGetSetting.mockResolvedValueOnce(JSON.stringify(['tiktok_ads']));
-  await expect(listCampaigns({ channel: 'facebook_ads' })).rejects.toMatchObject({
-    statusCode: 400,
-    message: expect.stringMatching(/tiktok_ads/),
-  });
-  expect(mockDbQuery).toHaveBeenCalledTimes(2);
 
   mockGetSetting.mockResolvedValueOnce('not valid JSON');
   await expect(listAllowedMarketingChannels()).resolves.toEqual([
@@ -74,4 +66,5 @@ it('MED-N29 - changing marketing_channels immediately changes accepted campaign 
     'referral',
     'other',
   ]);
+  expect(mockGetSetting).toHaveBeenCalledWith('marketing_channels');
 });

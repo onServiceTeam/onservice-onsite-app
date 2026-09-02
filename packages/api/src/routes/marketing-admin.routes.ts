@@ -209,6 +209,18 @@ router.get(
 );
 
 router.get(
+  '/campaigns/channels',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const data = await marketingAdminService.listRecordedMarketingChannels();
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
   '/campaigns/:id',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {

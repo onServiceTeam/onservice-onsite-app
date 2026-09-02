@@ -112,6 +112,7 @@ interface CampaignRow {
 
 const CODE_REGEX = /^[A-Z0-9_-]{3,40}$/;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const CHANNEL_REGEX = /^[a-z0-9_-]{1,40}$/;
 
 // MED-N29 fix: marketing channels are no longer a hardcoded const.
 // They live in platform_settings.marketing_channels (JSON array).
@@ -144,6 +145,20 @@ async function getAllowedChannels(): Promise<Set<string>> {
 
 export async function listAllowedMarketingChannels(): Promise<string[]> {
   return [...await getAllowedChannels()];
+}
+
+/**
+ * Channels already present in campaign history. This list is deliberately
+ * independent from the current creation allowlist: retiring a channel must
+ * not orphan the exact filter needed to review its recorded spend.
+ */
+export async function listRecordedMarketingChannels(): Promise<string[]> {
+  const result = await db.query<{ channel: string }>(
+    `SELECT DISTINCT channel
+       FROM marketing_campaigns
+      ORDER BY channel ASC`,
+  );
+  return result.rows.map((row) => row.channel);
 }
 
 function validateCode(code: string): string {
@@ -211,6 +226,16 @@ async function validateChannel(channel: string): Promise<string> {
   if (!allowed.has(channel)) {
     throw createAppError(
       `channel must be one of: ${Array.from(allowed).join(', ')}.`,
+      400,
+    );
+  }
+  return channel;
+}
+
+function validateChannelFilter(channel: string): string {
+  if (typeof channel !== 'string' || !CHANNEL_REGEX.test(channel)) {
+    throw createAppError(
+      'channel filter must be a lowercase slug containing only letters, numbers, underscores, or hyphens.',
       400,
     );
   }
@@ -553,8 +578,7 @@ export async function listCampaigns(
   const params: unknown[] = [];
 
   if (filter?.channel !== undefined) {
-    await validateChannel(filter.channel);
-    params.push(filter.channel);
+    params.push(validateChannelFilter(filter.channel));
     where.push(`channel = $${params.length}`);
   }
   // BUG-PHASE132-01 fix — pre-fix passed YYYY-MM-DD strings directly to

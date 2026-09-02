@@ -1009,7 +1009,23 @@ function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactE
       return res.data.data;
     },
   });
-  const channelOptions = toChannelOptions(channelsQuery.data ?? []);
+  const activeChannels = channelsQuery.data ?? [];
+  const activeChannelOptions = toChannelOptions(activeChannels);
+
+  const recordedChannelsQuery = useQuery({
+    queryKey: ['admin-marketing-recorded-channels'],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: string[] }>('/api/v1/admin/marketing/campaigns/channels');
+      return res.data.data;
+    },
+  });
+  const activeChannelSet = new Set(activeChannels);
+  const filterChannelOptions = toChannelOptions([
+    ...new Set([...activeChannels, ...(recordedChannelsQuery.data ?? [])]),
+  ]).map((option) => ({
+    ...option,
+    label: activeChannelSet.has(option.value) ? option.label : `${option.label} (retired)`,
+  }));
 
   const campaignsQuery = useQuery({
     queryKey: ['admin-marketing-campaigns', channelFilter, page],
@@ -1121,33 +1137,45 @@ function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactE
           action={<Button type="button" variant="outline" onClick={() => void channelsQuery.refetch()}>Try again</Button>}
         />
       )}
+      {recordedChannelsQuery.isError && (
+        <ErrorState
+          title="Historical channel filters could not be loaded"
+          description="Campaign records remain visible. Retry to restore filters for channels that are no longer approved for new records."
+          action={<Button type="button" variant="outline" onClick={() => void recordedChannelsQuery.refetch()}>Try again</Button>}
+        />
+      )}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Label htmlFor="channel-filter" className="text-xs">
-            Channel
-          </Label>
-          <select
-            id="channel-filter"
-            value={channelFilter}
-            onChange={(e) => {
-              setChannelFilter(e.target.value);
-              setPage(1);
-            }}
-            className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
-          >
-            <option value="">All</option>
-            {channelOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="channel-filter" className="text-xs">
+              Channel
+            </Label>
+            <select
+              id="channel-filter"
+              value={channelFilter}
+              onChange={(e) => {
+                setChannelFilter(e.target.value);
+                setPage(1);
+              }}
+              className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
+            >
+              <option value="">All</option>
+              {filterChannelOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="max-w-xl text-xs text-[var(--color-text-secondary)]">
+            Retired channels remain available for historical filtering but cannot be selected for new campaign records.
+          </p>
         </div>
         {isSuperAdmin && (
           <Button
             onClick={() => setShowCreate(true)}
             size="sm"
-            disabled={channelsQuery.isLoading || channelsQuery.isError || channelOptions.length === 0}
+            disabled={channelsQuery.isLoading || channelsQuery.isError || activeChannelOptions.length === 0}
           >
             <Plus size={14} /> Create Campaign
           </Button>
@@ -1176,7 +1204,7 @@ function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactE
 
       {showCreate && (
         <CreateCampaignDialog
-          channelOptions={channelOptions}
+          channelOptions={activeChannelOptions}
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             invalidate();
