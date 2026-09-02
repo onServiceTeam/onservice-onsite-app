@@ -180,14 +180,6 @@ export default function PayoutsPage(): React.ReactElement {
       setActionError('Audit reason must be at least 10 characters.');
       return;
     }
-    const providerName = selectedPayout.providerBusinessName ?? 'this provider';
-    const actionLabel = actionType === 'clearAml'
-      ? 'Clear internal review hold for'
-      : actionType === 'complete'
-        ? 'Mark completed'
-        : `${actionType.charAt(0).toUpperCase() + actionType.slice(1)}`;
-    const confirmed = window.confirm(`${actionLabel} payout ${selectedPayout.id.slice(0, 8)} for ${providerName}?`);
-    if (!confirmed) return;
     mutation.mutate();
   }
 
@@ -338,11 +330,11 @@ export default function PayoutsPage(): React.ReactElement {
             {r.status === 'approved' && (
               <button
                 type="button"
-                aria-label={`Complete payout ${r.id}`}
+                aria-label={`Record payout ${r.id} as sent`}
                 onClick={(e) => { e.stopPropagation(); openAction(r, 'complete'); }}
                 className="min-h-11 px-2 py-2 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
               >
-                Complete
+                Record sent
               </button>
             )}
           </div>
@@ -441,7 +433,11 @@ export default function PayoutsPage(): React.ReactElement {
           >
             <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1">
               <span id="payout-action-title">
-              {actionType === 'clearAml' ? 'Clear Internal Review Hold' : `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} Payout`}
+              {actionType === 'clearAml'
+                ? 'Clear Internal Review Hold'
+                : actionType === 'complete'
+                  ? 'Record Payout as Sent'
+                  : `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} Payout`}
               </span>
             </h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
@@ -457,6 +453,24 @@ export default function PayoutsPage(): React.ReactElement {
                     Threshold captured when requested: {formatCurrency(selectedPayout.amlThresholdAtRequest)}
                   </span>
                 )}
+              </div>
+            )}
+
+            {actionType === 'approve' && (
+              <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                This records approval and queues the manual transfer step. It does not send money. Finance must send and verify the external transfer before recording the payout as sent.
+              </div>
+            )}
+
+            {actionType === 'reject' && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+                Rejecting returns the full reserved amount to the provider&apos;s available wallet and notifies the provider. It does not send money externally.
+              </div>
+            )}
+
+            {actionType === 'complete' && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Only continue after the external transfer has been sent and verified outside onService. This records the payout as sent, removes the wallet reservation, and notifies the provider. It does not initiate or send the transfer.
               </div>
             )}
 
@@ -536,7 +550,7 @@ export default function PayoutsPage(): React.ReactElement {
                   actionType === 'reject' ? 'bg-red-600' : actionType === 'approve' ? 'bg-emerald-600' : 'bg-[var(--color-primary)]'
                 }`}
               >
-                {mutation.isPending ? 'Processing...' : actionType === 'clearAml' ? 'Confirm Hold Cleared' : actionType === 'approve' ? 'Approve' : actionType === 'reject' ? 'Reject' : 'Mark Completed'}
+                {mutation.isPending ? 'Processing...' : actionType === 'clearAml' ? 'Confirm Hold Cleared' : actionType === 'approve' ? 'Approve' : actionType === 'reject' ? 'Reject' : 'Record as Sent'}
               </button>
             </div>
           </div>
