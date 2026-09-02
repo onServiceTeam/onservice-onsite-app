@@ -712,11 +712,16 @@ function paymentStatusVariant(status: string): 'success' | 'warning' | 'danger' 
   return 'default';
 }
 
-function PaymentsPanel(): React.ReactElement {
+function PaymentsPanel({
+  intentSearch,
+  onIntentSearchChange,
+}: {
+  intentSearch: string;
+  onIntentSearchChange: (value: string) => void;
+}): React.ReactElement {
   const retryPageSize = 25;
   const [retryPage, setRetryPage] = useState(1);
-  const [intentSearchDraft, setIntentSearchDraft] = useState('');
-  const [intentSearch, setIntentSearch] = useState('');
+  const [intentSearchDraft, setIntentSearchDraft] = useState(intentSearch);
   const q = useQuery({
     queryKey: ['fin-payments', retryPage, intentSearch],
     queryFn: async () => {
@@ -783,7 +788,8 @@ function PaymentsPanel(): React.ReactElement {
               className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end"
               onSubmit={(event) => {
                 event.preventDefault();
-                setIntentSearch(intentSearchDraft.trim());
+                setRetryPage(1);
+                onIntentSearchChange(intentSearchDraft.trim());
               }}
             >
               <label className="flex-1 text-xs font-medium text-[var(--color-text-secondary)]" htmlFor="payment-attempt-search">
@@ -803,7 +809,8 @@ function PaymentsPanel(): React.ReactElement {
                   className="min-h-11"
                   onClick={() => {
                     setIntentSearchDraft('');
-                    setIntentSearch('');
+                    setRetryPage(1);
+                    onIntentSearchChange('');
                   }}
                   type="button"
                   variant="outline"
@@ -2145,6 +2152,7 @@ export function ReceiptsPanel(): React.ReactElement {
 export default function FinancialsPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseTab(searchParams.get('tab'));
+  const intentSearch = searchParams.get('intentSearch')?.trim() ?? '';
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = useMemo(() => role === 'super_admin', [role]);
 
@@ -2156,6 +2164,17 @@ export default function FinancialsPage(): React.ReactElement {
       } else {
         params.set('tab', nextTab);
       }
+      if (nextTab !== 'payments') params.delete('intentSearch');
+      return params;
+    });
+  };
+
+  const selectPaymentAttempt = (value: string): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'payments');
+      if (value) params.set('intentSearch', value);
+      else params.delete('intentSearch');
       return params;
     });
   };
@@ -2198,7 +2217,13 @@ export default function FinancialsPage(): React.ReactElement {
 
       {tab === 'overview' && <OverviewPanel />}
       {tab === 'escrow' && <EscrowPanel />}
-      {tab === 'payments' && <PaymentsPanel />}
+      {tab === 'payments' && (
+        <PaymentsPanel
+          key={intentSearch}
+          intentSearch={intentSearch}
+          onIntentSearchChange={selectPaymentAttempt}
+        />
+      )}
       {tab === 'legacy' && <LegacyFinancialReviewPanel />}
       {tab === 'commission' && <CommissionControlsPanel />}
       {tab === 'payouts' && <PayoutsPanel />}

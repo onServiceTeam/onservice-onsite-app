@@ -8,6 +8,7 @@ export type AdminSearchKind =
   | 'contract'
   | 'booking'
   | 'statement'
+  | 'payment'
   | 'support'
   | 'dispute'
   | 'payout';
@@ -47,9 +48,10 @@ const KIND_ORDER: Record<AdminSearchKind, number> = {
   contract: 3,
   booking: 4,
   statement: 5,
-  support: 6,
-  dispute: 7,
-  payout: 8,
+  payment: 6,
+  support: 7,
+  dispute: 8,
+  payout: 9,
 };
 
 function shortId(id: string): string {
@@ -72,6 +74,7 @@ function resultTitle(kind: AdminSearchKind, row: RawSearchRow): string {
   const reference = shortId(row.id);
   if (kind === 'booking') return `Booking ${reference}`;
   if (kind === 'contract') return `Contract ${reference}`;
+  if (kind === 'payment') return `Payment ${reference}`;
   if (kind === 'dispute') return `Dispute ${reference}`;
   if (kind === 'payout') return `Payout ${reference}`;
   return row.title;
@@ -94,6 +97,7 @@ function resultDestination(kind: AdminSearchKind, row: RawSearchRow): string {
       ? `/business-accounts/${businessId}?tab=invoices&invoiceId=${id}`
       : '/business-accounts';
   }
+  if (kind === 'payment') return `/financials?tab=payments&intentSearch=${id}`;
   if (kind === 'support') return `/support-tickets?ticketId=${id}`;
   if (kind === 'dispute') return `/disputes/${id}`;
   return `/payouts?payoutId=${id}`;
@@ -131,9 +135,9 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
   const phoneDigits = normalizePhoneSearch(needle);
   const params = [needle, phoneDigits, PER_KIND_LIMIT];
 
-  // Nine fixed, bounded queries are intentionally parallel. This is not a
+  // Ten fixed, bounded queries are intentionally parallel. This is not a
   // record-driven query loop and cannot grow with the number of matches.
-  const [customers, businesses, providers, contracts, bookings, statements, support, disputes, payouts] = await Promise.all([
+  const [customers, businesses, providers, contracts, bookings, statements, payments, support, disputes, payouts] = await Promise.all([
     db.query<RawSearchRow>(
       `SELECT u.id::text AS id,
               TRIM(CONCAT_WS(' ', u.first_name, u.last_name)) AS title,
@@ -341,6 +345,43 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
       params,
     ),
     db.query<RawSearchRow>(
+      `SELECT pi.id::text AS id,
+              pi.id::text AS title,
+              CONCAT_WS(' · ',
+                CASE
+                  WHEN pi.booking_id IS NOT NULL THEN 'Booking ' || LEFT(pi.booking_id::text, 8)
+                  WHEN pi.topup_id IS NOT NULL THEN 'Wallet top-up'
+                  ELSE 'Unlinked payment attempt'
+                END,
+                NULLIF(TRIM(CONCAT_WS(' ', cu.first_name, cu.last_name)), ''),
+                UPPER(REPLACE(pi.payment_method, '_', ' '))
+              ) AS context,
+              pi.status::text AS status,
+              NULL::text AS phone, NULL::text AS email,
+              pi.booking_id::text AS related_id,
+              CASE
+                WHEN LOWER(pi.id::text) = LOWER($1)
+                  OR LOWER(COALESCE(pi.paymongo_intent_id, '')) = LOWER($1)
+                  OR LOWER(COALESCE(pi.paymongo_payment_id, '')) = LOWER($1) THEN 0
+                WHEN LEFT(LOWER(pi.id::text), LENGTH($1)) = LOWER($1)
+                  OR LOWER(COALESCE(pi.booking_id::text, '')) = LOWER($1)
+                  OR LOWER(COALESCE(pi.topup_id, '')) = LOWER($1) THEN 1
+                ELSE 2
+              END AS rank,
+              pi.updated_at AS created_at
+         FROM payment_intents pi
+         LEFT JOIN bookings b ON b.id = pi.booking_id
+         LEFT JOIN users cu ON cu.id = b.customer_id
+        WHERE STRPOS(LOWER(pi.id::text), LOWER($1)) > 0
+           OR LOWER(COALESCE(pi.booking_id::text, '')) = LOWER($1)
+           OR LOWER(COALESCE(pi.topup_id, '')) = LOWER($1)
+           OR LOWER(COALESCE(pi.paymongo_intent_id, '')) = LOWER($1)
+           OR LOWER(COALESCE(pi.paymongo_payment_id, '')) = LOWER($1)
+        ORDER BY rank, pi.updated_at DESC
+        LIMIT $3`,
+      params,
+    ),
+    db.query<RawSearchRow>(
       `SELECT st.id::text AS id,
               st.ticket_number AS title,
               CONCAT_WS(' · ', st.subject, NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '')) AS context,
@@ -444,6 +485,7 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
     ...contracts.rows.map((row) => formatResult('contract', row)),
     ...bookings.rows.map((row) => formatResult('booking', row)),
     ...statements.rows.map((row) => formatResult('statement', row)),
+    ...payments.rows.map((row) => formatResult('payment', row)),
     ...support.rows.map((row) => formatResult('support', row)),
     ...disputes.rows.map((row) => formatResult('dispute', row)),
     ...payouts.rows.map((row) => formatResult('payout', row)),

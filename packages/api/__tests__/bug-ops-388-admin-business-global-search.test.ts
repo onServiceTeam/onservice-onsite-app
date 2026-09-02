@@ -25,6 +25,7 @@ it('Bug OPS-388 - global operator search finds Business Account 360 without retu
     .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValueOnce({ rows: [] });
 
   const results = await searchAdminRecords('Cebu Build Co');
@@ -43,7 +44,7 @@ it('Bug OPS-388 - global operator search finds Business Account 360 without retu
   expect(JSON.stringify(results)).not.toContain('accounts@cebubuild.example');
   expect(JSON.stringify(results)).not.toContain('registration');
   expect(JSON.stringify(results)).not.toContain('tax');
-  expect(queryMock).toHaveBeenCalledTimes(9);
+  expect(queryMock).toHaveBeenCalledTimes(10);
   const businessQuery = queryMock.mock.calls.find(([sql]) => (
     typeof sql === 'string' && sql.includes('FROM business_accounts ba')
   ));
