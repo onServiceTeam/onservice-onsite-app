@@ -137,6 +137,17 @@ export default function CatalogPage(): React.ReactElement {
     if (isAddonModal) {
       if (!addonName.trim()) return 'Add-on name is required.';
       if (!isFiniteNumber(addonPrice) || Number(addonPrice) < 0) return 'Add-on price must be a valid non-negative amount.';
+      const addonPriceCentavos = Math.round(Number(addonPrice) * 100);
+      const preservesGrandfatheredPrice = modal === 'editAddon'
+        && addonEditTarget !== null
+        && addonPriceCentavos === addonEditTarget.price;
+      if (
+        addonPriceCapCentavos !== null
+        && !preservesGrandfatheredPrice
+        && addonPriceCentavos > addonPriceCapCentavos
+      ) {
+        return `Add-on price cannot exceed the current ${formatCurrency(addonPriceCapCentavos)} authoring limit.`;
+      }
       if (!isFiniteNumber(addonOrder)) return 'Display order must be a valid number.';
       return null;
     }
@@ -448,6 +459,10 @@ export default function CatalogPage(): React.ReactElement {
   const addons = addonsData?.addons ?? [];
   const addonPriceCapCentavos = addonsData?.priceCapCentavos ?? null;
   const activeAddonsAboveCap = addons.filter((addon) => addon.exceedsCurrentPriceCap);
+  const editingGrandfatheredAddon = modal === 'editAddon'
+    && addonEditTarget !== null
+    && addonPriceCapCentavos !== null
+    && addonEditTarget.price > addonPriceCapCentavos;
   const visibleCategories = serviceFilter === 'all'
     ? categories
     : categories
@@ -883,7 +898,9 @@ export default function CatalogPage(): React.ReactElement {
                         type="number"
                         step="0.01"
                         min="0"
-                        max={addonPriceCapCentavos !== null ? String(addonPriceCapCentavos / 100) : undefined}
+                        max={addonPriceCapCentavos !== null && !editingGrandfatheredAddon
+                          ? String(addonPriceCapCentavos / 100)
+                          : undefined}
                         value={addonPrice}
                         onChange={(e) => setAddonPrice(e.target.value)}
                         required
