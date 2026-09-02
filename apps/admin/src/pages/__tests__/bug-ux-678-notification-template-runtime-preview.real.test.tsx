@@ -10,7 +10,7 @@ vi.mock('@/lib/api', () => ({
   getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
 }));
 vi.mock('@/stores/auth.store', () => ({
-  useAuthStore: (selector: (state: unknown) => unknown) => selector({ user: { role: 'admin' } }),
+  useAuthStore: (selector: (state: unknown) => unknown) => selector({ user: { role: 'super_admin' } }),
 }));
 
 import NotificationTemplatesPage from '../NotificationTemplatesPage';

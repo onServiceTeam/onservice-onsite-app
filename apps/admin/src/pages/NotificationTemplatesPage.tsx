@@ -17,7 +17,7 @@ import {
   DialogTitle,
   ErrorState,
   LoadingState,
-  useConfirmationDialog,
+  useReasonDialog,
   type Column,
 } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
@@ -33,6 +33,7 @@ interface Template {
   variables: string[];
   runtimeStatus: 'connected' | 'reference_only';
   runtimeVariables: string[] | null;
+  runtimeChannels?: Array<'in_app' | 'push'> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,9 +53,18 @@ const CHANNEL_VARIANT: Record<string, 'info' | 'success' | 'warning' | 'default'
 
 const TYPE_OPTIONS = new Set(['booking_update', 'payment', 'dispute_update', 'tier_upgrade', 'payout', 'referral', 'suki', 'promo', 'system']);
 const CHANNEL_OPTIONS = new Set(['all', 'push', 'sms', 'email', 'in_app']);
-const RUNTIME_VARIABLES: Readonly<Record<string, readonly string[]>> = {
-  new_job_available: ['bookingId', 'serviceName', 'amount', 'city'],
-  booking_matched: ['bookingId', 'providerName'],
+const RUNTIME_CONTRACTS: Readonly<Record<string, {
+  variables: readonly string[];
+  channels: ReadonlyArray<'in_app' | 'push'>;
+}>> = {
+  new_job_available: {
+    variables: ['bookingId', 'serviceName', 'amount', 'city'],
+    channels: ['in_app', 'push'],
+  },
+  booking_matched: {
+    variables: ['bookingId', 'providerName'],
+    channels: ['in_app', 'push'],
+  },
 };
 const PREVIEW_VALUES: Readonly<Record<string, string>> = {
   bookingId: 'OS-1042',
@@ -95,7 +105,15 @@ function renderPreview(copy: string, variables: string[]): string {
 }
 
 function runtimeVariablesFor(slug: string): readonly string[] | null {
-  return RUNTIME_VARIABLES[slug] ?? null;
+  return RUNTIME_CONTRACTS[slug]?.variables ?? null;
+}
+
+function runtimeChannelsFor(slug: string): ReadonlyArray<'in_app' | 'push'> | null {
+  return RUNTIME_CONTRACTS[slug]?.channels ?? null;
+}
+
+function formatRuntimeChannels(channels: readonly string[]): string {
+  return channels.map((channel) => channel === 'in_app' ? 'In-app' : 'Push').join(' + ');
 }
 
 function parsePage(value: string | null): number {
@@ -113,9 +131,9 @@ function parseChannel(value: string | null): string {
 
 export default function NotificationTemplatesPage(): React.ReactElement {
   const queryClient = useQueryClient();
-  const { confirm, confirmationDialog } = useConfirmationDialog();
-  // Delete is super_admin-only on the server (notification-template.routes DELETE
-  // → requireSuperAdmin). Gate the button so a regular admin doesn't hit a 403.
+  const { requestReason, reasonDialog } = useReasonDialog();
+  // All template lifecycle mutations are super_admin-only on the server.
+  // Keep ordinary-admin support visibility read-only in the client as well.
   const isSuperAdmin = useAuthStore((s) => s.user?.role === 'super_admin');
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
@@ -145,13 +163,14 @@ export default function NotificationTemplatesPage(): React.ReactElement {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (reason: string) => {
       const editableFields = {
         titleTemplate: formTitle.trim(),
         bodyTemplate: formBody.trim(),
         type: formType,
-        channel: formChannel,
         isActive: formActive,
+        reason,
+        ...(runtimeChannelsFor(formSlug.trim()) ? {} : { channel: formChannel }),
       };
       if (editing) {
         await api.put(`/api/v1/admin/notification-templates/${editing.id}`, editableFields);
@@ -170,8 +189,8 @@ export default function NotificationTemplatesPage(): React.ReactElement {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await api.delete(`/api/v1/admin/notification-templates/${id}`);
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      await api.delete(`/api/v1/admin/notification-templates/${id}`, { data: { reason } });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminTemplates'] });
@@ -181,8 +200,8 @@ export default function NotificationTemplatesPage(): React.ReactElement {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      await api.put(`/api/v1/admin/notification-templates/${id}`, { isActive });
+    mutationFn: async ({ id, isActive, reason }: { id: string; isActive: boolean; reason: string }) => {
+      await api.put(`/api/v1/admin/notification-templates/${id}`, { isActive, reason });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminTemplates'] });
@@ -223,6 +242,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
 
   const placeholderState = inspectPlaceholders(formTitle, formBody);
   const connectedVariables = runtimeVariablesFor(formSlug.trim());
+  const connectedChannels = runtimeChannelsFor(formSlug.trim());
   const unsupportedVariables = connectedVariables
     ? placeholderState.variables.filter((variable) => !connectedVariables.includes(variable))
     : [];
@@ -285,22 +305,24 @@ export default function NotificationTemplatesPage(): React.ReactElement {
       return;
     }
     const action = editing ? 'Update' : 'Create';
-    const runtimeDescription = connectedVariables
-      ? `It controls the live “${formSlug.trim()}” workflow when active.`
-      : 'It is reference-only until engineering connects this slug to a delivery workflow.';
-    const accepted = await confirm({
+    const runtimeDescription = connectedVariables && connectedChannels
+      ? `When active, it overrides the built-in copy used for ${formatRuntimeChannels(connectedChannels)} delivery. SMS and email are not connected.`
+      : `It is reference-only. “${formChannel.replace('_', '-')}” is stored as catalog metadata and does not make a message send.`;
+    const reason = await requestReason({
       title: `${action} notification template?`,
-      description: `This will ${action.toLowerCase()} “${formSlug.trim()}” for ${formChannel.replace('_', '-')} delivery. ${runtimeDescription}`,
+      description: `This will ${action.toLowerCase()} “${formSlug.trim()}”. ${runtimeDescription}`,
       confirmLabel: action,
+      reasonLabel: 'Change reason',
+      tone: 'default',
     });
-    if (!accepted) return;
-    saveMutation.mutate();
+    if (!reason) return;
+    saveMutation.mutate(reason);
   }
 
   async function toggleTemplate(template: Template): Promise<void> {
     const nextActive = !template.isActive;
     const action = nextActive ? 'Activate' : 'Deactivate';
-    const accepted = await confirm({
+    const reason = await requestReason({
       title: `${action} notification template?`,
       description: template.runtimeStatus === 'connected'
         ? nextActive
@@ -308,20 +330,24 @@ export default function NotificationTemplatesPage(): React.ReactElement {
           : `“${template.slug}” will stop overriding its connected workflow. Built-in fallback copy will continue to send.`
         : `“${template.slug}” is reference-only. This changes its catalog status but does not affect live messages.`,
       confirmLabel: action,
+      reasonLabel: `${action} reason`,
       tone: nextActive ? 'default' : 'destructive',
     });
-    if (!accepted) return;
-    toggleMutation.mutate({ id: template.id, isActive: nextActive });
+    if (!reason) return;
+    toggleMutation.mutate({ id: template.id, isActive: nextActive, reason });
   }
 
   async function deleteTemplate(template: Template): Promise<void> {
-    const accepted = await confirm({
+    const reason = await requestReason({
       title: 'Delete notification template?',
-      description: `“${template.slug}” will be permanently removed. Deactivate it instead if its history must remain available.`,
+      description: template.runtimeStatus === 'connected'
+        ? `“${template.slug}” will be permanently removed and its built-in in-app/push fallback copy will continue to send. Deactivate it instead if the editable row must remain available.`
+        : `“${template.slug}” will be permanently removed. It is reference-only and does not currently send.`,
       confirmLabel: 'Delete template',
+      reasonLabel: 'Deletion reason',
       tone: 'destructive',
     });
-    if (accepted) deleteMutation.mutate(template.id);
+    if (reason) deleteMutation.mutate({ id: template.id, reason });
   }
 
   const columns: Column<Template>[] = [
@@ -348,10 +374,18 @@ export default function NotificationTemplatesPage(): React.ReactElement {
     },
     {
       key: 'channel',
-      header: 'Channel',
-      render: (r) => (
-        <Badge label={r.channel.replace(/_/g, ' ')} variant={CHANNEL_VARIANT[r.channel] ?? 'default'} />
-      ),
+      header: 'Delivery',
+      render: (r) => {
+        const runtimeChannels = r.runtimeChannels ?? runtimeChannelsFor(r.slug);
+        return runtimeChannels ? (
+          <Badge label={formatRuntimeChannels(runtimeChannels)} variant="info" />
+        ) : (
+          <Badge
+            label={`Metadata: ${r.channel.replace(/_/g, ' ')}`}
+            variant={CHANNEL_VARIANT[r.channel] ?? 'default'}
+          />
+        );
+      },
     },
     {
       key: 'runtime',
@@ -365,7 +399,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
     {
       key: 'status',
       header: 'Active',
-      render: (r) => (
+      render: (r) => isSuperAdmin ? (
         <button
           type="button"
           onClick={(e) => {
@@ -380,6 +414,8 @@ export default function NotificationTemplatesPage(): React.ReactElement {
             <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${r.isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
           </span>
         </button>
+      ) : (
+        <Badge label={r.isActive ? 'Active' : 'Inactive'} variant={r.isActive ? 'success' : 'default'} />
       ),
     },
     {
@@ -399,7 +435,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
     {
       key: 'actions',
       header: 'Actions',
-      render: (r) => (
+      render: (r) => isSuperAdmin ? (
         <div className="flex flex-wrap items-center gap-1">
           <Button
             type="button"
@@ -427,6 +463,8 @@ export default function NotificationTemplatesPage(): React.ReactElement {
             </Button>
           )}
         </div>
+      ) : (
+        <span className="text-xs text-[var(--color-text-secondary)]">Read only</span>
       ),
     },
   ];
@@ -440,20 +478,31 @@ export default function NotificationTemplatesPage(): React.ReactElement {
             Review message copy, runtime linkage, channels, and placeholders before it reaches a customer or provider.
           </p>
         </div>
-        <Button
-          type="button"
-          onClick={openCreate}
-          className="w-full sm:w-auto"
-        >
-          + New Template
-        </Button>
+        {isSuperAdmin && (
+          <Button
+            type="button"
+            onClick={openCreate}
+            className="w-full sm:w-auto"
+          >
+            + New Template
+          </Button>
+        )}
       </div>
 
+      {!isSuperAdmin && (
+        <section aria-label="Notification template access" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-950">Read-only operator access</p>
+          <p className="mt-1 text-sm text-amber-800">
+            Notification copy is a live configuration-publishing control. A super-admin must create, edit, activate, deactivate, or delete a template.
+          </p>
+        </section>
+      )}
+
       <section aria-label="Notification template runtime coverage" className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
-        <p className="text-sm font-semibold text-sky-950">2 workflows currently use admin-managed copy</p>
+        <p className="text-sm font-semibold text-sky-950">2 workflows currently use admin-managed in-app and push copy</p>
         <p className="mt-1 text-sm text-sky-800">
           <span className="font-mono">new_job_available</span> and <span className="font-mono">booking_matched</span> are connected.
-          Other rows are reference-only and do not change live messages until engineering connects their slug.
+          SMS, email, test-send, per-channel variants, and version publication are not connected. Other rows are reference-only and do not change live messages until engineering connects their slug.
         </p>
       </section>
 
@@ -481,12 +530,12 @@ export default function NotificationTemplatesPage(): React.ReactElement {
           aria-label="Filter templates by channel"
           className="min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)] sm:w-auto"
         >
-          <option value="">All Channels</option>
-          <option value="all">All (Multi-channel)</option>
-          <option value="push">Push</option>
-          <option value="sms">SMS</option>
-          <option value="email">Email</option>
-          <option value="in_app">In-App</option>
+          <option value="">All stored channel markers</option>
+          <option value="all">Legacy all marker</option>
+          <option value="push">Push metadata</option>
+          <option value="sms">SMS metadata</option>
+          <option value="email">Email metadata</option>
+          <option value="in_app">In-app metadata</option>
         </select>
       </div>
 
@@ -573,19 +622,35 @@ export default function NotificationTemplatesPage(): React.ReactElement {
                 </select>
               </div>
               <div>
-                <label htmlFor="template-channel" className="mb-1.5 block text-sm font-medium text-[var(--color-text)]">Channel</label>
-                <select
-                  id="template-channel"
-                  value={formChannel}
-                  onChange={(e) => setFormChannel(e.target.value)}
-                  className="min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
-                >
-                  <option value="all">All Channels</option>
-                  <option value="push">Push</option>
-                  <option value="sms">SMS</option>
-                  <option value="email">Email</option>
-                  <option value="in_app">In-App</option>
-                </select>
+                {connectedChannels ? (
+                  <>
+                    <label htmlFor="template-runtime-channels" className="mb-1.5 block text-sm font-medium text-[var(--color-text)]">Runtime delivery channels</label>
+                    <input
+                      id="template-runtime-channels"
+                      value={formatRuntimeChannels(connectedChannels)}
+                      disabled
+                      className="min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-slate-100 px-3 py-2 text-sm text-slate-700"
+                    />
+                    <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Managed by the live workflow. SMS and email are not connected.</p>
+                  </>
+                ) : (
+                  <>
+                    <label htmlFor="template-channel" className="mb-1.5 block text-sm font-medium text-[var(--color-text)]">Stored channel metadata</label>
+                    <select
+                      id="template-channel"
+                      value={formChannel}
+                      onChange={(e) => setFormChannel(e.target.value)}
+                      className="min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
+                    >
+                      <option value="all">Legacy all marker</option>
+                      <option value="push">Push metadata</option>
+                      <option value="sms">SMS metadata</option>
+                      <option value="email">Email metadata</option>
+                      <option value="in_app">In-app metadata</option>
+                    </select>
+                    <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Reference-only metadata does not activate a delivery channel.</p>
+                  </>
+                )}
               </div>
             </div>
 
@@ -677,7 +742,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {confirmationDialog}
+      {reasonDialog}
     </div>
   );
 }

@@ -1919,3 +1919,26 @@ recommended remediation is E55 Option A: contain the writes, rebuild explicit
 commercial booking and draft/readiness/finalization controls, and preserve old
 financial records through append-only corrections rather than rewrites. See
 `.ai-coder/escalations/E55-business-account-billing-and-contract-authority-2026-09-02.md`.
+
+---
+
+## 62. Notification Templates is not a per-channel publishing system
+
+Only `new_job_available` and `booking_matched` read Admin-managed template
+copy. Each uses one title/body for an in-app notification and best-effort push.
+The stored `channel` marker is not a delivery instruction; seeded and custom
+SMS/email rows do not send through this workflow.
+
+Inactive, missing, malformed, or deleted connected rows use built-in fallback
+copy. Deactivation therefore does not suppress a required booking notice.
+Ordinary admins have read-only support visibility. Every lifecycle mutation is
+reserved for super-admin, requires a durable reason, rejects no-op changes, and
+retains the reason in the transactional Admin action.
+
+The current schema has no channel-specific or locale-specific version, draft
+publication, effective date, rollback, test-send evidence, outbox attempt, or
+delivery receipt. Do not activate SMS/email, reinterpret reference rows, or
+claim that the ADMIN-SPEC target is deployed. E66 recommends staged immutable
+event/locale/channel versions with consent/preference enforcement and delivery
+evidence. Production inventory and migration remain blocked by E32. See
+`.ai-coder/escalations/E66-notification-template-channel-publication-and-versioning-2026-09-02.md`.

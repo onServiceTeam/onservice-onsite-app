@@ -40,7 +40,7 @@ What actually controls what you can click is your single account role on the `us
 
 | Your account role | What you can do |
 |---|---|
-| `super_admin` | All currently enabled money and destructive actions: escrow release/refund, booking force-complete/cancel/reassign, enabled dispute resolve/escalate actions, payout internal-review decisions and approve/reject/complete, provider wallet adjust, reconciliation run, settings edit/reset, staff and roles management, cancellation-policy edit, Catalog publishing, Service Areas create/edit/activate/pause/default/waitlist-notify decisions, and delete notification templates. Dispute Reopen, free redo, and refund-with-warning remain held under E51. BIR issuance/finalization remains disabled for every role under E22. |
+| `super_admin` | All currently enabled money and destructive actions: escrow release/refund, booking force-complete/cancel/reassign, enabled dispute resolve/escalate actions, payout internal-review decisions and approve/reject/complete, provider wallet adjust, reconciliation run, settings edit/reset, staff and roles management, cancellation-policy edit, Catalog publishing, Service Areas create/edit/activate/pause/default/waitlist-notify decisions, and the complete Notification Templates lifecycle. Dispute Reopen, free redo, and refund-with-warning remain held under E51. BIR issuance/finalization remains disabled for every role under E22. |
 | `admin` | Read and operational access. You can view every page and do non-money operational work such as provider vetting and support case handling. Catalog publishing and Service Areas market mutation are read-only because the API reserves them for `super_admin`. On money, destructive, and configuration-publishing surfaces you see a read-only banner. |
 | `dpo` | Admin-tier, plus the compliance powers: search consent records and handle Data Subject Requests under the Data Privacy Act. This is a real, separate role required by NPC rules, not a nickname for super_admin. |
 
@@ -353,9 +353,25 @@ Note: a payout at or above the internal review threshold (default ₱500,000) la
 
 ### 2.15 Notification Templates (`/notification-templates`)
 
-Edit the message templates (push, SMS, email, in-app) by type (`booking_update`, `payment`, `dispute_update`, `tier_upgrade`, `payout`, `referral`, `suki`, `promo`, `system`). Each has a title and body template with `{{variable}}` placeholders and an active toggle. Delete is super_admin only.
+This is a read workspace for ordinary admins and a reasoned publishing control
+for `super_admin`. Only `new_job_available` and `booking_matched` are connected.
+Their active title/body override is used for both the in-app inbox row and its
+best-effort push. SMS and email are not connected to this editor.
 
-How to change a message customers receive: find the template by slug, edit the body, keep the `{{variable}}` placeholders intact, save. (Reminder: the in-app Help/FAQ text is NOT here, it is hardcoded and needs a code release to change.)
+All other rows are reference-only. Their stored channel is metadata and does
+not activate delivery. An inactive, missing, or deleted connected row does not
+stop the booking notice; the API uses built-in fallback copy. Do not deactivate
+a template to suppress a required notice.
+
+For a connected copy change, a super-admin must inspect the runtime variables,
+review the sample preview, keep placeholders within the declared contract, and
+record why the change is needed. Create, edit, activate, deactivate, and delete
+all require a reason and leave transactional Admin evidence. Ordinary admins
+can inspect the same truth for support but cannot mutate it.
+
+Per-channel variants, SMS/email delivery, locale publication, version history,
+rollback, and test-send are held under E66. Help/FAQ text is also not managed
+here; it requires a code release.
 
 ### 2.16 Marketing (`/marketing`)
 

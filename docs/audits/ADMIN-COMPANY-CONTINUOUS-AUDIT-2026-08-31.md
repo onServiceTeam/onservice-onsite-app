@@ -4,7 +4,7 @@
 
 This is the resumable record for the suspicion-first admin/company stage that follows the provider and customer desktop/linkage audits. It records what was inspected, what was changed, what was proven by executed tests, and what remains. It does not treat the existence of a route, table, button, or old test as proof that an operator workflow is feasible.
 
-The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover the Business Account 360 read/linkage layer, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, Booking 360/Dispatch integrity, financial-operations truth outside the E55 business-billing hold, Customer/Provider 360 account-support authority, Catalog publishing, and the unambiguous parts of Service Areas operations. Checkpoint AB supersedes any implication that Business Account 360 is a launch-ready commercial write console. The remaining admin surfaces continue after these checkpoints.
+The current stage is not a declaration that every admin screen is complete. Completed or safely contained checkpoints cover the Business Account 360 read/linkage layer, business projects, the current two-workflow notification-template boundary, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, Booking 360/Dispatch integrity, financial-operations truth outside the E55 business-billing hold, Customer/Provider 360 account-support authority, Catalog publishing, and the unambiguous parts of Service Areas operations. Checkpoint AB supersedes any implication that Business Account 360 is a launch-ready commercial write console. Checkpoint AC supersedes any implication that Notification Templates is already a per-channel publishing system. The remaining admin surfaces continue after these checkpoints.
 
 Production synchronization is not claimed. Escalation E32 still records that the supplied SSH identities are rejected by the production host. Local and GitHub code may be aligned after CI, but production cannot be updated until an authorized server identity is available.
 
@@ -1140,3 +1140,57 @@ operator manual and launch limitations now remove the false claim that this is
 a ready billing console. Existing records must be preserved. E32 prevents the
 production inventory, so no account link, invoice item, payment reference,
 contract, or status was backfilled or edited.
+
+## Checkpoint AC: Notification Templates runtime and publication re-audit
+
+Checkpoint B fixed placeholder integrity, fallback safety, audit coupling, and
+the page-level preview, but it did not prove the channel labels or publication
+authority. This re-audit traced the Admin page, validators, routes, service,
+schema, seeded rows, notification resolver, in-app persistence, Expo push, and
+operator manual.
+
+### Findings
+
+- Only `new_job_available` and `booking_matched` consult the template table.
+- Both feed one in-app notification record and its best-effort push. No template
+  path sends SMS or email.
+- The stored `channel` field is not read by those delivery calls. Calling `all`
+  multi-channel or changing a connected row to SMS/email was false authority.
+- Inactive, missing, malformed, or deleted connected rows do not suppress the
+  notice. The built-in title/body continues to send.
+- Ordinary admins could create and edit customer/provider copy even though the
+  documented role boundary makes configuration publication read-only for that
+  tier. Only delete was previously super-admin-only.
+- Create/update/delete audit JSON did not uniformly require an operator reason,
+  and a no-op update could still manufacture a change record.
+- The one-row-per-slug schema has no channel variant, locale, immutable version,
+  draft/published state, effective date, test-send evidence, outbox attempt, or
+  delivery receipt. ADMIN-SPEC Module 11 remains a target, not present behavior.
+
+### Implemented containment
+
+- Runtime projections now declare both actual channels independently of the
+  legacy stored marker. Connected channel mutation to SMS/email is rejected.
+- The Admin page says in-app plus push, labels all other channels metadata-only,
+  explains fallback behavior, and lists unsupported test-send/version features.
+- Ordinary admins retain support visibility but every lifecycle mutation is
+  hidden and independently rejected by the API. Super-admin create, edit,
+  activate, deactivate, and delete require a 10-to-2,000-character reason.
+- Route validation and service validation agree, no-op updates fail before
+  database work, and the reason is stored with the transactional Admin action.
+- Existing rows, recipient selection, fallback copy, and send behavior remain
+  unchanged. No migration or external provider was introduced.
+
+Executed coverage is Bugs OPS-365 through OPS-370, SEC-035, and rendered Bugs
+UX-1020/1021, plus the updated UX-672/674/676/677 and historical delete tests.
+API TypeScript and `git diff --check` pass locally. Local Jest still fails before
+test loading on an EPERM dependency read; Admin TypeScript fails before project
+code because `node_modules/vitest/globals.d.ts` is missing; local Vitest has the
+same OneDrive dependency traversal failure. These are not passes. Protected
+GitHub CI is required for executed aggregate evidence.
+
+E66 records the unresolved scalable architecture and recommends staged,
+immutable event/locale/channel versions with preview, test-send, outbox,
+idempotency, consent/preference enforcement, and delivery evidence. No SMS,
+email, locale, migration, or production publication is authorized. Master and
+production remain unchanged under E32.
