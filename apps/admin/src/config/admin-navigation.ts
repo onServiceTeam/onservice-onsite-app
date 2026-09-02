@@ -149,6 +149,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         label: 'Disputes',
         description: 'Evidence, decisions, and escalations',
       },
+      {
+        to: '/security',
+        Icon: Shield,
+        label: 'Security Operations',
+        description: 'Network blocks and security events',
+      },
     ],
   },
   {
