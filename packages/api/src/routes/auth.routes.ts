@@ -1180,7 +1180,7 @@ router.post(
   },
 );
 
-// --- Admin 2FA: Disable ---
+// --- Admin 2FA: Disable (launch-held) ---
 router.post(
   '/admin/2fa/disable',
   authMiddleware,
@@ -1188,44 +1188,23 @@ router.post(
   validationMiddleware(adminTwoFactorDisableSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const userId = req.user!.userId;
       const role = req.user!.role;
-      const { totpCode } = req.body;
 
       // E01 / D15 — admin tier (admin, super_admin, dpo) all manage 2FA.
       if (role !== 'admin' && role !== 'super_admin' && role !== 'dpo') {
         throw createAppError('2FA is only available for admin accounts.', 403);
       }
 
-      const userResult = await db.query<{ totp_secret: string | null; totp_enabled: boolean }>(
-        `SELECT totp_secret, totp_enabled FROM users WHERE id = $1`,
-        [userId],
+      // SEC-043 — factor removal is a privileged-account recovery transition,
+      // not a profile toggle. Keep the public route fail-closed until the
+      // governed recovery authority, audit, session revocation, and last-seat
+      // invariants are approved. No account or factor state is read or written.
+      const held = createAppError(
+        'Administrator recovery changes are unavailable until the governed recovery workflow is enabled.',
+        409,
       );
-
-      if (userResult.rows.length === 0) throw createAppError('User not found.', 404);
-      const user = userResult.rows[0]!;
-
-      if (!user.totp_enabled || !user.totp_secret) {
-        throw createAppError('2FA is not currently enabled.', 400);
-      }
-
-      const decryptedDisableSecret = decryptSecret(user.totp_secret);
-      const valid = verifyTotp(decryptedDisableSecret, totpCode);
-      if (!valid) {
-        throw createAppError('Invalid verification code.', 401);
-      }
-
-      await db.query(
-        `UPDATE users SET totp_secret = NULL, totp_enabled = FALSE, updated_at = NOW() WHERE id = $1`,
-        [userId],
-      );
-
-      logger.info('Admin 2FA disabled', { userId });
-
-      res.json({
-        success: true,
-        data: { message: 'Two-factor authentication has been disabled.' },
-      });
+      held.code = 'privileged_recovery_policy_required';
+      throw held;
     } catch (error) {
       next(error);
     }

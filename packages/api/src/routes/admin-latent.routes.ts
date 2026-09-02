@@ -8,7 +8,7 @@
  *
  *   - Decide pending provider applications (approve / reject / sent_back)
  *   - Decide pending service-area-change requests (approve / reject)
- *   - Regenerate admin TOTP backup codes
+ *   - Contain admin TOTP backup-code regeneration pending governed recovery
  *
  * Mounted at `/api/v1/admin` via server.ts. Admin CSRF middleware applies
  * at the mount level for cookie-auth (Bearer auth bypasses per
@@ -23,7 +23,6 @@ import { authMiddleware, type AuthenticatedRequest } from '../middleware/auth.mi
 import { createAppError } from '../middleware/error.middleware';
 import * as providerOnboarding from '../services/provider-onboarding.service';
 import * as areaChange from '../services/service-area-change.service';
-import * as admin2fa from '../services/admin-2fa.service';
 import { maskEmail, maskPhilippinePhone } from '../utils/pii-mask';
 
 const router = Router();
@@ -233,7 +232,7 @@ router.post(
   },
 );
 
-// ─── Admin TOTP backup codes regeneration ──────────────────────────────────
+// ─── Admin TOTP backup-code regeneration (launch-held) ─────────────────────
 
 router.post(
   '/2fa/backup-codes/regenerate',
@@ -253,31 +252,15 @@ router.post(
         throw createAppError('Admin access required.', 403);
       }
 
-      // Super-admins regenerate their own backup codes — and may regen
-      // codes for other admins via :adminUserId. Self-regen is the
-      // common case (lost the old codes); cross-regen is the recovery
-      // case (e.g., admin lost both authenticator + backup codes).
-      const target = req.body?.adminUserId
-        ? String(req.body.adminUserId)
-        : req.user!.userId;
-
-      // Anyone other than the user themselves requires super_admin.
-      if (target !== req.user!.userId) {
-        requireSuperAdmin(req);
-      }
-
-      const result = await admin2fa.generateBackupCodes(target, {
-        regeneratedBy: req.user!.userId,
-      });
-
-      res.status(201).json({
-        success: true,
-        data: {
-          codes: result.codes,
-          generatedAt: result.generatedAt,
-          warning: 'These codes are shown ONCE. Store them securely; the previous set is invalidated.',
-        },
-      });
+      // SEC-044 — neither a bearer session nor a super-admin target parameter
+      // is a governed recovery case. Preserve the route as an explicit hold so
+      // older callers fail safely without rotating or disclosing any code set.
+      const held = createAppError(
+        'Administrator recovery changes are unavailable until the governed recovery workflow is enabled.',
+        409,
+      );
+      held.code = 'privileged_recovery_policy_required';
+      throw held;
     } catch (error) { next(error); }
   },
 );
