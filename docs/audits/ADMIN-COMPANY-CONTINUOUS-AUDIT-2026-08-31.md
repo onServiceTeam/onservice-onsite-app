@@ -1534,7 +1534,9 @@ way back to the account's full contract list.
 
 Local API and Admin TypeScript checks and focused ESLint pass. Thirteen related
 API regressions pass across eight suites, and four focused rendered Admin
-regressions pass. Protected CI and Gates must still pass before this checkpoint
-is treated as protected-verified. No contract, statement, payment, booking,
-support, audit, business-account, customer, provider, or production record
-changed.
+regressions pass. Protected CI `33693445438` passed the full API, Admin, and
+mobile suites, both TypeScript checks, the Admin production build, and the
+Docker image boot/health check at commit `b05e068`. Protected Gates
+`33693445347` passed A through E and the `All gates passed` rollup at the same
+commit. No contract, statement, payment, booking, support, audit,
+business-account, customer, provider, or production record changed.
