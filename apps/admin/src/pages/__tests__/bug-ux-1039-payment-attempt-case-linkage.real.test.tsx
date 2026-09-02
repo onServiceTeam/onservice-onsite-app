@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
 
+vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
+
 const apiGet = vi.hoisted(() => vi.fn(() => Promise.resolve({
   data: {
     data: {

@@ -7,6 +7,8 @@ import { expect, it, vi } from 'vitest';
 import api from '@/lib/api';
 import FinancialsPage from '../FinancialsPage';
 
+vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
+
 it('Bug UX-1042 — a retained sales record opens its exact booking, customer, and provider cases', async () => {
   vi.mocked(api.get).mockResolvedValue({ data: { success: true, data: {
     rows: [{

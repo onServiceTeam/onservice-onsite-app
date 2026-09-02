@@ -7,6 +7,8 @@ import { expect, it, vi } from 'vitest';
 import api from '@/lib/api';
 import FinancialsPage from '../FinancialsPage';
 
+vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
+
 const emptySummary = {
   paymentIntentsAvailable: true,
   gatewayRetriesAvailable: true,

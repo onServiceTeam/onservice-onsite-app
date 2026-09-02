@@ -6,6 +6,8 @@ import { expect, it, vi } from 'vitest';
 
 import api from '@/lib/api';
 
+vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
+
 vi.mock('@/stores/auth.store', () => ({
   useAuthStore: (selector: (state: unknown) => unknown) => selector({ user: { role: 'super_admin' } }),
 }));
