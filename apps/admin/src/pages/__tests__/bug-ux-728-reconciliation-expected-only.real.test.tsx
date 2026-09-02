@@ -25,7 +25,7 @@ it('Bug UX-728 — expected-only snapshots are not displayed as zero-balance suc
   expect(await screen.findByText('Not supplied')).toBeVisible();
   expect(screen.getByText('Not compared')).toBeVisible();
   expect(screen.getByText('EXPECTED ONLY')).toBeVisible();
-  fireEvent.click(screen.getByRole('button', { name: 'Run Reconciliation Now' }));
-  expect(screen.getByRole('button', { name: 'Run Now' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Create reconciliation snapshot' }));
+  expect(screen.getByRole('button', { name: 'Create snapshot' })).toBeDisabled();
   expect(screen.getByText(/balance is required/i)).toBeVisible();
 });

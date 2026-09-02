@@ -1170,7 +1170,6 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
     }
     payload.paymongoBalance = n;
     if (runNotes.trim() !== '') payload.notes = runNotes.trim();
-    if (!window.confirm('Run a new reconciliation snapshot now?')) return;
     runMut.mutate(payload);
   };
 
@@ -1181,7 +1180,6 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       toast.warning('Note must be 5–1000 characters.');
       return;
     }
-    if (!window.confirm('Acknowledge this reconciliation discrepancy?')) return;
     ackMut.mutate({ id: ackTarget.id, note });
   };
 
@@ -1190,7 +1188,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-base font-semibold text-[var(--color-text)]">Recent Reconciliations</h2>
         {isSuperAdmin && (
-          <Button onClick={() => setShowRun(true)}>Run Reconciliation Now</Button>
+          <Button onClick={() => setShowRun(true)}>Create reconciliation snapshot</Button>
         )}
       </div>
 
@@ -1261,14 +1259,14 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       <Dialog open={showRun} onOpenChange={setShowRun}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Run Reconciliation</DialogTitle>
+            <DialogTitle>Create reconciliation snapshot</DialogTitle>
             <DialogDescription>
-              Compare the verified PayMongo balance with all internal wallet buckets. The balance is required; notes are optional.
+              Create one append-only comparison for today&apos;s Philippine date. This does not query PayMongo or move money. Enter a balance independently verified from the authorized external source; notes are optional.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label htmlFor="run-balance">Verified PayMongo Balance (PHP)</Label>
+              <Label htmlFor="run-balance">Operator-entered PayMongo balance (PHP)</Label>
               <Input
                 id="run-balance"
                 type="number"
@@ -1297,7 +1295,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
               Cancel
             </Button>
             <Button onClick={submitRun} disabled={runMut.isPending || runBalance.trim() === ''}>
-              {runMut.isPending ? 'Running…' : 'Run Now'}
+              {runMut.isPending ? 'Creating…' : 'Create snapshot'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1310,7 +1308,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
             <DialogTitle>Acknowledge Discrepancy</DialogTitle>
             <DialogDescription>
               Snapshot {ackTarget ? formatDate(ackTarget.snapshotDate) : ''} — discrepancy{' '}
-              {ackTarget ? formatCurrency(ackTarget.discrepancy) : ''}.
+              {ackTarget ? formatCurrency(ackTarget.discrepancy) : ''}. Acknowledging closes the alert flag and records your note. It does not resolve the discrepancy or change any balance.
             </DialogDescription>
           </DialogHeader>
           <div>
@@ -1330,7 +1328,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
               Cancel
             </Button>
             <Button onClick={submitAck} disabled={ackMut.isPending || ackNote.trim().length < 5 || ackNote.trim().length > 1000}>
-              {ackMut.isPending ? 'Submitting…' : 'Acknowledge'}
+              {ackMut.isPending ? 'Submitting…' : 'Acknowledge alert'}
             </Button>
           </DialogFooter>
         </DialogContent>
