@@ -29,7 +29,14 @@ it('MED-N65 - suspicious-IP detection skips active blocks and writes all new blo
       ],
       rowCount: 3,
     })
-    .mockResolvedValueOnce({ rows: [{ ip_address: '5.6.7.8' }], rowCount: 1 })
+    .mockResolvedValueOnce({
+      rows: [{
+        id: '65000000-0000-4000-8000-000000000065',
+        ip_address: '5.6.7.8',
+        currently_blocked: true,
+      }],
+      rowCount: 1,
+    })
     .mockResolvedValueOnce({ rows: [], rowCount: 2 })
     .mockResolvedValueOnce({ rows: [], rowCount: 2 });
 
