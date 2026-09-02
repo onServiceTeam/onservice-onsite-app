@@ -276,6 +276,7 @@ const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   suki_tiers: 'Suki tier thresholds, earning multipliers, and discounts are held under E25 and E44 until booking calculations, customer/provider displays, and the approved loyalty policy share one versioned source.',
   suki_points_to_peso_rate: 'Suki conversion is held under E25 and E44 because the current wallet credit has a peso-to-centavo mismatch and customer redemption copy does not read the live rate.',
   noshow_auto_resolve_window_minutes: 'This threshold can trigger an automatic full refund from completion timing alone. Editing is held under E59 until the evidence rule and E18 escrow timing are resolved without widening unsafe settlements.',
+  provider_noshow_minutes: 'One value currently controls both provider-late alerts and a customer no-show money decision. Editing is held under E60 until the wait is measured from verified arrival and snapshotted prospectively for each booking.',
   recurring_auto_charge_max_consecutive_failures: 'Recurring bookings remain manual-payment-only while escalation E20 is open.',
   cancel_refund_over_24h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
   cancel_refund_2_to_24h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',

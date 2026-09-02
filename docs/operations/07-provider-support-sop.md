@@ -174,11 +174,11 @@ When the platform itself cannot match any provider (no-provider failure), the cu
 
 When the provider arrives and the customer is not there:
 1. Tell the provider to message the customer in the booking chat first (text plus a photo of arrival if useful). There is no in-app calling or masked-telephone service. Chat is the live channel and the current customer/provider copy now says so.
-2. Provider should wait a reasonable window. Starting wait is 15 minutes before reporting a no-show.
+2. The stored/default wait is currently 30 minutes, but E60 records that the API measures it from the scheduled time rather than from a verified arrival timestamp. Do not tell either party that the present route proves 30 minutes on-site.
 
-> **Set (editable):** A provider waits 15 minutes after arriving before reporting a customer no-show. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Launch hold:** `provider_noshow_minutes` is read-only under E60. It currently drives both provider-late alerts and the customer no-show money boundary. Do not change it in PostgreSQL or bypass the Settings API.
 
-3. If the customer still does not appear, the provider reports it to support. Log this as ticket type `booking_issue` with a clear note "customer no-show at site." (The `provider_no_show` ticket type is for the opposite case, when the provider fails to show.)
+3. The provider app can submit the customer no-show action from an arrived booking. Because the current check does not prove the on-site duration, open or link a `booking_issue` support case and preserve the exact arrival, chat, photo, and location evidence. The `provider_no_show` ticket type is for the opposite case, when the provider fails to show.
 4. A customer no-show affects the refund split. On the live cancellation path, a customer no-show gives the customer a 0% refund, which means the provider is compensated for the trip. Confirm the booking is handled so the provider is not penalized.
 5. Gather evidence: arrival photo, GPS check-in (visible in Booking 360 then Evidence), chat showing the provider tried to reach the customer.
 6. Escalate to Trust & Safety / super_admin to cancel or resolve with the no-show flag so the money splits correctly. Do not leave the provider out of pocket for a confirmed customer no-show.
@@ -345,7 +345,7 @@ Provider ticket intake is available in the shared in-app Support screens. Email 
 | "Wrong commission" | Tier + Settings | Flat per tier (10/15/13/11/9%); admin may have tuned it |
 | "Can't add extra charge" | Original price | 50% cap, ~₱10K hard cap, must be in_progress |
 | "No job offers" | Approved + available + area | 45s exclusive offers; check availability and service area |
-| "Customer not at site" | Booking 360 Evidence | 15-min wait, then no-show handling, provider compensated |
+| "Customer not at site" | Booking 360 Evidence | E60 hold: preserve arrival/contact evidence; current 30-min check is scheduled-time based |
 | "Not getting OTP" | Phone format + hourly cap | Format `+63 9XX...`, 5/hour cap, carrier delay |
 | "NBI expiring" | NBI status banner | Renew and re-upload; private bucket; manual chase, manual suspend if ignored |
 | "Bad review" | Booking 360 | Reply publicly; remove only if fake/abusive |
@@ -359,6 +359,6 @@ Provider ticket intake is available in the shared in-app Support screens. Email 
 - Hotline placeholder removed from the app; phone support is not live until a real number is provisioned and staffed. (editable)
 - FAQ corrections batched into app releases at launch; FAQ moves to an admin-editable source post-launch. (editable)
 - Super-admin/Ken reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout. (editable)
-- Customer no-show wait window is 15 minutes before the provider reports it. (editable)
+- Customer no-show timing remains on E60 launch hold until a snapshotted wait is measured from verified arrival; the current stored/default value is 30 minutes. (held)
 - Support quotes the live refund money-path numbers (not the policy page) on cancellation questions until the two systems are reconciled. (editable)
 - Provider ticket intake uses the in-app Support inbox when possible, with email/Messenger-to-agent intake retained for external contacts. (editable)
