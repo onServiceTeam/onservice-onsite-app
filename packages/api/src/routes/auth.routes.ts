@@ -427,38 +427,67 @@ router.patch(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { firstName, lastName } = req.body;
-
-      const sets: string[] = [];
-      const vals: unknown[] = [];
-      let idx = 1;
-
-      if (firstName !== undefined) {
-        sets.push(`first_name = $${idx++}`);
-        vals.push(firstName);
-      }
-      if (lastName !== undefined) {
-        sets.push(`last_name = $${idx++}`);
-        vals.push(lastName);
-      }
-      if (sets.length === 0) {
+      if (firstName === undefined && lastName === undefined) {
         res.status(400).json({ success: false, error: { message: 'No fields to update.', statusCode: 400 } });
         return;
       }
 
-      sets.push(`updated_at = NOW()`);
-      vals.push(req.user!.userId);
+      // OPS-371 — customer/provider identity edits and their before/after
+      // evidence commit together. The dormant response-after-send audit
+      // prototype cannot guarantee this, so the canonical writer owns it.
+      const updated = await db.transaction(async (client) => {
+        const beforeResult = await client.query<UserProfileRow>(
+          `SELECT id, phone, email, first_name, last_name, role, avatar_url,
+                  is_verified, is_active, session_version, created_at
+             FROM users
+            WHERE id = $1
+            FOR UPDATE`,
+          [req.user!.userId],
+        );
+        const before = beforeResult.rows[0];
+        if (!before) throw createAppError('User not found.', 404);
 
-      const result = await db.query<UserProfileRow>(
-        `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx} RETURNING id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at`,
-        vals,
-      );
+        const nextFirstName = firstName ?? before.first_name;
+        const nextLastName = lastName ?? before.last_name;
+        if (nextFirstName === before.first_name && nextLastName === before.last_name) {
+          return before;
+        }
 
-      if (result.rows.length === 0) {
-        res.status(404).json({ success: false, error: { message: 'User not found.', statusCode: 404 } });
-        return;
-      }
+        const updateResult = await client.query<UserProfileRow>(
+          `UPDATE users
+              SET first_name = $1,
+                  last_name = $2,
+                  updated_at = NOW()
+            WHERE id = $3
+          RETURNING id, phone, email, first_name, last_name, role, avatar_url,
+                    is_verified, is_active, session_version, created_at`,
+          [nextFirstName, nextLastName, req.user!.userId],
+        );
+        const row = updateResult.rows[0];
+        if (!row) throw createAppError('User not found.', 404);
 
-      res.json({ success: true, data: formatUserResponse(result.rows[0]!) });
+        const auditResult = await client.query<{ id: string }>(
+          `INSERT INTO audit_log
+             (user_id, action, entity_type, entity_id, old_values, new_values,
+              ip_address, user_agent)
+           VALUES ($1, 'user_profile_updated', 'users', $1, $2::jsonb, $3::jsonb,
+                   $4::inet, $5)
+           RETURNING id`,
+          [
+            req.user!.userId,
+            JSON.stringify({ firstName: before.first_name, lastName: before.last_name }),
+            JSON.stringify({ firstName: row.first_name, lastName: row.last_name }),
+            req.ip ?? null,
+            req.headers['user-agent'] ?? null,
+          ],
+        );
+        if (!auditResult.rows[0]?.id) {
+          throw createAppError('Unable to record the profile change.', 500);
+        }
+        return row;
+      });
+
+      res.json({ success: true, data: formatUserResponse(updated) });
     } catch (error) {
       next(error);
     }
