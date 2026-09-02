@@ -1052,7 +1052,7 @@ function formatRunway(v: number | null | undefined): string {
   return `${v.toFixed(1)} mo`;
 }
 
-function GuaranteeFundPanel(): React.ReactElement {
+export function GuaranteeFundPanel(): React.ReactElement {
   const q = useQuery({
     queryKey: ['fin-guarantee'],
     queryFn: async () => {
