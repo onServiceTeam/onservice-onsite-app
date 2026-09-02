@@ -42,8 +42,7 @@ it('Bug UX-1049 — the publish dialog records now and schedules future material
   expect(screen.getByRole('status')).toHaveTextContent(/not before/i);
   expect(screen.getByRole('button', { name: 'Publish and schedule' })).toBeDisabled();
 
-  fireEvent.click(screen.getByRole('combobox', { name: 'Consent type' }));
-  fireEvent.click(await screen.findByRole('option', { name: 'privacy policy' }));
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Consent type' })).toHaveTextContent('privacy policy'));
   fireEvent.change(screen.getByLabelText('Version'), { target: { value: 'v9' } });
   fireEvent.change(screen.getByLabelText('Change summary'), {
     target: { value: 'Approved future material update for privacy policy processing.' },

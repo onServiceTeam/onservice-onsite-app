@@ -128,10 +128,3 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   };
 }
-
-// jsdom does not implement the browser scrolling API used by Radix Select
-// when it focuses the selected option. Keep component tests on the real Radix
-// interaction path instead of replacing the control with a test-only mock.
-if (typeof globalThis.Element.prototype.scrollIntoView === 'undefined') {
-  globalThis.Element.prototype.scrollIntoView = vi.fn();
-}

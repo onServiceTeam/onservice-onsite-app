@@ -9,7 +9,7 @@
  * All form inputs include aria-* attributes; all feedback uses sonner toasts.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -147,6 +147,15 @@ export default function ConsentVersionsPage(): React.ReactElement {
     },
     staleTime: 30 * 1000,
   });
+  const soleAllowedConsentType = versionsQuery.data?.allowedConsentTypes.length === 1
+    ? versionsQuery.data.allowedConsentTypes[0]
+    : undefined;
+
+  useEffect(() => {
+    if (publishOpen && consentType.length === 0 && soleAllowedConsentType) {
+      setConsentType(soleAllowedConsentType);
+    }
+  }, [consentType, publishOpen, soleAllowedConsentType]);
 
   const publishMutation = useMutation({
     mutationFn: async (input: {
