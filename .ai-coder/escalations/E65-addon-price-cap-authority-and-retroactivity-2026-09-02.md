@@ -1,7 +1,7 @@
 # E65 — Add-on price cap authority and retroactivity are contradictory
 
 **Date:** 2026-09-02
-**Status:** OPTION A APPROVED BY KEN — implemented on the topic branch; clean-runner verification pending; no migration, production, backfill, or existing add-on rewrite made
+**Status:** OPTION A APPROVED AND CLEAN-RUNNER VERIFIED — topic branch only; no migration, production, backfill, public-catalog filter, or existing add-on rewrite made
 **Scope:** `addon_price_max_cents`, Admin System Settings, Admin Catalog, public add-on discovery, fixed-price booking and pricing preview
 
 ## Bad news
@@ -95,6 +95,44 @@ not recommended without a separate approved catalog-pricing policy.
 Ken approved Option A on 2026-09-02. The implementation keeps this as a
 prospective authoring guard, preserves public discovery and historical booking
 snapshots, and adds deliberate Admin Catalog review signals for active rows
-above the effective cap. Production remains unchanged under the existing
-deployment and migration holds until clean-runner evidence is recorded and the
-separate release authority is satisfied.
+above the effective cap.
+
+## Implementation and verification
+
+Commits `98d3c00` and `e17b2fe` implement the approved decision on
+`codex/system-settings-control-fix`:
+
+1. one shared `10,000,000`-centavo hard ceiling now governs catalog validation,
+   the live helper, and the Admin Settings effective maximum;
+2. Admin Settings rejects a higher value and states the prospective runtime
+   effect explicitly;
+3. Admin Catalog flags active rows above the effective cap for deliberate
+   review while leaving public discovery and booking behavior unchanged;
+4. a non-price edit to a grandfathered active row no longer submits or
+   revalidates its unchanged legacy price, while a real price edit and an
+   inactive-row reactivation still enforce the cap; and
+5. the Catalog edit request no longer includes the unsupported
+   `subcategoryId` field rejected by the strict update schema.
+
+The first clean CI run `33594360113` failed only the new Admin rendered test.
+That failure exposed a real browser boundary: the HTML `max` attribute blocked
+submission of an unchanged ₱120,000 grandfathered price before the non-price
+edit could reach the approved server behavior. Commit `e17b2fe` corrected that
+boundary and added an explicit form error for an actual above-cap price change.
+
+The final clean runners passed in full:
+
+- GitHub CI `33594942588`: API, Admin, Mobile, and API Docker build/liveness;
+- GitHub Gates `33594942589`: Gates A, B, C, D, E, and the all-gates result;
+- Admin: 300 files and 391 assertions, with the three existing todos; and
+- API and Mobile: complete TypeScript and test jobs green.
+
+API TypeScript also passed locally. Local Jest, Vitest, and Admin TypeScript are
+not claimed because the local npm shim and OneDrive dependency reads failed
+before those runners loaded a target. The clean GitHub runners are the
+authoritative test evidence.
+
+No migration, backfill, historical booking rewrite, existing add-on rewrite,
+customer-facing filter, refund, merge to master, server synchronization, or
+production change occurred. E32, E50, and the existing release and money holds
+remain in force.
