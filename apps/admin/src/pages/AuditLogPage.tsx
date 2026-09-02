@@ -99,6 +99,7 @@ const ACTION_LABELS: Record<string, string> = {
   support_ticket_status_updated: 'Support case status updated',
   support_ticket_status_resumed_by_reply: 'Support case resumed by participant reply',
   support_ticket_priority_updated: 'Support case priority updated',
+  user_profile_updated: 'Profile name updated',
 };
 
 const ROLE_COLORS: Record<string, string> = {
@@ -159,6 +160,23 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
       return { to: `/customers/${id}`, label: 'Open Customer 360' };
     case 'provider':
       return { to: `/providers/${id}`, label: 'Open Provider 360' };
+    case 'users':
+      if (entry.userRole === 'customer') {
+        return { to: `/customers/${id}`, label: 'Open Customer 360' };
+      }
+      if (entry.userRole === 'provider') {
+        return { to: `/providers?search=${id}`, label: 'Find Provider 360' };
+      }
+      if (entry.userRole === 'provider_staff') {
+        return {
+          to: `/support-tickets?userId=${id}&userRole=provider_staff`,
+          label: 'Open provider staff support history',
+        };
+      }
+      if (entry.userRole === 'admin' || entry.userRole === 'super_admin' || entry.userRole === 'dpo') {
+        return { to: '/staff', label: 'Open Staff & Roles' };
+      }
+      return { to: `/support-tickets?userId=${id}`, label: 'Open participant support history' };
     case 'dispute':
       return { to: `/disputes/${id}`, label: 'Open Dispute 360' };
     case 'payout':
@@ -187,6 +205,17 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
   }
 }
 
+function entityLabel(entry: AuditEntry): string {
+  if (entry.entityType !== 'users') return humanizeSlug(entry.entityType);
+  if (entry.userRole === 'customer') return 'Customer account';
+  if (entry.userRole === 'provider') return 'Provider account';
+  if (entry.userRole === 'provider_staff') return 'Provider staff account';
+  if (entry.userRole === 'admin' || entry.userRole === 'super_admin' || entry.userRole === 'dpo') {
+    return 'Staff account';
+  }
+  return 'User account';
+}
+
 function exactEntityTimeline(entry: AuditEntry): string | null {
   if (!entry.entityId || !UUID_REGEX.test(entry.entityId)) return null;
   const params = new URLSearchParams({ entityType: entry.entityType, entityId: entry.entityId });
@@ -208,7 +237,7 @@ function EntityLink({ entry }: { entry: AuditEntry }): React.ReactElement {
   if (!destination) {
     return (
       <span className="text-[var(--color-text-secondary)]">
-        {humanizeSlug(entry.entityType)}{entry.entityId ? ` · ${shortId(entry.entityId)}` : ''}
+        {entityLabel(entry)}{entry.entityId ? ` · ${shortId(entry.entityId)}` : ''}
       </span>
     );
   }
@@ -218,7 +247,7 @@ function EntityLink({ entry }: { entry: AuditEntry }): React.ReactElement {
       className="inline-flex min-h-11 items-center gap-1 font-medium text-[var(--color-secondary)] hover:underline"
       onClick={(event) => event.stopPropagation()}
     >
-      {humanizeSlug(entry.entityType)} · {shortId(entry.entityId!)}
+      {entityLabel(entry)} · {shortId(entry.entityId!)}
       <ExternalLink size={14} aria-hidden="true" />
       <span className="sr-only">{destination.label}</span>
     </Link>
@@ -586,7 +615,7 @@ export default function AuditLogPage(): React.ReactElement {
                       <SourceBadge entry={entry} />
                       <p className="font-semibold text-[var(--color-text)]">{actionLabel(entry.action)}</p>
                       <p className="text-sm text-[var(--color-text-secondary)]">
-                        {humanizeSlug(entry.entityType)}{entry.entityId ? ` · ${shortId(entry.entityId)}` : ''}
+                        {entityLabel(entry)}{entry.entityId ? ` · ${shortId(entry.entityId)}` : ''}
                       </p>
                     </div>
                     {expanded ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
@@ -657,7 +686,7 @@ function EntryDetails({ entry }: { entry: AuditEntry }): React.ReactElement {
         <DetailField label="Actor ID" value={entry.userId || 'System'} mono={Boolean(entry.userId)} />
         <DetailField label="Full action" value={entry.action} mono />
         <DetailField label="Source" value={SOURCE_BADGE[entry.source ?? 'audit_log'].label} />
-        <DetailField label="Record type" value={humanizeSlug(entry.entityType)} />
+        <DetailField label="Record type" value={entityLabel(entry)} />
         <DetailField label="Record ID" value={entry.entityId || 'Not recorded'} mono={Boolean(entry.entityId)} />
         <DetailField label="Masked network" value={entry.ipAddress || 'Not recorded'} mono />
         <DetailField label="Client" value={entry.userAgent || 'Not recorded'} />
