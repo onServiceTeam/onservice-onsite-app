@@ -597,6 +597,13 @@ function QualityTab(): React.ReactElement {
     },
   });
 
+  const newestVisibleSnapshot = data?.data.reduce<string | null>((latest, score) => {
+    const scoreTime = new Date(score.computedAt).getTime();
+    if (!Number.isFinite(scoreTime)) return latest;
+    if (!latest || scoreTime > new Date(latest).getTime()) return score.computedAt;
+    return latest;
+  }, null) ?? null;
+
   function setSortBy(nextSortBy: string): void {
     setSearchParams((current) => {
       const params = new URLSearchParams(current);
@@ -621,8 +628,8 @@ function QualityTab(): React.ReactElement {
         tone="amber"
         definition="Legacy automated index: rating 30%, completion 25%, completion within two hours of scheduled start 20%, provider cancellation 15%, and quote response time 10%."
         source="Stored provider_quality_scores snapshots. The rating input is the provider aggregate; booking and quote inputs use the stored snapshot period."
-        freshness={data?.data[0]
-          ? `Newest visible snapshot calculated ${formatManilaDateTime(data.data[0].computedAt)} PHT.`
+        freshness={newestVisibleSnapshot
+          ? `Newest visible snapshot calculated ${formatManilaDateTime(newestVisibleSnapshot)} PHT.`
           : 'No current snapshot is visible.'}
         boundary="E47 holds recomputation because this model conflicts with the approved monthly operations scorecard. Do not use the overall number alone for discipline, tier, dispatch, or commission decisions."
       />
