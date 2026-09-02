@@ -1540,3 +1540,39 @@ Docker image boot/health check at commit `b05e068`. Protected Gates
 `33693445347` passed A through E and the `All gates passed` rollup at the same
 commit. No contract, statement, payment, booking, support, audit,
 business-account, customer, provider, or production record changed.
+
+## Checkpoint AO: exact consumer payment investigation handoff
+
+Financials could retrieve an older payment attempt by an exact local, booking,
+top-up, customer, or PayMongo identifier, but that search existed only as local
+component state inside the Payments tab. The global operator command search did
+not include payment attempts. A support or finance operator holding a gateway
+reference therefore had to know where to navigate, re-enter the value, and
+could not bookmark or share the resulting investigation state.
+
+OPS-397 adds one fixed, bounded, read-only payment-attempt query to global
+operator search. Exact PayMongo intent and payment identifiers may locate the
+attempt, but neither gateway identifier is returned in the search response.
+The result shows only the local payment reference, linked booking or wallet
+top-up context, customer when available, payment method, and status. UX-1059
+renders that result as a distinct Payment record and opens the canonical
+Financials Payments workspace.
+
+UX-1060 makes the exact attempt filter URL-backed. Global search now hands off
+to `/financials?tab=payments&intentSearch=<local-attempt-id>`; loading,
+refreshing, bookmarking, or sharing that URL restores the exact server query
+and visible filter value. Manual searches update the URL, clearing removes the
+filter, and leaving the Payments tab removes stale payment-search state. E14
+continues to fail external payment creation closed. This checkpoint adds no
+payment, refund, retry, receipt, or reconciliation mutation.
+
+Local API and Admin TypeScript checks and focused ESLint pass. Six focused API
+regressions pass, covering cross-record ranking, Business Account, contract,
+statement, payment privacy, and exact-payment search behavior. Three real
+rendered Admin regressions pass, covering manual attempt lookup, command-search
+navigation, and URL restoration. Protected CI `33694962565` passed the full
+API, Mobile, and rendered Admin suites, both TypeScript checks, the Admin
+production build, and Docker image boot/health at commit `6d20248`. Protected
+Gates `33694962558` passed A through E and the `All gates passed` rollup at the
+same commit. No payment, booking, customer, provider, support, receipt, audit,
+or production record changed.
