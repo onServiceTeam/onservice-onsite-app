@@ -1,6 +1,7 @@
 import rateLimit, { RateLimitRequestHandler, ipKeyGenerator } from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { platformConfig } from '../config/platform.config';
 import * as settingsService from '../services/settings.service';
 import { redis } from '../config/redis.config';
@@ -64,7 +65,54 @@ let currentWindow: number = platformConfig.rateLimitWindowMs;
 let currentMax: number = platformConfig.rateLimitMaxRequests;
 
 let activeWindow: number = currentWindow;
-let activeLimiter: RateLimitRequestHandler = buildLimiter(currentWindow);
+
+const USER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Keep authentic server-signed customer/provider/admin credentials out of one
+ * carrier-NAT bucket.
+ * Signature verification is required before a token can select a user key, so
+ * an attacker cannot rotate unsigned token strings to bypass the IP budget.
+ * Expired or otherwise invalid credentials remain IP-scoped. The downstream
+ * auth middleware still enforces canonical account state and role authority.
+ */
+export function globalRateLimitKey(req: Request): string {
+  const cookies = (req as Request & {
+    cookies?: Record<string, unknown>;
+  }).cookies ?? {};
+  const authorization = req.headers.authorization;
+  const bearer = authorization?.startsWith('Bearer ')
+    ? authorization.slice('Bearer '.length).trim()
+    : '';
+  const bodyRefresh = typeof (req.body as { refreshToken?: unknown } | undefined)?.refreshToken === 'string'
+    ? (req.body as { refreshToken: string }).refreshToken.trim()
+    : '';
+  const candidates = [
+    typeof cookies.admin_session === 'string' ? cookies.admin_session.trim() : '',
+    bearer,
+    typeof cookies.admin_refresh === 'string' ? cookies.admin_refresh.trim() : '',
+    bodyRefresh,
+  ];
+  const secret = process.env.JWT_SECRET;
+
+  if (secret) {
+    for (const token of candidates) {
+      if (token.length < 16 || token.length > 4096) continue;
+      try {
+        const payload = jwt.verify(token, secret, {
+          algorithms: ['HS256'],
+        }) as { userId?: unknown };
+        if (typeof payload.userId === 'string' && USER_ID_PATTERN.test(payload.userId)) {
+          return `u:${payload.userId.toLowerCase()}`;
+        }
+      } catch {
+        // Invalid, forged, or otherwise unusable credentials remain IP-scoped.
+      }
+    }
+  }
+
+  return ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? '');
+}
 
 function buildLimiter(windowMs: number): RateLimitRequestHandler {
   return rateLimit({
@@ -74,6 +122,7 @@ function buildLimiter(windowMs: number): RateLimitRequestHandler {
     standardHeaders: true,
     legacyHeaders: false,
     store: buildRedisStore('rl:global:'),
+    keyGenerator: globalRateLimitKey,
     message: {
       success: false,
       error: {
@@ -83,6 +132,8 @@ function buildLimiter(windowMs: number): RateLimitRequestHandler {
     },
   });
 }
+
+let activeLimiter: RateLimitRequestHandler = buildLimiter(currentWindow);
 
 export async function refreshRateLimits(): Promise<void> {
   try {
@@ -152,7 +203,7 @@ export function __getCachedForTest(): { windowMs: number; max: number } {
 // ── Phase C CRIT-46 fix — auth-specific stricter rate limiter ──
 //
 // Pre-fix: ALL endpoints shared the same rate limiter (from
-// platform_settings.rate_limit_max_requests, default 100/min). Auth
+// platform_settings.rate_limit_max_requests, default 100 per 15 minutes). Auth
 // endpoints (OTP request, OTP verify, admin login, refresh) needed
 // to be MUCH stricter so credential-stuffing / OTP spam attacks
 // can't burn through the broad limit.
