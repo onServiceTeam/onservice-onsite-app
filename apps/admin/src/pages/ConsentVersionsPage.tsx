@@ -147,8 +147,9 @@ export default function ConsentVersionsPage(): React.ReactElement {
     },
     staleTime: 30 * 1000,
   });
-  const soleAllowedConsentType = versionsQuery.data?.allowedConsentTypes.length === 1
-    ? versionsQuery.data.allowedConsentTypes[0]
+  const allowedConsentTypes = versionsQuery.data?.allowedConsentTypes ?? [];
+  const soleAllowedConsentType = allowedConsentTypes.length === 1
+    ? allowedConsentTypes[0]
     : undefined;
 
   useEffect(() => {
@@ -402,7 +403,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
                   <SelectValue placeholder="Choose a supported consent type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(versionsQuery.data?.allowedConsentTypes ?? []).map((type) => (
+                  {allowedConsentTypes.map((type) => (
                     <SelectItem key={type} value={type}>{type.replace(/_/g, ' ')}</SelectItem>
                   ))}
                 </SelectContent>
