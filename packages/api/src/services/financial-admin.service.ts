@@ -114,7 +114,9 @@ export interface EscrowSummary {
   }[];
   pendingReleaseList: Array<{
     bookingId: string;
+    customerId: string;
     customerName: string;
+    providerId: string | null;
     providerName: string;
     amountCentavos: number;
     completedAt: string | null;
@@ -570,7 +572,9 @@ interface EscrowWalletRow {
 
 interface EscrowPendingRow {
   booking_id: string;
+  customer_id: string;
   customer_name: string;
+  provider_id: string | null;
   provider_name: string | null;
   amount: string;
   completed_at: Date | null;
@@ -637,7 +641,9 @@ export async function getEscrowSummary(
     db.query<EscrowPendingRow>(
       `SELECT
          b.id::text                                                       AS booking_id,
+         b.customer_id::text                                              AS customer_id,
          TRIM(COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) AS customer_name,
+         b.provider_id::text                                              AS provider_id,
          p.business_name                                                  AS provider_name,
          b.total_amount::text                                             AS amount,
          b.completed_at                                                   AS completed_at,
@@ -679,7 +685,9 @@ export async function getEscrowSummary(
 
   const pendingReleaseList: EscrowSummary['pendingReleaseList'] = listRes.rows.map((row) => ({
     bookingId: row.booking_id,
+    customerId: row.customer_id,
     customerName: row.customer_name || '(unknown)',
+    providerId: row.provider_id,
     providerName: row.provider_name ?? '(unassigned)',
     amountCentavos: Number(row.amount),
     completedAt: row.completed_at ? row.completed_at.toISOString() : null,

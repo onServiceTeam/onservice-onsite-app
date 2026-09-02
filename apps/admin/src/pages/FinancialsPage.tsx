@@ -453,7 +453,9 @@ interface EscrowAging {
 
 interface EscrowPending {
   bookingId: string;
+  customerId?: string;
   customerName: string;
+  providerId?: string | null;
   providerName: string;
   amount: number;
   amountCentavos?: number;
@@ -495,7 +497,9 @@ function normalizeEscrow(data: ApiEscrowData): EscrowData {
     })),
     pendingReleaseList: (data.pendingReleaseList ?? []).map((row) => ({
       bookingId: row.bookingId,
+      customerId: row.customerId,
       customerName: row.customerName,
+      providerId: row.providerId,
       providerName: row.providerName,
       amount: Number(row.amount ?? row.amountCentavos ?? 0),
       completedAt: row.completedAt,
@@ -602,8 +606,28 @@ export function EscrowPanel(): React.ReactElement {
                         {row.bookingId.slice(0, 8)}…
                       </Link>
                     </td>
-                    <td className="py-2 px-3 text-[var(--color-text)]">{row.customerName}</td>
-                    <td className="py-2 px-3 text-[var(--color-text)]">{row.providerName}</td>
+                    <td className="py-2 px-3 text-[var(--color-text)]">
+                      {row.customerId ? (
+                        <Link
+                          aria-label={`Open customer ${row.customerId}`}
+                          className="text-[var(--color-primary)] hover:underline"
+                          to={`/customers/${encodeURIComponent(row.customerId)}`}
+                        >
+                          {row.customerName}
+                        </Link>
+                      ) : row.customerName}
+                    </td>
+                    <td className="py-2 px-3 text-[var(--color-text)]">
+                      {row.providerId ? (
+                        <Link
+                          aria-label={`Open provider ${row.providerId}`}
+                          className="text-[var(--color-primary)] hover:underline"
+                          to={`/providers/${encodeURIComponent(row.providerId)}`}
+                        >
+                          {row.providerName}
+                        </Link>
+                      ) : row.providerName}
+                    </td>
                     <td className="py-2 px-3 text-right font-medium text-[var(--color-text)]">
                       {formatCurrency(row.amount)}
                     </td>
