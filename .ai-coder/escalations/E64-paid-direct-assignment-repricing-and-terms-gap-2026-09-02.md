@@ -1,7 +1,7 @@
 # E64 — Direct provider assignment can reprice paid bookings and omit immutable provider terms
 
 **Date:** 2026-09-02
-**Status:** OPTION A APPROVED BY KEN — topic-branch implementation pending clean-runner verification; production remains blocked under E32/E50
+**Status:** OPTION A APPROVED AND CLEAN-RUNNER VERIFIED ON TOPIC BRANCH — production remains blocked under E32/E50
 **Scope:** `POST /api/v1/bookings/:id/assign`, Suki assignment discounts, E50 immutable booking financial terms
 
 ## Bad news
@@ -102,7 +102,15 @@ cover the real instant-pay state machine rather than an artificial
    in the same transaction.
 
 This implementation adds no migration, backfill, refund, debit, release, or
-production change. Clean-runner CI must pass before this checkpoint is treated
-as verified. E32 and E50 continue to prohibit merging or deploying this branch
-until production legacy financial terms are inventoried, reviewed, and
-reconciled through the approved process.
+production change.
+
+Commit `d72a6bb` passed GitHub CI run `33590784239` and Gates run
+`33590784174`. The clean runners executed the complete API, Admin, and Mobile
+suites, the API Docker image build and liveness check, and all five governance
+gates. The API TypeScript check also passed locally. Local Jest and ESLint are
+not claimed because the OneDrive checkout failed while their runtimes were
+reading dependencies, before a test or lint target loaded.
+
+E32 and E50 continue to prohibit merging or deploying this branch until
+production legacy financial terms are inventoried, reviewed, and reconciled
+through the approved process.
