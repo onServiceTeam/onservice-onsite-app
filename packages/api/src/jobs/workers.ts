@@ -127,15 +127,16 @@ async function autoConfirmBookings(): Promise<number> {
 }
 
 async function expireStaleQuotes(): Promise<number> {
-  const { expiryHours: quoteExpiryHours } = await settingsService.getQuotePolicy();
-
+  // Quote lifetime is fixed when the provider submits: submitQuote stores the
+  // resolved setting in booking_quotes.expires_at and clients display that
+  // exact deadline. Re-reading today's setting here would retroactively move
+  // older deadlines, so the worker consumes only the per-quote snapshot.
   const expired = await db.query<ExpiredQuoteRow>(
     `UPDATE booking_quotes
      SET status = 'expired', updated_at = NOW()
      WHERE status = 'submitted'
-       AND created_at < NOW() - INTERVAL '1 hour' * $1
+       AND expires_at < NOW()
      RETURNING id, booking_id, provider_id`,
-    [quoteExpiryHours],
   );
 
   for (const quote of expired.rows) {
