@@ -52,6 +52,11 @@ jest.mock('../src/services/notification.service', () => ({
   notifyCustomerProviderAssigned: (...args: unknown[]) => mockNotifyCustomer(...args),
 }));
 
+jest.mock('../src/services/booking-financial-terms.service', () => ({
+  appendPricingTermsInTransaction: jest.fn(),
+  appendProviderAssignmentTermsInTransaction: jest.fn(),
+}));
+
 jest.mock('../src/services/security.service', () => ({
   logSecurityEvent: (...args: unknown[]) => mockLogSecurityEvent(...args),
 }));
@@ -67,6 +72,7 @@ const booking = {
   customer_id: 'customer-med-n86',
   provider_id: null,
   status: 'requested',
+  escrow_status: null,
   service_price: 100_000,
   service_fee: 10_000,
   total_amount: 110_000,
@@ -102,7 +108,11 @@ beforeEach(() => {
   });
   mockHasBookingConflict.mockResolvedValue(false);
   mockCalculateSukiDiscount.mockResolvedValue({ discountAmount: 0 });
-  mockTransactionQuery.mockResolvedValue({ rows: [], rowCount: 1 });
+  mockTransactionQuery.mockImplementation(async (sql: string) => (
+    sql.includes('FOR UPDATE')
+      ? { rows: [booking], rowCount: 1 }
+      : { rows: [], rowCount: 1 }
+  ));
   mockTransaction.mockImplementation(async (
     callback: (client: { query: typeof mockTransactionQuery }) => Promise<unknown>,
   ) => callback({ query: mockTransactionQuery }));

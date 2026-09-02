@@ -1,7 +1,7 @@
 # E64 — Direct provider assignment can reprice paid bookings and omit immutable provider terms
 
 **Date:** 2026-09-02
-**Status:** OPEN — explicit money-path approval required before committing the prepared fix
+**Status:** OPTION A APPROVED BY KEN — topic-branch implementation pending clean-runner verification; production remains blocked under E32/E50
 **Scope:** `POST /api/v1/bookings/:id/assign`, Suki assignment discounts, E50 immutable booking financial terms
 
 ## Bad news
@@ -9,7 +9,7 @@
 The customer/admin direct provider-assignment route is not fully connected to
 the approved E50 Option A financial-terms model.
 
-The route currently:
+At discovery, the route:
 
 1. reads the booking before its transaction;
 2. calculates a provider-linked Suki discount;
@@ -42,12 +42,12 @@ that no longer matches.
 - E50 Option A is approved, but the repository's money-path safety gate
   requires a fresh explicit approval before this route behavior is committed.
 
-No production data, GitHub branch, migration, or live server was changed for
-this finding.
+Before approval, no production data, GitHub branch, migration, or live server
+was changed for this finding.
 
-## Prepared Option A — preserve paid money and append evidence (recommended)
+## Approved Option A — preserve paid money and append evidence
 
-The prepared, uncommitted working-tree change:
+The topic-branch implementation:
 
 1. locks the booking row with `SELECT ... FOR UPDATE` inside the assignment
    transaction;
@@ -73,15 +73,36 @@ Reject customer/admin direct assignment whenever escrow is held and require the
 offer/dispatch path instead. This is simpler, but removes a support recovery
 tool and can strand paid bookings when dispatch needs manual intervention.
 
-## Recommendation
+## Decision rationale
 
-Approve Option A. It preserves the customer's authorized amount, keeps manual
-support assignment available, records the exact provider agreement, and closes
-the payment/assignment race without inventing a retroactive adjustment.
+Option A was recommended and approved because it preserves the customer's
+authorized amount, keeps manual support assignment available, records the exact
+provider agreement, and closes the payment/assignment race without inventing a
+retroactive adjustment.
 
-## Work paused
+## Approval and implementation update — 2026-09-02
 
-The Option A source and behavior-test changes are prepared but intentionally
-uncommitted. Per the repository money/compliance hard stop, do not commit,
-push, deploy, or include them in another change until Ken explicitly approves
-E64 Option A.
+Ken explicitly approved E64 Option A in chat.
+
+The topic-branch implementation was re-audited before commit and corrected to
+cover the real instant-pay state machine rather than an artificial
+`requested + held` test state:
+
+1. `requested` and `quoted` bookings advance to `matched` when assigned;
+2. `payment_pending` and `paid` bookings keep their payment status while the
+   provider is attached;
+3. payment-pending, paid, held, and partially-refunded bookings preserve the
+   customer amount, so assignment cannot change an in-flight or completed
+   authorization;
+4. the locked row is authoritative and rejects a provider overwrite if a
+   competing transaction assigned someone after the route's preliminary read;
+5. held bookings append provider-specific immutable terms in the assignment
+   transaction; and
+6. legitimate pre-payment Suki repricing appends replacement pricing evidence
+   in the same transaction.
+
+This implementation adds no migration, backfill, refund, debit, release, or
+production change. Clean-runner CI must pass before this checkpoint is treated
+as verified. E32 and E50 continue to prohibit merging or deploying this branch
+until production legacy financial terms are inventoried, reviewed, and
+reconciled through the approved process.

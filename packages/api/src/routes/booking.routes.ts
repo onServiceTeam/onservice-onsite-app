@@ -19,13 +19,14 @@ import * as escrowService from '../services/escrow.service';
 import * as orService from '../services/or.service';
 import * as referralService from '../services/referral.service';
 import * as sukiService from '../services/suki.service';
-import { BookingStatus, canTransition } from '../types/booking.types';
+import { BookingStatus } from '../types/booking.types';
 import { logger } from '../utils/logger';
 import * as pricingService from '../services/pricing.service';
 import * as settingsService from '../services/settings.service';
 import * as rebookingService from '../services/rebooking.service';
 import * as slotWaitlistService from '../services/slot-waitlist.service';
 import * as bookingProofService from '../services/booking-proof.service';
+import * as financialTermsService from '../services/booking-financial-terms.service';
 import { platformConfig } from '../config/platform.config';
 
 function getParamId(req: AuthenticatedRequest): string {
@@ -132,6 +133,22 @@ async function verifyProviderPhotoWriteAccess(
 }
 
 const router = Router();
+
+// Direct assignment is a provider-selection operation, not always a booking
+// status transition. Instant-pay bookings can already be payment_pending or
+// paid before a provider is selected. Those states must keep their payment
+// status while the provider is attached. Requested/quoted bookings advance to
+// matched in the normal match-first flow.
+const DIRECT_ASSIGNMENT_STATUSES = new Set<BookingStatus>([
+  'requested',
+  'quoted',
+  'payment_pending',
+  'paid',
+]);
+
+function canDirectlyAssignProvider(status: string): status is BookingStatus {
+  return DIRECT_ASSIGNMENT_STATUSES.has(status as BookingStatus);
+}
 
 interface BookingRow {
   id: string;
@@ -871,11 +888,14 @@ router.post(
       }
 
       const currentStatus = booking.status as BookingStatus;
-      if (!canTransition(currentStatus, 'matched')) {
+      if (!canDirectlyAssignProvider(currentStatus)) {
         throw createAppError(
           `Cannot assign provider — booking status "${currentStatus}" does not allow matching.`,
           409,
         );
+      }
+      if (booking.provider_id) {
+        throw createAppError('This booking has already been assigned to a provider.', 409);
       }
 
       interface ProviderLookup { id: string; user_id: string; business_name: string }
@@ -911,19 +931,64 @@ router.post(
       // customer got a "your provider is on the way" notification while
       // the provider had no idea they had a new job.
       //
-      // Post-fix: the UPDATE is atomic with the suki record write
-      // (calculateSukiDiscountForBooking is read-only so it's safe
-      // outside the trx). Notifications fire AFTER COMMIT — they're
+      // Post-fix: the UPDATE and financial evidence are atomic.
+      // calculateSukiDiscountForBooking is read-only and runs while the
+      // booking row is locked. Notifications fire AFTER COMMIT — they're
       // best-effort and never roll back the booking. Each notify is
       // wrapped in its own try/catch so one failure can't strand the
       // other.
-      const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
-        booking.customer_id, providerId, booking.service_price,
-      );
+      const assignmentSource = isAdmin ? 'admin_direct_assignment' : 'customer_direct_assignment';
+      const assignmentEventId = `direct-assignment:${providerId}`;
       let notificationAmount = booking.total_amount;
       await db.transaction(async (client) => {
+        const lockedResult = await client.query<{
+          customer_id: string;
+          provider_id: string | null;
+          status: string;
+          escrow_status: string | null;
+          service_price: string;
+          total_amount: string;
+        }>(
+          `SELECT customer_id, provider_id, status, escrow_status,
+                  service_price::text, total_amount::text
+             FROM bookings
+            WHERE id = $1
+            FOR UPDATE`,
+          [id],
+        );
+        const lockedBooking = lockedResult.rows[0];
+        if (!lockedBooking) throw createAppError('Booking not found.', 404);
+        if (!canDirectlyAssignProvider(lockedBooking.status)) {
+          throw createAppError(
+            `Cannot assign provider — booking status "${lockedBooking.status}" does not allow matching.`,
+            409,
+          );
+        }
+        if (lockedBooking.provider_id) {
+          throw createAppError('This booking has already been assigned to a provider.', 409);
+        }
+
+        const lockedServicePrice = Number(lockedBooking.service_price);
+        const { discountAmount: calculatedDiscountAmount } = await sukiService.calculateSukiDiscountForBooking(
+          lockedBooking.customer_id,
+          providerId,
+          lockedServicePrice,
+        );
+        const hasHeldFunds = lockedBooking.escrow_status === 'held'
+          || lockedBooking.escrow_status === 'partially_refunded';
+        const hasPaymentInFlight = lockedBooking.status === 'payment_pending';
+        const isPaid = lockedBooking.status === 'paid';
+        // A provider assignment is not authority to change an amount the
+        // customer already authorized or is actively authorizing. Preserve the
+        // existing totals for payment_pending/paid states as well as held
+        // escrow. The approved E50 terms record below fixes the provider
+        // agreement against held authorization evidence.
+        const mustPreserveCustomerAmount = hasHeldFunds || hasPaymentInFlight || isPaid;
+        const discountAmount = mustPreserveCustomerAmount ? 0 : calculatedDiscountAmount;
+        notificationAmount = Number(lockedBooking.total_amount);
+
         if (discountAmount > 0) {
-          const newPrice = booking.service_price - discountAmount;
+          const newPrice = lockedServicePrice - discountAmount;
           const newFee = await bookingService.calculateServiceFee(newPrice);
           const newTotal = newPrice + newFee;
           notificationAmount = newTotal;
@@ -937,9 +1002,47 @@ router.post(
           );
         } else {
           await client.query(
-            `UPDATE bookings SET provider_id = $1, status = 'matched', updated_at = NOW() WHERE id = $2`,
+            `UPDATE bookings
+                SET provider_id = $1,
+                    status = CASE
+                      WHEN status IN ('requested', 'quoted') THEN 'matched'
+                      ELSE status
+                    END,
+                    updated_at = NOW()
+              WHERE id = $2`,
             [providerId, id],
           );
+        }
+
+        if (hasHeldFunds) {
+          await financialTermsService.appendProviderAssignmentTermsInTransaction(client, {
+            bookingId: id,
+            providerId,
+            event: 'provider_assigned',
+            sourceEventId: assignmentEventId,
+            createdBy: userId,
+            metadata: {
+              assignmentSource,
+              preservedAuthorizedAmounts: true,
+              skippedSukiDiscountCentavos: calculatedDiscountAmount,
+            },
+          });
+        } else if (discountAmount > 0) {
+          // The assignment changed the customer-visible pre-payment total.
+          // Record a new pricing version so payment authorization can carry
+          // this exact price forward instead of rejecting stale evidence.
+          await financialTermsService.appendPricingTermsInTransaction(client, {
+            bookingId: id,
+            event: 'booking_priced',
+            sourceEventId: assignmentEventId,
+            createdBy: userId,
+            metadata: {
+              priceSource: 'provider_assignment_suki_discount',
+              assignmentSource,
+              providerId,
+              sukiDiscountCentavos: discountAmount,
+            },
+          });
         }
       });
 
