@@ -273,6 +273,8 @@ const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   'feature_flag.business_contract_booking_enabled': 'Contract booking is held under E56 until provider funding, cancellation, dispute, and production-history reconciliation are approved and verified end to end.',
   business_account_types: 'Business account types are constrained by the current database schema. Editing this list is blocked under E58 so customer account creation cannot accept a value PostgreSQL will reject.',
   business_payment_terms: 'Business payment terms are constrained by the database and due-date calculation code. Editing this list is blocked under E58 until terms are prospective, versioned definitions with an explicit number of days.',
+  suki_tiers: 'Suki tier thresholds, earning multipliers, and discounts are held under E25 and E44 until booking calculations, customer/provider displays, and the approved loyalty policy share one versioned source.',
+  suki_points_to_peso_rate: 'Suki conversion is held under E25 and E44 because the current wallet credit has a peso-to-centavo mismatch and customer redemption copy does not read the live rate.',
   recurring_auto_charge_max_consecutive_failures: 'Recurring bookings remain manual-payment-only while escalation E20 is open.',
   cancel_refund_over_24h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
   cancel_refund_2_to_24h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
