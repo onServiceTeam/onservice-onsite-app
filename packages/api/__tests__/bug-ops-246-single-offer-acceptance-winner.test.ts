@@ -20,7 +20,11 @@ jest.mock('../src/models/db', () => ({
 import { acceptOffer } from '../src/services/booking-offer.service';
 
 it('Bug OPS-246 — competing offer acceptances serialize on the booking and only one provider wins', async () => {
-  const future = new Date('2026-09-02T00:00:00.000Z');
+  // Keep the offer unambiguously live regardless of the calendar date on
+  // which CI executes this concurrency regression. The previous 2026-09-02
+  // fixture became expired during the 2026-09-02 run itself and exercised
+  // the production expiry branch instead of the acceptance race.
+  const future = new Date('2099-01-01T00:00:00.000Z');
   const offers = new Map([
     ['offer-1', { id: 'offer-1', booking_id: 'booking-1', provider_id: 'provider-1', provider_user_id: 'user-1', status: 'pending', expires_at: future }],
     ['offer-2', { id: 'offer-2', booking_id: 'booking-1', provider_id: 'provider-2', provider_user_id: 'user-2', status: 'pending', expires_at: future }],
