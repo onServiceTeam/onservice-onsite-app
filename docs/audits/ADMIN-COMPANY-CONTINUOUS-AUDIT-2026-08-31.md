@@ -1186,8 +1186,16 @@ UX-1020 through UX-1022, plus the updated UX-672/674/676/677 and historical dele
 API TypeScript and `git diff --check` pass locally. Local Jest still fails before
 test loading on an EPERM dependency read; Admin TypeScript fails before project
 code because `node_modules/vitest/globals.d.ts` is missing; local Vitest has the
-same OneDrive dependency traversal failure. These are not passes. Protected
-GitHub CI is required for executed aggregate evidence.
+same OneDrive dependency traversal failure. These are not passes.
+
+The first clean GitHub run `33598842096` caught that the new delete request used
+an Axios-style `data` option unsupported by the native fetch wrapper. Bug
+UX-1022 corrects it to `body` and executes the exact reason payload. The next
+run `33599191970` passed Admin typecheck/build but caught that UX-1020 asserted a
+loaded row before its query settled; the assertion now waits for the real row.
+Commit `78877fc` passes GitHub CI `33599836234` and Gates `33599836315`, including
+complete API, Admin, Mobile, Docker image build/liveness, and all five gates.
+Neither workflow supplies authenticated browser or production evidence.
 
 E66 records the unresolved scalable architecture and recommends staged,
 immutable event/locale/channel versions with preview, test-send, outbox,
