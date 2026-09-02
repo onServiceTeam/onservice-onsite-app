@@ -210,14 +210,14 @@ The application policy requires four evidence files: NBI clearance, government I
 Current API rule: an authorized admin-tier operator cannot approve a provider unless `nbi_clearance_url`, `government_id_front_url`, and `selfie_url` are all on the row. The Approve action returns a clean error listing those missing fields. The operator must separately verify `government_id_back_url` until E36 is resolved.
 
 NBI expiry:
-- The provider row carries `nbi_expiry_date`. A background job warns providers whose NBI expires within 30 days (default) and notifies again when expired.
+- The provider row carries `nbi_expiry_date`. The background job uses one notified flag for both the early warning and actual expiry. Under E62, a warned provider can be skipped when expiry arrives, while a provider first selected after expiry can be auto-suspended.
 - The mobile NBI status banner classifies as missing, expiring, expired, or valid.
-- An expired NBI does not auto-suspend. Support chases the renewal manually, and only manually suspends if the provider ignores the chase. Push the provider to renew and re-upload.
+- The intended launch policy is manual chase then reasoned manual suspension, but current worker behavior is inconsistent. Do not rely on an expiry push or status mutation. Review Provider 360/dashboard evidence, open a linked support case, and escalate the suspension decision with active-job context.
 
-Re-upload playbook:
-1. "My NBI is expiring / expired": tell them to get a fresh NBI (must be recent, the app hints within the last 6 months) and re-upload through the app. KYC documents go to a private bucket; admins view them through an authenticated proxy, never raw URLs.
+Document renewal and correction playbook:
+1. "My NBI is expiring / expired": tell them to obtain a fresh NBI, then open a support case. The approved-provider app does not currently expose a secure NBI renewal submission and Provider 360 is read-only. Do not ask for KYC through chat/email or promise an upload that is unavailable; escalate under E62/E35.
 2. "I was rejected for a blurry or wrong document": rejections store a reason. Read the customer-safe reason and explain which document was wrong, but do not ask them to send KYC through chat, email, or another off-platform channel. Rejected applicants cannot currently resubmit against the same canonical provider row; log a support case and escalate under E35 instead of promising an unavailable reapplication path.
-3. "My document was approved but shows expired": check `expires_at` on the document and the NBI expiry date. If genuinely expired, it needs a new upload.
+3. "My document was approved but shows expired": check `expires_at` on the document and the NBI expiry date. If genuinely expired, open a linked support case and use the E62 renewal escalation; the approved-provider upload and verification path does not yet exist.
 4. Certifications (for Elite tier): providers self-add certifications; `is_verified` is set by an admin. Elite needs a verified certification. If a provider expects Elite but their cert is not verified yet, that is the blocker. Route the cert for verification.
 
 Macro: document re-upload
@@ -347,7 +347,7 @@ Provider ticket intake is available in the shared in-app Support screens. Email 
 | "No job offers" | Approved + available + area | 45s exclusive offers; check availability and service area |
 | "Customer not at site" | Booking 360 Evidence | E60 hold: preserve arrival/contact evidence; current 30-min check is scheduled-time based |
 | "Not getting OTP" | Phone format + hourly cap | Format `+63 9XX...`, 5/hour cap, carrier delay |
-| "NBI expiring" | NBI status banner | Renew and re-upload; private bucket; manual chase, manual suspend if ignored |
+| "NBI expiring" | Provider 360 + linked support case | E62 hold: no approved-provider renewal upload exists; review manually and escalate renewal/suspension |
 | "Bad review" | Booking 360 | Reply publicly; remove only if fake/abusive |
 | "Suspended" | Provider 360 Activity | Read reason; appeal path in section 13 |
 

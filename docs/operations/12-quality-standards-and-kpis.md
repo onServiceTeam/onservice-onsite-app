@@ -79,7 +79,7 @@ DROPS / suspension signals (act through the Providers page):
 - [ ] Cancellations: warn at 3 cancellations in 30 days (`providerCancellationWarningThreshold`), auto-suspend signal at 5 in 30 days (`providerCancellationSuspendThreshold`). Counts live on the providers row.
 - [ ] A `refund_with_suspension` dispute resolution suspends the provider automatically.
 - [ ] Repeated 1-star ratings trigger the `provider_consecutive_one_star` admin alert. Review and consider a tier drop or coaching.
-- [ ] NBI clearance expired (provider drops out of trust standard until renewed; the `nbi_expiring` / expired worker warns 30 days out).
+- [ ] NBI clearance expired (provider drops out of trust standard until renewed; E62 means staff must review the expiry queue manually because the shared warning/expiry worker is inconsistent).
 
 Suspending a provider immediately removes them from dispatch (matching only considers `status='approved' AND is_available=TRUE`) and flags any in-flight bookings so escrow cannot release until an admin resolves it. See `07-provider-support-sop.md`.
 
@@ -207,7 +207,7 @@ Agenda:
 
 1. Pull last 7 days on the Dashboard (set range to 7d).
 2. Walk the operational KPIs in section 4. Note any red.
-3. Provider health: new approvals, suspensions, tier moves, cancellation warnings, NBI expiries due in 30 days.
+3. Provider health: new approvals, suspensions, tier moves, cancellation warnings, and the manually reviewed NBI-expiry queue (E62).
 4. Support: ticket volume, SLA hits and misses, reopen rate, the week's QA scorecard results.
 5. Disputes: open count, stale (48h+) count, resolution mix.
 6. Money: escrow aging, refunds, failed payouts, reconciliation, guarantee-fund runway.

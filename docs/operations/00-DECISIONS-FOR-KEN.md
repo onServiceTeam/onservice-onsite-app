@@ -32,7 +32,7 @@ How to read the markers in the documents: a decision looks like this where it li
 
 - **Referral incentive:** ₱500 to the referrer, ₱300 welcome bonus to the new provider, paid after the new provider completes 3 jobs, capped at 10 referrals per referrer per month.
 - **Area go-live:** 5 approved providers per launch category to reach soft-launch, 8 in the lead category to flip the area to active.
-- **NBI expiry:** manual chase by support, then manual suspend if ignored. Not auto-suspend at launch.
+- **NBI expiry:** manual chase by support, then manual suspend if ignored. Not auto-suspend at launch. E62 records that the current worker does not consistently follow this decision; staff must use the manual review queue until remediation is approved.
 - **Provider TIN:** collected before first payout (not at application).
 - **No-provider failure:** 100% refund plus a ₱150 goodwill credit.
 - **Refund sign-off:** super-admin/Ken reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout.

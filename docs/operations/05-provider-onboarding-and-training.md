@@ -285,11 +285,12 @@ chat? We want to hear how it went and make sure payouts and the app are
 clear. Reply with a time that works. - onService Ops
 ```
 
-**Internal: NBI expiry nudge (provider gets an in-app push automatically at 30 days; use this for direct follow-up)**
+**Internal: NBI expiry nudge (use only after manual expiry review; E62 means the automatic push is not reliable)**
 ```
-Hi [Name], your NBI clearance expires on [date]. Upload a renewed copy in
-the app before then so you can keep getting jobs. Renewals can take time,
-so please start now.
+Hi [Name], your NBI clearance expires on [date]. Please obtain a renewed
+copy and reply to your onService support case so we can guide the secure
+renewal process. Do not send the document through chat or email. Renewals
+can take time, so please start now.
 ```
 
 Support hours for any follow-up the provider needs: Monday to Saturday, 8:00 AM to 6:00 PM PHT. Urgent safety issues escalate via the on-call path even outside those hours.

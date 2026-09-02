@@ -79,7 +79,7 @@ Consequences for violations: account flagged for fraud review, suspension, or cl
 Full version lives in `05-provider-onboarding-and-training.md`. Short form for reference:
 
 - [ ] Show up on time, in the branded onService shirt, for the job you accepted.
-- [ ] Keep NBI clearance current. We warn 30 days before expiry. Expiry does not automatically suspend or block dispatch at launch; support chases renewal and a super-admin may suspend if ignored.
+- [ ] Keep NBI clearance current. We aim to warn before expiry, then support reviews renewal and a super-admin may suspend if ignored. E62 records that the current warning/enforcement worker is inconsistent, so staff must use the manual queue rather than promise either notification or automatic enforcement.
 - [ ] Do the work to standard. Take before and after photos (mandatory during the 3-job probation).
 - [ ] Stay on-platform. No asking the customer for cash, no swapping numbers to book direct. Chat messages that look like off-platform attempts get flagged.
 - [ ] Use change orders for any extra work and price (capped at 50% of the original service price). Never demand cash on site.
@@ -200,7 +200,7 @@ Use during provider review (admin Provider detail, Profile tab). Pass mark is a 
 | Government ID front + back | Clear, name matches application | [ ] |
 | NBI clearance | Uploaded, issued within 6 months, not expired | [ ] |
 | Selfie | Matches the ID photo (visual review, no auto-verification in v1.0) | [ ] |
-| NBI expiry date recorded | Entered so the 30-day warning works | [ ] |
+| NBI expiry date recorded | Entered for the manual expiry queue; E62 means the one-time warning worker cannot be relied on | [ ] |
 | Skills test | Passed (per-category question bank, section 5) | [ ] |
 | References | 2 references contacted | [ ] |
 | Service categories | Sensible for their skills | [ ] |
