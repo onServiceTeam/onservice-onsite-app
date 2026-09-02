@@ -155,10 +155,28 @@ const DSR_COLS = `id, user_id, request_type, status,
        user_message, admin_notes, response_payload_url, rejection_reason`;
 
 const DSR_COLS_WITH_USER = `dsr.id, dsr.user_id, u.email AS user_email,
-       u.role AS user_role, p.id AS provider_profile_id,
+       u.role AS user_role,
+       COALESCE(p.id, staff_account.provider_id) AS provider_profile_id,
        dsr.request_type, dsr.status,
        dsr.received_at, dsr.due_at, dsr.completed_at, dsr.handled_by,
        dsr.user_message, dsr.admin_notes, dsr.response_payload_url, dsr.rejection_reason`;
+
+// A provider-staff login belongs to the provider through provider_staff rather
+// than providers.user_id. Keep that relationship in the canonical DSR subject
+// projection so a DPO can reach the employing Provider 360 record. The current
+// product supports one active provider context at a time; if historical rows
+// exist, the newest relationship is the same deterministic precedent used by
+// the support queue.
+const DSR_SUBJECT_JOINS = `
+       LEFT JOIN users u ON u.id = dsr.user_id
+       LEFT JOIN providers p ON p.user_id = dsr.user_id
+       LEFT JOIN LATERAL (
+         SELECT ps.provider_id
+           FROM provider_staff ps
+          WHERE ps.user_id = dsr.user_id
+          ORDER BY ps.created_at DESC, ps.id
+          LIMIT 1
+       ) staff_account ON u.role = 'provider_staff'`;
 
 // ─────────────────────────────────────────────────────────────────
 // Mappers
@@ -523,8 +541,7 @@ export async function listDsrs(filter: {
   const rowsResult = await db.query<DsrRow>(
     `SELECT ${DSR_COLS_WITH_USER}
        FROM data_subject_requests dsr
-       LEFT JOIN users u ON u.id = dsr.user_id
-       LEFT JOIN providers p ON p.user_id = dsr.user_id
+       ${DSR_SUBJECT_JOINS}
        ${whereSql}
       ORDER BY dsr.due_at ASC, dsr.received_at DESC
       LIMIT ${limit} OFFSET ${offset}`,
@@ -690,8 +707,7 @@ export async function getDsr(id: string): Promise<DsrRecord | null> {
   const result = await db.query<DsrRow>(
     `SELECT ${DSR_COLS_WITH_USER}
        FROM data_subject_requests dsr
-       LEFT JOIN users u ON u.id = dsr.user_id
-       LEFT JOIN providers p ON p.user_id = dsr.user_id
+       ${DSR_SUBJECT_JOINS}
       WHERE dsr.id = $1`,
     [id],
   );
@@ -711,8 +727,7 @@ export async function updateDsrStatus(input: {
   const currentResult = await db.query<DsrRow>(
     `SELECT ${DSR_COLS_WITH_USER}
        FROM data_subject_requests dsr
-       LEFT JOIN users u ON u.id = dsr.user_id
-       LEFT JOIN providers p ON p.user_id = dsr.user_id
+       ${DSR_SUBJECT_JOINS}
       WHERE dsr.id = $1`,
     [input.id],
   );
@@ -1039,8 +1054,7 @@ export async function getDsrAlerts(): Promise<DsrRecord[]> {
   const result = await db.query<DsrRow>(
     `SELECT ${DSR_COLS_WITH_USER}
        FROM data_subject_requests dsr
-       LEFT JOIN users u ON u.id = dsr.user_id
-       LEFT JOIN providers p ON p.user_id = dsr.user_id
+       ${DSR_SUBJECT_JOINS}
       WHERE dsr.status IN ('received', 'in_progress')
         AND dsr.due_at - NOW() <= INTERVAL '2 days'
       ORDER BY dsr.due_at ASC`,

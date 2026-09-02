@@ -130,8 +130,16 @@ export function isSecureResponseUrl(value: string): boolean {
 
 function subjectRoute(record: DsrRecord): string | null {
   if (record.userRole === 'customer') return `/customers/${record.userId}`;
-  if (record.userRole === 'provider' && record.providerProfileId) return `/providers/${record.providerProfileId}`;
+  if ((record.userRole === 'provider' || record.userRole === 'provider_staff') && record.providerProfileId) {
+    return `/providers/${record.providerProfileId}`;
+  }
   return null;
+}
+
+function subjectRouteLabel(record: DsrRecord): string {
+  return record.userRole === 'provider_staff'
+    ? 'Open employing provider 360 record'
+    : 'Open subject 360 record';
 }
 
 type DialogKind = 'review' | 'start_review' | 'complete' | 'request_info' | 'reject' | 'escalate' | null;
@@ -393,7 +401,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
                 <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Handler ID</dt><dd className="mt-1 break-all">{selected.handledBy ?? 'Unassigned'}</dd></div>
               </dl>
               {selectedSubjectRoute && (
-                <Link to={selectedSubjectRoute} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--color-primary)]">Open subject 360 record <ArrowRight size={15} /></Link>
+                <Link to={selectedSubjectRoute} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--color-primary)]">{subjectRouteLabel(selected)} <ArrowRight size={15} /></Link>
               )}
               <div className="grid gap-4 md:grid-cols-2">
                 <CaseText title="Subject message" value={selected.userMessage} empty="No message supplied." />
