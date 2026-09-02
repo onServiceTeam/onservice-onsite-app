@@ -214,3 +214,10 @@ The route does not rewrite names captured in older bookings, payments,
 messages, reviews, or other historical records. Behavioral coverage:
 `bug-ops-371-profile-update-audit.test.ts`; verified by GitHub CI
 `33610063899` and Gates `33610063827`.
+
+Admin Audit Log renders this event as **Profile name updated** and converts the
+generic `users` record into a role-aware support destination. Customer subjects
+open Customer 360; provider subjects use an exact owner-ID search that resolves
+the related Provider Management record. Bugs UX-1026 and OPS-372 verify the
+rendered links and the full-name/provider-ID/user-ID search contract. Commit
+`4223052` passes GitHub CI `33611777960` and Gates `33611777913`.

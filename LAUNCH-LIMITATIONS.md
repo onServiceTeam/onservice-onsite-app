@@ -1995,3 +1995,14 @@ boundary. Commit `e2409ce` passes GitHub CI `33610063899` and Gates
 build/liveness, and all five gates. API TypeScript and diff checks also passed
 locally. No migration, account mutation, master merge, deployment, server
 synchronization, or production change occurred; E32 remains active.
+
+The matching Admin support handoff is also connected in code. Audit Log labels
+the event **Profile name updated**, identifies whether the subject is a
+customer, provider, provider staff member, or company staff account, and opens
+Customer 360 or an exact provider-owner search as appropriate. Provider
+Management now actually searches the person's full name, business name, phone,
+email, provider ID, and owner user ID, matching the field promise shown to the
+operator. Bugs UX-1026 and OPS-372 execute the rendered customer/provider links
+and both SQL search paths. Commit `4223052` passes GitHub CI `33611777960` and
+Gates `33611777913`, including complete API, Admin, Mobile, API Docker
+build/liveness, and all five gates. Production remains unchanged under E32.
