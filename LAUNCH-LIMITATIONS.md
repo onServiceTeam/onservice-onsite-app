@@ -2018,3 +2018,45 @@ with module-owned Jest mocks. Final GitHub CI `33614523217` and Gates
 `33614523236` pass complete API, Admin, Mobile, API Docker build/liveness, and
 all five gates. No existing identity or historical transaction was rewritten,
 and production remains unchanged under E32.
+
+---
+
+## 65. Marketing records are not campaign execution or verified attribution
+
+The Marketing workspace separates staged promo codes, connected customer-home
+banners, and staff-entered campaign records. Campaign rows do not select an
+audience, send SMS/email/push, authorize a budget, reconcile payment spend, or
+prove that a signup, booking, or revenue amount came from a channel.
+
+Direct editing no longer exposes attribution counters, and the service now
+rejects every direct caller that attempts to overwrite them. A future
+correction requires an append-only, evidence-backed adjustment ledger with
+reason, actor, source, time, and before/after values. Campaign editing also
+rejects an end date before the stored start date. Existing records and counters
+are unchanged.
+
+The committed Marketing screenshots predate the current Home Banners tab and
+manual-source warning. Do not use them as current authenticated evidence. Fresh
+capture is required before launch review. Commits `95f4cc9`, `d8e99f4`, and
+`c87169a` pass GitHub CI `33616036732`, `33616743937`, and `33619612610`,
+plus Gates `33616036700`, `33616743915`, and `33619612351`. Production remains
+unchanged under E32.
+
+---
+
+## 66. Provider-staff accounts lack a safe account and privacy workspace
+
+Provider-staff users currently have assigned jobs, invitations, shared support,
+and logout, but no profile, password/session, notification, account-data, or
+Data Rights workspace. Their authenticated DSRs can reach the DPO queue, and
+the Admin case now links the subject to the employing Provider 360 record and
+names the human handler. That back-office linkage is not a substitute for a
+staff-facing account/privacy surface.
+
+Do not simply expose the customer erasure screen. Its DSR creation can start
+the generic deletion pipeline, while E43 still holds the canonical DSR/deletion
+relationship and no approved rule covers active staff assignments, historical
+performer evidence, provider-team status, or cross-provider history. E21 also
+holds the retention matrix. E69 records the recommended role-aware workspace
+and fail-closed erasure design. No staff route guard, account, assignment, or
+production row was changed during discovery.

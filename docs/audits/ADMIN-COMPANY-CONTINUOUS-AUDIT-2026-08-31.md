@@ -1202,3 +1202,74 @@ immutable event/locale/channel versions with preview, test-send, outbox,
 idempotency, consent/preference enforcement, and delivery evidence. No SMS,
 email, locale, migration, or production publication is authorized. Master and
 production remain unchanged under E32.
+
+## Checkpoint AD: Analytics and Marketing accuracy re-audit
+
+The later accuracy pass found that the Analytics Quality footer used the first
+score-sorted row as its freshness timestamp. A lower-scoring provider with a
+newer snapshot therefore remained invisible in the page-level freshness claim.
+UX-1028 now derives the newest timestamp across the visible evidence rows.
+
+Marketing's route and screen already omitted direct attribution editing, but
+the underlying service still accepted and overwrote signup, first-booking, and
+revenue counters from an internal caller. OPS-373 rejects those fields before
+database work, preserving provenance until an evidence-backed adjustment
+ledger exists. Campaign creation rejected an end date before its start date,
+but editing did not. OPS-374 validates the proposed end date against the stored
+start date before applying an update.
+
+The current operational boundary is now explicit:
+
+- campaign rows are manual tracking records, not a messaging delivery system,
+  payment ledger, or verified acquisition feed;
+- attribution counters are immutable through ordinary edits;
+- Home Banners is the connected customer-home surface;
+- promo redemption remains feature-flagged off even if staged rows exist;
+- budget approval, audience execution, sends, and attribution adjustments are
+  not implemented authority.
+
+Commits `95f4cc9`, `d8e99f4`, and `c87169a` pass GitHub CI
+`33616036732`, `33616743937`, and `33619612610`, plus Gates
+`33616036700`, `33616743915`, and `33619612351`. API TypeScript passed
+locally. Local Jest and Vitest failed before target loading because OneDrive
+denied dependency or config reads, so those attempts are not counted.
+
+The committed Marketing Playwright images do not show the current Home Banners
+tab or manual-attribution warning and are stale for this branch. An attempted
+local Admin render reached the login page, but no production credential or
+unsafe authentication bypass was used. Fresh authenticated Marketing and
+Analytics capture remains open. No production campaign, attribution, booking,
+payment, or budget record changed.
+
+## Checkpoint AE: Data Protection operator linkage re-audit
+
+Checkpoint K correctly established the segregated DPO queue, dedicated atomic
+actions, public/private response boundary, internal-target wording, and
+customer/provider 360 exits. Two company-operation gaps remained in the actual
+case dialog.
+
+First, `provider_staff` is a real authenticated subject role, but the DSR query
+resolved only a provider owner through `providers.user_id`. Staff privacy cases
+therefore had no company-record exit. OPS-375 now uses the same deterministic
+single-provider precedent as Support to resolve the staff membership, and
+UX-1029 opens the employing Provider 360 record. Second, claimed cases showed
+only a raw handler UUID. OPS-376 joins the current handler identity and UX-1030
+shows the name and email needed for DPO handoff and collision avoidance.
+
+Commit `8425669` passes GitHub CI `33620981564` and Gates `33620981562`.
+Commit `fa3af82` passes GitHub CI `33621702556` and Gates `33621702582`.
+Both clean runs include API, Admin, Mobile, Docker image/liveness, and the
+repository gates. API TypeScript and diff checks passed locally; the focused
+local Jest/Vitest processes failed before target loading on OneDrive reads and
+are not claimed.
+
+The re-audit also found that provider-staff accounts have no profile, password,
+session, account-data, or Data Rights workspace. Reusing the customer erasure
+screen is unsafe because E43's DSR/deletion relationship is unresolved and the
+deletion pipeline has no approved provider-staff assignment/historical
+attribution contract. E69 records the recommended shared role-aware account and
+privacy architecture. E21 still holds the retention matrix and E40 still holds
+identity-verification/deadline evidence and legal wording. No held policy was
+invented, and no user, staff membership, assignment, erasure, or production
+record changed. The changed case dialog needs fresh authenticated visual
+capture before its prior screenshots can be treated as current.
