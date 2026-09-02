@@ -1498,8 +1498,11 @@ links back to Business Account 360, and Business Account 360 now offers exact
 
 Local API and Admin TypeScript checks and focused ESLint pass. Fourteen focused
 API support regressions pass and three focused rendered Admin regressions pass.
-OPS-390 is a real PostgreSQL migration test; it is intentionally skipped
+OPS-390 is a real PostgreSQL migration test; it was intentionally skipped
 locally because no safe localhost database ending in `_test` is configured.
-Protected CI must execute that schema test and the full suites before this
-checkpoint is treated as verified. No support case, booking, project, business
-account, member, payment, audit, or production record changed.
+Protected CI `33685158203` executed the PostgreSQL-backed API suite and passed
+the full API, Admin, and mobile suites, both TypeScript checks, the Admin
+production build, and the Docker image boot/health check at commit `6f41b98`.
+Protected Gates `33685158070` passed A through E and the `All gates passed`
+rollup at the same commit. No support case, booking, project, business account,
+member, payment, audit, or production record changed.
