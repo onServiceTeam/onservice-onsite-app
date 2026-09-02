@@ -1,7 +1,11 @@
 const dbQueryMock = jest.fn();
+const dbTransactionMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({
-  db: { query: (...args: unknown[]) => dbQueryMock(...args) },
+  db: {
+    query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (callback: unknown) => dbTransactionMock(callback),
+  },
 }));
 jest.mock('../src/config/platform.config', () => ({
   platformConfig: { otpLockoutThresholds: [], maxPageSize: 100 },
@@ -16,6 +20,9 @@ jest.mock('../src/utils/logger', () => ({
 import { unblockIp } from '../src/services/security.service';
 
 it('Bug OPS-362 — manual IP unblock records the operator reason in the security timeline', async () => {
+  dbTransactionMock.mockImplementationOnce(async (callback: unknown) => (
+    (callback as (client: { query: typeof dbQueryMock }) => Promise<unknown>)({ query: dbQueryMock })
+  ));
   dbQueryMock
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 });
@@ -26,6 +33,7 @@ it('Bug OPS-362 — manual IP unblock records the operator reason in the securit
     'Verified shared-office address after customer support review.',
   )).resolves.toBe(true);
 
+  expect(dbTransactionMock).toHaveBeenCalledTimes(1);
   expect(dbQueryMock).toHaveBeenNthCalledWith(
     2,
     expect.stringMatching(/INSERT INTO security_events/),

@@ -409,6 +409,7 @@ export async function blockIp(params: {
        FOR UPDATE`,
       [params.ipAddress],
     );
+    let blocked: BlockedIpRow;
     if (existing.rows.length > 0) {
       const upd = await client.query<BlockedIpRow>(
         `UPDATE blocked_ips
@@ -425,27 +426,38 @@ export async function blockIp(params: {
           existing.rows[0]!.id,
         ],
       );
-      return upd.rows[0]!;
+      blocked = upd.rows[0]!;
+    } else {
+      const ins = await client.query<BlockedIpRow>(
+        `INSERT INTO blocked_ips (ip_address, reason, blocked_by, expires_at)
+         VALUES ($1::inet, $2, $3, $4)
+         RETURNING *`,
+        [
+          params.ipAddress,
+          params.reason,
+          params.blockedBy ?? null,
+          expiresAt?.toISOString() ?? null,
+        ],
+      );
+      blocked = ins.rows[0]!;
     }
-    const ins = await client.query<BlockedIpRow>(
-      `INSERT INTO blocked_ips (ip_address, reason, blocked_by, expires_at)
-       VALUES ($1::inet, $2, $3, $4)
-       RETURNING *`,
+
+    // Bug OPS-377: a network block and its operator/security evidence are one
+    // decision. Writing this through the transaction client prevents a block
+    // from committing when the event insert fails, and prevents a 500 after a
+    // block already took effect without the timeline record promised by Admin.
+    await client.query(
+      `INSERT INTO security_events (user_id, event_type, ip_address, device_fingerprint, metadata)
+       VALUES ($1, $2, $3::inet, $4, $5)`,
       [
-        params.ipAddress,
-        params.reason,
         params.blockedBy ?? null,
-        expiresAt?.toISOString() ?? null,
+        'ip_blocked',
+        params.ipAddress,
+        null,
+        JSON.stringify({ reason: params.reason, expiresInHours: params.expiresInHours }),
       ],
     );
-    return ins.rows[0]!;
-  });
-
-  await logSecurityEvent({
-    userId: params.blockedBy ?? undefined,
-    eventType: 'ip_blocked',
-    ipAddress: params.ipAddress,
-    metadata: { reason: params.reason, expiresInHours: params.expiresInHours },
+    return blocked;
   });
 
   logger.info('IP blocked', {
@@ -462,23 +474,34 @@ export async function unblockIp(
   unblockedBy: string,
   reason: string,
 ): Promise<boolean> {
-  const result = await db.query(
-    `UPDATE blocked_ips SET is_active = FALSE WHERE ip_address = $1::inet AND is_active = TRUE`,
-    [ipAddress],
-  );
+  // Bug OPS-378: restoring network access is also audit-or-nothing. If the
+  // event insert fails, the transaction rolls the unblock back instead of
+  // leaving an unattributed access decision behind.
+  const unblocked = await db.transaction<boolean>(async (client) => {
+    const result = await client.query(
+      `UPDATE blocked_ips SET is_active = FALSE WHERE ip_address = $1::inet AND is_active = TRUE`,
+      [ipAddress],
+    );
+    if ((result.rowCount ?? 0) === 0) return false;
 
-  if ((result.rowCount ?? 0) > 0) {
-    await logSecurityEvent({
-      userId: unblockedBy,
-      eventType: 'ip_unblocked',
-      ipAddress,
-      metadata: { reason },
-    });
-
-    logger.info('IP unblocked', { ipAddress, unblockedBy, reason });
+    await client.query(
+      `INSERT INTO security_events (user_id, event_type, ip_address, device_fingerprint, metadata)
+       VALUES ($1, $2, $3::inet, $4, $5)`,
+      [
+        unblockedBy,
+        'ip_unblocked',
+        ipAddress,
+        null,
+        JSON.stringify({ reason }),
+      ],
+    );
     return true;
+  });
+
+  if (unblocked) {
+    logger.info('IP unblocked', { ipAddress, unblockedBy, reason });
   }
-  return false;
+  return unblocked;
 }
 
 export async function listBlockedIps(
@@ -490,12 +513,16 @@ export async function listBlockedIps(
 
   const [dataResult, countResult] = await Promise.all([
     db.query<BlockedIpRow>(
-      `SELECT * FROM blocked_ips WHERE is_active = TRUE
+      `SELECT * FROM blocked_ips
+       WHERE is_active = TRUE
+         AND (expires_at IS NULL OR expires_at > NOW())
        ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
       [safePageSize, offset],
     ),
     db.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM blocked_ips WHERE is_active = TRUE`,
+      `SELECT COUNT(*)::text AS count FROM blocked_ips
+       WHERE is_active = TRUE
+         AND (expires_at IS NULL OR expires_at > NOW())`,
     ),
   ]);
 
