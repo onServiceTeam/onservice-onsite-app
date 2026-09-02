@@ -43,6 +43,7 @@ it('Bug UX-515 — global record search ranks canonical workspaces and never ret
     })] })
     .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValueOnce({ rows: [row({
       id: '44444444-4444-4444-8444-444444444444',
       title: 'SUP-1044',
@@ -86,7 +87,7 @@ it('Bug UX-515 — global record search ranks canonical workspaces and never ret
   expect(JSON.stringify(results)).toContain('a•••@example.com');
   expect(JSON.stringify(results)).not.toContain('+639171234567');
   expect(JSON.stringify(results)).not.toContain('ana@example.com');
-  expect(queryMock).toHaveBeenCalledTimes(10);
+  expect(queryMock).toHaveBeenCalledTimes(11);
   for (const call of queryMock.mock.calls) {
     expect(call[1]).toEqual(['0917 123 4567', '639171234567', 4]);
   }

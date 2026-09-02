@@ -9,6 +9,7 @@ export type AdminSearchKind =
   | 'booking'
   | 'statement'
   | 'payment'
+  | 'legacy_sales_record'
   | 'support'
   | 'dispute'
   | 'payout';
@@ -49,9 +50,10 @@ const KIND_ORDER: Record<AdminSearchKind, number> = {
   booking: 4,
   statement: 5,
   payment: 6,
-  support: 7,
-  dispute: 8,
-  payout: 9,
+  legacy_sales_record: 7,
+  support: 8,
+  dispute: 9,
+  payout: 10,
 };
 
 function shortId(id: string): string {
@@ -75,6 +77,7 @@ function resultTitle(kind: AdminSearchKind, row: RawSearchRow): string {
   if (kind === 'booking') return `Booking ${reference}`;
   if (kind === 'contract') return `Contract ${reference}`;
   if (kind === 'payment') return `Payment ${reference}`;
+  if (kind === 'legacy_sales_record') return `Legacy record ${row.title}`;
   if (kind === 'dispute') return `Dispute ${reference}`;
   if (kind === 'payout') return `Payout ${reference}`;
   return row.title;
@@ -98,6 +101,9 @@ function resultDestination(kind: AdminSearchKind, row: RawSearchRow): string {
       : '/business-accounts';
   }
   if (kind === 'payment') return `/financials?tab=payments&intentSearch=${id}`;
+  if (kind === 'legacy_sales_record') {
+    return `/financials?tab=receipts&receiptOr=${encodeURIComponent(row.title)}`;
+  }
   if (kind === 'support') return `/support-tickets?ticketId=${id}`;
   if (kind === 'dispute') return `/disputes/${id}`;
   return `/payouts?payoutId=${id}`;
@@ -125,19 +131,19 @@ function formatResult(kind: AdminSearchKind, row: RawSearchRow): RankedResult {
 /**
  * Bounded cross-entity operator search. Raw contact may be used as an input
  * match because the existing Customer/Provider/Support queues already support
- * that workflow. Exact payment evidence references may also locate their
- * statement. Raw contact and payment-reference text are never returned here;
- * every result carries masked contact at most and opens the canonical record
- * workspace.
+ * that workflow. Exact payment evidence references and retained legacy sales
+ * identifiers may also locate their canonical review records. Raw contact and
+ * payment-reference text are never returned here; every result carries masked
+ * contact at most and opens the canonical record workspace.
  */
 export async function searchAdminRecords(query: string): Promise<AdminSearchResult[]> {
   const needle = query.trim();
   const phoneDigits = normalizePhoneSearch(needle);
   const params = [needle, phoneDigits, PER_KIND_LIMIT];
 
-  // Ten fixed, bounded queries are intentionally parallel. This is not a
+  // Eleven fixed, bounded queries are intentionally parallel. This is not a
   // record-driven query loop and cannot grow with the number of matches.
-  const [customers, businesses, providers, contracts, bookings, statements, payments, support, disputes, payouts] = await Promise.all([
+  const [customers, businesses, providers, contracts, bookings, statements, payments, legacySalesRecords, support, disputes, payouts] = await Promise.all([
     db.query<RawSearchRow>(
       `SELECT u.id::text AS id,
               TRIM(CONCAT_WS(' ', u.first_name, u.last_name)) AS title,
@@ -382,6 +388,37 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
       params,
     ),
     db.query<RawSearchRow>(
+      `SELECT o.id::text AS id,
+              o.or_number AS title,
+              CONCAT_WS(' · ',
+                'Booking ' || LEFT(o.booking_id::text, 8),
+                NULLIF(TRIM(CONCAT_WS(' ', cu.first_name, cu.last_name)), ''),
+                p.business_name
+              ) AS context,
+              CASE
+                WHEN o.is_cancellation THEN 'cancellation entry'
+                ELSE 'retained for review'
+              END::text AS status,
+              NULL::text AS phone, NULL::text AS email,
+              o.booking_id::text AS related_id,
+              CASE
+                WHEN LOWER(o.id::text) = LOWER($1)
+                  OR LOWER(o.or_number) = LOWER($1) THEN 0
+                WHEN LEFT(LOWER(o.id::text), LENGTH($1)) = LOWER($1)
+                  OR LEFT(LOWER(o.or_number), LENGTH($1)) = LOWER($1) THEN 1
+                ELSE 2
+              END AS rank,
+              o.issued_at AS created_at
+         FROM official_receipts o
+         JOIN users cu ON cu.id = o.customer_id
+         LEFT JOIN providers p ON p.id = o.provider_id
+        WHERE STRPOS(LOWER(o.id::text), LOWER($1)) > 0
+           OR STRPOS(LOWER(o.or_number), LOWER($1)) > 0
+        ORDER BY rank, o.issued_at DESC
+        LIMIT $3`,
+      params,
+    ),
+    db.query<RawSearchRow>(
       `SELECT st.id::text AS id,
               st.ticket_number AS title,
               CONCAT_WS(' · ', st.subject, NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '')) AS context,
@@ -486,6 +523,7 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
     ...bookings.rows.map((row) => formatResult('booking', row)),
     ...statements.rows.map((row) => formatResult('statement', row)),
     ...payments.rows.map((row) => formatResult('payment', row)),
+    ...legacySalesRecords.rows.map((row) => formatResult('legacy_sales_record', row)),
     ...support.rows.map((row) => formatResult('support', row)),
     ...disputes.rows.map((row) => formatResult('dispute', row)),
     ...payouts.rows.map((row) => formatResult('payout', row)),

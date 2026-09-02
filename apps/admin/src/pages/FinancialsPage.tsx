@@ -1882,16 +1882,40 @@ interface ReceiptSearchParams {
   limit: number;
 }
 
-export function ReceiptsPanel(): React.ReactElement {
-  const [draft, setDraft] = useState<ReceiptSearchParams>({
-    orNumber: '',
-    customerName: '',
-    providerName: '',
-    from: '',
-    to: '',
-    limit: 50,
-  });
-  const [submitted, setSubmitted] = useState<ReceiptSearchParams | null>(null);
+interface ReceiptsPanelProps {
+  initialSearch?: Partial<ReceiptSearchParams>;
+  onSearchChange?: (value: ReceiptSearchParams) => void;
+}
+
+function normalizeReceiptSearch(value: Partial<ReceiptSearchParams> = {}): ReceiptSearchParams {
+  const requestedLimit = Number(value.limit ?? 50);
+  return {
+    orNumber: value.orNumber?.trim() ?? '',
+    customerName: value.customerName?.trim() ?? '',
+    providerName: value.providerName?.trim() ?? '',
+    from: value.from ?? '',
+    to: value.to ?? '',
+    limit: Number.isInteger(requestedLimit) && requestedLimit >= 1 && requestedLimit <= 100
+      ? requestedLimit
+      : 50,
+  };
+}
+
+function hasReceiptFilter(value: ReceiptSearchParams): boolean {
+  return Boolean(
+    value.orNumber || value.customerName || value.providerName || value.from || value.to,
+  );
+}
+
+export function ReceiptsPanel({
+  initialSearch,
+  onSearchChange,
+}: ReceiptsPanelProps = {}): React.ReactElement {
+  const initial = normalizeReceiptSearch(initialSearch);
+  const [draft, setDraft] = useState<ReceiptSearchParams>(initial);
+  const [submitted, setSubmitted] = useState<ReceiptSearchParams | null>(
+    hasReceiptFilter(initial) ? initial : null,
+  );
   const [receiptError, setReceiptError] = useState('');
   const [receiptPage, setReceiptPage] = useState(1);
 
@@ -1934,18 +1958,24 @@ export function ReceiptsPanel(): React.ReactElement {
       setReceiptError('Receipt search start date cannot be after end date.');
       return;
     }
+    if (Boolean(draft.from) !== Boolean(draft.to)) {
+      setReceiptError('Choose both a receipt search start date and end date.');
+      return;
+    }
     if (!Number.isFinite(draft.limit) || draft.limit < 1 || draft.limit > 100) {
       setReceiptError('Receipt search limit must be between 1 and 100.');
       return;
     }
     setReceiptError('');
     setReceiptPage(1);
-    setSubmitted({
+    const nextSearch = {
       ...draft,
       orNumber: draft.orNumber.trim(),
       customerName: draft.customerName.trim(),
       providerName: draft.providerName.trim(),
-    });
+    };
+    setSubmitted(nextSearch);
+    onSearchChange?.(nextSearch);
   };
 
   return (
@@ -2153,6 +2183,22 @@ export default function FinancialsPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseTab(searchParams.get('tab'));
   const intentSearch = searchParams.get('intentSearch')?.trim() ?? '';
+  const receiptSearch = normalizeReceiptSearch({
+    orNumber: searchParams.get('receiptOr') ?? '',
+    customerName: searchParams.get('receiptCustomer') ?? '',
+    providerName: searchParams.get('receiptProvider') ?? '',
+    from: searchParams.get('receiptFrom') ?? '',
+    to: searchParams.get('receiptTo') ?? '',
+    limit: Number(searchParams.get('receiptLimit') ?? 50),
+  });
+  const receiptSearchKey = JSON.stringify([
+    receiptSearch.orNumber,
+    receiptSearch.customerName,
+    receiptSearch.providerName,
+    receiptSearch.from,
+    receiptSearch.to,
+    receiptSearch.limit,
+  ]);
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = useMemo(() => role === 'super_admin', [role]);
 
@@ -2165,6 +2211,14 @@ export default function FinancialsPage(): React.ReactElement {
         params.set('tab', nextTab);
       }
       if (nextTab !== 'payments') params.delete('intentSearch');
+      if (nextTab !== 'receipts') {
+        params.delete('receiptOr');
+        params.delete('receiptCustomer');
+        params.delete('receiptProvider');
+        params.delete('receiptFrom');
+        params.delete('receiptTo');
+        params.delete('receiptLimit');
+      }
       return params;
     });
   };
@@ -2175,6 +2229,27 @@ export default function FinancialsPage(): React.ReactElement {
       params.set('tab', 'payments');
       if (value) params.set('intentSearch', value);
       else params.delete('intentSearch');
+      return params;
+    });
+  };
+
+  const selectReceiptSearch = (value: ReceiptSearchParams): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'receipts');
+      const values: Array<[string, string]> = [
+        ['receiptOr', value.orNumber],
+        ['receiptCustomer', value.customerName],
+        ['receiptProvider', value.providerName],
+        ['receiptFrom', value.from],
+        ['receiptTo', value.to],
+      ];
+      for (const [key, entry] of values) {
+        if (entry) params.set(key, entry);
+        else params.delete(key);
+      }
+      if (value.limit !== 50) params.set('receiptLimit', String(value.limit));
+      else params.delete('receiptLimit');
       return params;
     });
   };
@@ -2230,7 +2305,13 @@ export default function FinancialsPage(): React.ReactElement {
       {tab === 'guarantee' && <GuaranteeFundPanel />}
       {tab === 'reconciliation' && <ReconciliationPanel isSuperAdmin={isSuperAdmin} />}
       {tab === 'bir' && <BirReportsPanel isSuperAdmin={isSuperAdmin} />}
-      {tab === 'receipts' && <ReceiptsPanel />}
+      {tab === 'receipts' && (
+        <ReceiptsPanel
+          key={receiptSearchKey}
+          initialSearch={receiptSearch}
+          onSearchChange={selectReceiptSearch}
+        />
+      )}
     </div>
   );
 }

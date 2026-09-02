@@ -27,7 +27,7 @@ interface HeaderProps {
   onOpenNavigation?: () => void;
 }
 
-type AdminSearchKind = 'customer' | 'provider' | 'business' | 'contract' | 'booking' | 'statement' | 'payment' | 'support' | 'dispute' | 'payout';
+type AdminSearchKind = 'customer' | 'provider' | 'business' | 'contract' | 'booking' | 'statement' | 'payment' | 'legacy_sales_record' | 'support' | 'dispute' | 'payout';
 
 interface AdminRecordResult {
   kind: AdminSearchKind;
@@ -46,6 +46,7 @@ const RECORD_KIND_META = {
   booking: { label: 'Booking', Icon: ClipboardList },
   statement: { label: 'Statement', Icon: Receipt },
   payment: { label: 'Payment', Icon: Banknote },
+  legacy_sales_record: { label: 'Legacy sales record', Icon: Receipt },
   support: { label: 'Support', Icon: Ticket },
   dispute: { label: 'Dispute', Icon: Scale },
   payout: { label: 'Payout', Icon: Banknote },
