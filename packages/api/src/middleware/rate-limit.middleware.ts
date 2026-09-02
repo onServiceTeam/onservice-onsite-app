@@ -55,9 +55,9 @@ function buildRedisStore(prefix: string): InstanceType<typeof RedisStore> {
  *   3. `limit` is also passed as a function to `rateLimit()` itself,
  *      which v8 supports — so per-request limit changes apply
  *      immediately without rebuild.
- *   4. `initRateLimit()` is exported and awaited once from server.ts
- *      before mounting the middleware, so the initial DB read is
- *      complete before the limiter is hot.
+ *   4. `initRateLimit()` starts the live-settings refresh loop during
+ *      server startup. Conservative deployment defaults cover requests
+ *      while that first best-effort database read completes.
  */
 
 let currentWindow: number = platformConfig.rateLimitWindowMs;
@@ -108,9 +108,9 @@ export async function refreshRateLimits(): Promise<void> {
 }
 
 /**
- * Init hook — call from server.ts BEFORE mounting `rateLimitMiddleware`
- * so the first request sees DB-backed values, not platformConfig
- * defaults that may differ.
+ * Init hook called from server startup. The middleware is already mounted,
+ * so its conservative platformConfig defaults remain active until this
+ * best-effort database read completes.
  */
 export async function initRateLimit(): Promise<void> {
   await refreshRateLimits();
@@ -160,8 +160,11 @@ export function __getCachedForTest(): { windowMs: number; max: number } {
 // Post-fix: a dedicated authRateLimitMiddleware reads its own
 // settings keys (auth_rate_limit_window_ms, auth_rate_limit_max_requests)
 // with conservative defaults (10 requests / 60s). Routes for
-// /auth/send-otp, /auth/verify-otp, /auth/admin/login,
-// /auth/refresh apply this in addition to the global limiter.
+// /auth/send-otp, /auth/verify-otp, /auth/admin/login, and
+// /auth/admin/2fa/verify apply this in addition to the global limiter.
+// Routine token refresh is intentionally excluded from this low per-IP
+// credential-attempt budget because mobile carrier NATs and shared offices
+// can place many legitimate sessions behind one address.
 //
 // The settings keys default to:
 //   auth_rate_limit_window_ms: 60000  (1 minute)

@@ -47,10 +47,10 @@ const router = Router();
 // Redis-backed store so the per-IP flood counters survive container restarts
 // and are shared across API replicas (a MemoryStore resets to zero on every
 // redeploy and is per-replica, multiplying the effective limit). Mirrors the
-// buildAuthRoutesStore pattern in auth.routes.ts; ioredis queues commands while
+// buildRedisStore pattern in rate-limit.middleware.ts; ioredis queues commands while
 // reconnecting per its retryStrategy, so the limiter degrades gracefully if
 // Redis is briefly unavailable. Distinct prefix per limiter keeps counters
-// separate from the global `rl:global:` and auth `rl:auth-routes:` namespaces.
+// separate from the global `rl:global:` and auth `rl:auth:` namespaces.
 type RedisStoreOpts = ConstructorParameters<typeof RedisStore>[0];
 function buildFeedbackStore(prefix: string): InstanceType<typeof RedisStore> {
   const opts = {

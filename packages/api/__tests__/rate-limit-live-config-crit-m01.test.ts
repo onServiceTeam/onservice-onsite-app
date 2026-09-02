@@ -13,8 +13,8 @@
 //   max changes apply immediately.
 // - `windowMs` cannot be a function in express-rate-limit, so the
 //   inner limiter is rebuilt when the cached window value changes.
-// - `initRateLimit()` awaits the first DB read before the public
-//   middleware ever runs, eliminating the boot race.
+// - `initRateLimit()` awaits the first DB read before its startup promise
+//   resolves; conservative deployment defaults remain active during that read.
 
 const getSettingIntegerMock = jest.fn();
 
@@ -124,7 +124,7 @@ describe('CRIT-M01 — rate-limit live config', () => {
     expect(__getCachedForTest()).toEqual({ windowMs: 60_000, max: 100 });
   });
 
-  it('initRateLimit awaits the first DB read before returning (eliminates boot race)', async () => {
+  it('initRateLimit awaits the first DB read before its startup promise resolves', async () => {
     // initRateLimit must await refreshRateLimits — verify by making
     // the DB call slow and confirming the cached value is updated by
     // the time the promise resolves.
