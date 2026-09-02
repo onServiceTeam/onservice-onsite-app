@@ -94,6 +94,8 @@ export default function LoginPage(): React.ReactElement {
   const [requires2FA, setRequires2FA] = useState(false);
   const [preAuthToken, setPreAuthToken] = useState('');
   const [totpCode, setTotpCode] = useState('');
+  const [usingBackupCode, setUsingBackupCode] = useState(false);
+  const [backupCode, setBackupCode] = useState('');
   const totpInputRef = useRef<HTMLInputElement>(null);
 
   // 2FA force-enrollment state
@@ -102,6 +104,11 @@ export default function LoginPage(): React.ReactElement {
   const [setupUri, setSetupUri] = useState('');
   const [setupQrDataUrl, setSetupQrDataUrl] = useState('');
   const [enrolCode, setEnrolCode] = useState('');
+  const [issuedBackupCodes, setIssuedBackupCodes] = useState<string[]>([]);
+  const [backupCodesSaved, setBackupCodesSaved] = useState(false);
+  const [backupCodesCopied, setBackupCodesCopied] = useState(false);
+  const [enrolledUser, setEnrolledUser] = useState<Record<string, unknown> | null>(null);
+  const [enrolledMustRotate, setEnrolledMustRotate] = useState(false);
 
   // Render the otpauth URI to a scannable QR image (client-side; the secret is
   // never sent anywhere). Without this the screen showed only a raw secret
@@ -216,12 +223,15 @@ export default function LoginPage(): React.ReactElement {
     setLoading(true);
 
     try {
-      const res = await api.post('/api/v1/auth/admin/2fa/verify', { preAuthToken, totpCode });
+      const res = await api.post('/api/v1/auth/admin/2fa/verify', usingBackupCode
+        ? { preAuthToken, backupCode }
+        : { preAuthToken, totpCode });
       const { user, mustRotatePassword } = res.data.data;
       completeLogin(user, { mustRotatePassword: mustRotatePassword === true });
     } catch (err) {
       setError(getErrorMessage(err));
-      setTotpCode('');
+      if (usingBackupCode) setBackupCode('');
+      else setTotpCode('');
     } finally {
       setLoading(false);
     }
@@ -245,12 +255,31 @@ export default function LoginPage(): React.ReactElement {
         return;
       }
       const { mustRotatePassword } = res.data.data;
-      completeLogin(user, { mustRotatePassword: mustRotatePassword === true });
+      const codes = Array.isArray(res.data.data.backupCodes)
+        ? res.data.data.backupCodes.filter((value: unknown): value is string => typeof value === 'string')
+        : [];
+      if (codes.length !== 8) {
+        setError('Two-factor authentication was enabled, but recovery codes were not returned. Sign out and contact a super administrator before relying on this account.');
+        return;
+      }
+      setIssuedBackupCodes(codes);
+      setEnrolledUser(user as Record<string, unknown>);
+      setEnrolledMustRotate(mustRotatePassword === true);
     } catch (err) {
       setError(getErrorMessage(err));
       setEnrolCode('');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const copyBackupCodes = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(issuedBackupCodes.join('\n'));
+      setBackupCodesCopied(true);
+    } catch {
+      setBackupCodesCopied(false);
+      setError('Copy was blocked by this browser. Select the codes and save them manually.');
     }
   };
 
@@ -281,6 +310,65 @@ export default function LoginPage(): React.ReactElement {
     // is fine because the guard intercepts first.
     navigate(opts.mustRotatePassword ? '/change-password' : '/');
   };
+
+  if (issuedBackupCodes.length > 0 && enrolledUser) {
+    return (
+      <AdminAuthShell
+        title="Save your recovery codes"
+        description="These one-time codes are the recovery path if you lose access to your authenticator. They will not be shown again."
+        wide
+      >
+        <section className="rounded-xl border border-[var(--color-border)] bg-white p-6 md:p-8" aria-labelledby="backup-code-heading">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <h2 id="backup-code-heading" className="font-semibold">Store all eight codes securely</h2>
+            <p className="mt-1 leading-6">Each code works once. Do not put them in a support ticket, chat, screenshot, or shared document.</p>
+          </div>
+
+          <ol className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="One-time administrator recovery codes">
+            {issuedBackupCodes.map((code, index) => (
+              <li key={code} className="flex min-h-11 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 font-mono text-sm font-semibold tracking-[0.12em] text-[var(--color-text)]">
+                <span className="mr-3 text-xs font-normal text-[var(--color-text-tertiary)]">{index + 1}.</span>
+                {code}
+              </li>
+            ))}
+          </ol>
+
+          <button
+            type="button"
+            onClick={() => void copyBackupCodes()}
+            className="mt-4 min-h-11 w-full rounded-md border border-[var(--color-border-strong)] px-4 text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]"
+          >
+            {backupCodesCopied ? 'Codes copied' : 'Copy all recovery codes'}
+          </button>
+
+          <label className="mt-5 flex items-start gap-3 rounded-md border border-[var(--color-border)] p-4 text-sm text-[var(--color-text)]">
+            <input
+              type="checkbox"
+              checked={backupCodesSaved}
+              onChange={(event) => setBackupCodesSaved(event.target.checked)}
+              className="mt-0.5 h-5 w-5"
+            />
+            <span>I saved these codes in a private password manager or another secure location.</span>
+          </label>
+
+          <button
+            type="button"
+            disabled={!backupCodesSaved}
+            onClick={() => {
+              const user = enrolledUser;
+              const mustRotatePassword = enrolledMustRotate;
+              setIssuedBackupCodes([]);
+              setEnrolledUser(null);
+              completeLogin(user, { mustRotatePassword });
+            }}
+            className="mt-4 min-h-11 w-full rounded-md bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-dark)] disabled:bg-slate-200 disabled:text-slate-600"
+          >
+            Continue to the operations console
+          </button>
+        </section>
+      </AdminAuthShell>
+    );
+  }
 
   // 2FA force-enrollment step (admin/super_admin without TOTP)
   if (requires2FASetup) {
@@ -365,6 +453,8 @@ export default function LoginPage(): React.ReactElement {
                 setEnrolCode('');
                 setSetupSecret('');
                 setSetupUri('');
+                setIssuedBackupCodes([]);
+                setEnrolledUser(null);
                 setError('');
               }}
               className="w-full mt-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
@@ -394,33 +484,62 @@ export default function LoginPage(): React.ReactElement {
             )}
 
             <div className="mb-5">
-              <Label htmlFor="login-totp" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Verification code</Label>
+              <Label htmlFor={usingBackupCode ? 'login-backup-code' : 'login-totp'} className="block text-sm font-medium text-[var(--color-text)] mb-1.5">
+                {usingBackupCode ? 'One-time recovery code' : 'Verification code'}
+              </Label>
               <Input
-                id="login-totp"
+                id={usingBackupCode ? 'login-backup-code' : 'login-totp'}
                 ref={totpInputRef}
                 type="text"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                inputMode={usingBackupCode ? 'text' : 'numeric'}
+                pattern={usingBackupCode ? '[A-HJ-NP-Z2-9]{10}' : '[0-9]{6}'}
+                value={usingBackupCode ? backupCode : totpCode}
+                onChange={(e) => {
+                  if (usingBackupCode) {
+                    setBackupCode(e.target.value.toUpperCase().replace(/[^A-HJ-NP-Z2-9]/g, '').slice(0, 10));
+                  } else {
+                    setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                  }
+                }}
                 required
                 autoFocus
-                placeholder="000000"
+                autoComplete="one-time-code"
+                placeholder={usingBackupCode ? 'ABCD234567' : '000000'}
                 className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm text-center tracking-[0.3em] font-mono text-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)] focus:border-transparent"
               />
+              <button
+                type="button"
+                onClick={() => {
+                  setUsingBackupCode((current) => !current);
+                  setTotpCode('');
+                  setBackupCode('');
+                  setError('');
+                  setTimeout(() => totpInputRef.current?.focus(), 0);
+                }}
+                className="mt-3 min-h-11 w-full rounded-md text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]"
+              >
+                {usingBackupCode ? 'Use authenticator code instead' : 'Use a recovery code'}
+              </button>
             </div>
 
             <button
               type="submit"
-              disabled={loading || totpCode.length !== 6}
+              disabled={loading || (usingBackupCode ? backupCode.length !== 10 : totpCode.length !== 6)}
               className="w-full py-2.5 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
             >
-              {loading ? 'Verifying...' : 'Verify'}
+              {loading ? 'Verifying...' : usingBackupCode ? 'Use recovery code' : 'Verify'}
             </button>
 
             <button
               type="button"
-              onClick={() => { setRequires2FA(false); setPreAuthToken(''); setTotpCode(''); setError(''); }}
+              onClick={() => {
+                setRequires2FA(false);
+                setPreAuthToken('');
+                setTotpCode('');
+                setBackupCode('');
+                setUsingBackupCode(false);
+                setError('');
+              }}
               className="w-full mt-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
             >
               Back to login

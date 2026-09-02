@@ -24,6 +24,24 @@ export interface AuthenticatedRequest extends Request {
   user?: AuthPayload;
 }
 
+const ADMIN_TIER_ROLES: ReadonlySet<AuthPayload['role']> = new Set([
+  'admin',
+  'super_admin',
+  'dpo',
+]);
+
+function isPasswordRotationBoundary(req: Request): boolean {
+  const path = (req.originalUrl || req.url).split('?')[0] ?? '';
+  const normalizedPath = path.length > 1 ? path.replace(/\/+$/, '') : path;
+  return (req.method === 'GET' && new Set(['/auth/me', '/api/v1/auth/me']).has(normalizedPath))
+    || (req.method === 'POST' && new Set([
+      '/security/admin/me/change-password',
+      '/api/v1/security/admin/me/change-password',
+      '/auth/admin/logout',
+      '/api/v1/auth/admin/logout',
+    ]).has(normalizedPath));
+}
+
 /**
  * JWT authentication middleware.
  * Verifies the access token and attaches user payload to req.user.
@@ -75,7 +93,7 @@ export function authMiddleware(
       payload = jwt.verify(token, jwtSecret) as AuthPayload & { type?: string };
 
       // Reject pre-auth (2FA pending) and refresh tokens from being used as access tokens
-      if (payload.type === 'pre_auth_2fa' || payload.type === 'refresh') {
+      if (payload.type !== undefined && payload.type !== 'access') {
         next(createAppError('Invalid authentication token.', 401));
         return;
       }
@@ -112,8 +130,10 @@ export function authMiddleware(
         role: AuthPayload['role'];
         is_active: boolean;
         session_version: number | string;
+        must_rotate_password: boolean | null;
       }>(
-        `SELECT role, is_active, session_version
+        `SELECT role, is_active, session_version,
+                COALESCE(must_rotate_password, FALSE) AS must_rotate_password
            FROM users
           WHERE id = $1`,
         [payload.userId],
@@ -141,6 +161,23 @@ export function authMiddleware(
         role: account.role,
         sessionVersion: currentVersion,
       };
+
+      // SEC-036 — forced admin password rotation is an API precondition, not
+      // merely a React redirect. A flagged credential may identify the user,
+      // change its own password, or log out, but it cannot operate customer,
+      // provider, booking, support, money, or configuration routes. This also
+      // catches an already-open tab as soon as it makes its next request.
+      if (ADMIN_TIER_ROLES.has(account.role)
+          && account.must_rotate_password === true
+          && !isPasswordRotationBoundary(req)) {
+        const rotationRequired = createAppError(
+          'Password rotation is required before continuing.',
+          428,
+        );
+        rotationRequired.code = 'password_rotation_required';
+        next(rotationRequired);
+        return;
+      }
 
       // UX-556 — CSRF follows the credential, not a URL prefix. Admin pages
       // also write through mixed route families such as /staff and

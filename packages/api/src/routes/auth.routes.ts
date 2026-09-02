@@ -18,6 +18,7 @@ import {
 } from '../validators/auth.validators';
 import * as authService from '../services/auth.service';
 import * as securityService from '../services/security.service';
+import * as adminTwoFactorService from '../services/admin-2fa.service';
 import { platformConfig } from '../config/platform.config';
 import { generateTotpSecret, verifyTotp, generateTotpUri, encryptSecret, decryptSecret } from '../utils/totp';
 import {
@@ -102,8 +103,12 @@ export function adminAuthOrSetupToken(
         role: UserProfileRow['role'];
         is_active: boolean;
         session_version: number | string;
+        must_rotate_password: boolean | null;
       }>(
-        `SELECT role, is_active, session_version FROM users WHERE id = $1`,
+        `SELECT role, is_active, session_version,
+                COALESCE(must_rotate_password, FALSE) AS must_rotate_password
+           FROM users
+          WHERE id = $1`,
         [payload.userId],
       );
       const account = canonical.rows[0];
@@ -135,12 +140,25 @@ export function adminAuthOrSetupToken(
         next();
         return;
       }
-      if (payload.type === 'pre_auth_2fa' || payload.type === 'refresh') {
+      if (payload.type !== undefined && payload.type !== 'access') {
         next(createAppError('Invalid authentication token.', 401));
         return;
       }
       if (!ADMIN_TIER.has(account.role)) {
         next(createAppError('Admin role required.', 403));
+        return;
+      }
+      // SEC-042 — a normal admin session must obey the same forced-password
+      // precondition as every other API. The dedicated setup token remains
+      // allowed above because first login intentionally completes TOTP setup
+      // before issuing the rotation-flagged full session.
+      if (account.must_rotate_password === true) {
+        const rotationRequired = createAppError(
+          'Password rotation is required before continuing.',
+          428,
+        );
+        rotationRequired.code = 'password_rotation_required';
+        next(rotationRequired);
         return;
       }
       req.user = {
@@ -730,7 +748,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const clientIp = getClientIp(req);
-      const { preAuthToken, totpCode } = req.body;
+      const { preAuthToken, totpCode, backupCode } = req.body;
 
       const jwt = await import('jsonwebtoken');
       const secret = process.env.JWT_SECRET;
@@ -778,19 +796,31 @@ router.post(
           || Number(user.session_version) !== Number(payload.sessionVersion ?? 1)) {
         throw createAppError('This authentication session has been revoked. Please login again.', 401);
       }
-      const decryptedSecret = decryptSecret(user.totp_secret!);
-      // window=2 (±60s) tolerates moderate device clock drift (common on
-      // emulators) without meaningfully weakening 2FA (lockout + rate limit
-      // still bound brute force).
-      const valid = verifyTotp(decryptedSecret, totpCode, 2);
-      if (!valid) {
-        await securityService.logSecurityEvent({
-          userId: user.id,
-          eventType: 'admin_2fa_failed',
-          ipAddress: clientIp,
-          metadata: { reason: 'invalid_totp' },
-        });
-        throw createAppError('Invalid verification code. Please try again.', 401);
+      let verificationMethod: 'totp' | 'backup_code' = 'totp';
+      let backupCodesRemaining: number | undefined;
+      if (backupCode) {
+        verificationMethod = 'backup_code';
+        const consumed = await adminTwoFactorService.consumeBackupCode(
+          user.id,
+          backupCode as string,
+          clientIp,
+        );
+        backupCodesRemaining = consumed.remainingCodes;
+      } else {
+        const decryptedSecret = decryptSecret(user.totp_secret!);
+        // window=2 (±60s) tolerates moderate device clock drift (common on
+        // emulators) without meaningfully weakening 2FA (lockout + rate limit
+        // still bound brute force).
+        const valid = verifyTotp(decryptedSecret, totpCode as string, 2);
+        if (!valid) {
+          await securityService.logSecurityEvent({
+            userId: user.id,
+            eventType: 'admin_2fa_failed',
+            ipAddress: clientIp,
+            metadata: { reason: 'invalid_totp' },
+          });
+          throw createAppError('Invalid verification code. Please try again.', 401);
+        }
       }
 
       await db.query(
@@ -818,7 +848,10 @@ router.post(
         userId: user.id,
         eventType: 'admin_login_2fa_verified',
         ipAddress: clientIp,
-        metadata: {},
+        metadata: {
+          verificationMethod,
+          ...(backupCodesRemaining !== undefined ? { backupCodesRemaining } : {}),
+        },
       });
 
       // LAUNCH-LIMITATIONS #12 — pull must_rotate_password so the
@@ -852,6 +885,7 @@ router.post(
           user: formatUserResponse(fullUser.rows[0]!),
           sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
           mustRotatePassword: fullUser.rows[0]?.must_rotate_password === true,
+          ...(backupCodesRemaining !== undefined ? { backupCodesRemaining } : {}),
         },
       });
     } catch (error) {
@@ -917,6 +951,7 @@ router.post(
 
       logger.info('Admin 2FA setup initiated', { userId });
 
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json({
         success: true,
         data: {
@@ -973,12 +1008,26 @@ router.post(
         throw createAppError('Invalid verification code. Please try again with a new code from your authenticator app.', 400);
       }
 
-      await db.query(
-        `UPDATE users SET totp_enabled = TRUE, updated_at = NOW() WHERE id = $1`,
-        [userId],
-      );
+      // SEC-038 — activation and the first eight recovery codes are one
+      // transaction. A code-generation failure cannot leave TOTP enabled with
+      // no recovery path, and any old active recovery set is soft-deleted.
+      const backupBundle = await db.transaction(async (client) => {
+        const enabled = await client.query(
+          `UPDATE users
+              SET totp_enabled = TRUE,
+                  updated_at = NOW()
+            WHERE id = $1
+              AND totp_enabled = FALSE`,
+          [userId],
+        );
+        if ((enabled.rowCount ?? 0) !== 1) {
+          throw createAppError('2FA is already enabled.', 409);
+        }
+        return adminTwoFactorService.generateBackupCodesInTransaction(client, userId);
+      });
 
       logger.info('Admin 2FA enabled', { userId });
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
 
       // When enrolment was forced via the pre_auth_2fa_setup token, mint full
       // tokens so the admin completes login in one round-trip instead of being
@@ -1023,6 +1072,8 @@ router.post(
             user: formatUserResponse(fullUser.rows[0]!),
             mustRotatePassword: fullUser.rows[0]?.must_rotate_password === true,
             sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
+            backupCodes: backupBundle.codes,
+            backupCodesGeneratedAt: backupBundle.generatedAt,
           },
         });
         return;
@@ -1030,7 +1081,11 @@ router.post(
 
       res.json({
         success: true,
-        data: { message: 'Two-factor authentication is now enabled.' },
+        data: {
+          message: 'Two-factor authentication is now enabled.',
+          backupCodes: backupBundle.codes,
+          backupCodesGeneratedAt: backupBundle.generatedAt,
+        },
       });
     } catch (error) {
       next(error);

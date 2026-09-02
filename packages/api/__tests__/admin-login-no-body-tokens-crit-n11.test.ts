@@ -4,12 +4,15 @@ import jwt from 'jsonwebtoken';
 import request, { Response as SupertestResponse } from 'supertest';
 
 const dbQueryMock = jest.fn();
+const dbTransactionMock = jest.fn();
 const verifyPasswordWithRehashMock = jest.fn();
 const createTokenPairMock = jest.fn();
 const refreshAccessTokenMock = jest.fn();
 const verifyTotpMock = jest.fn();
 const setAdminSessionCookiesMock = jest.fn();
 const revokeAdminCsrfTokensMock = jest.fn();
+const consumeBackupCodeMock = jest.fn();
+const generateBackupCodesInTransactionMock = jest.fn();
 
 jest.mock('express-rate-limit', () => ({
   __esModule: true,
@@ -30,7 +33,10 @@ jest.mock('../src/middleware/ip-block.middleware', () => ({
   getClientIp: jest.fn(() => '127.0.0.1'),
 }));
 jest.mock('../src/models/db', () => ({
-  db: { query: (...args: unknown[]) => dbQueryMock(...args), transaction: jest.fn() },
+  db: {
+    query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (fn: unknown) => dbTransactionMock(fn),
+  },
 }));
 jest.mock('../src/services/auth.service', () => ({
   verifyPasswordWithRehash: (...args: unknown[]) => verifyPasswordWithRehashMock(...args),
@@ -40,6 +46,12 @@ jest.mock('../src/services/auth.service', () => ({
 jest.mock('../src/services/security.service', () => ({
   recordLoginAttempt: jest.fn(async () => undefined),
   logSecurityEvent: jest.fn(async () => undefined),
+}));
+jest.mock('../src/services/admin-2fa.service', () => ({
+  consumeBackupCode: (...args: unknown[]) => consumeBackupCodeMock(...args),
+  generateBackupCodesInTransaction: (...args: unknown[]) => (
+    generateBackupCodesInTransactionMock(...args)
+  ),
 }));
 jest.mock('../src/utils/totp', () => ({
   generateTotpSecret: jest.fn(() => 'secret'),
@@ -119,6 +131,22 @@ it('CRIT-N11 - every completed admin authentication flow keeps bearer tokens out
   verifyPasswordWithRehashMock.mockReturnValue({ valid: true, needsRehash: false });
   verifyTotpMock.mockReturnValue(true);
   revokeAdminCsrfTokensMock.mockResolvedValue(undefined);
+  dbTransactionMock.mockImplementation(async (
+    fn: (client: { query: typeof dbQueryMock }) => Promise<unknown>,
+  ) => fn({ query: dbQueryMock }));
+  generateBackupCodesInTransactionMock.mockResolvedValue({
+    codes: [
+      'AAAAA22222',
+      'BBBBB33333',
+      'CCCCC44444',
+      'DDDDD55555',
+      'EEEEE66666',
+      'FFFFF77777',
+      'GGGGG88888',
+      'HHHHH99999',
+    ],
+    generatedAt: new Date('2026-09-02T00:00:00.000Z'),
+  });
 
   let scenario: 'login' | 'verify' | 'enable' | 'refresh' = 'login';
   dbQueryMock.mockImplementation(async (sql: string) => {
