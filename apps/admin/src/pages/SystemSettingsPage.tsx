@@ -9,7 +9,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
 import {
@@ -149,6 +149,17 @@ function describeActor(entry: AuditEntry): string {
 const MARKETING_CHANNEL_SLUG = /^[a-z0-9_-]{1,40}$/;
 const MATCHING_TIER_KEYS = ['founding', 'new', 'verified', 'pro', 'elite'] as const;
 type MatchingTier = typeof MATCHING_TIER_KEYS[number];
+const DISPATCH_MAP_SETTING_KEYS = new Set([
+  'map_tile_url',
+  'map_tile_attribution',
+  'map_tile_api_key',
+]);
+
+function invalidateSettingConsumers(queryClient: QueryClient, key: string): void {
+  if (DISPATCH_MAP_SETTING_KEYS.has(key)) {
+    void queryClient.invalidateQueries({ queryKey: ['dispatch', 'map-config'] });
+  }
+}
 
 function parseMarketingChannels(value: string): string[] | null {
   try {
@@ -263,6 +274,7 @@ export default function SystemSettingsPage(): React.ReactElement {
       setEditValue('');
       setEditReason('');
       void queryClient.invalidateQueries({ queryKey: ['admin-settings-all'] });
+      invalidateSettingConsumers(queryClient, variables.key);
       if (historyKey === variables.key) {
         void queryClient.invalidateQueries({ queryKey: ['admin-settings-history', variables.key] });
       }
@@ -290,6 +302,7 @@ export default function SystemSettingsPage(): React.ReactElement {
       setPendingReset(null);
       setResetReason('');
       void queryClient.invalidateQueries({ queryKey: ['admin-settings-all'] });
+      invalidateSettingConsumers(queryClient, input.key);
       if (historyKey === input.key) {
         void queryClient.invalidateQueries({ queryKey: ['admin-settings-history', input.key] });
       }

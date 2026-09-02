@@ -300,6 +300,9 @@ const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   max_service_radius_km: 'Provider applications, provider change requests, approval review, super-admin edits, and customer/provider guidance enforce this maximum for new changes.',
   quote_expiry_hours: 'New provider quotes snapshot this lifetime into their exact expiry timestamp. Existing quotes keep the deadline shown to both parties when the quote was submitted.',
   refresh_token_strict_fingerprint: 'When enabled, future customer/provider refresh attempts from a different device fingerprint are rejected and require OTP sign-in. When disabled, mismatches are logged and the refresh continues.',
+  map_tile_url: 'The Dispatch Console uses this HTTPS tile template on its next load after save. Other already-open admin sessions keep their current tiles until they reload.',
+  map_tile_attribution: 'The Dispatch Console shows this provider attribution with the configured tiles on its next load after save. Keep the credit required by the tile provider licence.',
+  map_tile_api_key: 'The Dispatch Console substitutes this publishable browser token into {apiKey} on its next load after save. Restrict the token to the admin domain at the tile provider; do not store a server secret here.',
 };
 
 /**
