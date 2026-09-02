@@ -1576,3 +1576,39 @@ production build, and Docker image boot/health at commit `6d20248`. Protected
 Gates `33694962558` passed A through E and the `All gates passed` rollup at the
 same commit. No payment, booking, customer, provider, support, receipt, audit,
 or production record changed.
+
+## Checkpoint AP: retained legacy sales-record discovery and durable filters
+
+The Financials Legacy Sales Records tab retained historical OR-labelled rows
+for audit review under E22, but the global operator search could not find one
+by its unique record ID or historical OR number. The tab also held every
+filter only in component memory, so refreshing, bookmarking, sharing, or using
+browser history discarded the investigation. Its date form accepted only one
+date boundary even though the API correctly rejects an unpaired range.
+
+OPS-398 adds one fixed, bounded, read-only search over retained legacy records.
+It matches only the record ID or historical OR number, labels the result
+`Legacy sales record`, describes non-cancellation rows as `retained for
+review`, and opens the existing E22-held review workspace. It does not describe
+the artifact as a current invoice, approved principal document, or
+BIR-compliant record, and it exposes no new money mutation.
+
+UX-1061 renders that explicit legacy result in command search. UX-1062 makes
+all Legacy Sales Records filters URL-backed, including OR number, customer,
+provider, date range, and non-default result limit. Loading the exact handoff
+URL now automatically runs the retained-record search, while changing tabs
+removes stale filter state. UX-1063 requires both date boundaries before any
+API request, matching the server contract and giving the operator an immediate
+actionable message instead of a failed request.
+
+Local API and Admin TypeScript checks and focused ESLint pass. Six focused API
+search regressions pass, including exact legacy-record labeling and routing.
+Five real rendered Admin regressions pass, covering command search, URL
+restoration, date-pair validation, pagination totals, and links from a retained
+record to Booking, Customer, and Provider 360. Protected CI `33696434851`
+passed the full API, Mobile, and rendered Admin suites, both TypeScript checks,
+the Admin production build, and Docker image boot/health at commit `3051091`.
+Protected Gates `33696434785` passed A through E and the `All gates passed`
+rollup at the same commit. E22 remains open and enforced. No sales-document,
+payment, booking, customer, provider, support, audit, or production record
+changed.
