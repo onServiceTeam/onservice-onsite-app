@@ -694,32 +694,32 @@ export async function updateCampaign(
     name: string;
     endedAt: string | null;
     spendCentavos: number;
+    /** @deprecated Direct attribution replacement is rejected below. */
     attributedSignups: number;
+    /** @deprecated Direct attribution replacement is rejected below. */
     attributedFirstBookings: number;
+    /** @deprecated Direct attribution replacement is rejected below. */
     attributedRevenueCentavos: number;
     notes: string | null;
   }>,
   adminUserId: string,
 ): Promise<MarketingCampaign> {
+  if (
+    patch.attributedSignups !== undefined
+    || patch.attributedFirstBookings !== undefined
+    || patch.attributedRevenueCentavos !== undefined
+  ) {
+    throw createAppError(
+      'Campaign attribution counters cannot be overwritten. Use an evidence-backed adjustment workflow once one is approved.',
+      400,
+    );
+  }
   if (patch.endedAt !== undefined && patch.endedAt !== null) {
     validateDateString(patch.endedAt, 'endedAt');
   }
   if (patch.spendCentavos !== undefined) {
     validateNonNegativeInt(patch.spendCentavos, 'spendCentavos');
   }
-  if (patch.attributedSignups !== undefined) {
-    validateNonNegativeInt(patch.attributedSignups, 'attributedSignups');
-  }
-  if (patch.attributedFirstBookings !== undefined) {
-    validateNonNegativeInt(patch.attributedFirstBookings, 'attributedFirstBookings');
-  }
-  if (patch.attributedRevenueCentavos !== undefined) {
-    validateNonNegativeInt(
-      patch.attributedRevenueCentavos,
-      'attributedRevenueCentavos',
-    );
-  }
-
   const sets: string[] = [];
   const params: unknown[] = [];
   if (patch.name !== undefined) {
@@ -736,18 +736,6 @@ export async function updateCampaign(
   if (patch.spendCentavos !== undefined) {
     params.push(patch.spendCentavos);
     sets.push(`spend_centavos = $${params.length}`);
-  }
-  if (patch.attributedSignups !== undefined) {
-    params.push(patch.attributedSignups);
-    sets.push(`attributed_signups = $${params.length}`);
-  }
-  if (patch.attributedFirstBookings !== undefined) {
-    params.push(patch.attributedFirstBookings);
-    sets.push(`attributed_first_bookings = $${params.length}`);
-  }
-  if (patch.attributedRevenueCentavos !== undefined) {
-    params.push(patch.attributedRevenueCentavos);
-    sets.push(`attributed_revenue_centavos = $${params.length}`);
   }
   if (patch.notes !== undefined) {
     params.push(patch.notes);
