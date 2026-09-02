@@ -167,6 +167,7 @@ export interface PaymentOperationsSummary {
     id: string;
     bookingId: string | null;
     topupId: string | null;
+    customerId: string | null;
     customerName: string | null;
     amountCentavos: number;
     refundedAmountCentavos: number;
@@ -799,6 +800,7 @@ interface PaymentIntentOpsRow {
   id: string;
   booking_id: string | null;
   topup_id: string | null;
+  customer_id: string | null;
   customer_name: string | null;
   amount: string;
   refunded_amount: string;
@@ -875,6 +877,7 @@ export async function getPaymentOperationsSummary(
              pi.id::text AS id,
              pi.booking_id::text AS booking_id,
              pi.topup_id,
+             b.customer_id::text AS customer_id,
              CASE WHEN pi.booking_id IS NULL THEN NULL
                   ELSE TRIM(COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, ''))
              END AS customer_name,
@@ -943,6 +946,7 @@ export async function getPaymentOperationsSummary(
       id: row.id,
       bookingId: row.booking_id,
       topupId: row.topup_id,
+      customerId: row.customer_id,
       customerName: row.customer_name?.trim() || null,
       amountCentavos: Number(row.amount),
       refundedAmountCentavos: Number(row.refunded_amount),

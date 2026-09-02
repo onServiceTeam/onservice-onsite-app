@@ -641,6 +641,7 @@ interface PaymentOperationsData {
     id: string;
     bookingId: string | null;
     topupId: string | null;
+    customerId: string | null;
     customerName: string | null;
     amountCentavos: number;
     refundedAmountCentavos: number;
@@ -745,7 +746,12 @@ function PaymentsPanel(): React.ReactElement {
                   <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
                     <td className="px-3 py-2">
                       {row.bookingId ? <Link className="font-medium text-[var(--color-primary)] hover:underline" to={`/bookings/${row.bookingId}`}>Booking {row.bookingId.slice(0, 8)}</Link> : <span className="font-medium">Wallet top-up</span>}
-                      <p className="text-xs text-[var(--color-text-secondary)]">{row.customerName ?? (row.topupId ? 'Customer not linked in this record' : 'Unlinked attempt')}</p>
+                      <p className="text-xs text-[var(--color-text-secondary)]">
+                        {row.customerId && row.customerName ? (
+                          <Link className="text-[var(--color-primary)] hover:underline" to={`/customers/${encodeURIComponent(row.customerId)}`}>{row.customerName}</Link>
+                        ) : row.customerName ?? (row.topupId ? 'Customer not linked in this record' : 'Unlinked attempt')}
+                      </p>
+                      <p className="mt-1 break-all font-mono text-[11px] text-[var(--color-text-tertiary)]">Attempt {row.id}</p>
                     </td>
                     <td className="px-3 py-2 text-right font-medium">{formatCurrency(row.amountCentavos)}</td>
                     <td className="px-3 py-2 text-right">{formatCurrency(row.refundedAmountCentavos)}</td>
