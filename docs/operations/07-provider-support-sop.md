@@ -111,27 +111,27 @@ Our operating target is up to 3 business days after approval, but the recorded s
 
 ---
 
-## 6. Commission questions (per tier)
+## 6. Commission questions
 
-Commission is a flat rate per tier. It does not vary inside a tier. It is taken off the service price; the provider receives service price minus commission. The customer service fee is currently 0%; if Ken later re-enables that separate admin-tunable charge, it is still not the provider's commission.
+Commission is taken off the service price, but it can vary inside a tier through an effective-dated provider/category/service agreement. For a priced or paid booking, its immutable Booking 360 financial terms are final. For future work, use Financials -> Commission Controls. The customer service fee is currently 0%; if Ken later re-enables that separate charge, it is still not provider commission.
 
 | Tier | Commission | How you reach it |
 |---|---|---|
-| founding | 10% | Invite-only launch batch. Not a step you earn into. Parallel tier. |
+| founding | 10% seeded base | Invite-only parallel tier; E63 hold, no new offer or assignment. |
 | new | 15% | Default on signup. |
 | verified | 13% | 5+ jobs, 4.0+ rating. |
 | pro | 11% | 25+ jobs, 4.5+ rating, no open disputes. |
 | elite | 9% | 100+ jobs, 4.7+ rating, a verified (TESDA) certification, no open disputes. |
 
 Notes for accurate answers:
-- These defaults are admin-tunable in Settings (Commissions category). If Ken changed a rate, the live number wins. Check Settings before quoting if unsure.
+- These are seeded base rates, not an existing booking's truth. Check the booking snapshot first; otherwise inspect the effective provider/tier agreement in Commission Controls. Direct Settings edits are retired under E50.
 - Tier promotion is not automatic. The app shows progress on the provider's tier-progression screen, but a super_admin sets the new tier on the Providers page (reason required, 10+ chars). When a provider meets the next tier's bar, log a ticket and route to Trust & Safety / admin to apply the change.
 - Do not confuse provider tiers with the customer Suki loyalty tiers. Different thing.
 
 Macro: commission explainer
 
 ```
-Hi [name], your tier is [tier] so your commission is [X]% on the service price. That means on a ₱[price] job, ₱[commission] is the platform commission and you receive ₱[price-commission]. The customer pays a separate service fee on top, which is not part of your commission. Your next tier is [next tier] at [Y]%, which needs [N jobs / rating / cert]. You're at [current jobs] jobs and a [rating] rating. Once you hit the bar we'll review and update your tier.
+Hi [name], booking [reference] fixed your commission at [X]% on the ₱[price] service price. That is ₱[commission] platform commission and ₱[provider amount] provider earnings before any separate payout adjustment. This rate came from [tier/provider/category agreement] and is preserved on the booking. Your current tier is [tier]. The next tier's seeded base is [Y]%, but the effective rate must be checked when future work is priced. You are currently at [jobs] jobs and [rating] rating; meeting the bar starts an admin review and does not change old bookings.
 ```
 
 ---
@@ -342,7 +342,7 @@ Provider ticket intake is available in the shared in-app Support screens. Email 
 |---|---|---|
 | "No money after finishing a job" | Booking + escrow + dispute state | Customer confirmation/current worker can release; E18 blocks treating the 24h/48h mismatch as final policy |
 | "Payout not received" | Payouts / Provider 360 Financials | Up to 3 business days; check status and destination account |
-| "Wrong commission" | Tier + Settings | Flat per tier (10/15/13/11/9%); admin may have tuned it |
+| "Wrong commission" | Booking 360 financial terms + Commission Controls | Explain the booking's snapshotted rate; future agreements never rewrite it |
 | "Can't add extra charge" | Original price | 50% cap, ~₱10K hard cap, must be in_progress |
 | "No job offers" | Approved + available + area | 45s exclusive offers; check availability and service area |
 | "Customer not at site" | Booking 360 Evidence | E60 hold: preserve arrival/contact evidence; current 30-min check is scheduled-time based |

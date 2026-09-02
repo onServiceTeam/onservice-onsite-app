@@ -6,7 +6,7 @@ How to read this doc:
 
 - Every target below is a starting target. Tune it after 4 to 6 weeks of real Cebu data. Targets marked "tune-able" should be reviewed in the weekly ops review.
 - Numbers come from the admin app unless noted. Money is stored in centavos and shown in PHP (₱). Timezone is Asia/Manila.
-- Provider tiers and commission rates are admin-tunable in Settings (`commission_rate_<tier>`). The tier rules below are the current defaults from the tier ladder.
+- The table below shows seeded tier-base commission rates. Prospective changes belong in Financials -> Commission Controls; the legacy direct Settings rows are held under E50. A booking's immutable financial terms are authoritative for that transaction.
 - Related docs: `06-customer-support-sop.md` (support workflow), `07-provider-support-sop.md`, `08-dispatch-and-live-operations.md`, `09-trust-safety-and-disputes.md`, `04-provider-vetting-and-filtering.md`, `11-admin-system-training-manual.md`.
 
 Money-flow note (important): onService's target is an instant-pay escrow model. A server-verified payment is held before provider matching. Customer confirmation can release it, and the worker currently auto-releases after 24 hours, but dispute filing remains open for 48 hours. E18 makes that timing pair unsafe and not launch-grade policy. Quality reporting must distinguish provider completion, confirmation, release, and later dispute state instead of treating auto-confirm as undisputed finality. E14 also blocks the external hosted PayMongo authorization entry.
@@ -55,7 +55,7 @@ Tiers are the quality ladder. The rating, job-count, and dispute thresholds belo
 
 | Tier | Commission | Min jobs | Min rating | Other gates |
 |---|---|---|---|---|
-| Founding | 10% | 0 | 0 | Invite-only launch batch. Terminal, parallel to the ladder, not a step. |
+| Founding | 10% seeded base | 0 | 0 | Invite-only parallel tier. E63 hold; do not newly offer or assign. |
 | New | 15% | 0 | 0 | Default on signup |
 | Verified | 13% | 5 | 4.0 | None |
 | Pro | 11% | 25 | 4.5 | Zero open disputes |

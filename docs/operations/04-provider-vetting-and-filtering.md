@@ -313,11 +313,11 @@ A reference who hesitates on question 3 or 4, or who turns out to be a relative 
 
 ## 5. Provider tiers and commission rates
 
-Five tiers. Commission is flat per tier (it does not change inside a tier) and is taken off the service price. The provider receives service price minus commission. These are the canonical defaults; they are admin-tunable in **Settings -> Commissions** (`commission_rate_<tier>`), so always confirm the live value there before quoting a provider.
+Five tiers. Commission is taken off the service price, but it can vary within a tier through effective-dated provider/category/service agreements. The table is the seeded base schedule. Use **Financials -> Commission Controls** for prospective terms and Booking 360's immutable financial terms for an existing booking. The legacy direct Settings rows are read-only under E50.
 
 | Tier | Commission | What it means | Requirements to reach it |
 |---|---|---|---|
-| **Founding** | **10%** | Invite-only launch-batch tier. First 50 providers per city, 10% locked for 12 months. Parallel tier, not a rung on the normal ladder. | Admin-assigned at invite. Never an automatic promotion or a downgrade target. |
+| **Founding** | **10% seeded base** | Invite-only parallel tier. E63 holds the unsupported first-50/12-month entitlement claim. | Do not newly assign while E63 is open. Never an automatic promotion or downgrade target. |
 | **New** | **15%** | Default tier on signup. | None. Everyone starts here unless invited as Founding. |
 | **Verified** | **13%** | Proven on the platform. | 5+ completed jobs, 4.0+ rating. |
 | **Pro** | **11%** | Reliable, dispute-free. | 25+ jobs, 4.5+ rating, no open disputes. |

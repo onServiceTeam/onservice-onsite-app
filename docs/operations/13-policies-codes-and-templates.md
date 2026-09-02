@@ -87,7 +87,7 @@ Full version lives in `05-provider-onboarding-and-training.md`. Short form for r
 - [ ] Treat customers and their homes with respect. Damage, theft, or harassment leads to suspension and possible removal.
 - [ ] Respond to disputes within 48 hours. Silence escalates the case for staff review using the evidence on file; it does not protect your side of the record.
 
-Commission by tier (flat per tier, taken off the service price): Founding 10%, New 15%, Verified 13%, Pro 11%, Elite 9%. Tier requirements: Verified = 5+ jobs and 4.0+ rating; Pro = 25+ jobs, 4.5+ rating, no open disputes; Elite = 100+ jobs, 4.7+ rating, TESDA-certified, no open disputes. Founding is invite-only.
+Seeded tier-base commission (taken off the service price): Founding 10%, New 15%, Verified 13%, Pro 11%, Elite 9%. Effective provider/category/service agreements can differ, and every booking snapshots its exact rate. Tier requirements: Verified = 5+ jobs and 4.0+ rating; Pro = 25+ jobs, 4.5+ rating, no open disputes; Elite = 100+ jobs, 4.7+ rating, TESDA-certified, no open disputes. Founding is invite-only and held from new assignment under E63.
 
 ---
 
@@ -163,7 +163,7 @@ Copy-paste ready. Replace `[bracketed]` fields. Bilingual (English with Bisaya o
 ### 6.2 Provider approval message
 
 (The app also sends an automatic "Account Approved" notification. Use this for a personal touch.)
-> Congrats [Name], you're approved on onService as a [tier] provider. Your commission is [X]% per job. Keep your NBI current and your ratings up to move to the next tier. First jobs will start coming through as offers (45 seconds to accept). Welcome aboard.
+> Congrats [Name], you're approved on onService as a [tier] provider. The current prospective commission shown in your account is [X]%; each booking will preserve the exact rate shown for that job. Keep your NBI current and your ratings up to become eligible for the next tier review. First jobs will start coming through as offers (45 seconds to accept). Welcome aboard.
 
 ### 6.3 Provider rejection message
 
@@ -302,11 +302,11 @@ Reminder: suspected privacy incidents are contained and sent to the DPO immediat
 
 **New provider activation:**
 - [ ] Application approved in admin (NBI + gov ID + selfie verified)
-- [ ] Tier set (default New; Founding only if invited)
+- [ ] Tier set to default New (do not newly assign Founding while E63 is open)
 - [ ] Service categories and service area confirmed
 - [ ] Payout method on file (GCash/Maya 09XXXXXXXXX, or bank 8-16 digits)
 - [ ] TIN collected before first payout (flag if approaching ₱500,000 YTD for BIR withholding)
-- [ ] Welcome message sent; commission rate explained
+- [ ] Welcome message sent; prospective agreement and per-booking immutable commission explained
 - [ ] Branded shirt arranged
 - [ ] Probation flagged (first 3 jobs, before/after photos)
 - [ ] First-job support contact assigned

@@ -142,11 +142,11 @@ How to suspend a provider (use carefully):
 
 There is no "delete provider" button. Removal from operation is done by Suspend or the `deactivated` status. See `04-provider-vetting-and-filtering.md` for the full vetting scorecard and tier rules.
 
-Provider tiers and commission (for reference while changing tiers):
+Provider tiers and seeded base commission (reference only; exact rates can differ by effective agreement):
 
 | Tier | Commission | Requirements (auto-eligibility signal) |
 |---|---|---|
-| `founding` | 10% | Invite-only launch batch. Parallel tier, not a step in the ladder. |
+| `founding` | 10% seeded base | Invite-only parallel tier. E63 hold: do not newly assign. |
 | `new` | 15% | Default on signup. |
 | `verified` | 13% | 5+ jobs, 4.0+ rating. |
 | `pro` | 11% | 25+ jobs, 4.5+ rating, no open disputes. |
@@ -414,7 +414,7 @@ Retention Signals is a deterministic attention score over active customer
 accounts, not a churn probability or outreach permission. Open Customer 360
 before action. Quality Evidence contains legacy stored snapshots only; E47
 blocks recomputation because their weighting conflicts with the approved
-monthly scorecard. Commission Evidence shows the live configured rate and
+monthly scorecard. Commission Evidence shows the effective-dated base rate and
 operational samples, but E48 removes automated rate advice. It cannot publish a
 rate, calculate provider earnings, or replace the Financials and Payout records.
 See `12-quality-standards-and-kpis.md` for the approved human review cadence.
@@ -487,7 +487,7 @@ The settings registry is grouped by operational category. Inactive legacy insura
 
 Super_admin can Edit and Reset only a **Live control**. Each change requires an audited reason of at least 10 characters. **Launch hold** and **Not connected** rows are read-only for every role, including super_admin. This prevents a stored value from making customer/provider wording disagree with API, worker, money, or security enforcement. Plain admins are read-only for all rows.
 
-How to change a setting (super_admin): find it by category, confirm the **Live control** badge and read its impact text, click Edit, set the new value within the allowed range, type a reason, and save. Cache-backed consumers refresh within about 60 seconds; Flush cache forces those readers to fetch again. Common live controls include commission rate per tier, service fee rate, `auto_dispatch_enabled`, and the internal large-payout review threshold. The escrow auto-confirm and filing-window rows are now visibly read-only because E18 makes that pair a money-path hard stop and their authoritative workers still use deployed configuration. Never change a money setting without Ken's go-ahead. See `10-money-and-compliance-ops.md`.
+How to change a setting (super_admin): find it by category, confirm the **Live control** badge and read its impact text, click Edit, set the new value within the allowed range, type a reason, and save. Cache-backed consumers refresh within about 60 seconds; Flush cache forces those readers to fetch again. Examples include the service-fee rate for new pricing, internal large-payout review threshold, quote lifetime for new quotes, service-radius maximum for new provider changes, and strict refresh-token fingerprint enforcement. Direct commission rows are retired under E50 and `auto_dispatch_enabled` is held under E33; use Commission Controls for prospective commission agreements. The escrow auto-confirm and filing-window rows are read-only under E18. Never change a money setting without Ken's go-ahead. See `10-money-and-compliance-ops.md`.
 
 ### 2.28 Cancellation Policy (`/settings/cancellation-policy`)
 
@@ -559,7 +559,7 @@ Navigation and roles
 Providers
 - [ ] Can open a Provider 360 and view KYC docs through the proxy.
 - [ ] Can state all four KYC evidence files (NBI, government ID front, government ID back, selfie), explain which three the server currently enforces, and apply the E36 manual ID-back stop.
-- [ ] Can name the five tiers and their commission rates from memory.
+- [ ] Can name the five tiers, then find the effective base/provider agreement and the booking's immutable commission terms without quoting a rate from memory.
 - [ ] Knows there is no delete; removal is Suspend or `deactivated`.
 
 Bookings and dispatch
