@@ -49,6 +49,7 @@ interface Addon {
   price: number;
   isActive: boolean;
   displayOrder: number;
+  exceedsCurrentPriceCap: boolean;
 }
 
 type ModalMode = null | 'addCategory' | 'editCategory' | 'addSubcategory' | 'editSubcategory' | 'addAddon' | 'editAddon';
@@ -229,28 +230,37 @@ export default function CatalogPage(): React.ReactElement {
   } = useQuery({
     queryKey: ['adminAddons', expandedAddons],
     queryFn: async () => {
-      if (!expandedAddons) return [];
-      const res = await api.get<{ success: boolean; data: Addon[] }>(
+      if (!expandedAddons) return { addons: [], priceCapCentavos: null };
+      const res = await api.get<{ success: boolean; data: Addon[]; meta: { priceCapCentavos: number } }>(
         `/api/v1/catalog/admin/subcategories/${expandedAddons}/addons`,
       );
-      return res.data.data;
+      return {
+        addons: res.data.data,
+        priceCapCentavos: res.data.meta.priceCapCentavos,
+      };
     },
     enabled: !!expandedAddons,
   });
 
   const addonMutation = useMutation({
     mutationFn: async () => {
-      const body = {
-        subcategoryId: addonSubcatId,
+      const price = addonPrice ? Math.round(Number(addonPrice) * 100) : 0;
+      const commonBody = {
         name: addonName.trim(),
         description: addonDesc.trim(),
-        price: addonPrice ? Math.round(Number(addonPrice) * 100) : 0,
         displayOrder: Number(addonOrder),
       };
       if (modal === 'addAddon') {
-        await api.post('/api/v1/catalog/admin/addons', body);
+        await api.post('/api/v1/catalog/admin/addons', {
+          subcategoryId: addonSubcatId,
+          ...commonBody,
+          price,
+        });
       } else if (modal === 'editAddon' && addonEditTarget) {
-        await api.put(`/api/v1/catalog/admin/addons/${addonEditTarget.id}`, body);
+        await api.put(`/api/v1/catalog/admin/addons/${addonEditTarget.id}`, {
+          ...commonBody,
+          ...(price !== addonEditTarget.price ? { price } : {}),
+        });
       }
     },
     onSuccess: () => {
@@ -435,6 +445,9 @@ export default function CatalogPage(): React.ReactElement {
     (service) => service.description.trim().length < CUSTOMER_SERVICE_SCOPE_MIN,
   ).length;
   const readyScopeCount = activeServices.length - missingScopeCount;
+  const addons = addonsData?.addons ?? [];
+  const addonPriceCapCentavos = addonsData?.priceCapCentavos ?? null;
+  const activeAddonsAboveCap = addons.filter((addon) => addon.exceedsCurrentPriceCap);
   const visibleCategories = serviceFilter === 'all'
     ? categories
     : categories
@@ -732,11 +745,19 @@ export default function CatalogPage(): React.ReactElement {
                                     Retry add-ons
                                   </button>
                                 </div>
-                              ) : (addonsData ?? []).length === 0 ? (
+                              ) : addons.length === 0 ? (
                                 <p className="text-xs text-[var(--color-text-secondary)]">No add-ons yet.</p>
                               ) : (
                                 <div className="space-y-1">
-                                  {(addonsData ?? []).map((addon) => (
+                                  {activeAddonsAboveCap.length > 0 && addonPriceCapCentavos !== null ? (
+                                    <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                                      <span className="font-semibold">
+                                        {activeAddonsAboveCap.length} active add-on{activeAddonsAboveCap.length === 1 ? '' : 's'} {activeAddonsAboveCap.length === 1 ? 'is' : 'are'} above the current {formatCurrency(addonPriceCapCentavos)} authoring limit.
+                                      </span>{' '}
+                                      {activeAddonsAboveCap.length === 1 ? 'It remains' : 'They remain'} visible and bookable to customers until a super admin edits each price to the allowed range or deactivates the add-on. Historical booking prices do not change.
+                                    </div>
+                                  ) : null}
+                                  {addons.map((addon) => (
                                     <div key={addon.id} className="flex flex-col gap-3 bg-white rounded-md px-3 py-2 border border-purple-100 sm:flex-row sm:items-center sm:justify-between">
                                       <div className="min-w-0">
                                         <span className="text-sm font-medium text-[var(--color-text)]">{addon.name}</span>
@@ -746,6 +767,7 @@ export default function CatalogPage(): React.ReactElement {
                                       </div>
                                       <div className="flex flex-wrap items-center gap-2">
                                         <span className="text-sm font-medium text-[var(--color-text)]">{formatCurrency(addon.price)}</span>
+                                        {addon.exceedsCurrentPriceCap && <Badge label="Above current price limit" variant="warning" />}
                                         {!addon.isActive && <span className="text-xs text-red-600">(inactive)</span>}
                                         {isSuperAdmin && <button
                                           type="button"
@@ -861,6 +883,7 @@ export default function CatalogPage(): React.ReactElement {
                         type="number"
                         step="0.01"
                         min="0"
+                        max={addonPriceCapCentavos !== null ? String(addonPriceCapCentavos / 100) : undefined}
                         value={addonPrice}
                         onChange={(e) => setAddonPrice(e.target.value)}
                         required

@@ -1210,6 +1210,54 @@ interface AddonRow {
   display_order: number;
 }
 
+export interface AdminAddonView {
+  id: string;
+  subcategoryId: string;
+  name: string;
+  description: string;
+  price: number;
+  isActive: boolean;
+  displayOrder: number;
+  exceedsCurrentPriceCap: boolean;
+}
+
+export interface AdminAddonList {
+  addons: AdminAddonView[];
+  priceCapCentavos: number;
+}
+
+/**
+ * Admin-only catalog projection. Grandfathered active rows stay available to
+ * customers under E65 Option A, while operators receive an explicit review
+ * signal against the effective authoring cap.
+ */
+export async function getAdminAddonsForSubcategory(subcategoryId: string): Promise<AdminAddonList> {
+  const result = await db.query<AddonRow>(
+    `SELECT id, subcategory_id, name, description, price, is_active, display_order
+     FROM service_addons
+     WHERE subcategory_id = $1
+     ORDER BY display_order ASC, name ASC`,
+    [subcategoryId],
+  );
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getAddonPriceMaxCentsLive } = require('../validators/admin-catalog.validators');
+  const priceCapCentavos: number = await getAddonPriceMaxCentsLive();
+
+  return {
+    priceCapCentavos,
+    addons: result.rows.map((a) => ({
+      id: a.id,
+      subcategoryId: a.subcategory_id,
+      name: a.name,
+      description: a.description,
+      price: a.price,
+      isActive: a.is_active,
+      displayOrder: a.display_order,
+      exceedsCurrentPriceCap: a.is_active && a.price > priceCapCentavos,
+    })),
+  };
+}
+
 export async function getAddonsForSubcategory(subcategoryId: string): Promise<Record<string, unknown>[]> {
   const result = await db.query<AddonRow>(
     `SELECT id, subcategory_id, name, description, price, is_active, display_order

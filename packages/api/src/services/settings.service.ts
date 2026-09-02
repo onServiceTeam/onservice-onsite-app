@@ -10,6 +10,7 @@ import { db } from '../models/db';
 import { redis } from '../config/redis.config';
 import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
+import { ADDON_PRICE_HARD_MAX_CENTAVOS } from '../config/catalog.config';
 import apiPackageJson from '../../package.json';
 
 const CACHE_PREFIX = 'settings:';
@@ -297,6 +298,7 @@ const RELEASE_COUPLED_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
 
 const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   aml_large_transaction_threshold_centavos: 'New single-payout requests at or above this threshold enter an internal compliance-review hold. Existing requests keep their snapshotted threshold.',
+  addon_price_max_cents: 'Within 60 seconds, this becomes the maximum for future add-on creation, add-on price changes, and inactive add-on reactivation, up to the platform hard ceiling of ₱100,000. Existing active add-ons remain customer-visible and bookable at their current price until an operator reviews them in Catalog; historical booking price snapshots never change.',
   max_service_radius_km: 'Provider applications, provider change requests, approval review, super-admin edits, and customer/provider guidance enforce this maximum for new changes.',
   quote_expiry_hours: 'New provider quotes snapshot this lifetime into their exact expiry timestamp. Existing quotes keep the deadline shown to both parties when the quote was submitted.',
   refresh_token_strict_fingerprint: 'When enabled, future customer/provider refresh attempts from a different device fingerprint are rejected and require OTP sign-in. When disabled, mismatches are logged and the refresh continues.',
@@ -659,6 +661,12 @@ export function validateSettingValue(setting: SettingRow, newValue: string): voi
     }
     if (min_value !== null && num < Number(min_value)) {
       throw createAppError(`Setting "${key}" minimum is ${min_value}.`, 400);
+    }
+    if (key === 'addon_price_max_cents' && num > ADDON_PRICE_HARD_MAX_CENTAVOS) {
+      throw createAppError(
+        'Setting "addon_price_max_cents" cannot exceed the platform hard ceiling of 10000000 centavos (₱100,000).',
+        400,
+      );
     }
     if (max_value !== null && num > Number(max_value)) {
       throw createAppError(`Setting "${key}" maximum is ${max_value}.`, 400);
@@ -1278,6 +1286,10 @@ export function formatSetting(s: SettingRow): {
   isDefault: boolean;
 } {
   const runtimeControl = getSettingRuntimeControl(s.key);
+  const storedMaxValue = s.max_value !== null ? Number(s.max_value) : null;
+  const effectiveMaxValue = s.key === 'addon_price_max_cents'
+    ? Math.min(storedMaxValue ?? ADDON_PRICE_HARD_MAX_CENTAVOS, ADDON_PRICE_HARD_MAX_CENTAVOS)
+    : storedMaxValue;
   return {
     id: s.id,
     category: s.category,
@@ -1289,7 +1301,7 @@ export function formatSetting(s: SettingRow): {
     value: s.is_sensitive ? '\u2022\u2022\u2022\u2022\u2022\u2022' : s.value,
     defaultValue: s.is_sensitive ? '\u2022\u2022\u2022\u2022\u2022\u2022' : s.default_value,
     minValue: s.min_value !== null ? Number(s.min_value) : null,
-    maxValue: s.max_value !== null ? Number(s.max_value) : null,
+    maxValue: effectiveMaxValue,
     allowedValues: s.allowed_values,
     displayOrder: s.display_order,
     unit: s.unit,

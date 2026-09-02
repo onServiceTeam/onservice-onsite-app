@@ -1,7 +1,7 @@
 # E65 — Add-on price cap authority and retroactivity are contradictory
 
 **Date:** 2026-09-02
-**Status:** AWAITING KEN DECISION — no code, migration, production, or existing add-on change made
+**Status:** OPTION A APPROVED BY KEN — implemented on the topic branch; clean-runner verification pending; no migration, production, backfill, or existing add-on rewrite made
 **Scope:** `addon_price_max_cents`, Admin System Settings, Admin Catalog, public add-on discovery, fixed-price booking and pricing preview
 
 ## Bad news
@@ -90,8 +90,11 @@ the numerical contradiction but weakens the existing typo/abuse guard by five
 times and conflicts with the code's explicit ₱100,000 product backstop. It is
 not recommended without a separate approved catalog-pricing policy.
 
-## Required decision
+## Decision recorded
 
-Approve Option A, B, or C. Until then, do not change the cap, migrate setting
-metadata, filter customer add-ons, rewrite existing add-on prices, or deploy a
-behavior change.
+Ken approved Option A on 2026-09-02. The implementation keeps this as a
+prospective authoring guard, preserves public discovery and historical booking
+snapshots, and adds deliberate Admin Catalog review signals for active rows
+above the effective cap. Production remains unchanged under the existing
+deployment and migration holds until clean-runner evidence is recorded and the
+separate release authority is satisfied.
