@@ -1719,7 +1719,10 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
 interface ReceiptRow {
   id: string;
   orNumber: string;
+  bookingId?: string;
+  customerId?: string;
   customerName: string;
+  providerId?: string | null;
   providerName: string | null;
   issuedAt: string;
   gross: number;
@@ -1741,7 +1744,10 @@ function normalizeReceiptRows(data: ReceiptRow[] | ReceiptSearchEnvelope): Recei
     rows: rows.map((row) => ({
       id: row.id,
       orNumber: row.orNumber,
+      bookingId: row.bookingId,
+      customerId: row.customerId,
       customerName: row.customerName,
+      providerId: row.providerId ?? null,
       providerName: row.providerName,
       issuedAt: row.issuedAt,
       gross: Number(row.gross ?? row.grossCentavos ?? 0),
@@ -1964,9 +1970,20 @@ export function ReceiptsPanel(): React.ReactElement {
                     ) : (
                       <span className="text-[var(--color-text)]">{row.orNumber}</span>
                     )}
+                    {row.bookingId && (
+                      <p className="mt-1">
+                        <Link to={`/bookings/${encodeURIComponent(row.bookingId)}`} className="font-sans text-[var(--color-primary)] hover:underline">
+                          Open Booking 360
+                        </Link>
+                      </p>
+                    )}
                   </td>
-                  <td className="py-2 px-3 text-[var(--color-text)]">{row.customerName}</td>
-                  <td className="py-2 px-3 text-[var(--color-text)]">{row.providerName ?? '—'}</td>
+                  <td className="py-2 px-3 text-[var(--color-text)]">
+                    {row.customerId ? <Link to={`/customers/${encodeURIComponent(row.customerId)}`} className="text-[var(--color-primary)] hover:underline">{row.customerName}</Link> : row.customerName}
+                  </td>
+                  <td className="py-2 px-3 text-[var(--color-text)]">
+                    {row.providerId ? <Link to={`/providers/${encodeURIComponent(row.providerId)}`} className="text-[var(--color-primary)] hover:underline">{row.providerName ?? 'Provider record'}</Link> : row.providerName ?? '—'}
+                  </td>
                   <td className="py-2 px-3 text-[var(--color-text-secondary)] text-xs">
                     {formatDateTime(row.issuedAt)}
                   </td>
