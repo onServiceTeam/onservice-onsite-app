@@ -1398,6 +1398,39 @@ controller, so existing isolated uses are not broken.
 Admin TypeScript, focused ESLint, and `git diff --check` pass. The focused
 Vitest invocation started but both fork workers timed out before transform,
 setup, import, or assertion, so no local rendered pass is claimed. Protected CI
-must execute the full rendered Admin suite before this checkpoint is treated as
-verified. No account, contract, statement, payment, audit, or production record
-changed.
+`33680853015` passed the full rendered Admin suite, Admin and API TypeScript
+checks, the Admin production build, full API and mobile suites, and the Docker
+image boot/health check at commit `84e3ea1`. Protected Gates `33680853086`
+passed A through E and the `All gates passed` rollup at the same commit. No
+account, contract, statement, payment, audit, or production record changed.
+
+## Checkpoint AK: global Business Account operator search
+
+The Admin command search covered customers, providers, bookings, support cases,
+disputes, and payouts, but omitted Business Accounts. An operator supporting an
+enterprise customer could not find its canonical Business Account 360 by
+company, contact, owner, registration number, or tax identifier unless they
+first navigated to the separate account list.
+
+OPS-388 adds a seventh fixed, bounded search query for Business Accounts and
+UX-1052 renders those results as a distinct `Business account` record type. A
+match opens the canonical `/business-accounts/:id` workspace. Company,
+account, owner, contact, registration, and tax values can be used to locate the
+record, but registration and tax identifiers are never returned in search
+results, and returned phone and email context uses the established masking
+policy. The search remains restricted to admin and super-admin roles by the
+existing route guard.
+
+The first uncommitted implementation inserted the database query in a different
+position than its result destructuring. The focused API test exposed that rows
+could be assigned the wrong entity type, so the ordering was corrected before
+commit and both regression fixtures now follow the query contract.
+
+Local API and Admin TypeScript checks and focused ESLint pass. The two focused
+API behavior tests pass, covering cross-entity ranking, masking, canonical
+routing, and Business Account search-only identifiers. Both fork and
+single-thread local Vitest attempts timed out before transform, setup, import,
+or assertion in the Windows/OneDrive environment, so no local rendered pass is
+claimed. Protected CI must execute the rendered Admin fixture before this
+checkpoint is treated as verified. No customer, provider, business account,
+booking, support, payment, audit, or production record changed.

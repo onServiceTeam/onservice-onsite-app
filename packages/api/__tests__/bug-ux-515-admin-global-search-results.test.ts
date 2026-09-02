@@ -23,6 +23,7 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
 it('Bug UX-515 — global record search ranks canonical workspaces and never returns raw contact details', async () => {
   queryMock
     .mockResolvedValueOnce({ rows: [row()] })
+    .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValueOnce({ rows: [row({
       id: '22222222-2222-4222-8222-222222222222',
       title: 'Cebu Home Pro',
@@ -82,7 +83,7 @@ it('Bug UX-515 — global record search ranks canonical workspaces and never ret
   expect(JSON.stringify(results)).toContain('a•••@example.com');
   expect(JSON.stringify(results)).not.toContain('+639171234567');
   expect(JSON.stringify(results)).not.toContain('ana@example.com');
-  expect(queryMock).toHaveBeenCalledTimes(6);
+  expect(queryMock).toHaveBeenCalledTimes(7);
   for (const call of queryMock.mock.calls) {
     expect(call[1]).toEqual(['0917 123 4567', '639171234567', 4]);
   }

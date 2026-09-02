@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Banknote,
   Bell,
+  Building2,
   ChevronDown,
   ClipboardList,
   Key,
@@ -24,7 +25,7 @@ interface HeaderProps {
   onOpenNavigation?: () => void;
 }
 
-type AdminSearchKind = 'customer' | 'provider' | 'booking' | 'support' | 'dispute' | 'payout';
+type AdminSearchKind = 'customer' | 'provider' | 'business' | 'booking' | 'support' | 'dispute' | 'payout';
 
 interface AdminRecordResult {
   kind: AdminSearchKind;
@@ -38,6 +39,7 @@ interface AdminRecordResult {
 const RECORD_KIND_META = {
   customer: { label: 'Customer', Icon: Users },
   provider: { label: 'Provider', Icon: Wrench },
+  business: { label: 'Business account', Icon: Building2 },
   booking: { label: 'Booking', Icon: ClipboardList },
   support: { label: 'Support', Icon: Ticket },
   dispute: { label: 'Dispute', Icon: Scale },

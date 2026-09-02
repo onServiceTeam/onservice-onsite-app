@@ -4,6 +4,7 @@ import { maskEmail, maskPhilippinePhone } from '../utils/pii-mask';
 export type AdminSearchKind =
   | 'customer'
   | 'provider'
+  | 'business'
   | 'booking'
   | 'support'
   | 'dispute'
@@ -40,10 +41,11 @@ const TOTAL_LIMIT = 12;
 const KIND_ORDER: Record<AdminSearchKind, number> = {
   customer: 0,
   provider: 1,
-  booking: 2,
-  support: 3,
-  dispute: 4,
-  payout: 5,
+  business: 2,
+  booking: 3,
+  support: 4,
+  dispute: 5,
+  payout: 6,
 };
 
 function shortId(id: string): string {
@@ -65,7 +67,9 @@ function normalizePhoneSearch(needle: string): string {
 function formatResult(kind: AdminSearchKind, row: RawSearchRow): RankedResult {
   const reference = shortId(row.id);
   const status = row.status?.replace(/_/g, ' ') ?? null;
-  const contact = kind === 'customer' || kind === 'provider' ? contactSummary(row) : [];
+  const contact = kind === 'customer' || kind === 'provider' || kind === 'business'
+    ? contactSummary(row)
+    : [];
   const subtitle = [row.context, status, ...contact].filter(Boolean).join(' · ');
 
   const title = kind === 'booking'
@@ -80,13 +84,15 @@ function formatResult(kind: AdminSearchKind, row: RawSearchRow): RankedResult {
     ? `/customers/${row.id}`
     : kind === 'provider'
       ? `/providers/${row.id}`
-      : kind === 'booking'
-        ? `/bookings/${row.id}`
-        : kind === 'support'
-          ? `/support-tickets?ticketId=${encodeURIComponent(row.id)}`
-          : kind === 'dispute'
-            ? `/disputes/${row.id}`
-            : `/payouts?payoutId=${encodeURIComponent(row.id)}`;
+      : kind === 'business'
+        ? `/business-accounts/${row.id}`
+        : kind === 'booking'
+          ? `/bookings/${row.id}`
+          : kind === 'support'
+            ? `/support-tickets?ticketId=${encodeURIComponent(row.id)}`
+            : kind === 'dispute'
+              ? `/disputes/${row.id}`
+              : `/payouts?payoutId=${encodeURIComponent(row.id)}`;
 
   return {
     kind,
@@ -111,9 +117,9 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
   const phoneDigits = normalizePhoneSearch(needle);
   const params = [needle, phoneDigits, PER_KIND_LIMIT];
 
-  // Six fixed, bounded queries are intentionally parallel. This is not a
+  // Seven fixed, bounded queries are intentionally parallel. This is not a
   // record-driven query loop and cannot grow with the number of matches.
-  const [customers, providers, bookings, support, disputes, payouts] = await Promise.all([
+  const [customers, businesses, providers, bookings, support, disputes, payouts] = await Promise.all([
     db.query<RawSearchRow>(
       `SELECT u.id::text AS id,
               TRIM(CONCAT_WS(' ', u.first_name, u.last_name)) AS title,
@@ -137,6 +143,46 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
             OR ($2 <> '' AND STRPOS(REGEXP_REPLACE(COALESCE(u.phone, ''), '\\D', '', 'g'), $2) > 0)
           )
         ORDER BY rank, u.updated_at DESC
+        LIMIT $3`,
+      params,
+    ),
+    db.query<RawSearchRow>(
+      `SELECT ba.id::text AS id,
+              ba.company_name AS title,
+              CONCAT_WS(' · ',
+                NULLIF(CONCAT_WS(', ', ba.city, ba.province), ''),
+                'Contact ' || ba.contact_person
+              ) AS context,
+              ba.status::text AS status,
+              ba.contact_phone AS phone, ba.contact_email AS email,
+              ba.owner_user_id::text AS related_id,
+              CASE
+                WHEN LOWER(ba.id::text) = LOWER($1) THEN 0
+                WHEN LOWER(ba.company_name) = LOWER($1)
+                  OR LOWER(COALESCE(ba.registration_number, '')) = LOWER($1)
+                  OR LOWER(COALESCE(ba.tax_id, '')) = LOWER($1) THEN 1
+                WHEN LEFT(LOWER(ba.id::text), LENGTH($1)) = LOWER($1) THEN 1
+                ELSE 2
+              END AS rank,
+              ba.updated_at AS created_at
+         FROM business_accounts ba
+         JOIN users owner ON owner.id = ba.owner_user_id
+        WHERE STRPOS(LOWER(ba.id::text), LOWER($1)) > 0
+           OR STRPOS(LOWER(ba.company_name), LOWER($1)) > 0
+           OR STRPOS(LOWER(ba.contact_person), LOWER($1)) > 0
+           OR STRPOS(LOWER(ba.contact_phone), LOWER($1)) > 0
+           OR STRPOS(LOWER(ba.contact_email), LOWER($1)) > 0
+           OR STRPOS(LOWER(COALESCE(ba.registration_number, '')), LOWER($1)) > 0
+           OR STRPOS(LOWER(COALESCE(ba.tax_id, '')), LOWER($1)) > 0
+           OR STRPOS(LOWER(owner.id::text), LOWER($1)) > 0
+           OR STRPOS(LOWER(TRIM(CONCAT_WS(' ', owner.first_name, owner.last_name))), LOWER($1)) > 0
+           OR STRPOS(LOWER(COALESCE(owner.phone, '')), LOWER($1)) > 0
+           OR STRPOS(LOWER(COALESCE(owner.email, '')), LOWER($1)) > 0
+           OR ($2 <> '' AND (
+             STRPOS(REGEXP_REPLACE(ba.contact_phone, '\\D', '', 'g'), $2) > 0
+             OR STRPOS(REGEXP_REPLACE(COALESCE(owner.phone, ''), '\\D', '', 'g'), $2) > 0
+           ))
+        ORDER BY rank, ba.updated_at DESC
         LIMIT $3`,
       params,
     ),
@@ -305,6 +351,7 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
   const ranked = [
     ...customers.rows.map((row) => formatResult('customer', row)),
     ...providers.rows.map((row) => formatResult('provider', row)),
+    ...businesses.rows.map((row) => formatResult('business', row)),
     ...bookings.rows.map((row) => formatResult('booking', row)),
     ...support.rows.map((row) => formatResult('support', row)),
     ...disputes.rows.map((row) => formatResult('dispute', row)),
