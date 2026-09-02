@@ -190,7 +190,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
 
   const deleteMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      await api.delete(`/api/v1/admin/notification-templates/${id}`, { data: { reason } });
+      await api.delete(`/api/v1/admin/notification-templates/${id}`, { body: { reason } });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['adminTemplates'] });

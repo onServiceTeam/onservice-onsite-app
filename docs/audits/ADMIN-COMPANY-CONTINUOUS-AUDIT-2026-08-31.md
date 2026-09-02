@@ -1182,7 +1182,7 @@ operator manual.
   unchanged. No migration or external provider was introduced.
 
 Executed coverage is Bugs OPS-365 through OPS-370, SEC-035, and rendered Bugs
-UX-1020/1021, plus the updated UX-672/674/676/677 and historical delete tests.
+UX-1020 through UX-1022, plus the updated UX-672/674/676/677 and historical delete tests.
 API TypeScript and `git diff --check` pass locally. Local Jest still fails before
 test loading on an EPERM dependency read; Admin TypeScript fails before project
 code because `node_modules/vitest/globals.d.ts` is missing; local Vitest has the
