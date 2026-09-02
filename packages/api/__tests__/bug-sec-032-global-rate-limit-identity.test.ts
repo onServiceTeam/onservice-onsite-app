@@ -6,7 +6,10 @@ jest.mock('../src/services/settings.service', () => ({
   getSettingInteger: jest.fn(),
 }));
 jest.mock('../src/config/redis.config', () => ({
-  redis: { call: jest.fn() },
+  // RedisStore loads its Lua scripts during construction. Return the same
+  // reply shape as Redis SCRIPT LOAD so this key-selection unit test does not
+  // leave rejected initialization promises behind after Jest exits.
+  redis: { call: jest.fn().mockResolvedValue('sec-032-test-script-sha') },
 }));
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
