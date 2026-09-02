@@ -1372,6 +1372,32 @@ the same owning business record.
 `git diff --check`, local Admin TypeScript, and focused ESLint pass. Local
 Vitest reached no import or assertion because its fork worker timed out waiting
 for the Windows/OneDrive dependency tree, so no local rendered pass is claimed.
-Protected Admin TypeScript, build, and the full rendered suite remain the
-execution gate. No customer, provider, account, contract, statement, payment,
-audit, or production record changed.
+Protected CI `33679048906` passed the full rendered Admin suite, Admin and API
+TypeScript checks, the Admin production build, full API and mobile suites, and
+the Docker image boot/health check at commit `544dea5`. Protected Gates
+`33679048898` passed A through E and the `All gates passed` rollup at the same
+commit. No customer, provider, account, contract, statement, payment, audit, or
+production record changed.
+
+## Checkpoint AJ: exact B2B audit handoff and durable account workspace state
+
+UX-1050 made controlled B2B audit rows navigable, but contract and statement
+events still opened the Business Account 360 Overview tab. The operator then
+had to find the relevant workspace and statement again, and the page kept its
+tab and selected statement only in local component state. Reloading, using
+browser back/forward, or sharing the URL discarded that investigation context.
+
+UX-1051 gives Business Account 360 validated URL-backed tab and statement
+selection. Contract events enter the Contracts tab, while statement events
+open the Invoices tab and load the exact retained statement evidence by ID.
+Changing tabs and opening or closing a statement updates that URL state; an
+invalid tab falls back to Overview and an invalid statement ID is not queried.
+The invoice list component retains local selection when embedded without a URL
+controller, so existing isolated uses are not broken.
+
+Admin TypeScript, focused ESLint, and `git diff --check` pass. The focused
+Vitest invocation started but both fork workers timed out before transform,
+setup, import, or assertion, so no local rendered pass is claimed. Protected CI
+must execute the full rendered Admin suite before this checkpoint is treated as
+verified. No account, contract, statement, payment, audit, or production record
+changed.

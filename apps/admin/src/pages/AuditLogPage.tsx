@@ -197,13 +197,19 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
     case 'business_contract': {
       const accountId = linkedBusinessAccountId(entry);
       return accountId
-        ? { to: `/business-accounts/${encodeURIComponent(accountId)}`, label: 'Open owning business account' }
+        ? {
+            to: `/business-accounts/${encodeURIComponent(accountId)}?tab=contracts`,
+            label: 'Open owning business account contracts',
+          }
         : null;
     }
     case 'business_invoice': {
       const accountId = linkedBusinessAccountId(entry);
       return accountId
-        ? { to: `/business-accounts/${encodeURIComponent(accountId)}`, label: 'Open owning business account' }
+        ? {
+            to: `/business-accounts/${encodeURIComponent(accountId)}?tab=invoices&invoiceId=${encodeURIComponent(id)}`,
+            label: 'Open exact business statement evidence',
+          }
         : null;
     }
     case 'service_area':

@@ -19,7 +19,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -301,6 +301,15 @@ interface AdminStaffOption {
 
 type TabId = 'overview' | 'members' | 'contracts' | 'bookings' | 'invoices';
 
+const BUSINESS_ACCOUNT_TABS: readonly TabId[] = [
+  'overview', 'members', 'contracts', 'bookings', 'invoices',
+];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parseTab(value: string | null): TabId {
+  return BUSINESS_ACCOUNT_TABS.includes(value as TabId) ? value as TabId : 'overview';
+}
+
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'default' | 'info'> = {
   active: 'success',
   pending: 'warning',
@@ -355,7 +364,32 @@ function memberName(m: BusinessMember): string {
 export default function BusinessAccountDetailPage(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const accountId = id ?? '';
-  const [tab, setTab] = useState<TabId>('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = parseTab(searchParams.get('tab'));
+  const requestedInvoiceId = searchParams.get('invoiceId');
+  const selectedInvoiceId = tab === 'invoices' && requestedInvoiceId && UUID_PATTERN.test(requestedInvoiceId)
+    ? requestedInvoiceId
+    : null;
+
+  function setTab(nextTab: TabId): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextTab === 'overview') params.delete('tab');
+      else params.set('tab', nextTab);
+      if (nextTab !== 'invoices') params.delete('invoiceId');
+      return params;
+    });
+  }
+
+  function setSelectedInvoiceId(invoiceId: string | null): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'invoices');
+      if (invoiceId) params.set('invoiceId', invoiceId);
+      else params.delete('invoiceId');
+      return params;
+    });
+  }
 
   const accountQuery = useQuery({
     queryKey: ['admin-business-account', accountId],
@@ -427,7 +461,11 @@ export default function BusinessAccountDetailPage(): React.ReactElement {
           <BusinessBookingsTab accountId={accountId} />
         </TabsContent>
         <TabsContent value="invoices">
-          <InvoicesTab accountId={accountId} />
+          <InvoicesTab
+            accountId={accountId}
+            selectedInvoiceId={selectedInvoiceId}
+            onSelectedInvoiceChange={setSelectedInvoiceId}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -1398,7 +1436,15 @@ export function BusinessBookingsTab({ accountId }: { accountId: string }): React
 
 // ─── InvoicesTab ─────────────────────────────────────────────────────────────
 
-export function InvoicesTab({ accountId }: { accountId: string }): React.ReactElement {
+export function InvoicesTab({
+  accountId,
+  selectedInvoiceId,
+  onSelectedInvoiceChange,
+}: {
+  accountId: string;
+  selectedInvoiceId?: string | null;
+  onSelectedInvoiceChange?: (invoiceId: string | null) => void;
+}): React.ReactElement {
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const queryClient = useQueryClient();
@@ -1408,7 +1454,18 @@ export function InvoicesTab({ accountId }: { accountId: string }): React.ReactEl
   const [actionInfo, setActionInfo] = useState('');
   const [invoicePreview, setInvoicePreview] = useState<InvoicePreview | null>(null);
   const [preparationReason, setPreparationReason] = useState('');
-  const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
+  const [localExpandedInvoiceId, setLocalExpandedInvoiceId] = useState<string | null>(null);
+  const expandedInvoiceId = selectedInvoiceId === undefined
+    ? localExpandedInvoiceId
+    : selectedInvoiceId;
+
+  function setExpandedInvoiceId(invoiceId: string | null | ((current: string | null) => string | null)): void {
+    const nextInvoiceId = typeof invoiceId === 'function'
+      ? invoiceId(expandedInvoiceId)
+      : invoiceId;
+    if (selectedInvoiceId === undefined) setLocalExpandedInvoiceId(nextInvoiceId);
+    onSelectedInvoiceChange?.(nextInvoiceId);
+  }
 
   const q = useQuery({
     queryKey: ['admin-business-account-invoices', accountId, page],

@@ -84,9 +84,7 @@ it('Bug UX-1050 - every first-class B2B audit target links to its owning Busines
   );
 
   await screen.findAllByText('Configuration changed');
-  const links = Array.from(
-    container.querySelectorAll(`a[href="/business-accounts/${ACCOUNT_ID}"]`),
-  );
+  const links = Array.from(container.querySelectorAll(`a[href^="/business-accounts/${ACCOUNT_ID}"]`));
   expect(links).toHaveLength(3);
   expect(links.map((link) => link.textContent)).toEqual(expect.arrayContaining([
     expect.stringContaining('Business Account'),
