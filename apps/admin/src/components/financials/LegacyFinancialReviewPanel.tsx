@@ -324,8 +324,8 @@ export function LegacyFinancialReviewPanel(): React.ReactElement {
                 <tbody>{queueQ.data.items.map((item) => (
                   <tr key={item.bookingId} className="border-b border-[var(--color-border)] align-top hover:bg-slate-50">
                     <td className="px-3 py-3"><Link to={`/bookings/${item.bookingId}`} className="font-medium text-[var(--color-primary)] hover:underline">{item.bookingId.slice(0, 8)}</Link><p className="mt-1 text-xs text-[var(--color-text-secondary)]">Paid record from {formatDateTime(item.createdAt)}</p></td>
-                    <td className="px-3 py-3">{item.customerName}</td>
-                    <td className="px-3 py-3">{item.providerName ?? 'Unassigned'}<p className="mt-1 text-xs capitalize text-[var(--color-text-secondary)]">Current tier: {item.currentProviderTier ?? 'none'}</p></td>
+                    <td className="px-3 py-3"><Link to={`/customers/${encodeURIComponent(item.customerId)}`} className="font-medium text-[var(--color-primary)] hover:underline">{item.customerName}</Link></td>
+                    <td className="px-3 py-3">{item.providerId ? <Link to={`/providers/${encodeURIComponent(item.providerId)}`} className="font-medium text-[var(--color-primary)] hover:underline">{item.providerName ?? 'Provider record'}</Link> : 'Unassigned'}<p className="mt-1 text-xs capitalize text-[var(--color-text-secondary)]">Current tier: {item.currentProviderTier ?? 'none'}</p></td>
                     <td className="px-3 py-3">{item.serviceName}<p className="mt-1 text-xs text-[var(--color-text-secondary)]">{item.categoryName}</p></td>
                     <td className="px-3 py-3 text-right font-semibold tabular-nums">{formatCurrency(item.totalAmountCentavos)}</td>
                     <td className="px-3 py-3"><Badge label={item.escrowStatus.toUpperCase()} variant="warning" /><p className="mt-1 text-xs capitalize text-[var(--color-text-secondary)]">{item.status.replace(/_/g, ' ')}</p></td>
@@ -349,12 +349,20 @@ export function LegacyFinancialReviewPanel(): React.ReactElement {
             <ErrorState title="Transaction evidence unavailable" description={getErrorMessage(detailQ.error)} action={<Button variant="outline" onClick={() => { void detailQ.refetch(); }}>Retry</Button>} />
           ) : (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--color-border)] bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--color-border)] bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-5">
                 <div><p className="text-xs uppercase text-[var(--color-text-secondary)]">Service price</p><p className="font-semibold">{formatCurrency(detailQ.data.booking.servicePriceCentavos)}</p></div>
                 <div><p className="text-xs uppercase text-[var(--color-text-secondary)]">Service fee</p><p className="font-semibold">{formatCurrency(detailQ.data.booking.serviceFeeCentavos)}</p></div>
                 <div><p className="text-xs uppercase text-[var(--color-text-secondary)]">Customer total</p><p className="font-semibold">{formatCurrency(detailQ.data.booking.totalAmountCentavos)}</p></div>
-                <div><p className="text-xs uppercase text-[var(--color-text-secondary)]">Provider at review</p><p className="font-semibold">{detailQ.data.booking.providerName ?? 'Unassigned'}</p></div>
+                <div><p className="text-xs uppercase text-[var(--color-text-secondary)]">Customer</p><Link to={`/customers/${encodeURIComponent(detailQ.data.booking.customerId)}`} className="font-semibold text-[var(--color-primary)] hover:underline">{detailQ.data.booking.customerName}</Link></div>
+                <div><p className="text-xs uppercase text-[var(--color-text-secondary)]">Provider at review</p>{detailQ.data.booking.providerId ? <Link to={`/providers/${encodeURIComponent(detailQ.data.booking.providerId)}`} className="font-semibold text-[var(--color-primary)] hover:underline">{detailQ.data.booking.providerName ?? 'Provider record'}</Link> : <p className="font-semibold">Unassigned</p>}</div>
               </div>
+
+              <nav aria-label="Legacy booking investigation links" className="flex flex-wrap gap-2 text-sm">
+                <Link to={`/bookings/${encodeURIComponent(detailQ.data.booking.bookingId)}`} className="inline-flex min-h-11 items-center rounded-md border border-[var(--color-border)] px-3 font-medium text-[var(--color-primary)] hover:bg-slate-50">Open Booking 360</Link>
+                <Link to={`/customers/${encodeURIComponent(detailQ.data.booking.customerId)}`} className="inline-flex min-h-11 items-center rounded-md border border-[var(--color-border)] px-3 font-medium text-[var(--color-primary)] hover:bg-slate-50">Open Customer 360</Link>
+                {detailQ.data.booking.providerId && <Link to={`/providers/${encodeURIComponent(detailQ.data.booking.providerId)}`} className="inline-flex min-h-11 items-center rounded-md border border-[var(--color-border)] px-3 font-medium text-[var(--color-primary)] hover:bg-slate-50">Open Provider 360</Link>}
+                <Link to={`/support-tickets?bookingId=${encodeURIComponent(detailQ.data.booking.bookingId)}`} className="inline-flex min-h-11 items-center rounded-md border border-[var(--color-border)] px-3 font-medium text-[var(--color-primary)] hover:bg-slate-50">Open booking support history</Link>
+              </nav>
 
               <section>
                 <h3 className="text-sm font-semibold">Recorded transaction evidence</h3>
