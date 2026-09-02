@@ -41,5 +41,5 @@ it('Bug UX-1020 — ordinary admins receive an honest read-only template workspa
   expect(screen.queryByRole('button', { name: /new template/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /edit template booking_matched/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /toggle template booking_matched/i })).not.toBeInTheDocument();
-  expect(screen.getByText('Read only')).toBeVisible();
+  expect(await screen.findByText('Read only')).toBeVisible();
 });
