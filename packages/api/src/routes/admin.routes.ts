@@ -79,6 +79,13 @@ import {
   recurringPaginationQuerySchema,
   type RecurringPaginationQuery,
 } from '../validators/recurring.validators';
+import {
+  blockIpBodySchema,
+  blockedIpListQuerySchema,
+  blockedIpParamsSchema,
+  securityEventListQuerySchema,
+  unblockIpBodySchema,
+} from '../validators/admin-security.validators';
 import { parseAuditTimelineListQuery } from '../validators/admin-audit-log.validators';
 import {
   maskEmail,
@@ -1968,6 +1975,7 @@ router.get(
 router.get(
   '/blocked-ips',
   authMiddleware,
+  validationMiddleware({ query: blockedIpListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -1990,23 +1998,17 @@ router.get(
 router.post(
   '/blocked-ips',
   authMiddleware,
+  validationMiddleware(blockIpBodySchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
       const { ipAddress, reason, expiresInHours } = req.body;
 
-      if (typeof ipAddress !== 'string' || !ipAddress) {
-        throw createAppError('IP address is required.', 400);
-      }
-      if (typeof reason !== 'string' || !reason) {
-        throw createAppError('Reason is required.', 400);
-      }
-
       const blocked = await securityService.blockIp({
         ipAddress,
         reason,
         blockedBy: req.user!.userId,
-        expiresInHours: typeof expiresInHours === 'number' ? expiresInHours : undefined,
+        expiresInHours,
       });
 
       res.status(201).json({
@@ -2019,36 +2021,57 @@ router.post(
   },
 );
 
+async function unblockIpHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    requireAdmin(req);
+    const ipAddress = String(req.params.ipAddress);
+    const unblocked = await securityService.unblockIp(
+      ipAddress,
+      req.user!.userId,
+      req.body.reason,
+    );
+
+    if (!unblocked) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Blocked IP not found.', statusCode: 404 },
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: 'IP unblocked. Automatic detection can re-evaluate the address while recent failures remain.',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+router.post(
+  '/blocked-ips/:ipAddress/unblock',
+  authMiddleware,
+  validationMiddleware({ params: blockedIpParamsSchema, body: unblockIpBodySchema }),
+  unblockIpHandler,
+);
+
+// Backward-compatible verb for any operational client that already used the
+// original hidden endpoint. It now requires the same reasoned body.
 router.delete(
   '/blocked-ips/:ipAddress',
   authMiddleware,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    try {
-      requireAdmin(req);
-      const ipAddress = String(req.params.ipAddress ?? '');
-      const unblocked = await securityService.unblockIp(
-        ipAddress,
-        req.user!.userId,
-      );
-
-      if (!unblocked) {
-        res.status(404).json({
-          success: false,
-          error: { message: 'Blocked IP not found.', statusCode: 404 },
-        });
-        return;
-      }
-
-      res.json({ success: true, message: 'IP unblocked.' });
-    } catch (error) {
-      next(error);
-    }
-  },
+  validationMiddleware({ params: blockedIpParamsSchema, body: unblockIpBodySchema }),
+  unblockIpHandler,
 );
 
 router.get(
   '/security-events',
   authMiddleware,
+  validationMiddleware({ query: securityEventListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);

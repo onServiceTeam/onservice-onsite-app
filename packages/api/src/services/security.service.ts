@@ -459,7 +459,8 @@ export async function blockIp(params: {
 
 export async function unblockIp(
   ipAddress: string,
-  unblockedBy?: string,
+  unblockedBy: string,
+  reason: string,
 ): Promise<boolean> {
   const result = await db.query(
     `UPDATE blocked_ips SET is_active = FALSE WHERE ip_address = $1::inet AND is_active = TRUE`,
@@ -471,10 +472,10 @@ export async function unblockIp(
       userId: unblockedBy,
       eventType: 'ip_unblocked',
       ipAddress,
-      metadata: {},
+      metadata: { reason },
     });
 
-    logger.info('IP unblocked', { ipAddress });
+    logger.info('IP unblocked', { ipAddress, unblockedBy, reason });
     return true;
   }
   return false;
@@ -580,21 +581,20 @@ export async function listSecurityEvents(
  *
  * Post-fix:
  *   1. Single SELECT to find suspicious IPs (unchanged).
- *   2. Single SELECT to find which of those are already actively
- *      blocked (anti-join via NOT EXISTS in next step).
- *   3. Single INSERT ... ON CONFLICT DO UPDATE for new blocks /
- *      inactive-row reactivations (bulk).
- *   4. Single INSERT ... SELECT for security_events bulk write.
+ *   2. Single SELECT to load the newest block row per suspicious IP.
+ *   3. One bulk UPDATE for inactive/expired rows plus one bulk INSERT
+ *      for addresses with no history, avoiding duplicate inactive rows.
+ *   4. Single bulk INSERT for security_events.
  *
- * Net: 4 queries total regardless of N suspicious IPs (vs 3N+1
- * pre-fix). At N=100 this drops cron from ~301 RTTs to 4.
+ * Net: at most 6 queries total regardless of N suspicious IPs (vs 3N+1
+ * pre-fix), including the transaction boundary and both write shapes.
  */
 export async function detectSuspiciousIps(): Promise<number> {
   const configuredThreshold = await settingsService.getSettingInteger('suspicious_ip_threshold');
   const threshold = Math.min(500, Math.max(10, configuredThreshold));
 
   const suspicious = await db.query<{ ip_address: string; fail_count: string }>(
-    `SELECT ip_address, COUNT(*)::text AS fail_count FROM login_attempts
+    `SELECT host(ip_address)::text AS ip_address, COUNT(*)::text AS fail_count FROM login_attempts
      WHERE success = FALSE AND created_at > NOW() - INTERVAL '1 hour'
      GROUP BY ip_address
      HAVING COUNT(*) >= $1`,
@@ -603,39 +603,78 @@ export async function detectSuspiciousIps(): Promise<number> {
 
   if (suspicious.rows.length === 0) return 0;
 
-  // Step 2: anti-join — find which suspicious IPs are NOT already
-  // actively blocked. This is the set we need to insert/reactivate.
+  // Step 2: load the newest block row for each suspicious address. The table
+  // has a partial unique index for ACTIVE rows only, so blindly inserting an
+  // address with an inactive history row creates one duplicate per unblock /
+  // automatic re-block cycle. Reuse that newest row instead.
   const ips = suspicious.rows.map((r) => r.ip_address);
-  const existing = await db.query<{ ip_address: string }>(
-    `SELECT host(ip_address)::text AS ip_address
+  const existing = await db.query<{
+    id: string;
+    ip_address: string;
+    currently_blocked: boolean;
+  }>(
+    `SELECT DISTINCT ON (ip_address)
+            id,
+            host(ip_address)::text AS ip_address,
+            (is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) AS currently_blocked
        FROM blocked_ips
       WHERE ip_address = ANY($1::inet[])
-        AND is_active = TRUE
-        AND (expires_at IS NULL OR expires_at > NOW())`,
+      ORDER BY ip_address, created_at DESC, id DESC`,
     [ips],
   );
-  const alreadyBlockedSet = new Set(existing.rows.map((r) => r.ip_address));
+  const latestByIp = new Map(existing.rows.map((row) => [row.ip_address, row]));
+  const alreadyBlockedSet = new Set(
+    existing.rows.filter((row) => row.currently_blocked).map((row) => row.ip_address),
+  );
   const toBlock = suspicious.rows.filter((r) => !alreadyBlockedSet.has(r.ip_address));
 
   if (toBlock.length === 0) return 0;
 
   await db.transaction(async (client) => {
-    // Step 3: bulk INSERT/upsert. ON CONFLICT activates existing rows
-    // for IPs whose block had expired or was manually deactivated.
-    const valuesSql: string[] = [];
-    const params: unknown[] = [];
-    let i = 1;
-    for (const r of toBlock) {
-      valuesSql.push(`($${i++}::inet, $${i++}, NULL, NOW() + INTERVAL '24 hours', TRUE)`);
-      params.push(r.ip_address, `Auto-blocked: ${r.fail_count} failed login attempts in 1 hour`);
+    // Step 3a: reactivate the newest inactive/expired history row. This keeps
+    // one row per address while preserving the security-event timeline.
+    const toReactivate = toBlock.filter((row) => latestByIp.has(row.ip_address));
+    if (toReactivate.length > 0) {
+      const valuesSql: string[] = [];
+      const params: unknown[] = [];
+      let i = 1;
+      for (const row of toReactivate) {
+        valuesSql.push(`($${i++}::uuid, $${i++}::text)`);
+        params.push(
+          latestByIp.get(row.ip_address)!.id,
+          `Auto-blocked: ${row.fail_count} failed login attempts in 1 hour`,
+        );
+      }
+      await client.query(
+        `UPDATE blocked_ips AS blocked
+            SET is_active = TRUE,
+                reason = incoming.reason,
+                blocked_by = NULL,
+                expires_at = NOW() + INTERVAL '24 hours'
+           FROM (VALUES ${valuesSql.join(', ')}) AS incoming(id, reason)
+          WHERE blocked.id = incoming.id`,
+        params,
+      );
     }
-    await client.query(
-      `INSERT INTO blocked_ips (ip_address, reason, blocked_by, expires_at, is_active)
-       VALUES ${valuesSql.join(', ')}`,
-      params,
-    );
 
-    // Step 4: bulk security event log.
+    // Step 3b: only addresses with no prior row receive an INSERT.
+    const toInsert = toBlock.filter((row) => !latestByIp.has(row.ip_address));
+    if (toInsert.length > 0) {
+      const valuesSql: string[] = [];
+      const params: unknown[] = [];
+      let i = 1;
+      for (const row of toInsert) {
+        valuesSql.push(`($${i++}::inet, $${i++}, NULL, NOW() + INTERVAL '24 hours', TRUE)`);
+        params.push(row.ip_address, `Auto-blocked: ${row.fail_count} failed login attempts in 1 hour`);
+      }
+      await client.query(
+        `INSERT INTO blocked_ips (ip_address, reason, blocked_by, expires_at, is_active)
+         VALUES ${valuesSql.join(', ')}`,
+        params,
+      );
+    }
+
+    // Step 4: bulk security event log for both inserts and reactivations.
     const eventValuesSql: string[] = [];
     const eventParams: unknown[] = [];
     let j = 1;
