@@ -1273,3 +1273,52 @@ identity-verification/deadline evidence and legal wording. No held policy was
 invented, and no user, staff membership, assignment, erasure, or production
 record changed. The changed case dialog needs fresh authenticated visual
 capture before its prior screenshots can be treated as current.
+
+## Checkpoint AF: Financial case linkage and manual payout truth
+
+The next finance pass followed failed payouts and held escrow from dashboard
+signals into the exact company records an operator must investigate. Failed
+payout identifiers now open the exact payout record, provider names open
+Provider 360, and held escrow releases retain booking/customer/provider IDs so
+Financials can open all three canonical records. A missing platform escrow
+wallet now makes the escrow workspace unavailable instead of manufacturing
+believable zero balances and an empty queue.
+
+The payout action language was also reconciled with the launch money path.
+Approve queues a manual transfer and does not send money. Reject returns the
+full wallet reservation. Record sent is available only after an external
+transfer and records that evidence without initiating the transfer. The page
+uses its in-app action dialogs as the confirmation boundary and no longer adds
+a second browser confirmation.
+
+Commits `c1445e5`, `1c3b98f`, `e300305`, and `873f40f` pass GitHub CI
+`33662964046` and Gates `33662964052` at the final checkpoint head. Focused
+coverage is OPS-384/385 and UX-1045 through UX-1048. E14, E18, E22, E24, E37,
+and the production-access hold remain active. No payout, escrow, wallet,
+booking, payment, reconciliation, or production record changed.
+
+## Checkpoint AG: consent publication and effective-date activation
+
+The consent manager recorded a future effective date but the customer/provider
+pending-consent query ignored it. A future material version could therefore
+interrupt users immediately, even though the retained evidence said it would
+start later. Ken approved the prospective scheduled-activation boundary on
+2026-09-03.
+
+OPS-386 now excludes future material publications before choosing the latest
+active version for each consent type. This preserves an earlier active material
+version until its successor starts. Missing or malformed timestamps on legacy
+events use their original publication time without rewriting history, and a
+second service boundary rejects a future row using the same database clock.
+UX-1049 removes the duplicate browser confirmation and makes the in-app publish
+dialog distinguish routine evidence, current material activation, and future
+scheduled activation. Publication is recorded immediately; re-consent starts
+only when the selected Philippine effective day begins.
+
+No consent record, publication event, historical grant, database schema, or
+production row was changed. API focused verification passes 2 suites and 8
+tests, including the new current/future/missing/malformed boundary. API and
+Admin TypeScript plus focused repository lint pass. The local Admin Vitest
+worker timed out before importing the rendered test in both fork and thread
+mode, so UX-1049 is not claimed locally and protected GitHub CI remains its
+execution gate.

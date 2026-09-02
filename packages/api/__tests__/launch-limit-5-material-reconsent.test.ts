@@ -115,6 +115,7 @@ describe('LAUNCH-LIMITATIONS #5 — listPublishedConsentVersions surfaces materi
 
 describe('LAUNCH-LIMITATIONS #5 — getPendingMaterialConsents service shape', () => {
   it('#5 — returns one entry per pending consentType', async () => {
+    const databaseNow = new Date('2026-05-03T00:00:00Z');
     dbQueryMock.mockResolvedValueOnce({
       rows: [
         {
@@ -122,6 +123,8 @@ describe('LAUNCH-LIMITATIONS #5 — getPendingMaterialConsents service shape', (
           latest_version: 'v3',
           effective_at: '2026-05-02T11:00:00Z',
           change_summary: 'Adds ML scoring.',
+          published_at: new Date('2026-05-02T10:00:00Z'),
+          database_now: databaseNow,
           user_current_version: 'v2',
           user_last_action_at: new Date('2026-04-01T00:00:00Z'),
           user_granted: true,
@@ -131,6 +134,8 @@ describe('LAUNCH-LIMITATIONS #5 — getPendingMaterialConsents service shape', (
           latest_version: 'v2',
           effective_at: '2026-05-02T12:00:00Z',
           change_summary: 'Adds new partner.',
+          published_at: new Date('2026-05-02T10:30:00Z'),
+          database_now: databaseNow,
           user_current_version: null,
           user_last_action_at: null,
           user_granted: null,
@@ -162,7 +167,7 @@ describe('LAUNCH-LIMITATIONS #5 — getPendingMaterialConsents service shape', (
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     await compliance.getPendingMaterialConsents(USER_ID);
     const sql = dbQueryMock.mock.calls[0][0] as string;
-    expect(sql).toMatch(/DISTINCT ON \(details->>'consentType'\)/);
+    expect(sql).toMatch(/DISTINCT ON \(consent_type\)/);
     expect(sql).toMatch(/\(details->>'material'\)::boolean IS TRUE/);
     expect(sql).toMatch(/LEFT JOIN LATERAL/);
     // The pending predicate must include both "no record" and

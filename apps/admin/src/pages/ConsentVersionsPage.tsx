@@ -89,6 +89,13 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
 }
 
+function fmtManilaDay(value: string): string {
+  return new Date(`${value}T00:00:00+08:00`).toLocaleDateString('en-PH', {
+    timeZone: 'Asia/Manila',
+    dateStyle: 'long',
+  });
+}
+
 // BUG-PHASE111-01 fix — pre-fix this called toISOString().slice(0,10),
 // which returns the UTC date. For an admin in Manila publishing late
 // at night (e.g., 00:30 Manila Thursday = 16:30 UTC Wednesday), the
@@ -158,7 +165,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
       });
     },
     onSuccess: () => {
-      toast.success('Consent version published.');
+      toast.success('Consent version publication recorded.');
       void queryClient.invalidateQueries({ queryKey: ['adminConsentVersions'] });
       closePublishDialog();
     },
@@ -179,16 +186,13 @@ export default function ConsentVersionsPage(): React.ReactElement {
     || effectiveDate.trim().length === 0
     || changeSummary.trim().length < 30
     || publishMutation.isPending;
+  const materialIsScheduled = material && effectiveDate > todayLocalIso();
 
   function publishVersion(): void {
     const trimmedConsentType = consentType.trim();
     const trimmedVersion = versionStr.trim();
     const trimmedSummary = changeSummary.trim();
     if (publishDisabled) return;
-    const prompt = material
-      ? `Publish material consent version ${trimmedConsentType} ${trimmedVersion} and force re-consent for prior grants?`
-      : `Publish consent version ${trimmedConsentType} ${trimmedVersion}?`;
-    if (!window.confirm(prompt)) return;
     publishMutation.mutate({
       consentType: trimmedConsentType,
       version: trimmedVersion,
@@ -375,10 +379,10 @@ export default function ConsentVersionsPage(): React.ReactElement {
           <DialogHeader>
             <DialogTitle>Publish a new consent version</DialogTitle>
             <DialogDescription>
-              Creates an audited platform version for a client-supported
-              consent type. The material flag makes the customer and provider
-              apps require fresh acknowledgement for prior grants. Apply it
-              only after the approved policy review establishes that outcome.
+              Record an audited version for a consent type supported by the
+              customer and provider apps. Publication is recorded immediately.
+              A material version starts requiring fresh acknowledgement only
+              when its effective date begins in Philippine time.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -452,13 +456,31 @@ export default function ConsentVersionsPage(): React.ReactElement {
                     id="cv-material-help"
                     className="block text-xs text-amber-800 mt-1"
                   >
-                    The apps will treat every prior grant of this consent type
-                    as needing fresh acknowledgement at the next supported
-                    interaction. Confirm the approved policy decision before
-                    enabling this platform behavior.
+                    The publish event is recorded now. The apps will treat
+                    prior grants as needing fresh acknowledgement only after
+                    the selected effective date begins in Philippine time.
                   </span>
                 </span>
               </label>
+            </div>
+            <div
+              role="status"
+              className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950"
+            >
+              <p className="font-semibold">
+                {material
+                  ? materialIsScheduled
+                    ? 'Scheduled material activation'
+                    : 'Material activation begins on the selected day'
+                  : 'Routine evidence publication'}
+              </p>
+              <p className="mt-1 text-xs leading-5">
+                {material
+                  ? materialIsScheduled
+                    ? `Publishing records the audit event now. Customer and provider re-consent starts on ${fmtManilaDay(effectiveDate)}, not before.`
+                    : 'Publishing records the audit event now. Because the selected Philippine day has begun, prior grants can require fresh acknowledgement immediately.'
+                  : 'Publishing records the audit event now. This routine version does not require customer or provider re-consent.'}
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -469,7 +491,13 @@ export default function ConsentVersionsPage(): React.ReactElement {
               onClick={publishVersion}
               disabled={publishDisabled}
             >
-              {publishMutation.isPending ? 'Publishing…' : 'Publish version'}
+              {publishMutation.isPending
+                ? 'Publishing…'
+                : materialIsScheduled
+                  ? 'Publish and schedule'
+                  : material
+                    ? 'Publish and activate'
+                    : 'Publish version'}
             </Button>
           </DialogFooter>
         </DialogContent>

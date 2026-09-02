@@ -607,11 +607,30 @@ export interface PendingMaterialConsent {
 interface PendingMaterialRow {
   consent_type: string;
   latest_version: string;
-  effective_at: string;
+  effective_at: string | Date | null;
   change_summary: string;
+  published_at: Date;
+  database_now: Date;
   user_current_version: string | null;
   user_last_action_at: Date | null;
   user_granted: boolean | null;
+}
+
+function resolveConsentActivation(
+  effectiveAt: string | Date | null,
+  publishedAt: Date,
+  databaseNow: Date,
+): { effectiveAt: string; isActive: boolean } {
+  const candidate = effectiveAt instanceof Date
+    ? effectiveAt
+    : typeof effectiveAt === 'string'
+      ? new Date(effectiveAt)
+      : publishedAt;
+  const resolved = Number.isFinite(candidate.getTime()) ? candidate : publishedAt;
+  return {
+    effectiveAt: resolved.toISOString(),
+    isActive: resolved.getTime() <= databaseNow.getTime(),
+  };
 }
 
 export async function getPendingMaterialConsents(
@@ -621,30 +640,46 @@ export async function getPendingMaterialConsents(
     throw createAppError('userId is required.', 400);
   }
 
-  // The CTE collects, per consent_type, the latest admin_actions row
-  // where details.material is the boolean true. Postgres jsonb '?'
-  // operator + boolean cast covers both `"material":true` and a stored
-  // string "true". DISTINCT ON keeps only the newest publish per type.
+  // First normalize every material publication's activation timestamp.
+  // Missing and malformed legacy effectiveAt values retain the historical
+  // publish-time behavior instead of crashing the entire endpoint. The next
+  // CTE excludes future activations before DISTINCT ON so an already-active
+  // prior material version remains authoritative until its successor starts.
+  // Postgres jsonb text extraction + boolean cast covers both
+  // `"material":true` and a stored string "true".
   // The LATERAL join then pulls the user's most recent consent_records
   // row for that type so we can decide if a re-consent is needed.
   const sql = `
-    WITH latest_material AS (
-      SELECT DISTINCT ON (details->>'consentType')
-             details->>'consentType'   AS consent_type,
-             details->>'version'       AS latest_version,
-             COALESCE(details->>'effectiveAt', created_at::text) AS effective_at,
-             COALESCE(details->>'changeSummary', '')             AS change_summary,
-             created_at                AS published_at
+    WITH material_publications AS (
+      SELECT id,
+             details->>'consentType' AS consent_type,
+             details->>'version' AS latest_version,
+             CASE
+               WHEN NULLIF(BTRIM(details->>'effectiveAt'), '') IS NULL THEN created_at
+               WHEN pg_input_is_valid(details->>'effectiveAt', 'timestamp with time zone')
+                 THEN (details->>'effectiveAt')::timestamptz
+               ELSE created_at
+             END AS effective_at,
+             COALESCE(details->>'changeSummary', '') AS change_summary,
+             created_at AS published_at
         FROM admin_actions
        WHERE action_type = 'consent_version_published'
          AND target_type = 'consent_version'
          AND (details->>'material')::boolean IS TRUE
-       ORDER BY details->>'consentType', created_at DESC
+    ), latest_material AS (
+      SELECT DISTINCT ON (consent_type)
+             consent_type, latest_version, effective_at,
+             change_summary, published_at
+        FROM material_publications
+       WHERE effective_at <= NOW()
+       ORDER BY consent_type, published_at DESC, id DESC
     )
     SELECT lm.consent_type,
            lm.latest_version,
            lm.effective_at,
            lm.change_summary,
+           lm.published_at,
+           NOW() AS database_now,
            ucr.version       AS user_current_version,
            ucr.granted_at    AS user_last_action_at,
            ucr.granted       AS user_granted
@@ -671,13 +706,22 @@ export async function getPendingMaterialConsents(
 
   const result = await db.query<PendingMaterialRow>(sql, [userId]);
 
-  return result.rows.map((r) => {
+  return result.rows.flatMap((r) => {
+    const activation = resolveConsentActivation(
+      r.effective_at,
+      r.published_at,
+      r.database_now,
+    );
+    // Defense in depth: the SQL already excludes scheduled rows. Retain the
+    // same boundary here so a future row can never become a prompt if a
+    // compatibility layer or mocked query returns more than the SQL asked for.
+    if (!activation.isActive) return [];
     const lastAction: 'granted' | 'revoked' | null =
       r.user_granted === null ? null : r.user_granted ? 'granted' : 'revoked';
     return {
       consentType: r.consent_type,
       latestVersion: r.latest_version,
-      effectiveAt: r.effective_at,
+      effectiveAt: activation.effectiveAt,
       changeSummary: r.change_summary,
       userCurrentVersion: r.user_current_version,
       userLastActionAt: r.user_last_action_at

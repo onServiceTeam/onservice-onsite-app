@@ -104,17 +104,21 @@ to prevent submit-then-cancel loops). Backed by a single SELECT count
 on `data_subject_requests.received_at >= NOW() - INTERVAL '24 hours'`.
 Edge-level WAF rate limit remains in place as defence in depth.
 
-## 5. Consent versions — no forced re-consent on publish — RESOLVED 2026-05-02
+## 5. Consent versions — no forced re-consent on publish — RESOLVED, activation corrected 2026-09-03
 
 **Where:** [apps/admin/src/pages/ConsentVersionsPage.tsx](apps/admin/src/pages/ConsentVersionsPage.tsx)
 
-**Status:** RESOLVED — opt-in `material` flag added to consent publish.
-
+**Status:** RESOLVED — opt-in `material` flag plus effective-date activation.
 **Resolution:** `complianceAdmin.publishConsentVersion` now accepts an
 optional `material: boolean` (defaults to `false`, preserving the legacy
-marker-only semantics). When the operator passes `material: true`, every
-user who previously granted an OLDER version of that consent type is
-considered "pending re-consent". A new customer-facing endpoint
+marker-only semantics). Publication writes its audit event immediately. When
+the operator passes `material: true`, every user who previously granted an
+OLDER version of that consent type is considered "pending re-consent" only
+after the recorded `effectiveAt` timestamp has arrived. A future material
+version remains scheduled, and any earlier active material version remains
+authoritative until then. Missing or malformed timestamps on legacy publish
+events fall back to the original publication time without rewriting history.
+A customer-facing endpoint
 `GET /api/v1/compliance/my-pending-consents` returns the outstanding
 items per user; mobile `customer/data-rights.tsx` surfaces a banner with
 an inline "I agree" button that calls `POST /api/v1/compliance/consent`
@@ -124,8 +128,9 @@ and any surface that needs the consent must trigger its own opt-in
 flow. The decision of which publishes are material is captured at
 publish time (operator UI passes `material: true`) and is not applied
 retroactively, so historical publishes remain inert. See
-`packages/api/__tests__/launch-limit-5-material-reconsent.test.ts` for
-the 9 behavioural tests.
+`packages/api/__tests__/launch-limit-5-material-reconsent.test.ts` and
+`packages/api/__tests__/bug-ops-386-consent-effective-date-activation.test.ts`
+for behavioral coverage.
 
 ## 6. Admin booking-participant support messaging — RESOLVED, corrected 2026-08-30
 

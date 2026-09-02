@@ -277,7 +277,11 @@ Starting breach runbook (tune with the DPO):
    and affected-subject procedure and record the actual references and evidence.
 6. Log the incident, root cause, and fix. See `09-trust-safety-and-disputes.md` for incident handling.
 
-Consent versions: when the DPO publishes a new material consent version (admin Consent Versions page), affected users re-grant inline at next use.
+Consent versions: publishing from the Admin Consent Versions page records the
+audit event immediately. A material version makes affected users re-grant
+inline at their next use only after its selected effective date begins in
+Philippine time. Until then, the scheduled version must not interrupt customer
+or provider access.
 
 ---
 
