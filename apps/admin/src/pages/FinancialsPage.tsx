@@ -792,7 +792,16 @@ function PaymentsPanel(): React.ReactElement {
             </tr></thead>
             <tbody>{data.gatewayRetries.map((row) => (
               <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
-                <td className="px-3 py-2"><Link className="text-[var(--color-primary)] hover:underline" to={`/bookings/${row.bookingId}`}>{row.bookingId.slice(0, 8)}</Link></td>
+                <td className="px-3 py-2">
+                  <Link className="text-[var(--color-primary)] hover:underline" to={`/bookings/${row.bookingId}`}>{row.bookingId.slice(0, 8)}</Link>
+                  {row.disputeId && (
+                    <p className="mt-1">
+                      <Link className="text-xs font-medium text-[var(--color-secondary)] hover:underline" to={`/disputes/${encodeURIComponent(row.disputeId)}`}>
+                        Open Dispute 360
+                      </Link>
+                    </p>
+                  )}
+                </td>
                 <td className="px-3 py-2">{row.actionType.replace(/_/g, ' ')}</td>
                 <td className="px-3 py-2 text-right">{row.amountCentavos == null ? '—' : formatCurrency(row.amountCentavos)}</td>
                 <td className="px-3 py-2"><Badge label={row.status.replace(/_/g, ' ')} variant={paymentStatusVariant(row.status)} /></td>
