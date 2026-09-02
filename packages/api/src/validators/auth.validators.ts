@@ -97,6 +97,6 @@ export const logoutSchema = z.object({
 // unverified identity change. `.strict()` also prevents Zod from stripping an
 // attempted email field and letting a mixed name+email request partially pass.
 export const updateProfileSchema = z.object({
-  firstName: z.string().min(1).max(100).optional(),
-  lastName: z.string().min(1).max(100).optional(),
+  firstName: z.string().trim().min(1).max(100).optional(),
+  lastName: z.string().trim().min(1).max(100).optional(),
 }).strict();
