@@ -12,7 +12,8 @@ it('Bug UX-480 — Booking 360 shows whichever service-address fields exist inst
     pricingMode: 'fixed_price', servicePrice: 10000, serviceFee: 0, totalAmount: 10000,
     conversationId: null, category: null, subcategory: null,
     address: { full: '', barangay: 'Lahug', city: '', province: '' },
-    customer: null, provider: null, createdAt: '2026-08-30T01:00:00.000Z',
+    customer: null, provider: null, businessContext: null,
+    createdAt: '2026-08-30T01:00:00.000Z',
   };
 
   render(<MemoryRouter><OverviewTab detail={detail} /></MemoryRouter>);

@@ -1431,6 +1431,39 @@ API behavior tests pass, covering cross-entity ranking, masking, canonical
 routing, and Business Account search-only identifiers. Both fork and
 single-thread local Vitest attempts timed out before transform, setup, import,
 or assertion in the Windows/OneDrive environment, so no local rendered pass is
-claimed. Protected CI must execute the rendered Admin fixture before this
-checkpoint is treated as verified. No customer, provider, business account,
-booking, support, payment, audit, or production record changed.
+claimed. Protected CI `33682486985` passed the full rendered Admin suite, Admin
+and API TypeScript checks, the Admin production build, full API and mobile
+suites, and the Docker image boot/health check at commit `dd8a4ff`. Protected
+Gates `33682486914` passed A through E and the `All gates passed` rollup at the
+same commit. No customer, provider, business account, booking, support,
+payment, audit, or production record changed.
+
+## Checkpoint AL: Booking 360 business billing trace
+
+Booking records can retain a Business Account, governing contract, immutable
+account terms version, billing mode, and commercial statement items. Admin
+Booking 360 exposed none of that context. An operator handling a dispute,
+refund, reassignment, or enterprise support case could see the customer and
+provider but could not determine which commercial agreement governed the work
+or which statements claimed it.
+
+OPS-389 extends the existing read-only Booking detail query with the linked
+Business Account, contract, immutable terms version, billing mode, and every
+commercial statement that contains the booking, including voided history. The
+response derives a linkage state without changing stored history. Controlled
+records with missing or cross-account links are marked inconsistent; older
+pre-control records remain visibly `legacy_unreviewed` rather than being
+silently reclassified.
+
+UX-1053 adds a responsive Business billing context card to Booking 360. It
+links to the canonical Business Account workspace, its Contracts tab, and each
+exact statement in the Invoices tab. It shows the captured terms version and
+effective date, and renders structural inconsistencies as an operator alert.
+Consumer bookings do not receive an empty commercial card.
+
+Local API and Admin TypeScript checks and focused ESLint pass. Fifty-two
+focused API Booking regressions pass, including the new immutable business
+trail behavior. The focused rendered Admin fixture passes with one real render
+and assertion path. Protected CI must run the full Admin and API suites before
+this checkpoint is treated as verified. No booking, account, contract, terms,
+statement, payment, support, audit, or production record changed.

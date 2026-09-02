@@ -14,6 +14,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   AlertTriangle,
+  Building2,
   Coins,
   MessageSquare,
   Calendar,
@@ -86,6 +87,32 @@ export interface BookingDetail {
     avatarUrl: string | null;
     rating: number | null;
     lifetimeJobs: number;
+  } | null;
+  businessContext: {
+    billingMode: string | null;
+    linkageState: 'complete' | 'legacy_unreviewed' | 'inconsistent';
+    linkageIssues: string[];
+    account: { id: string; companyName: string; status: string } | null;
+    contract: {
+      id: string;
+      businessAccountId: string;
+      contractType: string;
+      frequency: string | null;
+      status: string;
+    } | null;
+    termsVersion: {
+      id: string;
+      businessAccountId: string;
+      version: number;
+      effectiveFrom: string;
+    } | null;
+    statements: Array<{
+      id: string;
+      businessAccountId: string;
+      number: string;
+      status: string;
+      settlementState: string;
+    }>;
   } | null;
   createdAt: string;
 }
@@ -1137,6 +1164,7 @@ export function BookingActions({
 // ─── OverviewTab ──────────────────────────────────────────────────────────
 
 export function OverviewTab({ detail }: { detail: BookingDetail }): React.ReactElement {
+  const business = detail.businessContext;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <Card className="p-5">
@@ -1183,6 +1211,110 @@ export function OverviewTab({ detail }: { detail: BookingDetail }): React.ReactE
           <EmptyState title="No provider assigned." />
         )}
       </Card>
+
+      {business && (
+        <Card className="p-5 md:col-span-2">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-[var(--color-text)] flex items-center gap-2">
+                <Building2 size={14} /> Business billing context
+              </h3>
+              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                Governing commercial records captured for this booking. Historical terms are read-only.
+              </p>
+            </div>
+            <Badge
+              label={business.linkageState.replaceAll('_', ' ')}
+              variant={business.linkageState === 'complete' ? 'success' : business.linkageState === 'inconsistent' ? 'danger' : 'warning'}
+            />
+          </div>
+
+          {business.linkageIssues.length > 0 && (
+            <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              <p className="font-medium">Business billing linkage needs review</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                {business.linkageIssues.map((issue) => <li key={issue}>{issue}</li>)}
+              </ul>
+            </div>
+          )}
+
+          <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <dt className="text-xs text-[var(--color-text-secondary)]">Business account</dt>
+              <dd className="mt-1 text-sm">
+                {business.account ? (
+                  <>
+                    <Link className="font-medium text-[var(--color-secondary)] hover:underline" to={`/business-accounts/${business.account.id}`}>
+                      {business.account.companyName}
+                    </Link>
+                    <span className="ml-2 text-xs text-[var(--color-text-secondary)]">{business.account.status}</span>
+                  </>
+                ) : 'Not linked'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-[var(--color-text-secondary)]">Governing contract</dt>
+              <dd className="mt-1 text-sm">
+                {business.contract ? (
+                  <>
+                    <Link
+                      className="font-medium text-[var(--color-secondary)] hover:underline"
+                      to={`/business-accounts/${business.contract.businessAccountId}?tab=contracts`}
+                    >
+                      Contract {business.contract.id.slice(0, 8)}
+                    </Link>
+                    <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
+                      {[business.contract.contractType, business.contract.frequency, business.contract.status].filter(Boolean).join(' · ')}
+                    </p>
+                  </>
+                ) : 'Not linked'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-[var(--color-text-secondary)]">Account terms snapshot</dt>
+              <dd className="mt-1 text-sm">
+                {business.termsVersion ? (
+                  <>
+                    <span className="font-medium">Version {business.termsVersion.version}</span>
+                    <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
+                      Effective {fmtDate(business.termsVersion.effectiveFrom)} · {business.termsVersion.id.slice(0, 8)}
+                    </p>
+                  </>
+                ) : 'Not captured'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-[var(--color-text-secondary)]">Billing mode</dt>
+              <dd className="mt-1 text-sm font-medium">{business.billingMode?.replaceAll('_', ' ') ?? 'Legacy unclassified'}</dd>
+            </div>
+          </dl>
+
+          <div className="mt-5 border-t border-[var(--color-border)] pt-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-secondary)]">
+              Linked commercial statements
+            </p>
+            {business.statements.length > 0 ? (
+              <ul className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {business.statements.map((statement) => (
+                  <li key={statement.id} className="rounded-lg border border-[var(--color-border)] p-3 text-sm">
+                    <Link
+                      className="font-medium text-[var(--color-secondary)] hover:underline"
+                      to={`/business-accounts/${statement.businessAccountId}?tab=invoices&invoiceId=${encodeURIComponent(statement.id)}`}
+                    >
+                      {statement.number}
+                    </Link>
+                    <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                      {statement.status} · {statement.settlementState.replaceAll('_', ' ')}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Not yet included on a commercial statement.</p>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card className="p-5 md:col-span-2">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3 flex items-center gap-2">

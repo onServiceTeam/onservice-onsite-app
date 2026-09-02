@@ -67,6 +67,36 @@ export interface BookingDetail {
     rating: number | null;
     lifetimeJobs: number;
   } | null;
+  businessContext: {
+    billingMode: string | null;
+    linkageState: 'complete' | 'legacy_unreviewed' | 'inconsistent';
+    linkageIssues: string[];
+    account: {
+      id: string;
+      companyName: string;
+      status: string;
+    } | null;
+    contract: {
+      id: string;
+      businessAccountId: string;
+      contractType: string;
+      frequency: string | null;
+      status: string;
+    } | null;
+    termsVersion: {
+      id: string;
+      businessAccountId: string;
+      version: number;
+      effectiveFrom: string;
+    } | null;
+    statements: Array<{
+      id: string;
+      businessAccountId: string;
+      number: string;
+      status: string;
+      settlementState: string;
+    }>;
+  } | null;
   createdAt: string;
 }
 
@@ -275,6 +305,26 @@ export async function getBookingDetail(
     provider_last_name: string | null;
     provider_phone: string | null;
     provider_avatar: string | null;
+    business_account_id: string | null;
+    business_company_name: string | null;
+    business_account_status: string | null;
+    contract_id: string | null;
+    contract_account_id: string | null;
+    contract_type: string | null;
+    contract_frequency: string | null;
+    contract_status: string | null;
+    business_account_terms_version_id: string | null;
+    terms_account_id: string | null;
+    terms_version: number | null;
+    terms_effective_from: Date | null;
+    billing_mode: string | null;
+    business_statements: Array<{
+      id: string;
+      businessAccountId: string;
+      number: string;
+      status: string;
+      settlementState: string;
+    }> | null;
   }>(
     `SELECT b.id, b.status, b.escrow_status, b.booking_type,
             b.scheduled_at, b.completed_at, b.confirmed_at, b.cancelled_at,
@@ -301,7 +351,38 @@ export async function getBookingDetail(
             pu.first_name   AS provider_first_name,
             pu.last_name    AS provider_last_name,
             pu.phone        AS provider_phone,
-            pu.avatar_url   AS provider_avatar
+            pu.avatar_url   AS provider_avatar,
+            b.business_account_id,
+            ba.company_name AS business_company_name,
+            ba.status       AS business_account_status,
+            b.contract_id,
+            bc.business_account_id AS contract_account_id,
+            bc.contract_type,
+            bc.frequency AS contract_frequency,
+            bc.status AS contract_status,
+            b.business_account_terms_version_id,
+            batv.business_account_id AS terms_account_id,
+            batv.version AS terms_version,
+            batv.effective_from AS terms_effective_from,
+            b.billing_mode,
+            COALESCE((
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'id', linked.id::text,
+                  'businessAccountId', linked.business_account_id::text,
+                  'number', linked.invoice_number,
+                  'status', linked.status,
+                  'settlementState', linked.settlement_state
+                ) ORDER BY linked.created_at DESC, linked.id DESC
+              )
+              FROM (
+                SELECT DISTINCT bi.id, bi.business_account_id, bi.invoice_number,
+                       bi.status, bi.settlement_state, bi.created_at
+                  FROM business_invoice_items bii
+                  JOIN business_invoices bi ON bi.id = bii.invoice_id
+                 WHERE bii.booking_id = b.id
+              ) linked
+            ), '[]'::jsonb) AS business_statements
        FROM bookings b
        LEFT JOIN service_categories sc     ON sc.id  = b.category_id
        LEFT JOIN service_subcategories ssc ON ssc.id = b.subcategory_id
@@ -309,6 +390,10 @@ export async function getBookingDetail(
        LEFT JOIN providers p               ON p.id   = b.provider_id
        LEFT JOIN users pu                  ON pu.id  = p.user_id
        LEFT JOIN conversations c           ON c.booking_id = b.id
+       LEFT JOIN business_accounts ba      ON ba.id = b.business_account_id
+       LEFT JOIN business_contracts bc     ON bc.id = b.contract_id
+       LEFT JOIN business_account_term_versions batv
+         ON batv.id = b.business_account_terms_version_id
       WHERE b.id = $1`,
     [bookingId],
   );
@@ -365,6 +450,77 @@ export async function getBookingDetail(
       }
     : null;
 
+  const statements = Array.isArray(row.business_statements) ? row.business_statements : [];
+  const hasBusinessEvidence = Boolean(
+    row.business_account_id
+      || row.contract_id
+      || row.business_account_terms_version_id
+      || row.billing_mode === 'business_terms'
+      || statements.length > 0,
+  );
+  const linkageIssues: string[] = [];
+  if (hasBusinessEvidence) {
+    if (row.billing_mode === 'business_terms') {
+      if (!row.business_account_id) linkageIssues.push('Controlled business billing is missing its account link.');
+      if (!row.contract_id) linkageIssues.push('Controlled business billing is missing its contract link.');
+      if (!row.business_account_terms_version_id) {
+        linkageIssues.push('Controlled business billing is missing its immutable account terms version.');
+      }
+    } else if (row.billing_mode === 'consumer_prepay') {
+      linkageIssues.push('Business linkage exists on a consumer-prepay booking.');
+    }
+    if (row.business_account_id && row.contract_account_id
+      && row.business_account_id !== row.contract_account_id) {
+      linkageIssues.push('The contract belongs to a different business account.');
+    }
+    if (row.business_account_id && row.terms_account_id
+      && row.business_account_id !== row.terms_account_id) {
+      linkageIssues.push('The account terms version belongs to a different business account.');
+    }
+    if (row.business_account_id
+      && statements.some((statement) => statement.businessAccountId !== row.business_account_id)) {
+      linkageIssues.push('A linked statement belongs to a different business account.');
+    }
+  }
+  const linkageState: 'complete' | 'legacy_unreviewed' | 'inconsistent' = linkageIssues.length > 0
+    ? 'inconsistent'
+    : row.billing_mode === 'business_terms'
+      ? 'complete'
+      : 'legacy_unreviewed';
+  const businessContext = hasBusinessEvidence
+    ? {
+        billingMode: row.billing_mode ?? null,
+        linkageState,
+        linkageIssues,
+        account: row.business_account_id
+          ? {
+              id: row.business_account_id,
+              companyName: row.business_company_name ?? 'Business account',
+              status: row.business_account_status ?? 'unknown',
+            }
+          : null,
+        contract: row.contract_id && row.contract_account_id
+          ? {
+              id: row.contract_id,
+              businessAccountId: row.contract_account_id,
+              contractType: row.contract_type ?? 'unknown',
+              frequency: row.contract_frequency,
+              status: row.contract_status ?? 'unknown',
+            }
+          : null,
+        termsVersion: row.business_account_terms_version_id && row.terms_account_id
+          && row.terms_version !== null && row.terms_effective_from
+          ? {
+              id: row.business_account_terms_version_id,
+              businessAccountId: row.terms_account_id,
+              version: row.terms_version,
+              effectiveFrom: row.terms_effective_from.toISOString(),
+            }
+          : null,
+        statements,
+      }
+    : null;
+
   return {
     id: row.id,
     status: row.status,
@@ -386,6 +542,7 @@ export async function getBookingDetail(
     address,
     customer,
     provider,
+    businessContext,
     createdAt: row.created_at.toISOString(),
   };
 }
