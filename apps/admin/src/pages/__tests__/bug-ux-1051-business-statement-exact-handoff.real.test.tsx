@@ -143,7 +143,7 @@ it('Bug UX-1051 - B2B audit handoffs preserve contract or exact statement contex
 
   await screen.findAllByText('Configuration changed');
   expect(audit.container.querySelector(
-    `a[href="/business-accounts/${ACCOUNT_ID}?tab=contracts"]`,
+    `a[href="/business-accounts/${ACCOUNT_ID}?tab=contracts&contractId=${CONTRACT_ID}"]`,
   )).not.toBeNull();
   expect(audit.container.querySelector(
     `a[href="/business-accounts/${ACCOUNT_ID}?tab=invoices&invoiceId=${INVOICE_ID}"]`,

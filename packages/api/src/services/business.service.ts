@@ -948,8 +948,11 @@ export async function getContractsAdmin(
   businessId: string,
   page = 1,
   pageSize = 20,
+  contractId?: string,
 ): Promise<{ items: BusinessContractRow[]; total: number }> {
   const offset = (page - 1) * pageSize;
+  const contractClause = contractId ? 'AND bc.id = $4' : '';
+  const countContractClause = contractId ? 'AND id = $2' : '';
   const [dataResult, countResult] = await Promise.all([
     db.query<BusinessContractRow>(
       `SELECT bc.*,
@@ -961,13 +964,18 @@ export async function getContractsAdmin(
          LEFT JOIN service_subcategories ss ON ss.id = bc.subcategory_id
          LEFT JOIN providers p ON p.id = bc.provider_id
        WHERE bc.business_account_id = $1
+         ${contractClause}
        ORDER BY bc.status ASC, bc.start_date DESC
        LIMIT $2 OFFSET $3`,
-      [businessId, pageSize, offset],
+      contractId
+        ? [businessId, pageSize, offset, contractId]
+        : [businessId, pageSize, offset],
     ),
     db.query<CountRow>(
-      `SELECT COUNT(*)::text as count FROM business_contracts WHERE business_account_id = $1`,
-      [businessId],
+      `SELECT COUNT(*)::text as count
+         FROM business_contracts
+        WHERE business_account_id = $1 ${countContractClause}`,
+      contractId ? [businessId, contractId] : [businessId],
     ),
   ]);
   return { items: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };

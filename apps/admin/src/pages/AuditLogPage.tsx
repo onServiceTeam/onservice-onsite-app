@@ -198,8 +198,8 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
       const accountId = linkedBusinessAccountId(entry);
       return accountId
         ? {
-            to: `/business-accounts/${encodeURIComponent(accountId)}?tab=contracts`,
-            label: 'Open owning business account contracts',
+            to: `/business-accounts/${encodeURIComponent(accountId)}?tab=contracts&contractId=${id}`,
+            label: 'Open exact business contract evidence',
           }
         : null;
     }

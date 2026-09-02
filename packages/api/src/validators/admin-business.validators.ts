@@ -18,6 +18,14 @@ export const businessContractParamsSchema = z.object({
   contractId: z.string().uuid('Business contract ID must be a valid UUID'),
 }).strict();
 
+export const businessContractListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  contractId: z.string().uuid('Business contract ID must be a valid UUID').optional(),
+}).strict();
+
+export type BusinessContractListQuery = z.infer<typeof businessContractListQuerySchema>;
+
 export const businessInvoiceParamsSchema = z.object({
   id: z.string().uuid('Business invoice ID must be a valid UUID'),
 }).strict();

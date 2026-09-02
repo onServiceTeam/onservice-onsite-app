@@ -1506,3 +1506,35 @@ production build, and the Docker image boot/health check at commit `6f41b98`.
 Protected Gates `33685158070` passed A through E and the `All gates passed`
 rollup at the same commit. No support case, booking, project, business account,
 member, payment, audit, or production record changed.
+
+## Checkpoint AN: exact commercial-record discovery and handoff
+
+The global operator command search could find a Business Account, booking,
+support case, dispute, or payout, but not a company contract or commercial
+statement. An operator holding a contract ID, statement number, or external
+payment reference had to know the account first and then manually inspect
+paginated tabs. Audit Log also opened the owning Contracts tab without carrying
+the exact contract that produced the audit event.
+
+OPS-393 and UX-1056 add a bounded contract result that includes company,
+service scope, provider context, and status, then opens the exact contract in
+Business Account 360. OPS-394 and UX-1057 let an exact external payment
+reference locate its commercial statement but never return that reference in
+the search response or rendered result. Statement number, statement ID,
+Business Account ID, and company-name discovery lead to the same exact
+statement handoff.
+
+OPS-395 and OPS-396 prove that an exact contract handoff is validated by the
+route and constrained by both Business Account ID and contract ID in the data
+query. UX-1058 proves the URL activates Contracts, sends the exact filter, and
+identifies the requested record. The existing UX-1051 Audit Log regression now
+requires the exact contract ID as well as the exact statement ID. A stale or
+cross-account contract handoff produces an explicit not-found state with a
+way back to the account's full contract list.
+
+Local API and Admin TypeScript checks and focused ESLint pass. Thirteen related
+API regressions pass across eight suites, and four focused rendered Admin
+regressions pass. Protected CI and Gates must still pass before this checkpoint
+is treated as protected-verified. No contract, statement, payment, booking,
+support, audit, business-account, customer, provider, or production record
+changed.

@@ -22,6 +22,7 @@ import {
 } from '../validators/admin-pricing-rules.validators';
 import {
   businessAccountParamsSchema,
+  businessContractListQuerySchema,
   businessContractParamsSchema,
   businessInvoiceParamsSchema,
   businessInvoicePaymentParamsSchema,
@@ -37,6 +38,7 @@ import {
   reverseBusinessInvoicePaymentSchema,
   voidBusinessInvoiceSchema,
   type BusinessInvoicePreviewInput,
+  type BusinessContractListQuery,
   type PreviewBusinessTermsInput,
   type RecordBusinessInvoiceAdjustmentInput,
   type RecordBusinessInvoicePaymentInput,
@@ -903,12 +905,20 @@ router.get(
 router.get(
   '/business-accounts/:id/contracts',
   authMiddleware,
+  validationMiddleware({
+    params: businessAccountParamsSchema,
+    query: businessContractListQuerySchema,
+  }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
-      const { items, total } = await businessService.getContractsAdmin(req.params.id as string, page, pageSize);
+      const { page, pageSize, contractId } = req.query as unknown as BusinessContractListQuery;
+      const { items, total } = await businessService.getContractsAdmin(
+        req.params.id as string,
+        page,
+        pageSize,
+        contractId,
+      );
       res.json({
         success: true,
         data: items.map(businessService.formatContract),

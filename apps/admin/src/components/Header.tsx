@@ -8,9 +8,11 @@ import {
   Building2,
   ChevronDown,
   ClipboardList,
+  FileText,
   Key,
   Menu,
   RefreshCw,
+  Receipt,
   Scale,
   Search,
   Settings,
@@ -25,7 +27,7 @@ interface HeaderProps {
   onOpenNavigation?: () => void;
 }
 
-type AdminSearchKind = 'customer' | 'provider' | 'business' | 'booking' | 'support' | 'dispute' | 'payout';
+type AdminSearchKind = 'customer' | 'provider' | 'business' | 'contract' | 'booking' | 'statement' | 'support' | 'dispute' | 'payout';
 
 interface AdminRecordResult {
   kind: AdminSearchKind;
@@ -40,7 +42,9 @@ const RECORD_KIND_META = {
   customer: { label: 'Customer', Icon: Users },
   provider: { label: 'Provider', Icon: Wrench },
   business: { label: 'Business account', Icon: Building2 },
+  contract: { label: 'Contract', Icon: FileText },
   booking: { label: 'Booking', Icon: ClipboardList },
+  statement: { label: 'Statement', Icon: Receipt },
   support: { label: 'Support', Icon: Ticket },
   dispute: { label: 'Dispute', Icon: Scale },
   payout: { label: 'Payout', Icon: Banknote },

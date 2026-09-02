@@ -366,7 +366,11 @@ export default function BusinessAccountDetailPage(): React.ReactElement {
   const accountId = id ?? '';
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseTab(searchParams.get('tab'));
+  const requestedContractId = searchParams.get('contractId');
   const requestedInvoiceId = searchParams.get('invoiceId');
+  const selectedContractId = tab === 'contracts' && requestedContractId && UUID_PATTERN.test(requestedContractId)
+    ? requestedContractId
+    : null;
   const selectedInvoiceId = tab === 'invoices' && requestedInvoiceId && UUID_PATTERN.test(requestedInvoiceId)
     ? requestedInvoiceId
     : null;
@@ -376,7 +380,19 @@ export default function BusinessAccountDetailPage(): React.ReactElement {
       const params = new URLSearchParams(current);
       if (nextTab === 'overview') params.delete('tab');
       else params.set('tab', nextTab);
+      if (nextTab !== 'contracts') params.delete('contractId');
       if (nextTab !== 'invoices') params.delete('invoiceId');
+      return params;
+    });
+  }
+
+  function setSelectedContractId(contractId: string | null): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'contracts');
+      params.delete('invoiceId');
+      if (contractId) params.set('contractId', contractId);
+      else params.delete('contractId');
       return params;
     });
   }
@@ -385,6 +401,7 @@ export default function BusinessAccountDetailPage(): React.ReactElement {
     setSearchParams((current) => {
       const params = new URLSearchParams(current);
       params.set('tab', 'invoices');
+      params.delete('contractId');
       if (invoiceId) params.set('invoiceId', invoiceId);
       else params.delete('invoiceId');
       return params;
@@ -455,7 +472,11 @@ export default function BusinessAccountDetailPage(): React.ReactElement {
           <MembersTab accountId={accountId} />
         </TabsContent>
         <TabsContent value="contracts">
-          <ContractsTab accountId={accountId} />
+          <ContractsTab
+            accountId={accountId}
+            selectedContractId={selectedContractId}
+            onSelectedContractChange={setSelectedContractId}
+          />
         </TabsContent>
         <TabsContent value="bookings">
           <BusinessBookingsTab
@@ -1136,7 +1157,15 @@ export function MembersTab({ accountId }: { accountId: string }): React.ReactEle
 
 // ─── ContractsTab ────────────────────────────────────────────────────────────
 
-export function ContractsTab({ accountId }: { accountId: string }): React.ReactElement {
+export function ContractsTab({
+  accountId,
+  selectedContractId,
+  onSelectedContractChange,
+}: {
+  accountId: string;
+  selectedContractId?: string | null;
+  onSelectedContractChange?: (contractId: string | null) => void;
+}): React.ReactElement {
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const role = useAuthStore((state) => state.user?.role);
@@ -1150,11 +1179,15 @@ export function ContractsTab({ accountId }: { accountId: string }): React.ReactE
   const [decisionReason, setDecisionReason] = useState('');
 
   const q = useQuery({
-    queryKey: ['admin-business-account-contracts', accountId, page],
+    queryKey: ['admin-business-account-contracts', accountId, page, selectedContractId],
     queryFn: async () => {
       const res = await api.get<PaginatedResult<BusinessContract>>(
         `/api/v1/admin/business-accounts/${accountId}/contracts`,
-        { params: { page, pageSize } },
+        { params: {
+          page: selectedContractId ? 1 : page,
+          pageSize,
+          ...(selectedContractId ? { contractId: selectedContractId } : {}),
+        } },
       );
       return res.data;
     },
@@ -1294,7 +1327,13 @@ export function ContractsTab({ accountId }: { accountId: string }): React.ReactE
   ];
 
   if (contracts.length === 0) {
-    return <EmptyState title="No contracts for this account." />;
+    return selectedContractId ? (
+      <EmptyState
+        title="Exact contract not found for this account."
+        description="The contract may have been removed from this account or the handoff may be stale."
+        action={<Button variant="outline" onClick={() => onSelectedContractChange?.(null)}>Show all account contracts</Button>}
+      />
+    ) : <EmptyState title="No contracts for this account." />;
   }
 
   return (
@@ -1302,13 +1341,23 @@ export function ContractsTab({ accountId }: { accountId: string }): React.ReactE
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
         Contract-level discounts and provider-specific drafts remain visible for review, but neither can be published yet. Discount authority is unresolved, and provider-specific assignment/funding remains held under E56. The billing engine never silently combines or infers those terms.
       </div>
+      {selectedContractId ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            Showing exact contract <span className="font-mono font-semibold">{selectedContractId.slice(0, 8).toUpperCase()}</span> from an operator handoff.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => onSelectedContractChange?.(null)}>
+            Show all contracts
+          </Button>
+        </div>
+      ) : null}
       <DataTable
         columns={columns}
         data={contracts}
         keyExtractor={(c) => c.id}
         emptyMessage="No contracts for this account."
       />
-      {pagination && pagination.totalPages > 1 && (
+      {!selectedContractId && pagination && pagination.totalPages > 1 && (
         <Pagination
           page={pagination.page}
           totalPages={pagination.totalPages}
