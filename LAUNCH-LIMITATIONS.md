@@ -2006,3 +2006,15 @@ operator. Bugs UX-1026 and OPS-372 execute the rendered customer/provider links
 and both SQL search paths. Commit `4223052` passes GitHub CI `33611777960` and
 Gates `33611777913`, including complete API, Admin, Mobile, API Docker
 build/liveness, and all five gates. Production remains unchanged under E32.
+
+The canonical profile validator now trims both names and rejects values that
+are empty after trimming, while preserving legitimate one-character names.
+The customer Profile screen separately detects an unchanged normalized name,
+closes edit mode, and reports that there is nothing to save without issuing a
+false update request. SEC-045 and UX-1027 execute those boundaries. The first
+UX-1027 CI run `33613949995` correctly failed because the new test captured a
+mock before initialization; fix-forward `ee708ab` replaces the closure capture
+with module-owned Jest mocks. Final GitHub CI `33614523217` and Gates
+`33614523236` pass complete API, Admin, Mobile, API Docker build/liveness, and
+all five gates. No existing identity or historical transaction was rewritten,
+and production remains unchanged under E32.

@@ -221,3 +221,11 @@ open Customer 360; provider subjects use an exact owner-ID search that resolves
 the related Provider Management record. Bugs UX-1026 and OPS-372 verify the
 rendered links and the full-name/provider-ID/user-ID search contract. Commit
 `4223052` passes GitHub CI `33611777960` and Gates `33611777913`.
+
+The same write boundary trims first and last names and rejects values that are
+empty after trimming. This prevents non-mobile clients from storing visually
+blank or padded identity values without banning a legitimate one-character
+name. SEC-045 verifies normalization and rejection. The customer UI also avoids
+sending an unchanged normalized name through this mutation; UX-1027 verifies
+the rendered no-op behavior. Final fix-forward `ee708ab` passes GitHub CI
+`33614523217` and Gates `33614523236`.
