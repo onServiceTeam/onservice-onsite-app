@@ -299,6 +299,7 @@ const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   aml_large_transaction_threshold_centavos: 'New single-payout requests at or above this threshold enter an internal compliance-review hold. Existing requests keep their snapshotted threshold.',
   max_service_radius_km: 'Provider applications, provider change requests, approval review, super-admin edits, and customer/provider guidance enforce this maximum for new changes.',
   quote_expiry_hours: 'New provider quotes snapshot this lifetime into their exact expiry timestamp. Existing quotes keep the deadline shown to both parties when the quote was submitted.',
+  refresh_token_strict_fingerprint: 'When enabled, future customer/provider refresh attempts from a different device fingerprint are rejected and require OTP sign-in. When disabled, mismatches are logged and the refresh continues.',
 };
 
 /**
