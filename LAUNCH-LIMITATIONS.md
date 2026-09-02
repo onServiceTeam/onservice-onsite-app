@@ -1966,4 +1966,9 @@ recovery, last-seat protection, and the existing-account rollout are not yet an
 approved company workflow. Do not expose a routine disable control or perform
 an ad hoc database reset. The detailed threat model and recommended governed
 design are kept in local-only security decision records because this repository
-is public. Production inventory and account changes remain blocked by E32.
+is public. As pre-decision containment, the existing public factor-removal and
+recovery-code-regeneration mutation routes now return the same explicit `409`
+policy hold without reading or changing recovery state. Commit `19deb1e` passes
+GitHub CI `33608677040` and Gates `33608677041`, including complete API, Admin,
+Mobile, API Docker build/liveness, and all five gates. Production inventory and
+account changes remain blocked by E32.
