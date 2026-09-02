@@ -21,7 +21,7 @@ jest.mock('../src/services/feedback.service', () => ({
   toCsv: jest.fn(),
 }));
 jest.mock('../src/services/upload.service', () => ({
-  validateFileSync: jest.fn(),
+  validateFile: jest.fn().mockResolvedValue(undefined),
   assertImageMagicBytes: jest.fn(),
   getUploadDir: (): string => process.env.TEST_FEEDBACK_UPLOAD_DIR as string,
 }));

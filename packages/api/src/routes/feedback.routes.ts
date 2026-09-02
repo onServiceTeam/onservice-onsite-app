@@ -29,7 +29,7 @@ import {
   toMarkdown,
   toCsv,
 } from '../services/feedback.service';
-import { validateFileSync, assertImageMagicBytes, getUploadDir } from '../services/upload.service';
+import { validateFile, assertImageMagicBytes, getUploadDir } from '../services/upload.service';
 import { platformConfig } from '../config/platform.config';
 import { logger } from '../utils/logger';
 import { isPrivateExportSecretUsable } from '../config/boot-guards';
@@ -106,7 +106,7 @@ router.post('/upload', uploadLimiter, imageUpload.single('file'), async (req: Re
       return;
     }
     // Both checks throw a 400 AppError (handled by error.middleware) on bad input.
-    validateFileSync(file.originalname, file.mimetype, file.size);
+    await validateFile(file.originalname, file.mimetype, file.size);
     assertImageMagicBytes(file.buffer, file.mimetype);
 
     const ext = MIME_EXT[file.mimetype] ?? '.jpg';
