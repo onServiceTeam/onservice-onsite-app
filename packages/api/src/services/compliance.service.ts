@@ -54,6 +54,8 @@ export interface DsrRecord {
   dueAt: string;
   completedAt: string | null;
   handledBy: string | null;
+  handledByName: string | null;
+  handledByEmail: string | null;
   userMessage: string | null;
   adminNotes: string | null;
   responsePayloadUrl: string | null;
@@ -106,6 +108,8 @@ interface DsrRow {
   due_at: Date;
   completed_at: Date | null;
   handled_by: string | null;
+  handler_name?: string | null;
+  handler_email?: string | null;
   user_message: string | null;
   admin_notes: string | null;
   response_payload_url: string | null;
@@ -159,6 +163,8 @@ const DSR_COLS_WITH_USER = `dsr.id, dsr.user_id, u.email AS user_email,
        COALESCE(p.id, staff_account.provider_id) AS provider_profile_id,
        dsr.request_type, dsr.status,
        dsr.received_at, dsr.due_at, dsr.completed_at, dsr.handled_by,
+       NULLIF(TRIM(CONCAT_WS(' ', handler.first_name, handler.last_name)), '') AS handler_name,
+       handler.email AS handler_email,
        dsr.user_message, dsr.admin_notes, dsr.response_payload_url, dsr.rejection_reason`;
 
 // A provider-staff login belongs to the provider through provider_staff rather
@@ -170,6 +176,7 @@ const DSR_COLS_WITH_USER = `dsr.id, dsr.user_id, u.email AS user_email,
 const DSR_SUBJECT_JOINS = `
        LEFT JOIN users u ON u.id = dsr.user_id
        LEFT JOIN providers p ON p.user_id = dsr.user_id
+       LEFT JOIN users handler ON handler.id = dsr.handled_by
        LEFT JOIN LATERAL (
          SELECT ps.provider_id
            FROM provider_staff ps
@@ -213,6 +220,8 @@ function mapDsr(r: DsrRow, now: Date = new Date()): DsrRecord {
     dueAt: r.due_at.toISOString(),
     completedAt: r.completed_at ? r.completed_at.toISOString() : null,
     handledBy: r.handled_by,
+    handledByName: r.handler_name ?? null,
+    handledByEmail: r.handler_email ?? null,
     userMessage: r.user_message,
     adminNotes: r.admin_notes,
     responsePayloadUrl: r.response_payload_url,

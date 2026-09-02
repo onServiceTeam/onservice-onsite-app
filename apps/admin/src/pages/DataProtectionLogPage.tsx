@@ -49,6 +49,8 @@ interface DsrRecord {
   dueAt: string;
   completedAt: string | null;
   handledBy: string | null;
+  handledByName: string | null;
+  handledByEmail: string | null;
   userMessage: string | null;
   adminNotes: string | null;
   responsePayloadUrl: string | null;
@@ -398,7 +400,11 @@ export default function DataProtectionLogPage(): React.ReactElement {
                 <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Received</dt><dd className="mt-1">{formatDateTime(selected.receivedAt)}</dd></div>
                 <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Internal target</dt><dd className="mt-1">{formatDateTime(selected.dueAt)} · {targetLabel(selected)}</dd></div>
                 <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Completed</dt><dd className="mt-1">{formatDateTime(selected.completedAt)}</dd></div>
-                <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Handler ID</dt><dd className="mt-1 break-all">{selected.handledBy ?? 'Unassigned'}</dd></div>
+                <div>
+                  <dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Current handler</dt>
+                  <dd className="mt-1 break-words">{selected.handledByName ?? selected.handledByEmail ?? selected.handledBy ?? 'Unassigned'}</dd>
+                  {selected.handledByName && selected.handledByEmail && <dd className="mt-0.5 break-all text-xs text-[var(--color-text-secondary)]">{selected.handledByEmail}</dd>}
+                </div>
               </dl>
               {selectedSubjectRoute && (
                 <Link to={selectedSubjectRoute} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--color-primary)]">{subjectRouteLabel(selected)} <ArrowRight size={15} /></Link>
