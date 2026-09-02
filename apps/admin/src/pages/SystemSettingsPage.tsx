@@ -13,6 +13,14 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import api, { getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/Dialog';
+import {
   AlertCircle,
   Check,
   Coins,
@@ -280,7 +288,6 @@ export default function SystemSettingsPage(): React.ReactElement {
       }
     },
     onError: (error) => {
-      setPendingSave(null);
       setBanner({ kind: 'err', text: getErrorMessage(error) });
     },
   });
@@ -419,6 +426,7 @@ export default function SystemSettingsPage(): React.ReactElement {
       setBanner({ kind: 'err', text: 'The audit reason must be 500 characters or fewer.' });
       return;
     }
+    updateMutation.reset();
     setPendingSave({ setting, value, reason });
     setBanner(null);
   }
@@ -887,6 +895,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                                 type="button"
                                 disabled={setting.isDefault || resetMutation.isPending}
                                 onClick={() => {
+                                  resetMutation.reset();
                                   setPendingReset(setting);
                                   setResetReason('');
                                   setBanner(null);
@@ -955,22 +964,25 @@ export default function SystemSettingsPage(): React.ReactElement {
         </section>
       </div>
 
-      {pendingSave && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="save-review-title"
-            className="w-full max-w-lg rounded-2xl bg-[var(--color-surface)] p-5 shadow-xl"
-          >
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]">Final review</p>
-            <h2 id="save-review-title" className="mt-1 text-xl font-semibold text-[var(--color-text)]">
-              Confirm this setting change
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">
-              A stale browser version will be rejected. This action is stored with your identity, reason, network address, and browser details.
-            </p>
-            <dl className="mt-4 divide-y divide-[var(--color-border)] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4">
+      <Dialog
+        open={pendingSave !== null}
+        onOpenChange={(open) => {
+          if (!open && !updateMutation.isPending) {
+            setPendingSave(null);
+            updateMutation.reset();
+          }
+        }}
+      >
+        {pendingSave && (
+          <DialogContent>
+            <DialogHeader>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]">Final review</p>
+              <DialogTitle>Confirm this setting change</DialogTitle>
+              <DialogDescription className="leading-6">
+                A stale browser version will be rejected. This action is stored with your identity, reason, network address, and browser details.
+              </DialogDescription>
+            </DialogHeader>
+            <dl className="divide-y divide-[var(--color-border)] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4">
               <div className="py-3">
                 <dt className="text-xs text-[var(--color-text-tertiary)]">Control</dt>
                 <dd className="mt-1 font-medium text-[var(--color-text)]">{pendingSave.setting.label}</dd>
@@ -997,7 +1009,12 @@ export default function SystemSettingsPage(): React.ReactElement {
                 <dd className="mt-1 text-sm text-[var(--color-text)]">{pendingSave.reason}</dd>
               </div>
             </dl>
-            <div className="mt-5 flex flex-wrap justify-end gap-2">
+            {updateMutation.isError && (
+              <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+                Change not saved: {getErrorMessage(updateMutation.error)}
+              </p>
+            )}
+            <DialogFooter>
               <button
                 type="button"
                 onClick={() => setPendingSave(null)}
@@ -1019,27 +1036,31 @@ export default function SystemSettingsPage(): React.ReactElement {
               >
                 {updateMutation.isPending ? 'Saving…' : 'Confirm change'}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
 
-      {pendingReset && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="reset-confirm-title"
-            className="w-full max-w-lg rounded-2xl bg-[var(--color-surface)] p-5 shadow-xl"
-          >
-            <p className="text-xs font-semibold uppercase tracking-wide text-red-700">Destructive configuration action</p>
-            <h2 id="reset-confirm-title" className="mt-1 text-xl font-semibold text-[var(--color-text)]">
-              Reset to the approved default?
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">
-              This replaces the current value of <code className="font-mono">{pendingReset.key}</code>. {pendingReset.runtimeSummary}
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 text-sm">
+      <Dialog
+        open={pendingReset !== null}
+        onOpenChange={(open) => {
+          if (!open && !resetMutation.isPending) {
+            setPendingReset(null);
+            setResetReason('');
+            resetMutation.reset();
+          }
+        }}
+      >
+        {pendingReset && (
+          <DialogContent>
+            <DialogHeader>
+              <p className="text-xs font-semibold uppercase tracking-wide text-red-700">Destructive configuration action</p>
+              <DialogTitle>Reset to the approved default?</DialogTitle>
+              <DialogDescription className="leading-6">
+                This replaces the current value of <code className="font-mono">{pendingReset.key}</code>. {pendingReset.runtimeSummary}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 text-sm">
               <div>
                 <p className="text-xs text-[var(--color-text-tertiary)]">Current</p>
                 <p className="mt-1 break-all font-mono">{formatValue(pendingReset)}</p>
@@ -1049,20 +1070,32 @@ export default function SystemSettingsPage(): React.ReactElement {
                 <p className="mt-1 break-all font-mono">{formatValue(pendingReset, pendingReset.defaultValue)}</p>
               </div>
             </div>
-            <label htmlFor="reset-reason" className="mb-1 mt-4 block text-xs font-semibold text-[var(--color-text-secondary)]">
-              Audit reason
-            </label>
-            <textarea
-              id="reset-reason"
-              value={resetReason}
-              onChange={(event) => setResetReason(event.target.value)}
-              placeholder="Explain why the approved default should be restored"
-              rows={3}
-              maxLength={500}
-              className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
-              autoFocus
-            />
-            <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <div>
+              <label htmlFor="reset-reason" className="mb-1 block text-xs font-semibold text-[var(--color-text-secondary)]">
+                Audit reason
+              </label>
+              <textarea
+                id="reset-reason"
+                value={resetReason}
+                onChange={(event) => setResetReason(event.target.value)}
+                placeholder="Explain why the approved default should be restored"
+                rows={3}
+                minLength={10}
+                maxLength={500}
+                aria-describedby="reset-reason-guidance"
+                className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
+                autoFocus
+              />
+              <p id="reset-reason-guidance" className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                Minimum 10 characters. Saved to the settings audit history.
+              </p>
+            </div>
+            {resetMutation.isError && (
+              <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+                Reset not saved: {getErrorMessage(resetMutation.error)}
+              </p>
+            )}
+            <DialogFooter>
               <button
                 type="button"
                 onClick={() => {
@@ -1078,10 +1111,7 @@ export default function SystemSettingsPage(): React.ReactElement {
                 type="button"
                 onClick={() => {
                   const reason = resetReason.trim();
-                  if (reason.length < 10) {
-                    setBanner({ kind: 'err', text: 'Enter a reset reason with at least 10 characters.' });
-                    return;
-                  }
+                  if (reason.length < 10) return;
                   resetMutation.mutate({
                     key: pendingReset.key,
                     reason,
@@ -1093,10 +1123,10 @@ export default function SystemSettingsPage(): React.ReactElement {
               >
                 {resetMutation.isPending ? 'Resetting…' : 'Confirm reset'}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }
