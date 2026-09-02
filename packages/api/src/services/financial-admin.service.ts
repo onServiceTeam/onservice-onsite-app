@@ -195,13 +195,15 @@ export interface PaymentOperationsSummary {
 // ─────────────────────────────────────────────────────────────────
 
 export interface GuaranteeFundSummary {
+  available: boolean;
+  message: string | null;
   currentBalanceCentavos: number;
   inflow30dCentavos: number;
   outflow30dCentavos: number;
   net30dCentavos: number;
   averageMonthlyOutflowCentavos: number;
-  runwayMonths: number;
-  needsReplenishment: boolean;
+  runwayMonths: number | null;
+  needsReplenishment: boolean | null;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1006,13 +1008,15 @@ export async function getGuaranteeFundSummary(): Promise<GuaranteeFundSummary> {
 
   if (!walletId) {
     return {
+      available: false,
+      message: 'Guarantee-fund accounting is unavailable because the platform wallet is missing.',
       currentBalanceCentavos: balance,
       inflow30dCentavos: 0,
       outflow30dCentavos: 0,
       net30dCentavos: 0,
       averageMonthlyOutflowCentavos: 0,
-      runwayMonths: Number.POSITIVE_INFINITY,
-      needsReplenishment: balance < GUARANTEE_FLOOR_CENTAVOS,
+      runwayMonths: null,
+      needsReplenishment: null,
     };
   }
 
@@ -1036,6 +1040,8 @@ export async function getGuaranteeFundSummary(): Promise<GuaranteeFundSummary> {
     runwayMonths < 3 || balance < GUARANTEE_FLOOR_CENTAVOS;
 
   return {
+    available: true,
+    message: null,
     currentBalanceCentavos: balance,
     inflow30dCentavos: inflow30,
     outflow30dCentavos: outflow30,

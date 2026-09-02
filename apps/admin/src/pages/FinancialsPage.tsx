@@ -956,6 +956,8 @@ export function PayoutsPanel(): React.ReactElement {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface GuaranteeFundData {
+  available: boolean;
+  message: string | null;
   currentBalance: number;
   currentBalanceCentavos?: number;
   inflow30d: number;
@@ -967,18 +969,20 @@ interface GuaranteeFundData {
   avgMonthlyOutflow: number;
   averageMonthlyOutflowCentavos?: number;
   runwayMonths: number | null;
-  needsReplenishment: boolean;
+  needsReplenishment: boolean | null;
 }
 
 function normalizeGuaranteeFund(data: GuaranteeFundData): GuaranteeFundData {
   return {
+    available: data.available !== false,
+    message: data.message ?? null,
     currentBalance: Number(data.currentBalance ?? data.currentBalanceCentavos ?? 0),
     inflow30d: Number(data.inflow30d ?? data.inflow30dCentavos ?? 0),
     outflow30d: Number(data.outflow30d ?? data.outflow30dCentavos ?? 0),
     net30d: Number(data.net30d ?? data.net30dCentavos ?? 0),
     avgMonthlyOutflow: Number(data.avgMonthlyOutflow ?? data.averageMonthlyOutflowCentavos ?? 0),
     runwayMonths: data.runwayMonths,
-    needsReplenishment: Boolean(data.needsReplenishment),
+    needsReplenishment: data.needsReplenishment == null ? null : Boolean(data.needsReplenishment),
   };
 }
 
@@ -1007,9 +1011,23 @@ function GuaranteeFundPanel(): React.ReactElement {
   );
   const d = q.data;
   if (!d) return <EmptyState title="No guarantee-fund data" />;
+  if (!d.available) {
+    return (
+      <ErrorState
+        title="Guarantee-fund accounting unavailable"
+        description={`${d.message ?? 'The platform guarantee-fund wallet is missing.'} Do not treat this as a zero balance or a funding decision.`}
+      />
+    );
+  }
 
   return (
     <div>
+      <div role="alert" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+        <p className="font-semibold">Internal accounting record only</p>
+        <p className="mt-1">
+          This wallet and its planning signal do not approve a customer claim, coverage amount, or payout. Guarantee terms remain on E10/F#10 legal and accounting hold.
+        </p>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
         <KpiCard title="Current Balance" value={formatCurrency(d.currentBalance)} icon={null} />
         <KpiCard title="30d Inflow" value={formatCurrency(d.inflow30d)} icon={null} />
@@ -1021,15 +1039,15 @@ function GuaranteeFundPanel(): React.ReactElement {
 
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-[var(--color-text)]">Replenishment Status</h2>
+          <h2 className="text-base font-semibold text-[var(--color-text)]">Internal Planning Signal</h2>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            Auto-evaluated from runway and outflow trends.
+            Flags a recorded balance below ₱1,000,000 or less than three months of recorded outflow runway. It does not move money.
           </p>
         </div>
         {d.needsReplenishment ? (
-          <Badge label="REPLENISH" variant="danger" />
+          <Badge label="FUNDING REVIEW" variant="danger" />
         ) : (
-          <Badge label="OK" variant="success" />
+          <Badge label="NO FUNDING ALERT" variant="success" />
         )}
       </div>
     </div>
