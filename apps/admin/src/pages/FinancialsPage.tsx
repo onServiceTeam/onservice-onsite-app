@@ -461,6 +461,8 @@ interface EscrowPending {
 }
 
 interface EscrowData {
+  available: boolean;
+  message: string | null;
   totalInEscrow: number;
   totalInEscrowCentavos?: number;
   pendingReleaseCount: number;
@@ -470,6 +472,8 @@ interface EscrowData {
 }
 
 interface ApiEscrowData {
+  available?: boolean;
+  message?: string | null;
   totalInEscrow?: number;
   totalInEscrowCentavos?: number;
   pendingReleaseCount?: number;
@@ -480,6 +484,8 @@ interface ApiEscrowData {
 
 function normalizeEscrow(data: ApiEscrowData): EscrowData {
   return {
+    available: data.available !== false,
+    message: data.message ?? null,
     totalInEscrow: Number(data.totalInEscrow ?? data.totalInEscrowCentavos ?? 0),
     pendingReleaseCount: Number(data.pendingReleaseCount ?? data.pendingReleaseList?.length ?? 0),
     aging: (data.aging ?? data.agingBuckets ?? []).map((row) => ({
@@ -527,6 +533,13 @@ export function EscrowPanel(): React.ReactElement {
   );
   const data = q.data;
   if (!data) return <EmptyState title="No escrow data" description="Nothing to display." />;
+  if (!data.available) return (
+    <ErrorState
+      title="Escrow accounting unavailable"
+      description={`${data.message ?? 'The platform escrow wallet could not be read.'} Do not treat this as a zero balance or a release decision.`}
+      action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry escrow</Button>}
+    />
+  );
 
   const agingByKey = new Map(data.aging.map((a) => [a.bucket, a]));
   const totalPages = Math.ceil(data.pendingReleaseCount / pageSize);

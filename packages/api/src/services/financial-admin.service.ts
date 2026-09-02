@@ -103,6 +103,8 @@ export interface RevenueByDimension {
 // ─────────────────────────────────────────────────────────────────
 
 export interface EscrowSummary {
+  available: boolean;
+  message: string | null;
   totalInEscrowCentavos: number;
   pendingReleaseCount: number;
   agingBuckets: {
@@ -580,8 +582,10 @@ interface EscrowPendingRow {
  * Tab 3 — escrow snapshot. Returns the total currently held in the
  * `platform_escrow` wallet plus a per-booking aging breakdown for bookings
  * that are completed but whose escrow has not yet been released. Three
- * queries: wallet balance, unbounded aging aggregates, and one bounded page
- * of booking detail.
+ * queries on a healthy installation: wallet balance, unbounded aging
+ * aggregates, and one bounded page of booking detail. A missing platform
+ * wallet returns an explicit unavailable result before any backlog query so
+ * operators cannot mistake missing accounting infrastructure for zero funds.
  */
 export async function getEscrowSummary(
   options: { limit?: number; offset?: number } = {},
@@ -593,15 +597,27 @@ export async function getEscrowSummary(
   // bounded without making records beyond an arbitrary cap unreachable.
   const safeLimit = clampLimit(options.limit);
   const safeOffset = clampOffset(options.offset);
-  const [walletRes, aggRes, listRes] = await Promise.all([
-    db.query<EscrowWalletRow>(
-      `SELECT
-         COALESCE(available_balance, 0)::text AS available,
-         COALESCE(pending_balance, 0)::text   AS pending
-         FROM wallets
-        WHERE type = 'platform_escrow' AND user_id IS NULL
-        LIMIT 1`,
-    ),
+  const walletRes = await db.query<EscrowWalletRow>(
+    `SELECT
+       COALESCE(available_balance, 0)::text AS available,
+       COALESCE(pending_balance, 0)::text   AS pending
+       FROM wallets
+      WHERE type = 'platform_escrow' AND user_id IS NULL
+      LIMIT 1`,
+  );
+
+  if (!walletRes.rows[0]) {
+    return {
+      available: false,
+      message: 'Escrow accounting is unavailable because the platform wallet is missing.',
+      totalInEscrowCentavos: 0,
+      pendingReleaseCount: 0,
+      agingBuckets: [],
+      pendingReleaseList: [],
+    };
+  }
+
+  const [aggRes, listRes] = await Promise.all([
     db.query<{ bucket: '0-24h' | '24-48h' | '48-168h' | '168h+'; count: string; total: string }>(
       `SELECT
          CASE
@@ -675,6 +691,8 @@ export async function getEscrowSummary(
   ).map((b) => ({ bucket: b, count: bucketTotals[b].count, totalCentavos: bucketTotals[b].total }));
 
   return {
+    available: true,
+    message: null,
     totalInEscrowCentavos: available + pending,
     pendingReleaseCount: totalPendingCount, // accurate count (was: list length)
     agingBuckets,
