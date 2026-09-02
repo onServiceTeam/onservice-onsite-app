@@ -1320,5 +1320,8 @@ production row was changed. API focused verification passes 2 suites and 8
 tests, including the new current/future/missing/malformed boundary. API and
 Admin TypeScript plus focused repository lint pass. The local Admin Vitest
 worker timed out before importing the rendered test in both fork and thread
-mode, so UX-1049 is not claimed locally and protected GitHub CI remains its
-execution gate.
+mode, so UX-1049 is not claimed locally. Protected CI `33675720980` passed the
+full rendered Admin Vitest suite, Admin and API TypeScript, the Admin build, the
+full API and mobile suites, and the Docker image boot/health check at final
+commit `15711b6`. Protected Gates `33675721045` passed A through E and the
+`All gates passed` rollup at the same commit.
