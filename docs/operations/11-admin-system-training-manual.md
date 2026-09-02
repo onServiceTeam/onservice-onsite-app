@@ -23,12 +23,14 @@ Support hours for the team using this manual are Monday to Saturday, 8:00 AM to 
 
 1. Open https://admin.onservice.ph.
 2. Enter your admin email and password.
-3. Enter your 6-digit code from your authenticator app (TOTP 2FA). 2FA is mandatory for every admin account. If you have never set it up, the app shows a QR code and a manual secret on first login. Scan it with Google Authenticator or Authy, then enter the code.
+3. Enter your 6-digit code from your authenticator app. If the authenticator is unavailable, choose **Use a recovery code** and enter one unused 10-character code. 2FA is mandatory for every admin-tier account, including the DPO. If you have never set it up, the app shows a QR code and a manual secret on first login. Scan it with a private authenticator, enter the code, then save all eight one-time recovery codes in a private password manager before proceeding. Never put a recovery code in Support, chat, a screenshot, or a shared document. If enrollment is interrupted, stop and contact the security owner instead of improvising a reset.
 4. You land on the Dashboard.
 
 Only three account roles can enter the admin app at all: `super_admin`, `admin`, and `dpo`. Any other account gets "Access denied. Admin privileges required."
 
-If the app sends you straight to a "Change Password" screen, your password was flagged for forced rotation. Set a new one before you can do anything else.
+If the app sends you straight to a **Change Password** screen, your password was flagged for forced rotation. The API and live-chat connection also block operational work, so another tab or a copied URL cannot bypass it. Set a new one before doing anything else. The verified browser receives a replacement session; every other session for that account is signed out.
+
+If both the authenticator and all recovery codes are unavailable, stop and contact the security owner. Do not ask another operator to disable 2FA, paste a secret into chat, or edit the database. Privileged recovery remains launch-held and must not be improvised.
 
 > **Set (editable):** Super-admin accounts are Ken plus one Operations Lead only. Everyone else is `admin`, a support-agent-style limited login, or `dpo`. Keep the super_admin count low because those accounts can move money. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
@@ -515,7 +517,7 @@ For support, verify the booking's payment, timing, arrival/no-show evidence, and
 
 ### 2.29 Change Password (`/change-password`) and 404
 
-Change your own password here. If your account is flagged for forced rotation, every page redirects you here until you set a new password. The 404 page is the catch-all for any unknown URL.
+Change your own password here. If your account is flagged for forced rotation, the page shell, API, and Socket.IO connection all refuse other operator work until you set a new password. A successful change signs out every other session and gives this verified browser one replacement session. The 404 page is the catch-all for any unknown URL.
 
 ### 2.30 Communications (`/communications`)
 
@@ -568,7 +570,9 @@ Throughout the week: for each supported privileged action you would have taken, 
 A super_admin signs off each item. Until all are checked, the new admin stays read-only.
 
 Navigation and roles
-- [ ] Can log in, including completing 2FA, and can change own password.
+- [ ] Can log in with TOTP or one recovery code, explain that a recovery code is single-use, securely store all eight enrollment codes before proceeding, and change their own password.
+- [ ] Can explain why forced password rotation blocks the API and live chat as well as page navigation, and why a successful change signs out other sessions.
+- [ ] Knows that factor removal and ad hoc lost-factor reset are launch-held and must not be improvised.
 - [ ] Can explain the difference between the account role and the named DB role, and why "super_admin only" buttons are greyed out for them.
 - [ ] Can find every current sidebar page and the detail/change-password routes without help.
 

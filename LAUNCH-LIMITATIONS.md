@@ -263,18 +263,26 @@ now closed:
     (not per user) to avoid log spam.
   - `changeOwnAdminPassword({userId, oldPassword, newPassword})`
     verifies old, validates new (12–128 chars, must differ), hashes
-    with current scrypt N, clears the flag, audits — all in one trx.
+    with current scrypt N, clears the flag, increments the session generation,
+    removes refresh sessions, revokes CSRF tokens, and audits in one transaction.
+    After commit it disconnects the account's live sockets.
 - **Routes** (security.routes.ts):
   - `GET /api/v1/security/admin/legacy-password-stats` (any admin tier)
   - `POST /api/v1/security/admin/flag-legacy-password-hashes`
     (super_admin only)
   - `POST /api/v1/security/admin/me/change-password`
-- **Login flow** (auth.routes.ts) — admin login + admin 2FA verify
-  responses now include `mustRotatePassword: boolean` so the admin
-  web app can route straight to the change-password screen and gate
-  every other route until the rotation lands. Tokens are still
-  issued (so the user CAN reach the change-password screen).
-- **Tests** — 12 tests in `launch-limit-12-admin-password-rotation.test.ts`.
+- **Runtime enforcement** — admin login + 2FA responses include
+  `mustRotatePassword`, but React is not the security boundary. Canonical HTTP
+  middleware returns `428 password_rotation_required` outside identity,
+  own-password, and logout boundaries; the special 2FA middleware applies the
+  same rule to normal access sessions; Socket.IO rejects a flagged handshake;
+  and a campaign disconnects newly flagged live sockets immediately.
+- **Current-browser continuity** — successful replacement invalidates every old
+  access/refresh/CSRF/socket session, then issues one new cookie session to the
+  browser that verified the old password.
+- **Tests** — the original focused suite plus SEC-036/041/042 and Admin
+  UX-1025 execute the transaction, route, socket, server-error-code, and client
+  redirect behavior.
 
 **Operator workflow:**
 1. Apply migration 116.
@@ -1942,3 +1950,20 @@ claim that the ADMIN-SPEC target is deployed. E66 recommends staged immutable
 event/locale/channel versions with consent/preference enforcement and delivery
 evidence. Production inventory and migration remain blocked by E32. See
 `.ai-coder/escalations/E66-notification-template-channel-publication-and-versioning-2026-09-02.md`.
+
+---
+
+## 63. Admin 2FA recovery governance remains launch-held
+
+TOTP enrollment and login recovery codes are now connected: activation
+atomically creates eight single-use codes, the Admin shows them once and blocks
+entry until the operator acknowledges secure storage, and login consumes one
+code at a time. Temporary setup tokens are rejected by ordinary HTTP and
+Socket.IO authorization.
+
+Privileged factor removal, interrupted enrollment completion, lost-factor
+recovery, last-seat protection, and the existing-account rollout are not yet an
+approved company workflow. Do not expose a routine disable control or perform
+an ad hoc database reset. The detailed threat model and recommended governed
+design are kept in local-only security decision records because this repository
+is public. Production inventory and account changes remain blocked by E32.
