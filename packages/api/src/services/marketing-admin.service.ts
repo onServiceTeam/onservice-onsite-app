@@ -716,6 +716,17 @@ export async function updateCampaign(
   }
   if (patch.endedAt !== undefined && patch.endedAt !== null) {
     validateDateString(patch.endedAt, 'endedAt');
+    const rangeResult = await db.query<{ valid: boolean }>(
+      `SELECT ($2::date >= started_at) AS valid
+         FROM marketing_campaigns
+        WHERE id = $1`,
+      [id, patch.endedAt],
+    );
+    const range = rangeResult.rows[0];
+    if (!range) throw createAppError('Marketing campaign not found.', 404);
+    if (!range.valid) {
+      throw createAppError('endedAt must be on or after the campaign startedAt date.', 400);
+    }
   }
   if (patch.spendCentavos !== undefined) {
     validateNonNegativeInt(patch.spendCentavos, 'spendCentavos');
