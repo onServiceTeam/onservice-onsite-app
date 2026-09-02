@@ -22,7 +22,7 @@ it('Bug UX-665 — Business 360 links commercial work to customer, provider, sup
     pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
   } });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<QueryClientProvider client={client}><MemoryRouter><BusinessBookingsTab accountId="11111111-1111-4111-8111-111111111111" /></MemoryRouter></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><MemoryRouter><BusinessBookingsTab accountId="11111111-1111-4111-8111-111111111111" accountName="Cebu Build Co" ownerUserId="owner-1" /></MemoryRouter></QueryClientProvider>);
 
   expect(await screen.findByRole('link', { name: 'booking-' })).toHaveAttribute('href', '/bookings/booking-12345678');
   expect(screen.getByRole('link', { name: 'Ana Reyes' })).toHaveAttribute('href', '/customers/customer-1');

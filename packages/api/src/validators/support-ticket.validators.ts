@@ -34,6 +34,7 @@ export const supportTicketListQuerySchema = z.object({
   search: z.string().trim().min(2).max(100).optional(),
   bookingId: z.string().uuid('Invalid booking ID').optional(),
   projectId: z.string().uuid('Invalid project ID').optional(),
+  businessAccountId: z.string().uuid('Invalid business account ID').optional(),
   userId: z.string().uuid('Invalid user ID').optional(),
   relatedCustomerId: z.string().uuid('Invalid related customer ID').optional(),
   relatedProviderId: z.string().uuid('Invalid related provider ID').optional(),
@@ -52,10 +53,11 @@ const createSupportTicketFields = {
   description: z.string().trim().min(5, 'Description must be at least 5 characters').max(5000),
   bookingId: z.string().uuid('Invalid booking ID').optional(),
   projectId: z.string().uuid('Invalid project ID').optional(),
+  businessAccountId: z.string().uuid('Invalid business account ID').optional(),
 };
 
 function rejectMultipleWorkContexts(
-  value: { bookingId?: string; projectId?: string },
+  value: { bookingId?: string; projectId?: string; businessAccountId?: string },
   context: z.RefinementCtx,
 ): void {
   if (value.bookingId && value.projectId) {
@@ -63,6 +65,13 @@ function rejectMultipleWorkContexts(
       code: z.ZodIssueCode.custom,
       path: ['projectId'],
       message: 'A support request can be linked to a booking or a project, not both',
+    });
+  }
+  if (value.projectId && value.businessAccountId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['businessAccountId'],
+      message: 'A planning-project support request cannot be relabelled as a business account case',
     });
   }
 }

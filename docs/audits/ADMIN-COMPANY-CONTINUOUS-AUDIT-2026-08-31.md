@@ -1464,6 +1464,42 @@ Consumer bookings do not receive an empty commercial card.
 Local API and Admin TypeScript checks and focused ESLint pass. Fifty-two
 focused API Booking regressions pass, including the new immutable business
 trail behavior. The focused rendered Admin fixture passes with one real render
-and assertion path. Protected CI must run the full Admin and API suites before
-this checkpoint is treated as verified. No booking, account, contract, terms,
-statement, payment, support, audit, or production record changed.
+and assertion path. Protected CI `33683602609` passed the full rendered Admin
+suite, Admin and API TypeScript checks, the Admin production build, full API
+and mobile suites, and the Docker image boot/health check at commit `7b46b62`.
+Protected Gates `33683602516` passed A through E and the `All gates passed`
+rollup at the same commit. No booking, account, contract, terms, statement,
+payment, support, audit, or production record changed.
+
+## Checkpoint AM: explicit Business Account support context
+
+Support cases previously had only a user owner plus an optional booking or
+personal planning project. Business Account 360 could open support cases one
+booking at a time or show cases assigned to the account manager, but could not
+open, create, filter, or return from an account-wide company case. This made
+contract access, consolidated history, account settings, and other company
+issues look like personal customer cases with no durable company context.
+
+Migration 170 adds one nullable Business Account reference to support cases and
+leaves every existing row unchanged. A case remains owned by one real user.
+For account-only cases, the service verifies that owner is the company owner or
+an active member. Booking-linked cases inherit the booking's company link and
+reject a caller-supplied mismatch. Provider-owned cases can therefore retain
+the company context of work they performed without pretending the provider is
+a company member. Personal planning-project cases cannot also claim a Business
+Account context.
+
+OPS-391 covers account-owner/member authorization and durable creation.
+OPS-392 covers one company support view that includes both directly linked
+cases and older or booking-specific cases derived from the booking's canonical
+company link. The Admin queue can filter and search by company, case detail
+links back to Business Account 360, and Business Account 360 now offers exact
+`Open account support` and owner-scoped `Create account case` handoffs.
+
+Local API and Admin TypeScript checks and focused ESLint pass. Fourteen focused
+API support regressions pass and three focused rendered Admin regressions pass.
+OPS-390 is a real PostgreSQL migration test; it is intentionally skipped
+locally because no safe localhost database ending in `_test` is configured.
+Protected CI must execute that schema test and the full suites before this
+checkpoint is treated as verified. No support case, booking, project, business
+account, member, payment, audit, or production record changed.

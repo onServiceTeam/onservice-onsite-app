@@ -18,6 +18,10 @@ interface Ticket {
   description: string;
   booking_id: string | null;
   project_id: string | null;
+  business_account_id: string | null;
+  related_business_account_id?: string | null;
+  business_account_name?: string | null;
+  business_account_status?: string | null;
   project_title?: string | null;
   resolution_notes: string | null;
   resolved_at: string | null;
@@ -188,6 +192,8 @@ export default function SupportTicketsPage(): React.ReactElement {
   const searchFilter = (searchParams.get('search') ?? '').trim();
   const bookingFilter = searchParams.get('bookingId') ?? '';
   const projectFilter = searchParams.get('projectId') ?? '';
+  const businessAccountFilter = searchParams.get('businessAccountId') ?? '';
+  const businessAccountName = searchParams.get('businessName') ?? 'Selected business account';
   const userFilter = searchParams.get('userId') ?? '';
   const relatedCustomerFilter = searchParams.get('relatedCustomerId') ?? '';
   const relatedProviderFilter = searchParams.get('relatedProviderId') ?? '';
@@ -313,6 +319,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       searchFilter,
       bookingFilter,
       projectFilter,
+      businessAccountFilter,
       userFilter,
       relatedCustomerFilter,
       relatedProviderFilter,
@@ -328,6 +335,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       if (searchFilter) params.set('search', searchFilter);
       if (bookingFilter) params.set('bookingId', bookingFilter);
       if (projectFilter) params.set('projectId', projectFilter);
+      if (businessAccountFilter) params.set('businessAccountId', businessAccountFilter);
       if (userFilter) params.set('userId', userFilter);
       if (relatedCustomerFilter) params.set('relatedCustomerId', relatedCustomerFilter);
       if (relatedProviderFilter) params.set('relatedProviderId', relatedProviderFilter);
@@ -470,6 +478,7 @@ export default function SupportTicketsPage(): React.ReactElement {
         description: newTicketDescription.trim(),
         ...(bookingFilter ? { bookingId: bookingFilter } : {}),
         ...(projectFilter ? { projectId: projectFilter } : {}),
+        ...(businessAccountFilter ? { businessAccountId: businessAccountFilter } : {}),
       });
       return res.data.data as Ticket;
     },
@@ -544,6 +553,14 @@ export default function SupportTicketsPage(): React.ReactElement {
             <span className="block font-medium text-[var(--color-text)]">{ticketUserName(r)}</span>
           )}
           <span className="text-xs text-[var(--color-text-tertiary)]">{ticketPersonaLabel(r)}</span>
+          {r.related_business_account_id && (
+            <Link
+              className="mt-1 block text-xs font-semibold text-violet-700 hover:underline"
+              to={`/business-accounts/${r.related_business_account_id}`}
+            >
+              {r.business_account_name?.trim() || 'Business account'}
+            </Link>
+          )}
         </div>
         );
       },
@@ -633,6 +650,12 @@ export default function SupportTicketsPage(): React.ReactElement {
             {projectFilter && (
               <p className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
                 Linked planning project: <span className="font-mono">{projectFilter}</span>. This does not create a booking or payment relationship.
+              </p>
+            )}
+            {businessAccountFilter && (
+              <p className="mt-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950">
+                Linked business account: <strong>{businessAccountName}</strong>{' '}
+                (<span className="font-mono">{businessAccountFilter}</span>). The selected user remains the case owner.
               </p>
             )}
           </div>
@@ -886,6 +909,22 @@ export default function SupportTicketsPage(): React.ReactElement {
               <p>
                 <strong className="block text-xs uppercase tracking-wide">Related work</strong>{' '}
                 None linked
+              </p>
+            )}
+            {ticket.related_business_account_id && (
+              <p>
+                <strong className="block text-xs uppercase tracking-wide">Business account</strong>{' '}
+                <Link
+                  className="font-semibold text-[var(--color-primary)] hover:underline"
+                  to={`/business-accounts/${ticket.related_business_account_id}`}
+                >
+                  {ticket.business_account_name?.trim() || `Business account ${ticket.related_business_account_id}`}
+                </Link>
+                {ticket.business_account_status && (
+                  <span className="mt-1 block text-xs text-[var(--color-text-tertiary)]">
+                    {formatLabel(ticket.business_account_status)}
+                  </span>
+                )}
               </p>
             )}
             {ticket.resolution_notes && (
@@ -1267,8 +1306,8 @@ export default function SupportTicketsPage(): React.ReactElement {
             Support Queue
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-[var(--color-text-secondary)]">
-            Triage customer and provider requests, connect each case to its account and related booking or planning project,
-            assign an owner, and keep public replies separate from internal notes.
+            Triage customer, provider, and Business Account requests, connect each case to its owner and related work,
+            assign an agent, and keep public replies separate from internal notes.
           </p>
         </div>
         <div className="text-sm text-[var(--color-text-secondary)]">
@@ -1277,7 +1316,7 @@ export default function SupportTicketsPage(): React.ReactElement {
         </div>
       </div>
 
-      {(bookingFilter || projectFilter || userFilter || relatedCustomerFilter || relatedProviderFilter) && (
+      {(bookingFilter || projectFilter || businessAccountFilter || userFilter || relatedCustomerFilter || relatedProviderFilter) && (
         <div className="flex flex-col justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950 md:flex-row md:items-center">
           <div>
             <strong className="block">Linked-case view</strong>
@@ -1286,6 +1325,7 @@ export default function SupportTicketsPage(): React.ReactElement {
             {(userFilter || relatedCustomerFilter || relatedProviderFilter) && (bookingFilter || projectFilter) && <span> · </span>}
             {bookingFilter && <span>Booking: <span className="font-mono">{bookingFilter}</span></span>}
             {projectFilter && <span>Project: <span className="font-mono">{projectFilter}</span> (planning context)</span>}
+            {businessAccountFilter && <span>{(bookingFilter || projectFilter) ? ' · ' : ''}Business account: {businessAccountName} (<span className="font-mono">{businessAccountFilter}</span>)</span>}
           </div>
           <div className="flex flex-wrap gap-2">
             {userFilter && (
@@ -1314,6 +1354,8 @@ export default function SupportTicketsPage(): React.ReactElement {
                 params.delete('relatedProviderId');
                 params.delete('bookingId');
                 params.delete('projectId');
+                params.delete('businessAccountId');
+                params.delete('businessName');
                 params.delete('new');
                 params.delete('page');
                 return params;
@@ -1426,7 +1468,7 @@ export default function SupportTicketsPage(): React.ReactElement {
             id="support-ticket-search"
             value={searchDraft}
             onChange={(event) => setSearchDraft(event.target.value)}
-            placeholder="Ticket, subject, name, phone, email, provider, project"
+            placeholder="Ticket, subject, name, phone, email, provider, project, business"
             className="h-11 min-w-0 flex-1 rounded-md border border-[var(--color-border)] px-3 text-sm"
           />
           <button type="submit" className="min-h-11 rounded-md bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">

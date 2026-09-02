@@ -47,7 +47,7 @@ it('Bug UX-888 — a project-linked support case is accepted only for its custom
   expect(queryMock).toHaveBeenCalledWith(expect.stringContaining('project_context.customer_id = $2'), [projectId, customerId]);
   expect(clientQueryMock).toHaveBeenCalledWith(expect.stringContaining('booking_id, project_id'), [
     'TKT-1888', customerId, 'general_inquiry', 'medium', 'Help with kitchen plan',
-    'Please help me understand the next planning step.', null, projectId,
+    'Please help me understand the next planning step.', null, projectId, null,
   ]);
 
   queryMock.mockClear();

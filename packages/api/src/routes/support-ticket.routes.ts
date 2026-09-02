@@ -34,7 +34,7 @@ router.get(
     try {
       const {
         page, limit, status, type, priority, assignedAgentId, unassigned, active,
-        search, bookingId, projectId, userId, relatedCustomerId, relatedProviderId,
+        search, bookingId, projectId, businessAccountId, userId, relatedCustomerId, relatedProviderId,
       } =
         req.query as unknown as {
           page: number;
@@ -48,6 +48,7 @@ router.get(
           search?: string;
           bookingId?: string;
           projectId?: string;
+          businessAccountId?: string;
           userId?: string;
           relatedCustomerId?: string;
           relatedProviderId?: string;
@@ -64,6 +65,7 @@ router.get(
         search,
         bookingId,
         projectId,
+        businessAccountId,
         userId,
         relatedCustomerId,
         relatedProviderId,
@@ -119,7 +121,9 @@ router.post(
   validationMiddleware(adminCreateSupportTicketSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { userId, type, priority, subject, description, bookingId, projectId } = req.body;
+      const {
+        userId, type, priority, subject, description, bookingId, projectId, businessAccountId,
+      } = req.body;
       const ticket = await supportTicketService.createTicket({
         userId,
         type,
@@ -128,6 +132,7 @@ router.post(
         description,
         bookingId,
         projectId,
+        businessAccountId,
         createdByAdminId: req.user!.userId,
       });
       res.status(201).json({ success: true, data: ticket });
@@ -231,7 +236,7 @@ router.post(
   validationMiddleware(createSupportTicketSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { type, priority, subject, description, bookingId, projectId } = req.body;
+      const { type, priority, subject, description, bookingId, projectId, businessAccountId } = req.body;
       const ticket = await supportTicketService.createTicket({
         userId: req.user!.userId,
         type,
@@ -240,6 +245,7 @@ router.post(
         description,
         bookingId,
         projectId,
+        businessAccountId,
       });
       res.status(201).json({ success: true, data: ticket });
     } catch (error) {

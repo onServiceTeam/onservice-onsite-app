@@ -458,7 +458,11 @@ export default function BusinessAccountDetailPage(): React.ReactElement {
           <ContractsTab accountId={accountId} />
         </TabsContent>
         <TabsContent value="bookings">
-          <BusinessBookingsTab accountId={accountId} />
+          <BusinessBookingsTab
+            accountId={accountId}
+            accountName={account.companyName}
+            ownerUserId={account.ownerUserId}
+          />
         </TabsContent>
         <TabsContent value="invoices">
           <InvoicesTab
@@ -1352,7 +1356,15 @@ export function ContractsTab({ accountId }: { accountId: string }): React.ReactE
 
 // ─── Bookings and support ────────────────────────────────────────────────────
 
-export function BusinessBookingsTab({ accountId }: { accountId: string }): React.ReactElement {
+export function BusinessBookingsTab({
+  accountId,
+  accountName,
+  ownerUserId,
+}: {
+  accountId: string;
+  accountName: string;
+  ownerUserId: string | null;
+}): React.ReactElement {
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const q = useQuery({
@@ -1377,12 +1389,28 @@ export function BusinessBookingsTab({ accountId }: { accountId: string }): React
           <h3 className="text-sm font-semibold text-[var(--color-text)]">Commercial work and case linkage</h3>
           <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Only bookings explicitly placed under this business account appear here. Payment and refund authority remains in Booking 360.</p>
         </div>
-        <Link
-          to={`/bookings?businessAccountId=${encodeURIComponent(accountId)}`}
-          className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-slate-50"
-        >
-          Open full booking queue
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to={`/support-tickets?businessAccountId=${encodeURIComponent(accountId)}&businessName=${encodeURIComponent(accountName)}`}
+            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-slate-50"
+          >
+            Open account support
+          </Link>
+          {ownerUserId && (
+            <Link
+              to={`/support-tickets?businessAccountId=${encodeURIComponent(accountId)}&businessName=${encodeURIComponent(accountName)}&userId=${encodeURIComponent(ownerUserId)}&userName=${encodeURIComponent(accountName)}&userRole=customer&new=1`}
+              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-slate-50"
+            >
+              Create account case
+            </Link>
+          )}
+          <Link
+            to={`/bookings?businessAccountId=${encodeURIComponent(accountId)}`}
+            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-slate-50"
+          >
+            Open full booking queue
+          </Link>
+        </div>
       </div>
 
       {bookings.length === 0 ? <EmptyState title="No bookings are linked to this business account." /> : (

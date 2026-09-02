@@ -241,7 +241,11 @@ The implementation currently:
     `business_invoice` audit targets to the database constraint without
     dropping any earlier target. Migration 166 added the matching action verbs
     but omitted those target names, which would otherwise roll back each
-    controlled write when its required audit row was inserted.
+    controlled write when its required audit row was inserted; and
+21. gives support cases an explicit, nullable Business Account context while
+    preserving one real user owner, inheriting and validating company context
+    from linked bookings, rejecting cross-company or planning-project misuse,
+    and leaving every historical support row unchanged.
 
 The feature flag must remain disabled. The current consumer booking state
 machine assumes escrow prepayment before provider work, while a company-credit

@@ -69,6 +69,10 @@ export interface SupportTicket {
   description: string;
   booking_id: string | null;
   project_id: string | null;
+  business_account_id: string | null;
+  related_business_account_id?: string | null;
+  business_account_name?: string | null;
+  business_account_status?: string | null;
   project_title?: string | null;
   resolution_notes: string | null;
   resolved_at: string | null;
@@ -116,6 +120,7 @@ interface ListTicketsParams {
   search?: string;
   bookingId?: string;
   projectId?: string;
+  businessAccountId?: string;
   userId?: string;
   relatedCustomerId?: string;
   relatedProviderId?: string;
@@ -148,7 +153,7 @@ export async function listTickets(
   params: ListTicketsParams,
 ): Promise<{ tickets: SupportTicket[]; total: number }> {
   const {
-    page, limit, status, type, priority, assignedAgentId, search, bookingId, projectId,
+    page, limit, status, type, priority, assignedAgentId, search, bookingId, projectId, businessAccountId,
     userId, relatedCustomerId, relatedProviderId, unassigned, active,
   } = params;
   const offset = (page - 1) * limit;
@@ -185,6 +190,14 @@ export async function listTickets(
   if (projectId) {
     conditions.push(`st.project_id = $${idx++}`);
     values.push(projectId);
+  }
+  if (businessAccountId) {
+    conditions.push(`(
+      st.business_account_id = $${idx}
+      OR booking_context.business_account_id = $${idx}
+    )`);
+    values.push(businessAccountId);
+    idx += 1;
   }
   if (userId) {
     conditions.push(`st.user_id = $${idx++}`);
@@ -232,6 +245,7 @@ export async function listTickets(
       OR COALESCE(u.email, '') ILIKE $${idx}
       OR COALESCE(direct_provider.business_name, staff_provider.business_name, '') ILIKE $${idx}
       OR COALESCE(project_context.title, '') ILIKE $${idx}
+      OR COALESCE(business_context.company_name, '') ILIKE $${idx}
     )`);
     values.push(`%${search}%`);
     idx += 1;
@@ -255,7 +269,10 @@ export async function listTickets(
        LIMIT 1
     ) staff_account ON TRUE
     LEFT JOIN providers staff_provider ON staff_provider.id = staff_account.provider_id
-    LEFT JOIN projects project_context ON project_context.id = st.project_id`;
+    LEFT JOIN projects project_context ON project_context.id = st.project_id
+    LEFT JOIN bookings booking_context ON booking_context.id = st.booking_id
+    LEFT JOIN business_accounts business_context
+      ON business_context.id = COALESCE(st.business_account_id, booking_context.business_account_id)`;
 
   const countResult = await db.query<{ count: string }>(
     `SELECT COUNT(*) AS count FROM support_tickets st ${joins} ${where}`,
@@ -270,6 +287,9 @@ export async function listTickets(
             COALESCE(direct_provider.id, staff_account.provider_id) AS provider_id,
             COALESCE(direct_provider.business_name, staff_provider.business_name) AS provider_business_name,
             project_context.title AS project_title,
+            COALESCE(st.business_account_id, booking_context.business_account_id) AS related_business_account_id,
+            business_context.company_name AS business_account_name,
+            business_context.status AS business_account_status,
             ag.first_name AS agent_first_name, ag.last_name AS agent_last_name,
             (SELECT COUNT(*) FROM support_ticket_messages stm WHERE stm.ticket_id = st.id) AS message_count
      FROM support_tickets st
@@ -402,11 +422,17 @@ export async function listMyTickets(params: {
   const result = await db.query<SupportTicket>(
     `SELECT st.*,
             project_context.title AS project_title,
+            COALESCE(st.business_account_id, booking_context.business_account_id) AS related_business_account_id,
+            business_context.company_name AS business_account_name,
+            business_context.status AS business_account_status,
             ag.first_name AS agent_first_name, ag.last_name AS agent_last_name,
             (SELECT COUNT(*) FROM support_ticket_messages stm
                WHERE stm.ticket_id = st.id AND stm.is_internal_note = false) AS message_count
      FROM support_tickets st
      LEFT JOIN projects project_context ON project_context.id = st.project_id
+     LEFT JOIN bookings booking_context ON booking_context.id = st.booking_id
+     LEFT JOIN business_accounts business_context
+       ON business_context.id = COALESCE(st.business_account_id, booking_context.business_account_id)
      LEFT JOIN users ag ON st.assigned_agent_id = ag.id
      ${where}
      ORDER BY st.updated_at DESC
@@ -426,6 +452,9 @@ export async function getTicketById(ticketId: string): Promise<SupportTicket | n
             COALESCE(direct_provider.id, staff_account.provider_id) AS provider_id,
             COALESCE(direct_provider.business_name, staff_provider.business_name) AS provider_business_name,
             project_context.title AS project_title,
+            COALESCE(st.business_account_id, booking_context.business_account_id) AS related_business_account_id,
+            business_context.company_name AS business_account_name,
+            business_context.status AS business_account_status,
             ag.first_name AS agent_first_name, ag.last_name AS agent_last_name
      FROM support_tickets st
      LEFT JOIN users u ON st.user_id = u.id
@@ -445,6 +474,9 @@ export async function getTicketById(ticketId: string): Promise<SupportTicket | n
      ) staff_account ON TRUE
      LEFT JOIN providers staff_provider ON staff_provider.id = staff_account.provider_id
      LEFT JOIN projects project_context ON project_context.id = st.project_id
+     LEFT JOIN bookings booking_context ON booking_context.id = st.booking_id
+     LEFT JOIN business_accounts business_context
+       ON business_context.id = COALESCE(st.business_account_id, booking_context.business_account_id)
      LEFT JOIN users ag ON st.assigned_agent_id = ag.id
      WHERE st.id = $1`,
     [ticketId],
@@ -487,6 +519,7 @@ export async function createTicket(params: {
   description: string;
   bookingId?: string;
   projectId?: string;
+  businessAccountId?: string;
   // MED-N135 fix — when admin creates a ticket on behalf of a user
   // (or system creates one from a webhook), capture the acting admin
   // for the audit trail. Optional for back-compat.
@@ -506,6 +539,9 @@ export async function createTicket(params: {
   }
   if (params.bookingId && params.projectId) {
     throw createAppError('A support request can be linked to a booking or a project, not both.', 400);
+  }
+  if (params.projectId && params.businessAccountId) {
+    throw createAppError('A planning-project support request cannot be linked to a business account.', 400);
   }
 
   const subject = params.subject.trim();
@@ -529,25 +565,32 @@ export async function createTicket(params: {
     throw createAppError('Support ticket account not found.', 404);
   }
 
+  let businessAccountId = params.businessAccountId ?? null;
   if (params.bookingId) {
-    const bookingResult = await db.query<{ allowed: boolean }>(
-      `SELECT EXISTS (
-         SELECT 1
-           FROM bookings b
-           LEFT JOIN providers p ON p.id = b.provider_id
-           LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
-          WHERE b.id = $1
-            AND (
-              b.customer_id = $2
-              OR p.user_id = $2
-              OR ps.user_id = $2
-            )
-       ) AS allowed`,
+    const bookingResult = await db.query<{
+      allowed: boolean;
+      business_account_id: string | null;
+    }>(
+      `SELECT (
+                b.customer_id = $2
+                OR p.user_id = $2
+                OR ps.user_id = $2
+              ) AS allowed,
+              b.business_account_id
+         FROM bookings b
+         LEFT JOIN providers p ON p.id = b.provider_id
+         LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+        WHERE b.id = $1`,
       [params.bookingId, params.userId],
     );
-    if (bookingResult.rows[0]?.allowed !== true) {
+    const booking = bookingResult.rows[0];
+    if (booking?.allowed !== true) {
       throw createAppError('Booking not found for this account.', 404);
     }
+    if (businessAccountId && booking.business_account_id !== businessAccountId) {
+      throw createAppError('Booking does not belong to the selected business account.', 409);
+    }
+    businessAccountId = booking.business_account_id ?? businessAccountId;
   }
   if (params.projectId) {
     const projectResult = await db.query<{ allowed: boolean }>(
@@ -563,13 +606,38 @@ export async function createTicket(params: {
       throw createAppError('Project not found for this customer account.', 404);
     }
   }
+  if (businessAccountId && !params.bookingId) {
+    const businessResult = await db.query<{ allowed: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+           FROM business_accounts ba
+          WHERE ba.id = $1
+            AND (
+              ba.owner_user_id = $2
+              OR EXISTS (
+                SELECT 1
+                  FROM business_members bm
+                 WHERE bm.business_account_id = ba.id
+                   AND bm.user_id = $2
+                   AND bm.deleted_at IS NULL
+              )
+            )
+       ) AS allowed`,
+      [businessAccountId, params.userId],
+    );
+    if (businessResult.rows[0]?.allowed !== true) {
+      throw createAppError('Business account not found for this case owner.', 404);
+    }
+  }
   const ticketNumber = await generateTicketNumber();
 
   // MED-N135 fix — wrap INSERT + (optional) admin_actions audit in trx.
   const ticket = await db.transaction(async (client) => {
     const result = await client.query<SupportTicket>(
-      `INSERT INTO support_tickets (ticket_number, user_id, type, priority, subject, description, booking_id, project_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO support_tickets
+         (ticket_number, user_id, type, priority, subject, description,
+          booking_id, project_id, business_account_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         ticketNumber,
@@ -580,6 +648,7 @@ export async function createTicket(params: {
         description,
         params.bookingId ?? null,
         params.projectId ?? null,
+        businessAccountId,
       ],
     );
     if (result.rows.length === 0) throw new Error('Failed to create ticket.');
@@ -599,6 +668,7 @@ export async function createTicket(params: {
             priority: params.priority,
             bookingId: params.bookingId ?? null,
             projectId: params.projectId ?? null,
+            businessAccountId,
           }),
         ],
       );
@@ -638,11 +708,16 @@ export async function addMessage(params: {
       ticket_number: string;
       booking_id: string | null;
       project_id: string | null;
+      business_account_id: string | null;
     }>(
-      `SELECT status, assigned_agent_id, user_id, ticket_number, booking_id, project_id
-         FROM support_tickets
-        WHERE id = $1
-        FOR UPDATE`,
+      `SELECT st.status, st.assigned_agent_id, st.user_id, st.ticket_number,
+              st.booking_id, st.project_id,
+              COALESCE(st.business_account_id, booking_context.business_account_id)
+                AS business_account_id
+         FROM support_tickets st
+         LEFT JOIN bookings booking_context ON booking_context.id = st.booking_id
+        WHERE st.id = $1
+        FOR UPDATE OF st`,
       [params.ticketId],
     );
     const ticket = ticketResult.rows[0];
@@ -712,13 +787,14 @@ export async function addMessage(params: {
             ticketNumber: ticket.ticket_number,
             bookingId: ticket.booking_id,
             projectId: ticket.project_id,
+            businessAccountId: ticket.business_account_id,
           }
         : null,
     };
   });
 
   if (outcome.participantNotification) {
-    const { userId, ticketNumber, bookingId, projectId } = outcome.participantNotification;
+    const { userId, ticketNumber, bookingId, projectId, businessAccountId } = outcome.participantNotification;
     try {
       await notificationService.createPushNotification({
         userId,
@@ -730,6 +806,7 @@ export async function addMessage(params: {
           ticketNumber,
           ...(bookingId ? { bookingId } : {}),
           ...(projectId ? { projectId } : {}),
+          ...(businessAccountId ? { businessAccountId } : {}),
         },
       });
     } catch (error) {
