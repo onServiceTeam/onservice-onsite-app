@@ -202,3 +202,15 @@ verified browser one replacement session.
 Do not use factor removal or lost-factor recovery as an ordinary operator
 workflow. Their governed authority, audit, rollout, and recovery contract remain
 launch-held under private security review.
+
+## Shared customer/provider profile identity changes
+
+`PATCH /api/v1/auth/me` changes only the signed-in user's first and last names.
+It now locks the canonical user row and commits the update together with a
+`user_profile_updated` audit event containing the before/after names, actor,
+IP address, and user agent. A missing audit insert fails the transaction, while
+an unchanged request returns the current row without creating false activity.
+The route does not rewrite names captured in older bookings, payments,
+messages, reviews, or other historical records. Behavioral coverage:
+`bug-ops-371-profile-update-audit.test.ts`; verified by GitHub CI
+`33610063899` and Gates `33610063827`.

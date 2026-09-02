@@ -1972,3 +1972,26 @@ policy hold without reading or changing recovery state. Commit `19deb1e` passes
 GitHub CI `33608677040` and Gates `33608677041`, including complete API, Admin,
 Mobile, API Docker build/liveness, and all five gates. Production inventory and
 account changes remain blocked by E32.
+
+---
+
+## 64. Shared profile-name changes are transactionally audited in code; production pending
+
+The customer/provider `PATCH /api/v1/auth/me` route previously changed the
+canonical first and last names without preserving the before/after identity in
+the company audit record. That made later support review unable to distinguish
+an operator-visible name change from the name originally associated with an
+older booking, message, review, or payment record.
+
+The route now locks the current user row, rejects a no-op as an unchanged
+response, and commits the name update together with one `user_profile_updated`
+audit event containing only the prior and replacement names plus request
+attribution. A missing audit insert fails the transaction. The change does not
+rewrite booking snapshots, payment records, messages, reviews, or other
+historical transactions. Bug OPS-371 executes the lock, update, audit order,
+before/after values, request attribution, response, and single-transaction
+boundary. Commit `e2409ce` passes GitHub CI `33610063899` and Gates
+`33610063827`, including complete API, Admin, Mobile, API Docker
+build/liveness, and all five gates. API TypeScript and diff checks also passed
+locally. No migration, account mutation, master merge, deployment, server
+synchronization, or production change occurred; E32 remains active.
