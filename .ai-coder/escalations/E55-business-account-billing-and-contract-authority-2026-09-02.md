@@ -236,7 +236,12 @@ The implementation currently:
     access, including JavaScript safe-integer protection for estimates; and
 19. classifies the database-constrained account-type and payment-term lists as
     read-only launch holds under E58 instead of allowing Admin to publish a
-    value that account creation or due-date calculation cannot honor.
+    value that account creation or due-date calculation cannot honor; and
+20. appends the first-class `business_account`, `business_contract`, and
+    `business_invoice` audit targets to the database constraint without
+    dropping any earlier target. Migration 166 added the matching action verbs
+    but omitted those target names, which would otherwise roll back each
+    controlled write when its required audit row was inserted.
 
 The feature flag must remain disabled. The current consumer booking state
 machine assumes escrow prepayment before provider work, while a company-credit
@@ -262,3 +267,11 @@ including complete API, Admin, Mobile, Docker, and all five gate jobs. Corrected
 commit `dd52ff4` then passed GitHub CI run `33572166256` and governance run
 `33572166236`, including the E57/E58 API and rendered Admin containment tests.
 Neither checkpoint supplies authenticated browser or production evidence.
+
+The item 20 repair is covered by OPS-387, a PostgreSQL integration test that
+executes migration 169 in an isolated test schema, inserts all three B2B target
+types, proves earlier target types still work, and proves the CHECK constraint
+still rejects an unknown target. Local TypeScript passes. Local Jest execution
+is blocked by the recorded Windows/OneDrive dependency-read failure, so the
+safe CI PostgreSQL service remains the execution gate. No production migration
+or business action was run.

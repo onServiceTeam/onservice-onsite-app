@@ -1325,3 +1325,29 @@ full rendered Admin Vitest suite, Admin and API TypeScript, the Admin build, the
 full API and mobile suites, and the Docker image boot/health check at final
 commit `15711b6`. Protected Gates `33675721045` passed A through E and the
 `All gates passed` rollup at the same commit.
+
+## Checkpoint AH: B2B control audit constraint
+
+The post-E71 Audit Log trace found that the approved E55 business-control code
+used first-class `business_account`, `business_contract`, and
+`business_invoice` audit targets, while migration 166 added only the new action
+verbs. The live `admin_actions_target_type_check` definition inherited from
+earlier migrations did not allow those three targets. Any account approval,
+contract publication, statement preparation, payment evidence, adjustment,
+reversal, or void would therefore reach its required audit insert and roll the
+transaction back.
+
+OPS-387 adds migration 169. It appends the three targets to the constraint
+definition while preserving every earlier target and retaining rejection of
+unknown values. Its PostgreSQL integration test creates an isolated schema,
+executes the migration, accepts old and new target rows, and confirms an
+unknown target still fails with SQLSTATE 23514. This is a forward-only
+constraint widening: it changes no account, contract, booking, statement,
+payment, adjustment, or existing audit row.
+
+Local API TypeScript and `git diff --check` pass. The machine-level npm shim is
+broken and direct Jest loading is blocked by the recorded Windows/OneDrive
+dependency-read failure, so no local Jest pass is claimed. Protected CI's safe
+PostgreSQL test database is the execution gate. E32 still prevents production
+migration or server synchronization, and E56 still keeps company booking and
+provider settlement disabled.
