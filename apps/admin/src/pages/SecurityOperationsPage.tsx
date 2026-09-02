@@ -51,6 +51,10 @@ interface BlockedIp {
 interface SecurityEvent {
   id: string;
   userId: string | null;
+  userRole: string | null;
+  userName: string | null;
+  userEmail: string | null;
+  providerProfileId: string | null;
   eventType: string;
   ipAddress: string | null;
   deviceFingerprint: string | null;
@@ -101,6 +105,44 @@ function metadataSummary(metadata: Record<string, unknown>): string[] {
       : 'Recorded detail';
     return `${humanize(key)}: ${rendered}`;
   });
+}
+
+function securitySubjectDestination(event: SecurityEvent): { to: string; label: string } | null {
+  if (!event.userId) return null;
+  const userId = encodeURIComponent(event.userId);
+  if (event.userRole === 'customer') {
+    return { to: `/customers/${userId}`, label: 'Open Customer 360' };
+  }
+  if (event.userRole === 'provider') {
+    return event.providerProfileId
+      ? { to: `/providers/${encodeURIComponent(event.providerProfileId)}`, label: 'Open Provider 360' }
+      : { to: `/providers?search=${userId}`, label: 'Find Provider 360' };
+  }
+  if (event.userRole === 'provider_staff' && event.providerProfileId) {
+    return {
+      to: `/providers/${encodeURIComponent(event.providerProfileId)}`,
+      label: 'Open employing Provider 360',
+    };
+  }
+  if (event.userRole === 'admin' || event.userRole === 'super_admin' || event.userRole === 'dpo') {
+    const staffSearch = event.userEmail || event.userName;
+    return {
+      to: staffSearch ? `/staff?search=${encodeURIComponent(staffSearch)}` : '/staff',
+      label: 'Open Staff & Roles',
+    };
+  }
+  return {
+    to: `/support-tickets?userId=${userId}`,
+    label: 'Open participant support history',
+  };
+}
+
+function securitySubjectLabel(event: SecurityEvent): string {
+  if (event.userRole === 'customer') return 'Customer';
+  if (event.userRole === 'provider') return 'Provider';
+  if (event.userRole === 'provider_staff') return 'Provider staff';
+  if (event.userRole === 'admin' || event.userRole === 'super_admin' || event.userRole === 'dpo') return 'Staff';
+  return 'User';
 }
 
 function PaginationControls({
@@ -393,25 +435,46 @@ export default function SecurityOperationsPage(): React.ReactElement {
           )}
           {!filterError && eventsQuery.data && eventsQuery.data.items.length > 0 && (
             <ol className="divide-y divide-[var(--color-border)] border-t border-[var(--color-border)]">
-              {eventsQuery.data.items.map((event) => (
-                <li key={event.id} className="p-4 sm:p-5">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-800">{humanize(event.eventType)}</span>
-                        {event.ipAddress && <span className="break-all font-mono text-xs text-[var(--color-text-secondary)]">{event.ipAddress}</span>}
+              {eventsQuery.data.items.map((event) => {
+                const subjectDestination = securitySubjectDestination(event);
+                return (
+                  <li key={event.id} className="p-4 sm:p-5">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-800">{humanize(event.eventType)}</span>
+                          {event.ipAddress && <span className="break-all font-mono text-xs text-[var(--color-text-secondary)]">{event.ipAddress}</span>}
+                        </div>
+                        {metadataSummary(event.metadata).length > 0 && (
+                          <ul className="mt-3 grid gap-1 text-xs text-[var(--color-text-secondary)] sm:grid-cols-2">
+                            {metadataSummary(event.metadata).map((item) => <li key={item}>{item}</li>)}
+                          </ul>
+                        )}
+                        {event.userId && (
+                          <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-xs">
+                            <p className="font-semibold text-[var(--color-text)]">
+                              {securitySubjectLabel(event)} · {event.userName || event.userEmail || event.userId.slice(0, 8).toUpperCase()}
+                            </p>
+                            {event.userName && event.userEmail && (
+                              <p className="mt-1 text-[var(--color-text-secondary)]">{event.userEmail}</p>
+                            )}
+                            <p className="mt-1 break-all font-mono text-[var(--color-text-tertiary)]">{event.userId}</p>
+                            {subjectDestination && (
+                              <Link
+                                to={subjectDestination.to}
+                                className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--color-primary)] hover:underline"
+                              >
+                                {subjectDestination.label}
+                              </Link>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      {metadataSummary(event.metadata).length > 0 && (
-                        <ul className="mt-3 grid gap-1 text-xs text-[var(--color-text-secondary)] sm:grid-cols-2">
-                          {metadataSummary(event.metadata).map((item) => <li key={item}>{item}</li>)}
-                        </ul>
-                      )}
-                      {event.userId && <p className="mt-3 break-all font-mono text-xs text-[var(--color-text-tertiary)]">User {event.userId}</p>}
+                      <time className="shrink-0 text-xs font-medium text-[var(--color-text-secondary)]" dateTime={event.createdAt}>{formatDate(event.createdAt)}</time>
                     </div>
-                    <time className="shrink-0 text-xs font-medium text-[var(--color-text-secondary)]" dateTime={event.createdAt}>{formatDate(event.createdAt)}</time>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ol>
           )}
           {!filterError && eventsQuery.data && <PaginationControls pagination={eventsQuery.data.pagination} onPage={setEventPage} label="events" />}

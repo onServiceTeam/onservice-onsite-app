@@ -30,6 +30,10 @@ interface BlockedIpRow {
 interface SecurityEventRow {
   id: string;
   user_id: string | null;
+  user_role?: string | null;
+  user_name?: string | null;
+  user_email?: string | null;
+  provider_profile_id?: string | null;
   event_type: string;
   ip_address: string | null;
   device_fingerprint: string | null;
@@ -566,15 +570,15 @@ export async function listSecurityEvents(
   let paramIndex = 1;
 
   if (filters?.userId) {
-    conditions.push(`user_id = $${paramIndex++}`);
+    conditions.push(`se.user_id = $${paramIndex++}`);
     params.push(filters.userId);
   }
   if (filters?.eventType) {
-    conditions.push(`event_type = $${paramIndex++}`);
+    conditions.push(`se.event_type = $${paramIndex++}`);
     params.push(filters.eventType);
   }
   if (filters?.ipAddress) {
-    conditions.push(`ip_address = $${paramIndex++}::inet`);
+    conditions.push(`se.ip_address = $${paramIndex++}::inet`);
     params.push(filters.ipAddress);
   }
 
@@ -582,12 +586,27 @@ export async function listSecurityEvents(
 
   const [dataResult, countResult] = await Promise.all([
     db.query<SecurityEventRow>(
-      `SELECT * FROM security_events ${whereClause}
-       ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      `SELECT se.*,
+              u.role AS user_role,
+              NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS user_name,
+              u.email AS user_email,
+              COALESCE(p.id, staff_account.provider_id) AS provider_profile_id
+         FROM security_events se
+         LEFT JOIN users u ON u.id = se.user_id
+         LEFT JOIN providers p ON p.user_id = se.user_id
+         LEFT JOIN LATERAL (
+           SELECT ps.provider_id
+             FROM provider_staff ps
+            WHERE ps.user_id = se.user_id
+            ORDER BY ps.created_at DESC, ps.id
+            LIMIT 1
+         ) staff_account ON u.role = 'provider_staff'
+         ${whereClause}
+        ORDER BY se.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, safePageSize, offset],
     ),
     db.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM security_events ${whereClause}`,
+      `SELECT COUNT(*)::text AS count FROM security_events se ${whereClause}`,
       params,
     ),
   ]);
@@ -774,11 +793,17 @@ export function formatBlockedIp(row: BlockedIpRow): {
 
 export function formatSecurityEvent(row: SecurityEventRow): {
   id: string; userId: string | null; eventType: string; ipAddress: string | null;
-  deviceFingerprint: string | null; metadata: Record<string, unknown>; createdAt: Date;
+  userRole: string | null; userName: string | null; userEmail: string | null;
+  providerProfileId: string | null; deviceFingerprint: string | null;
+  metadata: Record<string, unknown>; createdAt: Date;
 } {
   return {
     id: row.id,
     userId: row.user_id,
+    userRole: row.user_role ?? null,
+    userName: row.user_name ?? null,
+    userEmail: row.user_email ?? null,
+    providerProfileId: row.provider_profile_id ?? null,
     eventType: row.event_type,
     ipAddress: row.ip_address,
     deviceFingerprint: row.device_fingerprint,
