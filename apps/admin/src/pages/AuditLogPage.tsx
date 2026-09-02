@@ -150,6 +150,14 @@ function shortId(value: string): string {
   return value.slice(0, 8).toUpperCase();
 }
 
+function linkedBusinessAccountId(entry: AuditEntry): string | null {
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const accountId = values?.businessAccountId;
+    if (typeof accountId === 'string' && UUID_REGEX.test(accountId)) return accountId;
+  }
+  return null;
+}
+
 function entityDestination(entry: AuditEntry): { to: string; label: string } | null {
   if (!entry.entityId) return null;
   const id = encodeURIComponent(entry.entityId);
@@ -184,7 +192,20 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
     case 'support_ticket':
       return { to: `/support-tickets?ticketId=${id}`, label: 'Open support case' };
     case 'business':
+    case 'business_account':
       return { to: `/business-accounts/${id}`, label: 'Open business account' };
+    case 'business_contract': {
+      const accountId = linkedBusinessAccountId(entry);
+      return accountId
+        ? { to: `/business-accounts/${encodeURIComponent(accountId)}`, label: 'Open owning business account' }
+        : null;
+    }
+    case 'business_invoice': {
+      const accountId = linkedBusinessAccountId(entry);
+      return accountId
+        ? { to: `/business-accounts/${encodeURIComponent(accountId)}`, label: 'Open owning business account' }
+        : null;
+    }
     case 'service_area':
     case 'service_area_change_request':
       return { to: '/service-areas', label: 'Open Service Areas' };

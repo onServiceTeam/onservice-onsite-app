@@ -1347,7 +1347,31 @@ payment, adjustment, or existing audit row.
 
 Local API TypeScript and `git diff --check` pass. The machine-level npm shim is
 broken and direct Jest loading is blocked by the recorded Windows/OneDrive
-dependency-read failure, so no local Jest pass is claimed. Protected CI's safe
-PostgreSQL test database is the execution gate. E32 still prevents production
-migration or server synchronization, and E56 still keeps company booking and
-provider settlement disabled.
+dependency-read failure, so no local Jest pass is claimed. Protected CI
+`33677946534` passed the PostgreSQL integration test, full API/Admin/mobile
+suites, both TypeScript checks, Admin build, and Docker boot/health at commit
+`fd4ab60`. Protected Gates `33677946496` passed A through E and the rollup. E32
+still prevents production migration or server synchronization, and E56 still
+keeps company booking and provider settlement disabled.
+
+## Checkpoint AI: B2B audit-to-operator linkage
+
+The database repair makes B2B decisions recordable, but the Admin Audit Log
+still treated the new targets as unknown. Account events, contract events, and
+statement events displayed as inert text, so an operator investigating a
+commercial decision could not return to the owning Business Account 360 from
+the timeline.
+
+UX-1050 recognizes all three first-class B2B targets. Account events link by
+their target ID; contract and statement events use the immutable
+`businessAccountId` retained in their before/after evidence. Missing or invalid
+linkage remains inert instead of constructing an unsafe route. The rendered
+regression fixture verifies account, contract, and statement rows all link to
+the same owning business record.
+
+`git diff --check`, local Admin TypeScript, and focused ESLint pass. Local
+Vitest reached no import or assertion because its fork worker timed out waiting
+for the Windows/OneDrive dependency tree, so no local rendered pass is claimed.
+Protected Admin TypeScript, build, and the full rendered suite remain the
+execution gate. No customer, provider, account, contract, statement, payment,
+audit, or production record changed.

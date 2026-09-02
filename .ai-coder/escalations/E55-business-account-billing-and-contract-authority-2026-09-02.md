@@ -273,5 +273,8 @@ executes migration 169 in an isolated test schema, inserts all three B2B target
 types, proves earlier target types still work, and proves the CHECK constraint
 still rejects an unknown target. Local TypeScript passes. Local Jest execution
 is blocked by the recorded Windows/OneDrive dependency-read failure, so the
-safe CI PostgreSQL service remains the execution gate. No production migration
-or business action was run.
+safe CI PostgreSQL service remains the execution gate. Protected CI
+`33677946534` passed the PostgreSQL integration test, full API/Admin/mobile
+suites, both TypeScript checks, Admin build, and Docker boot/health at commit
+`fd4ab60`; protected Gates `33677946496` passed A through E and the rollup. No
+production migration or business action was run.
