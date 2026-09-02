@@ -879,6 +879,7 @@ function PaymentsPanel(): React.ReactElement {
 
 interface PayoutFailed {
   id: string;
+  providerId?: string;
   providerName: string;
   amount: number;
   amountCentavos?: number;
@@ -918,6 +919,7 @@ function normalizePayouts(data: PayoutsData): PayoutsData {
     failedCount: Number(data.failedCount ?? 0),
     recentFailed: (data.recentFailed ?? []).map((row) => ({
       id: row.id,
+      providerId: row.providerId,
       providerName: row.providerName,
       amount: Number(row.amount ?? row.amountCentavos ?? 0),
       failedAt: row.failedAt,
@@ -991,8 +993,22 @@ export function PayoutsPanel(): React.ReactElement {
               <tbody>
                 {d.recentFailed.map((row) => (
                   <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
-                    <td className="py-2 px-3 font-mono text-xs text-[var(--color-text)]">{row.id.slice(0, 10)}…</td>
-                    <td className="py-2 px-3 text-[var(--color-text)]">{row.providerName}</td>
+                    <td className="py-2 px-3 font-mono text-xs">
+                      <Link
+                        aria-label={`Open payout ${row.id}`}
+                        className="text-[var(--color-primary)] hover:underline"
+                        to={`/payouts?payoutId=${encodeURIComponent(row.id)}`}
+                      >
+                        {row.id.slice(0, 10)}…
+                      </Link>
+                    </td>
+                    <td className="py-2 px-3 text-[var(--color-text)]">
+                      {row.providerId ? (
+                        <Link className="text-[var(--color-primary)] hover:underline" to={`/providers/${encodeURIComponent(row.providerId)}`}>
+                          {row.providerName}
+                        </Link>
+                      ) : row.providerName}
+                    </td>
                     <td className="py-2 px-3 text-right font-medium text-[var(--color-text)]">
                       {formatCurrency(row.amount)}
                     </td>
