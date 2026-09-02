@@ -641,6 +641,8 @@ interface PaymentOperationsData {
     id: string;
     bookingId: string | null;
     topupId: string | null;
+    paymongoIntentId: string | null;
+    paymongoPaymentId: string | null;
     customerId: string | null;
     customerName: string | null;
     amountCentavos: number;
@@ -676,11 +678,17 @@ function paymentStatusVariant(status: string): 'success' | 'warning' | 'danger' 
 function PaymentsPanel(): React.ReactElement {
   const retryPageSize = 25;
   const [retryPage, setRetryPage] = useState(1);
+  const [intentSearchDraft, setIntentSearchDraft] = useState('');
+  const [intentSearch, setIntentSearch] = useState('');
   const q = useQuery({
-    queryKey: ['fin-payments', retryPage],
+    queryKey: ['fin-payments', retryPage, intentSearch],
     queryFn: async () => {
       const res = await api.get<ApiEnvelope<PaymentOperationsData>>('/api/v1/admin/financials/payments', {
-        params: { retryLimit: retryPageSize, retryOffset: (retryPage - 1) * retryPageSize },
+        params: {
+          retryLimit: retryPageSize,
+          retryOffset: (retryPage - 1) * retryPageSize,
+          ...(intentSearch ? { intentSearch } : {}),
+        },
       });
       return res.data.data;
     },
@@ -729,9 +737,44 @@ function PaymentsPanel(): React.ReactElement {
 
           <div className="overflow-x-auto rounded-xl border border-[var(--color-border)] bg-white p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-[var(--color-text)]">Latest 50 Payment Attempts</h2>
-              <span className="text-xs text-[var(--color-text-secondary)]">Most recently updated first</span>
+              <h2 className="text-base font-semibold text-[var(--color-text)]">Payment Attempts</h2>
+              <span className="text-xs text-[var(--color-text-secondary)]">
+                {intentSearch ? 'Exact identifier matches' : 'Latest 50 · most recently updated first'}
+              </span>
             </div>
+            <form
+              className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setIntentSearch(intentSearchDraft.trim());
+              }}
+            >
+              <label className="flex-1 text-xs font-medium text-[var(--color-text-secondary)]" htmlFor="payment-attempt-search">
+                Find payment attempt
+                <input
+                  id="payment-attempt-search"
+                  className="mt-1 min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 text-sm text-[var(--color-text)]"
+                  maxLength={255}
+                  onChange={(event) => setIntentSearchDraft(event.target.value)}
+                  placeholder="Attempt, booking, customer, top-up, or gateway ID"
+                  value={intentSearchDraft}
+                />
+              </label>
+              <Button className="min-h-11" type="submit">Search attempts</Button>
+              {intentSearch && (
+                <Button
+                  className="min-h-11"
+                  onClick={() => {
+                    setIntentSearchDraft('');
+                    setIntentSearch('');
+                  }}
+                  type="button"
+                  variant="outline"
+                >
+                  Clear search
+                </Button>
+              )}
+            </form>
             {data.recentIntents.length === 0 ? <EmptyState title="No payment attempts recorded" /> : (
               <table className="w-full text-sm">
                 <thead><tr className="border-b border-[var(--color-border)]">
@@ -752,6 +795,8 @@ function PaymentsPanel(): React.ReactElement {
                         ) : row.customerName ?? (row.topupId ? 'Customer not linked in this record' : 'Unlinked attempt')}
                       </p>
                       <p className="mt-1 break-all font-mono text-[11px] text-[var(--color-text-tertiary)]">Attempt {row.id}</p>
+                      {row.paymongoIntentId && <p className="break-all font-mono text-[11px] text-[var(--color-text-tertiary)]">Gateway intent {row.paymongoIntentId}</p>}
+                      {row.paymongoPaymentId && <p className="break-all font-mono text-[11px] text-[var(--color-text-tertiary)]">Gateway payment {row.paymongoPaymentId}</p>}
                     </td>
                     <td className="px-3 py-2 text-right font-medium">{formatCurrency(row.amountCentavos)}</td>
                     <td className="px-3 py-2 text-right">{formatCurrency(row.refundedAmountCentavos)}</td>

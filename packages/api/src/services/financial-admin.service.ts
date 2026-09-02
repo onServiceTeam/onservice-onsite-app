@@ -167,6 +167,8 @@ export interface PaymentOperationsSummary {
     id: string;
     bookingId: string | null;
     topupId: string | null;
+    paymongoIntentId: string | null;
+    paymongoPaymentId: string | null;
     customerId: string | null;
     customerName: string | null;
     amountCentavos: number;
@@ -800,6 +802,8 @@ interface PaymentIntentOpsRow {
   id: string;
   booking_id: string | null;
   topup_id: string | null;
+  paymongo_intent_id: string | null;
+  paymongo_payment_id: string | null;
   customer_id: string | null;
   customer_name: string | null;
   amount: string;
@@ -825,10 +829,20 @@ interface GatewayRetryOpsRow {
 }
 
 export async function getPaymentOperationsSummary(
-  options: { retryLimit?: number; retryOffset?: number } = {},
+  options: { retryLimit?: number; retryOffset?: number; intentSearch?: string } = {},
 ): Promise<PaymentOperationsSummary> {
   const retryLimit = clampLimit(options.retryLimit);
   const retryOffset = clampOffset(options.retryOffset);
+  const intentSearch = options.intentSearch?.trim() || undefined;
+  const intentWhere = intentSearch
+    ? `WHERE LOWER(pi.id::text) = LOWER($1)
+            OR LOWER(pi.booking_id::text) = LOWER($1)
+            OR LOWER(pi.topup_id) = LOWER($1)
+            OR LOWER(b.customer_id::text) = LOWER($1)
+            OR LOWER(pi.paymongo_intent_id) = LOWER($1)
+            OR LOWER(pi.paymongo_payment_id) = LOWER($1)`
+    : '';
+  const intentParams = intentSearch ? [intentSearch] : [];
   const [paymentIntentsAvailable, gatewayRetriesAvailable] = await Promise.all([
     tableExists('payment_intents'),
     tableExists('gateway_retry_queue'),
@@ -877,6 +891,8 @@ export async function getPaymentOperationsSummary(
              pi.id::text AS id,
              pi.booking_id::text AS booking_id,
              pi.topup_id,
+             pi.paymongo_intent_id,
+             pi.paymongo_payment_id,
              b.customer_id::text AS customer_id,
              CASE WHEN pi.booking_id IS NULL THEN NULL
                   ELSE TRIM(COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, ''))
@@ -887,11 +903,13 @@ export async function getPaymentOperationsSummary(
              pi.status,
              pi.created_at,
              pi.updated_at
-             FROM payment_intents pi
-            LEFT JOIN bookings b ON b.id = pi.booking_id
-             LEFT JOIN users cu ON cu.id = b.customer_id
-            ORDER BY pi.updated_at DESC
-            LIMIT 50`,
+              FROM payment_intents pi
+             LEFT JOIN bookings b ON b.id = pi.booking_id
+              LEFT JOIN users cu ON cu.id = b.customer_id
+             ${intentWhere}
+             ORDER BY pi.updated_at DESC
+             LIMIT 50`,
+          intentParams,
         )
       : Promise.resolve({ rows: [] as PaymentIntentOpsRow[] }),
     gatewayRetriesAvailable
@@ -946,6 +964,8 @@ export async function getPaymentOperationsSummary(
       id: row.id,
       bookingId: row.booking_id,
       topupId: row.topup_id,
+      paymongoIntentId: row.paymongo_intent_id,
+      paymongoPaymentId: row.paymongo_payment_id,
       customerId: row.customer_id,
       customerName: row.customer_name?.trim() || null,
       amountCentavos: Number(row.amount),

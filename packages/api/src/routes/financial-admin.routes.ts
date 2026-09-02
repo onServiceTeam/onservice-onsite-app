@@ -293,7 +293,18 @@ router.get(
       if (retryOffset !== undefined && (!Number.isInteger(retryOffset) || retryOffset < 0)) {
         throw createAppError('retryOffset must be a non-negative integer.', 400);
       }
-      const data = await financialAdminService.getPaymentOperationsSummary({ retryLimit, retryOffset });
+      if (req.query.intentSearch !== undefined && typeof req.query.intentSearch !== 'string') {
+        throw createAppError('intentSearch must be a single identifier.', 400);
+      }
+      const intentSearch = typeof req.query.intentSearch === 'string' ? req.query.intentSearch.trim() : undefined;
+      if (intentSearch && intentSearch.length > 255) {
+        throw createAppError('intentSearch must be 255 characters or fewer.', 400);
+      }
+      const data = await financialAdminService.getPaymentOperationsSummary({
+        retryLimit,
+        retryOffset,
+        intentSearch: intentSearch || undefined,
+      });
       res.json({ success: true, data });
     } catch (error) { next(error); }
   },
