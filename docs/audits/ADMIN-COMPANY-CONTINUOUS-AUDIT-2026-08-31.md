@@ -3373,3 +3373,50 @@ with the Support Tickets change. No support case, customer, provider, booking,
 project, business account, payment, audit row, database schema, master, or
 production record changed. Production synchronization remains blocked by E32,
 and raw audit PII remains blocked by E72.
+
+## Checkpoint CJ: server-confirmed support case owner
+
+The agent-created Support case form previously displayed `userName` and
+`userRole` labels supplied by the browser URL while assigning the durable case
+to `userId`. A manipulated or stale handoff could therefore show one person or
+persona to the operator while the API created the case for a different account.
+
+OPS-448 adds an Admin-only, canonical account-context route that passes the
+acting Admin role into the read model. OPS-449 derives the selected customer,
+provider, or provider-staff identity from the user account and provider
+relationship without selecting raw phone or email. Ordinary Admins receive a
+last initial under the existing support privacy boundary; super-admin handling
+remains explicit. The response also states account activity and the provider
+organization/profile context when one applies.
+
+UX-1220 requires that server-confirmed account context before the form can be
+used, displays that identity instead of browser labels, and submits only the
+confirmed canonical account ID. UX-1221 fails closed while owner confirmation
+is unavailable and provides a retry without rendering or submitting the form.
+Inactive accounts remain visible as inactive so support can record a case, but
+this control neither reactivates them nor implies that it does.
+
+This slice adds one read-only support context endpoint. It does not create,
+assign, reply to, close, reopen, or edit a support case; reveal raw contact
+fields; reactivate an account; change a customer, provider, booking, project,
+business account, payment, or audit row; or add a new Admin mutation.
+
+Local Admin and API TypeScript, changed-file ESLint, and staged diff checks
+pass. The focused owner regressions pass three Admin files and three tests plus
+two API suites and two tests. Every rendered test that directly imports Support
+Tickets passes 22 files and 24 tests, and the direct API support inventory
+passes 41 suites and 63 tests.
+
+Protected CI `33792519912` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at implementation commit `39028a12`. The full Admin test step
+completed successfully in 8 minutes 33 seconds within the measured 15-minute
+job limit. Protected Gates `33792519936` passed A through E and the `All gates
+passed` rollup at the same commit. The preceding Checkpoint CI documentation
+CI `33792307925` was superseded and cancelled by the implementation push; its
+Gates run `33792307971` passed, and the newer full CI verified that checkpoint
+together with the owner-confirmation change. No support case, customer,
+provider, account state, booking, project, business account, payment, audit
+row, database schema, master, or production record changed. Production
+synchronization remains blocked by E32, and raw audit PII remains blocked by
+E72.
