@@ -77,6 +77,7 @@ const ACTION_LABELS: Record<string, string> = {
   dsr_more_info_requested: 'More information requested for data subject request',
   dsr_rejected: 'Data subject request rejected',
   dsr_review_started: 'Data subject request review started',
+  feedback_submission_updated: 'Tester feedback triage updated',
   message_flag_reviewed: 'Reported message reviewed',
   message_redacted: 'Message redacted',
   payout_approved: 'Payout approved',
@@ -251,6 +252,10 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
     }
     case 'dispute':
       return { to: `/disputes/${id}`, label: 'Open Dispute 360' };
+    case 'feedback_submission':
+      return UUID_REGEX.test(entry.entityId)
+        ? { to: `/feedback?feedbackId=${id}`, label: 'Open exact tester feedback' }
+        : null;
     case 'payout':
       return { to: `/payouts?payoutId=${id}`, label: 'Open exact payout' };
     case 'reconciliation':

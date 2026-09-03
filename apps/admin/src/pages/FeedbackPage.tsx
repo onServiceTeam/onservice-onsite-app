@@ -165,7 +165,9 @@ export default function FeedbackPage(): React.ReactElement {
   const area = parseArea(searchParams.get('area'));
   const search = parseSearch(searchParams.get('search'));
   const page = parsePage(searchParams.get('page'));
-  const selectedId = parseFeedbackId(searchParams.get('feedbackId'));
+  const requestedFeedbackId = searchParams.get('feedbackId')?.trim() ?? '';
+  const selectedId = parseFeedbackId(requestedFeedbackId);
+  const invalidFeedbackId = requestedFeedbackId.length > 0 && !selectedId;
   const [searchDraft, setSearchDraft] = useState(search);
   const [editStatus, setEditStatus] = useState<FeedbackStatus>('new');
   const [ownerId, setOwnerId] = useState('');
@@ -186,14 +188,14 @@ export default function FeedbackPage(): React.ReactElement {
     if (!listQuery.isSuccess) return;
     const rows = listQuery.data.submissions;
     const firstId = rows[0]?.id;
-    if (selectedId || !firstId) return;
+    if (selectedId || invalidFeedbackId || !firstId) return;
     setSearchParams((current) => {
       if (parseFeedbackId(current.get('feedbackId'))) return current;
       const next = new URLSearchParams(current);
       next.set('feedbackId', firstId);
       return next;
     }, { replace: true });
-  }, [listQuery.data, listQuery.isSuccess, selectedId, setSearchParams]);
+  }, [invalidFeedbackId, listQuery.data, listQuery.isSuccess, selectedId, setSearchParams]);
 
   useEffect(() => {
     setSearchDraft(search);
@@ -300,7 +302,7 @@ export default function FeedbackPage(): React.ReactElement {
   }, [listQuery.isError, resetUpdateMutation]);
 
   const detail = detailQuery.data;
-  const selectionAvailable = listQuery.isSuccess && !!selectedId;
+  const selectionAvailable = !!selectedId;
   const selectionInCurrentPage = !!selectedId && listRows.some((record) => record.id === selectedId);
   const detailAvailable = selectionAvailable && detailQuery.isSuccess && !detailQuery.isError && !!detail;
   const updateConflict = updateMutation.error instanceof Error
@@ -460,7 +462,29 @@ export default function FeedbackPage(): React.ReactElement {
         </div>
 
         <div>
-          {!selectedId && listQuery.isSuccess && listRows.length > 0 && (
+          {invalidFeedbackId && (
+            <Card className="border-red-200 bg-red-50 p-5">
+              <p role="alert" className="font-semibold text-red-800">The saved feedback link is invalid.</p>
+              <p className="mt-1 text-sm text-red-700">
+                No feedback detail was requested. Remove the invalid record ID to return to the available queue.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-4"
+                onClick={() => {
+                  setSearchParams((current) => {
+                    const next = new URLSearchParams(current);
+                    next.delete('feedbackId');
+                    return next;
+                  }, { replace: true });
+                }}
+              >
+                Remove invalid feedback link
+              </Button>
+            </Card>
+          )}
+          {!selectedId && !invalidFeedbackId && listQuery.isSuccess && listRows.length > 0 && (
             <Card className="p-8"><EmptyState title="No feedback selected" description="Choose a submission to review its evidence and record a decision." /></Card>
           )}
           {selectionAvailable && detailQuery.isLoading && <LoadingState />}
