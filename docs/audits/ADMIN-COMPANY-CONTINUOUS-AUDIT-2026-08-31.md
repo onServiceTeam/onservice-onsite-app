@@ -2017,3 +2017,46 @@ image boot/liveness at commit `3e66ca0`. Protected Gates `33711098647` passed A
 through E and the `All gates passed` rollup at the same commit. No feedback
 submission, triage decision, user, support case, audit row, database schema, or
 production record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BA: durable Provider 360 workspaces and child-record ownership
+
+Provider 360 exposed nine operational tabs, but the selected tab lived only in
+component state. Refresh, bookmark, browser navigation, and an Audit Log
+handoff therefore returned an operator to Profile even when the investigation
+concerned staff, certifications, notes, or reviews. UX-1081 makes non-default
+tabs durable as validated `tab` URL state, defaults missing or invalid values
+to Profile, and removes only `tab` when Profile is selected so unrelated
+support context remains intact.
+
+UX-1082 maps provider certification, support-note, and review targets to their
+owning Provider 360 tab. The destinations deliberately promise the scoped
+workspace rather than an exact child record because those panels do not yet
+implement child selection. Provider staff, application, and document events
+had a deeper identity gap: some historical action payloads did not contain a
+provider UUID at all. OPS-409 resolves the owner relationally from the durable
+provider application, document, certification, staff, note, and review rows,
+then exposes one canonical `targetProviderId` without trusting optional JSON.
+UX-1083 uses that owner to open Staff for a provider-staff event and Profile
+for application or document evidence.
+
+OPS-410 also records `providerId`, previous status, and next status on new
+provider-staff review, suspension, and reactivation actions. This improves
+future audit evidence without changing the decision itself. Relational lookup
+continues to support older events whose JSON did not contain the owner. No
+provider application, document, certification, staff member, note, review,
+booking, payment, or support record changed.
+
+Local API and Admin TypeScript, affected-file ESLint, and `git diff --check`
+pass. The Provider 360 URL and scoped-link group passed six rendered Admin
+files and six tests. The child-owner group passed four focused API suites and
+four tests plus three rendered Admin files and three tests. A complete local
+Admin run reached 357 passing files and 446 passing tests but reported two
+unrelated parallel-load failures: OPS-269 exceeded its five-second timeout and
+UX-417 did not complete its feedback auto-selection before assertion. Both
+files passed immediately when rerun together in isolation. Protected CI
+`33713061235` passed 856 API suites and 3,227 tests, 360 Admin files and 449
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, both TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `7f2923c`.
+Protected Gates `33713061239` passed A through E and the `All gates passed`
+rollup at the same commit. Production synchronization remains blocked by E32.
