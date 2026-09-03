@@ -3485,7 +3485,7 @@ Their Admin or Mobile counterparts retain UX-308, UX-455, UX-456, UX-309,
 UX-342, and UX-345 respectively.
 
 After correction, an exact scan of direct `it()` and `test()` regression titles
-finds 1,374 titles and zero duplicate IDs. The three changed Mobile suites pass
+across test and spec files finds 1,377 titles and zero duplicate IDs. The three changed Mobile suites pass
 six tests, and the seven changed API suites pass seven tests. The ten retained
 counterparts also pass: five Admin files/five tests, two Mobile suites/two
 tests, and three API suites/thirteen tests. Changed-test ESLint and staged diff
