@@ -1612,3 +1612,41 @@ Protected Gates `33696434785` passed A through E and the `All gates passed`
 rollup at the same commit. E22 remains open and enforced. No sales-document,
 payment, booking, customer, provider, support, audit, or production record
 changed.
+
+## Checkpoint AQ: unresolved gateway-retry discovery and durable handoff
+
+The Payments & Refunds workspace listed unresolved post-commit refund and
+release retries, but an operator holding a retry identifier could not locate an
+older row directly. Global command search omitted retry records, the queue had
+no exact server filter, and the table did not display its own local retry ID.
+This made a `failed_permanent` investigation dependent on paging and visual
+guesswork even though the retry is evidence that a customer or provider money
+outcome remains incomplete.
+
+OPS-399 adds one fixed, bounded, read-only global-search query for unresolved
+`pending`, `in_progress`, and `failed_permanent` retries. A retry ID, exact
+booking ID, or exact dispute ID can locate the row, but global results return
+only the local retry ID, action type, shortened related record context, and
+status. They never return `last_error` or another gateway failure detail.
+UX-1064 renders that result as an explicit `Gateway retry` and opens the
+canonical Financials Payments workspace.
+
+OPS-400 and OPS-401 carry an exact local retry identifier through the validated
+Admin route into the unresolved queue query. UX-1065 makes that filter
+URL-backed, restores it on refresh/bookmark/handoff, and displays the complete
+local retry ID beside the linked Booking and optional Dispute 360 exits. The
+existing authorized Financials view still shows its bounded failure message for
+investigation. This checkpoint adds no manual replay, refund, release, payment,
+or retry mutation; E14 and the existing money holds remain enforced.
+
+Local API and Admin TypeScript checks and focused ESLint pass. Eleven focused
+API regressions pass, including three new gateway-retry boundaries and every
+older global-search query-count contract. Seven real rendered Admin regressions
+pass, including the two new command-search and exact-URL contracts plus existing
+pagination, payment-operations, and dispute-linkage coverage. Protected CI
+`33698198759` passed the
+full API, Mobile, and rendered Admin suites, both TypeScript checks, the Admin
+production build, and Docker image boot/health at commit `cc7be31`. Protected
+Gates `33698198774` passed A through E and the `All gates passed` rollup at the
+same commit. No retry, payment, refund, release, booking, dispute, support,
+audit, or production record changed.
