@@ -2434,3 +2434,62 @@ through E and the `All gates passed` rollup at the same commit. No role profile,
 staff account, authorization, session, customer, provider, booking, payment,
 historical audit row, database schema, master, or production record changed.
 Production synchronization remains blocked by E32.
+
+## Checkpoint BK: exact retained commission-agreement audit evidence
+
+Commission-rate scheduling and cancellation actions retained exact agreement
+UUIDs, but the general Audit Log sent tier-scoped `config` events to System
+Settings and left provider-scoped events without a durable exact destination.
+Generic `system` events were also sent to System Settings even though that
+workspace does not own records such as PII reveals or legacy password-rotation
+campaigns. These links gave support operators a plausible-looking but false
+handoff, and a retained cancelled or superseded agreement could be hidden by
+the normal paginated commission history.
+
+OPS-422 adds a bounded exact service read for a tier- or provider-scoped
+commission agreement in any retained lifecycle state, independently of the
+history list. It includes scope, schedule, rate, owners, cancellation evidence,
+and the count of immutable booking commission snapshots that reference that
+agreement. OPS-423 exposes the exact Admin route. SEC-056 verifies that a
+customer account cannot access the record, and SEC-057 rejects a malformed UUID
+before service access. Existing Admin and Super Admin read access is preserved;
+all commission mutations remain Super Admin-only.
+
+UX-1129 maps a provider-scoped commission action through its retained
+`commissionRateVersionId` to
+`/financials?tab=commission&commissionRateId=<id>`. UX-1130 maps a tier-scoped
+commission `config` action through its exact entity UUID to the same workspace
+instead of System Settings. The Financials workspace loads the exact agreement
+independently of the normal history list and renders a separate read-only
+evidence panel with its canonical ID, lifecycle, provider or tier, service
+scope, rate, booking-snapshot usage, Manila effective and recorded times,
+owner, approver, business reason, and cancellation evidence. The panel makes
+the approved E50 contract explicit: agreements are append-only and
+effective-dated, and cancelling or superseding one does not recalculate an
+existing booking's captured commercial terms.
+
+UX-1131 rejects malformed selections without an arbitrary detail request.
+UX-1132 rejects a response whose ID differs from the requested audit target
+instead of substituting a list record. UX-1133 removes only
+`commissionRateId` when the operator clears the evidence, preserving unrelated
+Financials URL context. UX-1134 removes the false System Settings destination
+from unknown `config` and generic `system` events while keeping those events
+visible and expandable in the Audit Log. UX-1135 removes a hidden exact target
+when the operator leaves Commission Controls. The exact panel presents current
+retained lifecycle state; the originating Audit Log row remains the evidence of
+what was recorded at event time.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Four focused API suites pass four tests, and the expanded commission and
+financial-admin API set passes 21 suites and 44 tests. Seven focused Admin files
+pass seven tests, and 53 rendered Financials and Audit Log files pass 62 tests.
+Protected CI `33732523134` passed 881 API suites and 3,252 tests, 412 Admin
+files and 501 tests with one intentionally skipped file and three existing
+honest TODOs, 531 Mobile suites and 910 tests with 84 TODOs, all three
+TypeScript checks, the Admin production build, and Docker image boot/liveness
+at commit `68538e73`. Protected Gates `33732522938` passed A through E and the
+`All gates passed` rollup at the same commit. No commission agreement, booking,
+payment, customer, provider, setting, historical audit row, database schema,
+master, or production record changed. PII-reveal events still need a truthful
+exact handoff to their originating masked audit record; this checkpoint does
+not claim that linkage. Production synchronization remains blocked by E32.
