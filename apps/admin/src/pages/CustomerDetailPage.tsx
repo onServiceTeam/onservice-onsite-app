@@ -1169,6 +1169,7 @@ export function PaymentsTab({
             <table className="min-w-full text-sm">
               <thead className="text-xs text-[var(--color-text-secondary)] uppercase">
                 <tr>
+                  <th className="px-3 py-2 text-left">Attempt</th>
                   <th className="px-3 py-2 text-left">Booking</th>
                   <th className="px-3 py-2 text-left">Provider</th>
                   <th className="px-3 py-2 text-left">Method</th>
@@ -1180,6 +1181,15 @@ export function PaymentsTab({
               <tbody>
                 {data.recentPaymentIntents.map((p) => (
                   <tr key={p.id} className="border-t border-[var(--color-border)]">
+                    <td className="px-3 py-2">
+                      <Link
+                        to={`/financials?tab=payments&paymentAttemptId=${encodeURIComponent(p.id)}`}
+                        aria-label={`Open payment attempt ${p.id}`}
+                        className="font-mono text-xs text-[var(--color-secondary)] hover:underline"
+                      >
+                        {p.id.slice(0, 8)}…
+                      </Link>
+                    </td>
                     <td className="px-3 py-2">
                       <Link
                         to={`/bookings/${p.bookingId}`}

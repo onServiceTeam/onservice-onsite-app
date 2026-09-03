@@ -103,7 +103,7 @@ function resultDestination(kind: AdminSearchKind, row: RawSearchRow): string {
       ? `/business-accounts/${businessId}?tab=invoices&invoiceId=${id}`
       : '/business-accounts';
   }
-  if (kind === 'payment') return `/financials?tab=payments&intentSearch=${id}`;
+  if (kind === 'payment') return `/financials?tab=payments&paymentAttemptId=${id}`;
   if (kind === 'legacy_sales_record') {
     return `/financials?tab=receipts&receiptOr=${encodeURIComponent(row.title)}`;
   }

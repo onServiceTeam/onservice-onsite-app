@@ -858,22 +858,26 @@ export async function getPaymentOperationsSummary(
   options: {
     retryLimit?: number;
     retryOffset?: number;
+    paymentAttemptId?: string;
     intentSearch?: string;
     retrySearch?: string;
   } = {},
 ): Promise<PaymentOperationsSummary> {
   const retryLimit = clampLimit(options.retryLimit);
   const retryOffset = clampOffset(options.retryOffset);
+  const paymentAttemptId = options.paymentAttemptId?.trim() || undefined;
   const intentSearch = options.intentSearch?.trim() || undefined;
-  const intentWhere = intentSearch
-    ? `WHERE LOWER(pi.id::text) = LOWER($1)
+  const intentWhere = paymentAttemptId
+    ? 'WHERE pi.id = $1::uuid'
+    : intentSearch
+      ? `WHERE LOWER(pi.id::text) = LOWER($1)
             OR LOWER(pi.booking_id::text) = LOWER($1)
             OR LOWER(pi.topup_id) = LOWER($1)
             OR LOWER(b.customer_id::text) = LOWER($1)
             OR LOWER(pi.paymongo_intent_id) = LOWER($1)
             OR LOWER(pi.paymongo_payment_id) = LOWER($1)`
-    : '';
-  const intentParams = intentSearch ? [intentSearch] : [];
+      : '';
+  const intentParams = paymentAttemptId ? [paymentAttemptId] : intentSearch ? [intentSearch] : [];
   const retrySearch = options.retrySearch?.trim() || undefined;
   const retryWhere = retrySearch ? 'AND LOWER(id::text) = LOWER($3)' : '';
   const retryParams = retrySearch

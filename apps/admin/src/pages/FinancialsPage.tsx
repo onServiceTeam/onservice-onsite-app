@@ -720,35 +720,52 @@ function paymentStatusVariant(status: string): 'success' | 'warning' | 'danger' 
 }
 
 function PaymentsPanel({
+  paymentAttemptId,
+  paymentAttemptSelectionError,
+  onClearExactPaymentAttempt,
   intentSearch,
   onIntentSearchChange,
   retrySearch,
   onRetrySearchChange,
 }: {
+  paymentAttemptId: string;
+  paymentAttemptSelectionError: string;
+  onClearExactPaymentAttempt: () => void;
   intentSearch: string;
   onIntentSearchChange: (value: string) => void;
   retrySearch: string;
   onRetrySearchChange: (value: string) => void;
 }): React.ReactElement {
   const retryPageSize = 25;
+  const hasExactPaymentAttempt = paymentAttemptId.length > 0;
   const [retryPage, setRetryPage] = useState(1);
   const [intentSearchDraft, setIntentSearchDraft] = useState(intentSearch);
   const [retrySearchDraft, setRetrySearchDraft] = useState(retrySearch);
   const q = useQuery({
-    queryKey: ['fin-payments', retryPage, intentSearch, retrySearch],
+    queryKey: ['fin-payments', retryPage, paymentAttemptId, intentSearch, retrySearch],
     queryFn: async () => {
       const res = await api.get<ApiEnvelope<PaymentOperationsData>>('/api/v1/admin/financials/payments', {
-        params: {
-          retryLimit: retryPageSize,
-          retryOffset: (retryPage - 1) * retryPageSize,
-          ...(intentSearch ? { intentSearch } : {}),
-          ...(retrySearch ? { retrySearch } : {}),
-        },
+        params: hasExactPaymentAttempt
+          ? { retryLimit: retryPageSize, retryOffset: 0, paymentAttemptId }
+          : {
+              retryLimit: retryPageSize,
+              retryOffset: (retryPage - 1) * retryPageSize,
+              ...(intentSearch ? { intentSearch } : {}),
+              ...(retrySearch ? { retrySearch } : {}),
+            },
       });
       return res.data.data;
     },
+    enabled: !paymentAttemptSelectionError,
   });
 
+  if (paymentAttemptSelectionError) return (
+    <ErrorState
+      title="Invalid payment-attempt link"
+      description={`${paymentAttemptSelectionError} No payment records were requested.`}
+      action={<Button variant="outline" className="min-h-11" onClick={onClearExactPaymentAttempt}>Clear payment selection</Button>}
+    />
+  );
   if (q.isLoading) return <LoadingState />;
   if (q.isError) return (
     <ErrorState
@@ -759,6 +776,12 @@ function PaymentsPanel({
   );
   const data = q.data;
   if (!data) return <EmptyState title="No payment operations data" />;
+  const visibleIntents = hasExactPaymentAttempt
+    ? data.recentIntents.filter((row) => row.id === paymentAttemptId)
+    : data.recentIntents;
+  const exactPaymentAttemptMissing = hasExactPaymentAttempt
+    && data.paymentIntentsAvailable
+    && visibleIntents.length === 0;
   const totalGatewayRetries = data.pendingGatewayRetries
     + data.inProgressGatewayRetries
     + data.permanentGatewayFailures;
@@ -780,7 +803,7 @@ function PaymentsPanel({
       )}
       {data.paymentIntentsAvailable && (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          {!hasExactPaymentAttempt && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
             <KpiCard title="All Attempts" value={String(data.totalAttempts)} icon={null} />
             <KpiCard title="Awaiting Customer" value={String(data.awaitingPaymentCount)} icon={null} />
             <KpiCard title="Processing" value={String(data.processingCount)} icon={null} />
@@ -788,16 +811,28 @@ function PaymentsPanel({
             <KpiCard title="Failed" value={String(data.failedCount)} icon={null} />
             <KpiCard title="Refunded" value={String(data.refundedCount)} icon={null} />
             <KpiCard title="Partially Refunded" value={String(data.partiallyRefundedCount)} icon={null} />
-          </div>
+          </div>}
 
           <div className="overflow-x-auto rounded-xl border border-[var(--color-border)] bg-white p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-[var(--color-text)]">Payment Attempts</h2>
+              <h2 className="text-base font-semibold text-[var(--color-text)]">
+                {hasExactPaymentAttempt ? 'Payment Attempt Evidence' : 'Payment Attempts'}
+              </h2>
               <span className="text-xs text-[var(--color-text-secondary)]">
-                {intentSearch ? 'Exact identifier matches' : 'Latest 50 · most recently updated first'}
+                {hasExactPaymentAttempt
+                  ? 'Exact retained attempt'
+                  : intentSearch
+                    ? 'Identifier matches'
+                    : 'Latest 50 · most recently updated first'}
               </span>
             </div>
-            <form
+            {hasExactPaymentAttempt && (
+              <div className="mb-4 flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--color-primary)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)]">
+                <span>Exact attempt <strong className="break-all font-mono">{paymentAttemptId}</strong></span>
+                <Button variant="outline" className="min-h-9" onClick={onClearExactPaymentAttempt}>Clear</Button>
+              </div>
+            )}
+            {!hasExactPaymentAttempt && <form
               className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -831,8 +866,14 @@ function PaymentsPanel({
                   Clear search
                 </Button>
               )}
-            </form>
-            {data.recentIntents.length === 0 ? <EmptyState title="No payment attempts recorded" /> : (
+            </form>}
+            {exactPaymentAttemptMissing ? (
+              <ErrorState
+                title="Payment attempt not found"
+                description="The requested payment attempt is unavailable. No substitute payment record is shown; return to Customer 360 or global search for the durable source context."
+                action={<Button variant="outline" className="min-h-11" onClick={onClearExactPaymentAttempt}>Show payment operations</Button>}
+              />
+            ) : visibleIntents.length === 0 ? <EmptyState title="No payment attempts recorded" /> : (
               <table className="w-full text-sm">
                 <thead><tr className="border-b border-[var(--color-border)]">
                   <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Work / Customer</th>
@@ -842,8 +883,14 @@ function PaymentsPanel({
                   <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Status</th>
                   <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Updated</th>
                 </tr></thead>
-                <tbody>{data.recentIntents.map((row) => (
-                  <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
+                <tbody>{visibleIntents.map((row) => (
+                  <tr
+                    key={row.id}
+                    aria-current={hasExactPaymentAttempt ? 'true' : undefined}
+                    className={hasExactPaymentAttempt
+                      ? 'border-b border-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                      : 'border-b border-[var(--color-border)] hover:bg-slate-50'}
+                  >
                     <td className="px-3 py-2">
                       {row.bookingId ? <Link className="font-medium text-[var(--color-primary)] hover:underline" to={`/bookings/${row.bookingId}`}>Booking {row.bookingId.slice(0, 8)}</Link> : <span className="font-medium">Wallet top-up</span>}
                       <p className="text-xs text-[var(--color-text-secondary)]">
@@ -868,7 +915,7 @@ function PaymentsPanel({
         </>
       )}
 
-      <div className="rounded-xl border border-[var(--color-border)] bg-white p-5">
+      {!hasExactPaymentAttempt && <div className="rounded-xl border border-[var(--color-border)] bg-white p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-[var(--color-text)]">Refund and Release Retry Queue</h2>
           {data.gatewayRetriesAvailable && (
@@ -962,7 +1009,7 @@ function PaymentsPanel({
             onPageChange={setRetryPage}
           />
         )}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -2513,6 +2560,11 @@ export function ReceiptsPanel({
 export default function FinancialsPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseTab(searchParams.get('tab'));
+  const rawPaymentAttemptId = searchParams.get('paymentAttemptId')?.trim() ?? '';
+  const paymentAttemptId = UUID_REGEX.test(rawPaymentAttemptId) ? rawPaymentAttemptId.toLowerCase() : '';
+  const paymentAttemptSelectionError = tab === 'payments' && rawPaymentAttemptId && !paymentAttemptId
+    ? 'Payment attempt ID must be a complete UUID.'
+    : '';
   const intentSearch = searchParams.get('intentSearch')?.trim() ?? '';
   const retrySearch = searchParams.get('retrySearch')?.trim() ?? '';
   const rawCommissionRateId = searchParams.get('commissionRateId')?.trim() ?? '';
@@ -2571,6 +2623,7 @@ export default function FinancialsPage(): React.ReactElement {
         params.set('tab', nextTab);
       }
       if (nextTab !== 'payments') {
+        params.delete('paymentAttemptId');
         params.delete('intentSearch');
         params.delete('retrySearch');
       }
@@ -2601,6 +2654,7 @@ export default function FinancialsPage(): React.ReactElement {
       params.set('tab', 'payments');
       if (value) params.set('intentSearch', value);
       else params.delete('intentSearch');
+      params.delete('paymentAttemptId');
       if (value) params.delete('retrySearch');
       return params;
     });
@@ -2612,7 +2666,16 @@ export default function FinancialsPage(): React.ReactElement {
       params.set('tab', 'payments');
       if (value) params.set('retrySearch', value);
       else params.delete('retrySearch');
+      params.delete('paymentAttemptId');
       if (value) params.delete('intentSearch');
+      return params;
+    });
+  };
+
+  const clearExactPaymentAttempt = (): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('paymentAttemptId');
       return params;
     });
   };
@@ -2737,7 +2800,10 @@ export default function FinancialsPage(): React.ReactElement {
       {tab === 'escrow' && <EscrowPanel />}
       {tab === 'payments' && (
         <PaymentsPanel
-          key={JSON.stringify([intentSearch, retrySearch])}
+          key={JSON.stringify([rawPaymentAttemptId, intentSearch, retrySearch])}
+          paymentAttemptId={paymentAttemptId}
+          paymentAttemptSelectionError={paymentAttemptSelectionError}
+          onClearExactPaymentAttempt={clearExactPaymentAttempt}
           intentSearch={intentSearch}
           onIntentSearchChange={selectPaymentAttempt}
           retrySearch={retrySearch}

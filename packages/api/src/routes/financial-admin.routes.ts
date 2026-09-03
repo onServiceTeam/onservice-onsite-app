@@ -310,6 +310,15 @@ router.get(
       if (retryOffset !== undefined && (!Number.isInteger(retryOffset) || retryOffset < 0)) {
         throw createAppError('retryOffset must be a non-negative integer.', 400);
       }
+      if (req.query.paymentAttemptId !== undefined && typeof req.query.paymentAttemptId !== 'string') {
+        throw createAppError('paymentAttemptId must be a single identifier.', 400);
+      }
+      const paymentAttemptId = typeof req.query.paymentAttemptId === 'string'
+        ? req.query.paymentAttemptId.trim()
+        : undefined;
+      if (paymentAttemptId && !UUID_REGEX.test(paymentAttemptId)) {
+        throw createAppError('paymentAttemptId must be a valid UUID.', 400);
+      }
       if (req.query.intentSearch !== undefined && typeof req.query.intentSearch !== 'string') {
         throw createAppError('intentSearch must be a single identifier.', 400);
       }
@@ -327,6 +336,7 @@ router.get(
       const data = await financialAdminService.getPaymentOperationsSummary({
         retryLimit,
         retryOffset,
+        ...(paymentAttemptId ? { paymentAttemptId } : {}),
         intentSearch: intentSearch || undefined,
         retrySearch: retrySearch || undefined,
       });

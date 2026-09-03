@@ -44,19 +44,19 @@ it('Bug UX-1060 - a payment handoff URL restores and runs the exact attempt sear
 
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/financials?tab=payments&intentSearch=39700000-0000-4000-8000-000000000397']}>
+      <MemoryRouter initialEntries={['/financials?tab=payments&paymentAttemptId=39700000-0000-4000-8000-000000000397']}>
         <FinancialsPage />
       </MemoryRouter>
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByDisplayValue('39700000-0000-4000-8000-000000000397')).toBeVisible();
+  expect(await screen.findByText('39700000-0000-4000-8000-000000000397')).toBeVisible();
   expect(await screen.findByText('Gateway intent pi_private_ux_1060')).toBeVisible();
   expect(api.get).toHaveBeenCalledWith('/api/v1/admin/financials/payments', {
     params: {
       retryLimit: 25,
       retryOffset: 0,
-      intentSearch: '39700000-0000-4000-8000-000000000397',
+      paymentAttemptId: '39700000-0000-4000-8000-000000000397',
     },
   });
 });
