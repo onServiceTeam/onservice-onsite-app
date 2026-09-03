@@ -3642,3 +3642,46 @@ This commit is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CQ: customer company Support lifecycle
+
+Admin Support and Business Account 360 already share a canonical company-case
+context, and the API already returns that context to participant Support reads.
+The customer company workspace could not start an account-scoped case, the
+Mobile create contract discarded `businessAccountId`, and the participant
+inbox and thread omitted the company context returned by the server. A customer
+therefore lost the enterprise workspace relationship precisely where support
+needed it, even though Admin could see the durable relationship afterward.
+
+UX-1233 gives every server-authorized customer company member a company Support
+handoff without tying access to financial permissions. UX-1234 displays and
+submits the canonical company UUID while keeping the case in the participant's
+ordinary Support inbox. UX-1235 adds the exact customer company return route to
+the thread and explicitly returns no such route for provider or provider-staff
+personas. Provider-owned booking cases may still display the related customer
+company name already returned by the API, but they cannot open the customer
+company workspace. UX-1236 identifies the server-attached company in the
+participant inbox.
+
+UX-1237 rejects a malformed company context before showing or submitting the
+form. UX-1238 rejects a planning project combined with a Business Account,
+matching the server's existing mutually exclusive context rule. A booking may
+still carry its canonical company context; the server verifies that the two
+records match. OPS-457 and OPS-458 preserve regression evidence that both the
+owner-scoped list and detail read models return direct or booking-inherited
+company context.
+
+The complete Mobile Support-named inventory passes 30 suites and 40 tests. The
+complete Mobile business/company-named inventory passes 12 suites and 12 tests.
+Four related API Support suites pass eight tests. Mobile and API TypeScript,
+changed-file ESLint, and diff integrity checks pass. The permanent unique-ID
+scanner passes 1,393 titled regressions with zero duplicates. Implementation
+commit `938b7f66` adds participant navigation and display behavior only; it
+does not change the API's existing authorization rules, database schema,
+company membership, support case, booking, payment, audit, master, or
+production data.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
