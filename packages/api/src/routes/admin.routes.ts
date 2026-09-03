@@ -2378,6 +2378,7 @@ interface AuditLogRow {
   user_role: string | null;
   target_user_role: string | null;
   target_provider_id: string | null;
+  target_booking_id: string | null;
 }
 
 router.get(
@@ -2513,7 +2514,12 @@ router.get(
                       FROM reviews review
                      WHERE review.id = combined.entity_id
                   ) END
-                ) AS target_provider_id
+                ) AS target_provider_id,
+                CASE WHEN combined.entity_type = 'official_receipt' THEN (
+                  SELECT receipt.booking_id
+                    FROM official_receipts receipt
+                   WHERE receipt.id = combined.entity_id
+                ) END AS target_booking_id
            FROM (${baseRelation}) combined
            LEFT JOIN users u ON u.id = combined.user_id
            LEFT JOIN users target_user
@@ -2544,6 +2550,7 @@ router.get(
           // must lead support to Customer 360, not the staff directory.
           targetUserRole: r.target_user_role,
           targetProviderId: r.target_provider_id,
+          targetBookingId: r.target_booking_id,
           action: r.action,
           entityType: r.entity_type,
           entityId: r.entity_id,

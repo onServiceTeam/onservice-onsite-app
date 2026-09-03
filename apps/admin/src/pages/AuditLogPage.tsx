@@ -26,6 +26,7 @@ interface AuditEntry {
   userRole: string | null;
   targetUserRole?: string | null;
   targetProviderId?: string | null;
+  targetBookingId?: string | null;
   action: string;
   entityType: string;
   entityId: string | null;
@@ -80,6 +81,8 @@ const ACTION_LABELS: Record<string, string> = {
   feedback_submission_updated: 'Tester feedback triage updated',
   message_flag_reviewed: 'Reported message reviewed',
   message_redacted: 'Message redacted',
+  or_cancelled: 'Official receipt cancelled',
+  or_issued: 'Official receipt issued',
   payout_approved: 'Payout approved',
   payout_completed: 'Payout marked transferred',
   payout_rejected: 'Payout rejected',
@@ -192,6 +195,17 @@ function linkedProviderId(entry: AuditEntry): string | null {
   return null;
 }
 
+function linkedBookingId(entry: AuditEntry): string | null {
+  if (entry.targetBookingId && UUID_REGEX.test(entry.targetBookingId)) {
+    return entry.targetBookingId;
+  }
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const bookingId = values?.bookingId;
+    if (typeof bookingId === 'string' && UUID_REGEX.test(bookingId)) return bookingId;
+  }
+  return null;
+}
+
 function searchedConsentUserId(entry: AuditEntry): string | null {
   if (entry.action !== 'consent_search') return null;
   for (const values of [entry.newValues, entry.oldValues]) {
@@ -236,6 +250,15 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
   switch (entry.entityType) {
     case 'booking':
       return { to: `/bookings/${id}`, label: 'Open Booking 360' };
+    case 'official_receipt': {
+      const bookingId = linkedBookingId(entry);
+      return bookingId
+        ? {
+            to: `/bookings/${encodeURIComponent(bookingId)}`,
+            label: 'Open Booking 360 receipt evidence',
+          }
+        : null;
+    }
     case 'recurring_booking':
       return UUID_REGEX.test(entry.entityId)
         ? { to: `/recurring?seriesId=${id}`, label: 'Open exact recurring series' }
