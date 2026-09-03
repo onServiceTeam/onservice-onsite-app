@@ -2695,3 +2695,115 @@ implementation push; its Gates run `33743710968` passed, and the newer full CI
 verified that documentation with this implementation. No customer, provider,
 review, booking, payment, audit row, database schema, master, or production
 record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BQ: warning-free Audit Log timer behavior test
+
+The Manila-date CSV behavior test advanced fake timers outside React's update
+boundary. The assertion passed, but the rendered Audit Log emitted an `act`
+warning during broader suites, making real state-update warnings easier to miss.
+
+The existing BUG-PHASE112-01 behavioral test now advances its asynchronous
+timers inside React `act`. The production component, export filename contract,
+and time-zone behavior are unchanged.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. The
+focused rendered file passes its one existing behavior test, and the expanded
+Audit Log and Provider Detail set passes 81 files and 92 tests without the
+warning. Protected Gates `33745115348` passed A through E and the `All gates
+passed` rollup at commit `bbd8e61e`. CI `33745115306` was superseded and
+cancelled by the next Customer 360 push; protected CI `33745764429` then passed
+the full API, Admin, and Mobile suites, all three TypeScript checks, the Admin
+production build, and Docker image boot/liveness with this cleanup included.
+No application behavior, customer, provider, booking, payment, audit row,
+database schema, master, or production record changed. Production
+synchronization remains blocked by E32.
+
+## Checkpoint BR: URL-bound Customer 360 support workspaces
+
+Customer 360 held its six workspace tabs only in component memory. A bookmark,
+refresh, Audit Log handoff, or shared support URL therefore returned the
+operator to Profile instead of the intended Bookings, Payments, Disputes,
+Referrals, or Activity context.
+
+UX-1158 makes the active Customer 360 workspace URL-bound, restores a requested
+valid tab, removes the redundant `tab` key for Profile, and preserves unrelated
+support-case context when the operator changes workspaces. UX-1159 rejects an
+unknown workspace value by rendering Profile and does not request an unrelated
+customer dataset. The behavior uses the same controlled URL-state pattern as
+Provider 360 and keeps the existing horizontally scrollable tablet tab rail.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Two
+focused rendered files pass two tests, and every rendered test importing
+Customer 360 passes 12 files and 14 tests. Protected CI `33745764429` passed the
+full API, Admin, and Mobile suites, all three TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `146f971a`.
+Protected Gates `33745764394` passed A through E and the `All gates passed`
+rollup at the same commit. The preceding BP documentation-only CI
+`33744977295` and warning-cleanup CI `33745115306` were superseded and
+cancelled by this implementation push; their Gates runs `33744977343` and
+`33745115348` passed, and this newer full CI verified both changes. No customer,
+provider, booking, payment, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BS: customer Audit Log workspace routing
+
+Customer wallet adjustments and account-status decisions both reopened the
+generic Customer 360 Profile workspace. Operators then had to infer whether to
+look in Payments or Activity, despite the audit action already identifying the
+kind of decision.
+
+UX-1160 routes a `customer_credited` decision to that customer's Payments
+workspace. UX-1161 routes suspension, reactivation, and fraud-review decisions
+to that customer's Activity workspace. The labels deliberately describe the
+workspace rather than claiming an exact retained row because both views were
+still bounded histories at this checkpoint. Unrelated customer audit actions
+continue to open the generic Customer 360 profile.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Two
+focused rendered files pass two tests, and every rendered test importing Audit
+Log passes 46 files and 53 tests. Protected CI `33746579370` passed the full
+API, Admin, and Mobile suites, all three TypeScript checks, the Admin production
+build, and Docker image boot/liveness at commit `d6bf6df1`. Protected Gates
+`33746579366` passed A through E and the `All gates passed` rollup at the same
+commit. No customer, provider, wallet balance, booking, payment, audit row,
+database schema, master, or production record changed. Production
+synchronization remains blocked by E32.
+
+## Checkpoint BT: exact Customer 360 wallet-adjustment evidence
+
+The customer wallet-adjustment audit decision retained the paired
+`wallet_transactions` UUID, but Customer 360 Payments exposed only the latest
+50 ledger rows. An older adjustment could disappear from that list, and a row
+owned by another customer must never be accepted as substitute evidence.
+
+OPS-428 adds an optional, UUID-validated transaction identifier to the existing
+customer-payment read route and carries both canonical IDs into the service.
+OPS-429 scopes the ledger query by customer wallet ownership and transaction ID.
+SEC-064 rejects a malformed identifier before service or database access.
+UX-1160 now carries a valid retained transaction UUID from Audit Log into
+Customer 360. UX-1162 renders only the exact matching ledger row, marks it as
+selected, and hides the unrelated adjustment form and payment-intent history
+during evidence review. UX-1163 blocks malformed browser targets before a
+payment request. UX-1164 shows no substitute row for an absent or mismatched
+response. UX-1165 clears only `transactionId` when leaving Payments and
+preserves unrelated support URL context.
+
+The endpoint's existing current-balance, recent-transaction, recent-intent, and
+payment-method contract remains unchanged when no exact transaction is
+requested. This slice is read-only. It does not change a wallet balance,
+adjustment amount, reason, authorization, approval threshold, ledger write,
+booking, refund, payment intent, or historical audit row. E31/D33 continues to
+hold the unbounded single-operator wallet mutation and its missing dual-control
+policy.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Three focused API suites pass three tests and five focused Admin rendered
+files pass five tests. The expanded customer-admin API set passes 20 suites and
+60 tests, and every Admin test importing Customer 360 or Audit Log passes 62
+files and 71 tests. Protected CI `33747822604` passed the full API, Admin, and
+Mobile suites, all three TypeScript checks, the Admin production build, and
+Docker image boot/liveness at commit `71181d11`. Protected Gates `33747822675`
+passed A through E and the `All gates passed` rollup at the same commit. No
+customer, provider, wallet balance, booking, payment, audit row, database
+schema, master, or production record changed. Production synchronization
+remains blocked by E32.
