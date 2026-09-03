@@ -3070,3 +3070,41 @@ was superseded and cancelled by this implementation push; its Gates run
 this implementation. No customer, provider, account decision, booking,
 payment, audit row, database schema, master, or production record changed.
 Production synchronization remains blocked by E32.
+
+## Checkpoint CB: canonical Provider 360 evidence UUID handling
+
+Provider 360 accepted uppercase UUIDs for exact certifications, reviews, staff,
+and private notes because UUID syntax is case-insensitive, but then compared the
+unchanged browser value with canonical lowercase database identifiers. A valid
+identifier copied from an external support record or manually entered URL could
+therefore show a false missing-record warning after the correct provider-owned
+evidence had been returned.
+
+UX-1191 normalizes a valid certification identifier before selecting the exact
+provider certification. UX-1192 applies the same canonical boundary to the
+review API request and browser-side no-substitute comparison. UX-1193 does so
+for the provider staff record, and UX-1194 does so for the private provider
+note. Malformed values still block their exact modes, ownership checks remain
+in place, missing records still refuse substitute evidence, and ordinary
+Provider 360 views remain unchanged when no exact identifier is present.
+
+This slice changes evidence lookup only. It does not approve or reject a
+certification, alter a review, add or remove provider staff, create or edit a
+private note, change provider status or tier, modify a booking or payment,
+rewrite an audit row, or add an Admin mutation.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Eight
+focused exact-evidence rendered files pass eight tests, and every rendered test
+that directly imports Provider 360 passes 48 files and 52 tests. The first
+protected CI attempt `33759743957` was cancelled after all visible test and
+build steps had succeeded, so it was not counted as green evidence. Its exact
+rerun at commit `180b2fce` then completed successfully on attempt 2, passing the
+full API, Admin, and Mobile suites, all three TypeScript checks, the Admin
+production build, and Docker image boot/liveness. Protected Gates
+`33759743352` passed A through E and the `All gates passed` rollup at the same
+commit. The preceding documentation-only CI `33759617688` was superseded and
+cancelled by this implementation push; its Gates run `33759617571` passed, and
+the newer full CI verified that documentation with this implementation. No
+customer, provider, certification, review, staff record, private note, booking,
+payment, audit row, database schema, master, or production record changed.
+Production synchronization remains blocked by E32.
