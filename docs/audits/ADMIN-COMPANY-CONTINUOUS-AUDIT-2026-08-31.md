@@ -1938,3 +1938,47 @@ image boot/liveness at commit `af52bf4`. Protected Gates `33708893180` passed A
 through E and the `All gates passed` rollup at the same commit. No consent,
 DSR, user, staff, support, audit, database-schema, or production record changed.
 Production synchronization remains blocked by E32.
+
+## Checkpoint AY: recurring-cancellation audit contract and handoff
+
+The Admin recurring-series workspace cancels only future generation and keeps
+existing bookings, payments, refunds, disputes, support cases, and provider
+work unchanged. Its cancellation route correctly made the series update and
+the operator evidence one transaction, but the transaction wrote
+`recurring_booking_cancelled` against a `recurring_booking` target. Neither
+value existed in the live `admin_actions` CHECK constraints. Postgres therefore
+rejected the audit insert and rolled back every Admin cancellation even though
+the screen exposed the action.
+
+OPS-408 adds migration 171, which appends the missing action and target to the
+live constraint definitions without replacing any action or target introduced
+by earlier migrations. The migration is idempotent and rejects unknown values
+after the append. A real Postgres integration regression applies it twice,
+inserts representative earlier booking, business, and review events, inserts
+the recurring cancellation event, and proves that an invented action/target is
+still rejected. The existing OPS-321 route regression continues to prove that
+a failed audit write rolls back the cancellation and prevents a success
+notification.
+
+UX-1078 gives the event a clear operator label and maps its exact UUID to
+`/recurring?seriesId=<id>`. A rendered in-router regression clicks the actual
+Audit Log link, loads a cancelled series outside the current queue page, opens
+the recurring support workspace, and verifies the recorded cancellation
+reason and durable URL. This closes both sides of the contract: the decision
+can now commit, and the resulting evidence can reopen the record it changed.
+
+Local API and Admin TypeScript, affected-file ESLint, `git diff --check`, the
+existing cancellation transaction test, and the new rendered handoff test
+pass. The new Postgres regression is intentionally skipped without a safe
+local `_test` database. The complete local Admin run reached 354 passing files
+and 443 passing tests before the unrelated OPS-269 file exceeded its five
+second timeout under local parallel load; OPS-269 and UX-1078 both passed on an
+immediate isolated rerun. Protected CI `33710381057` then passed 854 API suites
+and 3,225 tests, including the real OPS-408 Postgres migration regression, plus
+355 Admin files and 444 tests, Mobile, both TypeScript checks, the Admin build,
+and Docker image boot/liveness at commit `2595969`. Protected Gates
+`33710381049` passed A through E and the `All gates passed` rollup at the same
+commit. Migration 171 is committed but has not been applied to production.
+No recurring series, booking, payment, support case, audit row, database
+schema, or production record changed. Production synchronization remains
+blocked by E32.
