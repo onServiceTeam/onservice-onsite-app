@@ -135,7 +135,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
   const tab = parseTab(searchParams.get('tab'));
   const linkedPublicationValue = searchParams.get('publicationId')?.trim() ?? '';
   const linkedPublicationId = UUID_REGEX.test(linkedPublicationValue)
-    ? linkedPublicationValue
+    ? linkedPublicationValue.toLowerCase()
     : null;
   const linkedPublicationInvalid = linkedPublicationValue.length > 0
     && linkedPublicationId === null;

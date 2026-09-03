@@ -35,7 +35,7 @@ function requireUuid(value: unknown, fieldLabel: string): string {
   if (typeof value !== 'string' || !UUID_REGEX.test(value)) {
     throw createAppError(`${fieldLabel} must be a valid UUID.`, 400);
   }
-  return value;
+  return value.toLowerCase();
 }
 
 function parseOptionalEnum<T extends string>(
@@ -111,12 +111,16 @@ router.get(
   requireDpoRole,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const requestedUserId = parseString(req.query.userId);
-      if (requestedUserId) requireUuid(requestedUserId, 'userId');
+      const requestedUserIdValue = parseString(req.query.userId);
+      const requestedUserId = requestedUserIdValue
+        ? requireUuid(requestedUserIdValue, 'userId')
+        : undefined;
+      const requestedConsentType = parseString(req.query.consentType);
+      const requestedVersion = parseString(req.query.version);
       const data = await compliance.searchConsent({
         userId: requestedUserId,
-        consentType: parseString(req.query.consentType),
-        version: parseString(req.query.version),
+        consentType: requestedConsentType,
+        version: requestedVersion,
         limit: parseInt32(req.query.limit),
         offset: parseInt32(req.query.offset),
       });
@@ -135,19 +139,22 @@ router.get(
          VALUES ($1, 'consent_search', 'user', $2, $3::jsonb, $4, $5)`,
         [
           req.user!.userId,
-          parseString(req.query.userId) ?? req.user!.userId,
+          requestedUserId ?? req.user!.userId,
           JSON.stringify({
             filters: {
-              userId: parseString(req.query.userId) ?? null,
-              consentType: parseString(req.query.consentType) ?? null,
-              version: parseString(req.query.version) ?? null,
+              userId: requestedUserId ?? null,
+              consentType: requestedConsentType ?? null,
+              version: requestedVersion ?? null,
             },
             resultCount: Array.isArray((data as { rows?: unknown[] }).rows)
               ? (data as { rows: unknown[] }).rows.length
               : null,
           }),
-          `DPO consent search: userId=${parseString(req.query.userId) ?? 'all'}`,
-          `DPO consent search: filter=${JSON.stringify(req.query)}`,
+          `DPO consent search: userId=${requestedUserId ?? 'all'}`,
+          `DPO consent search: filter=${JSON.stringify({
+            ...req.query,
+            ...(requestedUserId ? { userId: requestedUserId } : {}),
+          })}`,
         ],
       );
 

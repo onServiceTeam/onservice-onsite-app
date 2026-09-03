@@ -162,7 +162,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
   const overdueOnly = searchParams.get('overdueOnly') === 'true';
   const page = parsePage(searchParams.get('page'));
   const linkedDsrValue = searchParams.get('dsrId')?.trim() ?? '';
-  const linkedDsrId = UUID_REGEX.test(linkedDsrValue) ? linkedDsrValue : null;
+  const linkedDsrId = UUID_REGEX.test(linkedDsrValue) ? linkedDsrValue.toLowerCase() : null;
   const linkedDsrInvalid = linkedDsrValue.length > 0 && linkedDsrId === null;
 
   const [dialogKind, setDialogKind] = useState<DialogKind>(null);

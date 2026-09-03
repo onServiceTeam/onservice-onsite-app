@@ -53,7 +53,7 @@ function formatDate(value: string): string {
 export default function PrivacyWorkspacePage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const linkedConsentValue = searchParams.get('consentUserId')?.trim() ?? '';
-  const linkedConsentUserId = UUID_PATTERN.test(linkedConsentValue) ? linkedConsentValue : '';
+  const linkedConsentUserId = UUID_PATTERN.test(linkedConsentValue) ? linkedConsentValue.toLowerCase() : '';
   const linkedConsentInvalid = linkedConsentValue.length > 0 && linkedConsentUserId.length === 0;
   const linkedConsentPage = parseConsentPage(searchParams.get('consentPage'));
   const [consentSearchDraft, setConsentSearchDraft] = useState(linkedConsentValue);
@@ -141,10 +141,11 @@ export default function PrivacyWorkspacePage(): React.ReactElement {
       writeConsentLocation(null);
       return;
     }
+    const canonicalUserId = nextUserId.toLowerCase();
     setConsentInputError('');
     setConsentPage(1);
-    setConsentUserId(nextUserId);
-    writeConsentLocation(nextUserId);
+    setConsentUserId(canonicalUserId);
+    writeConsentLocation(canonicalUserId);
   }
 
   return (
