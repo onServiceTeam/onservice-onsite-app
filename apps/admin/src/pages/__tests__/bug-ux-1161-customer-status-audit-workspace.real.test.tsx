@@ -36,8 +36,8 @@ it('Bug UX-1161 — a customer status audit decision opens that customer account
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByRole('link', { name: /Open customer account activity/ })).toHaveAttribute(
+  expect(await screen.findByRole('link', { name: /Open exact customer account decision/ })).toHaveAttribute(
     'href',
-    `/customers/${CUSTOMER_ID}?tab=activity`,
+    `/customers/${CUSTOMER_ID}?tab=activity&adminActionId=21610000-0000-4000-8000-000000001161`,
   );
 });

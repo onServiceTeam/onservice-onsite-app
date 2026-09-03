@@ -245,6 +245,7 @@ export default function CustomerDetailPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = parseCustomerTab(searchParams.get('tab'));
   const transactionIdFilter = searchParams.get('transactionId')?.trim() ?? '';
+  const adminActionIdFilter = searchParams.get('adminActionId')?.trim() ?? '';
 
   const selectTab = (tab: TabId): void => {
     setSearchParams((current) => {
@@ -252,6 +253,7 @@ export default function CustomerDetailPage(): React.ReactElement {
       if (tab === 'profile') next.delete('tab');
       else next.set('tab', tab);
       if (tab !== 'payments') next.delete('transactionId');
+      if (tab !== 'activity') next.delete('adminActionId');
       return next;
     });
   };
@@ -260,6 +262,14 @@ export default function CustomerDetailPage(): React.ReactElement {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.delete('transactionId');
+      return next;
+    });
+  };
+
+  const clearAdminActionFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('adminActionId');
       return next;
     });
   };
@@ -339,7 +349,11 @@ export default function CustomerDetailPage(): React.ReactElement {
           <ReferralsTab customerId={customerId} />
         </TabsContent>
         <TabsContent value="activity">
-          <ActivityTab customerId={customerId} />
+          <ActivityTab
+            customerId={customerId}
+            exactAdminActionId={adminActionIdFilter}
+            onClearExactAdminAction={clearAdminActionFilter}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -1516,26 +1530,89 @@ export function ReferralsTab({ customerId }: { customerId: string }): React.Reac
 
 // ─── ActivityTab ──────────────────────────────────────────────────────────
 
-export function ActivityTab({ customerId }: { customerId: string }): React.ReactElement {
+export function ActivityTab({
+  customerId,
+  exactAdminActionId = '',
+  onClearExactAdminAction,
+}: {
+  customerId: string;
+  exactAdminActionId?: string;
+  onClearExactAdminAction?: () => void;
+}): React.ReactElement {
   const [limit, setLimit] = useState(50);
+  const requestedAdminActionId = exactAdminActionId.trim();
+  const hasExactAdminAction = requestedAdminActionId.length > 0;
+  const hasValidExactAdminAction = UUID_REGEX.test(requestedAdminActionId);
   const q = useQuery({
-    queryKey: ['admin-customer-activity', customerId, limit],
+    queryKey: ['admin-customer-activity', customerId, limit, requestedAdminActionId],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: ActivityRow[] }>(
         `/api/v1/admin/customers/${customerId}/activity`,
-        { params: { limit } },
+        {
+          params: hasExactAdminAction
+            ? { limit: 1, adminActionId: requestedAdminActionId }
+            : { limit },
+        },
       );
       return res.data.data;
     },
+    enabled: !hasExactAdminAction || hasValidExactAdminAction,
   });
 
+  if (hasExactAdminAction && !hasValidExactAdminAction) {
+    return (
+      <ErrorState
+        title="Invalid customer activity link"
+        description="Admin action ID must be a complete UUID. No activity records were requested."
+        action={onClearExactAdminAction ? (
+          <Button variant="secondary" size="sm" onClick={onClearExactAdminAction}>
+            Clear activity selection
+          </Button>
+        ) : undefined}
+      />
+    );
+  }
   if (q.isLoading) return <LoadingState />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
   const rows = q.data!;
+  const exactActivity = hasExactAdminAction
+    ? rows.find((row) => row.id === `admin_action:${requestedAdminActionId}`) ?? null
+    : null;
+  const visibleRows = hasExactAdminAction ? exactActivity ? [exactActivity] : [] : rows;
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      {hasExactAdminAction && exactActivity && (
+        <Card className="border-2 border-[var(--color-secondary)] bg-[var(--color-secondary)]/5 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-[var(--color-text)]">Exact customer account decision</p>
+              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                This activity row is scoped by both the customer account and admin-action ID retained by the Audit Log.
+              </p>
+            </div>
+            {onClearExactAdminAction && (
+              <Button variant="secondary" size="sm" onClick={onClearExactAdminAction}>
+                Show recent customer activity
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+      {hasExactAdminAction && !exactActivity && (
+        <Card className="border-2 border-[var(--color-warning)] bg-[var(--color-warning)]/5 p-4" role="alert">
+          <p className="text-sm font-semibold text-[var(--color-text)]">Admin decision is not in this customer activity file</p>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+            The requested decision never belonged to this customer or is unavailable. No substitute activity is shown; return to the Audit Log for the durable event record.
+          </p>
+          {onClearExactAdminAction && (
+            <Button className="mt-3" variant="secondary" size="sm" onClick={onClearExactAdminAction}>
+              Show recent customer activity
+            </Button>
+          )}
+        </Card>
+      )}
+      {!hasExactAdminAction && <div className="flex items-center gap-2">
         <select
           aria-label="Activity row limit"
           value={limit}
@@ -1546,9 +1623,9 @@ export function ActivityTab({ customerId }: { customerId: string }): React.React
           <option value={100}>Last 100</option>
           <option value={200}>Last 200</option>
         </select>
-      </div>
-      {rows.length === 0 ? (
-        <EmptyState title="No activity recorded." />
+      </div>}
+      {visibleRows.length === 0 ? (
+        !hasExactAdminAction ? <EmptyState title="No activity recorded." /> : null
       ) : (
         <Card>
           <div className="overflow-x-auto">
@@ -1565,8 +1642,14 @@ export function ActivityTab({ customerId }: { customerId: string }): React.React
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-t border-[var(--color-border)]">
+                {visibleRows.map((r) => (
+                  <tr
+                    key={r.id}
+                    aria-current={hasExactAdminAction ? 'true' : undefined}
+                    className={hasExactAdminAction
+                      ? 'border-t border-[var(--color-secondary)] bg-[var(--color-secondary)]/5'
+                      : 'border-t border-[var(--color-border)]'}
+                  >
                     <td className="px-3 py-2">
                       <Badge
                         label={r.source}

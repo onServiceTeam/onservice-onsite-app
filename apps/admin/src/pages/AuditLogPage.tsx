@@ -489,7 +489,15 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
         || entry.action === 'customer_reactivated'
         || entry.action === 'customer_flagged_fraud'
       ) {
-        return { to: `/customers/${id}?tab=activity`, label: 'Open customer account activity' };
+        const params = new URLSearchParams({ tab: 'activity' });
+        const hasExactDecision = entry.source === 'admin_actions' && UUID_REGEX.test(entry.id);
+        if (hasExactDecision) params.set('adminActionId', entry.id);
+        return {
+          to: `/customers/${id}?${params.toString()}`,
+          label: hasExactDecision
+            ? 'Open exact customer account decision'
+            : 'Open customer account activity',
+        };
       }
       return { to: `/customers/${id}`, label: 'Open Customer 360' };
     case 'provider':
