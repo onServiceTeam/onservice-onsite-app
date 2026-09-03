@@ -3141,3 +3141,35 @@ with this implementation. No customer, provider, conversation, message,
 moderation state, support case, booking, payment, audit row, database schema,
 master, or production record changed. Production synchronization remains
 blocked by E32.
+
+## Checkpoint CD: canonical Catalog evidence UUID handling
+
+The Catalog workspace accepted uppercase category, service, and add-on UUIDs
+as syntactically valid but retained their browser casing. The API returned
+canonical lowercase identifiers, so an operator could load the correct record
+and still receive a false hierarchy-mismatch or missing-record result.
+
+UX-1197 normalizes a valid category UUID before exact category selection and
+hierarchy matching. UX-1198 applies the same canonical boundary to a service
+identifier, and UX-1199 does so for an add-on identifier. Malformed identifiers
+still block exact selection, service and add-on links still require their
+owning hierarchy, returned records still must match the requested record, and
+ordinary Catalog browsing remains unchanged when no exact identifier is
+present.
+
+This slice changes evidence lookup only. It does not create, edit, activate,
+deactivate, reorder, or reprice a category, service, or add-on; change a
+booking or payment; rewrite an audit row; or add an Admin mutation.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Eight
+focused exact, malformed, and hierarchy rendered files pass eight tests, and
+every rendered test that directly imports Catalog passes 18 files and 20
+tests. Protected CI `33763513454` passed the full API, Admin, and Mobile suites,
+all three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `e31abe3b`. Protected Gates `33763513527` passed A
+through E and the `All gates passed` rollup at the same commit. The preceding
+documentation-only CI `33763446261` was superseded and cancelled by this
+implementation push; its Gates run `33763446273` passed, and the newer full CI
+verified that documentation with this implementation. No customer, provider,
+catalog record, booking, payment, audit row, database schema, master, or
+production record changed. Production synchronization remains blocked by E32.
