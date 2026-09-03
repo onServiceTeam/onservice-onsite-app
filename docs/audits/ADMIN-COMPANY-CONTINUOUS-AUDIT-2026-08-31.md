@@ -3485,8 +3485,9 @@ Their Admin or Mobile counterparts retain UX-308, UX-455, UX-456, UX-309,
 UX-342, and UX-345 respectively.
 
 After correction, an exact scan of direct `it()` and `test()` regression titles
-across test and spec files finds 1,377 titles and zero duplicate IDs. The three changed Mobile suites pass
-six tests, and the seven changed API suites pass seven tests. The ten retained
+across test and spec files finds 1,377 titles and zero duplicate IDs. The three
+changed Mobile suites pass six tests, and the seven changed API suites pass
+seven tests. The ten retained
 counterparts also pass: five Admin files/five tests, two Mobile suites/two
 tests, and three API suites/thirteen tests. Changed-test ESLint and staged diff
 checks pass. The staged diff contains nine file renames and ten title-number
@@ -3503,3 +3504,70 @@ No test behavior, application behavior, customer, provider, support case,
 booking, project, payment, audit row, database schema, master, or production
 record changed. Production synchronization remains blocked by E32, and raw
 audit PII remains blocked by E72.
+
+## Checkpoint CM: permanent unique regression-ID gate
+
+The title correction in Checkpoint CL removed the known collisions but did not
+prevent a future test from reusing an existing Bug ID. That left the permanent
+one-bug, one-test, one-file rule dependent on another manual repository scan.
+
+Local commit `bd01d943` adds the blocking Gate C
+`unique-regression-ids` article. Its scanner inventories tracked and untracked
+test and spec files under `apps/` and `packages/`, excludes generated and
+dependency trees in its non-Git fallback, and reports every duplicate with its
+source path and line. Its adversarial smoke test first proves that two
+unrelated `Bug UX-9999` titles fail, then proves distinct UX and OPS IDs pass.
+Gate metadata and the expected-failures timeline declare the article BLOCKING;
+no existing article was weakened and no allowlist was added.
+
+The direct scanner passes all 1,377 titles that existed at this commit. All
+seven gate smoke tests pass, shell syntax passes, `MODES.json` parses, and
+working-tree plus staged diff checks pass. This guard changes CI evidence only;
+it does not change test behavior, application behavior, data, schema, master,
+or production.
+
+GitHub remains at `27e4eafb` because the safety reviewer refused the attempted
+two-held-branch push after local documentation commit `770fab34`. The push was
+not retried or bypassed, so protected CI is not yet available for `770fab34`
+or `bd01d943`. Production synchronization remains blocked by E32, and raw
+audit PII remains blocked by E72.
+
+## Checkpoint CN: explicit Support workspace modes
+
+The Support page previously inferred create mode only when both `new=1` and a
+valid owner ID were present. A link with `new=1` but no owner silently became
+the ordinary queue. A link with both `new=1` and `ticketId` rendered create
+mode while exact-case and history requests could run behind it. Queue, summary,
+staff, owner, exact-case, and history queries were not organized around one
+visible operator workspace.
+
+UX-1226 now fails closed when agent-created case mode has no valid account
+owner. It explains that creation must start from a customer, provider, or
+provider-staff record, offers account-finding links, and can return to the
+linked queue without discarding valid booking, project, or business context.
+UX-1227 rejects a URL that asks to create and open an existing case at the same
+time, sends no Support data request, and lets the operator explicitly open the
+existing case. UX-1228 verifies the opposite choice: the exact case is removed
+before the server confirms the new owner.
+
+The queue, create, and existing-case views are now mutually exclusive query
+modes. Queue list and summary load only in queue mode, owner context loads only
+in valid create mode, and exact case, history, and assignable staff load only
+in existing-case mode. The older UX-1055 regression now proves a business
+filter survives returning from a case while no queue request runs behind that
+case. UX-1222 remains isolated to contradictory work context; mixed
+create/detail behavior is covered by UX-1227 and UX-1228.
+
+Local Admin TypeScript and changed-file ESLint pass. The focused three
+regressions pass three files and three tests. The complete Admin
+Support-named inventory passes 38 files and 40 tests. The permanent ID scanner
+passes 1,380 titled regressions with zero duplicates, and the diff integrity
+check passes. Implementation commit `73c291b4` changes browser workspace
+state and read-query activation only. It does not create, assign, reply to,
+close, reopen, or edit a case; change customer, provider, booking, project,
+business account, payment, audit, or schema data; or add an API mutation.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
