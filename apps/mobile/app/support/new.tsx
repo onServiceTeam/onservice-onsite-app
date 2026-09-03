@@ -33,6 +33,8 @@ export default function NewSupportRequestScreen(): React.ReactElement {
     bookingId?: string;
     projectId?: string;
     projectTitle?: string;
+    businessAccountId?: string;
+    businessName?: string;
     type?: string;
     priority?: string;
     subject?: string;
@@ -44,19 +46,24 @@ export default function NewSupportRequestScreen(): React.ReactElement {
     : 'general_inquiry');
   const rawBookingId = supportLinkValue(params.bookingId);
   const rawProjectId = supportLinkValue(params.projectId);
+  const rawBusinessAccountId = supportLinkValue(params.businessAccountId);
   const bookingId = canonicalSupportUuid(params.bookingId);
   const projectId = canonicalSupportUuid(params.projectId);
+  const businessAccountId = canonicalSupportUuid(params.businessAccountId);
+  const projectTitle = supportLinkValue(params.projectTitle);
+  const businessName = supportLinkValue(params.businessName);
   const hasInvalidWorkContext =
     (!!rawBookingId && !bookingId) ||
-    (!!rawProjectId && !projectId);
-  const hasConflictingWorkContext = !!bookingId && !!projectId;
+    (!!rawProjectId && !projectId) ||
+    (!!rawBusinessAccountId && !businessAccountId);
+  const hasConflictingWorkContext = !!projectId && (!!bookingId || !!businessAccountId);
 
   const [type, setType] = useState<SupportTicketType>(initialType);
   const initialPriority = (['low', 'medium', 'high', 'urgent'] as const).find(
     (priority) => priority === params.priority,
   );
-  const [subject, setSubject] = useState(params.subject ?? '');
-  const [description, setDescription] = useState(params.description ?? '');
+  const [subject, setSubject] = useState(supportLinkValue(params.subject));
+  const [description, setDescription] = useState(supportLinkValue(params.description));
 
   const mutation = useMutation({
     mutationFn: (payload: CreateTicketPayload) => createTicket(payload),
@@ -87,6 +94,7 @@ export default function NewSupportRequestScreen(): React.ReactElement {
       description: trimmedBody,
       bookingId: bookingId || undefined,
       projectId: projectId || undefined,
+      businessAccountId: businessAccountId || undefined,
       priority: initialPriority,
     });
   };
@@ -103,11 +111,11 @@ export default function NewSupportRequestScreen(): React.ReactElement {
         <ErrorState
           title="Support context unavailable"
           message={hasInvalidWorkContext
-            ? 'This link contains an invalid booking or project. No support request was sent. Return to the related work record and try again.'
-            : 'A support request can be linked to a booking or a planning project, not both. No support request was sent. Return to the related work record and choose one context.'}
+            ? 'This link contains an invalid booking, project, or business account. No support request was sent. Return to the related record and try again.'
+            : 'A planning-project support request cannot also be linked to a booking or business account. No support request was sent. Return to the related record and choose one context.'}
           onRetry={() => router.back()}
-          actionLabel="Return to related work"
-          actionAccessibilityLabel="Return to related work"
+          actionLabel="Return to related record"
+          actionAccessibilityLabel="Return to related record"
         />
       </SafeAreaView>
     );
@@ -138,7 +146,14 @@ export default function NewSupportRequestScreen(): React.ReactElement {
           {projectId ? (
             <View style={styles.bookingTag}>
               <Text style={styles.bookingTagText}>
-                Linked to project {params.projectTitle?.trim() || projectId.slice(0, 8)}
+                Linked to project {projectTitle || projectId.slice(0, 8)}
+              </Text>
+            </View>
+          ) : null}
+          {businessAccountId ? (
+            <View style={styles.bookingTag}>
+              <Text style={styles.bookingTagText}>
+                Linked to company {businessName || businessAccountId.slice(0, 8)}
               </Text>
             </View>
           ) : null}
@@ -191,7 +206,9 @@ export default function NewSupportRequestScreen(): React.ReactElement {
               ? 'Keeping this conversation in the app lets support open the linked booking, respond faster, and preserve the message history if there is a dispute.'
               : projectId
                 ? 'Support will receive this planning project as context. It remains separate from bookings, quotes, and payments.'
-                : 'Keeping this conversation in the app gives support the account context and message history needed to help you.'}
+                : businessAccountId
+                  ? 'Support will receive this company account as context. The request will stay in your Support inbox.'
+                  : 'Keeping this conversation in the app gives support the account context and message history needed to help you.'}
           </Text>
 
           <Button

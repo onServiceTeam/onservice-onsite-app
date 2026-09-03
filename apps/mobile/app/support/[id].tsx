@@ -7,7 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft, ClipboardList, Send } from '@/components/icons';
+import { Building2, ChevronLeft, ClipboardList, Send } from '@/components/icons';
 import { useAuthStore } from '@/stores/auth.store';
 import { Routes, buildRoute } from '@/config/navigation';
 import {
@@ -37,6 +37,16 @@ export function getSupportBookingRoute(viewerRole: string | undefined, bookingId
 export function getSupportProjectRoute(viewerRole: string | undefined, projectId: string): string | null {
   return viewerRole === 'customer'
     ? buildRoute(Routes.CUSTOMER.PROJECT_DETAIL, { id: projectId })
+    : null;
+}
+
+export function getSupportBusinessAccountRoute(
+  viewerRole: string | undefined,
+  businessAccountId: string,
+): string | null {
+  const accountId = canonicalSupportUuid(businessAccountId);
+  return viewerRole === 'customer' && accountId
+    ? buildRoute(Routes.CUSTOMER.BUSINESS_ACCOUNT_DETAIL, { id: accountId })
     : null;
 }
 
@@ -76,6 +86,10 @@ export default function SupportThreadScreen(): React.ReactElement {
   const relatedProjectId = ticket?.project_id ?? null;
   const relatedProjectRoute = relatedProjectId
     ? getSupportProjectRoute(viewerRole, relatedProjectId)
+    : null;
+  const relatedBusinessAccountId = canonicalSupportUuid(ticket?.related_business_account_id);
+  const relatedBusinessAccountRoute = relatedBusinessAccountId
+    ? getSupportBusinessAccountRoute(viewerRole, relatedBusinessAccountId)
     : null;
 
   useEffect(() => {
@@ -171,6 +185,35 @@ export default function SupportThreadScreen(): React.ReactElement {
                     </Text>
                   </View>
                 </TouchableOpacity>
+              ) : null}
+
+              {relatedBusinessAccountId ? (
+                relatedBusinessAccountRoute ? (
+                  <TouchableOpacity
+                    style={styles.bookingLink}
+                    onPress={() => router.push(relatedBusinessAccountRoute)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open related company account"
+                  >
+                    <Building2 size={18} color={colors.primary} />
+                    <View style={styles.bookingLinkTextWrap}>
+                      <Text style={styles.bookingLinkTitle}>Related company account</Text>
+                      <Text style={styles.bookingLinkMeta}>
+                        {ticket.business_account_name?.trim() || `Company ${relatedBusinessAccountId.slice(0, 8)}`}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.bookingLink} accessibilityLabel="Related customer company">
+                    <Building2 size={18} color={colors.primary} />
+                    <View style={styles.bookingLinkTextWrap}>
+                      <Text style={styles.bookingLinkTitle}>Related customer company</Text>
+                      <Text style={styles.bookingLinkMeta}>
+                        {ticket.business_account_name?.trim() || `Company ${relatedBusinessAccountId.slice(0, 8)}`}
+                      </Text>
+                    </View>
+                  </View>
+                )
               ) : null}
 
               {/* The ticket body is the opening message from the customer. */}

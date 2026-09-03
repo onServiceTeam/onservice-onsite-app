@@ -30,8 +30,8 @@ it('Bug UX-1229 - mobile Support creation rejects simultaneous booking and plann
   render(<QueryClientProvider client={client}><NewSupportRequestScreen /></QueryClientProvider>);
 
   expect(screen.getByText('Support context unavailable')).toBeTruthy();
-  expect(screen.getByText(/linked to a booking or a planning project, not both/i)).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Return to related work' })).toBeTruthy();
+  expect(screen.getByText(/cannot also be linked to a booking or business account/i)).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Return to related record' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Send to support' })).toBeNull();
   expect(mockCreateTicket).not.toHaveBeenCalled();
 });

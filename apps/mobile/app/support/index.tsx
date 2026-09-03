@@ -131,7 +131,11 @@ export default function SupportInboxScreen(): React.ReactElement {
                   <Text style={styles.ticketWhen}>{formatWhen(t.updated_at)}</Text>
                 </View>
                 <Text style={styles.ticketSubject} numberOfLines={1}>{t.subject}</Text>
-                {t.project_id ? (
+                {t.related_business_account_id ? (
+                  <Text style={styles.ticketContext} numberOfLines={1}>
+                    Company: {t.business_account_name?.trim() || t.related_business_account_id.slice(0, 8)}
+                  </Text>
+                ) : t.project_id ? (
                   <Text style={styles.ticketContext} numberOfLines={1}>
                     Project: {t.project_title?.trim() || t.project_id.slice(0, 8)}
                   </Text>

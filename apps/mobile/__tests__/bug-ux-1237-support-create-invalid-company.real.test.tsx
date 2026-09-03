@@ -5,14 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const mockCreateTicket = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn(), replace: jest.fn() }),
-  useLocalSearchParams: () => ({
-    bookingId: 'not-a-booking',
-    subject: 'Malformed context',
-    description: 'This form must not be submitted.',
-  }),
+  useLocalSearchParams: () => ({ businessAccountId: 'not-a-company-account' }),
 }));
 jest.mock('@/hooks/useResponsive', () => ({
-  useResponsive: () => ({ width: 390, breakpoint: 'phone', isPhone: true, isTablet: false, isDesktop: false }),
+  useResponsive: () => ({ width: 1024, breakpoint: 'tablet', isPhone: false, isTablet: true, isDesktop: false }),
 }));
 jest.mock('@/services/support.service', () => ({
   createTicket: (...args: unknown[]) => mockCreateTicket(...args),
@@ -24,7 +20,7 @@ jest.mock('@/services/support.service', () => ({
 
 import NewSupportRequestScreen from '../app/support/new';
 
-it('Bug UX-1230 - mobile Support creation rejects malformed linked-work IDs before showing the form', () => {
+it('Bug UX-1237 - a malformed Business Account Support link fails before showing or submitting the form', () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   render(<QueryClientProvider client={client}><NewSupportRequestScreen /></QueryClientProvider>);
 

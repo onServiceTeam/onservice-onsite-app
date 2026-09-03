@@ -24,7 +24,7 @@ import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { useResponsive } from '@/hooks/useResponsive';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { formatPHP } from '@/utils/currency';
-import { Briefcase, Building2, ChevronLeft, ChevronRight, Receipt, Users } from '@/components/icons';
+import { Briefcase, Building2, ChevronLeft, ChevronRight, MessageSquare, Receipt, Users } from '@/components/icons';
 import { ErrorState, SkeletonCard } from '@/components/ui';
 import Badge from '@/components/ui/Badge';
 import { buildRoute, Routes } from '@/config/navigation';
@@ -198,6 +198,28 @@ export default function BusinessAccountWorkspaceScreen(): React.ReactElement {
             </View>
           </View>
 
+          <TouchableOpacity
+            style={styles.supportAction}
+            onPress={() => router.push({
+              pathname: Routes.SUPPORT.NEW,
+              params: {
+                businessAccountId: accountQuery.data.id,
+                businessName: accountQuery.data.companyName,
+                type: 'general_inquiry',
+                subject: `Help with ${accountQuery.data.companyName}`,
+              },
+            })}
+            accessibilityRole="button"
+            accessibilityLabel={`Get support for ${accountQuery.data.companyName}`}
+          >
+            <MessageSquare size={20} color={colors.primary} />
+            <View style={styles.supportActionCopy}>
+              <Text style={styles.supportActionTitle}>Get company support</Text>
+              <Text style={styles.supportActionText}>Send this company account to support so the case stays connected to the right workspace.</Text>
+            </View>
+            <ChevronRight size={18} color={colors.primary} />
+          </TouchableOpacity>
+
           {!featureFlags.businessContractBookingEnabled ? (
             <View style={styles.launchHold} accessibilityRole="text" accessibilityLabel="Company booking launch status">
               <Text style={styles.launchHoldTitle}>Company-paid booking is not open yet</Text>
@@ -280,6 +302,10 @@ const styles = StyleSheet.create({
   heroHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm },
   companyName: { ...typography.h2, color: colors.text, flexShrink: 1 },
   companyMeta: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
+  supportAction: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary, borderRadius: borderRadius.lg, padding: spacing.base },
+  supportActionCopy: { flex: 1, minWidth: 0 },
+  supportActionTitle: { ...typography.body, color: colors.primary, fontWeight: '800' },
+  supportActionText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: 2 },
   launchHold: { borderWidth: 1, borderColor: colors.warning, backgroundColor: colors.warningLight, borderRadius: borderRadius.lg, padding: spacing.base },
   launchHoldTitle: { ...typography.body, color: colors.warningDark, fontWeight: '800' },
   launchHoldText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, marginTop: spacing.xs },

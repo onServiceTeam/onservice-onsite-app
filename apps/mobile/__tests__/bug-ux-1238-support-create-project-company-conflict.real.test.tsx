@@ -6,9 +6,8 @@ const mockCreateTicket = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn(), replace: jest.fn() }),
   useLocalSearchParams: () => ({
-    bookingId: 'not-a-booking',
-    subject: 'Malformed context',
-    description: 'This form must not be submitted.',
+    projectId: '12380000-abcd-4abc-8def-000000001238',
+    businessAccountId: '12380000-abcd-4abc-8def-000000001239',
   }),
 }));
 jest.mock('@/hooks/useResponsive', () => ({
@@ -24,12 +23,11 @@ jest.mock('@/services/support.service', () => ({
 
 import NewSupportRequestScreen from '../app/support/new';
 
-it('Bug UX-1230 - mobile Support creation rejects malformed linked-work IDs before showing the form', () => {
+it('Bug UX-1238 - Support creation rejects combined planning-project and Business Account context', () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   render(<QueryClientProvider client={client}><NewSupportRequestScreen /></QueryClientProvider>);
 
-  expect(screen.getByText('Support context unavailable')).toBeTruthy();
-  expect(screen.getByText(/invalid booking, project, or business account/i)).toBeTruthy();
-  expect(screen.queryByLabelText('Subject')).toBeNull();
+  expect(screen.getByText(/planning-project support request cannot also be linked/i)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Send to support' })).toBeNull();
   expect(mockCreateTicket).not.toHaveBeenCalled();
 });

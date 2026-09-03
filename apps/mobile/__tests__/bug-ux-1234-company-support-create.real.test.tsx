@@ -2,16 +2,16 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-const mockCreateTicket = jest.fn().mockResolvedValue({ id: 'ticket-892' });
+const mockCreateTicket = jest.fn().mockResolvedValue({ id: '12340000-abcd-4abc-8def-000000001234' });
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn(), replace: mockReplace }),
   useLocalSearchParams: () => ({
-    projectId: '22222222-2222-4222-8222-22222222222A',
-    projectTitle: 'Kitchen renovation plan',
+    businessAccountId: '12340000-ABCD-4ABC-8DEF-000000001235',
+    businessName: 'Cebu Build Co',
     type: 'general_inquiry',
-    subject: 'Help with Kitchen renovation plan',
-    description: 'I need help understanding the next planning step.',
+    subject: 'Help with Cebu Build Co',
+    description: 'Please help our team with this company account.',
   }),
 }));
 jest.mock('@/hooks/useResponsive', () => ({
@@ -27,21 +27,21 @@ jest.mock('@/services/support.service', () => ({
 
 import NewSupportRequestScreen from '../app/support/new';
 
-it('Bug UX-892 — the support form shows and submits the canonical planning project context', async () => {
+it('Bug UX-1234 - customer Support creation displays and submits canonical Business Account context', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   render(<QueryClientProvider client={client}><NewSupportRequestScreen /></QueryClientProvider>);
 
-  expect(screen.getByText('Linked to project Kitchen renovation plan')).toBeTruthy();
-  expect(screen.getByText(/remains separate from bookings, quotes, and payments/i)).toBeTruthy();
+  expect(screen.getByText('Linked to company Cebu Build Co')).toBeTruthy();
+  expect(screen.getByText(/request will stay in your Support inbox/i)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Send to support' }));
   await waitFor(() => expect(mockCreateTicket).toHaveBeenCalledWith({
     type: 'general_inquiry',
-    subject: 'Help with Kitchen renovation plan',
-    description: 'I need help understanding the next planning step.',
+    subject: 'Help with Cebu Build Co',
+    description: 'Please help our team with this company account.',
     bookingId: undefined,
-    projectId: '22222222-2222-4222-8222-22222222222a',
-    businessAccountId: undefined,
+    projectId: undefined,
+    businessAccountId: '12340000-abcd-4abc-8def-000000001235',
     priority: undefined,
   }));
-  expect(mockReplace).toHaveBeenCalledWith('/support/ticket-892');
+  expect(mockReplace).toHaveBeenCalledWith('/support/12340000-abcd-4abc-8def-000000001234');
 });
