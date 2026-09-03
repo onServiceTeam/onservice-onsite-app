@@ -37,7 +37,7 @@ export const createRecurringSchema = z
   .strict();
 
 export const recurringIdParamsSchema = z.object({
-  id: z.string().uuid('Recurring booking ID must be a valid UUID.'),
+  id: z.string().uuid('Recurring booking ID must be a valid UUID.').transform((value) => value.toLowerCase()),
 }).strict();
 
 export const recurringPreviewParamsSchema = z.object({

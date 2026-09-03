@@ -95,6 +95,7 @@ const FREQUENCY_LABELS: Record<string, string> = {
 };
 
 const STATUS_OPTIONS = new Set(['active', 'paused', 'cancelled']);
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function formatStatus(value: string): string {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
@@ -305,7 +306,9 @@ export default function RecurringPage(): React.ReactElement {
   const page = parsePage(searchParams.get('page'));
   const statusFilter = parseStatus(searchParams.get('status'));
   const search = searchParams.get('search')?.trim() ?? '';
-  const selectedId = searchParams.get('seriesId')?.trim() ?? '';
+  const selectedValue = searchParams.get('seriesId')?.trim() ?? '';
+  const selectedId = UUID_REGEX.test(selectedValue) ? selectedValue.toLowerCase() : '';
+  const selectedIdInvalid = selectedValue.length > 0 && !selectedId;
   const [searchInput, setSearchInput] = useState(search);
   const [searchError, setSearchError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -436,6 +439,14 @@ export default function RecurringPage(): React.ReactElement {
           <Metric label="Series with failed schedules" value={listSummary.seriesWithFailedInstances} attention={listSummary.seriesWithFailedInstances > 0} />
           <Metric label="Open linked support cases" value={listSummary.openSupportTickets} attention={listSummary.openSupportTickets > 0} />
         </div>
+      ) : null}
+
+      {selectedIdInvalid ? (
+        <ErrorState
+          title="Invalid recurring series link"
+          description="The saved series ID is not a valid UUID, so no recurring-detail request was sent. Remove it to keep the current queue filters."
+          action={<Button variant="outline" onClick={() => updateParams({ seriesId: '' })}>Remove invalid series link</Button>}
+        />
       ) : null}
 
       {selectedId && !selectedInPage ? (
