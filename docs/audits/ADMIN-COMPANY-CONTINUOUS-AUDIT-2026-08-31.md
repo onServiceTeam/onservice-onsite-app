@@ -2132,3 +2132,39 @@ both TypeScript checks, the Admin production build, and Docker image
 boot/liveness at commit `4de0977`. Protected Gates `33715547245` passed A
 through E and the `All gates passed` rollup at the same commit. Production
 synchronization remains blocked by E32.
+
+## Checkpoint BD: exact service-catalog audit handoffs
+
+Category, customer-service, and add-on mutations were already transactional
+and audited, but their records were inert in the general Audit Log. Historical
+service and add-on actions could also omit their parent identifiers from JSON,
+so constructing a route from optional action details would not reliably reopen
+the hierarchy the operator changed.
+
+OPS-416 resolves the retained category and customer-service owners directly
+from `service_subcategories` and `service_addons`. UX-1090 through UX-1092 map
+category, service, and add-on events to exact durable Catalog URLs and expand
+and mark the matching retained record. Service-only evidence does not open the
+add-on panel or make its extra request. A selected add-on opens all three levels
+and retains inactive add-ons, which is necessary for deactivation evidence.
+
+UX-1093 rejects malformed identifiers before opening an unrelated hierarchy,
+and UX-1094 rejects a service/category ownership mismatch instead of marking a
+record under the wrong parent. During line review, UX-1095 found that a normal
+add-on expansion wrote URL state that a refresh did not restore and announced
+a normal selection as an audit target. The final contract uses source-neutral
+selection wording plus explicit `view=addons` state, so ordinary add-on panel
+state survives remount while an exact service audit link does not trigger an
+unnecessary add-on fetch.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Thirteen related API catalog and audit-identity suites pass 62 tests, and
+37 rendered Catalog and Audit Log files pass 46 tests. Protected CI
+`33716790302` passed 862 API suites and 3,233 tests, 372 Admin files and 461
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, both TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `f143496`.
+Protected Gates `33716790289` passed A through E and the `All gates passed`
+rollup at the same commit. No category, service, add-on, booking, price, audit,
+database-schema, master, or production record changed. Production
+synchronization remains blocked by E32.
