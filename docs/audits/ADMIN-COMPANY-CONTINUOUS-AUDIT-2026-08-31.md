@@ -1799,3 +1799,44 @@ Protected Gates `33704506058` passed A through E and the `All gates passed`
 rollup at the same commit. No consent, DSR, breach, user, support, audit,
 database-schema, or production record changed. Production synchronization
 remains blocked by E32.
+
+## Checkpoint AV: exact privacy-case audit handoff
+
+Checkpoint AU correctly removed DPO-owned events from an ordinary admin's
+general Audit Log while retaining the approved super-admin governance view.
+That authorized super-admin view still rendered both recorded DSR target forms,
+`dsr_request` and `data_subject_request`, as inert text. An investigator could
+see that a privacy case changed but could not return to the exact case evidence
+without manually copying an abbreviated identifier and searching outside the
+recorded workflow.
+
+UX-1070 maps a valid DSR audit target to
+`/data-protection-log?dsrId=<id>` and gives the known DSR action families clear
+operator labels. The DPO workspace validates that URL state, loads the existing
+DPO/super-admin-only exact-detail endpoint, and opens the complete stored case
+even when the record is outside the current page or filters. Opening a queue
+row now writes the same durable case ID, so refresh, bookmark, and staff handoff
+all recover the exact case. Closing the case removes only `dsrId`, preserving
+the operator's queue filters. Successful case actions close that URL state
+before invalidating both list and exact-detail caches, preventing stale detail
+from reopening.
+
+UX-1071 rejects a malformed `dsrId` locally before any detail request is sent,
+explains that the value is invalid rather than misreporting a missing case, and
+lets the operator remove only the bad identifier. A failed authorized detail
+request has separate retry and return-to-queue actions. The API's D34 role
+boundary is unchanged: ordinary admins cannot receive these audit rows and
+cannot open the privacy workspace; only DPO and super-admin sessions can fetch
+the exact case. E40 continues to hold breach classification and new breach UI.
+
+Local Admin TypeScript, affected-file ESLint, and `git diff --check` pass. Five
+focused rendered Admin files pass five tests across the new exact and malformed
+DSR handoffs plus prior case-review, received-case action, and exact staff
+handoff coverage. The complete local Admin suite passes 348 files and 437 tests,
+with one intentionally skipped file and three existing honest TODOs. Protected
+CI `33705958571` passed the full API, Mobile, and rendered Admin suites, both
+TypeScript checks, the Admin production build, and Docker image boot/liveness
+at commit `bdef4bc`. Protected Gates `33705958566` passed A through E and the
+`All gates passed` rollup at the same commit. No DSR, consent, breach, user,
+support, audit, database-schema, or production record changed. Production
+synchronization remains blocked by E32.
