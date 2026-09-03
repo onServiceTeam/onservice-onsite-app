@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   useQuery,
   useMutation,
@@ -229,7 +229,10 @@ interface Note {
 
 const TABS = ['profile', 'certifications', 'jobs', 'financials', 'reviews', 'staff', 'disputes', 'activity', 'notes'] as const;
 type TabId = (typeof TABS)[number];
-void TABS;
+
+function parseProviderTab(value: string | null): TabId {
+  return TABS.includes(value as TabId) ? value as TabId : 'profile';
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -294,7 +297,17 @@ const TIER_BADGE: Record<string, 'info' | 'success' | 'warning' | 'default'> = {
 
 export default function ProviderDetailPage(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
-  const [activeTab, setActiveTab] = useState<TabId>('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = parseProviderTab(searchParams.get('tab'));
+
+  const selectTab = (tab: TabId): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (tab === 'profile') next.delete('tab');
+      else next.set('tab', tab);
+      return next;
+    });
+  };
 
   const profile = useQuery({
     queryKey: ['admin-provider-profile', id],
@@ -339,7 +352,7 @@ export default function ProviderDetailPage(): React.ReactElement {
 
       <ProviderHeader profile={p} />
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)}>
+      <Tabs value={activeTab} onValueChange={(v) => selectTab(v as TabId)}>
         <TabsList className="flex h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto rounded-xl p-1">
           <TabsTrigger className="min-h-11 shrink-0" value="profile">Profile</TabsTrigger>
           <TabsTrigger className="min-h-11 shrink-0" value="certifications">Certifications</TabsTrigger>

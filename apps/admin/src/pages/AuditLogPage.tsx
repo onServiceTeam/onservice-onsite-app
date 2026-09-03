@@ -87,6 +87,9 @@ const ACTION_LABELS: Record<string, string> = {
   provider_approved: 'Provider approved',
   provider_certification_unverified: 'Provider certification unverified',
   provider_certification_verified: 'Provider certification verified',
+  provider_note_added: 'Provider support note added',
+  provider_note_deleted: 'Provider support note deleted',
+  provider_note_updated: 'Provider support note updated',
   provider_reactivated: 'Provider reactivated',
   provider_rejected: 'Provider rejected',
   provider_staff_approved: 'Provider staff approved',
@@ -172,6 +175,17 @@ function linkedBusinessAccountId(entry: AuditEntry): string | null {
   return null;
 }
 
+function linkedProviderId(entry: AuditEntry): string | null {
+  if (entry.targetProviderId && UUID_REGEX.test(entry.targetProviderId)) {
+    return entry.targetProviderId;
+  }
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const providerId = values?.providerId;
+    if (typeof providerId === 'string' && UUID_REGEX.test(providerId)) return providerId;
+  }
+  return null;
+}
+
 function searchedConsentUserId(entry: AuditEntry): string | null {
   if (entry.action !== 'consent_search') return null;
   for (const values of [entry.newValues, entry.oldValues]) {
@@ -224,6 +238,33 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
       return { to: `/customers/${id}`, label: 'Open Customer 360' };
     case 'provider':
       return { to: `/providers/${id}`, label: 'Open Provider 360' };
+    case 'provider_certification': {
+      const providerId = linkedProviderId(entry);
+      return providerId
+        ? {
+            to: `/providers/${encodeURIComponent(providerId)}?tab=certifications`,
+            label: 'Open provider certifications',
+          }
+        : null;
+    }
+    case 'provider_note': {
+      const providerId = linkedProviderId(entry);
+      return providerId
+        ? {
+            to: `/providers/${encodeURIComponent(providerId)}?tab=notes`,
+            label: 'Open provider support notes',
+          }
+        : null;
+    }
+    case 'review': {
+      const providerId = linkedProviderId(entry);
+      return providerId
+        ? {
+            to: `/providers/${encodeURIComponent(providerId)}?tab=reviews`,
+            label: 'Open provider reviews',
+          }
+        : null;
+    }
     case 'user':
     case 'users': {
       const targetRole = targetAccountRole(entry);
