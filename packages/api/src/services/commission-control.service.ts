@@ -454,6 +454,20 @@ export async function listCommissionRates(limit = 100, offset = 0): Promise<{
   return { items: items.rows.map(mapRate), total: Number(total.rows[0]?.count ?? 0) };
 }
 
+export async function getCommissionRateById(
+  rateIdValue: unknown,
+): Promise<CommissionRateVersion | null> {
+  const rateId = requiredUuid(rateIdValue, 'rateId');
+  const result = await db.query<RateRow>(
+    `${RATE_SELECT}
+     WHERE crv.id = $1
+       AND crv.scope_type IN ('tier', 'provider')
+     ${RATE_GROUP_BY}`,
+    [rateId],
+  );
+  return result.rows[0] ? mapRate(result.rows[0]) : null;
+}
+
 export async function scheduleCommissionRate(
   input: CommissionScheduleRequest,
   actorId: string,

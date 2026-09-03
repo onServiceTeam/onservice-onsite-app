@@ -2515,6 +2515,7 @@ export default function FinancialsPage(): React.ReactElement {
   const tab = parseTab(searchParams.get('tab'));
   const intentSearch = searchParams.get('intentSearch')?.trim() ?? '';
   const retrySearch = searchParams.get('retrySearch')?.trim() ?? '';
+  const rawCommissionRateId = searchParams.get('commissionRateId')?.trim() ?? '';
   const reconciliationSnapshotId = searchParams.get('snapshotId')?.trim() ?? '';
   const rawTaxYear = searchParams.get('taxYear')?.trim() ?? '';
   const rawTaxQuarter = searchParams.get('taxQuarter')?.trim() ?? '';
@@ -2526,6 +2527,10 @@ export default function FinancialsPage(): React.ReactElement {
   const vatMonth = parseBoundedInteger(rawVatMonth, 1, 12);
   const batchId = UUID_REGEX.test(rawBatchId) ? rawBatchId : '';
   const vatReportId = UUID_REGEX.test(rawVatReportId) ? rawVatReportId : '';
+  const commissionRateId = UUID_REGEX.test(rawCommissionRateId) ? rawCommissionRateId : '';
+  const commissionSelectionError = tab === 'commission' && rawCommissionRateId && !commissionRateId
+    ? 'The audit link contains an invalid commission-agreement ID. No commission record was loaded.'
+    : '';
   const taxSelectionError = tab !== 'bir' ? ''
     : rawTaxYear && taxYear === null ? 'Tax year must be a whole year from 2024 through 2100.'
       : rawTaxQuarter && taxQuarter === null ? 'Tax quarter must be 1 through 4.'
@@ -2578,6 +2583,7 @@ export default function FinancialsPage(): React.ReactElement {
         params.delete('receiptLimit');
       }
       if (nextTab !== 'reconciliation') params.delete('snapshotId');
+      if (nextTab !== 'commission') params.delete('commissionRateId');
       if (nextTab !== 'bir') {
         params.delete('taxYear');
         params.delete('taxQuarter');
@@ -2638,6 +2644,14 @@ export default function FinancialsPage(): React.ReactElement {
       params.set('tab', 'reconciliation');
       if (value) params.set('snapshotId', value);
       else params.delete('snapshotId');
+      return params;
+    });
+  };
+
+  const clearCommissionRate = (): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('commissionRateId');
       return params;
     });
   };
@@ -2731,7 +2745,13 @@ export default function FinancialsPage(): React.ReactElement {
         />
       )}
       {tab === 'legacy' && <LegacyFinancialReviewPanel />}
-      {tab === 'commission' && <CommissionControlsPanel />}
+      {tab === 'commission' && (
+        <CommissionControlsPanel
+          selectedRateId={commissionRateId}
+          selectionError={commissionSelectionError}
+          onClearExact={clearCommissionRate}
+        />
+      )}
       {tab === 'payouts' && <PayoutsPanel />}
       {tab === 'guarantee' && <GuaranteeFundPanel />}
       {tab === 'reconciliation' && (

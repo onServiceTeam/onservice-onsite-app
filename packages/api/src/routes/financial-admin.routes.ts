@@ -69,6 +69,23 @@ router.get(
   },
 );
 
+router.get(
+  '/commission-controls/:id',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      requireAdmin(req);
+      const rateId = req.params.id;
+      if (typeof rateId !== 'string' || !UUID_REGEX.test(rateId)) {
+        throw createAppError('rateId must be a valid UUID.', 400);
+      }
+      const data = await commissionControlService.getCommissionRateById(rateId);
+      if (!data) throw createAppError('Commission agreement not found.', 404);
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
 router.post(
   '/commission-controls/preview',
   authMiddleware,

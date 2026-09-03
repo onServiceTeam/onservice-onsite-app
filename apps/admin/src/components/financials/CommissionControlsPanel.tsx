@@ -98,6 +98,12 @@ interface RateList {
   total: number;
 }
 
+interface CommissionControlsPanelProps {
+  selectedRateId?: string;
+  selectionError?: string;
+  onClearExact?: () => void;
+}
+
 interface ScheduleImpact {
   eligibleProviderCount: number;
   approvedProviderCount: number;
@@ -208,7 +214,11 @@ function newDraft(): DraftSchedule {
   };
 }
 
-export function CommissionControlsPanel(): React.ReactElement {
+export function CommissionControlsPanel({
+  selectedRateId = '',
+  selectionError = '',
+  onClearExact = () => undefined,
+}: CommissionControlsPanelProps = {}): React.ReactElement {
   const queryClient = useQueryClient();
   const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
   const [page, setPage] = useState(1);
@@ -226,6 +236,22 @@ export function CommissionControlsPanel(): React.ReactElement {
       });
       return response.data.data;
     },
+  });
+
+  const exactRateQ = useQuery({
+    queryKey: ['commission-controls', 'exact', selectedRateId],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<CommissionRateVersion>>(
+        `/api/v1/admin/financials/commission-controls/${selectedRateId}`,
+      );
+      const rate = response.data.data;
+      if (!rate || rate.id !== selectedRateId) {
+        throw new Error('The server returned a different commission agreement. No substitute record was shown.');
+      }
+      return rate;
+    },
+    enabled: Boolean(selectedRateId) && !selectionError,
+    retry: false,
   });
 
   const catalogQ = useQuery({
@@ -350,6 +376,103 @@ export function CommissionControlsPanel(): React.ReactElement {
           Effective versions are evidence and cannot be edited or deleted.
         </p>
       </div>
+
+      {selectionError ? (
+        <ErrorState
+          title="Selected commission agreement could not be loaded"
+          description={selectionError}
+          action={<Button type="button" variant="outline" onClick={onClearExact}>Clear selection</Button>}
+        />
+      ) : selectedRateId && exactRateQ.isLoading ? (
+        <LoadingState label="Loading selected commission agreement…" />
+      ) : selectedRateId && exactRateQ.isError ? (
+        <ErrorState
+          title="Selected commission agreement could not be loaded"
+          description={`${getErrorMessage(exactRateQ.error)} No other agreement was substituted.`}
+          action={<Button type="button" variant="outline" onClick={onClearExact}>Clear selection</Button>}
+        />
+      ) : exactRateQ.data ? (
+        <section
+          className="rounded-xl border border-blue-200 bg-blue-50/40 p-5"
+          aria-labelledby="selected-commission-evidence-title"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Audit-linked record</p>
+              <h2 id="selected-commission-evidence-title" className="mt-1 text-base font-semibold text-[var(--color-text)]">
+                Selected commission agreement evidence
+              </h2>
+              <p className="mt-1 break-all font-mono text-xs text-[var(--color-text-secondary)]">
+                {exactRateQ.data.id}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                label={exactRateQ.data.lifecycleStatus.toUpperCase()}
+                variant={statusVariant(exactRateQ.data.lifecycleStatus)}
+              />
+              <Button type="button" size="sm" variant="outline" onClick={onClearExact}>Clear selection</Button>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-blue-100 bg-white p-3">
+              <p className="text-xs font-medium uppercase text-[var(--color-text-secondary)]">Agreement scope</p>
+              <div className="mt-1 text-sm text-[var(--color-text)]">{scopeLabel(exactRateQ.data)}</div>
+            </div>
+            <div className="rounded-lg border border-blue-100 bg-white p-3">
+              <p className="text-xs font-medium uppercase text-[var(--color-text-secondary)]">Service scope</p>
+              <p className="mt-1 text-sm text-[var(--color-text)]">
+                {exactRateQ.data.subcategoryName ?? exactRateQ.data.categoryName ?? 'All services'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-blue-100 bg-white p-3">
+              <p className="text-xs font-medium uppercase text-[var(--color-text-secondary)]">Commission rate</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums text-[var(--color-text)]">
+                {exactRateQ.data.ratePercent.toFixed(2)}%
+              </p>
+            </div>
+            <div className="rounded-lg border border-blue-100 bg-white p-3">
+              <p className="text-xs font-medium uppercase text-[var(--color-text-secondary)]">Booking snapshots</p>
+              <p className="mt-1 text-sm tabular-nums text-[var(--color-text)]">{exactRateQ.data.snapshotUsageCount}</p>
+            </div>
+            <div className="rounded-lg border border-blue-100 bg-white p-3 sm:col-span-2">
+              <p className="text-xs font-medium uppercase text-[var(--color-text-secondary)]">Effective from</p>
+              <p className="mt-1 text-sm text-[var(--color-text)]">{formatManila(exactRateQ.data.effectiveFrom)}</p>
+            </div>
+            <div className="rounded-lg border border-blue-100 bg-white p-3 sm:col-span-2">
+              <p className="text-xs font-medium uppercase text-[var(--color-text-secondary)]">Recorded</p>
+              <p className="mt-1 text-sm text-[var(--color-text)]">{formatManila(exactRateQ.data.createdAt)}</p>
+              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                Owner: {exactRateQ.data.createdByName ?? (exactRateQ.data.source === 'migration_seed' ? 'Migration seed' : 'Unknown actor')}
+                {exactRateQ.data.approvedByName ? ` · Approver: ${exactRateQ.data.approvedByName}` : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-lg border border-blue-100 bg-white p-3 text-sm text-[var(--color-text)]">
+            <p className="text-xs font-medium uppercase text-[var(--color-text-secondary)]">Recorded business reason</p>
+            <p className="mt-1 whitespace-pre-wrap">{exactRateQ.data.reason}</p>
+          </div>
+
+          {exactRateQ.data.cancellation && (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950">
+              <p className="font-semibold">Future version cancelled</p>
+              <p className="mt-1">{exactRateQ.data.cancellation.reason}</p>
+              <p className="mt-1 text-xs">
+                {formatManila(exactRateQ.data.cancellation.cancelledAt)} by{' '}
+                {exactRateQ.data.cancellation.cancelledByName ?? 'Unknown actor'}
+              </p>
+            </div>
+          )}
+
+          <p className="mt-3 text-xs text-[var(--color-text-secondary)]">
+            This is the retained append-only agreement record and its current cancellation state. The Audit Log
+            remains the event-time evidence. Existing booking financial snapshots are immutable and are never
+            recalculated from this screen.
+          </p>
+        </section>
+      ) : null}
 
       <section className="rounded-xl border border-[var(--color-border)] bg-white p-5" aria-labelledby="commission-schedule-title">
         <div className="flex flex-wrap items-start justify-between gap-3">

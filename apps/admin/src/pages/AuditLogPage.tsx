@@ -67,6 +67,8 @@ const ACTION_LABELS: Record<string, string> = {
   booking_reassigned: 'Booking reassigned',
   bir_2307_batch_generated: '2307 workpaper batch generated',
   bir_2307_regenerated: '2307 workpaper batch regenerated',
+  commission_rate_cancelled: 'Commission agreement cancelled',
+  commission_rate_scheduled: 'Commission agreement scheduled',
   config_changed: 'Configuration changed',
   consent_search: 'Consent evidence searched',
   consent_version_published: 'Consent version published',
@@ -282,6 +284,20 @@ function notificationTemplateOperation(entry: AuditEntry): string | null {
   return null;
 }
 
+function linkedCommissionRateId(entry: AuditEntry): string | null {
+  if (entry.action !== 'commission_rate_scheduled' && entry.action !== 'commission_rate_cancelled') {
+    return null;
+  }
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const rateId = values?.commissionRateVersionId;
+    if (typeof rateId === 'string' && UUID_REGEX.test(rateId)) return rateId;
+  }
+  if (entry.entityType === 'config' && entry.entityId && UUID_REGEX.test(entry.entityId)) {
+    return entry.entityId;
+  }
+  return null;
+}
+
 function searchedConsentUserId(entry: AuditEntry): string | null {
   if (entry.action !== 'consent_search') return null;
   for (const values of [entry.newValues, entry.oldValues]) {
@@ -344,6 +360,13 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
         label: messageId ? 'Open exact conversation message' : 'Open exact conversation',
       };
     }
+  }
+  const commissionRateId = linkedCommissionRateId(entry);
+  if (commissionRateId) {
+    return {
+      to: `/financials?tab=commission&commissionRateId=${encodeURIComponent(commissionRateId)}`,
+      label: 'Open exact commission agreement',
+    };
   }
   if (!entry.entityId) return null;
   const id = encodeURIComponent(entry.entityId);
@@ -594,10 +617,10 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
           ? { to: `/marketing?tab=campaigns&campaignId=${id}`, label: 'Open exact campaign' }
           : null;
       }
-      return { to: '/settings', label: 'Open System Settings' };
+      return null;
     }
     case 'system':
-      return { to: '/settings', label: 'Open System Settings' };
+      return null;
     default:
       return null;
   }
@@ -605,6 +628,7 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
 
 function entityLabel(entry: AuditEntry): string {
   if (entry.action === 'consent_search') return 'Consent evidence lookup';
+  if (linkedCommissionRateId(entry)) return 'Commission agreement';
   if (entry.entityType === 'admin_staff') return 'Staff directory profile';
   if (entry.entityType === 'dsr_request' || entry.entityType === 'data_subject_request') {
     return 'Data subject request';
