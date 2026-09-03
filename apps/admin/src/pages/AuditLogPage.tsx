@@ -69,6 +69,13 @@ const ACTION_LABELS: Record<string, string> = {
   dispute_message_sent: 'Dispute message sent',
   dispute_reopened: 'Dispute reopened',
   dispute_resolved: 'Dispute resolved',
+  'dsr.created': 'Data subject request created',
+  'dsr.status_changed': 'Data subject request status changed',
+  dsr_escalated_to_npc: 'NPC case reference recorded',
+  dsr_marked_complete: 'Data subject request completed',
+  dsr_more_info_requested: 'More information requested for data subject request',
+  dsr_rejected: 'Data subject request rejected',
+  dsr_review_started: 'Data subject request review started',
   message_flag_reviewed: 'Reported message reviewed',
   message_redacted: 'Message redacted',
   payout_approved: 'Payout approved',
@@ -229,6 +236,14 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
         : null;
     case 'support_ticket':
       return { to: `/support-tickets?ticketId=${id}`, label: 'Open support case' };
+    case 'dsr_request':
+    case 'data_subject_request':
+      return UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/data-protection-log?dsrId=${id}`,
+            label: 'Open exact privacy case',
+          }
+        : null;
     case 'business':
     case 'business_account':
       return { to: `/business-accounts/${id}`, label: 'Open business account' };
@@ -273,6 +288,9 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
 
 function entityLabel(entry: AuditEntry): string {
   if (entry.entityType === 'admin_staff') return 'Staff directory profile';
+  if (entry.entityType === 'dsr_request' || entry.entityType === 'data_subject_request') {
+    return 'Data subject request';
+  }
   if (entry.entityType !== 'user' && entry.entityType !== 'users') return humanizeSlug(entry.entityType);
   const targetRole = targetAccountRole(entry);
   if (targetRole === 'customer') return 'Customer account';
