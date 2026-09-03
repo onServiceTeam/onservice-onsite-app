@@ -1263,12 +1263,17 @@ export async function getProviderActivity(
 
   const adminActs = adminActionRows.rows.map<ProviderActivityRow>((r) => {
     const adminName = `${r.admin_first ?? ''} ${r.admin_last ?? ''}`.trim() || null;
+    const actorKind: ProviderActivityRow['actor']['kind'] = r.admin_id === userId
+      ? 'provider'
+      : r.admin_id
+        ? 'admin'
+        : 'system';
     return {
       id: `admin_action:${r.id}`,
       source: 'admin_action',
       action: r.action_type,
       detail: r.reason ?? (r.details ? JSON.stringify(r.details) : null),
-      actor: { kind: r.admin_id ? 'admin' : 'system', id: r.admin_id, name: adminName },
+      actor: { kind: actorKind, id: r.admin_id, name: adminName },
       ipAddress: null,
       userAgent: null,
       createdAt: r.created_at.toISOString(),

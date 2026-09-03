@@ -2350,9 +2350,11 @@ router.get(
 // Backed by a UNION ALL across two tables:
 //   * audit_log     — selected explicitly recorded system events. The generic
 //                     request middleware is not mounted; E37 tracks the gap.
-//   * admin_actions — privileged actions (staff_added/removed,
+//   * admin_actions — recorded operational actions (staff_added/removed,
 //                     consent_version_published, dsr_*, service_area_*,
-//                     promotion_*, notification_template_*, etc.).
+//                     provider_application_submitted, promotion_*,
+//                     notification_template_*, etc.). The actor can be an
+//                     operator, a participant, or the system.
 //
 // Pre-fix this endpoint only read audit_log, so admin-side staff +
 // catalog + DSR mutations were invisible from the audit timeline UI

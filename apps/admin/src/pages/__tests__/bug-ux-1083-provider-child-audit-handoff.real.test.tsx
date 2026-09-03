@@ -47,7 +47,10 @@ it('Bug UX-1083 — relationally enriched provider staff, document, and applicat
   expect(await screen.findByRole('link', { name: /Open exact provider team member/ })).toHaveAttribute(
     'to', `/providers/${PROVIDER_ID}?tab=staff&staffId=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb`,
   );
-  expect(screen.getAllByRole('link', { name: /Open Provider 360/ })).toHaveLength(2);
+  expect(screen.getByRole('link', { name: /Open exact provider application decision/ })).toHaveAttribute(
+    'to', `/providers/${PROVIDER_ID}?tab=activity&adminActionId=33333333-3333-4333-8333-333333333333`,
+  );
+  expect(screen.getAllByRole('link', { name: /Open Provider 360/ })).toHaveLength(1);
   for (const link of screen.getAllByRole('link', { name: /Open Provider 360/ })) {
     expect(link).toHaveAttribute('to', `/providers/${PROVIDER_ID}`);
   }

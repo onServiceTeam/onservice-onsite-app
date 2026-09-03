@@ -56,7 +56,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 const SOURCE_BADGE: Record<NonNullable<AuditEntry['source']>, { label: string; cls: string }> = {
   audit_log: { label: 'System event', cls: 'bg-slate-100 text-slate-700' },
-  admin_actions: { label: 'Admin decision', cls: 'bg-amber-100 text-amber-800' },
+  admin_actions: { label: 'Recorded action', cls: 'bg-amber-100 text-amber-800' },
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -520,7 +520,21 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
       }
       return { to: `/providers/${id}`, label: 'Open Provider 360' };
     }
-    case 'provider_application':
+    case 'provider_application': {
+      const providerId = linkedProviderId(entry);
+      if (!providerId) return null;
+      const hasExactActivity = entry.source === 'admin_actions' && UUID_REGEX.test(entry.id);
+      if (hasExactActivity) {
+        const params = new URLSearchParams({ tab: 'activity', adminActionId: entry.id });
+        return {
+          to: `/providers/${encodeURIComponent(providerId)}?${params.toString()}`,
+          label: entry.action === 'provider_application_submitted'
+            ? 'Open exact provider application submission'
+            : 'Open exact provider application decision',
+        };
+      }
+      return { to: `/providers/${encodeURIComponent(providerId)}`, label: 'Open Provider 360' };
+    }
     case 'provider_document': {
       const providerId = linkedProviderId(entry);
       return providerId
@@ -967,7 +981,7 @@ export default function AuditLogPage(): React.ReactElement {
           </p>
           <h1 className="mt-1 text-2xl font-bold text-[var(--color-text)]">Audit Log</h1>
           <p className="mt-1 max-w-3xl text-sm text-[var(--color-text-secondary)]">
-            Reconstruct recorded admin decisions and selected system events, then open the customer,
+            Reconstruct recorded operational actions and selected system events, then open the customer,
             provider, booking, support, dispute, payout, reconciliation, or company record that owns the event.
           </p>
         </div>
@@ -990,7 +1004,7 @@ export default function AuditLogPage(): React.ReactElement {
       </header>
 
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        <strong>Coverage boundary:</strong> this timeline combines privileged admin actions and explicitly
+        <strong>Coverage boundary:</strong> this timeline combines recorded operational actions and explicitly
         recorded system events. It is not a complete HTTP request trace while E37 remains open. CSV exports
         use the same two sources and filters, mask contact/network/free-text PII, cap at 10,000 rows, and are audited.
       </div>
@@ -1062,7 +1076,7 @@ export default function AuditLogPage(): React.ReactElement {
                 className="min-h-11 w-full rounded-md border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
               >
                 <option value="all">Both recorded sources</option>
-                <option value="admin_actions">Admin decisions</option>
+                <option value="admin_actions">Recorded actions</option>
                 <option value="audit_log">Selected system events</option>
               </select>
             </label>
