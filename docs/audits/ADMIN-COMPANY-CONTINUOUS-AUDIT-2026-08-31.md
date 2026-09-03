@@ -1757,3 +1757,45 @@ through E and the `All gates passed` rollup at the same commit. No staff
 profile, role, user account, login session, support case, audit row, database
 schema, or production record changed. Production synchronization remains
 blocked by E32.
+
+## Checkpoint AU: general-audit privacy segregation
+
+The approved D34 role boundary assigns consent evidence, data-subject requests,
+and breach records to the DPO/super-admin privacy workspace and explicitly says
+that a plain operations admin does not receive privacy-record access. The
+general Audit Log route correctly rejected a DPO session, but its combined
+timeline returned every recorded privacy event to both `admin` and
+`super_admin`. The matching CSV export and its streaming variant used the same
+unrestricted union. Masking contact fields did not fix that authorization
+failure: an ordinary admin could still receive privacy case identifiers,
+actions, reasons, and nested event context, including by applying an exact
+filter or exporting the timeline.
+
+OPS-404 introduces one shared, fail-closed visibility predicate for the general
+audit surface. Ordinary admins no longer receive DPO-owned `dsr_request`,
+`data_subject_request`, `consent_version`, or `breach` targets, nor a
+`consent_search` event recorded against a user. DSR and breach action families
+are also excluded defensively if a future or legacy row used the wrong target
+type. The predicate is applied before both count and row queries, so pagination
+and totals describe only records the viewer may receive. Super admins retain
+the approved cross-boundary governance view; DPO sessions still cannot open the
+general Audit Log.
+
+OPS-405 applies that identical predicate to the assembled CSV and streaming CSV
+paths. Missing viewer roles fail closed to the ordinary-admin view, preventing
+a future direct service caller from bypassing D34. The export still masks
+contact, network, reason, and nested free-text PII for every permitted role.
+E40 continues to hold breach classification, deadline language, and a new
+breach client screen; this checkpoint changes authorization only.
+
+Local API TypeScript, affected-file ESLint, and `git diff --check` pass. Five
+focused API suites pass 39 tests, including behavioral comparisons proving that
+an ordinary admin receives only an operational booking event while a super
+admin receives the same event plus all five represented privacy shapes, and
+that both CSV paths enforce the same result. Protected CI `33704506009` passed
+the full API, Mobile, and rendered Admin suites, both TypeScript checks, the
+Admin production build, and Docker image boot/liveness at commit `2431d91`.
+Protected Gates `33704506058` passed A through E and the `All gates passed`
+rollup at the same commit. No consent, DSR, breach, user, support, audit,
+database-schema, or production record changed. Production synchronization
+remains blocked by E32.
