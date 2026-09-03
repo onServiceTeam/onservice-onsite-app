@@ -31,7 +31,7 @@ it('Bug OPS-397 - global operator search opens the exact payment attempt without
     to: '/financials?tab=payments&intentSearch=39700000-0000-4000-8000-000000000397',
   }]);
   expect(JSON.stringify(results)).not.toContain('pi_private_ops_397');
-  expect(queryMock).toHaveBeenCalledTimes(11);
+  expect(queryMock).toHaveBeenCalledTimes(12);
   const paymentQuery = queryMock.mock.calls.find(([sql]) => (
     typeof sql === 'string' && sql.includes('FROM payment_intents pi')
   ));

@@ -715,21 +715,27 @@ function paymentStatusVariant(status: string): 'success' | 'warning' | 'danger' 
 function PaymentsPanel({
   intentSearch,
   onIntentSearchChange,
+  retrySearch,
+  onRetrySearchChange,
 }: {
   intentSearch: string;
   onIntentSearchChange: (value: string) => void;
+  retrySearch: string;
+  onRetrySearchChange: (value: string) => void;
 }): React.ReactElement {
   const retryPageSize = 25;
   const [retryPage, setRetryPage] = useState(1);
   const [intentSearchDraft, setIntentSearchDraft] = useState(intentSearch);
+  const [retrySearchDraft, setRetrySearchDraft] = useState(retrySearch);
   const q = useQuery({
-    queryKey: ['fin-payments', retryPage, intentSearch],
+    queryKey: ['fin-payments', retryPage, intentSearch, retrySearch],
     queryFn: async () => {
       const res = await api.get<ApiEnvelope<PaymentOperationsData>>('/api/v1/admin/financials/payments', {
         params: {
           retryLimit: retryPageSize,
           retryOffset: (retryPage - 1) * retryPageSize,
           ...(intentSearch ? { intentSearch } : {}),
+          ...(retrySearch ? { retrySearch } : {}),
         },
       });
       return res.data.data;
@@ -749,7 +755,7 @@ function PaymentsPanel({
   const totalGatewayRetries = data.pendingGatewayRetries
     + data.inProgressGatewayRetries
     + data.permanentGatewayFailures;
-  const retryTotalPages = Math.ceil(totalGatewayRetries / retryPageSize);
+  const retryTotalPages = retrySearch ? 1 : Math.ceil(totalGatewayRetries / retryPageSize);
   const retryPageStart = totalGatewayRetries === 0 ? 0 : (retryPage - 1) * retryPageSize + 1;
   const retryPageEnd = Math.min(retryPage * retryPageSize, totalGatewayRetries);
 
@@ -860,19 +866,55 @@ function PaymentsPanel({
           <h2 className="text-base font-semibold text-[var(--color-text)]">Refund and Release Retry Queue</h2>
           {data.gatewayRetriesAvailable && (
             <span className="text-xs text-[var(--color-text-secondary)]">
-              {data.pendingGatewayRetries} pending · {data.inProgressGatewayRetries} running · {data.permanentGatewayFailures} permanent
-              {totalGatewayRetries > 0 && ` · Showing ${retryPageStart}–${retryPageEnd} of ${totalGatewayRetries}`}
+              {retrySearch
+                ? 'Exact retry identifier matches'
+                : `${data.pendingGatewayRetries} pending · ${data.inProgressGatewayRetries} running · ${data.permanentGatewayFailures} permanent${totalGatewayRetries > 0 ? ` · Showing ${retryPageStart}–${retryPageEnd} of ${totalGatewayRetries}` : ''}`}
             </span>
           )}
         </div>
+        <form
+          className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setRetryPage(1);
+            onRetrySearchChange(retrySearchDraft.trim());
+          }}
+        >
+          <label className="flex-1 text-xs font-medium text-[var(--color-text-secondary)]" htmlFor="gateway-retry-search">
+            Find gateway retry
+            <input
+              id="gateway-retry-search"
+              className="mt-1 min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 text-sm text-[var(--color-text)]"
+              maxLength={255}
+              onChange={(event) => setRetrySearchDraft(event.target.value)}
+              placeholder="Exact retry ID"
+              value={retrySearchDraft}
+            />
+          </label>
+          <Button className="min-h-11" type="submit">Search retries</Button>
+          {retrySearch && (
+            <Button
+              className="min-h-11"
+              onClick={() => {
+                setRetrySearchDraft('');
+                setRetryPage(1);
+                onRetrySearchChange('');
+              }}
+              type="button"
+              variant="outline"
+            >
+              Clear retry search
+            </Button>
+          )}
+        </form>
         {!data.gatewayRetriesAvailable ? (
           <ErrorState title="Gateway retry reporting unavailable" description="The gateway retry source is missing. Do not assume that the backlog is empty." />
         ) : data.gatewayRetries.length === 0 ? (
-          <EmptyState title="No active or permanently failed gateway retries" />
+          <EmptyState title={retrySearch ? 'No unresolved retry matches that identifier' : 'No active or permanently failed gateway retries'} />
         ) : (
           <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead><tr className="border-b border-[var(--color-border)]">
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Booking</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Retry / Booking</th>
               <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Action</th>
               <th className="px-3 py-2 text-right text-xs font-medium uppercase text-[var(--color-text-secondary)]">Amount</th>
               <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Status</th>
@@ -882,6 +924,7 @@ function PaymentsPanel({
             <tbody>{data.gatewayRetries.map((row) => (
               <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
                 <td className="px-3 py-2">
+                  <p className="break-all font-mono text-[11px] text-[var(--color-text-tertiary)]">Retry {row.id}</p>
                   <Link className="text-[var(--color-primary)] hover:underline" to={`/bookings/${row.bookingId}`}>{row.bookingId.slice(0, 8)}</Link>
                   {row.disputeId && (
                     <p className="mt-1">
@@ -2183,6 +2226,7 @@ export default function FinancialsPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseTab(searchParams.get('tab'));
   const intentSearch = searchParams.get('intentSearch')?.trim() ?? '';
+  const retrySearch = searchParams.get('retrySearch')?.trim() ?? '';
   const receiptSearch = normalizeReceiptSearch({
     orNumber: searchParams.get('receiptOr') ?? '',
     customerName: searchParams.get('receiptCustomer') ?? '',
@@ -2210,7 +2254,10 @@ export default function FinancialsPage(): React.ReactElement {
       } else {
         params.set('tab', nextTab);
       }
-      if (nextTab !== 'payments') params.delete('intentSearch');
+      if (nextTab !== 'payments') {
+        params.delete('intentSearch');
+        params.delete('retrySearch');
+      }
       if (nextTab !== 'receipts') {
         params.delete('receiptOr');
         params.delete('receiptCustomer');
@@ -2229,6 +2276,18 @@ export default function FinancialsPage(): React.ReactElement {
       params.set('tab', 'payments');
       if (value) params.set('intentSearch', value);
       else params.delete('intentSearch');
+      if (value) params.delete('retrySearch');
+      return params;
+    });
+  };
+
+  const selectGatewayRetry = (value: string): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'payments');
+      if (value) params.set('retrySearch', value);
+      else params.delete('retrySearch');
+      if (value) params.delete('intentSearch');
       return params;
     });
   };
@@ -2294,9 +2353,11 @@ export default function FinancialsPage(): React.ReactElement {
       {tab === 'escrow' && <EscrowPanel />}
       {tab === 'payments' && (
         <PaymentsPanel
-          key={intentSearch}
+          key={JSON.stringify([intentSearch, retrySearch])}
           intentSearch={intentSearch}
           onIntentSearchChange={selectPaymentAttempt}
+          retrySearch={retrySearch}
+          onRetrySearchChange={selectGatewayRetry}
         />
       )}
       {tab === 'legacy' && <LegacyFinancialReviewPanel />}

@@ -10,6 +10,7 @@ export type AdminSearchKind =
   | 'statement'
   | 'payment'
   | 'legacy_sales_record'
+  | 'gateway_retry'
   | 'support'
   | 'dispute'
   | 'payout';
@@ -51,9 +52,10 @@ const KIND_ORDER: Record<AdminSearchKind, number> = {
   statement: 5,
   payment: 6,
   legacy_sales_record: 7,
-  support: 8,
-  dispute: 9,
-  payout: 10,
+  gateway_retry: 8,
+  support: 9,
+  dispute: 10,
+  payout: 11,
 };
 
 function shortId(id: string): string {
@@ -78,6 +80,7 @@ function resultTitle(kind: AdminSearchKind, row: RawSearchRow): string {
   if (kind === 'contract') return `Contract ${reference}`;
   if (kind === 'payment') return `Payment ${reference}`;
   if (kind === 'legacy_sales_record') return `Legacy record ${row.title}`;
+  if (kind === 'gateway_retry') return `Gateway retry ${reference}`;
   if (kind === 'dispute') return `Dispute ${reference}`;
   if (kind === 'payout') return `Payout ${reference}`;
   return row.title;
@@ -104,6 +107,7 @@ function resultDestination(kind: AdminSearchKind, row: RawSearchRow): string {
   if (kind === 'legacy_sales_record') {
     return `/financials?tab=receipts&receiptOr=${encodeURIComponent(row.title)}`;
   }
+  if (kind === 'gateway_retry') return `/financials?tab=payments&retrySearch=${id}`;
   if (kind === 'support') return `/support-tickets?ticketId=${id}`;
   if (kind === 'dispute') return `/disputes/${id}`;
   return `/payouts?payoutId=${id}`;
@@ -133,17 +137,18 @@ function formatResult(kind: AdminSearchKind, row: RawSearchRow): RankedResult {
  * match because the existing Customer/Provider/Support queues already support
  * that workflow. Exact payment evidence references and retained legacy sales
  * identifiers may also locate their canonical review records. Raw contact and
- * payment-reference text are never returned here; every result carries masked
- * contact at most and opens the canonical record workspace.
+ * payment-reference text and gateway failure detail are never returned here;
+ * every result carries masked contact at most and opens the canonical record
+ * workspace.
  */
 export async function searchAdminRecords(query: string): Promise<AdminSearchResult[]> {
   const needle = query.trim();
   const phoneDigits = normalizePhoneSearch(needle);
   const params = [needle, phoneDigits, PER_KIND_LIMIT];
 
-  // Eleven fixed, bounded queries are intentionally parallel. This is not a
+  // Twelve fixed, bounded queries are intentionally parallel. This is not a
   // record-driven query loop and cannot grow with the number of matches.
-  const [customers, businesses, providers, contracts, bookings, statements, payments, legacySalesRecords, support, disputes, payouts] = await Promise.all([
+  const [customers, businesses, providers, contracts, bookings, statements, payments, legacySalesRecords, gatewayRetries, support, disputes, payouts] = await Promise.all([
     db.query<RawSearchRow>(
       `SELECT u.id::text AS id,
               TRIM(CONCAT_WS(' ', u.first_name, u.last_name)) AS title,
@@ -419,6 +424,39 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
       params,
     ),
     db.query<RawSearchRow>(
+      `SELECT grq.id::text AS id,
+              grq.id::text AS title,
+              CONCAT_WS(' · ',
+                INITCAP(REPLACE(grq.action_type, '_', ' ')),
+                'Booking ' || LEFT(grq.booking_id::text, 8),
+                CASE WHEN grq.dispute_id IS NOT NULL
+                  THEN 'Dispute ' || LEFT(grq.dispute_id::text, 8)
+                  ELSE NULL
+                END
+              ) AS context,
+              grq.status::text AS status,
+              NULL::text AS phone, NULL::text AS email,
+              grq.booking_id::text AS related_id,
+              CASE
+                WHEN LOWER(grq.id::text) = LOWER($1) THEN 0
+                WHEN LEFT(LOWER(grq.id::text), LENGTH($1)) = LOWER($1)
+                  OR LOWER(grq.booking_id::text) = LOWER($1)
+                  OR LOWER(COALESCE(grq.dispute_id::text, '')) = LOWER($1) THEN 1
+                ELSE 2
+              END AS rank,
+              grq.updated_at AS created_at
+         FROM gateway_retry_queue grq
+        WHERE grq.status IN ('pending', 'in_progress', 'failed_permanent')
+          AND (
+            STRPOS(LOWER(grq.id::text), LOWER($1)) > 0
+            OR LOWER(grq.booking_id::text) = LOWER($1)
+            OR LOWER(COALESCE(grq.dispute_id::text, '')) = LOWER($1)
+          )
+        ORDER BY rank, grq.updated_at DESC
+        LIMIT $3`,
+      params,
+    ),
+    db.query<RawSearchRow>(
       `SELECT st.id::text AS id,
               st.ticket_number AS title,
               CONCAT_WS(' · ', st.subject, NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '')) AS context,
@@ -524,6 +562,7 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
     ...statements.rows.map((row) => formatResult('statement', row)),
     ...payments.rows.map((row) => formatResult('payment', row)),
     ...legacySalesRecords.rows.map((row) => formatResult('legacy_sales_record', row)),
+    ...gatewayRetries.rows.map((row) => formatResult('gateway_retry', row)),
     ...support.rows.map((row) => formatResult('support', row)),
     ...disputes.rows.map((row) => formatResult('dispute', row)),
     ...payouts.rows.map((row) => formatResult('payout', row)),

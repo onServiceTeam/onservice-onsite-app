@@ -30,7 +30,7 @@ it('Bug OPS-393 - global operator search opens the exact contract inside its own
     status: 'draft',
     to: '/business-accounts/11111111-1111-4111-8111-111111111111?tab=contracts&contractId=22222222-2222-4222-8222-222222222222',
   }]);
-  expect(queryMock).toHaveBeenCalledTimes(11);
+  expect(queryMock).toHaveBeenCalledTimes(12);
   const contractQuery = queryMock.mock.calls.find(([sql]) => (
     typeof sql === 'string' && sql.includes('FROM business_contracts bc')
   ));

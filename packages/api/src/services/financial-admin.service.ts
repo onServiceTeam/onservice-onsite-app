@@ -855,7 +855,12 @@ interface GatewayRetryOpsRow {
 }
 
 export async function getPaymentOperationsSummary(
-  options: { retryLimit?: number; retryOffset?: number; intentSearch?: string } = {},
+  options: {
+    retryLimit?: number;
+    retryOffset?: number;
+    intentSearch?: string;
+    retrySearch?: string;
+  } = {},
 ): Promise<PaymentOperationsSummary> {
   const retryLimit = clampLimit(options.retryLimit);
   const retryOffset = clampOffset(options.retryOffset);
@@ -869,6 +874,11 @@ export async function getPaymentOperationsSummary(
             OR LOWER(pi.paymongo_payment_id) = LOWER($1)`
     : '';
   const intentParams = intentSearch ? [intentSearch] : [];
+  const retrySearch = options.retrySearch?.trim() || undefined;
+  const retryWhere = retrySearch ? 'AND LOWER(id::text) = LOWER($3)' : '';
+  const retryParams = retrySearch
+    ? [retryLimit, retryOffset, retrySearch]
+    : [retryLimit, retryOffset];
   const [paymentIntentsAvailable, gatewayRetriesAvailable] = await Promise.all([
     tableExists('payment_intents'),
     tableExists('gateway_retry_queue'),
@@ -954,10 +964,11 @@ export async function getPaymentOperationsSummary(
                   next_retry_at, last_attempted_at, last_error
              FROM gateway_retry_queue
             WHERE status IN ('pending', 'in_progress', 'failed_permanent')
+              ${retryWhere}
             ORDER BY CASE status WHEN 'failed_permanent' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
                      next_retry_at ASC
             LIMIT $1 OFFSET $2`,
-          [retryLimit, retryOffset],
+          retryParams,
         )
       : Promise.resolve({ rows: [] as GatewayRetryOpsRow[] }),
   ]);

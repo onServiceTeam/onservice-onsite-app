@@ -32,7 +32,7 @@ it('Bug OPS-398 - global operator search labels and opens an exact retained lega
   }]);
   expect(JSON.stringify(results)).not.toContain('Official Receipt');
   expect(JSON.stringify(results)).not.toContain('BIR compliant');
-  expect(queryMock).toHaveBeenCalledTimes(11);
+  expect(queryMock).toHaveBeenCalledTimes(12);
   const legacyQuery = queryMock.mock.calls.find(([sql]) => (
     typeof sql === 'string' && sql.includes('FROM official_receipts o')
   ));

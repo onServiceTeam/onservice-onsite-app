@@ -31,7 +31,7 @@ it('Bug OPS-394 - global operator search finds payment evidence but returns only
     to: '/business-accounts/11111111-1111-4111-8111-111111111111?tab=invoices&invoiceId=33333333-3333-4333-8333-333333333333',
   }]);
   expect(JSON.stringify(results)).not.toContain('BANK-PRIVATE-REFERENCE-394');
-  expect(queryMock).toHaveBeenCalledTimes(11);
+  expect(queryMock).toHaveBeenCalledTimes(12);
   const statementQuery = queryMock.mock.calls.find(([sql]) => (
     typeof sql === 'string' && sql.includes('FROM business_invoices bi')
   ));

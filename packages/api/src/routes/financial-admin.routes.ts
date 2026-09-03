@@ -300,10 +300,18 @@ router.get(
       if (intentSearch && intentSearch.length > 255) {
         throw createAppError('intentSearch must be 255 characters or fewer.', 400);
       }
+      if (req.query.retrySearch !== undefined && typeof req.query.retrySearch !== 'string') {
+        throw createAppError('retrySearch must be a single identifier.', 400);
+      }
+      const retrySearch = typeof req.query.retrySearch === 'string' ? req.query.retrySearch.trim() : undefined;
+      if (retrySearch && retrySearch.length > 255) {
+        throw createAppError('retrySearch must be 255 characters or fewer.', 400);
+      }
       const data = await financialAdminService.getPaymentOperationsSummary({
         retryLimit,
         retryOffset,
         intentSearch: intentSearch || undefined,
+        retrySearch: retrySearch || undefined,
       });
       res.json({ success: true, data });
     } catch (error) { next(error); }
