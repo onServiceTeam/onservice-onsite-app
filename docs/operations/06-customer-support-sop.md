@@ -14,6 +14,7 @@ Two things follow from this:
 
 1. In-app cases enter the same support queue automatically. Email, Facebook Messenger, and later SMS contacts still need an agent-created ticket so the company has one record.
 2. The support case thread is asynchronous, not a real-time live-chat promise. Per-booking customer-to-provider chat remains separate. Any admin can send an audited **Support message** from Dispatch or Booking 360. It is a system message in that booking conversation, reaches only the customer before assignment, and is visible to both booking participants after a provider is assigned.
+3. The Admin Support queue and open case workspace poll for participant updates every 20 seconds while visible. This reduces missed replies but is not real-time presence, delivery, or an SLA guarantee.
 
 Also true today and worth knowing before you promise anything:
 

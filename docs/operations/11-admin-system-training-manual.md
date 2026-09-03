@@ -495,6 +495,8 @@ When a user replies to a waiting case, it returns to the active queue. Automated
 
 The queue shows the first public agent-reply timestamp and a derived **Needs reply** marker. This is response evidence, not an SLA clock: it does not subtract closed hours, Sundays, or holidays. Use the SOP priority target and the case creation time when judging a breach.
 
+The queue and an open case workspace refresh participant changes every 20 seconds while that view is active. This is polling, not live-chat presence or proof of push delivery. Use **Needs reply** and the refreshed thread; do not assume the page remains current indefinitely when the browser is backgrounded or offline.
+
 ### 2.26 Staff & Roles (`/staff`)
 
 Super_admin only. Plain admins get an "access required" notice. There are three tabs:

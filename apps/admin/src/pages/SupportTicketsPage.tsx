@@ -113,6 +113,7 @@ const STATUSES = [
 ];
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+const SUPPORT_REFRESH_INTERVAL_MS = 20_000;
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LINKED_ID_LABELS = {
@@ -483,6 +484,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       return res.data as { data: Ticket[]; meta: { total: number } };
     },
     enabled: queueMode,
+    refetchInterval: SUPPORT_REFRESH_INTERVAL_MS,
   });
 
   const summaryQuery = useQuery({
@@ -492,6 +494,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       return res.data.data as SupportQueueSummary;
     },
     enabled: queueMode,
+    refetchInterval: SUPPORT_REFRESH_INTERVAL_MS,
   });
 
   const agentsQuery = useQuery({
@@ -501,6 +504,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       return res.data.data as SupportAgent[];
     },
     enabled: detailMode,
+    refetchInterval: SUPPORT_REFRESH_INTERVAL_MS,
   });
 
   const accountContextQuery = useQuery({
@@ -519,6 +523,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       return res.data.data as Ticket;
     },
     enabled: detailMode,
+    refetchInterval: SUPPORT_REFRESH_INTERVAL_MS,
   });
 
   const historyQuery = useQuery({
