@@ -3808,3 +3808,44 @@ This commit is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CU: participant-safe Support case data
+
+The participant Support routes hid internal message entries but still returned
+the complete underlying case row. The list included internal assignment and
+resolution fields, while the detail read also joined customer contact data,
+staff identity, provider context, and response-queue signals. The Mobile
+contract did not use those fields. An internal resolution note entered for the
+Admin audit record could therefore cross the customer/provider API boundary
+even though the participant screen did not render it.
+
+OPS-465 gives the participant list, exact case read, and self-service create
+response one explicit allowlist. Those responses retain the case number,
+classification, status, priority, participant-authored subject and report,
+authorized booking/project/company context, timestamps, public message count,
+and public thread messages. They omit the case-owner UUID, assigned staff UUID
+and identity, Admin resolution note, joined contact/profile fields, internal
+Business Account status, and internal first-reply/needs-reply signals. Admin
+routes keep their complete role-masked operational response.
+
+The Admin status dialog, case detail, decision history, customer/provider SOPs,
+training manual, and quality standard now identify terminal resolution notes as
+internal audit records. A status change does not send a participant message;
+the participant outcome belongs in a separate public reply. This aligns the UI
+with the newly enforced response boundary without changing existing records.
+
+The focused owner-boundary and owner-scope run passes two suites and six tests.
+The broader API Support/ticket inventory has 49 suites: 48 pass, one existing
+suite is intentionally skipped, 61 tests pass, and there are no failures. The
+complete Admin Support inventory passes 43 files and 45 tests. Admin and API
+TypeScript, changed-file ESLint, and diff integrity checks pass. The permanent
+unique-ID scanner passes 1,412 titled regressions with zero duplicates.
+Implementation commit `5959a423` changes response serialization, operator
+wording, and documentation only. It does not alter any Support case, message,
+assignment, customer, provider, booking, payment, audit row, database schema,
+master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
