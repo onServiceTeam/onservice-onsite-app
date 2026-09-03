@@ -34,7 +34,6 @@ type ParticipantTicketData = Pick<
   | 'ticket_number'
   | 'type'
   | 'status'
-  | 'priority'
   | 'subject'
   | 'description'
   | 'booking_id'
@@ -54,7 +53,6 @@ function participantTicketData(ticket: supportTicketService.SupportTicket): Part
     ticket_number: ticket.ticket_number,
     type: ticket.type,
     status: ticket.status,
-    priority: ticket.priority,
     subject: ticket.subject,
     description: ticket.description,
     booking_id: ticket.booking_id,
@@ -307,11 +305,11 @@ router.post(
   validationMiddleware(createSupportTicketSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { type, priority, subject, description, bookingId, projectId, businessAccountId } = req.body;
+      const { type, safetyConcern, subject, description, bookingId, projectId, businessAccountId } = req.body;
       const ticket = await supportTicketService.createTicket({
         userId: req.user!.userId,
         type,
-        priority,
+        priority: safetyConcern === true ? 'urgent' : 'medium',
         subject,
         description,
         bookingId,

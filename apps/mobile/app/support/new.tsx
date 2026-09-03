@@ -38,7 +38,7 @@ export default function NewSupportRequestScreen(): React.ReactElement {
     businessAccountId?: string;
     businessName?: string;
     type?: string;
-    priority?: string;
+    safetyConcern?: string;
     subject?: string;
     description?: string;
   }>();
@@ -66,9 +66,7 @@ export default function NewSupportRequestScreen(): React.ReactElement {
 
   const [type, setType] = useState<SupportTicketType>(initialType);
   const hasUnavailableProviderNoShow = type === 'provider_no_show' && !providerNoShowAvailable;
-  const initialPriority = (['low', 'medium', 'high', 'urgent'] as const).find(
-    (priority) => priority === params.priority,
-  );
+  const urgentSafetyRequest = supportLinkValue(params.safetyConcern) === '1';
   const [subject, setSubject] = useState(supportLinkValue(params.subject));
   const [description, setDescription] = useState(supportLinkValue(params.description));
 
@@ -111,7 +109,7 @@ export default function NewSupportRequestScreen(): React.ReactElement {
       bookingId: bookingId || undefined,
       projectId: projectId || undefined,
       businessAccountId: businessAccountId || undefined,
-      priority: initialPriority,
+      ...(urgentSafetyRequest ? { safetyConcern: true as const } : {}),
     });
   };
 
@@ -154,6 +152,13 @@ export default function NewSupportRequestScreen(): React.ReactElement {
           keyboardShouldPersistTaps="handled"
           accessibilityLabel={isPhone ? 'Support request form' : 'Desktop support request workspace'}
         >
+          {urgentSafetyRequest ? (
+            <View style={styles.classificationWarning} accessibilityRole="alert">
+              <Text style={styles.classificationWarningText}>
+                Urgent safety review requested. If anyone is in immediate danger, call 911 first; this Support request is not an emergency line.
+              </Text>
+            </View>
+          ) : null}
           {bookingId ? (
             <View style={styles.bookingTag}>
               <Text style={styles.bookingTagText}>Linked to booking {bookingId.slice(0, 8)}</Text>

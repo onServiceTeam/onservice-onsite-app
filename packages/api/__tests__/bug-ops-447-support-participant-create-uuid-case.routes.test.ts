@@ -31,7 +31,6 @@ it('Bug OPS-447 - participant support creation canonicalizes its linked booking 
     .send({
       bookingId: bookingId.toUpperCase(),
       type: 'booking_issue',
-      priority: 'medium',
       subject: 'Booking support request',
       description: 'Please help me review this booking record.',
     });
@@ -40,6 +39,7 @@ it('Bug OPS-447 - participant support creation canonicalizes its linked booking 
   expect(createTicket).toHaveBeenCalledWith(expect.objectContaining({
     userId: customerId,
     bookingId,
+    priority: 'medium',
   }));
   expect(createTicket.mock.calls[0]?.[0]).not.toHaveProperty('createdByAdminId');
 });

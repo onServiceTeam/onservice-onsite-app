@@ -104,6 +104,8 @@ Rules:
 
 Set priority the moment you read the ticket. Priority drives SLA. The admin priority field maps to P1-P4 like this.
 
+Priority is an internal triage decision. Ordinary customer/provider intake starts at `medium`; participants cannot choose low or high. The dedicated in-app safety-report entry may flag a case `urgent`, shows the user that it is not an emergency line, and must still be confirmed or corrected by the first agent review.
+
 | Level | Admin priority | What it means | Examples |
 |---|---|---|---|
 | P1 | `urgent` | Safety, money moving wrong, or many customers blocked | Safety incident reported by a customer; payment taken but no booking; escrow released to the wrong party; a city-wide "no provider available" wave; suspected fraud on an account. |

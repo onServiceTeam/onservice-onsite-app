@@ -16,7 +16,7 @@ it('Bug UX-065 — safety reports open a prefilled urgent in-app support request
     pathname: '/support/new',
     params: expect.objectContaining({
       type: 'booking_issue',
-      priority: 'urgent',
+      safetyConcern: '1',
       subject: 'Safety concern',
     }),
   });

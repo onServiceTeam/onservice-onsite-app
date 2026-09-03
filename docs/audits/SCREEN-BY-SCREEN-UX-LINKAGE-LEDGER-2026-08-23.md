@@ -184,7 +184,7 @@ browser-safe contact actions discovered by this pass.
 | `app/staff/job/[id]/checklist.tsx` | BOOKING/SUPPORT | assigned checklist and evidence | W/HOLD | BEHAVIOR/RENDER/WIDE via Bug UX-318. This staff-owned route reuses the canonical checklist with assigned-staff API authorization and continues to staff closeout rather than the provider-owner stack. E05 remains the issue-report hold. |
 | `app/staff/job/[id]/complete.tsx` | BOOKING/SUPPORT | assigned completion, provider-side after photos, notes | W/HOLD | BEHAVIOR/RENDER/WIDE via Bug UX-319. Team members use the same server checklist/photo/work-time completion gates without provider-owner earnings or a staff-session customer-acceptance signature. E19 remains visible and unchanged. |
 | `app/support/index.tsx` | SUPPORT | support service | W | SOURCE/RENDER/WIDE via Bug UX-062. Shared customer/provider inbox uses a bounded desktop workspace and two-column case grid. |
-| `app/support/new.tsx` | SUPPORT | support service | W | SOURCE/RENDER/WIDE via Bugs UX-055/062/064/065. Booking, type, priority, subject, and description context survive entry; the server verifies booking ownership. |
+| `app/support/new.tsx` | SUPPORT | support service | W | SOURCE/RENDER/WIDE via Bugs UX-055/062/064/065/1252. Booking, type, explicit safety concern, subject, and description context survive entry; the server verifies booking ownership and owns the resulting queue priority. |
 | `app/support/[id].tsx` | SUPPORT | support service | W | SOURCE/RENDER/WIDE via Bugs UX-058/062. Desktop conversation width is bounded, send failures are visible, user replies reactivate waiting cases, and terminal cases remain read-only. |
 
 ## Admin pages, company purpose, and suspicion-first status

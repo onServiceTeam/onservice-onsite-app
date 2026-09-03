@@ -53,7 +53,6 @@ export const mySupportTicketListQuerySchema = z.object({
 
 const createSupportTicketFields = {
   type: ticketType,
-  priority: ticketPriority.default('medium'),
   subject: z.string().trim().min(3, 'Subject must be at least 3 characters').max(200),
   description: z.string().trim().min(5, 'Description must be at least 5 characters').max(5000),
   bookingId: canonicalUuid('Invalid booking ID').optional(),
@@ -81,12 +80,18 @@ function rejectMultipleWorkContexts(
   }
 }
 
-export const createSupportTicketSchema = z.object(createSupportTicketFields)
+export const createSupportTicketSchema = z.object({
+  ...createSupportTicketFields,
+  // A participant can report a safety concern, but cannot choose queue
+  // priority. The route maps this explicit flag to urgent server-side.
+  safetyConcern: z.literal(true).optional(),
+})
   .strict()
   .superRefine(rejectMultipleWorkContexts);
 
 export const adminCreateSupportTicketSchema = z.object({
   ...createSupportTicketFields,
+  priority: ticketPriority.default('medium'),
   userId: canonicalUuid('Invalid user ID'),
 }).strict().superRefine(rejectMultipleWorkContexts);
 

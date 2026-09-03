@@ -477,6 +477,8 @@ publish action is audited.
 
 The ticket queue. Types: `booking_issue`, `payment_issue`, `provider_no_show`, `app_bug`, `account_issue`, `general_inquiry`. `provider_no_show` is a customer-owned classification and must link to the affected booking. A provider reporting that the customer did not meet them on-site uses `booking_issue`; the customer-no-show timing and money path remain held under E60. Statuses: `open`, `in_progress`, `waiting_on_customer`, `waiting_on_provider`, `escalated`, `resolved`, `closed`. Priorities: low/medium/high/urgent.
 
+Priority is Admin triage state, not a general participant-controlled field. Ordinary self-service cases enter at `medium`. The dedicated customer safety-report path may request `urgent`; verify that flag during first review and downgrade it with a reason if the facts do not support urgent handling. Agent-created cases may choose any valid priority.
+
 Customers and providers can open and follow their own tickets in the shared in-app Support screens. Those tickets enter this queue automatically. Contacts received through email (support@onservice.ph for customers, providers@onservice.ph for providers) or Messenger still need an agent-created ticket so they use the same case record.
 
 How to work a ticket:

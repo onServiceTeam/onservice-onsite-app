@@ -41,7 +41,6 @@ it('Bug UX-1234 - customer Support creation displays and submits canonical Busin
     bookingId: undefined,
     projectId: undefined,
     businessAccountId: '12340000-abcd-4abc-8def-000000001235',
-    priority: undefined,
   }));
   expect(mockReplace).toHaveBeenCalledWith('/support/12340000-abcd-4abc-8def-000000001234');
 });

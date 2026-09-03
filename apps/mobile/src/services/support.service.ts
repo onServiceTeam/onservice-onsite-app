@@ -28,7 +28,6 @@ export interface SupportTicket {
   ticket_number: string;
   type: SupportTicketType;
   status: SupportTicketStatus;
-  priority: string;
   subject: string;
   description: string;
   booking_id: string | null;
@@ -61,7 +60,7 @@ export interface CreateTicketPayload {
   type: SupportTicketType;
   subject: string;
   description: string;
-  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  safetyConcern?: true;
   bookingId?: string;
   projectId?: string;
   businessAccountId?: string;
