@@ -2336,3 +2336,50 @@ Protected Gates `33724751166` passed A through E and the `All gates passed`
 rollup at the same commit. No banner, promo code, campaign, customer, provider,
 booking, payment, historical audit row, database schema, master, or production
 record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BI: exact notification-template audit linkage
+
+Notification-template mutations retained a template UUID and change snapshot in
+the general Audit Log, but every supported event opened only the broad template
+table. Pagination, filters, or a list failure could therefore hide the current
+record. Deleted templates were even less safe: a direct detail handoff would
+guarantee a dead link, while treating the live row as historical evidence would
+misstate the repository's current non-versioned model.
+
+UX-1119 maps a non-delete event with a valid UUID to the exact current retained
+template and loads that detail independently of the general list. Its read-only
+evidence panel identifies the template, routing slug, current title and body,
+placeholders, runtime linkage, real delivery channels versus stored metadata,
+active/fallback behavior, and Manila creation and update times. The panel says
+explicitly that it is current mutable state, not an immutable historical
+version, and directs the operator back to the Audit Log snapshot for the values
+recorded at the time of change.
+
+UX-1120 keeps a deleted template identified by its retained Audit Log snapshot
+without presenting a link that must return not found. UX-1121 and SEC-052 reject
+malformed template identifiers before any exact-record request or service
+access. UX-1122 rejects an exact-detail response whose ID differs from the
+requested target instead of substituting a list row. UX-1123 removes only the
+exact `templateId` when the operator clears the evidence, preserving ordinary
+filters and pagination. SEC-053 verifies that customer accounts cannot access
+the exact Admin record; Admin and Super Admin retain read access, while the
+existing Super Admin-only write boundary is unchanged.
+
+E66 remains open for approved immutable versions, per-channel publication,
+locale behavior, external email and SMS delivery, retry/outbox semantics, and
+production-row classification. This checkpoint adds no delivery mechanism,
+publication model, version history, or competing runtime contract, and it does
+not alter any template or notification data.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Sixteen notification-template API suites pass 29 tests, and 44 rendered
+Notification Templates and Audit Log files pass 53 tests. Protected CI
+`33726995964` passed 873 API suites and 3,244 tests, 400 Admin files and 489
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, all three TypeScript checks, the
+Admin production build, and Docker image boot/liveness at commit `3659b223`.
+Protected Gates `33726995930` passed A through E and the `All gates passed`
+rollup at the same commit. No notification template, notification delivery,
+customer, provider, booking, payment, historical audit row, database schema,
+master, or production record changed. Production synchronization remains
+blocked by E32.
