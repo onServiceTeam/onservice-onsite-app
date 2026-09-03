@@ -2580,3 +2580,38 @@ through E and the `All gates passed` rollup at the same commit. No customer,
 provider, certification, booking, payment, audit row, database schema, master,
 or production record changed. Production synchronization remains blocked by
 E32.
+
+## Checkpoint BN: exact Provider 360 staff-member audit evidence
+
+Provider-staff decisions retained both the staff UUID and a canonical owning
+provider UUID, but the Audit Log reopened only the provider's general Staff
+tab. An operator reviewing approval, suspension, or reactivation evidence
+could therefore land beside multiple team members without a truthful
+indication of which retained record owned the event.
+
+UX-1146 carries the valid staff UUID into Provider 360 and renders an exact
+evidence state that shows only the matching provider-owned member. The
+selected card is visibly identified across responsive layouts. UX-1147 rejects
+a malformed staff target before requesting the team list. UX-1148 treats a
+valid UUID absent from the provider's role-aware staff list as an ownership
+mismatch and shows no substitute. UX-1149 clears only the stale `staffId` when
+the operator leaves Staff, preserving unrelated support URL context. The prior
+UX-1083 child-entity regression now also verifies the exact Audit Log
+destination.
+
+This slice reuses the existing role-aware, masked provider staff endpoint. It
+does not add a staff ownership source, expose raw contact information, change
+staff status or assignability, or alter historical audit evidence.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Ten
+focused rendered files pass 12 tests, and the expanded set of every rendered
+test importing Audit Log or Provider Detail passes 73 files and 84 tests.
+Protected CI `33741105285` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `3d067b62`. Protected Gates `33741105297` passed A
+through E and the `All gates passed` rollup at the same commit. The prior
+documentation-only CI `33740341084` was superseded and cancelled by this newer
+push; its Gates run `33740341303` passed, and the newer full CI verified that
+documentation together with this implementation. No customer, provider,
+staff, booking, payment, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
