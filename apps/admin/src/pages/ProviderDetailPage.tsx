@@ -301,6 +301,7 @@ export default function ProviderDetailPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = parseProviderTab(searchParams.get('tab'));
   const certificationIdFilter = searchParams.get('certificationId')?.trim() ?? '';
+  const staffIdFilter = searchParams.get('staffId')?.trim() ?? '';
 
   const selectTab = (tab: TabId): void => {
     setSearchParams((current) => {
@@ -308,6 +309,7 @@ export default function ProviderDetailPage(): React.ReactElement {
       if (tab === 'profile') next.delete('tab');
       else next.set('tab', tab);
       if (tab !== 'certifications') next.delete('certificationId');
+      if (tab !== 'staff') next.delete('staffId');
       return next;
     });
   };
@@ -316,6 +318,14 @@ export default function ProviderDetailPage(): React.ReactElement {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.delete('certificationId');
+      return next;
+    });
+  };
+
+  const clearStaffFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('staffId');
       return next;
     });
   };
@@ -397,7 +407,11 @@ export default function ProviderDetailPage(): React.ReactElement {
           <ReviewsTab providerId={id} />
         </TabsContent>
         <TabsContent value="staff">
-          <StaffTab providerId={id} />
+          <StaffTab
+            providerId={id}
+            exactStaffId={staffIdFilter}
+            onClearExactStaff={clearStaffFilter}
+          />
         </TabsContent>
         <TabsContent value="disputes">
           <DisputesTab providerId={id} />
@@ -1866,7 +1880,15 @@ const STAFF_STATUS_BADGE: Record<StaffMember['status'], 'success' | 'warning' | 
   deactivated: 'default',
 };
 
-export function StaffTab({ providerId }: { providerId: string }): React.ReactElement {
+export function StaffTab({
+  providerId,
+  exactStaffId = '',
+  onClearExactStaff,
+}: {
+  providerId: string;
+  exactStaffId?: string;
+  onClearExactStaff?: () => void;
+}): React.ReactElement {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState('');
   const { requestReason, reasonDialog } = useReasonDialog();
@@ -1875,6 +1897,8 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
     decision: 'rejected' | 'sent_back';
   } | null>(null);
   const [reviewReason, setReviewReason] = useState('');
+  const hasExactSelection = Boolean(exactStaffId);
+  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(exactStaffId);
 
   const q = useQuery({
     queryKey: ['admin-provider-staff', providerId],
@@ -1884,6 +1908,7 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
       );
       return res.data.data;
     },
+    enabled: !exactSelectionMalformed,
   });
 
   const invalidate = (): void => {
@@ -1919,7 +1944,12 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
 
   if (q.isLoading) return <LoadingState label="Loading team members…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
-  const staff = q.data!;
+  const staff = q.data ?? [];
+  const selectedStaff = !exactSelectionMalformed && hasExactSelection
+    ? staff.find((member) => member.id === exactStaffId) ?? null
+    : null;
+  const exactSelectionMissing = hasExactSelection && !exactSelectionMalformed && !selectedStaff;
+  const displayedStaff = hasExactSelection ? (selectedStaff ? [selectedStaff] : []) : staff;
   const busy = review.isPending || suspend.isPending;
 
   function approve(s: StaffMember): void {
@@ -1960,13 +1990,52 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
         Their job performance counts toward this provider&apos;s overall rating; the per-member
         numbers below are the breakdown.
       </p>
+      {selectedStaff && (
+        <Card className="border-sky-200 bg-sky-50 p-4" role="status">
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-900">Exact team member evidence</p>
+          <p className="mt-1 text-sm text-sky-950">
+            Showing only team member <span className="font-mono text-xs">{selectedStaff.id}</span> from this provider&apos;s current retained team records.
+          </p>
+          {onClearExactStaff && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactStaff}>
+              View all team members
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMalformed && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">Team member ID must be a complete UUID. No team member is selected.</p>
+          {onClearExactStaff && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactStaff}>
+              View all team members
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMissing && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">
+            The requested team member is not part of this provider&apos;s retained team list. No substitute team member is shown.
+          </p>
+          {onClearExactStaff && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactStaff}>
+              View all team members
+            </Button>
+          )}
+        </Card>
+      )}
       {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
 
-      {staff.length === 0 ? (
+      {!hasExactSelection && staff.length === 0 ? (
         <EmptyState title="No team members" description="This provider hasn't added any staff yet." />
-      ) : (
-        staff.map((s) => (
-          <Card key={s.id} className="p-4">
+      ) : displayedStaff.length > 0 ? (
+        displayedStaff.map((s) => (
+          <Card
+            key={s.id}
+            aria-current={s.id === selectedStaff?.id ? 'true' : undefined}
+            className={`p-4 ${s.id === selectedStaff?.id ? 'border-sky-400 ring-2 ring-sky-100' : ''}`}
+          >
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -2013,7 +2082,7 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
             </div>
           </Card>
         ))
-      )}
+      ) : null}
 
       {reviewDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
