@@ -3571,3 +3571,37 @@ This commit is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CO: server-enforced Support case owner roles
+
+The Admin create form and its account-context endpoint already limited a case
+owner to customer, provider, or provider-staff accounts. The shared write
+service validated only that the user ID existed. A direct Admin API call could
+therefore bypass the form and create a durable customer/provider Support case
+owned by an internal Admin, super-admin, or DPO account.
+
+OPS-456 restricts the owner lookup in SQL and repeats the role check in service
+logic as defense in depth. An unsupported internal role receives the same 404
+as a missing eligible owner, before ticket numbering, transaction start,
+support-ticket insert, or Admin audit insert. Inactive customer and provider
+accounts remain eligible, matching the existing support policy that agents may
+record a case without reactivating the account.
+
+The related linkage audit confirms that existing service checks already reject
+a booking unrelated to the owner, a planning project unrelated to its customer,
+a planning project mixed with booking or business context, a booking paired
+with the wrong business account, and a standalone business account for which
+the owner is neither the company owner nor an undeleted member.
+
+API TypeScript and changed-file ESLint pass. All seven Support creation suites
+pass 16 tests. The broader API Support-named inventory has 42 files: 41 suites
+pass, one existing suite is intentionally skipped, 54 tests pass, and there are
+no failures. The permanent unique-ID guard passes 1,381 titled regressions, and
+the diff integrity check passes. Implementation commit `24a519ac` changes no
+schema, migration, customer, provider, Support, booking, project, business,
+payment, audit, master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
