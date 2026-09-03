@@ -863,15 +863,23 @@ export async function getProviderReviews(
   providerId: string,
   page: number = 1,
   pageSize: number = 50,
+  reviewId?: string,
 ): Promise<{ rows: ProviderReview[]; total: number; page: number; pageSize: number }> {
-  const safePage = Math.max(1, Math.floor(page));
-  const safeSize = Math.max(1, Math.min(200, Math.floor(pageSize)));
+  const exactReviewId = reviewId?.trim() || null;
+  const safePage = exactReviewId ? 1 : Math.max(1, Math.floor(page));
+  const safeSize = exactReviewId ? 1 : Math.max(1, Math.min(200, Math.floor(pageSize)));
   const offset = (safePage - 1) * safeSize;
+  const scopeSql = exactReviewId
+    ? 'r.provider_id = $1 AND r.id = $2'
+    : 'r.provider_id = $1';
+  const scopeParams = exactReviewId ? [providerId, exactReviewId] : [providerId];
+  const limitParam = scopeParams.length + 1;
+  const offsetParam = scopeParams.length + 2;
 
   const [countResult, dataResult] = await Promise.all([
     db.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM reviews WHERE provider_id = $1`,
-      [providerId],
+      `SELECT COUNT(*)::text AS count FROM reviews r WHERE ${scopeSql}`,
+      scopeParams,
     ),
     db.query<{
       id: string;
@@ -894,10 +902,10 @@ export async function getProviderReviews(
               r.created_at
          FROM reviews r
          JOIN users u ON u.id = r.reviewer_id
-        WHERE r.provider_id = $1
+        WHERE ${scopeSql}
         ORDER BY r.created_at DESC
-        LIMIT $2 OFFSET $3`,
-      [providerId, safeSize, offset],
+        LIMIT $${limitParam} OFFSET $${offsetParam}`,
+      [...scopeParams, safeSize, offset],
     ),
   ]);
 

@@ -84,7 +84,10 @@ it('Bug UX-1082 — provider-scoped audit targets reopen the correct durable Pro
     'href',
     `/providers/${PROVIDER_ID}?tab=notes&noteId=${NOTE_ID}`,
   );
-  expect(screen.getByRole('link', { name: /Open provider reviews/ })).toHaveAttribute('href', `/providers/${PROVIDER_ID}?tab=reviews`);
+  expect(screen.getByRole('link', { name: /Open exact provider review evidence/ })).toHaveAttribute(
+    'href',
+    `/providers/${PROVIDER_ID}?tab=reviews&reviewId=${REVIEW_ID}`,
+  );
 
   fireEvent.click(certificationLink);
   expect(await screen.findByRole('tab', { name: 'Certifications' })).toHaveAttribute('data-state', 'active');

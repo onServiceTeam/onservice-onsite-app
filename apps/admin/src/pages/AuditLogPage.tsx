@@ -518,12 +518,17 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
     }
     case 'review': {
       const providerId = linkedProviderId(entry);
-      return providerId
-        ? {
-            to: `/providers/${encodeURIComponent(providerId)}?tab=reviews`,
-            label: 'Open provider reviews',
-          }
-        : null;
+      if (!providerId) return null;
+      const params = new URLSearchParams({ tab: 'reviews' });
+      if (UUID_REGEX.test(entry.entityId)) {
+        params.set('reviewId', entry.entityId);
+      }
+      return {
+        to: `/providers/${encodeURIComponent(providerId)}?${params.toString()}`,
+        label: UUID_REGEX.test(entry.entityId)
+          ? 'Open exact provider review evidence'
+          : 'Open provider reviews',
+      };
     }
     case 'user':
     case 'users': {

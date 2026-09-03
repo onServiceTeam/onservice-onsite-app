@@ -303,6 +303,7 @@ export default function ProviderDetailPage(): React.ReactElement {
   const certificationIdFilter = searchParams.get('certificationId')?.trim() ?? '';
   const staffIdFilter = searchParams.get('staffId')?.trim() ?? '';
   const noteIdFilter = searchParams.get('noteId')?.trim() ?? '';
+  const reviewIdFilter = searchParams.get('reviewId')?.trim() ?? '';
 
   const selectTab = (tab: TabId): void => {
     setSearchParams((current) => {
@@ -312,6 +313,7 @@ export default function ProviderDetailPage(): React.ReactElement {
       if (tab !== 'certifications') next.delete('certificationId');
       if (tab !== 'staff') next.delete('staffId');
       if (tab !== 'notes') next.delete('noteId');
+      if (tab !== 'reviews') next.delete('reviewId');
       return next;
     });
   };
@@ -336,6 +338,14 @@ export default function ProviderDetailPage(): React.ReactElement {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.delete('noteId');
+      return next;
+    });
+  };
+
+  const clearReviewFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('reviewId');
       return next;
     });
   };
@@ -414,7 +424,11 @@ export default function ProviderDetailPage(): React.ReactElement {
           <FinancialsTab providerId={id} />
         </TabsContent>
         <TabsContent value="reviews">
-          <ReviewsTab providerId={id} />
+          <ReviewsTab
+            providerId={id}
+            exactReviewId={reviewIdFilter}
+            onClearExactReview={clearReviewFilter}
+          />
         </TabsContent>
         <TabsContent value="staff">
           <StaffTab
@@ -1544,10 +1558,20 @@ export function FinancialsTab({ providerId }: { providerId: string }): React.Rea
 
 // ─── Reviews Tab ──────────────────────────────────────────────────────────
 
-export function ReviewsTab({ providerId }: { providerId: string }): React.ReactElement {
+export function ReviewsTab({
+  providerId,
+  exactReviewId = '',
+  onClearExactReview,
+}: {
+  providerId: string;
+  exactReviewId?: string;
+  onClearExactReview?: () => void;
+}): React.ReactElement {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const { requestReason, reasonDialog } = useReasonDialog();
+  const hasExactSelection = Boolean(exactReviewId);
+  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(exactReviewId);
 
   // BUG-PHASE20-01 fix: API returns a paginated envelope
   // {rows, total, page, pageSize}, not Review[]. Pre-fix the page typed
@@ -1557,17 +1581,18 @@ export function ReviewsTab({ providerId }: { providerId: string }): React.ReactE
   // this paginated pattern (Disputes, Jobs already correct) get the
   // same treatment.
   const q = useQuery({
-    queryKey: ['admin-provider-reviews', providerId, page],
+    queryKey: ['admin-provider-reviews', providerId, hasExactSelection ? exactReviewId : page],
     queryFn: async () => {
       const res = await api.get<{
         success: true;
         data: { rows: Review[]; total: number; page: number; pageSize: number };
       }>(
         `/api/v1/admin/providers/${providerId}/reviews`,
-        { params: { page, pageSize: 20 } },
+        { params: hasExactSelection ? { reviewId: exactReviewId } : { page, pageSize: 20 } },
       );
       return res.data.data;
     },
+    enabled: !exactSelectionMalformed,
   });
 
   const visibility = useMutation({
@@ -1630,21 +1655,67 @@ export function ReviewsTab({ providerId }: { providerId: string }): React.ReactE
   if (q.isLoading) return <LoadingState label="Loading reviews…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
   // BUG-PHASE20-01: extract rows from paginated envelope
-  const data = q.data!;
+  const data = q.data ?? { rows: [], total: 0, page: 1, pageSize: 20 };
   const reviews = data.rows;
+  const selectedReview = !exactSelectionMalformed && hasExactSelection
+    ? reviews.find((review) => review.id === exactReviewId) ?? null
+    : null;
+  const exactSelectionMissing = hasExactSelection && !exactSelectionMalformed && !selectedReview;
+  const displayedReviews = hasExactSelection ? (selectedReview ? [selectedReview] : []) : reviews;
 
-  if (data.total === 0) return <EmptyState title="No reviews yet" description="This provider has not received any reviews." />;
+  if (!hasExactSelection && data.total === 0) return <EmptyState title="No reviews yet" description="This provider has not received any reviews." />;
 
   return (
     <div className="space-y-3 mt-4">
+      {selectedReview && (
+        <Card className="border-sky-200 bg-sky-50 p-4" role="status">
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-900">Exact provider review evidence</p>
+          <p className="mt-1 text-sm text-sky-950">
+            Showing only review <span className="font-mono text-xs">{selectedReview.id}</span> from this provider&apos;s canonical review record.
+          </p>
+          {onClearExactReview && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactReview}>
+              View all provider reviews
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMalformed && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">Provider review ID must be a complete UUID. No review is selected.</p>
+          {onClearExactReview && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactReview}>
+              View all provider reviews
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMissing && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">
+            The requested review is not part of this provider&apos;s canonical review record. No substitute review is shown.
+          </p>
+          {onClearExactReview && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactReview}>
+              View all provider reviews
+            </Button>
+          )}
+        </Card>
+      )}
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-[var(--color-text-secondary)]">{data.total} review{data.total === 1 ? '' : 's'} on record</p>
+        {!hasExactSelection && (
+          <p className="text-xs text-[var(--color-text-secondary)]">{data.total} review{data.total === 1 ? '' : 's'} on record</p>
+        )}
         {(visibility.isError || response.isError) && (
           <p role="alert" className="text-xs text-red-700">{getErrorMessage(visibility.error ?? response.error)}</p>
         )}
       </div>
-      {reviews.map((r) => (
-        <Card key={r.id} className={`p-4 ${!r.isVisible ? 'opacity-60' : ''}`}>
+      {displayedReviews.map((r) => (
+        <Card
+          key={r.id}
+          aria-current={r.id === selectedReview?.id ? 'true' : undefined}
+          className={`p-4 ${!r.isVisible ? 'opacity-60' : ''} ${r.id === selectedReview?.id ? 'border-sky-400 ring-2 ring-sky-100' : ''}`}
+        >
           <div className="flex justify-between items-start gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -1711,7 +1782,7 @@ export function ReviewsTab({ providerId }: { providerId: string }): React.ReactE
           </div>
         </Card>
       ))}
-      {data.total > data.pageSize && (
+      {!hasExactSelection && data.total > data.pageSize && (
         <Pagination
           page={data.page}
           pageSize={data.pageSize}
