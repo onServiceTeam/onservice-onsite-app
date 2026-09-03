@@ -2957,3 +2957,51 @@ was superseded and cancelled by this implementation push; its Gates run
 this implementation. No customer, provider, payout, wallet, booking, payment,
 audit row, database schema, master, or production record changed. Production
 synchronization remains blocked by E32.
+
+## Checkpoint BY: exact Customer 360 payment-attempt evidence
+
+Customer 360 and global Admin search could identify a payment attempt, but the
+Financials destination depended on broad intent text and retry-queue filters.
+That could leave an operator looking at several records or at stale queue state
+instead of the one retained payment-attempt UUID needed for support evidence.
+
+UX-1181 links each Customer 360 recent payment intent's attempt directly to its
+canonical Financials record. OPS-397 now routes global payment search results
+through the same dedicated `paymentAttemptId` contract. UX-1182 rejects a
+malformed browser identifier before any API request. UX-1183 filters the
+response again in the browser and shows a durable no-substitute state when the
+requested row is absent or mismatched. UX-1184 makes the exact identifier
+override stale intent, retry, and pagination filters. UX-1185 clears only the
+payment-attempt identifier when leaving exact mode and preserves unrelated
+support URL context. UX-1186 normalizes a valid pasted UUID to lowercase so an
+uppercase browser target resolves to the canonical database identifier.
+
+OPS-435 scopes the database read to the canonical payment-intent-attempt UUID.
+OPS-436 carries the dedicated identifier through the route with a one-row
+request, and SEC-067 rejects malformed server input before service or database
+access. Ordinary intent search and retry-queue search remain unchanged when no
+exact identifier is present. Exact mode hides unrelated aggregate cards,
+manual search, and retry controls so it cannot be mistaken for a queue view.
+
+A final pre-commit review caught and repaired a misplaced table heading and a
+broken JSX conditional boundary before the change was committed. The rendered
+Customer 360 assertion now verifies all seven payment-intent columns and their
+row cells, so that layout error is covered rather than merely described.
+
+This slice is read-only. It does not create, capture, retry, refund, reduce,
+cancel, or alter a payment; change a booking or wallet; rewrite an audit row; or
+add an Admin money power.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Six focused API suites pass six tests, 24 expanded API suites pass 65
+tests, nine focused Admin rendered files pass nine tests, and 63 expanded Admin
+rendered files pass 67 tests. Protected CI `33755653479` passed the full API,
+Admin, and Mobile suites, all three TypeScript checks, the Admin production
+build, and Docker image boot/liveness at commit `3c0ad6be`. Protected Gates
+`33755653481` passed A through E and the `All gates passed` rollup at the same
+commit. The preceding documentation-only CI `33754907142` was superseded and
+cancelled by this implementation push; its Gates run `33754907190` passed, and
+the newer full CI verified that documentation with this implementation. No
+customer, provider, payment, retry, wallet, booking, audit row, database schema,
+master, or production record changed. Production synchronization remains
+blocked by E32.
