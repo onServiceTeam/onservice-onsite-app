@@ -19,7 +19,6 @@ import SupportTicketsPage from '../SupportTicketsPage';
 
 it('Bug UX-1222 - conflicting support work contexts fail closed until the operator selects one context', async () => {
   const userId = '12220000-abcd-4abc-8def-000000001222';
-  const ticketId = '12220000-abcd-4abc-8def-000000001223';
   const bookingId = '12220000-abcd-4abc-8def-000000001224';
   const projectId = '12220000-abcd-4abc-8def-000000001225';
   const businessAccountId = '12220000-abcd-4abc-8def-000000001226';
@@ -40,18 +39,12 @@ it('Bug UX-1222 - conflicting support work contexts fail closed until the operat
         providerBusinessName: null,
       } } });
     }
-    if (url === `/api/v1/support-tickets/${ticketId}`) {
-      return Promise.resolve({ data: { data: { id: ticketId } } });
-    }
-    if (url === `/api/v1/support-tickets/${ticketId}/history`) {
-      return Promise.resolve({ data: { data: [] } });
-    }
     return Promise.reject(new Error(`Unexpected request: ${url}`));
   });
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   });
-  const initialEntry = `/support-tickets?new=1&userId=${userId}&ticketId=${ticketId}&bookingId=${bookingId}&projectId=${projectId}&businessAccountId=${businessAccountId}&businessName=Cebu%20Build%20Co`;
+  const initialEntry = `/support-tickets?new=1&userId=${userId}&bookingId=${bookingId}&projectId=${projectId}&businessAccountId=${businessAccountId}&businessName=Cebu%20Build%20Co`;
 
   render(
     <QueryClientProvider client={client}>
@@ -65,8 +58,6 @@ it('Bug UX-1222 - conflicting support work contexts fail closed until the operat
   const blockedUrls = apiMocks.get.mock.calls.map(([url]) => url as string);
   expect(blockedUrls.some((url) => url.startsWith('/api/v1/support-tickets?'))).toBe(false);
   expect(blockedUrls).not.toContain(`/api/v1/support-tickets/account-context/${userId}`);
-  expect(blockedUrls).not.toContain(`/api/v1/support-tickets/${ticketId}`);
-  expect(blockedUrls).not.toContain(`/api/v1/support-tickets/${ticketId}/history`);
   expect(apiMocks.post).not.toHaveBeenCalled();
 
   fireEvent.click(screen.getByRole('button', { name: 'Use booking context' }));

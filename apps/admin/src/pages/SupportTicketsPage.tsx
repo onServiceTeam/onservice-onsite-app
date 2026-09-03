@@ -239,10 +239,28 @@ export default function SupportTicketsPage(): React.ReactElement {
   const assignedAgentFilter = canonicalUuid(linkedIdValues.assignedAgentId);
   const assignedAgentName = searchParams.get('agentName') ?? 'Selected staff account';
   const [selectedOverride, setSelectedOverride] = useState('');
-  const selectedId = linkedIdValues.ticketId
-    ? canonicalUuid(linkedIdValues.ticketId)
-    : selectedOverride;
-  const createRequested = searchParams.get('new') === '1' && !!userFilter;
+  const ticketFilter = canonicalUuid(linkedIdValues.ticketId);
+  const selectedId = ticketFilter || selectedOverride;
+  const createRequested = searchParams.get('new') === '1';
+  const hasMissingCreateOwner = createRequested && !userFilter;
+  const hasConflictingWorkspaceMode = createRequested && !!ticketFilter;
+  const hasBlockedWorkspaceState =
+    invalidLinkedIdKeys.length > 0 ||
+    hasConflictingWorkContext ||
+    hasMissingCreateOwner ||
+    hasConflictingWorkspaceMode;
+  const queueMode =
+    !hasBlockedWorkspaceState &&
+    !createRequested &&
+    !selectedId;
+  const createMode =
+    !hasBlockedWorkspaceState &&
+    createRequested &&
+    !!userFilter;
+  const detailMode =
+    !hasBlockedWorkspaceState &&
+    !createRequested &&
+    !!selectedId;
   const newUserName = searchParams.get('userName') ?? 'Selected account';
   const [searchDraft, setSearchDraft] = useState(searchFilter);
   const [replyMessage, setReplyMessage] = useState('');
@@ -318,6 +336,32 @@ export default function SupportTicketsPage(): React.ReactElement {
       params.delete('bookingId');
       params.delete('businessAccountId');
       params.delete('businessName');
+      return params;
+    }, { replace: true });
+  }
+
+  function useCreateWorkspaceMode(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('ticketId');
+      return params;
+    }, { replace: true });
+  }
+
+  function useExistingCaseMode(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('new');
+      return params;
+    }, { replace: true });
+  }
+
+  function cancelIncompleteCreateMode(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('new');
+      params.delete('userName');
+      params.delete('userRole');
       return params;
     }, { replace: true });
   }
@@ -416,7 +460,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets?${params}`);
       return res.data as { data: Ticket[]; meta: { total: number } };
     },
-    enabled: invalidLinkedIdKeys.length === 0 && !hasConflictingWorkContext && !createRequested,
+    enabled: queueMode,
   });
 
   const summaryQuery = useQuery({
@@ -425,6 +469,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get('/api/v1/support-tickets/summary');
       return res.data.data as SupportQueueSummary;
     },
+    enabled: queueMode,
   });
 
   const agentsQuery = useQuery({
@@ -433,6 +478,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get('/api/v1/support-tickets/agents');
       return res.data.data as SupportAgent[];
     },
+    enabled: detailMode,
   });
 
   const accountContextQuery = useQuery({
@@ -441,7 +487,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets/account-context/${userFilter}`);
       return res.data.data as SupportAccountContext;
     },
-    enabled: createRequested && invalidLinkedIdKeys.length === 0 && !hasConflictingWorkContext,
+    enabled: createMode,
   });
 
   const detailQuery = useQuery({
@@ -450,7 +496,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets/${selectedId}`);
       return res.data.data as Ticket;
     },
-    enabled: !!selectedId && invalidLinkedIdKeys.length === 0 && !hasConflictingWorkContext,
+    enabled: detailMode,
   });
 
   const historyQuery = useQuery({
@@ -459,7 +505,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets/${selectedId}/history`);
       return res.data.data as SupportTicketStatusHistoryEntry[];
     },
-    enabled: !!selectedId && invalidLinkedIdKeys.length === 0 && !hasConflictingWorkContext,
+    enabled: detailMode,
   });
 
   const updateStatusMutation = useMutation({
@@ -743,6 +789,69 @@ export default function SupportTicketsPage(): React.ReactElement {
             >
               Use planning project context
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasConflictingWorkspaceMode) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-950">
+          <h1 className="text-xl font-bold">Choose one support workspace mode</h1>
+          <p className="mt-2">
+            This link asks to create a new case and open an existing case at the same time. Those are separate operator actions and cannot share one workspace.
+          </p>
+          <p className="mt-1 text-red-800">
+            No queue, owner-confirmation, selected-case, history, or staff request was sent. Choose the action you intended.
+          </p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              className="min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold"
+              onClick={useCreateWorkspaceMode}
+            >
+              Create a new case
+            </button>
+            <button
+              type="button"
+              className="min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold"
+              onClick={useExistingCaseMode}
+            >
+              Open existing case
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasMissingCreateOwner) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-950">
+          <h1 className="text-xl font-bold">Support case owner required</h1>
+          <p className="mt-2">
+            An agent-created case must start from a confirmed customer, provider, or provider staff account. This link did not identify one.
+          </p>
+          <p className="mt-1 text-red-800">
+            No queue, case-detail, history, owner-confirmation, or staff request was sent.
+          </p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              className="min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold"
+              onClick={cancelIncompleteCreateMode}
+            >
+              Return to linked queue
+            </button>
+            <Link className="min-h-11 rounded-md border border-red-300 bg-white px-4 py-3 text-center font-semibold" to="/customers">
+              Find a customer
+            </Link>
+            <Link className="min-h-11 rounded-md border border-red-300 bg-white px-4 py-3 text-center font-semibold" to="/providers">
+              Find a provider
+            </Link>
           </div>
         </div>
       </div>

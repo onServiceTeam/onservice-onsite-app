@@ -1,21 +1,12 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
 
 const apiMocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn() }));
-const routeState = vi.hoisted(() => ({
-  params: new URLSearchParams(
-    'businessAccountId=11111111-1111-4111-8111-111111111111&businessName=Cebu%20Build%20Co&ticketId=33333333-3333-4333-8333-333333333333',
-  ),
-  set: vi.fn(),
-}));
 vi.mock('@/lib/api', () => ({ default: apiMocks, getErrorMessage: () => 'Request failed' }));
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<Record<string, unknown>>('react-router-dom');
-  return { ...actual, useSearchParams: () => [routeState.params, routeState.set] };
-});
+vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
 
 import SupportTicketsPage from '../SupportTicketsPage';
 
@@ -47,7 +38,11 @@ it('Bug UX-1055 - the support workspace preserves company filtering and returns 
 
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter><SupportTicketsPage /></MemoryRouter>
+      <MemoryRouter initialEntries={[
+        '/support-tickets?businessAccountId=11111111-1111-4111-8111-111111111111&businessName=Cebu%20Build%20Co&ticketId=33333333-3333-4333-8333-333333333333',
+      ]}>
+        <SupportTicketsPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 
@@ -55,6 +50,12 @@ it('Bug UX-1055 - the support workspace preserves company filtering and returns 
     'href', '/business-accounts/11111111-1111-4111-8111-111111111111',
   );
   expect(screen.getByText('Active')).toBeVisible();
+  expect(apiMocks.get.mock.calls.some(
+    ([url]) => String(url).startsWith('/api/v1/support-tickets?'),
+  )).toBe(false);
+
+  fireEvent.click(screen.getByRole('button', { name: /Back to support queue/ }));
+
   await waitFor(() => expect(apiMocks.get).toHaveBeenCalledWith(expect.stringContaining(
     'businessAccountId=11111111-1111-4111-8111-111111111111',
   )));
