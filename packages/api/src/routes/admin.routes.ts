@@ -2477,7 +2477,43 @@ router.get(
       const dataResult = await db.query<AuditLogRow>(
         `SELECT combined.*, u.email AS user_email, u.role AS user_role,
                 target_user.role AS target_user_role,
-                target_provider.id AS target_provider_id
+                COALESCE(
+                  target_provider.id,
+                  CASE WHEN combined.entity_type = 'provider' THEN combined.entity_id END,
+                  CASE WHEN combined.entity_type = 'provider_application' THEN (
+                    SELECT application_provider.id
+                      FROM providers application_provider
+                     WHERE application_provider.user_id = combined.entity_id
+                     LIMIT 1
+                  ) END,
+                  CASE WHEN combined.entity_type = 'provider_document' THEN (
+                    SELECT document_provider.id
+                      FROM provider_documents document
+                      JOIN providers document_provider ON document_provider.user_id = document.user_id
+                     WHERE document.id = combined.entity_id
+                     LIMIT 1
+                  ) END,
+                  CASE WHEN combined.entity_type = 'provider_certification' THEN (
+                    SELECT certification.provider_id
+                      FROM provider_certifications certification
+                     WHERE certification.id = combined.entity_id
+                  ) END,
+                  CASE WHEN combined.entity_type = 'provider_staff' THEN (
+                    SELECT staff.provider_id
+                      FROM provider_staff staff
+                     WHERE staff.id = combined.entity_id
+                  ) END,
+                  CASE WHEN combined.entity_type = 'provider_note' THEN (
+                    SELECT note.provider_id
+                      FROM provider_admin_notes note
+                     WHERE note.id = combined.entity_id
+                  ) END,
+                  CASE WHEN combined.entity_type = 'review' THEN (
+                    SELECT review.provider_id
+                      FROM reviews review
+                     WHERE review.id = combined.entity_id
+                  ) END
+                ) AS target_provider_id
            FROM (${baseRelation}) combined
            LEFT JOIN users u ON u.id = combined.user_id
            LEFT JOIN users target_user

@@ -85,8 +85,14 @@ const ACTION_LABELS: Record<string, string> = {
   payout_rejected: 'Payout rejected',
   pii_reveal: 'Private information revealed',
   provider_approved: 'Provider approved',
+  provider_application_approved: 'Provider application approved',
+  provider_application_rejected: 'Provider application rejected',
+  provider_application_sent_back: 'Provider application sent back',
+  provider_application_submitted: 'Provider application submitted',
   provider_certification_unverified: 'Provider certification unverified',
   provider_certification_verified: 'Provider certification verified',
+  provider_document_approved: 'Provider document approved',
+  provider_document_rejected: 'Provider document rejected',
   provider_note_added: 'Provider support note added',
   provider_note_deleted: 'Provider support note deleted',
   provider_note_updated: 'Provider support note updated',
@@ -238,6 +244,13 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
       return { to: `/customers/${id}`, label: 'Open Customer 360' };
     case 'provider':
       return { to: `/providers/${id}`, label: 'Open Provider 360' };
+    case 'provider_application':
+    case 'provider_document': {
+      const providerId = linkedProviderId(entry);
+      return providerId
+        ? { to: `/providers/${encodeURIComponent(providerId)}`, label: 'Open Provider 360' }
+        : null;
+    }
     case 'provider_certification': {
       const providerId = linkedProviderId(entry);
       return providerId
@@ -253,6 +266,15 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
         ? {
             to: `/providers/${encodeURIComponent(providerId)}?tab=notes`,
             label: 'Open provider support notes',
+          }
+        : null;
+    }
+    case 'provider_staff': {
+      const providerId = linkedProviderId(entry);
+      return providerId
+        ? {
+            to: `/providers/${encodeURIComponent(providerId)}?tab=staff`,
+            label: 'Open provider staff',
           }
         : null;
     }
