@@ -10,6 +10,14 @@ import * as templateService from '../services/notification-template.service';
 import { createAppError } from '../middleware/error.middleware';
 
 const router = Router();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function requireTemplateId(value: unknown): string {
+  if (typeof value !== 'string' || !UUID_REGEX.test(value)) {
+    throw createAppError('Template ID must be a valid UUID.', 400);
+  }
+  return value;
+}
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
@@ -59,8 +67,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const id = req.params['id'];
-      if (typeof id !== 'string' || !id) throw createAppError('Template ID is required.', 400);
+      const id = requireTemplateId(req.params['id']);
 
       const template = await templateService.getTemplateById(id);
       res.json({ success: true, data: templateService.formatTemplate(template) });
@@ -92,8 +99,7 @@ router.put(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
-      const id = req.params['id'];
-      if (typeof id !== 'string' || !id) throw createAppError('Template ID is required.', 400);
+      const id = requireTemplateId(req.params['id']);
 
       const template = await templateService.updateTemplate(id, req.user!.userId, req.body);
       res.json({ success: true, data: templateService.formatTemplate(template) });
@@ -110,8 +116,7 @@ router.delete(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req); // SEC-035
-      const id = req.params['id'];
-      if (typeof id !== 'string' || !id) throw createAppError('Template ID is required.', 400);
+      const id = requireTemplateId(req.params['id']);
 
       // MED-N142 fix — pass the actor's userId so the service can
       // record the admin_actions audit row.

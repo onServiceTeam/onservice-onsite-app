@@ -274,6 +274,14 @@ function marketingConfigRecord(entry: AuditEntry): 'promo_code' | 'campaign' | n
   return null;
 }
 
+function notificationTemplateOperation(entry: AuditEntry): string | null {
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const operation = values?.op;
+    if (typeof operation === 'string') return operation;
+  }
+  return null;
+}
+
 function searchedConsentUserId(entry: AuditEntry): string | null {
   if (entry.action !== 'consent_search') return null;
   for (const values of [entry.newValues, entry.oldValues]) {
@@ -559,7 +567,12 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
         ? { to: `/marketing?tab=banners&promotionId=${id}`, label: 'Open exact home banner' }
         : null;
     case 'notification_template':
-      return { to: '/notification-templates', label: 'Open notification templates' };
+      return notificationTemplateOperation(entry) !== 'delete' && UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/notification-templates?templateId=${id}`,
+            label: 'Open current notification template record',
+          }
+        : null;
     case 'admin_staff':
       return { to: `/staff?search=${id}`, label: 'Find exact staff directory profile' };
     case 'admin_role':
@@ -593,6 +606,10 @@ function entityLabel(entry: AuditEntry): string {
   }
   if (entry.entityType === 'consent_version') return 'Consent publication';
   if (entry.entityType === 'promotion') return 'Home banner';
+  if (
+    entry.entityType === 'notification_template'
+    && notificationTemplateOperation(entry) === 'delete'
+  ) return 'Deleted notification template';
   if (entry.entityType === 'config') {
     const marketingRecord = marketingConfigRecord(entry);
     if (marketingRecord === 'promo_code') return 'Promo code';

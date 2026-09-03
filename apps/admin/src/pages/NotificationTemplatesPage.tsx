@@ -53,6 +53,7 @@ const CHANNEL_VARIANT: Record<string, 'info' | 'success' | 'warning' | 'default'
 
 const TYPE_OPTIONS = new Set(['booking_update', 'payment', 'dispute_update', 'tier_upgrade', 'payout', 'referral', 'suki', 'promo', 'system']);
 const CHANNEL_OPTIONS = new Set(['all', 'push', 'sms', 'email', 'in_app']);
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RUNTIME_CONTRACTS: Readonly<Record<string, {
   variables: readonly string[];
   channels: ReadonlyArray<'in_app' | 'push'>;
@@ -139,6 +140,9 @@ export default function NotificationTemplatesPage(): React.ReactElement {
   const page = parsePage(searchParams.get('page'));
   const typeFilter = parseType(searchParams.get('type'));
   const channelFilter = parseChannel(searchParams.get('channel'));
+  const rawTemplateId = searchParams.get('templateId')?.trim() ?? '';
+  const hasMalformedTemplateId = Boolean(rawTemplateId) && !UUID_REGEX.test(rawTemplateId);
+  const requestedTemplateId = UUID_REGEX.test(rawTemplateId) ? rawTemplateId : '';
 
   const [editing, setEditing] = useState<Template | null>(null);
   const [creating, setCreating] = useState(false);
@@ -160,6 +164,21 @@ export default function NotificationTemplatesPage(): React.ReactElement {
       const res = await api.get<PaginatedResult>('/api/v1/admin/notification-templates', { params });
       return res.data;
     },
+  });
+
+  const exactTemplateQuery = useQuery({
+    queryKey: ['adminTemplates', 'exact', requestedTemplateId],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: Template }>(
+        `/api/v1/admin/notification-templates/${requestedTemplateId}`,
+      );
+      if (response.data.data.id !== requestedTemplateId) {
+        throw new Error('The notification-template response did not match the selected record.');
+      }
+      return response.data.data;
+    },
+    enabled: Boolean(requestedTemplateId),
+    retry: false,
   });
 
   const saveMutation = useMutation({
@@ -279,6 +298,14 @@ export default function NotificationTemplatesPage(): React.ReactElement {
       params.delete('page');
       if (nextChannel) params.set('channel', nextChannel);
       else params.delete('channel');
+      return params;
+    });
+  }
+
+  function clearTemplateSelection(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('templateId');
       return params;
     });
   }
@@ -505,6 +532,24 @@ export default function NotificationTemplatesPage(): React.ReactElement {
           SMS, email, test-send, per-channel variants, and version publication are not connected. Other rows are reference-only and do not change live messages until engineering connects their slug.
         </p>
       </section>
+
+      {hasMalformedTemplateId && (
+        <section role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          The selected notification-template ID is invalid. No detail request was sent.
+          <div className="mt-3"><Button type="button" size="sm" variant="outline" onClick={clearTemplateSelection}>Clear selection</Button></div>
+        </section>
+      )}
+      {exactTemplateQuery.isLoading && <LoadingState label="Loading selected notification template..." />}
+      {exactTemplateQuery.isError && (
+        <ErrorState
+          title="Selected notification template could not be loaded"
+          description={`${getErrorMessage(exactTemplateQuery.error)} The audit event still retains its recorded change; this table has no immutable version history under E66.`}
+          action={<Button type="button" variant="outline" onClick={clearTemplateSelection}>Clear selection</Button>}
+        />
+      )}
+      {exactTemplateQuery.data && (
+        <TemplateEvidenceCard template={exactTemplateQuery.data} onClear={clearTemplateSelection} />
+      )}
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <select
@@ -743,6 +788,52 @@ export default function NotificationTemplatesPage(): React.ReactElement {
         </DialogContent>
       </Dialog>
       {reasonDialog}
+    </div>
+  );
+}
+
+function TemplateEvidenceCard({ template, onClear }: { template: Template; onClear: () => void }): React.ReactElement {
+  const runtimeChannels = template.runtimeChannels ?? runtimeChannelsFor(template.slug);
+  const runtimeStatus = template.runtimeStatus === 'connected'
+    ? template.isActive
+      ? 'Active override; built-in fallback remains available'
+      : 'Inactive; built-in fallback continues to send'
+    : template.isActive
+      ? 'Active catalog marker; no live workflow consumes it'
+      : 'Inactive catalog marker; no live workflow consumes it';
+  return (
+    <section aria-label="Selected notification template record" className="mb-4 rounded-xl border border-sky-200 bg-sky-50/70 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Linked current record</p>
+          <p className="mt-1 text-sm text-sky-950">
+            This is the template’s current retained state, not an immutable historical version. Compare the Audit Log event for the values recorded when the change occurred.
+          </p>
+        </div>
+        <Button type="button" size="sm" variant="outline" onClick={onClear}>Clear selection</Button>
+      </div>
+      <dl className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <TemplateEvidenceField label="Template ID" value={template.id} mono />
+        <TemplateEvidenceField label="Routing slug" value={template.slug} mono />
+        <TemplateEvidenceField label="Runtime linkage" value={template.runtimeStatus === 'connected' ? 'Connected workflow' : 'Reference only'} />
+        <TemplateEvidenceField label="Current delivery" value={runtimeChannels ? formatRuntimeChannels(runtimeChannels) : `Stored ${template.channel.replace(/_/g, ' ')} metadata only`} />
+        <TemplateEvidenceField label="Current status" value={runtimeStatus} />
+        <TemplateEvidenceField label="Type" value={template.type.replace(/_/g, ' ')} />
+        <TemplateEvidenceField label="Current title" value={template.titleTemplate} />
+        <TemplateEvidenceField label="Current body" value={<span className="whitespace-pre-wrap">{template.bodyTemplate}</span>} />
+        <TemplateEvidenceField label="Placeholders" value={template.variables.length > 0 ? template.variables.map((value) => `{{${value}}}`).join(', ') : 'None'} mono />
+        <TemplateEvidenceField label="Created" value={new Date(template.createdAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} />
+        <TemplateEvidenceField label="Last updated" value={new Date(template.updatedAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} />
+      </dl>
+    </section>
+  );
+}
+
+function TemplateEvidenceField({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }): React.ReactElement {
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-sky-700">{label}</dt>
+      <dd className={`mt-1 break-words text-sm text-slate-950 ${mono ? 'font-mono' : ''}`}>{value}</dd>
     </div>
   );
 }
