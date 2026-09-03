@@ -3108,3 +3108,36 @@ the newer full CI verified that documentation with this implementation. No
 customer, provider, certification, review, staff record, private note, booking,
 payment, audit row, database schema, master, or production record changed.
 Production synchronization remains blocked by E32.
+
+## Checkpoint CC: canonical Communications evidence UUID handling
+
+The Communications workspace accepted uppercase conversation and message UUIDs
+as syntactically valid but retained their browser casing. The API returned
+canonical lowercase identifiers, so an operator could receive the correct
+conversation and retained message yet see a false evidence-mismatch or
+message-unavailable state.
+
+UX-1195 normalizes a valid conversation UUID before selecting and requesting
+the exact thread. UX-1196 normalizes a valid message UUID before retained-message
+selection, focus, and the no-substitute comparison. Malformed identifiers still
+block exact selection, a message link still requires its owning conversation,
+booking ownership checks remain in place, and ordinary moderation queues remain
+unchanged when no exact evidence identifier is present.
+
+This slice changes evidence lookup only. It does not send, edit, redact, flag,
+review, or disclose a message; alter a conversation, support case, booking,
+customer, provider, payment, or audit row; or add an Admin mutation.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. The two
+focused rendered regressions pass two tests, and every rendered test that
+directly imports Communications passes 15 files and 17 tests. Protected CI
+`33762244272` passed the full API, Admin, and Mobile suites, all three TypeScript
+checks, the Admin production build, and Docker image boot/liveness at commit
+`ba677996`. Protected Gates `33762244249` passed A through E and the `All gates
+passed` rollup at the same commit. The preceding documentation-only CI
+`33762146943` was superseded and cancelled by this implementation push; its
+Gates run `33762146939` passed, and the newer full CI verified that documentation
+with this implementation. No customer, provider, conversation, message,
+moderation state, support case, booking, payment, audit row, database schema,
+master, or production record changed. Production synchronization remains
+blocked by E32.
