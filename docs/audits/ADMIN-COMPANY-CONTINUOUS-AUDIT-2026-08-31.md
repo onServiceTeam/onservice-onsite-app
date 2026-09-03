@@ -3767,3 +3767,44 @@ This commit is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CT: Support cases awaiting a public reply
+
+The Support queue showed only total messages and `updated_at`. Assignment,
+status and priority changes, and internal notes all update that timestamp, so
+an untouched participant report could look recently handled. Operators had no
+queue-wide way to find active cases with no public agent response or cases
+where a customer/provider had replied after the agent. That made the SOP's
+first-response work depend on manual thread inspection.
+
+OPS-462 derives `needs_agent_reply` from the latest non-internal message and
+returns the first public agent-reply timestamp. A new case with no messages is
+also treated as awaiting a response because its description is the original
+participant report. Internal notes and workflow activity do not clear the
+signal; a public Admin/super-admin/support-agent message clears it until the
+participant posts another public message. Resolved and closed cases are not
+classified as awaiting a response. No column, stored flag, backfill, or worker
+was added, so the signal cannot drift from the message thread.
+
+OPS-463 adds the derived queue-wide count. OPS-464 validates and forwards the
+`needsReply` list filter as a boolean. UX-1248 makes the count an actionable
+Admin signal that opens an active needs-reply queue, UX-1249 shows the marker
+on the affected row, and UX-1250 proves the filter survives a saved/reloaded
+URL and reaches the API. The queue also shows a first-public-reply timestamp
+when one exists. The training manual and both Support SOPs explain that this
+is response evidence, not a business-hours SLA clock.
+
+The complete Admin Support inventory passes 43 files and 45 tests. The API
+Support/ticket inventory has 51 suites: 50 pass, one existing suite is
+intentionally skipped, 63 tests pass, and there are no failures. Admin and API
+TypeScript, changed-file ESLint, diff integrity, and replacement-character
+checks pass. The permanent unique-ID scanner passes 1,411 titled regressions
+with zero duplicates. Implementation commit `8d0e739c` changes derived reads,
+filtering, and Admin presentation only. It does not alter any Support message,
+case status, assignment, customer, provider, booking, payment, audit, schema,
+master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
