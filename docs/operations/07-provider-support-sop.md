@@ -42,7 +42,7 @@ These are first-response and resolution targets, not promises in the app. Measur
 | Medium | Commission question, rating dispute, document re-upload, service-area change | 8 business hours | 2 business days |
 | Low | General how-to, profile edits, app questions | 1 business day | 3 business days |
 
-Map these to the admin ticket priority field (low/medium/high/urgent) and ticket type (`booking_issue`, `payment_issue`, `provider_no_show`, `app_bug`, `account_issue`, `general_inquiry`). Ticket numbers look like `TKT-1000`.
+Map these to the admin ticket priority field (low/medium/high/urgent) and the provider-eligible ticket types (`booking_issue`, `payment_issue`, `app_bug`, `account_issue`, `general_inquiry`). `provider_no_show` is reserved for a customer-owned case linked to the affected booking; when a provider reports that the customer did not meet them on-site, use `booking_issue` and preserve the job evidence as section 9 requires. Ticket numbers look like `TKT-1000`.
 
 ---
 

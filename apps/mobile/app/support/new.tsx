@@ -8,6 +8,7 @@ import { ChevronLeft } from '@/components/icons';
 import { Button, ErrorState } from '@/components/ui';
 import { Routes, buildRoute } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useAuthStore } from '@/stores/auth.store';
 import { canonicalSupportUuid, supportLinkValue } from '@/utils/support-link';
 import {
   createTicket,
@@ -29,6 +30,7 @@ export default function NewSupportRequestScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { isPhone } = useResponsive();
+  const viewerRole = useAuthStore((state) => state.user?.role);
   const params = useLocalSearchParams<{
     bookingId?: string;
     projectId?: string;
@@ -41,15 +43,19 @@ export default function NewSupportRequestScreen(): React.ReactElement {
     description?: string;
   }>();
 
-  const initialType = (TYPE_ORDER.includes(params.type as SupportTicketType)
-    ? (params.type as SupportTicketType)
-    : 'general_inquiry');
   const rawBookingId = supportLinkValue(params.bookingId);
   const rawProjectId = supportLinkValue(params.projectId);
   const rawBusinessAccountId = supportLinkValue(params.businessAccountId);
   const bookingId = canonicalSupportUuid(params.bookingId);
   const projectId = canonicalSupportUuid(params.projectId);
   const businessAccountId = canonicalSupportUuid(params.businessAccountId);
+  const providerNoShowAvailable = viewerRole === 'customer' && !!bookingId;
+  const availableTypes = TYPE_ORDER.filter(
+    (candidate) => candidate !== 'provider_no_show' || providerNoShowAvailable,
+  );
+  const initialType = (TYPE_ORDER.includes(params.type as SupportTicketType)
+    ? (params.type as SupportTicketType)
+    : 'general_inquiry');
   const projectTitle = supportLinkValue(params.projectTitle);
   const businessName = supportLinkValue(params.businessName);
   const hasInvalidWorkContext =
@@ -59,6 +65,7 @@ export default function NewSupportRequestScreen(): React.ReactElement {
   const hasConflictingWorkContext = !!projectId && (!!bookingId || !!businessAccountId);
 
   const [type, setType] = useState<SupportTicketType>(initialType);
+  const hasUnavailableProviderNoShow = type === 'provider_no_show' && !providerNoShowAvailable;
   const initialPriority = (['low', 'medium', 'high', 'urgent'] as const).find(
     (priority) => priority === params.priority,
   );
@@ -78,6 +85,15 @@ export default function NewSupportRequestScreen(): React.ReactElement {
   });
 
   const submit = (): void => {
+    if (hasUnavailableProviderNoShow) {
+      Alert.alert(
+        'Choose the affected booking',
+        viewerRole === 'customer'
+          ? 'A provider no-show request must start from the affected booking so support can verify and resolve the correct job.'
+          : 'Provider no-show is a customer booking classification. For a customer who did not meet you on-site, choose Booking issue and preserve the job evidence.',
+      );
+      return;
+    }
     const trimmedSubject = subject.trim();
     const trimmedBody = description.trim();
     if (trimmedSubject.length < 3) {
@@ -160,7 +176,7 @@ export default function NewSupportRequestScreen(): React.ReactElement {
 
           <Text style={styles.label}>What is this about?</Text>
           <View style={styles.typeGrid}>
-            {TYPE_ORDER.map((t) => {
+            {availableTypes.map((t) => {
               const active = t === type;
               return (
                 <TouchableOpacity
@@ -175,6 +191,16 @@ export default function NewSupportRequestScreen(): React.ReactElement {
               );
             })}
           </View>
+
+          {hasUnavailableProviderNoShow ? (
+            <View style={styles.classificationWarning} accessibilityRole="alert">
+              <Text style={styles.classificationWarningText}>
+                {viewerRole === 'customer'
+                  ? 'Provider no-show support must be opened from the affected booking. Choose another case type or return to that booking and select support.'
+                  : 'Provider no-show is reserved for a customer reporting that their provider failed to arrive. For a customer no-show, choose Booking issue.'}
+              </Text>
+            </View>
+          ) : null}
 
           <Text style={styles.label}>Subject</Text>
           <TextInput
@@ -215,7 +241,7 @@ export default function NewSupportRequestScreen(): React.ReactElement {
             title={mutation.isPending ? 'Sending…' : 'Send to support'}
             onPress={submit}
             loading={mutation.isPending}
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || hasUnavailableProviderNoShow}
           />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -268,6 +294,15 @@ const styles = StyleSheet.create({
   typeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   typeChipText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' },
   typeChipTextActive: { color: colors.white },
+  classificationWarning: {
+    marginBottom: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.warningLight,
+    padding: spacing.md,
+  },
+  classificationWarningText: { ...typography.bodySmall, color: colors.warningDark },
   input: {
     backgroundColor: colors.surface,
     borderWidth: 1,

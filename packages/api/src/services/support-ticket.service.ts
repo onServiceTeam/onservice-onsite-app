@@ -642,6 +642,12 @@ export async function createTicket(params: {
   ) {
     throw createAppError('Support ticket account not found.', 404);
   }
+  if (params.type === 'provider_no_show' && ticketOwner.role !== 'customer') {
+    throw createAppError('Provider no-show cases must belong to a customer account.', 400);
+  }
+  if (params.type === 'provider_no_show' && !params.bookingId) {
+    throw createAppError('Provider no-show cases must be linked to the affected booking.', 400);
+  }
 
   let businessAccountId = params.businessAccountId ?? null;
   if (params.bookingId) {

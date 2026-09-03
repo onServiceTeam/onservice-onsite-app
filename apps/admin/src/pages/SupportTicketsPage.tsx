@@ -898,10 +898,17 @@ export default function SupportTicketsPage(): React.ReactElement {
     const accountKind = account.role === 'provider_staff'
       ? 'provider staff account'
       : `${account.role} account`;
+    const providerNoShowAvailable = account.role === 'customer' && !!bookingFilter;
+    const createTicketTypes = TICKET_TYPES.filter(
+      (type) => type !== 'provider_no_show' || providerNoShowAvailable,
+    );
+    const hasUnavailableProviderNoShow =
+      newTicketType === 'provider_no_show' && !providerNoShowAvailable;
     const canSubmit =
       account.id === userFilter &&
       newTicketSubject.trim().length >= 3 &&
       newTicketDescription.trim().length >= 5 &&
+      !hasUnavailableProviderNoShow &&
       !createTicketMutation.isPending;
 
     return (
@@ -971,6 +978,14 @@ export default function SupportTicketsPage(): React.ReactElement {
             </p>
           )}
 
+          {hasUnavailableProviderNoShow && (
+            <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+              {account.role === 'customer'
+                ? 'Provider no-show must be linked to the affected customer booking. Return to Booking 360 and create the case from that record, or choose another case type.'
+                : 'Provider no-show is reserved for a customer reporting that their provider failed to arrive. For a provider reporting a customer no-show, use Booking issue and preserve the job evidence.'}
+            </p>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-semibold text-[var(--color-text)]">
               Case type
@@ -980,7 +995,8 @@ export default function SupportTicketsPage(): React.ReactElement {
                 onChange={(event) => setNewTicketType(event.target.value)}
                 className="mt-1.5 h-11 w-full rounded-md border border-[var(--color-border)] bg-white px-3 font-normal"
               >
-                {TICKET_TYPES.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}
+                {hasUnavailableProviderNoShow && <option value="" disabled>Choose a valid case type</option>}
+                {createTicketTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}
               </select>
             </label>
             <label className="text-sm font-semibold text-[var(--color-text)]">
