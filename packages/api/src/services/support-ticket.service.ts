@@ -110,6 +110,15 @@ export interface AssignableSupportAgent {
   role: 'admin' | 'super_admin';
 }
 
+export interface SupportAccountContext {
+  id: string;
+  role: 'customer' | 'provider' | 'provider_staff';
+  displayName: string;
+  isActive: boolean;
+  providerProfileId: string | null;
+  providerBusinessName: string | null;
+}
+
 interface ListTicketsParams {
   page: number;
   limit: number;
@@ -493,6 +502,65 @@ export async function listAssignableAgents(): Promise<AssignableSupportAgent[]> 
       ORDER BY first_name, last_name, id`,
   );
   return result.rows;
+}
+
+export async function getSupportAccountContext(
+  userId: string,
+  viewerRole: ActorRole,
+): Promise<SupportAccountContext> {
+  const result = await db.query<{
+    id: string;
+    role: 'customer' | 'provider' | 'provider_staff';
+    first_name: string;
+    last_name: string;
+    is_active: boolean;
+    provider_id: string | null;
+    provider_business_name: string | null;
+  }>(
+    `SELECT u.id, u.role, u.first_name, u.last_name, u.is_active,
+            COALESCE(direct_provider.id, staff_account.provider_id) AS provider_id,
+            COALESCE(direct_provider.business_name, staff_provider.business_name) AS provider_business_name
+       FROM users u
+       LEFT JOIN LATERAL (
+         SELECT p.id, p.business_name
+           FROM providers p
+          WHERE p.user_id = u.id
+          ORDER BY p.id
+          LIMIT 1
+       ) direct_provider ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT ps.provider_id
+           FROM provider_staff ps
+          WHERE ps.user_id = u.id
+          ORDER BY ps.created_at DESC, ps.id
+          LIMIT 1
+       ) staff_account ON TRUE
+       LEFT JOIN providers staff_provider ON staff_provider.id = staff_account.provider_id
+      WHERE u.id = $1
+        AND u.role IN ('customer', 'provider', 'provider_staff')
+      LIMIT 1`,
+    [userId],
+  );
+  const account = result.rows[0];
+  if (!account) throw createAppError('Support case owner not found.', 404);
+
+  const visibleLastName = viewerRole === 'super_admin'
+    ? account.last_name
+    : account.last_name
+      ? `${account.last_name.charAt(0)}.`
+      : '';
+  const displayName = `${account.first_name ?? ''} ${visibleLastName}`.trim()
+    || account.provider_business_name
+    || 'Selected account';
+
+  return {
+    id: account.id,
+    role: account.role,
+    displayName,
+    isActive: account.is_active,
+    providerProfileId: account.provider_id,
+    providerBusinessName: account.provider_business_name,
+  };
 }
 
 export async function getTicketMessages(

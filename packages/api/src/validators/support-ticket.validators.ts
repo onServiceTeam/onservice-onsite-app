@@ -119,6 +119,10 @@ export const supportTicketIdParamsSchema = z.object({
   id: canonicalUuid('Invalid support ticket ID'),
 }).strict();
 
+export const supportAccountIdParamsSchema = z.object({
+  id: canonicalUuid('Invalid support case owner ID'),
+}).strict();
+
 export const updateSupportTicketPrioritySchema = z.object({
   priority: ticketPriority,
   workflowNote: z.string().trim().min(10, 'Workflow note must be at least 10 characters').max(5000),

@@ -24,6 +24,16 @@ import SupportTicketsPage from '../SupportTicketsPage';
 
 it('Bug UX-063 — admin can record an off-app contact as a case owned by the selected account', async () => {
   vi.mocked(api.get).mockImplementation(async (url: string) => {
+    if (url === '/api/v1/support-tickets/account-context/11111111-1111-4111-8111-111111111111') {
+      return { data: { data: {
+        id: '11111111-1111-4111-8111-111111111111',
+        role: 'customer',
+        displayName: 'Maria S.',
+        isActive: true,
+        providerProfileId: null,
+        providerBusinessName: null,
+      } } } as never;
+    }
     if (url === '/api/v1/support-tickets/summary') return { data: { data: { open: 0, escalated: 0, urgent: 0, unassigned: 0 } } } as never;
     if (url === '/api/v1/support-tickets/agents') return { data: { data: [] } } as never;
     if (url === '/api/v1/support-tickets/ticket-1/history') return { data: { data: [] } } as never;
@@ -33,7 +43,7 @@ it('Bug UX-063 — admin can record an off-app contact as a case owned by the se
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   render(<QueryClientProvider client={client}><SupportTicketsPage /></QueryClientProvider>);
 
-  expect(screen.getByText(/Maria Santos/)).toBeTruthy();
+  expect(await screen.findByText(/Maria S\./)).toBeTruthy();
   fireEvent.change(screen.getByLabelText('New support case subject'), { target: { value: 'Messenger follow-up' } });
   fireEvent.change(screen.getByLabelText('New support case description'), { target: { value: 'Customer asked for help through Messenger.' } });
   fireEvent.click(screen.getByRole('button', { name: 'Create case' }));

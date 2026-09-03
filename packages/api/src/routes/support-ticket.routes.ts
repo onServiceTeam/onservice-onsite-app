@@ -9,6 +9,7 @@ import {
   assignSupportTicketSchema,
   createSupportTicketSchema,
   mySupportTicketListQuerySchema,
+  supportAccountIdParamsSchema,
   supportTicketListQuerySchema,
   supportTicketIdParamsSchema,
   supportTicketMessageSchema,
@@ -103,6 +104,27 @@ router.get(
   async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const data = await supportTicketService.getSupportQueueSummary();
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// Server-confirmed case-owner identity for the agent-created case form. This
+// deliberately excludes phone and email and must remain before the '/:id'
+// ticket route so the literal account-context segment cannot be captured.
+router.get(
+  '/account-context/:id',
+  authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware({ params: supportAccountIdParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const data = await supportTicketService.getSupportAccountContext(
+        getParamId(req),
+        req.user!.role,
+      );
       res.json({ success: true, data });
     } catch (error) {
       next(error);

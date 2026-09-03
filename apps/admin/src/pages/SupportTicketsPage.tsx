@@ -60,6 +60,15 @@ interface SupportAgent {
   role: 'admin' | 'super_admin';
 }
 
+interface SupportAccountContext {
+  id: string;
+  role: 'customer' | 'provider' | 'provider_staff';
+  displayName: string;
+  isActive: boolean;
+  providerProfileId: string | null;
+  providerBusinessName: string | null;
+}
+
 interface SupportQueueSummary {
   open: number;
   escalated: number;
@@ -234,7 +243,6 @@ export default function SupportTicketsPage(): React.ReactElement {
     : selectedOverride;
   const createRequested = searchParams.get('new') === '1' && !!userFilter;
   const newUserName = searchParams.get('userName') ?? 'Selected account';
-  const newUserRole = searchParams.get('userRole') ?? 'customer';
   const [searchDraft, setSearchDraft] = useState(searchFilter);
   const [replyMessage, setReplyMessage] = useState('');
   const [isInternalNote, setIsInternalNote] = useState(false);
@@ -389,7 +397,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets?${params}`);
       return res.data as { data: Ticket[]; meta: { total: number } };
     },
-    enabled: invalidLinkedIdKeys.length === 0,
+    enabled: invalidLinkedIdKeys.length === 0 && !createRequested,
   });
 
   const summaryQuery = useQuery({
@@ -406,6 +414,15 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get('/api/v1/support-tickets/agents');
       return res.data.data as SupportAgent[];
     },
+  });
+
+  const accountContextQuery = useQuery({
+    queryKey: ['adminSupportAccountContext', userFilter],
+    queryFn: async () => {
+      const res = await api.get(`/api/v1/support-tickets/account-context/${userFilter}`);
+      return res.data.data as SupportAccountContext;
+    },
+    enabled: createRequested && invalidLinkedIdKeys.length === 0,
   });
 
   const detailQuery = useQuery({
@@ -517,8 +534,12 @@ export default function SupportTicketsPage(): React.ReactElement {
 
   const createTicketMutation = useMutation({
     mutationFn: async () => {
+      const account = accountContextQuery.data;
+      if (!account || account.id !== userFilter) {
+        throw new Error('The support case owner could not be confirmed.');
+      }
       const res = await api.post('/api/v1/support-tickets/admin', {
-        userId: userFilter,
+        userId: account.id,
         type: newTicketType,
         priority: newTicketPriority,
         subject: newTicketSubject.trim(),
@@ -677,10 +698,47 @@ export default function SupportTicketsPage(): React.ReactElement {
   }
 
   if (createRequested) {
-    const accountKind = newUserRole === 'provider_staff'
+    if (accountContextQuery.isLoading) {
+      return (
+        <div className="mx-auto max-w-3xl">
+          <div role="status" className="rounded-lg border border-[var(--color-border)] bg-white p-8 text-center text-sm text-[var(--color-text-secondary)]">
+            Confirming the support case owner from the account record...
+          </div>
+        </div>
+      );
+    }
+    if (accountContextQuery.isError || !accountContextQuery.data) {
+      return (
+        <div className="mx-auto max-w-3xl space-y-4">
+          <button
+            type="button"
+            className="min-h-11 text-sm font-semibold text-[var(--color-primary)] hover:underline"
+            onClick={handleBack}
+          >
+            Back to support queue
+          </button>
+          <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-900">
+            <h1 className="text-xl font-bold">Support case owner could not be confirmed</h1>
+            <p className="mt-2">
+              No case can be created until the selected customer or provider account loads from the server.
+            </p>
+            <button
+              type="button"
+              className="mt-4 min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold"
+              onClick={() => void accountContextQuery.refetch()}
+            >
+              Retry account confirmation
+            </button>
+          </div>
+        </div>
+      );
+    }
+    const account = accountContextQuery.data;
+    const accountKind = account.role === 'provider_staff'
       ? 'provider staff account'
-      : `${newUserRole} account`;
+      : `${account.role} account`;
     const canSubmit =
+      account.id === userFilter &&
       newTicketSubject.trim().length >= 3 &&
       newTicketDescription.trim().length >= 5 &&
       !createTicketMutation.isPending;
@@ -708,9 +766,26 @@ export default function SupportTicketsPage(): React.ReactElement {
             </p>
             <h1 className="text-2xl font-bold text-[var(--color-text)]">Create support request</h1>
             <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
-              Open this case for <strong>{newUserName}</strong> ({accountKind}). The case is owned
-              by their account, and your admin identity is recorded in the audit trail.
+              Open this case for <strong>{account.displayName}</strong> ({accountKind}). This
+              identity was confirmed from the server account record. The case is owned by that
+              account, and your admin identity is recorded in the audit trail.
             </p>
+            <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">
+              Confirmed account ID: <span className="font-mono">{account.id}</span>
+            </p>
+            {account.providerBusinessName && (
+              <p className="mt-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950">
+                Provider organization: <strong>{account.providerBusinessName}</strong>
+                {account.providerProfileId && (
+                  <>. <Link className="font-semibold underline" to={`/providers/${account.providerProfileId}`}>Open provider record</Link></>
+                )}
+              </p>
+            )}
+            {!account.isActive && (
+              <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                This account is inactive. A support case may still be recorded, but this screen does not reactivate the account.
+              </p>
+            )}
             {bookingFilter && (
               <p className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
                 Linked booking: <span className="font-mono">{bookingFilter}</span>
