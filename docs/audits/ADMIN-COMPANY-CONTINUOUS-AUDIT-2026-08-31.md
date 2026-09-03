@@ -2060,3 +2060,38 @@ Mobile suites and 910 tests with 84 TODOs, both TypeScript checks, the Admin
 production build, and Docker image boot/liveness at commit `7f2923c`.
 Protected Gates `33713061239` passed A through E and the `All gates passed`
 rollup at the same commit. Production synchronization remains blocked by E32.
+
+## Checkpoint BB: exact official-receipt audit handoff
+
+Official receipt issuance and cancellation actions retained the receipt UUID
+as their immutable audit target, but the general Audit Log rendered that
+target as inert text. Receipt evidence already belongs to Booking 360, where
+support can review the customer, provider, job, payment, refund, dispute, and
+retained sales-document context together. New issuance events included a
+booking UUID in JSON, while historical cancellation events did not, so a link
+that trusted optional action details would have left part of the real audit
+history disconnected.
+
+OPS-411 resolves the owning booking from the retained `official_receipts` row
+and exposes it as canonical `targetBookingId`. UX-1084 gives issuance and
+cancellation clear operator labels and maps the receipt event to that exact
+Booking 360 record. OPS-412 also records the booking UUID in new cancellation
+payloads, improving future exported evidence while preserving relational
+recovery for older events. The stale service comment claiming that
+`admin_actions.admin_id` still rejected system issuance was corrected to match
+migration 055, which permits a null actor for system-authored evidence.
+
+This is a read-side support and audit change. It does not issue or cancel a
+receipt, enable the held BIR document workflow, move money, alter a booking, or
+change existing audit rows. E22 still fails tax-document writes closed and the
+Admin generate/finalize controls remain disabled.
+
+Local API and Admin TypeScript, affected-file ESLint, and `git diff --check`
+pass. Five API suites pass 62 tests across receipt generation/cancellation and
+audit identity; 18 rendered Admin audit-link files pass 25 tests. Protected CI
+`33713924567` passed 858 API suites and 3,229 tests, 361 Admin files and 450
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, both TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `4b7fcfb`.
+Protected Gates `33713924555` passed A through E and the `All gates passed`
+rollup at the same commit. Production synchronization remains blocked by E32.
