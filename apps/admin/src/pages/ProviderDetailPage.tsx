@@ -304,6 +304,7 @@ export default function ProviderDetailPage(): React.ReactElement {
   const staffIdFilter = searchParams.get('staffId')?.trim() ?? '';
   const noteIdFilter = searchParams.get('noteId')?.trim() ?? '';
   const reviewIdFilter = searchParams.get('reviewId')?.trim() ?? '';
+  const adminActionIdFilter = searchParams.get('adminActionId')?.trim() ?? '';
 
   const selectTab = (tab: TabId): void => {
     setSearchParams((current) => {
@@ -314,6 +315,7 @@ export default function ProviderDetailPage(): React.ReactElement {
       if (tab !== 'staff') next.delete('staffId');
       if (tab !== 'notes') next.delete('noteId');
       if (tab !== 'reviews') next.delete('reviewId');
+      if (tab !== 'activity') next.delete('adminActionId');
       return next;
     });
   };
@@ -346,6 +348,14 @@ export default function ProviderDetailPage(): React.ReactElement {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.delete('reviewId');
+      return next;
+    });
+  };
+
+  const clearAdminActionFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('adminActionId');
       return next;
     });
   };
@@ -441,7 +451,11 @@ export default function ProviderDetailPage(): React.ReactElement {
           <DisputesTab providerId={id} />
         </TabsContent>
         <TabsContent value="activity">
-          <ActivityTab providerId={id} />
+          <ActivityTab
+            providerId={id}
+            exactAdminActionId={adminActionIdFilter}
+            onClearExactAdminAction={clearAdminActionFilter}
+          />
         </TabsContent>
         <TabsContent value="notes">
           <NotesTab
@@ -1869,26 +1883,89 @@ export function DisputesTab({ providerId }: { providerId: string }): React.React
 
 // ─── Activity Tab ─────────────────────────────────────────────────────────
 
-export function ActivityTab({ providerId }: { providerId: string }): React.ReactElement {
+export function ActivityTab({
+  providerId,
+  exactAdminActionId = '',
+  onClearExactAdminAction,
+}: {
+  providerId: string;
+  exactAdminActionId?: string;
+  onClearExactAdminAction?: () => void;
+}): React.ReactElement {
   const [limit, setLimit] = useState(50);
+  const requestedAdminActionId = exactAdminActionId.trim();
+  const hasExactAdminAction = requestedAdminActionId.length > 0;
+  const hasValidExactAdminAction = UUID_REGEX.test(requestedAdminActionId);
   const q = useQuery({
-    queryKey: ['admin-provider-activity', providerId, limit],
+    queryKey: ['admin-provider-activity', providerId, limit, requestedAdminActionId],
     queryFn: async () => {
       const res = await api.get<{ success: true; data: ActivityRow[] }>(
         `/api/v1/admin/providers/${providerId}/activity`,
-        { params: { limit } },
+        {
+          params: hasExactAdminAction
+            ? { limit: 1, adminActionId: requestedAdminActionId }
+            : { limit },
+        },
       );
       return res.data.data;
     },
+    enabled: !hasExactAdminAction || hasValidExactAdminAction,
   });
 
+  if (hasExactAdminAction && !hasValidExactAdminAction) {
+    return (
+      <ErrorState
+        title="Invalid provider activity link"
+        description="Admin action ID must be a complete UUID. No activity records were requested."
+        action={onClearExactAdminAction ? (
+          <Button variant="secondary" size="sm" onClick={onClearExactAdminAction}>
+            Clear activity selection
+          </Button>
+        ) : undefined}
+      />
+    );
+  }
   if (q.isLoading) return <LoadingState label="Loading activity…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
   const rows = q.data!;
+  const exactActivity = hasExactAdminAction
+    ? rows.find((row) => row.id === `admin_action:${requestedAdminActionId}`) ?? null
+    : null;
+  const visibleRows = hasExactAdminAction ? exactActivity ? [exactActivity] : [] : rows;
 
   return (
     <div className="mt-4 space-y-3">
-      <select
+      {hasExactAdminAction && exactActivity && (
+        <Card className="border-2 border-[var(--color-secondary)] bg-[var(--color-secondary)]/5 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-[var(--color-text)]">Exact provider account decision</p>
+              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                This activity row is scoped by both the provider account and admin-action ID retained by the Audit Log.
+              </p>
+            </div>
+            {onClearExactAdminAction && (
+              <Button variant="secondary" size="sm" onClick={onClearExactAdminAction}>
+                Show recent provider activity
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+      {hasExactAdminAction && !exactActivity && (
+        <Card className="border-2 border-[var(--color-warning)] bg-[var(--color-warning)]/5 p-4" role="alert">
+          <p className="text-sm font-semibold text-[var(--color-text)]">Admin decision is not in this provider activity file</p>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+            The requested decision never belonged to this provider or is unavailable. No substitute activity is shown; return to the Audit Log for the durable event record.
+          </p>
+          {onClearExactAdminAction && (
+            <Button className="mt-3" variant="secondary" size="sm" onClick={onClearExactAdminAction}>
+              Show recent provider activity
+            </Button>
+          )}
+        </Card>
+      )}
+      {!hasExactAdminAction && <select
         aria-label="Provider activity row limit"
         value={limit}
         onChange={(event) => setLimit(Number(event.target.value))}
@@ -1897,9 +1974,11 @@ export function ActivityTab({ providerId }: { providerId: string }): React.React
         <option value={50}>Last 50</option>
         <option value={100}>Last 100</option>
         <option value={200}>Last 200</option>
-      </select>
-      {rows.length === 0 ? (
-        <EmptyState title="No activity" description="No recent admin actions, account events, or login attempts on file." />
+      </select>}
+      {visibleRows.length === 0 ? (
+        !hasExactAdminAction
+          ? <EmptyState title="No activity" description="No recent admin actions, account events, or login attempts on file." />
+          : null
       ) : (
       <Card className="p-0 overflow-x-auto">
         <table className="w-full text-sm">
@@ -1915,8 +1994,14 @@ export function ActivityTab({ providerId }: { providerId: string }): React.React
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className="border-t border-slate-100">
+          {visibleRows.map((r) => (
+            <tr
+              key={r.id}
+              aria-current={hasExactAdminAction ? 'true' : undefined}
+              className={hasExactAdminAction
+                ? 'border-t border-[var(--color-secondary)] bg-[var(--color-secondary)]/5'
+                : 'border-t border-slate-100'}
+            >
               <td className="px-3 py-2 whitespace-nowrap">{formatDate(r.createdAt)}</td>
               <td className="px-3 py-2"><Badge label={r.source} variant={r.source === 'admin_action' ? 'danger' : r.source === 'login' ? 'info' : 'success'} /></td>
               <td className="px-3 py-2 text-xs">

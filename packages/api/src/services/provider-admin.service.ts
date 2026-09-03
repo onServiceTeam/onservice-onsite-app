@@ -1103,6 +1103,7 @@ export async function getProviderActivity(
   // to 'admin' (the most-restrictive role) so callers that haven't
   // been updated still get masking. super_admin sees raw values.
   requesterRole: 'admin' | 'super_admin' = 'admin',
+  adminActionId?: string,
 ): Promise<ProviderActivityRow[]> {
   const safeLimit = Math.min(200, Math.max(1, Math.floor(limit) || 50));
 
@@ -1123,6 +1124,13 @@ export async function getProviderActivity(
   const userId = userResult.rows[0].user_id;
   const phone = userResult.rows[0].phone;
   const providerName = `${userResult.rows[0].first_name} ${userResult.rows[0].last_name}`.trim();
+  const adminActionParams: unknown[] = [providerId, userId];
+  let adminActionIdClause = '';
+  if (adminActionId) {
+    adminActionParams.push(adminActionId);
+    adminActionIdClause = ` AND a.id = $${adminActionParams.length}`;
+  }
+  adminActionParams.push(adminActionId ? 1 : safeLimit);
 
   const [auditRows, loginRows, adminActionRows] = await Promise.all([
     db.query<{
@@ -1177,7 +1185,7 @@ export async function getProviderActivity(
               a.action_type, a.reason, a.details, a.created_at
          FROM admin_actions a
          LEFT JOIN users u ON u.id = a.admin_id
-        WHERE (a.target_type = 'provider' AND a.target_id = $1)
+        WHERE ((a.target_type = 'provider' AND a.target_id = $1)
            OR (a.target_type = 'provider_application' AND a.target_id = $2)
            OR (a.target_type = 'provider_note' AND EXISTS (
                  SELECT 1 FROM provider_admin_notes n WHERE n.id = a.target_id AND n.provider_id = $1
@@ -1197,10 +1205,11 @@ export async function getProviderActivity(
            OR (a.target_type = 'review' AND EXISTS (
                  SELECT 1 FROM reviews r WHERE r.id = a.target_id AND r.provider_id = $1
               ))
-           OR (a.target_type = 'user' AND a.target_id = $2)
+           OR (a.target_type = 'user' AND a.target_id = $2))
+          ${adminActionIdClause}
         ORDER BY a.created_at DESC
-        LIMIT $3`,
-      [providerId, userId, safeLimit],
+        LIMIT $${adminActionParams.length}`,
+      adminActionParams,
     ),
   ]);
 
@@ -1265,6 +1274,10 @@ export async function getProviderActivity(
       createdAt: r.created_at.toISOString(),
     };
   });
+
+  if (adminActionId) {
+    return adminActs.filter((row) => row.id === `admin_action:${adminActionId}`);
+  }
 
   return [...audit, ...logins, ...adminActs]
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))

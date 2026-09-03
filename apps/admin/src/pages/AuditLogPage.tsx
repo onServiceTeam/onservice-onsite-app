@@ -500,8 +500,26 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
         };
       }
       return { to: `/customers/${id}`, label: 'Open Customer 360' };
-    case 'provider':
+    case 'provider': {
+      if (
+        entry.action === 'provider_approved'
+        || entry.action === 'provider_rejected'
+        || entry.action === 'provider_suspended'
+        || entry.action === 'provider_reactivated'
+        || entry.action === 'provider_tier_changed'
+      ) {
+        const params = new URLSearchParams({ tab: 'activity' });
+        const hasExactDecision = entry.source === 'admin_actions' && UUID_REGEX.test(entry.id);
+        if (hasExactDecision) params.set('adminActionId', entry.id);
+        return {
+          to: `/providers/${id}?${params.toString()}`,
+          label: hasExactDecision
+            ? 'Open exact provider account decision'
+            : 'Open provider account activity',
+        };
+      }
       return { to: `/providers/${id}`, label: 'Open Provider 360' };
+    }
     case 'provider_application':
     case 'provider_document': {
       const providerId = linkedProviderId(entry);
