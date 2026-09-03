@@ -1982,3 +1982,38 @@ commit. Migration 171 is committed but has not been applied to production.
 No recurring series, booking, payment, support case, audit row, database
 schema, or production record changed. Production synchronization remains
 blocked by E32.
+
+## Checkpoint AZ: exact tester-feedback audit handoff
+
+Tester feedback triage already wrote an immutable
+`feedback_submission_updated` admin action against the exact submission UUID,
+but the general Audit Log rendered that target as inert text. The Feedback
+workspace also initialized a missing or malformed URL selection from the first
+visible queue row. An operator following stale handoff state could therefore
+see an unrelated report and reasonably mistake it for the audited submission.
+
+UX-1079 gives the event a clear operator label and maps a valid target UUID to
+`/feedback?feedbackId=<id>`. The Feedback workspace uses its existing bounded
+exact-detail and decision-history endpoints to restore that submission even
+when the current queue request fails, so the evidence handoff does not depend
+on queue position, filters, or list availability. Queue selection writes the
+same durable URL state and closing the detail removes only `feedbackId`,
+preserving the operator's other filters.
+
+UX-1080 rejects malformed saved feedback state locally and displays an explicit
+invalid-selection alert instead of substituting the first queue item. Removing
+the bad selection leaves the current queue filters intact. The change adds no
+triage mutation, alters no feedback decision, and does not expose tester notes
+outside the existing Admin authorization boundary.
+
+Local Admin TypeScript, affected-file ESLint, and `git diff --check` pass. All
+21 Feedback-related rendered files pass 23 tests, including the exact handoff,
+exact-detail list-failure independence, invalid-selection containment, and the
+existing triage decision behavior. Protected CI `33711098766` passed 854 API
+suites and 3,225 tests, 357 Admin files and 446 tests with one intentionally
+skipped file and three existing honest TODOs, 531 Mobile suites and 910 tests
+with 84 TODOs, both TypeScript checks, the Admin production build, and Docker
+image boot/liveness at commit `3e66ca0`. Protected Gates `33711098647` passed A
+through E and the `All gates passed` rollup at the same commit. No feedback
+submission, triage decision, user, support case, audit row, database schema, or
+production record changed. Production synchronization remains blocked by E32.
