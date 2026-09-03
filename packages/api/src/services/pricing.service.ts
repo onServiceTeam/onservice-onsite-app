@@ -1,11 +1,17 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
-import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 
 // --- Interfaces ---
 
-interface PricingRuleRow {
+export type PricingRulePublicationStatus =
+  | 'draft'
+  | 'published'
+  | 'retired'
+  | 'legacy_active'
+  | 'legacy_inactive';
+
+export interface PricingRuleRow {
   id: string;
   name: string;
   type: 'rush' | 'holiday' | 'peak_hours';
@@ -23,6 +29,15 @@ interface PricingRuleRow {
   description: string;
   created_at: Date;
   updated_at: Date;
+  publication_status?: PricingRulePublicationStatus;
+  created_by?: string | null;
+  draft_reason?: string | null;
+  published_by?: string | null;
+  published_at?: Date | null;
+  publish_reason?: string | null;
+  retired_by?: string | null;
+  retired_at?: Date | null;
+  retire_reason?: string | null;
 }
 
 export interface PricingResult {
@@ -33,6 +48,16 @@ export interface PricingResult {
   appliedRule: { id: string; name: string; type: string; multiplier: number } | null;
   platformSurgeShare: number;
   providerSurgeShare: number;
+}
+
+export interface PricingResolution extends PricingResult {
+  matchingRules: Array<{
+    id: string;
+    name: string;
+    type: string;
+    multiplier: number;
+    priority: number;
+  }>;
 }
 
 interface CreatePricingRuleParams {
@@ -54,15 +79,21 @@ interface CreatePricingRuleParams {
 // --- Admin CRUD ---
 
 export async function createPricingRule(
-  params: CreatePricingRuleParams,
+  _params: CreatePricingRuleParams,
   // MED-N110 fix — acting admin id required so we can write the
   // admin_actions audit row alongside the INSERT in a single trx.
   // Pre-fix: pricing rules were created without any audit trail; an
   // admin spinning up a 5x surge had no record of who did it.
   // Optional for back-compat with legacy callers (tests, scripts);
   // when omitted, the audit row is skipped and a warning is logged.
-  createdByAdminId?: string,
+  _createdByAdminId?: string,
 ): Promise<PricingRuleRow> {
+  throw createAppError(
+    'Direct pricing-rule creation is retired. Use the audited draft and publication workflow.',
+    409,
+  );
+  /* Historical implementation retained in this change for audit comparison.
+     It is intentionally unreachable and not compiled.
   if (params.multiplier < 1.0 || params.multiplier > 5.0) {
     throw createAppError('Multiplier must be between 1.0 and 5.0.', 400);
   }
@@ -125,14 +156,20 @@ export async function createPricingRule(
 
   logger.info('Pricing rule created', { ruleId: created.id, type: params.type });
   return created;
+  */
 }
 
 export async function updatePricingRule(
-  ruleId: string,
-  updates: Partial<Omit<CreatePricingRuleParams, 'type'>>,
+  _ruleId: string,
+  _updates: Partial<Omit<CreatePricingRuleParams, 'type'>>,
   // MED-N111 fix — acting admin id required for audit trail.
-  updatedByAdminId?: string,
+  _updatedByAdminId?: string,
 ): Promise<PricingRuleRow> {
+  throw createAppError(
+    'Direct pricing-rule updates are retired. Published terms are immutable; edit a draft instead.',
+    409,
+  );
+  /* Historical implementation retained for audit comparison; not compiled.
   const setClauses: string[] = ['updated_at = NOW()'];
   const values: unknown[] = [];
   let paramIndex = 1;
@@ -227,14 +264,20 @@ export async function updatePricingRule(
     return result.rows[0]!;
   });
   return updated;
+  */
 }
 
 export async function togglePricingRule(
-  ruleId: string,
-  isActive: boolean,
+  _ruleId: string,
+  _isActive: boolean,
   // MED-N111 fix — acting admin id for audit trail.
-  toggledByAdminId?: string,
+  _toggledByAdminId?: string,
 ): Promise<PricingRuleRow> {
+  throw createAppError(
+    'Direct pricing-rule activation is retired. Use authoritative preview and publication.',
+    409,
+  );
+  /* Historical implementation retained for audit comparison; not compiled.
   return db.transaction(async (client) => {
     const before = await client.query<{ is_active: boolean }>(
       `SELECT is_active FROM pricing_rules WHERE id = $1 FOR UPDATE`,
@@ -267,13 +310,19 @@ export async function togglePricingRule(
     }
     return result.rows[0]!;
   });
+  */
 }
 
 export async function deletePricingRule(
-  ruleId: string,
+  _ruleId: string,
   // MED-N111 fix — acting admin id for audit trail.
-  deletedByAdminId?: string,
+  _deletedByAdminId?: string,
 ): Promise<void> {
+  throw createAppError(
+    'Pricing-rule deletion is retired. Retire the rule to preserve financial history.',
+    409,
+  );
+  /* Historical implementation retained for audit comparison; not compiled.
   await db.transaction(async (client) => {
     const before = await client.query<PricingRuleRow>(
       `SELECT * FROM pricing_rules WHERE id = $1 FOR UPDATE`,
@@ -307,11 +356,12 @@ export async function deletePricingRule(
       logger.warn('deletePricingRule: no deletedByAdminId; audit row skipped', { ruleId });
     }
   });
+  */
 }
 
 export async function listPricingRules(filters?: {
   type?: string;
-  isActive?: boolean;
+  status?: PricingRulePublicationStatus;
   page?: number;
   pageSize?: number;
 }): Promise<{ items: PricingRuleRow[]; total: number }> {
@@ -323,9 +373,9 @@ export async function listPricingRules(filters?: {
     conditions.push(`type = $${paramIndex++}`);
     params.push(filters.type);
   }
-  if (filters?.isActive !== undefined) {
-    conditions.push(`is_active = $${paramIndex++}`);
-    params.push(filters.isActive);
+  if (filters?.status !== undefined) {
+    conditions.push(`publication_status = $${paramIndex++}`);
+    params.push(filters.status);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -367,36 +417,14 @@ export async function getPricingRuleById(ruleId: string): Promise<PricingRuleRow
 
 // --- Pricing Calculation Engine ---
 
-export async function calculatePricing(
+export function resolvePricingRules(
   basePrice: number,
   scheduledAt: Date,
-  categoryId: string,
-  city?: string,
-): Promise<PricingResult> {
-  const rules = await db.query<PricingRuleRow>(
-    `SELECT pr.* FROM pricing_rules pr
-     LEFT JOIN service_areas sa ON pr.service_area_id = sa.id
-     WHERE pr.is_active = TRUE
-       AND (pr.category_id IS NULL OR pr.category_id = $1)
-       AND (pr.service_area_id IS NULL OR sa.city ILIKE $2)
-     ORDER BY pr.priority DESC, pr.multiplier DESC`,
-    [categoryId, city ? `%${city}%` : '%'],
-  );
-
-  if (rules.rows.length === 0) {
-    return {
-      basePrice,
-      surgeMultiplier: 1.0,
-      surgeAmount: 0,
-      finalPrice: basePrice,
-      appliedRule: null,
-      platformSurgeShare: 0,
-      providerSurgeShare: 0,
-    };
-  }
-
+  candidateRules: PricingRuleRow[],
+  evaluatedAt = new Date(),
+): PricingResolution {
   const scheduledDate = scheduledAt;
-  const hoursUntilScheduled = (scheduledDate.getTime() - Date.now()) / (1000 * 60 * 60);
+  const hoursUntilScheduled = (scheduledDate.getTime() - evaluatedAt.getTime()) / (1000 * 60 * 60);
   // MED-N112 fix — replace the toLocaleString round-trip with
   // Intl.DateTimeFormat parts. The pre-fix code did
   //   new Date(date.toLocaleString('en-US', { timeZone: ... }))
@@ -430,9 +458,12 @@ export async function calculatePricing(
   // Date string in target timezone (YYYY-MM-DD).
   const scheduledDateStr = `${partsByType.get('year')}-${partsByType.get('month')}-${partsByType.get('day')}`;
 
-  let bestRule: PricingRuleRow | null = null;
+  const orderedRules = [...candidateRules].sort(
+    (left, right) => right.priority - left.priority || Number(right.multiplier) - Number(left.multiplier),
+  );
+  const matchingRuleRows: PricingRuleRow[] = [];
 
-  for (const rule of rules.rows) {
+  for (const rule of orderedRules) {
     let matches = false;
 
     switch (rule.type) {
@@ -443,7 +474,10 @@ export async function calculatePricing(
         break;
       }
       case 'holiday': {
-        if (rule.holiday_date !== null && scheduledDateStr === String(rule.holiday_date).split('T')[0]) {
+        const holidayDate = rule.holiday_date
+          ? new Date(rule.holiday_date).toISOString().slice(0, 10)
+          : null;
+        if (holidayDate !== null && scheduledDateStr === holidayDate) {
           matches = true;
         }
         break;
@@ -471,10 +505,18 @@ export async function calculatePricing(
     }
 
     if (matches) {
-      bestRule = rule;
-      break;
+      matchingRuleRows.push(rule);
     }
   }
+
+  const matchingRules = matchingRuleRows.map((rule) => ({
+    id: rule.id,
+    name: rule.name,
+    type: rule.type,
+    multiplier: Number(rule.multiplier),
+    priority: rule.priority,
+  }));
+  const bestRule = matchingRuleRows[0] ?? null;
 
   if (!bestRule) {
     return {
@@ -485,6 +527,7 @@ export async function calculatePricing(
       appliedRule: null,
       platformSurgeShare: 0,
       providerSurgeShare: 0,
+      matchingRules,
     };
   }
 
@@ -506,7 +549,32 @@ export async function calculatePricing(
     },
     platformSurgeShare: Math.round(surgeAmount * shareRate),
     providerSurgeShare: Math.round(surgeAmount * (1 - shareRate)),
+    matchingRules,
   };
+}
+
+export async function calculatePricing(
+  basePrice: number,
+  scheduledAt: Date,
+  categoryId: string,
+  city?: string,
+): Promise<PricingResult> {
+  const rules = await db.query<PricingRuleRow>(
+    `SELECT pr.* FROM pricing_rules pr
+     LEFT JOIN service_areas sa ON pr.service_area_id = sa.id
+     WHERE pr.is_active = TRUE
+       AND COALESCE(pr.publication_status, 'legacy_active') IN ('published', 'legacy_active')
+       AND (pr.category_id IS NULL OR pr.category_id = $1)
+       AND (pr.service_area_id IS NULL OR sa.city ILIKE $2)`,
+    [categoryId, city ? `%${city}%` : '%'],
+  );
+
+  const { matchingRules: _matchingRules, ...result } = resolvePricingRules(
+    basePrice,
+    scheduledAt,
+    rules.rows,
+  );
+  return result;
 }
 
 export async function getUpcomingHolidays(
@@ -526,6 +594,7 @@ export async function getUpcomingHolidays(
   const result = await db.query<PricingRuleRow>(
     `SELECT * FROM pricing_rules
      WHERE type = 'holiday' AND is_active = TRUE
+       AND COALESCE(publication_status, 'legacy_active') IN ('published', 'legacy_active')
        AND holiday_date >= (now() AT TIME ZONE 'Asia/Manila')::date
        AND holiday_date <= (now() AT TIME ZONE 'Asia/Manila')::date + INTERVAL '1 day' * $1
      ORDER BY holiday_date ASC`,
@@ -566,9 +635,18 @@ export function formatPricingRule(r: PricingRuleRow): Record<string, unknown> {
     categoryId: r.category_id,
     serviceAreaId: r.service_area_id,
     isActive: r.is_active,
+    publicationStatus: r.publication_status ?? (r.is_active ? 'legacy_active' : 'legacy_inactive'),
     priority: r.priority,
     platformSurgeShare: Number(r.platform_surge_share),
     description: r.description,
+    createdBy: r.created_by ?? null,
+    draftReason: r.draft_reason ?? null,
+    publishedBy: r.published_by ?? null,
+    publishedAt: r.published_at ?? null,
+    publishReason: r.publish_reason ?? null,
+    retiredBy: r.retired_by ?? null,
+    retiredAt: r.retired_at ?? null,
+    retireReason: r.retire_reason ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };

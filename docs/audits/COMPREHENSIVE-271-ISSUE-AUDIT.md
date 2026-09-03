@@ -596,7 +596,7 @@ ADM-008 | No provider communication tool (send message/notification to provider 
 ADM-009 | No financial reconciliation report page
 ADM-010 | No guarantee fund management page
 ADM-011 | No service area management map view (only table exists)
-ADM-012 | No pricing rule testing tool (preview what a booking would cost with current rules)
+ADM-012 | RESOLVED LOCALLY W23 — pricing drafts now use canonical server preview with winner, overlap, customer total, and provider/platform split before explicit publication. Production migration and legacy-rule inventory remain held by E32.
 ADM-013 | No export functionality on any table (CSV/Excel export)
 ADM-014 | No admin action history per entity (see all admin actions on a specific provider/booking)
 ADM-015 | No dashboard customization (KPI card ordering, date range selector)

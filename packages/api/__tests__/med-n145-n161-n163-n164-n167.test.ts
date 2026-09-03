@@ -1,6 +1,6 @@
-// MED-N145 / MED-N161 / MED-N163 / MED-N164 / MED-N167 fixes verified.
-// Mix of source-shape (route gating + rate limit wiring) + behavior
-// (status partition invariant).
+// Historical MED-N145 / MED-N161 / MED-N163 / MED-N164 checks.
+// MED-N167's source-shape assertion was removed when Bug SEC-035 added a real
+// Express request test for every notification-template mutation boundary.
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -22,7 +22,6 @@ const readSrc = (rel: string): string =>
   readFileSync(resolve(__dirname, rel), 'utf8').replace(/\r\n/g, '\n');
 
 const CATALOG_ROUTES = readSrc('../src/routes/catalog.routes.ts');
-const NOTIF_TEMPLATE_ROUTES = readSrc('../src/routes/notification-template.routes.ts');
 const SERVICE_AREA_ROUTES = readSrc('../src/routes/service-area.routes.ts');
 const WEBHOOK_ROUTES = readSrc('../src/routes/webhook.routes.ts');
 
@@ -74,16 +73,6 @@ describe('MED-N161 — catalog mutations now require super_admin', () => {
     expect(getAnchor).toBeGreaterThan(0);
     const block = CATALOG_ROUTES.slice(getAnchor, getAnchor + 800);
     expect(block).toMatch(/requireAdmin\(req\)/);
-  });
-});
-
-describe('MED-N167 — notification-template DELETE requires super_admin', () => {
-  it('MED-N167 — requireSuperAdmin is called inside the DELETE handler', () => {
-    expect(NOTIF_TEMPLATE_ROUTES).toMatch(/function requireSuperAdmin/);
-    const deleteAnchor = NOTIF_TEMPLATE_ROUTES.indexOf("router.delete(");
-    expect(deleteAnchor).toBeGreaterThan(0);
-    const block = NOTIF_TEMPLATE_ROUTES.slice(deleteAnchor, deleteAnchor + 800);
-    expect(block).toMatch(/requireSuperAdmin\(req\)/);
   });
 });
 

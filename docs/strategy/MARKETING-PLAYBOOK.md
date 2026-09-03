@@ -86,7 +86,7 @@ Boracay-side:
 6. 3-job probation period with mandatory before/after photos and customer rating ≥ 4.5
 7. Tier promotion to Verified at job 5
 
-Founding tier (first 50 providers): 10% commission for 12 months. **This is a strategic recommendation that requires runtime config update in Phase 03.** If not implemented, providers default to standard New tier (15%).
+**E63 hold:** do not advertise the old first-50/10%-for-12-months Founding offer. The tier enum and seeded rate exist, but the platform cannot yet record or protect the city cohort and individual entitlement. Providers default to New; quote only the effective agreement shown by the current app.
 
 ---
 
@@ -185,16 +185,14 @@ This is conservative. Aggressive (3x ad spend in each city) totals ₱8-10M for 
 >
 > No exclusivity required. No minimum volume. Members can also use other providers — we're just one option in their toolkit. Last thing: we're offering the first 5 HOAs that partner this quarter a 10% revenue-share for the first 6 months instead of 5%.
 
-### TESDA RAC NCII recruitment FB post
+### TESDA RAC NCII recruitment FB post (E63-safe replacement)
 
 > 📍 Boracay-based. Looking for AC technicians (RAC NCII) and plumbing/electrical specialists.
 >
-> ✅ Founding provider rate: 10% commission for 12 months (vs standard 15%)
+> ✅ Current New-tier seeded base: 15%; the app shows the applicable commission before a job becomes binding
 > ✅ Earnings depend on accepted and completed bookings; no volume or income guarantee
 > ✅ NBI clearance and skills test required
 > ✅ App-based job records and manual withdrawal requests to GCash, Maya, or bank
->
-> First 50 providers across all categories get founding-tier rates locked in.
 >
 > Apply: [link]
 

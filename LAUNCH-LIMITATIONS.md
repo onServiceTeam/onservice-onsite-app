@@ -104,17 +104,21 @@ to prevent submit-then-cancel loops). Backed by a single SELECT count
 on `data_subject_requests.received_at >= NOW() - INTERVAL '24 hours'`.
 Edge-level WAF rate limit remains in place as defence in depth.
 
-## 5. Consent versions — no forced re-consent on publish — RESOLVED 2026-05-02
+## 5. Consent versions — no forced re-consent on publish — RESOLVED, activation corrected 2026-09-03
 
 **Where:** [apps/admin/src/pages/ConsentVersionsPage.tsx](apps/admin/src/pages/ConsentVersionsPage.tsx)
 
-**Status:** RESOLVED — opt-in `material` flag added to consent publish.
-
+**Status:** RESOLVED — opt-in `material` flag plus effective-date activation.
 **Resolution:** `complianceAdmin.publishConsentVersion` now accepts an
 optional `material: boolean` (defaults to `false`, preserving the legacy
-marker-only semantics). When the operator passes `material: true`, every
-user who previously granted an OLDER version of that consent type is
-considered "pending re-consent". A new customer-facing endpoint
+marker-only semantics). Publication writes its audit event immediately. When
+the operator passes `material: true`, every user who previously granted an
+OLDER version of that consent type is considered "pending re-consent" only
+after the recorded `effectiveAt` timestamp has arrived. A future material
+version remains scheduled, and any earlier active material version remains
+authoritative until then. Missing or malformed timestamps on legacy publish
+events fall back to the original publication time without rewriting history.
+A customer-facing endpoint
 `GET /api/v1/compliance/my-pending-consents` returns the outstanding
 items per user; mobile `customer/data-rights.tsx` surfaces a banner with
 an inline "I agree" button that calls `POST /api/v1/compliance/consent`
@@ -124,8 +128,9 @@ and any surface that needs the consent must trigger its own opt-in
 flow. The decision of which publishes are material is captured at
 publish time (operator UI passes `material: true`) and is not applied
 retroactively, so historical publishes remain inert. See
-`packages/api/__tests__/launch-limit-5-material-reconsent.test.ts` for
-the 9 behavioural tests.
+`packages/api/__tests__/launch-limit-5-material-reconsent.test.ts` and
+`packages/api/__tests__/bug-ops-386-consent-effective-date-activation.test.ts`
+for behavioral coverage.
 
 ## 6. Admin booking-participant support messaging — RESOLVED, corrected 2026-08-30
 
@@ -263,18 +268,26 @@ now closed:
     (not per user) to avoid log spam.
   - `changeOwnAdminPassword({userId, oldPassword, newPassword})`
     verifies old, validates new (12–128 chars, must differ), hashes
-    with current scrypt N, clears the flag, audits — all in one trx.
+    with current scrypt N, clears the flag, increments the session generation,
+    removes refresh sessions, revokes CSRF tokens, and audits in one transaction.
+    After commit it disconnects the account's live sockets.
 - **Routes** (security.routes.ts):
   - `GET /api/v1/security/admin/legacy-password-stats` (any admin tier)
   - `POST /api/v1/security/admin/flag-legacy-password-hashes`
     (super_admin only)
   - `POST /api/v1/security/admin/me/change-password`
-- **Login flow** (auth.routes.ts) — admin login + admin 2FA verify
-  responses now include `mustRotatePassword: boolean` so the admin
-  web app can route straight to the change-password screen and gate
-  every other route until the rotation lands. Tokens are still
-  issued (so the user CAN reach the change-password screen).
-- **Tests** — 12 tests in `launch-limit-12-admin-password-rotation.test.ts`.
+- **Runtime enforcement** — admin login + 2FA responses include
+  `mustRotatePassword`, but React is not the security boundary. Canonical HTTP
+  middleware returns `428 password_rotation_required` outside identity,
+  own-password, and logout boundaries; the special 2FA middleware applies the
+  same rule to normal access sessions; Socket.IO rejects a flagged handshake;
+  and a campaign disconnects newly flagged live sockets immediately.
+- **Current-browser continuity** — successful replacement invalidates every old
+  access/refresh/CSRF/socket session, then issues one new cookie session to the
+  browser that verified the old password.
+- **Tests** — the original focused suite plus SEC-036/041/042 and Admin
+  UX-1025 execute the transaction, route, socket, server-error-code, and client
+  redirect behavior.
 
 **Operator workflow:**
 1. Apply migration 116.
@@ -1226,12 +1239,20 @@ uploads + presigned option all shipped, no further code is required for §35a.
   UPDATEs; a PayMongo failure in prod rolls the trx back so no partial state is
   recorded. Test: `b-crit01-crit02-partial-refund.test.ts` (FOR-UPDATE shape).
 - `escrow.service.refundFromEscrow` debits escrow in a trx, then calls
-  `processRefund` OUTSIDE it. A mid-failure leaves escrow debited but the intent
-  not updated. **Mitigated (2026-06-04):** every caller now enqueues a
-  gateway-retry on failure (see below), so the eventual-consistency retry brings
-  the intent in line. Full single-transaction atomicity (escrow ledger +
-  PayMongo) is impractical because PayMongo is an external call; the retry queue
-  is the accepted reconciliation path. Tracked for the v1.1 rework below.
+  `processRefund` OUTSIDE it. Full single-transaction atomicity (escrow ledger +
+  PayMongo) is impossible because PayMongo is external. **Corrected again
+  2026-09-01:** the shared refund primitive now caps against the booking's own
+  immutable escrow ledger, credits wallet-funded refunds back to the customer
+  wallet in the same transaction, and gateway failure queues
+  `process_payment_refund`, which cannot touch escrow. Booking 360 additionally
+  creates that payment-only work item inside the same transaction as the local
+  refund, support-case note, and admin audit, closing the commit-to-enqueue crash
+  window for operator refunds. Its first worker attempt is delayed by ten
+  minutes so it cannot race the request handler's immediate payment attempt.
+  The normal confirmation, auto-confirm, force-complete, and manual-release
+  paths now release a partially refunded booking's ledger remainder using a
+  prorated copy of its immutable terms instead of stranding or over-releasing
+  the remainder.
 - `dispute.service` (resolveDispute / acceptPartialOffer / addProviderResponse) —
   **RESOLVED (2026-06-04).** Pre-fix these three paths committed the booking to
   `status='resolved'` and then, post-commit, called `refundFromEscrow` /
@@ -1246,19 +1267,24 @@ uploads + presigned option all shipped, no further code is required for §35a.
 These are low-probability today (refunds/disputes are admin-driven and serialized
 in practice) but are real correctness/money-integrity gaps.
 
-> **Newly found while fixing §35b (low-probability, retry-only) — `refund_from_escrow`
-> retry can double-debit escrow.** The gateway-retry worker's `refund_from_escrow`
-> action replays the WHOLE `refundFromEscrow` (escrow ledger debit + PayMongo). If
-> the original post-commit call committed the escrow debit and then PayMongo
-> failed, the enqueued retry re-debits the platform-escrow wallet. It only fires
-> when a refund's PayMongo leg fails after the escrow leg committed (rare), and
-> the existing `handleCancellation` + `dispute-admin` paths already carry the same
-> latent issue — the §35b dispute fix did not introduce it, it made those paths
-> consistent. **v1.1 fix (proposed):** split the escrow-ledger move (do it inside
-> the resolution transaction, atomic with the status flip) from the PayMongo leg
-> (post-commit), and add a `paymongo_refund_only` retry action that replays ONLY
-> `processRefund` (which is now itself `FOR UPDATE`-locked and cap-revalidated, so
-> it is safe to replay). Then no retry ever re-touches the escrow ledger.
+> **`refund_from_escrow` double-debit risk — RESOLVED IN CODE 2026-09-01.**
+> Post-commit payment failures in customer cancellation, admin cancellation,
+> dispute refunds, and Booking 360 now enqueue `process_payment_refund`, not a
+> second escrow movement. The legacy `refund_from_escrow` action remains only
+> for a failure before the local escrow transaction commits. Migration 163
+> widens the queue constraint. Behavioral coverage is OPS-283 through OPS-298.
+
+**Remaining external-provider limitation:** the current PayMongo integration
+does not send or persist a provider idempotency key for refunds. If PayMongo
+accepts a refund but the process dies before the local payment-intent update or
+queue-success marker commits, an automatic retry is ambiguous. A missing or
+invalid production payment ID now blocks the local payment-intent update and
+surfaces reconciliation rather than falsely reporting success. New external
+payment authorization is held under E14, so this cannot affect a new launch
+transaction while that hold remains. Before E14 is lifted, implement a
+gateway-reconciled refund-operation state machine or obtain verified provider
+idempotency behavior; do not treat an uncertain network outcome as safe to
+blindly replay.
 
 ### 35c. File-upload defense-in-depth — RESOLVED (2026-06-04)
 Pre-fix: `upload.service.validateFile` checked the CLIENT-SUPPLIED MIME +
@@ -1843,3 +1869,199 @@ calculate provider earnings, approve a change, or write a setting. Any future
 rate decision requires an approved policy, minimum evidence standard, human
 approval and audit workflow, and rollback plan. See
 `.ai-coder/escalations/E48-automated-commission-rate-advice-not-approved-2026-08-31.md`.
+
+---
+
+## 60. Tester-feedback screenshot privacy — CODE CONTAINMENT IMPLEMENTED; PRODUCTION PENDING
+
+The prior path stored images under `uploads/feedback/`, served the files through
+both generic public Nginx upload locations with a 30-day public cache, and placed
+the same direct URLs in the protected Admin page. A tester could therefore
+attach a customer, provider, or admin screen containing personal data that was
+retrievable without authentication by anyone who obtained the URL.
+
+Ken approved E52 Option A on 2026-09-01. The code now preserves old files and
+payloads while retrieving evidence through an authenticated, record-linked
+Admin proxy or a header-keyed private pull route. Admin links never expose the
+raw storage path, new intake previews the local browser file, and both Nginx
+vhosts contain an explicit `private, no-store` 404 guard for
+`/uploads/feedback/`. Legacy absolute and current relative storage identifiers
+remain supported without a database migration.
+
+The same pending release also adds version-checked Tester Feedback decisions.
+The API and Admin must be deployed together because the API now requires the
+record's `expectedUpdatedAt` value and rejects a stale operator overwrite with
+409. This is a release-order constraint, not a database migration.
+
+This is not yet resolved in production. E32 prevents the required current
+row/file inventory, backup, deployment, and live validation. Do not delete or
+move existing evidence. Deploy the API/Admin/form support first, verify old and
+new protected retrieval, then activate the Nginx guard and prove ordinary public
+uploads remain unaffected. Follow
+`docs/runbooks/tester-feedback-evidence-privacy.md` and see
+`.ai-coder/escalations/E52-tester-feedback-screenshots-are-public-2026-09-01.md`.
+
+---
+
+## 61. Business-account billing and contract operations are not launch-safe
+
+The Business Account 360 read model now links explicitly stamped bookings to
+customers, providers, invoices, support cases, and disputes. The commercial
+write path underneath it is still unsafe.
+
+The monthly generator selects work through current account membership instead
+of requiring the booking's explicit `business_account_id`. It can put a
+member's personal booking on a company invoice, duplicate one person's work
+across companies, and change selection after membership changes. Explicit
+business booking selection can also fall back silently to a personal
+catalog-priced booking when no eligible contract resolves.
+
+Account approval/suspension, contract lifecycle, discount/credit changes,
+invoice generation, and invoice payment recording do not share the required
+super-admin, reason, preview, version, and transactional audit contract. The
+manual mark-paid action accepts an arbitrary text reference without verified
+amount or payment evidence. The customer enterprise workspace has service and
+store code but no routed screens, so no current app flow sends the explicit
+business account into checkout.
+
+Do not operate these controls as a live B2B billing system. Existing records
+must remain unchanged pending a private production inventory; E32 blocks that
+inspection. E22 separately holds Philippine principal-invoice claims and E14
+blocks treating an external redirect/reference as verified payment. The
+recommended remediation is E55 Option A: contain the writes, rebuild explicit
+commercial booking and draft/readiness/finalization controls, and preserve old
+financial records through append-only corrections rather than rewrites. See
+`.ai-coder/escalations/E55-business-account-billing-and-contract-authority-2026-09-02.md`.
+
+---
+
+## 62. Notification Templates is not a per-channel publishing system
+
+Only `new_job_available` and `booking_matched` read Admin-managed template
+copy. Each uses one title/body for an in-app notification and best-effort push.
+The stored `channel` marker is not a delivery instruction; seeded and custom
+SMS/email rows do not send through this workflow.
+
+Inactive, missing, malformed, or deleted connected rows use built-in fallback
+copy. Deactivation therefore does not suppress a required booking notice.
+Ordinary admins have read-only support visibility. Every lifecycle mutation is
+reserved for super-admin, requires a durable reason, rejects no-op changes, and
+retains the reason in the transactional Admin action.
+
+The current schema has no channel-specific or locale-specific version, draft
+publication, effective date, rollback, test-send evidence, outbox attempt, or
+delivery receipt. Do not activate SMS/email, reinterpret reference rows, or
+claim that the ADMIN-SPEC target is deployed. E66 recommends staged immutable
+event/locale/channel versions with consent/preference enforcement and delivery
+evidence. Production inventory and migration remain blocked by E32. See
+`.ai-coder/escalations/E66-notification-template-channel-publication-and-versioning-2026-09-02.md`.
+
+---
+
+## 63. Admin 2FA recovery governance remains launch-held
+
+TOTP enrollment and login recovery codes are now connected: activation
+atomically creates eight single-use codes, the Admin shows them once and blocks
+entry until the operator acknowledges secure storage, and login consumes one
+code at a time. Temporary setup tokens are rejected by ordinary HTTP and
+Socket.IO authorization.
+
+Privileged factor removal, interrupted enrollment completion, lost-factor
+recovery, last-seat protection, and the existing-account rollout are not yet an
+approved company workflow. Do not expose a routine disable control or perform
+an ad hoc database reset. The detailed threat model and recommended governed
+design are kept in local-only security decision records because this repository
+is public. As pre-decision containment, the existing public factor-removal and
+recovery-code-regeneration mutation routes now return the same explicit `409`
+policy hold without reading or changing recovery state. Commit `19deb1e` passes
+GitHub CI `33608677040` and Gates `33608677041`, including complete API, Admin,
+Mobile, API Docker build/liveness, and all five gates. Production inventory and
+account changes remain blocked by E32.
+
+---
+
+## 64. Shared profile-name changes are transactionally audited in code; production pending
+
+The customer/provider `PATCH /api/v1/auth/me` route previously changed the
+canonical first and last names without preserving the before/after identity in
+the company audit record. That made later support review unable to distinguish
+an operator-visible name change from the name originally associated with an
+older booking, message, review, or payment record.
+
+The route now locks the current user row, rejects a no-op as an unchanged
+response, and commits the name update together with one `user_profile_updated`
+audit event containing only the prior and replacement names plus request
+attribution. A missing audit insert fails the transaction. The change does not
+rewrite booking snapshots, payment records, messages, reviews, or other
+historical transactions. Bug OPS-371 executes the lock, update, audit order,
+before/after values, request attribution, response, and single-transaction
+boundary. Commit `e2409ce` passes GitHub CI `33610063899` and Gates
+`33610063827`, including complete API, Admin, Mobile, API Docker
+build/liveness, and all five gates. API TypeScript and diff checks also passed
+locally. No migration, account mutation, master merge, deployment, server
+synchronization, or production change occurred; E32 remains active.
+
+The matching Admin support handoff is also connected in code. Audit Log labels
+the event **Profile name updated**, identifies whether the subject is a
+customer, provider, provider staff member, or company staff account, and opens
+Customer 360 or an exact provider-owner search as appropriate. Provider
+Management now actually searches the person's full name, business name, phone,
+email, provider ID, and owner user ID, matching the field promise shown to the
+operator. Bugs UX-1026 and OPS-372 execute the rendered customer/provider links
+and both SQL search paths. Commit `4223052` passes GitHub CI `33611777960` and
+Gates `33611777913`, including complete API, Admin, Mobile, API Docker
+build/liveness, and all five gates. Production remains unchanged under E32.
+
+The canonical profile validator now trims both names and rejects values that
+are empty after trimming, while preserving legitimate one-character names.
+The customer Profile screen separately detects an unchanged normalized name,
+closes edit mode, and reports that there is nothing to save without issuing a
+false update request. SEC-045 and UX-1027 execute those boundaries. The first
+UX-1027 CI run `33613949995` correctly failed because the new test captured a
+mock before initialization; fix-forward `ee708ab` replaces the closure capture
+with module-owned Jest mocks. Final GitHub CI `33614523217` and Gates
+`33614523236` pass complete API, Admin, Mobile, API Docker build/liveness, and
+all five gates. No existing identity or historical transaction was rewritten,
+and production remains unchanged under E32.
+
+---
+
+## 65. Marketing records are not campaign execution or verified attribution
+
+The Marketing workspace separates staged promo codes, connected customer-home
+banners, and staff-entered campaign records. Campaign rows do not select an
+audience, send SMS/email/push, authorize a budget, reconcile payment spend, or
+prove that a signup, booking, or revenue amount came from a channel.
+
+Direct editing no longer exposes attribution counters, and the service now
+rejects every direct caller that attempts to overwrite them. A future
+correction requires an append-only, evidence-backed adjustment ledger with
+reason, actor, source, time, and before/after values. Campaign editing also
+rejects an end date before the stored start date. Existing records and counters
+are unchanged.
+
+The committed Marketing screenshots predate the current Home Banners tab and
+manual-source warning. Do not use them as current authenticated evidence. Fresh
+capture is required before launch review. Commits `95f4cc9`, `d8e99f4`, and
+`c87169a` pass GitHub CI `33616036732`, `33616743937`, and `33619612610`,
+plus Gates `33616036700`, `33616743915`, and `33619612351`. Production remains
+unchanged under E32.
+
+---
+
+## 66. Provider-staff accounts lack a safe account and privacy workspace
+
+Provider-staff users currently have assigned jobs, invitations, shared support,
+and logout, but no profile, password/session, notification, account-data, or
+Data Rights workspace. Their authenticated DSRs can reach the DPO queue, and
+the Admin case now links the subject to the employing Provider 360 record and
+names the human handler. That back-office linkage is not a substitute for a
+staff-facing account/privacy surface.
+
+Do not simply expose the customer erasure screen. Its DSR creation can start
+the generic deletion pipeline, while E43 still holds the canonical DSR/deletion
+relationship and no approved rule covers active staff assignments, historical
+performer evidence, provider-team status, or cross-provider history. E21 also
+holds the retention matrix. E69 records the recommended role-aware workspace
+and fail-closed erasure design. No staff route guard, account, assignment, or
+production row was changed during discovery.

@@ -1,91 +1,159 @@
-// MED-N155 fix verified — webhook payment.amount mismatch is now
-// surfaced via Sentry capture + security_events audit row in addition
-// to the original logger.error.
-//
-// Pre-fix: PayMongo sending a different amount than the recorded
-// payment intent only logged via logger.error and break'd out of the
-// switch. Potential payment-tampering signal went unnoticed by ops
-// and the admin Compliance dashboard.
-//
-// Post-fix: same path also calls Sentry.captureMessage and
-// securityService.logSecurityEvent({eventType: 'payment_amount_mismatch'}).
-// Both alerting calls are wrapped in try/catch so an alerting-side
-// failure cannot mask the original mismatch.
+import crypto from 'node:crypto';
+import express from 'express';
+import request from 'supertest';
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+const webhookSecret = 'whsec_med_n155';
+const previousWebhookSecret = process.env.PAYMONGO_WEBHOOK_SECRET;
+process.env.PAYMONGO_WEBHOOK_SECRET = webhookSecret;
 
-const ROUTES = readFileSync(
-  resolve(__dirname, '../src/routes/webhook.routes.ts'),
-  'utf8',
-);
+const dbQueryMock = jest.fn();
+const dbTransactionMock = jest.fn();
+const getBookingPaymentIntentMock = jest.fn();
+const updatePaymentStatusMock = jest.fn();
+const captureMessageMock = jest.fn();
+const logSecurityEventMock = jest.fn();
+const loggerErrorMock = jest.fn();
+const loggerWarnMock = jest.fn();
 
-describe('MED-N155 — webhook amount mismatch alerting', () => {
-  it('imports @sentry/node', () => {
-    expect(ROUTES).toMatch(/import \* as Sentry from '@sentry\/node'/);
-  });
+jest.mock('express-rate-limit', () => ({
+  __esModule: true,
+  default: jest.fn(() => (
+    _req: express.Request,
+    _res: express.Response,
+    next: express.NextFunction,
+  ) => next()),
+}));
+jest.mock('@sentry/node', () => ({
+  captureMessage: (...args: unknown[]) => captureMessageMock(...args),
+}));
+jest.mock('../src/models/db', () => ({
+  db: {
+    query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (...args: unknown[]) => dbTransactionMock(...args),
+  },
+}));
+jest.mock('../src/services/payment.service', () => ({
+  getBookingPaymentIntent: (...args: unknown[]) => getBookingPaymentIntentMock(...args),
+  getTopupPaymentIntent: jest.fn(),
+  updatePaymentStatus: (...args: unknown[]) => updatePaymentStatusMock(...args),
+  updatePaymentStatusInTransaction: jest.fn(),
+}));
+jest.mock('../src/services/escrow.service', () => ({ holdInEscrowInTransaction: jest.fn() }));
+jest.mock('../src/services/wallet.service', () => ({}));
+jest.mock('../src/services/notification.service', () => ({ notifyBookingStatusChange: jest.fn() }));
+jest.mock('../src/services/security.service', () => ({
+  logSecurityEvent: (...args: unknown[]) => logSecurityEventMock(...args),
+}));
+jest.mock('../src/services/booking-offer.service', () => ({
+  dispatchPaidBookingIfNeeded: jest.fn(),
+}));
+jest.mock('../src/services/booking-financial-terms.service', () => ({
+  appendAuthorizationTermsInTransaction: jest.fn(),
+}));
+jest.mock('../src/utils/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    warn: (...args: unknown[]) => loggerWarnMock(...args),
+    error: (...args: unknown[]) => loggerErrorMock(...args),
+    debug: jest.fn(),
+  },
+}));
 
-  it('imports securityService for the security_events audit', () => {
-    expect(ROUTES).toMatch(/import \* as securityService from '\.\.\/services\/security\.service'/);
-  });
+import webhookRouter from '../src/routes/webhook.routes';
 
-  it('the amount-mismatch branch captures to Sentry', () => {
-    // Anchor on the mismatch literal so we don't accidentally pass on
-    // an unrelated Sentry call elsewhere.
-    expect(ROUTES).toMatch(/Webhook payment\.amount mismatch/);
-    expect(ROUTES).toMatch(/Sentry\.captureMessage\(\s*'Webhook payment\.amount mismatch'/);
-  });
+function signedHeader(body: unknown): string {
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const signature = crypto.createHmac('sha256', webhookSecret)
+    .update(`${timestamp}.${JSON.stringify(body)}`)
+    .digest('hex');
+  return `t=${timestamp},te=${signature}`;
+}
 
-  it('the amount-mismatch branch logs a payment_amount_mismatch security event', () => {
-    expect(ROUTES).toMatch(/securityService\.logSecurityEvent\(\{[\s\S]{0,200}eventType:\s*'payment_amount_mismatch'/);
-  });
-
-  it('Sentry capture is wrapped in try/catch (alerting failure must not mask the mismatch)', () => {
-    // Source-level signature: the capture sits inside a try block and
-    // a sibling catch downgrades to logger.warn.
-    expect(ROUTES).toMatch(/try \{\s*Sentry\.captureMessage[\s\S]*?catch \(sentryErr\)/);
-    expect(ROUTES).toMatch(/Sentry capture failed for amount mismatch/);
-  });
-
-  it('security_events insert is wrapped in try/catch', () => {
-    expect(ROUTES).toMatch(/try \{\s*await securityService\.logSecurityEvent[\s\S]*?catch \(auditErr\)/);
-    expect(ROUTES).toMatch(/security_events insert failed for amount mismatch/);
-  });
-
-  it('the metadata captured includes both webhookAmount and intentAmount + delta', () => {
-    expect(ROUTES).toMatch(/webhookAmount:\s*Number\(webhookAmount\)/);
-    expect(ROUTES).toMatch(/intentAmount:\s*Number\(intent\.amount\)/);
-    expect(ROUTES).toMatch(/deltaCentavos:\s*Number\(webhookAmount\) - Number\(intent\.amount\)/);
-  });
-
-  it('the original logger.error remains as a primary record', () => {
-    expect(ROUTES).toMatch(/logger\.error\('Webhook amount mismatch — POSSIBLE TAMPERING'/);
-  });
-});
-
-describe('MED-N155 — migration 095 adds payment_amount_mismatch to security_events CHECK', () => {
-  const MIGRATION = readFileSync(
-    resolve(__dirname, '../migrations/095_payment_amount_mismatch_event.sql'),
-    'utf8',
-  );
-
-  it('migration drops then re-adds the CHECK constraint with the new value', () => {
-    expect(MIGRATION).toMatch(/DROP CONSTRAINT security_events_event_type_check/);
-    expect(MIGRATION).toMatch(/ADD CONSTRAINT security_events_event_type_check/);
-  });
-
-  it("'payment_amount_mismatch' is in the new allowed event_type list", () => {
-    expect(MIGRATION).toMatch(/'payment_amount_mismatch'/);
-  });
-
-  it('preserves all 10 pre-existing event types (no regression)', () => {
-    for (const t of [
-      'otp_lockout', 'ip_blocked', 'ip_unblocked',
-      'new_device_login', 'suspicious_activity',
-      'admin_login', 'admin_login_failed',
-      'account_deactivated', 'captcha_required', 'captcha_failed',
-    ]) {
-      expect(MIGRATION).toMatch(new RegExp(`'${t}'`));
+it('MED-N155 - a paid webhook amount mismatch alerts operations without moving money or losing the event', async () => {
+  const mismatchInfo = {
+    bookingId: 'booking-med-n155',
+    intentId: 'intent-med-n155',
+    webhookAmount: 60000,
+    intentAmount: 50000,
+    deltaCentavos: 10000,
+    paymongoPaymentId: 'pay_med_n155',
+  };
+  dbQueryMock.mockImplementation(async (sql: string) => {
+    if (sql.includes('INSERT INTO webhook_events')) {
+      return { rows: [{ event_id: 'event-med-n155' }], rowCount: 1 };
     }
+    if (sql.includes("UPDATE webhook_events SET status = 'done'")) {
+      return { rows: [], rowCount: 1 };
+    }
+    throw new Error(`Unexpected webhook query: ${sql}`);
   });
+  getBookingPaymentIntentMock.mockResolvedValue({
+    id: 'intent-med-n155',
+    booking_id: 'booking-med-n155',
+    amount: '50000',
+    payment_method: 'gcash',
+    status: 'awaiting_payment',
+  });
+  captureMessageMock.mockImplementation(() => {
+    throw new Error('simulated Sentry outage');
+  });
+  logSecurityEventMock.mockRejectedValue(new Error('simulated security audit outage'));
+
+  const body = {
+    data: {
+      id: 'event-med-n155',
+      attributes: {
+        type: 'payment.paid',
+        data: {
+          id: 'pay_med_n155',
+          attributes: {
+            amount: 60000,
+            metadata: { booking_id: 'booking-med-n155', intent_kind: 'booking' },
+          },
+        },
+      },
+    },
+  };
+  const app = express();
+  app.use(express.json());
+  app.use('/api/v1/webhooks', webhookRouter);
+
+  try {
+    const response = await request(app)
+      .post('/api/v1/webhooks/paymongo')
+      .set('paymongo-signature', signedHeader(body))
+      .send(body);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ success: true, data: { received: true } });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Webhook amount mismatch — POSSIBLE TAMPERING',
+      mismatchInfo,
+    );
+    expect(captureMessageMock).toHaveBeenCalledWith('Webhook payment.amount mismatch', {
+      level: 'error',
+      extra: mismatchInfo,
+    });
+    expect(logSecurityEventMock).toHaveBeenCalledWith({
+      eventType: 'payment_amount_mismatch',
+      metadata: mismatchInfo,
+    });
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      'Sentry capture failed for amount mismatch',
+      { error: 'simulated Sentry outage' },
+    );
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      'security_events insert failed for amount mismatch',
+      { error: 'simulated security audit outage' },
+    );
+    expect(dbQueryMock).toHaveBeenLastCalledWith(
+      expect.stringContaining("UPDATE webhook_events SET status = 'done'"),
+      ['event-med-n155'],
+    );
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+    expect(updatePaymentStatusMock).not.toHaveBeenCalled();
+  } finally {
+    if (previousWebhookSecret === undefined) delete process.env.PAYMONGO_WEBHOOK_SECRET;
+    else process.env.PAYMONGO_WEBHOOK_SECRET = previousWebhookSecret;
+  }
 });

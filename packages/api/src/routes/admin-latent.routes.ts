@@ -8,7 +8,7 @@
  *
  *   - Decide pending provider applications (approve / reject / sent_back)
  *   - Decide pending service-area-change requests (approve / reject)
- *   - Regenerate admin TOTP backup codes
+ *   - Contain admin TOTP backup-code regeneration pending governed recovery
  *
  * Mounted at `/api/v1/admin` via server.ts. Admin CSRF middleware applies
  * at the mount level for cookie-auth (Bearer auth bypasses per
@@ -23,7 +23,6 @@ import { authMiddleware, type AuthenticatedRequest } from '../middleware/auth.mi
 import { createAppError } from '../middleware/error.middleware';
 import * as providerOnboarding from '../services/provider-onboarding.service';
 import * as areaChange from '../services/service-area-change.service';
-import * as admin2fa from '../services/admin-2fa.service';
 import { maskEmail, maskPhilippinePhone } from '../utils/pii-mask';
 
 const router = Router();
@@ -46,6 +45,8 @@ function requireAdmin(req: AuthenticatedRequest): void {
 // char abuse string would bloat audit storage. Same server-cap shape
 // as Phase 152-168 + Phase 179 + Phase 180.
 const DECIDE_REASON_MAX = 5000;
+const PII_REVEAL_REASON_MAX = 500;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function validateDecideReason(value: string): void {
   if (value.length > DECIDE_REASON_MAX) {
     throw createAppError(
@@ -135,6 +136,34 @@ router.get(
   },
 );
 
+router.get(
+  '/service-area-changes/:changeId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const changeId = req.params.changeId;
+      if (
+        typeof changeId !== 'string'
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(changeId)
+      ) {
+        throw createAppError('changeId must be a valid UUID.', 400);
+      }
+      const request = await areaChange.getById(changeId);
+      const revealContact = req.user!.role === 'super_admin';
+      res.json({
+        success: true,
+        data: {
+          ...request,
+          providerEmail: revealContact || !request.providerEmail ? request.providerEmail : maskEmail(request.providerEmail),
+          providerPhone: revealContact || !request.providerPhone ? request.providerPhone : maskPhilippinePhone(request.providerPhone),
+          contactMasked: !revealContact,
+        },
+      });
+    } catch (error) { next(error); }
+  },
+);
+
 router.post(
   '/service-area-changes/:changeId/decide',
   authMiddleware,
@@ -183,12 +212,19 @@ router.post(
     try {
       requireSuperAdmin(req);
       const auditLogId = req.params.auditLogId;
-      if (typeof auditLogId !== 'string' || !auditLogId) {
-        throw createAppError('auditLogId required.', 400);
+      if (typeof auditLogId !== 'string' || !UUID_REGEX.test(auditLogId)) {
+        throw createAppError('auditLogId must be a valid UUID.', 400);
       }
       const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
-      if (reason.trim().length < 20) {
+      const normalizedReason = reason.trim();
+      if (normalizedReason.length < 20) {
         throw createAppError('Reveal reason must be at least 20 characters.', 400);
+      }
+      if (normalizedReason.length > PII_REVEAL_REASON_MAX) {
+        throw createAppError(
+          `Reveal reason cannot exceed ${PII_REVEAL_REASON_MAX} characters.`,
+          400,
+        );
       }
 
       const { db } = await import('../models/db');
@@ -223,8 +259,8 @@ router.post(
             ip: req.ip,
             user_agent: req.headers['user-agent'] ?? null,
           }),
-          reason.trim().slice(0, 500),
-          reason.trim(),
+          normalizedReason,
+          normalizedReason,
         ],
       );
 
@@ -233,7 +269,7 @@ router.post(
   },
 );
 
-// ─── Admin TOTP backup codes regeneration ──────────────────────────────────
+// ─── Admin TOTP backup-code regeneration (launch-held) ─────────────────────
 
 router.post(
   '/2fa/backup-codes/regenerate',
@@ -253,31 +289,15 @@ router.post(
         throw createAppError('Admin access required.', 403);
       }
 
-      // Super-admins regenerate their own backup codes — and may regen
-      // codes for other admins via :adminUserId. Self-regen is the
-      // common case (lost the old codes); cross-regen is the recovery
-      // case (e.g., admin lost both authenticator + backup codes).
-      const target = req.body?.adminUserId
-        ? String(req.body.adminUserId)
-        : req.user!.userId;
-
-      // Anyone other than the user themselves requires super_admin.
-      if (target !== req.user!.userId) {
-        requireSuperAdmin(req);
-      }
-
-      const result = await admin2fa.generateBackupCodes(target, {
-        regeneratedBy: req.user!.userId,
-      });
-
-      res.status(201).json({
-        success: true,
-        data: {
-          codes: result.codes,
-          generatedAt: result.generatedAt,
-          warning: 'These codes are shown ONCE. Store them securely; the previous set is invalidated.',
-        },
-      });
+      // SEC-044 — neither a bearer session nor a super-admin target parameter
+      // is a governed recovery case. Preserve the route as an explicit hold so
+      // older callers fail safely without rotating or disclosing any code set.
+      const held = createAppError(
+        'Administrator recovery changes are unavailable until the governed recovery workflow is enabled.',
+        409,
+      );
+      held.code = 'privileged_recovery_policy_required';
+      throw held;
     } catch (error) { next(error); }
   },
 );

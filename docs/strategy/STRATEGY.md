@@ -1,6 +1,6 @@
 # STRATEGY — onService PH
 
-> **STATUS (2026-08-24) — launch-city and several commercial assumptions below are superseded.** onService is multi-city and city-agnostic; the default / first launch market is **Metro Cebu**. The customer service fee is currently 0% (migration 137), the hosted PayMongo flow is blocked by E14, provider fixed-price authority is blocked by E16, payouts are manual requests rather than a schedule, and guarantee/insurance wording remains E10/F#10. Treat old Boracay, price, take-rate, protection, and volume projections as historical strategy only. Current authority: `AGENTS.md`, the active escalation/decision files, and `docs/operations/10-money-and-compliance-ops.md`.
+> **STATUS (2026-09-02) — launch-city and several commercial assumptions below are superseded.** onService is multi-city and city-agnostic; the default / first launch market is **Metro Cebu**. The customer service fee is currently 0% (migration 137), the hosted PayMongo flow is blocked by E14, provider fixed-price authority is blocked by E16, payouts are manual requests rather than a schedule, guarantee/insurance wording remains E10/F#10, and E63 holds the first-50/12-month Founding promise because the entitlement is not enforceable. Treat old Boracay, price, take-rate, protection, Founding-offer, and volume projections as historical strategy only. Current authority: `AGENTS.md`, the active escalation/decision files, and `docs/operations/10-money-and-compliance-ops.md`.
 
 **Decisions Ken needs to make before Phase 04 (admin dashboard) starts. Most of these are already implicit in the plan; this document makes them explicit.**
 
@@ -164,7 +164,7 @@ The provider value proposition is verified paid/assigned work, identity-based tr
 
 | Tier | Commission | Requirements |
 |---|---|---|
-| Founding | 10% | First 50 providers in each city, locked in for 12 months |
+| Founding | 10% seeded base | E63 hold: first-50/12-month entitlement is not implemented |
 | New | 15% | Default for new sign-ups after founding cohort |
 | Verified | 13% | 5+ jobs, 4.0+ rating |
 | Pro | 11% | 25+ jobs, 4.5+ rating, no open disputes |
@@ -172,7 +172,7 @@ The provider value proposition is verified paid/assigned work, identity-based tr
 
 **Customer service fee (current):** 0% with a ₱0 floor (Ken, 2026-06-28; migration 137). Re-enabling it is a money decision and changes customer totals.
 
-**Current gross platform commission before costs:** the live admin-tunable provider tier rate only (10% founding, 15% new, 13% verified, 11% pro, 9% elite). Do not add the historical 10% customer fee when forecasting current take rate.
+**Current gross platform commission before costs:** use the applicable effective-dated provider/tier/category agreement and the immutable rate on each booking, not the retired direct Settings row. The seeded tier bases are 10/15/13/11/9%. Do not add the historical 10% customer fee when forecasting current take rate.
 
 **Cancellation refund (matches FR-102):**
 - >24h before: 100% / 0% (customer / provider)
@@ -286,7 +286,7 @@ Aggressive path (if external capital available):
 3. ✅ 5 services already mapped (cleaning, AC, plumbing, electrical, painting)
 4. ⬜ Provider sourcing partnerships started? (TESDA RAC NCII pipeline, OWWA returnees, FB recruitment in Aklan)
 5. ✅ Pricing tiers locked in code (new/verified/pro/elite at 15/13/11/9%)
-6. ✅ Founding tier exists in code and the current default commission is 10%; eligibility/placement remains an admin/business decision.
+6. ⬜ Founding tier and 10% seed exist, but E63 blocks offering/assignment until city cohort, term, and accepted-entitlement evidence are implemented.
 7. ⬜ B2B sales lead hired or assigned for Boracay hotel/condotel outreach?
 8. ⬜ Guarantee/insurance product wording and claim terms remain blocked by E10/F#10; Layer 2/3 partnerships are not implemented
 9. ✅ Dispute tier framework (in code, verify in Phase 07 audit)

@@ -35,6 +35,7 @@ interface AuthenticatedSocket extends Socket {
 // send:message, join/leave:conversation all count.
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_EVENTS = 60;
+const ADMIN_TIER_ROLES = new Set(['admin', 'super_admin', 'dpo']);
 
 function checkRateLimit(socket: AuthenticatedSocket): boolean {
   const now = Date.now();
@@ -91,7 +92,7 @@ export function initSocketServer(httpServer: HttpServer): Server {
       const payload = jwt.verify(token, secret) as AuthPayload & { type?: string };
 
       // Reject partial/non-access tokens (parity with HTTP auth middleware)
-      if (payload.type === 'pre_auth_2fa' || payload.type === 'refresh') {
+      if (payload.type !== undefined && payload.type !== 'access') {
         next(new Error('Invalid token type'));
         return;
       }
@@ -100,8 +101,10 @@ export function initSocketServer(httpServer: HttpServer): Server {
         role: string;
         is_active: boolean;
         session_version: number | string;
+        must_rotate_password: boolean | null;
       }>(
-        `SELECT role, is_active, session_version
+        `SELECT role, is_active, session_version,
+                COALESCE(must_rotate_password, FALSE) AS must_rotate_password
            FROM users
           WHERE id = $1`,
         [payload.userId],
@@ -117,6 +120,10 @@ export function initSocketServer(httpServer: HttpServer): Server {
           || currentVersion < 1
           || tokenVersion !== currentVersion) {
         next(new Error('Session revoked'));
+        return;
+      }
+      if (ADMIN_TIER_ROLES.has(account.role) && account.must_rotate_password === true) {
+        next(new Error('Password rotation required'));
         return;
       }
 

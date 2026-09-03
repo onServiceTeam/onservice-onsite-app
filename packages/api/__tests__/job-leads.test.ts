@@ -88,6 +88,7 @@ describe('getOpenJobRequestsForProvider', () => {
             id: BOOKING_ID,
             category_id: 'cat1',
             category_name: 'Plumbing',
+            service_name: 'Plumbing',
             subcategory_id: null,
             description: 'Leaking pipe under the sink',
             urgency: 'same_day',
@@ -112,6 +113,7 @@ describe('getOpenJobRequestsForProvider', () => {
     expect(out.requests[0]).toMatchObject({
       id: BOOKING_ID,
       categoryName: 'Plumbing',
+      serviceName: 'Plumbing',
       customerName: 'Joe Cust',
       distanceKm: 3.5, // rounded to 1 dp
       budgetMin: 50000,

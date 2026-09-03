@@ -34,7 +34,7 @@ jest.mock('../src/config/redis.config', () => ({
 }));
 
 import * as settingsService from '../src/services/settings.service';
-import type { SettingRow } from '../src/services/settings.service';
+import type { SettingMutationContext, SettingRow } from '../src/services/settings.service';
 
 function fakeRow(overrides: Partial<SettingRow> = {}): SettingRow {
   return {
@@ -58,6 +58,17 @@ function fakeRow(overrides: Partial<SettingRow> = {}): SettingRow {
     updated_by: null,
     updated_at: new Date('2026-01-01T00:00:00Z'),
     created_at: new Date('2026-01-01T00:00:00Z'),
+    ...overrides,
+  };
+}
+
+function mutationContext(overrides: Partial<SettingMutationContext> = {}): SettingMutationContext {
+  return {
+    changedBy: 'admin-id',
+    reason: 'Approved operational settings change.',
+    expectedUpdatedAt: '2026-01-01T00:00:00.000Z',
+    ipAddress: '127.0.0.1',
+    userAgent: 'jest/1.0',
     ...overrides,
   };
 }
@@ -108,8 +119,10 @@ it('Bug UX-800 — a forged cancellation setting update is rejected before any m
   await expect(settingsService.updateSetting(
     'cancel_refund_2_to_24h',
     '75',
-    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    'Attempt to align the customer wording.',
+    mutationContext({
+      changedBy: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      reason: 'Attempt to align the customer wording.',
+    }),
   )).rejects.toMatchObject({ statusCode: 409 });
   expect(dbTransactionMock).not.toHaveBeenCalled();
 });
@@ -142,6 +155,7 @@ describe('SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants)',
     aml_large_transaction_threshold_centavos: '50000000',
     'feature_flag.promo_redemption_enabled': 'false',
     'feature_flag.ab_testing_enabled': 'false',
+    'feature_flag.business_contract_booking_enabled': 'false',
     marketing_channels: JSON.stringify([
       'facebook_ads', 'google_ads', 'billboard', 'kiosk', 'influencer',
       'sms', 'email', 'referral', 'other',
@@ -175,6 +189,10 @@ describe('SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants)',
     otp_expiry_minutes: '5',
     otp_max_attempts: '3',
     otp_cooldown_seconds: '60',
+    auth_rate_limit_window_ms: '60000',
+    auth_rate_limit_max_requests: '10',
+    upload_rate_limit_window_ms: '60000',
+    upload_rate_limit_max_requests: '30',
     jwt_access_expires: '15m',
     jwt_refresh_expires: '30d',
     admin_session_timeout_hours: '8',
@@ -184,6 +202,8 @@ describe('SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants)',
     quote_expiry_hours: '48',
     max_quotes_per_booking: '5',
     change_order_approval_expiry_hours: '24',
+    matching_min_rating: '2.5',
+    matching_min_rating_reviews: '5',
     recurring_auto_charge_max_consecutive_failures: '3',
     rate_limit_window_ms: '900000',
     rate_limit_max_requests: '100',
@@ -519,15 +539,16 @@ describe('validateSettingValue', () => {
 
 describe('updateSetting', () => {
   it('throws 404 when key does not exist in DB', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [] });
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+      return (cb as (client: { query: typeof clientQuery }) => Promise<unknown>)({ query: clientQuery });
+    });
     await expect(
-      settingsService.updateSetting('nope', '5', 'admin'),
+      settingsService.updateSetting('nope', '5', mutationContext()),
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  // CRIT-N13 fix: updateSetting now wraps UPDATE + audit INSERT in a single
-  // db.transaction. Test helpers reflect that: trx-aware mocks record the
-  // calls made on the trx client.
+  // The locked SELECT, UPDATE, and audit INSERT all use one transaction client.
   function setupUpdateTrx(
     selectRow: SettingRow,
     updatedRow: SettingRow,
@@ -535,6 +556,9 @@ describe('updateSetting', () => {
     const txCalls: Array<{ sql: string; params: unknown[] }> = [];
     const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
       txCalls.push({ sql, params });
+      if (/SELECT \*/.test(sql) && /FOR UPDATE/.test(sql)) {
+        return { rows: [selectRow], rowCount: 1 };
+      }
       if (/UPDATE platform_settings/.test(sql)) {
         return { rows: [updatedRow], rowCount: 1 };
       }
@@ -547,12 +571,10 @@ describe('updateSetting', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (cb as any)({ query: clientQuery });
     });
-    // Outside-the-trx SELECT for current row.
-    dbQueryMock.mockResolvedValueOnce({ rows: [selectRow], rowCount: 1 });
     return { txCalls, clientQuery };
   }
 
-  it('writes audit row with correct columns (CRIT-N13: inside transaction)', async () => {
+  it('writes audit row with correct columns inside the locked transaction', async () => {
     const { txCalls } = setupUpdateTrx(
       fakeRow({ value: '10' }),
       fakeRow({ value: '12' }),
@@ -561,10 +583,7 @@ describe('updateSetting', () => {
     await settingsService.updateSetting(
       'service_fee_rate',
       '12',
-      'admin-id',
-      'tuning',
-      '127.0.0.1',
-      'jest/1.0',
+      mutationContext({ reason: 'Approved fee tuning change.' }),
     );
 
     const auditCall = txCalls.find((c) => c.sql.includes('platform_settings_audit'));
@@ -575,19 +594,23 @@ describe('updateSetting', () => {
       '10',
       '12',
       'admin-id',
-      'tuning',
+      'Approved fee tuning change.',
       '127.0.0.1',
       'jest/1.0',
     ]);
   });
 
-  it('passes null for absent reason / ip / ua (CRIT-N13: inside transaction)', async () => {
+  it('passes null for absent optional network evidence', async () => {
     const { txCalls } = setupUpdateTrx(
       fakeRow({ value: '10' }),
       fakeRow({ value: '12' }),
     );
 
-    await settingsService.updateSetting('service_fee_rate', '12', 'admin');
+    await settingsService.updateSetting(
+      'service_fee_rate',
+      '12',
+      mutationContext({ ipAddress: undefined, userAgent: undefined }),
+    );
 
     const auditCall = txCalls.find((c) => c.sql.includes('platform_settings_audit'));
     expect(auditCall).toBeDefined();
@@ -596,8 +619,8 @@ describe('updateSetting', () => {
       'service_fee_rate',
       '10',
       '12',
-      'admin',
-      null,
+      'admin-id',
+      'Approved operational settings change.',
       null,
       null,
     ]);
@@ -606,21 +629,24 @@ describe('updateSetting', () => {
   it('busts the per-key cache on success', async () => {
     setupUpdateTrx(fakeRow({ value: '10' }), fakeRow({ value: '12' }));
 
-    await settingsService.updateSetting('service_fee_rate', '12', 'admin');
+    await settingsService.updateSetting('service_fee_rate', '12', mutationContext());
 
     expect(redisDelMock).toHaveBeenCalledWith('settings:service_fee_rate');
     expect(redisDelMock).toHaveBeenCalledWith('settings:__all_active__');
   });
 
   it('rejects validation failure before touching UPDATE/INSERT', async () => {
-    dbQueryMock.mockResolvedValueOnce({
-      rows: [fakeRow({ value_type: 'number', min_value: '5', max_value: '20' })],
-    });
+    const { txCalls } = setupUpdateTrx(
+      fakeRow({ value_type: 'number', min_value: '5', max_value: '20' }),
+      fakeRow({ value: '999' }),
+    );
     await expect(
-      settingsService.updateSetting('service_fee_rate', '999', 'admin'),
+      settingsService.updateSetting('service_fee_rate', '999', mutationContext()),
     ).rejects.toMatchObject({ statusCode: 400 });
-    expect(dbQueryMock).toHaveBeenCalledTimes(1); // only the SELECT
-    expect(dbTransactionMock).not.toHaveBeenCalled(); // never opened a trx
+    expect(dbQueryMock).not.toHaveBeenCalled();
+    expect(dbTransactionMock).toHaveBeenCalledTimes(1);
+    expect(txCalls).toHaveLength(1);
+    expect(txCalls[0]!.sql).toMatch(/FOR UPDATE/);
   });
 
   it('returns the UPDATE-RETURNING row (CRIT-N13: inside transaction)', async () => {
@@ -629,7 +655,7 @@ describe('updateSetting', () => {
       fakeRow({ value: '12', updated_by: 'admin' }),
     );
 
-    const updated = await settingsService.updateSetting('service_fee_rate', '12', 'admin');
+    const updated = await settingsService.updateSetting('service_fee_rate', '12', mutationContext());
     expect(updated.value).toBe('12');
     expect(updated.updated_by).toBe('admin');
   });
@@ -637,7 +663,10 @@ describe('updateSetting', () => {
 
 describe('bulkUpdateSettings', () => {
   it('returns empty array for empty input without touching DB', async () => {
-    const out = await settingsService.bulkUpdateSettings([], 'admin');
+    const out = await settingsService.bulkUpdateSettings([], {
+      changedBy: 'admin',
+      reason: 'No-op settings batch test.',
+    });
     expect(out).toEqual([]);
     expect(dbQueryMock).not.toHaveBeenCalled();
   });
@@ -645,22 +674,21 @@ describe('bulkUpdateSettings', () => {
   it('MED-N106 — processes all updates inside a SINGLE outer transaction (atomic)', async () => {
     // MED-N106 fix: pre-fix bulkUpdateSettings looped per-key calling
     // updateSetting (each its own trx) — partial state on mid-batch
-    // failure. Post-fix: 1 outer SELECT (key = ANY(...)) + 1 outer
-    // db.transaction wrapping every UPDATE + audit INSERT.
-    // Pre-validation SELECT returns BOTH rows.
-    dbQueryMock.mockResolvedValueOnce({
-      rows: [
-        fakeRow({ key: 'service_fee_rate', value: '10' }),
-        fakeRow({ key: 'service_fee_min', value: '10' }),
-      ],
-    });
-    // Per-key UPDATE inside trx returns the new row.
+    // failure. Post-fix: one outer transaction locks every row before
+    // validation, then wraps every UPDATE + audit INSERT.
+    const lockedRows = [
+      fakeRow({ id: 'rate-id', key: 'service_fee_rate', value: '10' }),
+      fakeRow({ id: 'min-id', key: 'service_fee_min', value: '10' }),
+    ];
     let updateCount = 0;
     dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
-      const clientQuery = jest.fn(async (sql: string) => {
+      const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
+        if (/SELECT \*/.test(sql) && /FOR UPDATE/.test(sql)) {
+          return { rows: lockedRows, rowCount: 2 };
+        }
         if (/UPDATE platform_settings/.test(sql)) {
           updateCount++;
-          return { rows: [fakeRow({ value: String(19 + updateCount) })], rowCount: 1 };
+          return { rows: [fakeRow({ value: String(params[0]) })], rowCount: 1 };
         }
         return { rows: [], rowCount: 1 };
       });
@@ -670,53 +698,57 @@ describe('bulkUpdateSettings', () => {
 
     const out = await settingsService.bulkUpdateSettings(
       [
-        { key: 'service_fee_rate', value: '20' },
-        { key: 'service_fee_min', value: '21' },
+        { key: 'service_fee_rate', value: '20', expectedUpdatedAt: '2026-01-01T00:00:00.000Z' },
+        { key: 'service_fee_min', value: '21', expectedUpdatedAt: '2026-01-01T00:00:00.000Z' },
       ],
-      'admin',
-      'bulk',
+      { changedBy: 'admin', reason: 'Approved bulk settings change.' },
     );
     expect(out.length).toBe(2);
     expect(out[0]!.value).toBe('20');
     expect(out[1]!.value).toBe('21');
-    // MED-N106 invariants: ONE bulk SELECT outside trx + ONE outer trx.
-    expect(dbQueryMock).toHaveBeenCalledTimes(1);
+    expect(dbQueryMock).not.toHaveBeenCalled();
     expect(dbTransactionMock).toHaveBeenCalledTimes(1);
+    expect(updateCount).toBe(2);
   });
 
-  it('MED-N106 — pre-validation rejects unknown keys before any write', async () => {
-    // Bulk SELECT returns nothing for the unknown key.
-    dbQueryMock.mockResolvedValueOnce({ rows: [] });
+  it('MED-N106 — locked validation rejects unknown keys before any write', async () => {
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+      return (cb as (client: { query: typeof clientQuery }) => Promise<unknown>)({ query: clientQuery });
+    });
     await expect(
       settingsService.bulkUpdateSettings(
-        [{ key: 'missing', value: 'x' }, { key: 'service_fee_rate', value: '11' }],
-        'admin',
+        [
+          { key: 'missing', value: 'x', expectedUpdatedAt: '2026-01-01T00:00:00.000Z' },
+          { key: 'service_fee_rate', value: '11', expectedUpdatedAt: '2026-01-01T00:00:00.000Z' },
+        ],
+        { changedBy: 'admin', reason: 'Approved bulk settings change.' },
       ),
     ).rejects.toMatchObject({ statusCode: 404 });
-    // No trx opened.
-    expect(dbTransactionMock).not.toHaveBeenCalled();
+    expect(dbTransactionMock).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('resetToDefault', () => {
   it('throws 404 if the key does not exist', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [] });
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+      const clientQuery = jest.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+      return (cb as (client: { query: typeof clientQuery }) => Promise<unknown>)({ query: clientQuery });
+    });
     await expect(
-      settingsService.resetToDefault('missing', 'admin'),
+      settingsService.resetToDefault('missing', mutationContext()),
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it('writes default_value back through updateSetting (CRIT-N13: trx-aware)', async () => {
-    // resetToDefault calls updateSetting internally, which now uses a trx.
-    // SELECT inside resetToDefault
-    dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '99', default_value: '10' })] });
-    // SELECT inside updateSetting
-    dbQueryMock.mockResolvedValueOnce({ rows: [fakeRow({ value: '99', default_value: '10' })] });
-    // updateSetting opens a transaction.
+  it('writes the locked default value and preserves reset audit context', async () => {
+    const lockedRow = fakeRow({ value: '99', default_value: '10' });
     const txCalls: Array<{ sql: string; params: unknown[] }> = [];
     dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
       const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
         txCalls.push({ sql, params });
+        if (/SELECT \*/.test(sql) && /FOR UPDATE/.test(sql)) {
+          return { rows: [lockedRow], rowCount: 1 };
+        }
         if (/UPDATE platform_settings/.test(sql)) {
           return { rows: [fakeRow({ value: '10' })], rowCount: 1 };
         }
@@ -726,14 +758,17 @@ describe('resetToDefault', () => {
       return (cb as any)({ query: clientQuery });
     });
 
-    const out = await settingsService.resetToDefault('service_fee_rate', 'admin');
+    const out = await settingsService.resetToDefault(
+      'service_fee_rate',
+      mutationContext({ reason: 'Restore the approved platform default.' }),
+    );
     expect(out.value).toBe('10');
     const updateCall = txCalls.find((c) => /UPDATE platform_settings/.test(c.sql));
     expect(updateCall).toBeDefined();
     expect(updateCall!.params).toContain('10');
     const auditCall = txCalls.find((c) => c.sql.includes('platform_settings_audit'));
     expect(auditCall).toBeDefined();
-    expect(auditCall!.params).toContain('Reset to default');
+    expect(auditCall!.params).toContain('Reset to default: Restore the approved platform default.');
   });
 });
 

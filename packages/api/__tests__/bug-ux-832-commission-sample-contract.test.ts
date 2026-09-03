@@ -8,17 +8,18 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import { getCommissionEvidence } from '../src/services/admin-analytics.service';
+import { platformConfig } from '../src/config/platform.config';
 
 it('Bug UX-832 — commission evidence averages bookings across approved providers and gross value across completed bookings', async () => {
   dbQueryMock.mockResolvedValueOnce({
-    rows: [{
-      tier: 'verified',
-      provider_count: '10',
-      quality_sample_count: '6',
-      avg_bookings: '4',
-      avg_booking_value: '25000',
-      current_rate: '0.13',
-    }],
+    rows: Object.keys(platformConfig.commissionRates).map((tier) => ({
+      tier,
+      provider_count: tier === 'verified' ? '10' : '0',
+      quality_sample_count: tier === 'verified' ? '6' : '0',
+      avg_bookings: tier === 'verified' ? '4' : '0',
+      avg_booking_value: tier === 'verified' ? '25000' : '0',
+      current_rate: String(platformConfig.commissionRates[tier]),
+    })),
   });
 
   const evidence = await getCommissionEvidence();

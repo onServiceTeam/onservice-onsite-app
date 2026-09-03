@@ -15,7 +15,7 @@ import {
   checkSettingsDriftAtBoot,
 } from '../src/services/settings.service';
 
-// Independent snapshot of the active registry after migration 153. Do not
+// Independent snapshot of the active registry after migration 166. Do not
 // derive this from SETTING_DEFAULTS: the test must fail when either side gains
 // or loses a key without the corresponding database/code change.
 const ACTIVE_DATABASE_SETTING_KEYS = [
@@ -42,6 +42,7 @@ const ACTIVE_DATABASE_SETTING_KEYS = [
   'aml_large_transaction_threshold_centavos',
   'feature_flag.promo_redemption_enabled',
   'feature_flag.ab_testing_enabled',
+  'feature_flag.business_contract_booking_enabled',
   'marketing_channels',
   'matching_tier_bonus',
   'fraud_pattern_dispute_count_threshold',
@@ -64,6 +65,10 @@ const ACTIVE_DATABASE_SETTING_KEYS = [
   'otp_expiry_minutes',
   'otp_max_attempts',
   'otp_cooldown_seconds',
+  'auth_rate_limit_window_ms',
+  'auth_rate_limit_max_requests',
+  'upload_rate_limit_window_ms',
+  'upload_rate_limit_max_requests',
   'jwt_access_expires',
   'jwt_refresh_expires',
   'admin_session_timeout_hours',
@@ -73,6 +78,8 @@ const ACTIVE_DATABASE_SETTING_KEYS = [
   'quote_expiry_hours',
   'max_quotes_per_booking',
   'change_order_approval_expiry_hours',
+  'matching_min_rating',
+  'matching_min_rating_reviews',
   'recurring_auto_charge_max_consecutive_failures',
   'rate_limit_window_ms',
   'rate_limit_max_requests',

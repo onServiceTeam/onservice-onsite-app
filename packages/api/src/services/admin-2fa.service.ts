@@ -2,14 +2,15 @@
  * Phase 14 Dispatch 10 — Bug 357 + 358 + 360.
  * Admin 2FA backup code generation + verification.
  *
- * 8 single-use 10-char alphanumeric codes per admin. Generated at 2FA
- * enrollment time; codes shown once to the user (clipboard-cleared after
- * 60 seconds in the admin UI per security posture). Stored as bcrypt
- * hashes; once consumed, `used_at` is stamped and the code cannot be
- * reused. Lost authenticator + lost backup codes = super_admin reset.
+ * 8 single-use 10-char alphanumeric codes per admin. They are generated at
+ * 2FA enrollment and shown once; the admin must acknowledge secure storage
+ * before entering the console. They are stored as salted scrypt hashes. Once
+ * consumed, `used_at` is stamped and the code cannot be reused. Lost
+ * authenticator + lost backup codes = governed super-admin recovery (E67).
  */
 
 import crypto from 'node:crypto';
+import type { QueryResult, QueryResultRow } from 'pg';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
@@ -78,6 +79,73 @@ export interface BackupCodeBundle {
   generatedAt: string;
 }
 
+export interface AdminBackupCodeQueryClient {
+  query: <R extends QueryResultRow = QueryResultRow>(
+    text: string,
+    params?: unknown[],
+  ) => Promise<QueryResult<R>>;
+}
+
+function prepareBackupCodeBundle(): BackupCodeBundle & { hashes: string[] } {
+  const codes: string[] = [];
+  const hashes: string[] = [];
+  for (let i = 0; i < BACKUP_CODE_COUNT; i++) {
+    const code = generateBackupCode();
+    codes.push(code);
+    hashes.push(hashCode(code));
+  }
+  return { codes, hashes, generatedAt: new Date().toISOString() };
+}
+
+/**
+ * Transaction-aware recovery-code writer used when TOTP activation and code
+ * creation must commit together. Existing active codes are always soft-
+ * deleted first so re-enabling 2FA cannot leave two valid recovery sets.
+ */
+export async function generateBackupCodesInTransaction(
+  client: AdminBackupCodeQueryClient,
+  adminUserId: string,
+  regenerationContext?: { regeneratedBy: string },
+): Promise<BackupCodeBundle> {
+  const prepared = prepareBackupCodeBundle();
+  const actorId = regenerationContext?.regeneratedBy ?? adminUserId;
+  const isRegeneration = !!regenerationContext;
+
+  await client.query(
+    `UPDATE admin_backup_codes
+        SET deleted_at = NOW(),
+            deleted_by = $2
+      WHERE admin_user_id = $1
+        AND deleted_at IS NULL
+        AND used_at IS NULL`,
+    [adminUserId, actorId],
+  );
+
+  for (const hash of prepared.hashes) {
+    await client.query(
+      `INSERT INTO admin_backup_codes (admin_user_id, code_hash) VALUES ($1, $2)`,
+      [adminUserId, hash],
+    );
+  }
+
+  await client.query(
+    `INSERT INTO admin_actions
+       (admin_id, action_type, target_type, target_id, details, reason)
+     VALUES ($1, $2, 'user', $3, $4::jsonb, $5)`,
+    [
+      actorId,
+      isRegeneration ? 'admin_backup_codes_regenerated' : 'admin_backup_codes_generated',
+      adminUserId,
+      JSON.stringify({ codeCount: BACKUP_CODE_COUNT }),
+      isRegeneration
+        ? 'Backup codes regenerated (prior set soft-deleted)'
+        : 'Backup codes generated at 2FA enrollment',
+    ],
+  );
+
+  return { codes: prepared.codes, generatedAt: prepared.generatedAt };
+}
+
 /**
  * Generate 8 backup codes for an admin user. Existing active codes are
  * soft-deleted (deleted_at + deleted_by stamped) so the regeneration is
@@ -87,53 +155,10 @@ export async function generateBackupCodes(
   adminUserId: string,
   regenerationContext?: { regeneratedBy: string },
 ): Promise<BackupCodeBundle> {
-  const codes: string[] = [];
-  const hashes: string[] = [];
-  for (let i = 0; i < BACKUP_CODE_COUNT; i++) {
-    const code = generateBackupCode();
-    const hash = hashCode(code);
-    codes.push(code);
-    hashes.push(hash);
-  }
-
   const isRegeneration = !!regenerationContext;
-
-  await db.transaction(async (client) => {
-    if (isRegeneration) {
-      // Soft-delete previous active codes.
-      await client.query(
-        `UPDATE admin_backup_codes
-            SET deleted_at = NOW(),
-                deleted_by = $2
-          WHERE admin_user_id = $1
-            AND deleted_at IS NULL
-            AND used_at IS NULL`,
-        [adminUserId, regenerationContext.regeneratedBy],
-      );
-    }
-
-    for (const hash of hashes) {
-      await client.query(
-        `INSERT INTO admin_backup_codes (admin_user_id, code_hash) VALUES ($1, $2)`,
-        [adminUserId, hash],
-      );
-    }
-
-    await client.query(
-      `INSERT INTO admin_actions
-         (admin_id, action_type, target_type, target_id, details, reason)
-       VALUES ($1, $2, 'user', $3, $4::jsonb, $5)`,
-      [
-        regenerationContext?.regeneratedBy ?? adminUserId,
-        isRegeneration ? 'admin_backup_codes_regenerated' : 'admin_backup_codes_generated',
-        adminUserId,
-        JSON.stringify({ codeCount: BACKUP_CODE_COUNT }),
-        isRegeneration
-          ? 'Backup codes regenerated (prior set soft-deleted)'
-          : 'Backup codes generated at 2FA enrollment',
-      ],
-    );
-  });
+  const bundle = await db.transaction((client) => (
+    generateBackupCodesInTransaction(client, adminUserId, regenerationContext)
+  ));
 
   logger.info('Admin backup codes generated', {
     adminUserId,
@@ -141,7 +166,7 @@ export async function generateBackupCodes(
     regeneration: isRegeneration,
   });
 
-  return { codes, generatedAt: new Date().toISOString() };
+  return bundle;
 }
 
 /**
@@ -158,7 +183,7 @@ export async function consumeBackupCode(
     throw createAppError('Invalid backup code format.', 400);
   }
 
-  return db.transaction(async (client) => {
+  const result = await db.transaction(async (client) => {
     const candidates = await client.query<{ id: string; code_hash: string }>(
       `SELECT id, code_hash FROM admin_backup_codes
         WHERE admin_user_id = $1
@@ -207,13 +232,13 @@ export async function consumeBackupCode(
       [adminUserId],
     );
 
-    logger.info('Admin backup code consumed', {
-      adminUserId,
-      remaining: Number(remaining.rows[0]?.count ?? 0),
-    });
-
     return { remainingCodes: Number(remaining.rows[0]?.count ?? 0) };
   });
+  logger.info('Admin backup code consumed', {
+    adminUserId,
+    remaining: result.remainingCodes,
+  });
+  return result;
 }
 
 /**

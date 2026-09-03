@@ -97,7 +97,7 @@ describe('MED-N142 — deleteTemplate captures pre-state + writes audit', () => 
     // INSERT admin_actions.
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-    await deleteTemplate('t1', 'super-1');
+    await deleteTemplate('t1', 'super-1', 'Removing obsolete notification copy.');
 
     const auditCall = dbQueryMock.mock.calls.find(
       ([sql]) => /INSERT INTO admin_actions/.test(sql as string),

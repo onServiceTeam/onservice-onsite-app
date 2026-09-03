@@ -5,6 +5,14 @@ import { createAppError } from '../middleware/error.middleware';
 import * as promotionService from '../services/promotion.service';
 
 const router = Router();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function requirePromotionId(value: unknown): string {
+  if (typeof value !== 'string' || !UUID_REGEX.test(value)) {
+    throw createAppError('Promotion ID must be a valid UUID.', 400);
+  }
+  return value;
+}
 
 router.get(
   '/active',
@@ -33,6 +41,20 @@ router.get(
         data: rows.map(promotionService.formatPromotion),
         meta: { page, pageSize, total },
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/:id',
+  authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const promotion = await promotionService.getPromotionById(requirePromotionId(req.params['id']));
+      res.json({ success: true, data: promotionService.formatPromotion(promotion) });
     } catch (error) {
       next(error);
     }
@@ -113,7 +135,7 @@ function validateDisplayOrder(value: unknown): void {
 router.post(
   '/',
   authMiddleware,
-  rbacMiddleware('admin', 'super_admin'),
+  rbacMiddleware('super_admin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { title, subtitle, imageUrl, badge, ctaText, ctaLink, targetAudience, startDate, endDate, displayOrder, isActive } = req.body as {
@@ -165,10 +187,10 @@ router.post(
 router.put(
   '/:id',
   authMiddleware,
-  rbacMiddleware('admin', 'super_admin'),
+  rbacMiddleware('super_admin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const id = req.params['id'] as string;
+      const id = requirePromotionId(req.params['id']);
       const body = req.body as Record<string, unknown>;
       // BUG-PHASE153-01 fix — same caps on the PUT path. Each field
       // is optional on update; the validator just enforces shape and
@@ -207,13 +229,13 @@ router.put(
 router.delete(
   '/:id',
   authMiddleware,
-  // MED-N168 fix — promotion DELETE raised to super_admin only.
-  // Junior admin can still create/update via POST/PUT (audited per
-  // MED-N150/N151), but deletion is destructive and is gated up.
+  // MED-N168 / SEC-051 — all customer-facing promotion mutations are
+  // super-admin-only. Read access remains available to ordinary admins
+  // for support and audit work.
   rbacMiddleware('super_admin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const id = req.params['id'] as string;
+      const id = requirePromotionId(req.params['id']);
       // MED-N150 fix — pass actor for audit row.
       await promotionService.deletePromotion(id, req.user!.userId);
       res.json({ success: true, data: { message: 'Promotion deleted.' } });

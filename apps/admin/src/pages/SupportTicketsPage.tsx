@@ -17,6 +17,12 @@ interface Ticket {
   subject: string;
   description: string;
   booking_id: string | null;
+  project_id: string | null;
+  business_account_id: string | null;
+  related_business_account_id?: string | null;
+  business_account_name?: string | null;
+  business_account_status?: string | null;
+  project_title?: string | null;
   resolution_notes: string | null;
   resolved_at: string | null;
   closed_at: string | null;
@@ -52,6 +58,15 @@ interface SupportAgent {
   first_name: string;
   last_name: string;
   role: 'admin' | 'super_admin';
+}
+
+interface SupportAccountContext {
+  id: string;
+  role: 'customer' | 'provider' | 'provider_staff';
+  displayName: string;
+  isActive: boolean;
+  providerProfileId: string | null;
+  providerBusinessName: string | null;
 }
 
 interface SupportQueueSummary {
@@ -96,6 +111,19 @@ const STATUSES = [
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const LINKED_ID_LABELS = {
+  ticketId: 'support case',
+  bookingId: 'booking',
+  projectId: 'project',
+  businessAccountId: 'business account',
+  userId: 'case owner',
+  relatedCustomerId: 'related customer',
+  relatedProviderId: 'related provider',
+  assignedAgentId: 'assigned agent',
+} as const;
+type LinkedIdKey = keyof typeof LINKED_ID_LABELS;
+
 const STATUS_VARIANTS: Record<string, 'info' | 'success' | 'warning' | 'danger' | 'outline'> = {
   open: 'info',
   in_progress: 'warning',
@@ -124,6 +152,10 @@ function parsePage(value: string | null): number {
 
 function parseOption(value: string | null, allowed: readonly string[]): string {
   return value && allowed.includes(value) ? value : '';
+}
+
+function canonicalUuid(value: string): string {
+  return UUID_REGEX.test(value) ? value.toLowerCase() : '';
 }
 
 function isProviderTicket(ticket: Ticket): boolean {
@@ -184,17 +216,34 @@ export default function SupportTicketsPage(): React.ReactElement {
   const unassignedFilter = searchParams.get('unassigned') === '1';
   const activeFilter = searchParams.get('active') === '1';
   const searchFilter = (searchParams.get('search') ?? '').trim();
-  const bookingFilter = searchParams.get('bookingId') ?? '';
-  const userFilter = searchParams.get('userId') ?? '';
-  const relatedCustomerFilter = searchParams.get('relatedCustomerId') ?? '';
-  const relatedProviderFilter = searchParams.get('relatedProviderId') ?? '';
-  const assignedAgentFilter = searchParams.get('assignedAgentId') ?? '';
+  const linkedIdValues: Record<LinkedIdKey, string> = {
+    ticketId: searchParams.get('ticketId')?.trim() ?? '',
+    bookingId: searchParams.get('bookingId')?.trim() ?? '',
+    projectId: searchParams.get('projectId')?.trim() ?? '',
+    businessAccountId: searchParams.get('businessAccountId')?.trim() ?? '',
+    userId: searchParams.get('userId')?.trim() ?? '',
+    relatedCustomerId: searchParams.get('relatedCustomerId')?.trim() ?? '',
+    relatedProviderId: searchParams.get('relatedProviderId')?.trim() ?? '',
+    assignedAgentId: searchParams.get('assignedAgentId')?.trim() ?? '',
+  };
+  const invalidLinkedIdKeys = (Object.keys(LINKED_ID_LABELS) as LinkedIdKey[])
+    .filter((key) => linkedIdValues[key].length > 0 && !UUID_REGEX.test(linkedIdValues[key]));
+  const bookingFilter = canonicalUuid(linkedIdValues.bookingId);
+  const projectFilter = canonicalUuid(linkedIdValues.projectId);
+  const businessAccountFilter = canonicalUuid(linkedIdValues.businessAccountId);
+  const hasConflictingWorkContext = !!projectFilter && (!!bookingFilter || !!businessAccountFilter);
+  const businessAccountName = searchParams.get('businessName') ?? 'Selected business account';
+  const userFilter = canonicalUuid(linkedIdValues.userId);
+  const relatedCustomerFilter = canonicalUuid(linkedIdValues.relatedCustomerId);
+  const relatedProviderFilter = canonicalUuid(linkedIdValues.relatedProviderId);
+  const assignedAgentFilter = canonicalUuid(linkedIdValues.assignedAgentId);
   const assignedAgentName = searchParams.get('agentName') ?? 'Selected staff account';
   const [selectedOverride, setSelectedOverride] = useState('');
-  const selectedId = searchParams.get('ticketId') ?? selectedOverride;
+  const selectedId = linkedIdValues.ticketId
+    ? canonicalUuid(linkedIdValues.ticketId)
+    : selectedOverride;
   const createRequested = searchParams.get('new') === '1' && !!userFilter;
   const newUserName = searchParams.get('userName') ?? 'Selected account';
-  const newUserRole = searchParams.get('userRole') ?? 'customer';
   const [searchDraft, setSearchDraft] = useState(searchFilter);
   const [replyMessage, setReplyMessage] = useState('');
   const [isInternalNote, setIsInternalNote] = useState(false);
@@ -238,6 +287,39 @@ export default function SupportTicketsPage(): React.ReactElement {
       params.delete('active');
       return params;
     });
+  }
+
+  function clearInvalidLinkedIds(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      for (const key of invalidLinkedIdKeys) params.delete(key);
+      if (invalidLinkedIdKeys.includes('userId')) params.delete('new');
+      if (invalidLinkedIdKeys.includes('businessAccountId')) params.delete('businessName');
+      if (invalidLinkedIdKeys.includes('assignedAgentId')) params.delete('agentName');
+      if (!params.has('userId') && !params.has('relatedCustomerId') && !params.has('relatedProviderId')) {
+        params.delete('userName');
+        params.delete('userRole');
+      }
+      return params;
+    }, { replace: true });
+  }
+
+  function removeProjectContext(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('projectId');
+      return params;
+    }, { replace: true });
+  }
+
+  function keepProjectContext(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('bookingId');
+      params.delete('businessAccountId');
+      params.delete('businessName');
+      return params;
+    }, { replace: true });
   }
 
   function showUnassigned(): void {
@@ -309,6 +391,8 @@ export default function SupportTicketsPage(): React.ReactElement {
       activeFilter,
       searchFilter,
       bookingFilter,
+      projectFilter,
+      businessAccountFilter,
       userFilter,
       relatedCustomerFilter,
       relatedProviderFilter,
@@ -323,6 +407,8 @@ export default function SupportTicketsPage(): React.ReactElement {
       if (activeFilter) params.set('active', '1');
       if (searchFilter) params.set('search', searchFilter);
       if (bookingFilter) params.set('bookingId', bookingFilter);
+      if (projectFilter) params.set('projectId', projectFilter);
+      if (businessAccountFilter) params.set('businessAccountId', businessAccountFilter);
       if (userFilter) params.set('userId', userFilter);
       if (relatedCustomerFilter) params.set('relatedCustomerId', relatedCustomerFilter);
       if (relatedProviderFilter) params.set('relatedProviderId', relatedProviderFilter);
@@ -330,6 +416,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets?${params}`);
       return res.data as { data: Ticket[]; meta: { total: number } };
     },
+    enabled: invalidLinkedIdKeys.length === 0 && !hasConflictingWorkContext && !createRequested,
   });
 
   const summaryQuery = useQuery({
@@ -348,13 +435,22 @@ export default function SupportTicketsPage(): React.ReactElement {
     },
   });
 
+  const accountContextQuery = useQuery({
+    queryKey: ['adminSupportAccountContext', userFilter],
+    queryFn: async () => {
+      const res = await api.get(`/api/v1/support-tickets/account-context/${userFilter}`);
+      return res.data.data as SupportAccountContext;
+    },
+    enabled: createRequested && invalidLinkedIdKeys.length === 0 && !hasConflictingWorkContext,
+  });
+
   const detailQuery = useQuery({
     queryKey: ['adminSupportTicket', selectedId],
     queryFn: async () => {
       const res = await api.get(`/api/v1/support-tickets/${selectedId}`);
       return res.data.data as Ticket;
     },
-    enabled: !!selectedId,
+    enabled: !!selectedId && invalidLinkedIdKeys.length === 0 && !hasConflictingWorkContext,
   });
 
   const historyQuery = useQuery({
@@ -363,7 +459,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets/${selectedId}/history`);
       return res.data.data as SupportTicketStatusHistoryEntry[];
     },
-    enabled: !!selectedId,
+    enabled: !!selectedId && invalidLinkedIdKeys.length === 0 && !hasConflictingWorkContext,
   });
 
   const updateStatusMutation = useMutation({
@@ -457,13 +553,19 @@ export default function SupportTicketsPage(): React.ReactElement {
 
   const createTicketMutation = useMutation({
     mutationFn: async () => {
+      const account = accountContextQuery.data;
+      if (!account || account.id !== userFilter) {
+        throw new Error('The support case owner could not be confirmed.');
+      }
       const res = await api.post('/api/v1/support-tickets/admin', {
-        userId: userFilter,
+        userId: account.id,
         type: newTicketType,
         priority: newTicketPriority,
         subject: newTicketSubject.trim(),
         description: newTicketDescription.trim(),
         ...(bookingFilter ? { bookingId: bookingFilter } : {}),
+        ...(projectFilter ? { projectId: projectFilter } : {}),
+        ...(businessAccountFilter ? { businessAccountId: businessAccountFilter } : {}),
       });
       return res.data.data as Ticket;
     },
@@ -538,6 +640,14 @@ export default function SupportTicketsPage(): React.ReactElement {
             <span className="block font-medium text-[var(--color-text)]">{ticketUserName(r)}</span>
           )}
           <span className="text-xs text-[var(--color-text-tertiary)]">{ticketPersonaLabel(r)}</span>
+          {r.related_business_account_id && (
+            <Link
+              className="mt-1 block text-xs font-semibold text-violet-700 hover:underline"
+              to={`/business-accounts/${r.related_business_account_id}`}
+            >
+              {r.business_account_name?.trim() || 'Business account'}
+            </Link>
+          )}
         </div>
         );
       },
@@ -556,10 +666,10 @@ export default function SupportTicketsPage(): React.ReactElement {
       render: (r) => <span className="text-center">{r.message_count ?? 0}</span>,
     },
     {
-      key: 'created',
-      header: 'Created',
+      key: 'updated',
+      header: 'Last activity',
       render: (r) =>
-        new Date(r.created_at).toLocaleString('en-PH', {
+        new Date(r.updated_at).toLocaleString('en-PH', {
           timeZone: 'Asia/Manila',
           month: 'short',
           day: 'numeric',
@@ -584,11 +694,103 @@ export default function SupportTicketsPage(): React.ReactElement {
 
   const visibleTickets = data?.data ?? [];
 
+  if (invalidLinkedIdKeys.length > 0) {
+    const invalidLabels = invalidLinkedIdKeys.map((key) => LINKED_ID_LABELS[key]).join(', ');
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-950">
+          <h1 className="text-xl font-bold">Invalid support workspace link</h1>
+          <p className="mt-2">
+            The saved {invalidLabels} {invalidLinkedIdKeys.length === 1 ? 'identifier is not a valid UUID' : 'identifiers are not valid UUIDs'}, so no ticket list or case-detail request was sent.
+          </p>
+          <p className="mt-1 text-red-800">Remove only the invalid link fields to keep the remaining queue filters.</p>
+          <button
+            type="button"
+            className="mt-4 min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold"
+            onClick={clearInvalidLinkedIds}
+          >
+            Remove invalid support links
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasConflictingWorkContext) {
+    const retainedContextLabel = bookingFilter ? 'booking' : 'business account';
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-950">
+          <h1 className="text-xl font-bold">Conflicting support work context</h1>
+          <p className="mt-2">
+            A support workspace can use a booking and its business account, or a planning project, but it cannot combine a planning project with either operational context.
+          </p>
+          <p className="mt-1 text-red-800">
+            No ticket list, case-detail, owner-confirmation, or create request was sent. Choose the context that matches the support case.
+          </p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              className="min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold"
+              onClick={removeProjectContext}
+            >
+              Use {retainedContextLabel} context
+            </button>
+            <button
+              type="button"
+              className="min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold"
+              onClick={keepProjectContext}
+            >
+              Use planning project context
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (createRequested) {
-    const accountKind = newUserRole === 'provider_staff'
+    if (accountContextQuery.isLoading) {
+      return (
+        <div className="mx-auto max-w-3xl">
+          <div role="status" className="rounded-lg border border-[var(--color-border)] bg-white p-8 text-center text-sm text-[var(--color-text-secondary)]">
+            Confirming the support case owner from the account record...
+          </div>
+        </div>
+      );
+    }
+    if (accountContextQuery.isError || !accountContextQuery.data) {
+      return (
+        <div className="mx-auto max-w-3xl space-y-4">
+          <button
+            type="button"
+            className="min-h-11 text-sm font-semibold text-[var(--color-primary)] hover:underline"
+            onClick={handleBack}
+          >
+            Back to support queue
+          </button>
+          <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-900">
+            <h1 className="text-xl font-bold">Support case owner could not be confirmed</h1>
+            <p className="mt-2">
+              No case can be created until the selected customer or provider account loads from the server.
+            </p>
+            <button
+              type="button"
+              className="mt-4 min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold"
+              onClick={() => void accountContextQuery.refetch()}
+            >
+              Retry account confirmation
+            </button>
+          </div>
+        </div>
+      );
+    }
+    const account = accountContextQuery.data;
+    const accountKind = account.role === 'provider_staff'
       ? 'provider staff account'
-      : `${newUserRole} account`;
+      : `${account.role} account`;
     const canSubmit =
+      account.id === userFilter &&
       newTicketSubject.trim().length >= 3 &&
       newTicketDescription.trim().length >= 5 &&
       !createTicketMutation.isPending;
@@ -616,12 +818,40 @@ export default function SupportTicketsPage(): React.ReactElement {
             </p>
             <h1 className="text-2xl font-bold text-[var(--color-text)]">Create support request</h1>
             <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
-              Open this case for <strong>{newUserName}</strong> ({accountKind}). The case is owned
-              by their account, and your admin identity is recorded in the audit trail.
+              Open this case for <strong>{account.displayName}</strong> ({accountKind}). This
+              identity was confirmed from the server account record. The case is owned by that
+              account, and your admin identity is recorded in the audit trail.
             </p>
+            <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">
+              Confirmed account ID: <span className="font-mono">{account.id}</span>
+            </p>
+            {account.providerBusinessName && (
+              <p className="mt-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950">
+                Provider organization: <strong>{account.providerBusinessName}</strong>
+                {account.providerProfileId && (
+                  <>. <Link className="font-semibold underline" to={`/providers/${account.providerProfileId}`}>Open provider record</Link></>
+                )}
+              </p>
+            )}
+            {!account.isActive && (
+              <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                This account is inactive. A support case may still be recorded, but this screen does not reactivate the account.
+              </p>
+            )}
             {bookingFilter && (
               <p className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
                 Linked booking: <span className="font-mono">{bookingFilter}</span>
+              </p>
+            )}
+            {projectFilter && (
+              <p className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+                Linked planning project: <span className="font-mono">{projectFilter}</span>. This does not create a booking or payment relationship.
+              </p>
+            )}
+            {businessAccountFilter && (
+              <p className="mt-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950">
+                Linked business account: <strong>{businessAccountName}</strong>{' '}
+                (<span className="font-mono">{businessAccountFilter}</span>). The selected user remains the case owner.
               </p>
             )}
           </div>
@@ -852,18 +1082,45 @@ export default function SupportTicketsPage(): React.ReactElement {
             </p>
             {ticket.booking_id ? (
               <p>
-                <strong className="block text-xs uppercase tracking-wide">Related booking</strong>{' '}
+                <strong className="block text-xs uppercase tracking-wide">Related work</strong>{' '}
                 <Link
                   className="font-mono font-semibold text-[var(--color-primary)] hover:underline"
                   to={`/bookings/${ticket.booking_id}`}
                 >
-                  {ticket.booking_id}
+                  Booking {ticket.booking_id}
                 </Link>
+              </p>
+            ) : ticket.project_id ? (
+              <p>
+                <strong className="block text-xs uppercase tracking-wide">Related work</strong>{' '}
+                <Link
+                  className="font-semibold text-[var(--color-primary)] hover:underline"
+                  to={`/projects?projectId=${encodeURIComponent(ticket.project_id)}&source=support&ticketId=${encodeURIComponent(ticket.id)}`}
+                >
+                  {ticket.project_title?.trim() || `Project ${ticket.project_id}`}
+                </Link>
+                <span className="mt-1 block text-xs text-[var(--color-text-tertiary)]">Planning context only</span>
               </p>
             ) : (
               <p>
-                <strong className="block text-xs uppercase tracking-wide">Related booking</strong>{' '}
+                <strong className="block text-xs uppercase tracking-wide">Related work</strong>{' '}
                 None linked
+              </p>
+            )}
+            {ticket.related_business_account_id && (
+              <p>
+                <strong className="block text-xs uppercase tracking-wide">Business account</strong>{' '}
+                <Link
+                  className="font-semibold text-[var(--color-primary)] hover:underline"
+                  to={`/business-accounts/${ticket.related_business_account_id}`}
+                >
+                  {ticket.business_account_name?.trim() || `Business account ${ticket.related_business_account_id}`}
+                </Link>
+                {ticket.business_account_status && (
+                  <span className="mt-1 block text-xs text-[var(--color-text-tertiary)]">
+                    {formatLabel(ticket.business_account_status)}
+                  </span>
+                )}
               </p>
             )}
             {ticket.resolution_notes && (
@@ -1245,8 +1502,8 @@ export default function SupportTicketsPage(): React.ReactElement {
             Support Queue
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-[var(--color-text-secondary)]">
-            Triage customer and provider requests, connect each case to its booking and account,
-            assign an owner, and keep public replies separate from internal notes.
+            Triage customer, provider, and Business Account requests, connect each case to its owner and related work,
+            assign an agent, and keep public replies separate from internal notes.
           </p>
         </div>
         <div className="text-sm text-[var(--color-text-secondary)]">
@@ -1255,14 +1512,16 @@ export default function SupportTicketsPage(): React.ReactElement {
         </div>
       </div>
 
-      {(bookingFilter || userFilter || relatedCustomerFilter || relatedProviderFilter) && (
+      {(bookingFilter || projectFilter || businessAccountFilter || userFilter || relatedCustomerFilter || relatedProviderFilter) && (
         <div className="flex flex-col justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950 md:flex-row md:items-center">
           <div>
             <strong className="block">Linked-case view</strong>
             {userFilter && <span>Account: {newUserName}</span>}
             {(relatedCustomerFilter || relatedProviderFilter) && <span>Related account: {newUserName}</span>}
-            {(userFilter || relatedCustomerFilter || relatedProviderFilter) && bookingFilter && <span> · </span>}
+            {(userFilter || relatedCustomerFilter || relatedProviderFilter) && (bookingFilter || projectFilter) && <span> · </span>}
             {bookingFilter && <span>Booking: <span className="font-mono">{bookingFilter}</span></span>}
+            {projectFilter && <span>Project: <span className="font-mono">{projectFilter}</span> (planning context)</span>}
+            {businessAccountFilter && <span>{(bookingFilter || projectFilter) ? ' · ' : ''}Business account: {businessAccountName} (<span className="font-mono">{businessAccountFilter}</span>)</span>}
           </div>
           <div className="flex flex-wrap gap-2">
             {userFilter && (
@@ -1290,6 +1549,9 @@ export default function SupportTicketsPage(): React.ReactElement {
                 params.delete('relatedCustomerId');
                 params.delete('relatedProviderId');
                 params.delete('bookingId');
+                params.delete('projectId');
+                params.delete('businessAccountId');
+                params.delete('businessName');
                 params.delete('new');
                 params.delete('page');
                 return params;
@@ -1402,7 +1664,7 @@ export default function SupportTicketsPage(): React.ReactElement {
             id="support-ticket-search"
             value={searchDraft}
             onChange={(event) => setSearchDraft(event.target.value)}
-            placeholder="Ticket, subject, name, phone, email, provider"
+            placeholder="Ticket, subject, name, phone, email, provider, project, business"
             className="h-11 min-w-0 flex-1 rounded-md border border-[var(--color-border)] px-3 text-sm"
           />
           <button type="submit" className="min-h-11 rounded-md bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">

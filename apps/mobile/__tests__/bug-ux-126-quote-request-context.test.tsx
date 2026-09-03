@@ -10,7 +10,7 @@ jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1280, breakpoint: 'desktop', isPhone: false, isTablet: false, isDesktop: true }),
 }));
 jest.mock('@/services/booking.service', () => ({
-  getBookingById: jest.fn().mockResolvedValue({
+  getProviderJobRequest: jest.fn().mockResolvedValue({
     id: 'booking-1', serviceName: 'Kitchen Plumbing', categoryName: 'Plumbing',
     description: 'Replace the leaking sink drain and inspect the cabinet damage.',
     urgency: 'within_3_days', budgetMin: 100_000, budgetMax: 200_000,

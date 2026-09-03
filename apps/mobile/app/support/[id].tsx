@@ -7,8 +7,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { ChevronLeft, Send } from '@/components/icons';
+import { ChevronLeft, ClipboardList, Send } from '@/components/icons';
 import { useAuthStore } from '@/stores/auth.store';
+import { Routes, buildRoute } from '@/config/navigation';
 import {
   getMyTicket,
   addTicketMessage,
@@ -23,6 +24,19 @@ function formatTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+export function getSupportBookingRoute(viewerRole: string | undefined, bookingId: string): string | null {
+  if (viewerRole === 'provider') return buildRoute(Routes.PROVIDER.JOB_DETAIL, { id: bookingId });
+  if (viewerRole === 'provider_staff') return buildRoute(Routes.STAFF.JOB_DETAIL, { id: bookingId });
+  if (viewerRole === 'customer') return buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: bookingId });
+  return null;
+}
+
+export function getSupportProjectRoute(viewerRole: string | undefined, projectId: string): string | null {
+  return viewerRole === 'customer'
+    ? buildRoute(Routes.CUSTOMER.PROJECT_DETAIL, { id: projectId })
+    : null;
 }
 
 export default function SupportThreadScreen(): React.ReactElement {
@@ -53,6 +67,14 @@ export default function SupportThreadScreen(): React.ReactElement {
 
   const ticket = ticketQuery.data;
   const open = ticket ? isTicketOpen(ticket.status) : false;
+  const relatedBookingId = ticket?.booking_id ?? null;
+  const relatedBookingRoute = relatedBookingId
+    ? getSupportBookingRoute(viewerRole, relatedBookingId)
+    : null;
+  const relatedProjectId = ticket?.project_id ?? null;
+  const relatedProjectRoute = relatedProjectId
+    ? getSupportProjectRoute(viewerRole, relatedProjectId)
+    : null;
 
   useEffect(() => {
     if (ticket) {
@@ -113,6 +135,40 @@ export default function SupportThreadScreen(): React.ReactElement {
               showsVerticalScrollIndicator={false}
               accessibilityLabel={isPhone ? 'Support conversation' : 'Desktop support conversation workspace'}
             >
+              {relatedBookingRoute && relatedBookingId ? (
+                <TouchableOpacity
+                  style={styles.bookingLink}
+                  onPress={() => router.push(relatedBookingRoute)}
+                  accessibilityRole="button"
+                  accessibilityLabel={viewerRole === 'customer' ? 'Open related booking' : 'Open related job'}
+                >
+                  <ClipboardList size={18} color={colors.primary} />
+                  <View style={styles.bookingLinkTextWrap}>
+                    <Text style={styles.bookingLinkTitle}>
+                      {viewerRole === 'customer' ? 'Related booking' : 'Related job'}
+                    </Text>
+                    <Text style={styles.bookingLinkMeta}>Open booking {relatedBookingId.slice(0, 8)}</Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+
+              {relatedProjectRoute && relatedProjectId ? (
+                <TouchableOpacity
+                  style={styles.bookingLink}
+                  onPress={() => router.push(relatedProjectRoute)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open related project"
+                >
+                  <ClipboardList size={18} color={colors.primary} />
+                  <View style={styles.bookingLinkTextWrap}>
+                    <Text style={styles.bookingLinkTitle}>Related planning project</Text>
+                    <Text style={styles.bookingLinkMeta}>
+                      {ticket.project_title?.trim() || `Project ${relatedProjectId.slice(0, 8)}`}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+
               {/* The ticket body is the opening message from the customer. */}
               <View style={[styles.bubbleRow, styles.bubbleRowMine]}>
                 <View style={[styles.bubble, !isPhone && styles.bubbleWide, styles.bubbleMine]}>
@@ -204,6 +260,21 @@ const styles = StyleSheet.create({
   thread: { flex: 1 },
   threadContent: { padding: spacing.base, paddingBottom: spacing.lg },
   threadContentWide: { width: '100%', maxWidth: 900, alignSelf: 'center', paddingHorizontal: spacing.xl },
+  bookingLink: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.infoLight,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.base,
+  },
+  bookingLinkTextWrap: { marginLeft: spacing.sm, flex: 1 },
+  bookingLinkTitle: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
+  bookingLinkMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   bubbleRow: { flexDirection: 'row', marginBottom: spacing.sm },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowTheirs: { justifyContent: 'flex-start' },

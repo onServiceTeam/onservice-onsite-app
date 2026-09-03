@@ -26,6 +26,7 @@ it('Bug UX-039 — triaged feedback requires a named owner and written note befo
       status: 'triaged',
       assignedAdminId: 'agent-1',
       note: 'Verified and linked to the wallet redirect fix.',
+      expectedUpdatedAt: '2026-06-30T08:00:00.000Z',
     },
   ));
 });

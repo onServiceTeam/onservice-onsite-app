@@ -1,12 +1,12 @@
 const dbQueryMock = jest.fn();
-const getCommissionRateMock = jest.fn();
+const getProviderTierCommissionOverviewMock = jest.fn();
 
 jest.mock('../../src/models/db', () => ({
   db: { query: (...args: unknown[]) => dbQueryMock(...args) },
 }));
 
-jest.mock('../../src/services/settings.service', () => ({
-  getCommissionRate: (...args: unknown[]) => getCommissionRateMock(...args),
+jest.mock('../../src/services/booking-financial-terms.service', () => ({
+  getProviderTierCommissionOverview: (...args: unknown[]) => getProviderTierCommissionOverviewMock(...args),
 }));
 
 jest.mock('../../src/utils/logger', () => ({
@@ -27,7 +27,19 @@ it('Bug UX-324 — provider tier metadata uses live Admin rates and implemented 
     pro: 0.1075,
     elite: 0.0875,
   };
-  getCommissionRateMock.mockImplementation(async (tier: string) => liveRates[tier]);
+  getProviderTierCommissionOverviewMock.mockResolvedValue({
+    currentProviderAgreement: {
+      commissionRate: liveRates.new,
+      commissionSource: 'tier_default',
+      commissionRateVersionId: 'new-rate',
+    },
+    tierBaseRates: Object.entries(liveRates).map(([tier, commissionRate]) => ({
+      tier,
+      commissionRate,
+      commissionRateBasisPoints: Math.round(commissionRate * 10000),
+      commissionRateVersionId: `${tier}-rate`,
+    })),
+  });
   dbQueryMock.mockImplementation(async (sql: string) => {
     if (/SELECT p\.tier, p\.rating[\s\S]*FROM providers p/.test(sql)) {
       return result([{ tier: 'new', completed_jobs: 4, rating: '4.20' }]);
@@ -38,6 +50,7 @@ it('Bug UX-324 — provider tier metadata uses live Admin rates and implemented 
   const data = await getTierProgression('provider-1');
 
   expect(data.currentCommission).toBe(16.25);
+  expect(data.currentCommissionSource).toBe('tier_default');
   expect(data.allTiers.map((tier) => tier.commission)).toEqual([10.25, 16.25, 12.75, 10.75, 8.75]);
   expect(data.promotionMode).toBe('admin_review');
   expect(data.progressionTiers.map((tier) => tier.tier)).toEqual(['new', 'verified', 'pro', 'elite']);

@@ -2,6 +2,7 @@ import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
 import { maskPhilippinePhone, maskEmail, type ActorRole } from '../utils/pii-mask';
+import * as notificationService from './notification.service';
 
 // MED-N137 fix — role-aware PII masking for support tickets returned
 // to admin queries. Pre-fix every admin role saw raw user_phone +
@@ -67,6 +68,12 @@ export interface SupportTicket {
   subject: string;
   description: string;
   booking_id: string | null;
+  project_id: string | null;
+  business_account_id: string | null;
+  related_business_account_id?: string | null;
+  business_account_name?: string | null;
+  business_account_status?: string | null;
+  project_title?: string | null;
   resolution_notes: string | null;
   resolved_at: string | null;
   closed_at: string | null;
@@ -103,6 +110,15 @@ export interface AssignableSupportAgent {
   role: 'admin' | 'super_admin';
 }
 
+export interface SupportAccountContext {
+  id: string;
+  role: 'customer' | 'provider' | 'provider_staff';
+  displayName: string;
+  isActive: boolean;
+  providerProfileId: string | null;
+  providerBusinessName: string | null;
+}
+
 interface ListTicketsParams {
   page: number;
   limit: number;
@@ -112,6 +128,8 @@ interface ListTicketsParams {
   assignedAgentId?: string;
   search?: string;
   bookingId?: string;
+  projectId?: string;
+  businessAccountId?: string;
   userId?: string;
   relatedCustomerId?: string;
   relatedProviderId?: string;
@@ -144,7 +162,7 @@ export async function listTickets(
   params: ListTicketsParams,
 ): Promise<{ tickets: SupportTicket[]; total: number }> {
   const {
-    page, limit, status, type, priority, assignedAgentId, search, bookingId,
+    page, limit, status, type, priority, assignedAgentId, search, bookingId, projectId, businessAccountId,
     userId, relatedCustomerId, relatedProviderId, unassigned, active,
   } = params;
   const offset = (page - 1) * limit;
@@ -177,6 +195,18 @@ export async function listTickets(
   if (bookingId) {
     conditions.push(`st.booking_id = $${idx++}`);
     values.push(bookingId);
+  }
+  if (projectId) {
+    conditions.push(`st.project_id = $${idx++}`);
+    values.push(projectId);
+  }
+  if (businessAccountId) {
+    conditions.push(`(
+      st.business_account_id = $${idx}
+      OR booking_context.business_account_id = $${idx}
+    )`);
+    values.push(businessAccountId);
+    idx += 1;
   }
   if (userId) {
     conditions.push(`st.user_id = $${idx++}`);
@@ -223,6 +253,8 @@ export async function listTickets(
       OR COALESCE(u.phone, '') ILIKE $${idx}
       OR COALESCE(u.email, '') ILIKE $${idx}
       OR COALESCE(direct_provider.business_name, staff_provider.business_name, '') ILIKE $${idx}
+      OR COALESCE(project_context.title, '') ILIKE $${idx}
+      OR COALESCE(business_context.company_name, '') ILIKE $${idx}
     )`);
     values.push(`%${search}%`);
     idx += 1;
@@ -245,7 +277,11 @@ export async function listTickets(
        ORDER BY ps.created_at DESC, ps.id
        LIMIT 1
     ) staff_account ON TRUE
-    LEFT JOIN providers staff_provider ON staff_provider.id = staff_account.provider_id`;
+    LEFT JOIN providers staff_provider ON staff_provider.id = staff_account.provider_id
+    LEFT JOIN projects project_context ON project_context.id = st.project_id
+    LEFT JOIN bookings booking_context ON booking_context.id = st.booking_id
+    LEFT JOIN business_accounts business_context
+      ON business_context.id = COALESCE(st.business_account_id, booking_context.business_account_id)`;
 
   const countResult = await db.query<{ count: string }>(
     `SELECT COUNT(*) AS count FROM support_tickets st ${joins} ${where}`,
@@ -259,6 +295,10 @@ export async function listTickets(
             u.role AS user_role,
             COALESCE(direct_provider.id, staff_account.provider_id) AS provider_id,
             COALESCE(direct_provider.business_name, staff_provider.business_name) AS provider_business_name,
+            project_context.title AS project_title,
+            COALESCE(st.business_account_id, booking_context.business_account_id) AS related_business_account_id,
+            business_context.company_name AS business_account_name,
+            business_context.status AS business_account_status,
             ag.first_name AS agent_first_name, ag.last_name AS agent_last_name,
             (SELECT COUNT(*) FROM support_ticket_messages stm WHERE stm.ticket_id = st.id) AS message_count
      FROM support_tickets st
@@ -267,6 +307,7 @@ export async function listTickets(
      ${where}
      ORDER BY
        CASE st.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
+       st.updated_at DESC,
        st.created_at DESC
      LIMIT $${idx} OFFSET $${idx + 1}`,
     [...values, limit, offset],
@@ -389,10 +430,18 @@ export async function listMyTickets(params: {
 
   const result = await db.query<SupportTicket>(
     `SELECT st.*,
+            project_context.title AS project_title,
+            COALESCE(st.business_account_id, booking_context.business_account_id) AS related_business_account_id,
+            business_context.company_name AS business_account_name,
+            business_context.status AS business_account_status,
             ag.first_name AS agent_first_name, ag.last_name AS agent_last_name,
             (SELECT COUNT(*) FROM support_ticket_messages stm
                WHERE stm.ticket_id = st.id AND stm.is_internal_note = false) AS message_count
      FROM support_tickets st
+     LEFT JOIN projects project_context ON project_context.id = st.project_id
+     LEFT JOIN bookings booking_context ON booking_context.id = st.booking_id
+     LEFT JOIN business_accounts business_context
+       ON business_context.id = COALESCE(st.business_account_id, booking_context.business_account_id)
      LEFT JOIN users ag ON st.assigned_agent_id = ag.id
      ${where}
      ORDER BY st.updated_at DESC
@@ -411,6 +460,10 @@ export async function getTicketById(ticketId: string): Promise<SupportTicket | n
             u.role AS user_role,
             COALESCE(direct_provider.id, staff_account.provider_id) AS provider_id,
             COALESCE(direct_provider.business_name, staff_provider.business_name) AS provider_business_name,
+            project_context.title AS project_title,
+            COALESCE(st.business_account_id, booking_context.business_account_id) AS related_business_account_id,
+            business_context.company_name AS business_account_name,
+            business_context.status AS business_account_status,
             ag.first_name AS agent_first_name, ag.last_name AS agent_last_name
      FROM support_tickets st
      LEFT JOIN users u ON st.user_id = u.id
@@ -429,6 +482,10 @@ export async function getTicketById(ticketId: string): Promise<SupportTicket | n
         LIMIT 1
      ) staff_account ON TRUE
      LEFT JOIN providers staff_provider ON staff_provider.id = staff_account.provider_id
+     LEFT JOIN projects project_context ON project_context.id = st.project_id
+     LEFT JOIN bookings booking_context ON booking_context.id = st.booking_id
+     LEFT JOIN business_accounts business_context
+       ON business_context.id = COALESCE(st.business_account_id, booking_context.business_account_id)
      LEFT JOIN users ag ON st.assigned_agent_id = ag.id
      WHERE st.id = $1`,
     [ticketId],
@@ -445,6 +502,65 @@ export async function listAssignableAgents(): Promise<AssignableSupportAgent[]> 
       ORDER BY first_name, last_name, id`,
   );
   return result.rows;
+}
+
+export async function getSupportAccountContext(
+  userId: string,
+  viewerRole: ActorRole,
+): Promise<SupportAccountContext> {
+  const result = await db.query<{
+    id: string;
+    role: 'customer' | 'provider' | 'provider_staff';
+    first_name: string;
+    last_name: string;
+    is_active: boolean;
+    provider_id: string | null;
+    provider_business_name: string | null;
+  }>(
+    `SELECT u.id, u.role, u.first_name, u.last_name, u.is_active,
+            COALESCE(direct_provider.id, staff_account.provider_id) AS provider_id,
+            COALESCE(direct_provider.business_name, staff_provider.business_name) AS provider_business_name
+       FROM users u
+       LEFT JOIN LATERAL (
+         SELECT p.id, p.business_name
+           FROM providers p
+          WHERE p.user_id = u.id
+          ORDER BY p.id
+          LIMIT 1
+       ) direct_provider ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT ps.provider_id
+           FROM provider_staff ps
+          WHERE ps.user_id = u.id
+          ORDER BY ps.created_at DESC, ps.id
+          LIMIT 1
+       ) staff_account ON TRUE
+       LEFT JOIN providers staff_provider ON staff_provider.id = staff_account.provider_id
+      WHERE u.id = $1
+        AND u.role IN ('customer', 'provider', 'provider_staff')
+      LIMIT 1`,
+    [userId],
+  );
+  const account = result.rows[0];
+  if (!account) throw createAppError('Support case owner not found.', 404);
+
+  const visibleLastName = viewerRole === 'super_admin'
+    ? account.last_name
+    : account.last_name
+      ? `${account.last_name.charAt(0)}.`
+      : '';
+  const displayName = `${account.first_name ?? ''} ${visibleLastName}`.trim()
+    || account.provider_business_name
+    || 'Selected account';
+
+  return {
+    id: account.id,
+    role: account.role,
+    displayName,
+    isActive: account.is_active,
+    providerProfileId: account.provider_id,
+    providerBusinessName: account.provider_business_name,
+  };
 }
 
 export async function getTicketMessages(
@@ -470,6 +586,8 @@ export async function createTicket(params: {
   subject: string;
   description: string;
   bookingId?: string;
+  projectId?: string;
+  businessAccountId?: string;
   // MED-N135 fix — when admin creates a ticket on behalf of a user
   // (or system creates one from a webhook), capture the acting admin
   // for the audit trail. Optional for back-compat.
@@ -486,6 +604,12 @@ export async function createTicket(params: {
   }
   if (params.description.length > 5000) {
     throw createAppError('Description must be 5000 characters or fewer.', 400);
+  }
+  if (params.bookingId && params.projectId) {
+    throw createAppError('A support request can be linked to a booking or a project, not both.', 400);
+  }
+  if (params.projectId && params.businessAccountId) {
+    throw createAppError('A planning-project support request cannot be linked to a business account.', 400);
   }
 
   const subject = params.subject.trim();
@@ -509,24 +633,68 @@ export async function createTicket(params: {
     throw createAppError('Support ticket account not found.', 404);
   }
 
+  let businessAccountId = params.businessAccountId ?? null;
   if (params.bookingId) {
-    const bookingResult = await db.query<{ allowed: boolean }>(
-      `SELECT EXISTS (
-         SELECT 1
-           FROM bookings b
-           LEFT JOIN providers p ON p.id = b.provider_id
-           LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
-          WHERE b.id = $1
-            AND (
-              b.customer_id = $2
-              OR p.user_id = $2
-              OR ps.user_id = $2
-            )
-       ) AS allowed`,
+    const bookingResult = await db.query<{
+      allowed: boolean;
+      business_account_id: string | null;
+    }>(
+      `SELECT (
+                b.customer_id = $2
+                OR p.user_id = $2
+                OR ps.user_id = $2
+              ) AS allowed,
+              b.business_account_id
+         FROM bookings b
+         LEFT JOIN providers p ON p.id = b.provider_id
+         LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+        WHERE b.id = $1`,
       [params.bookingId, params.userId],
     );
-    if (bookingResult.rows[0]?.allowed !== true) {
+    const booking = bookingResult.rows[0];
+    if (booking?.allowed !== true) {
       throw createAppError('Booking not found for this account.', 404);
+    }
+    if (businessAccountId && booking.business_account_id !== businessAccountId) {
+      throw createAppError('Booking does not belong to the selected business account.', 409);
+    }
+    businessAccountId = booking.business_account_id ?? businessAccountId;
+  }
+  if (params.projectId) {
+    const projectResult = await db.query<{ allowed: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+           FROM projects project_context
+          WHERE project_context.id = $1
+            AND project_context.customer_id = $2
+       ) AS allowed`,
+      [params.projectId, params.userId],
+    );
+    if (projectResult.rows[0]?.allowed !== true) {
+      throw createAppError('Project not found for this customer account.', 404);
+    }
+  }
+  if (businessAccountId && !params.bookingId) {
+    const businessResult = await db.query<{ allowed: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+           FROM business_accounts ba
+          WHERE ba.id = $1
+            AND (
+              ba.owner_user_id = $2
+              OR EXISTS (
+                SELECT 1
+                  FROM business_members bm
+                 WHERE bm.business_account_id = ba.id
+                   AND bm.user_id = $2
+                   AND bm.deleted_at IS NULL
+              )
+            )
+       ) AS allowed`,
+      [businessAccountId, params.userId],
+    );
+    if (businessResult.rows[0]?.allowed !== true) {
+      throw createAppError('Business account not found for this case owner.', 404);
     }
   }
   const ticketNumber = await generateTicketNumber();
@@ -534,8 +702,10 @@ export async function createTicket(params: {
   // MED-N135 fix — wrap INSERT + (optional) admin_actions audit in trx.
   const ticket = await db.transaction(async (client) => {
     const result = await client.query<SupportTicket>(
-      `INSERT INTO support_tickets (ticket_number, user_id, type, priority, subject, description, booking_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO support_tickets
+         (ticket_number, user_id, type, priority, subject, description,
+          booking_id, project_id, business_account_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         ticketNumber,
@@ -545,6 +715,8 @@ export async function createTicket(params: {
         subject,
         description,
         params.bookingId ?? null,
+        params.projectId ?? null,
+        businessAccountId,
       ],
     );
     if (result.rows.length === 0) throw new Error('Failed to create ticket.');
@@ -562,6 +734,9 @@ export async function createTicket(params: {
             forUserId: params.userId,
             type: params.type,
             priority: params.priority,
+            bookingId: params.bookingId ?? null,
+            projectId: params.projectId ?? null,
+            businessAccountId,
           }),
         ],
       );
@@ -593,15 +768,24 @@ export async function addMessage(params: {
   // after the INSERT committed, the ticket's updated_at was stale and
   // affected sort order in conversation listings + "new message"
   // notification ordering.
-  return db.transaction(async (client) => {
+  const outcome = await db.transaction(async (client) => {
     const ticketResult = await client.query<{
       status: string;
       assigned_agent_id: string | null;
+      user_id: string;
+      ticket_number: string;
+      booking_id: string | null;
+      project_id: string | null;
+      business_account_id: string | null;
     }>(
-      `SELECT status, assigned_agent_id
-         FROM support_tickets
-        WHERE id = $1
-        FOR UPDATE`,
+      `SELECT st.status, st.assigned_agent_id, st.user_id, st.ticket_number,
+              st.booking_id, st.project_id,
+              COALESCE(st.business_account_id, booking_context.business_account_id)
+                AS business_account_id
+         FROM support_tickets st
+         LEFT JOIN bookings booking_context ON booking_context.id = st.booking_id
+        WHERE st.id = $1
+        FOR UPDATE OF st`,
       [params.ticketId],
     );
     const ticket = ticketResult.rows[0];
@@ -663,8 +847,48 @@ export async function addMessage(params: {
     }
     const msg = result.rows[0];
     if (!msg) throw new Error('Failed to add message.');
-    return msg;
+    return {
+      message: msg,
+      participantNotification: !isUserReply && !params.isInternalNote && params.senderId !== ticket.user_id
+        ? {
+            userId: ticket.user_id,
+            ticketNumber: ticket.ticket_number,
+            bookingId: ticket.booking_id,
+            projectId: ticket.project_id,
+            businessAccountId: ticket.business_account_id,
+          }
+        : null,
+    };
   });
+
+  if (outcome.participantNotification) {
+    const { userId, ticketNumber, bookingId, projectId, businessAccountId } = outcome.participantNotification;
+    try {
+      await notificationService.createPushNotification({
+        userId,
+        type: 'support_update',
+        title: `Support update: ${ticketNumber}`,
+        body: 'A support agent replied to your request. Open the case to read the update.',
+        data: {
+          ticketId: params.ticketId,
+          ticketNumber,
+          ...(bookingId ? { bookingId } : {}),
+          ...(projectId ? { projectId } : {}),
+          ...(businessAccountId ? { businessAccountId } : {}),
+        },
+      });
+    } catch (error) {
+      // The message is already durable. Keep the reply successful and leave an
+      // observable operations signal if the separate notification write fails.
+      logger.warn('Support reply notification failed after durable message commit', {
+        ticketId: params.ticketId,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return outcome.message;
 }
 
 export async function updateTicketStatus(

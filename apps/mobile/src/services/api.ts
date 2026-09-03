@@ -23,6 +23,7 @@ import {
   clearTokens,
   removeSecureItem,
 } from './secure-storage';
+import { getDeviceFingerprint } from './device-fingerprint.service';
 
 // MMKV cache for non-PII data (push token, hasOnboarded flag etc.).
 // Tokens + user PII are in `./secure-storage` (OS-keychain-encrypted) per
@@ -211,10 +212,18 @@ async function refreshOnce(): Promise<string | null> {
   inFlightRefresh = (async () => {
     const refreshToken = getRefreshToken();
     if (!refreshToken) return null;
+    let deviceFingerprint: string | undefined;
+    try {
+      deviceFingerprint = await getDeviceFingerprint();
+    } catch {
+      // Fingerprinting is best-effort so existing sessions can still refresh
+      // in test/dev environments where native device APIs are unavailable.
+      deviceFingerprint = undefined;
+    }
     try {
       const res = await rawFetch<{ success: boolean; data: { accessToken: string; refreshToken?: string } }>(
         '/api/v1/auth/refresh-token',
-        { method: 'POST', body: { refreshToken }, _bearerOverride: '' },
+        { method: 'POST', body: { refreshToken, deviceFingerprint }, _bearerOverride: '' },
       );
       const data = res.data?.data;
       if (!data?.accessToken) return null;

@@ -111,27 +111,27 @@ Our operating target is up to 3 business days after approval, but the recorded s
 
 ---
 
-## 6. Commission questions (per tier)
+## 6. Commission questions
 
-Commission is a flat rate per tier. It does not vary inside a tier. It is taken off the service price; the provider receives service price minus commission. The customer service fee is currently 0%; if Ken later re-enables that separate admin-tunable charge, it is still not the provider's commission.
+Commission is taken off the service price, but it can vary inside a tier through an effective-dated provider/category/service agreement. For a priced or paid booking, its immutable Booking 360 financial terms are final. For future work, use Financials -> Commission Controls. The customer service fee is currently 0%; if Ken later re-enables that separate charge, it is still not provider commission.
 
 | Tier | Commission | How you reach it |
 |---|---|---|
-| founding | 10% | Invite-only launch batch. Not a step you earn into. Parallel tier. |
+| founding | 10% seeded base | Invite-only parallel tier; E63 hold, no new offer or assignment. |
 | new | 15% | Default on signup. |
 | verified | 13% | 5+ jobs, 4.0+ rating. |
 | pro | 11% | 25+ jobs, 4.5+ rating, no open disputes. |
 | elite | 9% | 100+ jobs, 4.7+ rating, a verified (TESDA) certification, no open disputes. |
 
 Notes for accurate answers:
-- These defaults are admin-tunable in Settings (Commissions category). If Ken changed a rate, the live number wins. Check Settings before quoting if unsure.
+- These are seeded base rates, not an existing booking's truth. Check the booking snapshot first; otherwise inspect the effective provider/tier agreement in Commission Controls. Direct Settings edits are retired under E50.
 - Tier promotion is not automatic. The app shows progress on the provider's tier-progression screen, but a super_admin sets the new tier on the Providers page (reason required, 10+ chars). When a provider meets the next tier's bar, log a ticket and route to Trust & Safety / admin to apply the change.
 - Do not confuse provider tiers with the customer Suki loyalty tiers. Different thing.
 
 Macro: commission explainer
 
 ```
-Hi [name], your tier is [tier] so your commission is [X]% on the service price. That means on a ₱[price] job, ₱[commission] is the platform commission and you receive ₱[price-commission]. The customer pays a separate service fee on top, which is not part of your commission. Your next tier is [next tier] at [Y]%, which needs [N jobs / rating / cert]. You're at [current jobs] jobs and a [rating] rating. Once you hit the bar we'll review and update your tier.
+Hi [name], booking [reference] fixed your commission at [X]% on the ₱[price] service price. That is ₱[commission] platform commission and ₱[provider amount] provider earnings before any separate payout adjustment. This rate came from [tier/provider/category agreement] and is preserved on the booking. Your current tier is [tier]. The next tier's seeded base is [Y]%, but the effective rate must be checked when future work is priced. You are currently at [jobs] jobs and [rating] rating; meeting the bar starts an admin review and does not change old bookings.
 ```
 
 ---
@@ -174,11 +174,11 @@ When the platform itself cannot match any provider (no-provider failure), the cu
 
 When the provider arrives and the customer is not there:
 1. Tell the provider to message the customer in the booking chat first (text plus a photo of arrival if useful). There is no in-app calling or masked-telephone service. Chat is the live channel and the current customer/provider copy now says so.
-2. Provider should wait a reasonable window. Starting wait is 15 minutes before reporting a no-show.
+2. The stored/default wait is currently 30 minutes, but E60 records that the API measures it from the scheduled time rather than from a verified arrival timestamp. Do not tell either party that the present route proves 30 minutes on-site.
 
-> **Set (editable):** A provider waits 15 minutes after arriving before reporting a customer no-show. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Launch hold:** `provider_noshow_minutes` is read-only under E60. It currently drives both provider-late alerts and the customer no-show money boundary. Do not change it in PostgreSQL or bypass the Settings API.
 
-3. If the customer still does not appear, the provider reports it to support. Log this as ticket type `booking_issue` with a clear note "customer no-show at site." (The `provider_no_show` ticket type is for the opposite case, when the provider fails to show.)
+3. The provider app can submit the customer no-show action from an arrived booking. Because the current check does not prove the on-site duration, open or link a `booking_issue` support case and preserve the exact arrival, chat, photo, and location evidence. The `provider_no_show` ticket type is for the opposite case, when the provider fails to show.
 4. A customer no-show affects the refund split. On the live cancellation path, a customer no-show gives the customer a 0% refund, which means the provider is compensated for the trip. Confirm the booking is handled so the provider is not penalized.
 5. Gather evidence: arrival photo, GPS check-in (visible in Booking 360 then Evidence), chat showing the provider tried to reach the customer.
 6. Escalate to Trust & Safety / super_admin to cancel or resolve with the no-show flag so the money splits correctly. Do not leave the provider out of pocket for a confirmed customer no-show.
@@ -210,14 +210,14 @@ The application policy requires four evidence files: NBI clearance, government I
 Current API rule: an authorized admin-tier operator cannot approve a provider unless `nbi_clearance_url`, `government_id_front_url`, and `selfie_url` are all on the row. The Approve action returns a clean error listing those missing fields. The operator must separately verify `government_id_back_url` until E36 is resolved.
 
 NBI expiry:
-- The provider row carries `nbi_expiry_date`. A background job warns providers whose NBI expires within 30 days (default) and notifies again when expired.
+- The provider row carries `nbi_expiry_date`. The background job uses one notified flag for both the early warning and actual expiry. Under E62, a warned provider can be skipped when expiry arrives, while a provider first selected after expiry can be auto-suspended.
 - The mobile NBI status banner classifies as missing, expiring, expired, or valid.
-- An expired NBI does not auto-suspend. Support chases the renewal manually, and only manually suspends if the provider ignores the chase. Push the provider to renew and re-upload.
+- The intended launch policy is manual chase then reasoned manual suspension, but current worker behavior is inconsistent. Do not rely on an expiry push or status mutation. Review Provider 360/dashboard evidence, open a linked support case, and escalate the suspension decision with active-job context.
 
-Re-upload playbook:
-1. "My NBI is expiring / expired": tell them to get a fresh NBI (must be recent, the app hints within the last 6 months) and re-upload through the app. KYC documents go to a private bucket; admins view them through an authenticated proxy, never raw URLs.
+Document renewal and correction playbook:
+1. "My NBI is expiring / expired": tell them to obtain a fresh NBI, then open a support case. The approved-provider app does not currently expose a secure NBI renewal submission and Provider 360 is read-only. Do not ask for KYC through chat/email or promise an upload that is unavailable; escalate under E62/E35.
 2. "I was rejected for a blurry or wrong document": rejections store a reason. Read the customer-safe reason and explain which document was wrong, but do not ask them to send KYC through chat, email, or another off-platform channel. Rejected applicants cannot currently resubmit against the same canonical provider row; log a support case and escalate under E35 instead of promising an unavailable reapplication path.
-3. "My document was approved but shows expired": check `expires_at` on the document and the NBI expiry date. If genuinely expired, it needs a new upload.
+3. "My document was approved but shows expired": check `expires_at` on the document and the NBI expiry date. If genuinely expired, open a linked support case and use the E62 renewal escalation; the approved-provider upload and verification path does not yet exist.
 4. Certifications (for Elite tier): providers self-add certifications; `is_verified` is set by an admin. Elite needs a verified certification. If a provider expects Elite but their cert is not verified yet, that is the blocker. Route the cert for verification.
 
 Macro: document re-upload
@@ -342,12 +342,12 @@ Provider ticket intake is available in the shared in-app Support screens. Email 
 |---|---|---|
 | "No money after finishing a job" | Booking + escrow + dispute state | Customer confirmation/current worker can release; E18 blocks treating the 24h/48h mismatch as final policy |
 | "Payout not received" | Payouts / Provider 360 Financials | Up to 3 business days; check status and destination account |
-| "Wrong commission" | Tier + Settings | Flat per tier (10/15/13/11/9%); admin may have tuned it |
+| "Wrong commission" | Booking 360 financial terms + Commission Controls | Explain the booking's snapshotted rate; future agreements never rewrite it |
 | "Can't add extra charge" | Original price | 50% cap, ~₱10K hard cap, must be in_progress |
 | "No job offers" | Approved + available + area | 45s exclusive offers; check availability and service area |
-| "Customer not at site" | Booking 360 Evidence | 15-min wait, then no-show handling, provider compensated |
+| "Customer not at site" | Booking 360 Evidence | E60 hold: preserve arrival/contact evidence; current 30-min check is scheduled-time based |
 | "Not getting OTP" | Phone format + hourly cap | Format `+63 9XX...`, 5/hour cap, carrier delay |
-| "NBI expiring" | NBI status banner | Renew and re-upload; private bucket; manual chase, manual suspend if ignored |
+| "NBI expiring" | Provider 360 + linked support case | E62 hold: no approved-provider renewal upload exists; review manually and escalate renewal/suspension |
 | "Bad review" | Booking 360 | Reply publicly; remove only if fake/abusive |
 | "Suspended" | Provider 360 Activity | Read reason; appeal path in section 13 |
 
@@ -359,6 +359,6 @@ Provider ticket intake is available in the shared in-app Support screens. Email 
 - Hotline placeholder removed from the app; phone support is not live until a real number is provisioned and staffed. (editable)
 - FAQ corrections batched into app releases at launch; FAQ moves to an admin-editable source post-launch. (editable)
 - Super-admin/Ken reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout. (editable)
-- Customer no-show wait window is 15 minutes before the provider reports it. (editable)
+- Customer no-show timing remains on E60 launch hold until a snapshotted wait is measured from verified arrival; the current stored/default value is 30 minutes. (held)
 - Support quotes the live refund money-path numbers (not the policy page) on cancellation questions until the two systems are reconciled. (editable)
 - Provider ticket intake uses the in-app Support inbox when possible, with email/Messenger-to-agent intake retained for external contacts. (editable)

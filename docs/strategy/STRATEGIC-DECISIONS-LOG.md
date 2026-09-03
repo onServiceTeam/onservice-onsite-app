@@ -1,6 +1,6 @@
 # STRATEGIC DECISIONS LOG
 
-> **Current-source warning (2026-08-24):** this log contains point-in-time decisions that were later superseded. DECISION-001 (Boracay-first) is replaced by city-agnostic Metro Cebu first. DECISION-006's customer fee is now 0% under migration 137. Founding tier now exists. The current external PayMongo hosted flow is blocked by E14, provider fixed-price authority by E16, and SiguradoShield/guarantee language by E10/F#10. Use `AGENTS.md`, active escalation/decision records, and the operations handbook as current authority.
+> **Current-source warning (2026-09-02):** this log contains point-in-time decisions that were later superseded. DECISION-001 (Boracay-first) is replaced by city-agnostic Metro Cebu first. DECISION-006's customer fee is now 0% under migration 137. The Founding tier enum exists, but E63 holds the first-50/12-month offer because its individual entitlement is not enforceable. The current external PayMongo hosted flow is blocked by E14, provider fixed-price authority by E16, and SiguradoShield/guarantee language by E10/F#10. Use `AGENTS.md`, active escalation/decision records, and the operations handbook as current authority.
 
 This document records every settled strategic decision and where it came from. Future me, future Claude, future AI coder: read this before changing strategy. Do not regress these decisions without explicit Ken sign-off.
 
@@ -55,9 +55,9 @@ This document records every settled strategic decision and where it came from. F
 
 **Status:**
 - ✅ Standard tiers in code
-- ⬜ Founding tier (10%) NOT YET in code — Phase 03 should add it OR Ken drops the recommendation
+- ⚠️ Founding enum and 10% seed are in code, but E63 blocks new offers/assignment until the first-50 city cohort and protected 12-month entitlement are recorded and enforced
 
-**Override authority:** Ken can change tier rates in admin (Phase 03 runtime config). Adding the founding tier requires a code change.
+**Override authority:** prospective rates use Financials -> Commission Controls and never rewrite booking snapshots. Founding contract terms remain blocked by E63.
 
 ---
 

@@ -27,6 +27,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import * as adminService from '../src/services/admin.service';
+import * as escrowService from '../src/services/escrow.service';
 
 const APPROVAL_REVIEW = {
   reason: 'All provider identity and qualification checks passed.',
@@ -180,30 +181,43 @@ describe('MED-N73 — suspendProvider flags in-flight bookings', () => {
 });
 
 describe('MED-N73 — escrow.service refuses to release when the booking flag is set', () => {
+  it('blocks both standalone and composed releases before any wallet or terms work', async () => {
+    const suspendedBooking = {
+      id: 'booking-med-n73',
+      customer_id: 'customer-med-n73',
+      provider_id: 'provider-med-n73',
+      service_price: '10000',
+      service_fee: '1000',
+      total_amount: '11000',
+      status: 'confirmed',
+      escrow_status: 'held',
+      scheduled_at: new Date(),
+      provider_suspended_during_booking_at: new Date(),
+    };
+    const standaloneClient = {
+      query: jest.fn().mockResolvedValue({ rows: [suspendedBooking], rowCount: 1 }),
+    };
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => (
+      cb as (client: typeof standaloneClient) => Promise<unknown>
+    )(standaloneClient));
 
-  const { readFileSync } = require('fs');
+    await expect(escrowService.releaseEscrow('booking-med-n73')).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringMatching(/provider was suspended/i),
+    });
+    expect(standaloneClient.query).toHaveBeenCalledTimes(1);
+    expect(standaloneClient.query.mock.calls[0]![0]).toContain('provider_suspended_during_booking_at');
 
-  const { resolve } = require('path');
-  const ESCROW = readFileSync(
-    resolve(__dirname, '../src/services/escrow.service.ts'),
-    'utf8',
-  );
-
-  it('releaseEscrow SELECTs the suspension flag column', () => {
-    expect(ESCROW).toMatch(/provider_suspended_during_booking_at/);
-  });
-
-  it('releaseEscrow throws 409 when the flag is non-null', () => {
-    // Find the guard block.
-    expect(ESCROW).toMatch(
-      /provider_suspended_during_booking_at != null[\s\S]{0,300}'Cannot release escrow.*?provider was suspended/,
-    );
-  });
-
-  it('releaseEscrowInTransaction has the same guard (covers booking-confirmation path)', () => {
-    // Both functions must guard, since confirmation flow uses the
-    // transactional variant.
-    const guardOccurrences = (ESCROW.match(/provider_suspended_during_booking_at != null/g) ?? []).length;
-    expect(guardOccurrences).toBeGreaterThanOrEqual(2);
+    const composedClient = {
+      query: jest.fn().mockResolvedValue({ rows: [suspendedBooking], rowCount: 1 }),
+    };
+    await expect(
+      escrowService.releaseEscrowInTransaction(composedClient, 'booking-med-n73'),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringMatching(/provider was suspended/i),
+    });
+    expect(composedClient.query).toHaveBeenCalledTimes(1);
+    expect(composedClient.query.mock.calls[0]![0]).toContain('provider_suspended_during_booking_at');
   });
 });

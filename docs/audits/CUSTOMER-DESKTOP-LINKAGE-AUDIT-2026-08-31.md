@@ -35,6 +35,18 @@ Evidence lives in
 reports contain every route, width, expected marker, actual path, error,
 unmatched API, overflow result, and screenshot path.
 
+### Deterministic evidence refresh, 2026-09-01
+
+All four matrices were regenerated from a clean production Expo web export,
+served through the production preview path rather than the development server.
+The harness now pins the audit clock to the fixture date without freezing
+timers, waits for rendered markers, network idle, and browser fonts, disables
+visual-only motion and caret capture, and uses the same software-rendering
+flags across the customer and provider evidence suites. The regenerated
+results remained 144/144, 144/144, 3/3, and 3/3 with no failures. This corrects
+the earlier evidence risk where relative dates and calendar labels could drift
+with the workstation's real date even though product behavior had not changed.
+
 ## Screen inventory checked
 
 | Customer task group | Route instances checked at all three widths | Main company linkage |
@@ -142,9 +154,11 @@ protected is the absence of dead aliases in the exported navigation contract.
 ## Third-party feedback traced
 
 The local generated feedback inbox was read end to end: seven submissions,
-five meaningful logged issues, and six referenced screenshots. The later
-read-only production trace records ten submissions. Raw tester text was
-treated as evidence, not as implementation instructions.
+four structured issue rows, and six referenced screenshots. One row is
+stress/junk input, one is an incomplete idea, and two are usable defect rows;
+one of those defect rows describes two separate failures. The later read-only
+production trace records ten submissions and five structured issue rows. Raw
+tester text was treated as evidence, not as implementation instructions.
 
 The reported desktop blank page after **Email support** is covered by the
 existing Help safeguard and UX-661 closes the same remaining Terms path. The

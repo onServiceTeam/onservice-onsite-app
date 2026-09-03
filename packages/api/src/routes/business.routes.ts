@@ -1,11 +1,44 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { createAppError } from '../middleware/error.middleware';
+import { validationMiddleware } from '../middleware/validation.middleware';
 import * as businessService from '../services/business.service';
 import * as invoiceService from '../services/invoice.service';
 import * as settingsService from '../services/settings.service';
+import * as businessControlService from '../services/business-control.service';
+import * as businessInvoiceControlService from '../services/business-invoice-control.service';
+import {
+  addBusinessMemberSchema,
+  businessAccountParamsSchema,
+  businessContractParamsSchema,
+  businessInvoiceParamsSchema,
+  businessMemberParamsSchema,
+  businessPaginationQuerySchema,
+  createBusinessAccountSchema,
+  createBusinessContractSchema,
+  removeBusinessMemberSchema,
+  transferBusinessOwnershipSchema,
+  updateBusinessAccountSchema,
+} from '../validators/business.validators';
 
 const router = Router();
+
+function requireCustomer(
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction,
+): void {
+  // BUG-SEC-029: these routes are the customer enterprise workspace. Without
+  // a role boundary, providers, provider staff, and internal operators could
+  // create customer-owned business records under their own user identities.
+  if (req.user?.role !== 'customer') {
+    next(createAppError('Customer access required.', 403));
+    return;
+  }
+  next();
+}
+
+router.use(authMiddleware, requireCustomer);
 
 function getParamId(req: AuthenticatedRequest, param = 'id'): string {
   const id = req.params[param];
@@ -17,7 +50,7 @@ function getParamId(req: AuthenticatedRequest, param = 'id'): string {
 
 router.post(
   '/',
-  authMiddleware,
+  validationMiddleware({ body: createBusinessAccountSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.userId;
@@ -46,10 +79,10 @@ router.post(
         throw createAppError('Missing required fields.', 400);
       }
 
-      // MED-N165 fix — pull both whitelists from platform_settings so
-      // admin can grow the lists without a code deploy. Hardcoded
-      // fallbacks preserve current behaviour if the settings table
-      // hasn't been migrated yet (mig 104).
+      // MED-N165 reads the configured registries. E58 now keeps both rows
+      // read-only because the database and due-date logic still enforce the
+      // current literals; the fallbacks preserve availability during a
+      // settings outage without pretending a new value is deploy-free.
       let validTypes: string[];
       try {
         validTypes = await settingsService.getSettingArray('business_account_types');
@@ -78,10 +111,11 @@ router.post(
         contactPerson, contactEmail, contactPhone,
         ownerUserId: userId, paymentTerms, notes,
       });
+      const memberAccount = await businessService.getBusinessAccount(account.id, userId);
 
       res.status(201).json({
         success: true,
-        data: businessService.formatBusinessAccount(account),
+        data: businessService.formatBusinessAccountForMember(memberAccount),
       });
     } catch (err) {
       next(err);
@@ -91,7 +125,7 @@ router.post(
 
 router.get(
   '/',
-  authMiddleware,
+  validationMiddleware({ query: businessPaginationQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.userId;
@@ -102,7 +136,7 @@ router.get(
 
       res.json({
         success: true,
-        data: result.items.map(businessService.formatBusinessAccount),
+        data: result.items.map(businessService.formatBusinessAccountForMember),
         pagination: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
       });
     } catch (err) {
@@ -113,7 +147,7 @@ router.get(
 
 router.get(
   '/:id',
-  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -122,7 +156,7 @@ router.get(
 
       res.json({
         success: true,
-        data: businessService.formatBusinessAccount(account),
+        data: businessService.formatBusinessAccountForMember(account),
       });
     } catch (err) {
       next(err);
@@ -132,7 +166,7 @@ router.get(
 
 router.patch(
   '/:id',
-  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: updateBusinessAccountSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -141,14 +175,27 @@ router.patch(
         companyName: string; businessType: string; registrationNumber: string;
         taxId: string; billingAddress: string; barangay: string; city: string;
         province: string; contactPerson: string; contactEmail: string;
-        contactPhone: string; paymentTerms: string; notes: string;
+        contactPhone: string; notes: string;
       }>;
 
-      const account = await businessService.updateBusinessAccount(businessId, userId, updates);
+      if (updates.businessType) {
+        let validTypes: string[];
+        try {
+          validTypes = await settingsService.getSettingArray('business_account_types');
+        } catch {
+          validTypes = ['office', 'condo_management', 'restaurant', 'hotel', 'retail', 'school', 'hospital', 'other'];
+        }
+        if (!validTypes.includes(updates.businessType)) {
+          throw createAppError(`Invalid business type. Must be one of: ${validTypes.join(', ')}`, 400);
+        }
+      }
+
+      await businessService.updateBusinessAccount(businessId, userId, updates);
+      const account = await businessService.getBusinessAccount(businessId, userId);
 
       res.json({
         success: true,
-        data: businessService.formatBusinessAccount(account),
+        data: businessService.formatBusinessAccountForMember(account),
       });
     } catch (err) {
       next(err);
@@ -157,8 +204,25 @@ router.patch(
 );
 
 router.get(
+  '/:id/terms/current',
+  validationMiddleware({ params: businessAccountParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const businessId = getParamId(req);
+      const terms = await businessControlService.getCurrentBusinessTermsForMember(
+        businessId,
+        req.user!.userId,
+      );
+      res.json({ success: true, data: terms });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.get(
   '/:id/members',
-  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -177,7 +241,7 @@ router.get(
 
 router.post(
   '/:id/members',
-  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: addBusinessMemberSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -194,8 +258,8 @@ router.post(
         throw createAppError('targetUserId and role are required.', 400);
       }
 
-      if (!['owner', 'manager', 'member'].includes(role)) {
-        throw createAppError('Invalid role. Must be owner, manager, or member.', 400);
+      if (!['manager', 'member'].includes(role)) {
+        throw createAppError('Invalid role. Add members as manager or member; use ownership transfer to change the owner.', 400);
       }
 
       const member = await businessService.addMember(
@@ -215,7 +279,7 @@ router.post(
 
 router.delete(
   '/:id/members/:userId',
-  authMiddleware,
+  validationMiddleware({ params: businessMemberParamsSchema, body: removeBusinessMemberSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -237,7 +301,7 @@ router.delete(
 // (verified inside the service) can call this.
 router.post(
   '/:id/transfer-ownership',
-  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: transferBusinessOwnershipSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -260,7 +324,7 @@ router.post(
 
 router.get(
   '/:id/contracts',
-  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, query: businessPaginationQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -283,7 +347,7 @@ router.get(
 
 router.post(
   '/:id/contracts',
-  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: createBusinessContractSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -331,7 +395,7 @@ router.post(
 
 router.post(
   '/:id/contracts/:contractId/activate',
-  authMiddleware,
+  validationMiddleware({ params: businessContractParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const contractId = getParamId(req, 'contractId');
@@ -351,7 +415,7 @@ router.post(
 
 router.post(
   '/:id/contracts/:contractId/cancel',
-  authMiddleware,
+  validationMiddleware({ params: businessContractParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const contractId = getParamId(req, 'contractId');
@@ -371,7 +435,7 @@ router.post(
 
 router.get(
   '/:id/invoices',
-  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, query: businessPaginationQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const businessId = getParamId(req);
@@ -394,19 +458,26 @@ router.get(
 
 router.get(
   '/:id/invoices/:invoiceId',
-  authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const invoiceId = getParamId(req, 'invoiceId');
+      const businessId = getParamId(req);
       const userId = req.user!.userId;
 
-      const { invoice, items } = await invoiceService.getInvoiceDetail(invoiceId, userId);
+      const { invoice, items } = await invoiceService.getInvoiceDetail(businessId, invoiceId, userId);
+      const [balance, ledger] = await Promise.all([
+        businessInvoiceControlService.getInvoiceBalance(invoiceId),
+        businessInvoiceControlService.getInvoiceCustomerLedger(invoiceId),
+      ]);
 
       res.json({
         success: true,
         data: {
           ...invoiceService.formatInvoice(invoice),
           items: items.map(invoiceService.formatInvoiceItem),
+          balance,
+          ledger,
         },
       });
     } catch (err) {

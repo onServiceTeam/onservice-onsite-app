@@ -863,15 +863,23 @@ export async function getProviderReviews(
   providerId: string,
   page: number = 1,
   pageSize: number = 50,
+  reviewId?: string,
 ): Promise<{ rows: ProviderReview[]; total: number; page: number; pageSize: number }> {
-  const safePage = Math.max(1, Math.floor(page));
-  const safeSize = Math.max(1, Math.min(200, Math.floor(pageSize)));
+  const exactReviewId = reviewId?.trim() || null;
+  const safePage = exactReviewId ? 1 : Math.max(1, Math.floor(page));
+  const safeSize = exactReviewId ? 1 : Math.max(1, Math.min(200, Math.floor(pageSize)));
   const offset = (safePage - 1) * safeSize;
+  const scopeSql = exactReviewId
+    ? 'r.provider_id = $1 AND r.id = $2'
+    : 'r.provider_id = $1';
+  const scopeParams = exactReviewId ? [providerId, exactReviewId] : [providerId];
+  const limitParam = scopeParams.length + 1;
+  const offsetParam = scopeParams.length + 2;
 
   const [countResult, dataResult] = await Promise.all([
     db.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM reviews WHERE provider_id = $1`,
-      [providerId],
+      `SELECT COUNT(*)::text AS count FROM reviews r WHERE ${scopeSql}`,
+      scopeParams,
     ),
     db.query<{
       id: string;
@@ -894,10 +902,10 @@ export async function getProviderReviews(
               r.created_at
          FROM reviews r
          JOIN users u ON u.id = r.reviewer_id
-        WHERE r.provider_id = $1
+        WHERE ${scopeSql}
         ORDER BY r.created_at DESC
-        LIMIT $2 OFFSET $3`,
-      [providerId, safeSize, offset],
+        LIMIT $${limitParam} OFFSET $${offsetParam}`,
+      [...scopeParams, safeSize, offset],
     ),
   ]);
 
@@ -1095,6 +1103,7 @@ export async function getProviderActivity(
   // to 'admin' (the most-restrictive role) so callers that haven't
   // been updated still get masking. super_admin sees raw values.
   requesterRole: 'admin' | 'super_admin' = 'admin',
+  adminActionId?: string,
 ): Promise<ProviderActivityRow[]> {
   const safeLimit = Math.min(200, Math.max(1, Math.floor(limit) || 50));
 
@@ -1115,6 +1124,13 @@ export async function getProviderActivity(
   const userId = userResult.rows[0].user_id;
   const phone = userResult.rows[0].phone;
   const providerName = `${userResult.rows[0].first_name} ${userResult.rows[0].last_name}`.trim();
+  const adminActionParams: unknown[] = [providerId, userId];
+  let adminActionIdClause = '';
+  if (adminActionId) {
+    adminActionParams.push(adminActionId);
+    adminActionIdClause = ` AND a.id = $${adminActionParams.length}`;
+  }
+  adminActionParams.push(adminActionId ? 1 : safeLimit);
 
   const [auditRows, loginRows, adminActionRows] = await Promise.all([
     db.query<{
@@ -1169,7 +1185,7 @@ export async function getProviderActivity(
               a.action_type, a.reason, a.details, a.created_at
          FROM admin_actions a
          LEFT JOIN users u ON u.id = a.admin_id
-        WHERE (a.target_type = 'provider' AND a.target_id = $1)
+        WHERE ((a.target_type = 'provider' AND a.target_id = $1)
            OR (a.target_type = 'provider_application' AND a.target_id = $2)
            OR (a.target_type = 'provider_note' AND EXISTS (
                  SELECT 1 FROM provider_admin_notes n WHERE n.id = a.target_id AND n.provider_id = $1
@@ -1189,10 +1205,11 @@ export async function getProviderActivity(
            OR (a.target_type = 'review' AND EXISTS (
                  SELECT 1 FROM reviews r WHERE r.id = a.target_id AND r.provider_id = $1
               ))
-           OR (a.target_type = 'user' AND a.target_id = $2)
+           OR (a.target_type = 'user' AND a.target_id = $2))
+          ${adminActionIdClause}
         ORDER BY a.created_at DESC
-        LIMIT $3`,
-      [providerId, userId, safeLimit],
+        LIMIT $${adminActionParams.length}`,
+      adminActionParams,
     ),
   ]);
 
@@ -1246,17 +1263,26 @@ export async function getProviderActivity(
 
   const adminActs = adminActionRows.rows.map<ProviderActivityRow>((r) => {
     const adminName = `${r.admin_first ?? ''} ${r.admin_last ?? ''}`.trim() || null;
+    const actorKind: ProviderActivityRow['actor']['kind'] = r.admin_id === userId
+      ? 'provider'
+      : r.admin_id
+        ? 'admin'
+        : 'system';
     return {
       id: `admin_action:${r.id}`,
       source: 'admin_action',
       action: r.action_type,
       detail: r.reason ?? (r.details ? JSON.stringify(r.details) : null),
-      actor: { kind: r.admin_id ? 'admin' : 'system', id: r.admin_id, name: adminName },
+      actor: { kind: actorKind, id: r.admin_id, name: adminName },
       ipAddress: null,
       userAgent: null,
       createdAt: r.created_at.toISOString(),
     };
   });
+
+  if (adminActionId) {
+    return adminActs.filter((row) => row.id === `admin_action:${adminActionId}`);
+  }
 
   return [...audit, ...logins, ...adminActs]
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))

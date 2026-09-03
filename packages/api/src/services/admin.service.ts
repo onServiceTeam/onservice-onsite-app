@@ -234,7 +234,14 @@ export async function listProviders(
     params.push(filters.tier);
   }
   if (filters.search) {
-    conditions.push(`(p.business_name ILIKE $${paramIdx} OR u.phone ILIKE $${paramIdx} OR u.email ILIKE $${paramIdx})`);
+    conditions.push(`(
+      COALESCE(p.business_name, '') ILIKE $${paramIdx}
+      OR CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${paramIdx}
+      OR u.phone ILIKE $${paramIdx}
+      OR COALESCE(u.email, '') ILIKE $${paramIdx}
+      OR p.id::text ILIKE $${paramIdx}
+      OR u.id::text ILIKE $${paramIdx}
+    )`);
     params.push(`%${filters.search}%`);
     paramIdx++;
   }

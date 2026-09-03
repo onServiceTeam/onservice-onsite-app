@@ -493,7 +493,14 @@ export async function getCustomerBookings(
 // Payments
 // ─────────────────────────────────────────────────────────────────
 
-export async function getCustomerPayments(customerId: string): Promise<CustomerPayments> {
+export async function getCustomerPayments(
+  customerId: string,
+  transactionId?: string,
+): Promise<CustomerPayments> {
+  const transactionWhere = transactionId
+    ? "WHERE w.user_id = $1 AND w.type = 'customer' AND wt.id = $2"
+    : "WHERE w.user_id = $1 AND w.type = 'customer'";
+  const transactionParams = transactionId ? [customerId, transactionId] : [customerId];
   const [walletRow, txRow, intentRow, methodCounts] = await Promise.all([
     db.query<{ available: string; pending: string }>(
       `SELECT COALESCE(available_balance, 0)::text AS available,
@@ -515,10 +522,10 @@ export async function getCustomerPayments(customerId: string): Promise<CustomerP
               wt.booking_id, wt.created_at
          FROM wallet_transactions wt
          JOIN wallets w ON w.id = wt.wallet_id
-        WHERE w.user_id = $1 AND w.type = 'customer'
+        ${transactionWhere}
         ORDER BY wt.created_at DESC
         LIMIT 50`,
-      [customerId],
+      transactionParams,
     ),
     db.query<{
       id: string;
@@ -853,8 +860,16 @@ export async function getCustomerActivity(
   // Junior admins see masked IPs + truncated user agents; super_admin
   // sees raw values. Defaults to 'admin' for callers not yet updated.
   requesterRole: 'admin' | 'super_admin' = 'admin',
+  adminActionId?: string,
 ): Promise<CustomerActivityRow[]> {
   const safeLimit = Math.min(200, Math.max(1, Math.floor(limit) || 50));
+  const adminActionParams: unknown[] = [customerId];
+  let adminActionWhere = "WHERE a.target_id = $1 AND a.target_type IN ('customer', 'user')";
+  if (adminActionId) {
+    adminActionParams.push(adminActionId);
+    adminActionWhere += ` AND a.id = $${adminActionParams.length}`;
+  }
+  adminActionParams.push(adminActionId ? 1 : safeLimit);
 
   const userResult = await db.query<{ phone: string; first_name: string | null; last_name: string | null }>(
     `SELECT phone, first_name, last_name FROM users WHERE id = $1 AND role = 'customer'`,
@@ -914,10 +929,10 @@ export async function getCustomerActivity(
               a.action_type, a.reason, a.details, a.created_at
          FROM admin_actions a
          LEFT JOIN users u ON u.id = a.admin_id
-        WHERE a.target_id = $1 AND a.target_type IN ('customer', 'user')
+        ${adminActionWhere}
         ORDER BY a.created_at DESC
-        LIMIT $2`,
-      [customerId, safeLimit],
+        LIMIT $${adminActionParams.length}`,
+      adminActionParams,
     ),
   ]);
 
@@ -974,6 +989,10 @@ export async function getCustomerActivity(
       createdAt: r.created_at.toISOString(),
     };
   });
+
+  if (adminActionId) {
+    return adminActs.filter((row) => row.id === `admin_action:${adminActionId}`);
+  }
 
   return [...audit, ...logins, ...adminActs]
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))

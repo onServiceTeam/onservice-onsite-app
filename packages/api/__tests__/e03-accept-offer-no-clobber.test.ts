@@ -19,6 +19,9 @@ jest.mock('../src/utils/logger', () => ({
 }));
 jest.mock('../src/services/matching.service', () => ({}));
 jest.mock('../src/services/notification.service', () => ({}));
+jest.mock('../src/services/booking-financial-terms.service', () => ({
+  appendProviderAssignmentTermsInTransaction: jest.fn(),
+}));
 
 import { acceptOffer } from '../src/services/booking-offer.service';
 
@@ -27,15 +30,21 @@ beforeEach(() => txClientQuery.mockReset());
 describe('E03 — acceptOffer does not clobber a paid booking', () => {
   it('assigns the provider but preserves the booking status (conditional matched, never unconditional)', async () => {
     const future = new Date(Date.now() + 60_000);
-    txClientQuery
-      // 1) SELECT offer ... FOR UPDATE (joined provider_user_id)
-      .mockResolvedValueOnce({ rows: [{
-        id: 'of1', booking_id: 'bk1', provider_id: 'pr1', status: 'pending',
-        expires_at: future, provider_user_id: 'pu1',
-      }] })
-      .mockResolvedValueOnce({ rows: [] })  // 2) UPDATE offer accepted
-      .mockResolvedValueOnce({ rows: [] })  // 3) UPDATE cancel sibling offers
-      .mockResolvedValueOnce({ rows: [] }); // 4) UPDATE bookings
+    txClientQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT booking_id FROM booking_offers')) {
+        return { rows: [{ booking_id: 'bk1' }], rowCount: 1 };
+      }
+      if (sql.includes('SELECT provider_id, status FROM bookings')) {
+        return { rows: [{ provider_id: null, status: 'paid' }], rowCount: 1 };
+      }
+      if (sql.includes('SELECT bo.*')) {
+        return { rows: [{
+          id: 'of1', booking_id: 'bk1', provider_id: 'pr1', status: 'pending',
+          expires_at: future, provider_user_id: 'pu1',
+        }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 1 };
+    });
 
     const result = await acceptOffer('of1', 'pu1');
     expect(result).toEqual({ booking_id: 'bk1', provider_id: 'pr1' });

@@ -24,7 +24,12 @@ import morgan from 'morgan';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { errorMiddleware } from './middleware/error.middleware';
-import { rateLimitMiddleware, initRateLimit, initUploadRateLimit } from './middleware/rate-limit.middleware';
+import {
+  rateLimitMiddleware,
+  initRateLimit,
+  initAuthRateLimit,
+  initUploadRateLimit,
+} from './middleware/rate-limit.middleware';
 import { logger } from './utils/logger';
 import { platformConfig } from './config/platform.config';
 import { initSocketServer } from './services/socket.service';
@@ -77,6 +82,7 @@ import settingsRoutes from './routes/settings.routes';
 import cancellationPolicyPublicRoutes from './routes/cancellation-policy-public.routes';
 import feedbackRoutes from './routes/feedback.routes';
 import feedbackAdminRoutes from './routes/feedback-admin.routes';
+import projectAdminRoutes from './routes/project-admin.routes';
 import projectRoutes from './routes/project.routes';
 import cancellationPolicyAdminRoutes from './routes/cancellation-policy-admin.routes';
 import * as settingsService from './services/settings.service';
@@ -241,6 +247,10 @@ app.use('/api/v1/admin/conversations', messagingAdminRoutes);
 // specific route before the generic /admin router so feedback IDs are never
 // mistaken for generic admin resources.
 app.use('/api/v1/admin/feedback', feedbackAdminRoutes);
+// W16 — read-only bounded project discovery for company/support operators.
+// Keep the Admin response separate from the customer/provider project list so
+// native clients retain their existing non-paginated ownership projection.
+app.use('/api/v1/admin/projects', projectAdminRoutes);
 // Phase 07: booking 360 + dispute detail sub-routes mounted BEFORE generic
 // admin routes so `/admin/bookings/:id/...` and `/admin/disputes/:id/...` match
 // before any `/admin/bookings` or `/admin/disputes` (list) fallthrough.
@@ -373,12 +383,18 @@ httpServer.listen(PORT, () => {
   logger.info(`onService API server running on port ${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
 
-  // CRIT-M01 fix — pull live rate-limit settings from DB before
-  // accepting traffic (best-effort: limiter falls back to platformConfig
-  // defaults if DB read fails) and start the periodic refresh loop.
+  // CRIT-M01 fix — pull live rate-limit settings when the server starts
+  // and start the periodic refresh loop. Conservative platformConfig
+  // defaults cover requests while the best-effort read completes.
   initRateLimit()
     .then(() => logger.info('Rate-limit live config loaded'))
     .catch((err: unknown) => logger.error('Rate-limit init failed; using platformConfig defaults', { error: err }));
+
+  // Authentication endpoints share a stricter Redis-backed limiter whose
+  // window and request cap are owned by System Settings.
+  initAuthRateLimit()
+    .then(() => logger.info('Authentication rate-limit live config loaded'))
+    .catch((err: unknown) => logger.error('Authentication rate-limit init failed; using conservative defaults', { error: err }));
 
   // §35c — start the per-user upload limiter's live-settings refresh loop.
   initUploadRateLimit()

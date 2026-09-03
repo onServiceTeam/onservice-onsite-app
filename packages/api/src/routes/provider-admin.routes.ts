@@ -220,12 +220,20 @@ router.get(
       requireAdmin(req);
       // MED-N13 fix — accept pagination query params; service returns
       // { rows, total, page, pageSize } so admin UI can paginate.
-      const page = positiveIntegerQuery(req.query.page, 'page', 1, 100_000);
-      const pageSize = positiveIntegerQuery(req.query.pageSize, 'pageSize', 50, 200);
+      let reviewId: string | undefined;
+      if (req.query.reviewId !== undefined) {
+        if (typeof req.query.reviewId !== 'string' || !UUID_REGEX.test(req.query.reviewId)) {
+          throw createAppError('reviewId must be a valid UUID.', 400);
+        }
+        reviewId = req.query.reviewId;
+      }
+      const page = reviewId ? 1 : positiveIntegerQuery(req.query.page, 'page', 1, 100_000);
+      const pageSize = reviewId ? 1 : positiveIntegerQuery(req.query.pageSize, 'pageSize', 50, 200);
       const data = await providerAdminService.getProviderReviews(
         req.params.id as string,
         page,
         pageSize,
+        reviewId,
       );
       res.json({ success: true, data });
     } catch (error) {
@@ -324,8 +332,18 @@ router.get(
       // intended forensic view while plain admin remains masked. DPO is
       // rejected by requireAdmin above and is never upgraded here.
       const role = req.user?.role === 'super_admin' ? 'super_admin' : 'admin';
+      const adminActionId = req.query.adminActionId;
+      if (
+        adminActionId !== undefined
+        && (typeof adminActionId !== 'string' || !UUID_REGEX.test(adminActionId))
+      ) {
+        throw createAppError('adminActionId must be a valid UUID.', 400);
+      }
       const data = await providerAdminService.getProviderActivity(
-        (req.params.id as string), limit, role,
+        req.params.id as string,
+        adminActionId ? 1 : limit,
+        role,
+        adminActionId,
       );
       res.json({ success: true, data });
     } catch (error) {

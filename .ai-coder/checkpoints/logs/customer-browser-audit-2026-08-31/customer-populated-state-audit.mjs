@@ -2,6 +2,13 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  AUDIT_CHROMIUM_ARGS,
+  AUDIT_CONTEXT_OPTIONS,
+  AUDIT_SCREENSHOT_OPTIONS,
+  installFixedBrowserTime,
+  settleBrowserEvidence,
+} from '../browser-audit-clock.mjs';
 
 const BASE_URL = process.env.AUDIT_BASE_URL ?? 'http://127.0.0.1:7390';
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -232,8 +239,12 @@ async function seedSession(page) {
 }
 
 async function auditRoute(browser, route, expectedText, width) {
-  const context = await browser.newContext({ viewport: { width, height: 900 } });
+  const context = await browser.newContext({
+    ...AUDIT_CONTEXT_OPTIONS,
+    viewport: { width, height: 900 },
+  });
   const page = await context.newPage();
+  await installFixedBrowserTime(page);
   const pageErrors = [];
   const consoleErrors = [];
   const unmatchedApi = new Set();
@@ -257,7 +268,11 @@ async function auditRoute(browser, route, expectedText, width) {
   });
 
   await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-  await page.waitForTimeout(2_800);
+  await page.getByText(expectedText, { exact: false }).first().waitFor({
+    state: 'visible',
+    timeout: 10_000,
+  });
+  await settleBrowserEvidence(page);
   const state = await page.evaluate(() => ({
     path: `${location.pathname}${location.search}`,
     text: document.body.innerText.replace(/\s+/g, ' ').trim(),
@@ -267,7 +282,7 @@ async function auditRoute(browser, route, expectedText, width) {
   const screenshotDir = path.join(evidenceRoot, String(width));
   await mkdir(screenshotDir, { recursive: true });
   const screenshot = path.join(screenshotDir, `${safeName(route)}.png`);
-  await page.screenshot({ path: screenshot, fullPage: false });
+  await page.screenshot({ path: screenshot, fullPage: false, ...AUDIT_SCREENSHOT_OPTIONS });
 
   const globalBoundary = state.text.includes('The app ran into an unexpected problem. You can try again.');
   const markerMissing = !state.text.toLocaleLowerCase().includes(expectedText.toLocaleLowerCase());
@@ -277,7 +292,7 @@ async function auditRoute(browser, route, expectedText, width) {
   return { route, expectedText, width, actualPath: state.path, textPreview: state.text.slice(0, 400), markerMissing, globalBoundary, overflow, pageErrors, consoleErrors, unmatchedApi: [...unmatchedApi], screenshot, failed };
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: AUDIT_CHROMIUM_ARGS });
 const results = [];
 try {
   const jobs = [768, 1024, 1366].flatMap((width) => routes.map(([route, expectedText]) => ({ route, expectedText, width })));

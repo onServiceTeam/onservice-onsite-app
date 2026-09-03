@@ -183,6 +183,15 @@ referral code hard on Facebook; promote recurring cleaning as a subscription).
 
 ## 6. The B2B side (you said this is okay, and Cebu is good for it)
 
+> **Current status, 2026-09-02:** treat the implementation description below
+> as historical planning, not launch capability. E55 found that monthly invoice
+> selection can include a member's personal bookings, manual payment completion
+> is unverified and unaudited, commercial writes lack one governed lifecycle,
+> and the customer enterprise screens do not exist. Existing B2B records remain
+> readable, but B2B financial operation is held pending production inventory
+> and the E55 controlled-workflow decision. E22 separately holds Philippine
+> principal-invoice claims.
+
 Cebu has lots of condos, BPO offices, restaurants, and Mactan hotels that need
 regular aircon and cleaning. The backend for this is real: business accounts,
 team members with permissions, contracts, and **automatic monthly invoicing

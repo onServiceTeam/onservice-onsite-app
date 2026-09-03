@@ -97,7 +97,9 @@ export default function ChangePasswordPage(): React.ReactElement {
       </h1>
       <p className="text-sm text-[var(--color-text-secondary)] mb-6">
         Enter your current password and a new one. The new password must be
-        between {MIN_LEN} and {MAX_LEN} characters.
+        between {MIN_LEN} and {MAX_LEN} characters. This browser will receive
+        a replacement session; every other administrator session for your
+        account will be signed out.
       </p>
 
       <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
@@ -116,7 +118,7 @@ export default function ChangePasswordPage(): React.ReactElement {
             onChange={(e) => setOldPassword(e.target.value)}
             disabled={submitting || done}
             required
-            className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            className="h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
           />
         </div>
 
@@ -138,7 +140,7 @@ export default function ChangePasswordPage(): React.ReactElement {
             minLength={MIN_LEN}
             maxLength={MAX_LEN}
             aria-describedby="cp-new-help"
-            className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            className="h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
           />
           <p id="cp-new-help" className="text-xs mt-1">
             {newTooShort && (
@@ -179,7 +181,7 @@ export default function ChangePasswordPage(): React.ReactElement {
             onChange={(e) => setConfirmPassword(e.target.value)}
             disabled={submitting || done}
             required
-            className="w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+            className="h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
           />
           {confirmMismatch && (
             <p className="text-xs mt-1 text-red-600">Passwords don't match.</p>

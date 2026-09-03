@@ -9,7 +9,7 @@
  * All form inputs include aria-* attributes; all feedback uses sonner toasts.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -57,6 +57,7 @@ interface ConsentVersionSummary {
 
 interface PublishedConsentVersion {
   id: string;
+  targetId: string;
   consentType: string;
   version: string;
   effectiveAt: string;
@@ -79,7 +80,12 @@ interface ConsentVersionsResponse {
   };
 }
 
+interface ConsentPublicationResponse {
+  data: PublishedConsentVersion;
+}
+
 type ConsentTab = 'current' | 'history';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parseTab(value: string | null): ConsentTab {
   return value === 'history' ? 'history' : 'current';
@@ -87,6 +93,21 @@ function parseTab(value: string | null): ConsentTab {
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
+}
+
+function fmtDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
+function fmtManilaDay(value: string): string {
+  return new Date(`${value}T00:00:00+08:00`).toLocaleDateString('en-PH', {
+    timeZone: 'Asia/Manila',
+    dateStyle: 'long',
+  });
 }
 
 // BUG-PHASE111-01 fix — pre-fix this called toISOString().slice(0,10),
@@ -112,6 +133,12 @@ export default function ConsentVersionsPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const tab = parseTab(searchParams.get('tab'));
+  const linkedPublicationValue = searchParams.get('publicationId')?.trim() ?? '';
+  const linkedPublicationId = UUID_REGEX.test(linkedPublicationValue)
+    ? linkedPublicationValue.toLowerCase()
+    : null;
+  const linkedPublicationInvalid = linkedPublicationValue.length > 0
+    && linkedPublicationId === null;
   const [publishOpen, setPublishOpen] = useState(false);
   const [consentType, setConsentType] = useState('');
   const [versionStr, setVersionStr] = useState('');
@@ -140,6 +167,28 @@ export default function ConsentVersionsPage(): React.ReactElement {
     },
     staleTime: 30 * 1000,
   });
+  const linkedPublicationQuery = useQuery({
+    queryKey: ['adminConsentPublication', linkedPublicationId],
+    queryFn: async (): Promise<PublishedConsentVersion> => {
+      const response = await api.get<ConsentPublicationResponse>(
+        `/api/v1/admin/compliance/consent-versions/${encodeURIComponent(linkedPublicationId!)}`,
+      );
+      return response.data.data;
+    },
+    enabled: linkedPublicationId !== null,
+    retry: false,
+    staleTime: 30 * 1000,
+  });
+  const allowedConsentTypes = versionsQuery.data?.allowedConsentTypes ?? [];
+  const soleAllowedConsentType = allowedConsentTypes.length === 1
+    ? allowedConsentTypes[0]
+    : undefined;
+
+  useEffect(() => {
+    if (publishOpen && consentType.length === 0 && soleAllowedConsentType) {
+      setConsentType(soleAllowedConsentType);
+    }
+  }, [consentType, publishOpen, soleAllowedConsentType]);
 
   const publishMutation = useMutation({
     mutationFn: async (input: {
@@ -158,7 +207,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
       });
     },
     onSuccess: () => {
-      toast.success('Consent version published.');
+      toast.success('Consent version publication recorded.');
       void queryClient.invalidateQueries({ queryKey: ['adminConsentVersions'] });
       closePublishDialog();
     },
@@ -179,16 +228,33 @@ export default function ConsentVersionsPage(): React.ReactElement {
     || effectiveDate.trim().length === 0
     || changeSummary.trim().length < 30
     || publishMutation.isPending;
+  const materialIsScheduled = material && effectiveDate > todayLocalIso();
+  const linkedPublicationScheduled = linkedPublicationQuery.data
+    ? new Date(linkedPublicationQuery.data.effectiveAt).getTime() > Date.now()
+    : false;
+
+  function clearLinkedPublication(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('publicationId');
+      return params;
+    }, { replace: true });
+  }
+
+  function openPublication(record: PublishedConsentVersion): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'history');
+      params.set('publicationId', record.targetId);
+      return params;
+    });
+  }
 
   function publishVersion(): void {
     const trimmedConsentType = consentType.trim();
     const trimmedVersion = versionStr.trim();
     const trimmedSummary = changeSummary.trim();
     if (publishDisabled) return;
-    const prompt = material
-      ? `Publish material consent version ${trimmedConsentType} ${trimmedVersion} and force re-consent for prior grants?`
-      : `Publish consent version ${trimmedConsentType} ${trimmedVersion}?`;
-    if (!window.confirm(prompt)) return;
     publishMutation.mutate({
       consentType: trimmedConsentType,
       version: trimmedVersion,
@@ -251,6 +317,15 @@ export default function ConsentVersionsPage(): React.ReactElement {
       render: (r) => r.publishedBy ? <span className="font-mono text-xs">{r.publishedBy.slice(0, 8)}</span> : '—',
     },
     { key: 'publishedAt', header: 'Published at', render: (r) => fmtDate(r.publishedAt) },
+    {
+      key: 'evidence',
+      header: 'Evidence',
+      render: (r) => (
+        <Button variant="outline" className="min-h-11" onClick={() => openPublication(r)}>
+          Open evidence
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -278,6 +353,60 @@ export default function ConsentVersionsPage(): React.ReactElement {
       <section role="note" className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950">
         This workspace records platform evidence. Publishing does not certify legal compliance or file anything with the NPC. A material flag tells the apps to require a fresh acknowledgement for that consent type.
       </section>
+
+      {linkedPublicationInvalid && (
+        <ErrorState
+          title="Invalid consent publication link"
+          description="The saved publication ID is not a valid UUID, so no evidence request was sent. Remove it to keep the current workspace tab."
+          action={<Button variant="outline" onClick={clearLinkedPublication}>Remove invalid publication link</Button>}
+        />
+      )}
+
+      {linkedPublicationId && linkedPublicationQuery.isLoading && (
+        <LoadingState label="Loading linked consent publication…" />
+      )}
+
+      {linkedPublicationId && linkedPublicationQuery.isError && (
+        <ErrorState
+          title="Linked consent publication unavailable"
+          description={getErrorMessage(linkedPublicationQuery.error)}
+          action={(
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="outline" onClick={() => void linkedPublicationQuery.refetch()}>Retry publication evidence</Button>
+              <Button variant="outline" onClick={clearLinkedPublication}>Return to publication history</Button>
+            </div>
+          )}
+        />
+      )}
+
+      {linkedPublicationQuery.data && (
+        <Card aria-label="Selected consent publication evidence">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-secondary)]">Selected publication evidence</p>
+              <h2 className="mt-1 text-lg font-semibold leading-none tracking-tight text-slate-900">
+                {linkedPublicationQuery.data.consentType.replace(/_/g, ' ')} · Version {linkedPublicationQuery.data.version}
+              </h2>
+            </div>
+            <Button variant="outline" onClick={clearLinkedPublication}>Return to full history</Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <dl className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+              <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Change class</dt><dd className="mt-1">{linkedPublicationQuery.data.material ? 'Material' : 'Routine'}</dd></div>
+              <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Activation</dt><dd className="mt-1">{linkedPublicationScheduled ? 'Scheduled' : 'Effective'}</dd></div>
+              <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Effective · Manila</dt><dd className="mt-1">{fmtDateTime(linkedPublicationQuery.data.effectiveAt)}</dd></div>
+              <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published · Manila</dt><dd className="mt-1">{fmtDateTime(linkedPublicationQuery.data.publishedAt)}</dd></div>
+              <div className="sm:col-span-2"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Publication target ID</dt><dd className="mt-1 break-all font-mono text-xs">{linkedPublicationQuery.data.targetId}</dd></div>
+              <div className="sm:col-span-2"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Audit event ID</dt><dd className="mt-1 break-all font-mono text-xs">{linkedPublicationQuery.data.id}</dd></div>
+              <div className="sm:col-span-2 xl:col-span-4"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published by</dt><dd className="mt-1 break-all font-mono text-xs">{linkedPublicationQuery.data.publishedBy ?? 'Not recorded'}</dd></div>
+            </dl>
+            <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] p-4">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Recorded change summary</h3>
+              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6">{linkedPublicationQuery.data.changeSummary || 'No summary recorded.'}</p>
+            </section>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as ConsentTab)}>
         <TabsList className="grid min-h-11 w-full grid-cols-2 sm:w-fit">
@@ -355,6 +484,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
                           <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published</dt><dd className="mt-1">{fmtDate(record.publishedAt)}</dd></div>
                           <div className="col-span-2"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published by</dt><dd className="mt-1 font-mono text-xs">{record.publishedBy ?? 'Not recorded'}</dd></div>
                         </dl>
+                        <Button variant="outline" className="mt-4 min-h-11 w-full" onClick={() => openPublication(record)}>Open publication evidence</Button>
                       </article>
                     ))}
                   </section>
@@ -375,10 +505,10 @@ export default function ConsentVersionsPage(): React.ReactElement {
           <DialogHeader>
             <DialogTitle>Publish a new consent version</DialogTitle>
             <DialogDescription>
-              Creates an audited platform version for a client-supported
-              consent type. The material flag makes the customer and provider
-              apps require fresh acknowledgement for prior grants. Apply it
-              only after the approved policy review establishes that outcome.
+              Record an audited version for a consent type supported by the
+              customer and provider apps. Publication is recorded immediately.
+              A material version starts requiring fresh acknowledgement only
+              when its effective date begins in Philippine time.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -389,7 +519,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
                   <SelectValue placeholder="Choose a supported consent type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(versionsQuery.data?.allowedConsentTypes ?? []).map((type) => (
+                  {allowedConsentTypes.map((type) => (
                     <SelectItem key={type} value={type}>{type.replace(/_/g, ' ')}</SelectItem>
                   ))}
                 </SelectContent>
@@ -452,13 +582,31 @@ export default function ConsentVersionsPage(): React.ReactElement {
                     id="cv-material-help"
                     className="block text-xs text-amber-800 mt-1"
                   >
-                    The apps will treat every prior grant of this consent type
-                    as needing fresh acknowledgement at the next supported
-                    interaction. Confirm the approved policy decision before
-                    enabling this platform behavior.
+                    The publish event is recorded now. The apps will treat
+                    prior grants as needing fresh acknowledgement only after
+                    the selected effective date begins in Philippine time.
                   </span>
                 </span>
               </label>
+            </div>
+            <div
+              role="status"
+              className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950"
+            >
+              <p className="font-semibold">
+                {material
+                  ? materialIsScheduled
+                    ? 'Scheduled material activation'
+                    : 'Material activation begins on the selected day'
+                  : 'Routine evidence publication'}
+              </p>
+              <p className="mt-1 text-xs leading-5">
+                {material
+                  ? materialIsScheduled
+                    ? `Publishing records the audit event now. Customer and provider re-consent starts on ${fmtManilaDay(effectiveDate)}, not before.`
+                    : 'Publishing records the audit event now. Because the selected Philippine day has begun, prior grants can require fresh acknowledgement immediately.'
+                  : 'Publishing records the audit event now. This routine version does not require customer or provider re-consent.'}
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -469,7 +617,13 @@ export default function ConsentVersionsPage(): React.ReactElement {
               onClick={publishVersion}
               disabled={publishDisabled}
             >
-              {publishMutation.isPending ? 'Publishing…' : 'Publish version'}
+              {publishMutation.isPending
+                ? 'Publishing…'
+                : materialIsScheduled
+                  ? 'Publish and schedule'
+                  : material
+                    ? 'Publish and activate'
+                    : 'Publish version'}
             </Button>
           </DialogFooter>
         </DialogContent>

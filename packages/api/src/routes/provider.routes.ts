@@ -22,6 +22,7 @@ import * as providerToolsService from '../services/provider-tools.service';
 import * as providerStaffService from '../services/provider-staff.service';
 import * as kycDocumentService from '../services/kyc-document.service';
 import * as settingsService from '../services/settings.service';
+import * as financialTermsService from '../services/booking-financial-terms.service';
 import * as serviceAreaChangeService from '../services/service-area-change.service';
 import { createAppError } from '../middleware/error.middleware';
 
@@ -155,22 +156,25 @@ router.get(
     try {
       requireProvider(req);
       const provider = await providerService.getProviderByUserId(req.user!.userId);
-      const [services, schedule, ratings, portfolio, certifications, commissionRate] = await Promise.all([
+      const [services, schedule, ratings, portfolio, certifications, commissionPreview] = await Promise.all([
         providerService.getProviderServices(provider.id),
         providerService.getSchedule(provider.id),
         reviewService.getProviderAggregateRating(provider.id),
         providerService.getPortfolio(provider.id),
         providerService.getCertifications(provider.id),
-        settingsService.getCommissionRate(provider.tier),
+        financialTermsService.getCurrentProviderCommissionPreview(provider.id),
       ]);
 
       res.json({
         success: true,
         data: {
           ...providerService.formatProvider(provider),
-          // UX-128 — provider money previews use the same live, admin-tunable
-          // rate as escrow release instead of a mobile fallback table.
-          commissionRate,
+          // UX-128 — provider money previews use the current effective
+          // agreement instead of a mobile fallback table. Booking-specific
+          // previews use immutable terms once that booking is fixed.
+          commissionRate: commissionPreview.commissionRate,
+          commissionRateBasisPoints: commissionPreview.commissionRateBasisPoints,
+          commissionSource: commissionPreview.commissionSource,
           services: services.map(providerService.formatProviderService),
           schedule: schedule.map(providerService.formatScheduleSlot),
           ratings,
@@ -178,6 +182,23 @@ router.get(
           certifications: certifications.map(providerService.formatCertification),
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/me/commission-preview',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const bookingId = typeof req.query.bookingId === 'string' ? req.query.bookingId : '';
+      if (!bookingId) throw createAppError('bookingId is required.', 400);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const preview = await financialTermsService.getBookingCommissionPreview(provider.id, bookingId);
+      res.json({ success: true, data: { ...preview, tier: preview.providerTier } });
     } catch (error) {
       next(error);
     }
@@ -1049,6 +1070,27 @@ router.get(
         pageSize: Number(req.query.pageSize ?? 20),
       });
       res.json({ success: true, ...data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/me/job-requests/:bookingId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const bookingId = req.params['bookingId'];
+      if (!bookingId || typeof bookingId !== 'string') {
+        throw createAppError('bookingId is required.', 400);
+      }
+      const request = await jobLeadsService.getOpenJobRequestForProvider(
+        req.user!.userId,
+        bookingId,
+      );
+      res.json({ success: true, data: request });
     } catch (error) {
       next(error);
     }

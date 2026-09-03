@@ -67,7 +67,9 @@ jobs:
   admin-check:
     name: Admin — TypeScript
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The complete Admin suite now needs about 10 minutes including install
+    # and build. A 10-minute cap cancelled a run after every test had passed.
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v7

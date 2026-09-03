@@ -27,7 +27,10 @@ it('Bug UX-676 — notification copy updates store the before and after state in
     .mockResolvedValueOnce({ rows: [after] })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-  await updateTemplate('template-1', 'admin-1', { titleTemplate: 'Provider assigned' });
+  await updateTemplate('template-1', 'admin-1', {
+    titleTemplate: 'Provider assigned',
+    reason: 'Clarifying provider assignment copy for customers.',
+  });
 
   const auditCall = clientQueryMock.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO admin_actions'));
   expect(JSON.parse(String(auditCall?.[1]?.[2]))).toMatchObject({
@@ -35,5 +38,6 @@ it('Bug UX-676 — notification copy updates store the before and after state in
     slug: 'booking_matched',
     before: { titleTemplate: 'Provider matched' },
     after: { titleTemplate: 'Provider assigned' },
+    reason: 'Clarifying provider assignment copy for customers.',
   });
 });

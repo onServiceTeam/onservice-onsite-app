@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import * as escrowService from './escrow.service';
+import * as paymentService from './payment.service';
 
 /**
  * MED-N28 fix — failed-gateway-action retry queue.
@@ -19,6 +20,7 @@ import * as escrowService from './escrow.service';
 
 export type RetryActionType =
   | 'refund_from_escrow'
+  | 'process_payment_refund'
   | 'release_escrow'
   | 'release_partial_escrow';
 
@@ -180,6 +182,14 @@ async function runOne(row: PendingRetryRow): Promise<void> {
         row.booking_id,
         amount,
         row.description ?? 'Gateway retry: refund',
+      );
+      return;
+    case 'process_payment_refund':
+      if (amount === null) throw new Error('process_payment_refund row missing amount');
+      await paymentService.processRefund(
+        row.booking_id,
+        amount,
+        row.description ?? 'Gateway retry: process payment refund',
       );
       return;
     case 'release_escrow':

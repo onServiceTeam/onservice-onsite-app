@@ -14,6 +14,8 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middlew
 import { createAppError } from '../middleware/error.middleware';
 import * as financialAdminService from '../services/financial-admin.service';
 import * as orService from '../services/or.service';
+import * as commissionControlService from '../services/commission-control.service';
+import * as legacyFinancialReviewService from '../services/legacy-financial-review.service';
 
 const router = Router();
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,6 +46,151 @@ function parseOptionalNumber(value: unknown, name: string): number | undefined {
   if (!Number.isFinite(n)) throw createAppError(`Invalid ${name}.`, 400);
   return n;
 }
+
+// ─── Effective-dated commission controls ───────────────────────────────────
+
+router.get(
+  '/commission-controls',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      requireAdmin(req);
+      const limit = parseOptionalNumber(req.query.limit, 'limit');
+      const offset = parseOptionalNumber(req.query.offset, 'offset');
+      if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 200)) {
+        throw createAppError('limit must be an integer between 1 and 200.', 400);
+      }
+      if (offset !== undefined && (!Number.isInteger(offset) || offset < 0)) {
+        throw createAppError('offset must be a non-negative integer.', 400);
+      }
+      const data = await commissionControlService.listCommissionRates(limit, offset);
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
+  '/commission-controls/:id',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      requireAdmin(req);
+      const rateId = req.params.id;
+      if (typeof rateId !== 'string' || !UUID_REGEX.test(rateId)) {
+        throw createAppError('rateId must be a valid UUID.', 400);
+      }
+      const data = await commissionControlService.getCommissionRateById(rateId);
+      if (!data) throw createAppError('Commission agreement not found.', 404);
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/commission-controls/preview',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      requireAdmin(req);
+      const data = await commissionControlService.previewCommissionSchedule(req.body ?? {});
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/commission-controls',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      requireSuperAdmin(req);
+      const data = await commissionControlService.scheduleCommissionRate(
+        req.body ?? {},
+        req.user!.userId,
+      );
+      res.status(201).json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/commission-controls/:id/cancel',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      requireSuperAdmin(req);
+      const data = await commissionControlService.cancelScheduledCommissionRate(
+        req.params.id,
+        req.body ?? {},
+        req.user!.userId,
+      );
+      res.status(201).json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+// ─── Legacy held-booking financial review ──────────────────────────────────
+
+router.get(
+  '/legacy-reviews',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      requireAdmin(req);
+      const limit = parseOptionalNumber(req.query.limit, 'limit') ?? 25;
+      const offset = parseOptionalNumber(req.query.offset, 'offset') ?? 0;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+        throw createAppError('limit must be an integer between 1 and 100.', 400);
+      }
+      if (!Number.isInteger(offset) || offset < 0) {
+        throw createAppError('offset must be a non-negative integer.', 400);
+      }
+      const search = typeof req.query.search === 'string' ? req.query.search : '';
+      const data = await legacyFinancialReviewService.listLegacyFinancialReviews(
+        limit,
+        offset,
+        search,
+      );
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
+  '/legacy-reviews/:id',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      requireAdmin(req);
+      const bookingId = req.params.id as string;
+      if (!UUID_REGEX.test(bookingId)) {
+        throw createAppError('Booking ID must be a valid UUID.', 400);
+      }
+      const data = await legacyFinancialReviewService.getLegacyFinancialReview(bookingId);
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/legacy-reviews/:id/complete',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      requireSuperAdmin(req);
+      const bookingId = req.params.id as string;
+      if (!UUID_REGEX.test(bookingId)) {
+        throw createAppError('Booking ID must be a valid UUID.', 400);
+      }
+      const data = await legacyFinancialReviewService.submitLegacyFinancialReview(
+        bookingId,
+        req.body ?? {},
+        req.user!.userId,
+      );
+      res.status(201).json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
 
 // ─── Overview ───────────────────────────────────────────────────────────────
 
@@ -163,7 +310,36 @@ router.get(
       if (retryOffset !== undefined && (!Number.isInteger(retryOffset) || retryOffset < 0)) {
         throw createAppError('retryOffset must be a non-negative integer.', 400);
       }
-      const data = await financialAdminService.getPaymentOperationsSummary({ retryLimit, retryOffset });
+      if (req.query.paymentAttemptId !== undefined && typeof req.query.paymentAttemptId !== 'string') {
+        throw createAppError('paymentAttemptId must be a single identifier.', 400);
+      }
+      const paymentAttemptId = typeof req.query.paymentAttemptId === 'string'
+        ? req.query.paymentAttemptId.trim()
+        : undefined;
+      if (paymentAttemptId && !UUID_REGEX.test(paymentAttemptId)) {
+        throw createAppError('paymentAttemptId must be a valid UUID.', 400);
+      }
+      if (req.query.intentSearch !== undefined && typeof req.query.intentSearch !== 'string') {
+        throw createAppError('intentSearch must be a single identifier.', 400);
+      }
+      const intentSearch = typeof req.query.intentSearch === 'string' ? req.query.intentSearch.trim() : undefined;
+      if (intentSearch && intentSearch.length > 255) {
+        throw createAppError('intentSearch must be 255 characters or fewer.', 400);
+      }
+      if (req.query.retrySearch !== undefined && typeof req.query.retrySearch !== 'string') {
+        throw createAppError('retrySearch must be a single identifier.', 400);
+      }
+      const retrySearch = typeof req.query.retrySearch === 'string' ? req.query.retrySearch.trim() : undefined;
+      if (retrySearch && retrySearch.length > 255) {
+        throw createAppError('retrySearch must be 255 characters or fewer.', 400);
+      }
+      const data = await financialAdminService.getPaymentOperationsSummary({
+        retryLimit,
+        retryOffset,
+        ...(paymentAttemptId ? { paymentAttemptId } : {}),
+        intentSearch: intentSearch || undefined,
+        retrySearch: retrySearch || undefined,
+      });
       res.json({ success: true, data });
     } catch (error) { next(error); }
   },

@@ -48,6 +48,9 @@ jest.mock('../../src/services/settings.service', () => ({
 jest.mock('../../src/services/service-area.service', () => ({
   checkCoverage: jest.fn().mockResolvedValue({ covered: true, area: { id: 'area-1' } }),
 }));
+jest.mock('../../src/services/booking-financial-terms.service', () => ({
+  appendPricingTermsInTransaction: jest.fn().mockResolvedValue({ id: 'terms-1' }),
+}));
 
 import { createBooking } from '../../src/services/booking.service';
 

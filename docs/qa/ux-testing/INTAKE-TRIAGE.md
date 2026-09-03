@@ -14,8 +14,8 @@ up cold.
 
 Most feedback now comes through the live page at
 **https://app.onservice.ph/feedback** and lands in the database automatically.
-You don't have to chase files. There are four ways to read it back. The first is
-the day-to-day operating workflow; the other three use the export key
+You don't have to chase files. There are three ways to read it back. The first is
+the day-to-day operating workflow; the other two use the export key
 (`FEEDBACK_EXPORT_KEY` on the server, kept by Ken; hand it to the AI coder when
 you want a review):
 
@@ -23,16 +23,18 @@ you want a review):
    filter New work by customer/provider/admin area, preserve the original
    evidence, assign an active named admin, and record a triage, completion, or
    dismissal note. Ordinary admins see masked contact and free-text PII.
-2. **In a browser export** (private analysis): open
-   `https://app.onservice.ph/api/v1/feedback/export.csv?key=THEKEY` for a
-   spreadsheet, or `…/export.md?key=THEKEY` for a readable digest.
-3. **Into the repo** (AI coder): run `node scripts/feedback/pull.mjs` with
+2. **Into the repo** (private analysis): run `node scripts/feedback/pull.mjs` with
    `FEEDBACK_EXPORT_KEY` set. It writes
    [FEEDBACK-INBOX.md](FEEDBACK-INBOX.md) (readable) and `FEEDBACK-INBOX.json`
-   (machine) into this folder, so the AI coder can review feedback in-repo and
-   turn it into fixes.
-4. **Ask the AI coder** to "pull the latest tester feedback and triage it" — it
+   (machine) into this folder and privately downloads screenshot evidence. The
+   key travels in a request header, never in a browser URL. All outputs are
+   gitignored.
+3. **Ask the AI coder** to "pull the latest tester feedback and triage it" — it
    runs the pull and works through the steps below.
+
+Direct `/uploads/feedback/...` paths are evidence identifiers, not public links.
+Do not paste, publish, or commit them. Review screenshots in the authenticated
+Admin record or in the gitignored local pull.
 
 The markdown files testers can fill by hand ([QUESTIONNAIRE.md](QUESTIONNAIRE.md),
 [FEEDBACK-LOG.md](FEEDBACK-LOG.md)) still apply for anyone off the web page; fold

@@ -60,5 +60,5 @@ it('Bug UX-364 — provider job requests use a bounded desktop grid and explain 
   expect(await screen.findByText(/stays open to eligible providers until a customer accepts a quote/i)).toBeTruthy();
   expect(container.querySelector('flatlist')?.getAttribute('accessibilitylabel')).toBe('Tablet and desktop provider job request grid');
   fireEvent.click(screen.getByLabelText('Open Aircon Services job request and prepare a quote'));
-  expect(mockPush).toHaveBeenCalledWith('/provider/job/request-1');
+  expect(mockPush).toHaveBeenCalledWith('/provider/job/request-1/quote');
 });

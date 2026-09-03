@@ -9,6 +9,7 @@ import {
   assignSupportTicketSchema,
   createSupportTicketSchema,
   mySupportTicketListQuerySchema,
+  supportAccountIdParamsSchema,
   supportTicketListQuerySchema,
   supportTicketIdParamsSchema,
   supportTicketMessageSchema,
@@ -34,7 +35,7 @@ router.get(
     try {
       const {
         page, limit, status, type, priority, assignedAgentId, unassigned, active,
-        search, bookingId, userId, relatedCustomerId, relatedProviderId,
+        search, bookingId, projectId, businessAccountId, userId, relatedCustomerId, relatedProviderId,
       } =
         req.query as unknown as {
           page: number;
@@ -47,6 +48,8 @@ router.get(
           active?: boolean;
           search?: string;
           bookingId?: string;
+          projectId?: string;
+          businessAccountId?: string;
           userId?: string;
           relatedCustomerId?: string;
           relatedProviderId?: string;
@@ -62,6 +65,8 @@ router.get(
         active,
         search,
         bookingId,
+        projectId,
+        businessAccountId,
         userId,
         relatedCustomerId,
         relatedProviderId,
@@ -106,6 +111,27 @@ router.get(
   },
 );
 
+// Server-confirmed case-owner identity for the agent-created case form. This
+// deliberately excludes phone and email and must remain before the '/:id'
+// ticket route so the literal account-context segment cannot be captured.
+router.get(
+  '/account-context/:id',
+  authMiddleware,
+  rbacMiddleware('admin', 'super_admin'),
+  validationMiddleware({ params: supportAccountIdParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const data = await supportTicketService.getSupportAccountContext(
+        getParamId(req),
+        req.user!.role,
+      );
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 // Create a case on behalf of a customer or provider after the support agent
 // has opened that account in the admin workspace. Keeping this as an explicit
 // admin route preserves the acting-admin audit trail and prevents a caller
@@ -117,7 +143,9 @@ router.post(
   validationMiddleware(adminCreateSupportTicketSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { userId, type, priority, subject, description, bookingId } = req.body;
+      const {
+        userId, type, priority, subject, description, bookingId, projectId, businessAccountId,
+      } = req.body;
       const ticket = await supportTicketService.createTicket({
         userId,
         type,
@@ -125,6 +153,8 @@ router.post(
         subject,
         description,
         bookingId,
+        projectId,
+        businessAccountId,
         createdByAdminId: req.user!.userId,
       });
       res.status(201).json({ success: true, data: ticket });
@@ -228,7 +258,7 @@ router.post(
   validationMiddleware(createSupportTicketSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { type, priority, subject, description, bookingId } = req.body;
+      const { type, priority, subject, description, bookingId, projectId, businessAccountId } = req.body;
       const ticket = await supportTicketService.createTicket({
         userId: req.user!.userId,
         type,
@@ -236,6 +266,8 @@ router.post(
         subject,
         description,
         bookingId,
+        projectId,
+        businessAccountId,
       });
       res.status(201).json({ success: true, data: ticket });
     } catch (error) {

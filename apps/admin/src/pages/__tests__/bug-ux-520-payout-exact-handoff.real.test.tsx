@@ -19,8 +19,28 @@ import PayoutsPage from '../PayoutsPage';
 it('Bug UX-520 — a global payout result opens a visibly exact read-only queue filter', async () => {
   apiMocks.get.mockResolvedValueOnce({ data: {
     success: true,
-    data: [],
-    pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+    data: [{
+      id: payoutId,
+      providerId: '77777777-7777-4777-8777-777777777777',
+      walletId: '88888888-8888-4888-8888-888888888888',
+      amount: 50000,
+      method: 'gcash',
+      destinationAccount: '09*******67',
+      accountName: 'Paolo S.',
+      status: 'completed',
+      paymongoTransferId: null,
+      failureReason: null,
+      rejectionReason: null,
+      notes: null,
+      reviewedBy: null,
+      reviewedAt: null,
+      createdAt: '2026-09-03T09:00:00.000Z',
+      completedAt: '2026-09-03T10:00:00.000Z',
+      requiresAmlReview: false,
+      amlThresholdAtRequest: null,
+      providerBusinessName: 'Cebu Cleaners',
+    }],
+    pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
   } });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 

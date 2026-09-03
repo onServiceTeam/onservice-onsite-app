@@ -280,6 +280,7 @@ const OSM_ATTRIBUTION =
 interface MapTileConfig {
   url: string;
   attribution: string;
+  usingFallback: boolean;
 }
 
 interface SettingRow {
@@ -299,10 +300,10 @@ async function fetchMapTileConfig(): Promise<MapTileConfig> {
     const attribution = (byKey.get('map_tile_attribution') ?? '').trim() || OSM_ATTRIBUTION;
     // Substitute the {apiKey} placeholder only when a key is configured.
     const url = apiKey ? rawUrl.replace('{apiKey}', encodeURIComponent(apiKey)) : rawUrl;
-    return { url, attribution };
+    return { url, attribution, usingFallback: false };
   } catch {
     // Settings unreachable — fall back to keyless OSM so the map still draws.
-    return { url: OSM_TILE_URL, attribution: OSM_ATTRIBUTION };
+    return { url: OSM_TILE_URL, attribution: OSM_ATTRIBUTION, usingFallback: true };
   }
 }
 
@@ -370,7 +371,11 @@ export default function DispatchConsolePage(): React.ReactElement {
     queryFn: fetchMapTileConfig,
     staleTime: 5 * 60_000,
   });
-  const mapTile: MapTileConfig = mapConfigQuery.data ?? { url: OSM_TILE_URL, attribution: OSM_ATTRIBUTION };
+  const mapTile: MapTileConfig = mapConfigQuery.data ?? {
+    url: OSM_TILE_URL,
+    attribution: OSM_ATTRIBUTION,
+    usingFallback: false,
+  };
 
   const [cityFilter, setCityFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -713,6 +718,19 @@ export default function DispatchConsolePage(): React.ReactElement {
       {!providersQuery.isError && (providersQuery.data?.total ?? 0) > allProviders.length && (
         <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
           The map shows the first {allProviders.length} of {providersQuery.data?.total} providers accepting work. Use provider search in Reassign to reach providers outside this loaded map page.
+        </div>
+      )}
+
+      {mapTile.usingFallback && (
+        <div role="status" className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+          <span>Map settings are unavailable. Dispatch is using the OpenStreetMap fallback until the configured tile source can be loaded.</span>
+          <button
+            type="button"
+            onClick={() => void mapConfigQuery.refetch()}
+            className="min-h-11 shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-2 font-semibold hover:bg-amber-100"
+          >
+            Retry map settings
+          </button>
         </div>
       )}
 

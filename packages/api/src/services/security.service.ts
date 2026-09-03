@@ -30,6 +30,10 @@ interface BlockedIpRow {
 interface SecurityEventRow {
   id: string;
   user_id: string | null;
+  user_role?: string | null;
+  user_name?: string | null;
+  user_email?: string | null;
+  provider_profile_id?: string | null;
   event_type: string;
   ip_address: string | null;
   device_fingerprint: string | null;
@@ -409,6 +413,7 @@ export async function blockIp(params: {
        FOR UPDATE`,
       [params.ipAddress],
     );
+    let blocked: BlockedIpRow;
     if (existing.rows.length > 0) {
       const upd = await client.query<BlockedIpRow>(
         `UPDATE blocked_ips
@@ -425,27 +430,38 @@ export async function blockIp(params: {
           existing.rows[0]!.id,
         ],
       );
-      return upd.rows[0]!;
+      blocked = upd.rows[0]!;
+    } else {
+      const ins = await client.query<BlockedIpRow>(
+        `INSERT INTO blocked_ips (ip_address, reason, blocked_by, expires_at)
+         VALUES ($1::inet, $2, $3, $4)
+         RETURNING *`,
+        [
+          params.ipAddress,
+          params.reason,
+          params.blockedBy ?? null,
+          expiresAt?.toISOString() ?? null,
+        ],
+      );
+      blocked = ins.rows[0]!;
     }
-    const ins = await client.query<BlockedIpRow>(
-      `INSERT INTO blocked_ips (ip_address, reason, blocked_by, expires_at)
-       VALUES ($1::inet, $2, $3, $4)
-       RETURNING *`,
+
+    // Bug OPS-377: a network block and its operator/security evidence are one
+    // decision. Writing this through the transaction client prevents a block
+    // from committing when the event insert fails, and prevents a 500 after a
+    // block already took effect without the timeline record promised by Admin.
+    await client.query(
+      `INSERT INTO security_events (user_id, event_type, ip_address, device_fingerprint, metadata)
+       VALUES ($1, $2, $3::inet, $4, $5)`,
       [
-        params.ipAddress,
-        params.reason,
         params.blockedBy ?? null,
-        expiresAt?.toISOString() ?? null,
+        'ip_blocked',
+        params.ipAddress,
+        null,
+        JSON.stringify({ reason: params.reason, expiresInHours: params.expiresInHours }),
       ],
     );
-    return ins.rows[0]!;
-  });
-
-  await logSecurityEvent({
-    userId: params.blockedBy ?? undefined,
-    eventType: 'ip_blocked',
-    ipAddress: params.ipAddress,
-    metadata: { reason: params.reason, expiresInHours: params.expiresInHours },
+    return blocked;
   });
 
   logger.info('IP blocked', {
@@ -459,25 +475,37 @@ export async function blockIp(params: {
 
 export async function unblockIp(
   ipAddress: string,
-  unblockedBy?: string,
+  unblockedBy: string,
+  reason: string,
 ): Promise<boolean> {
-  const result = await db.query(
-    `UPDATE blocked_ips SET is_active = FALSE WHERE ip_address = $1::inet AND is_active = TRUE`,
-    [ipAddress],
-  );
+  // Bug OPS-378: restoring network access is also audit-or-nothing. If the
+  // event insert fails, the transaction rolls the unblock back instead of
+  // leaving an unattributed access decision behind.
+  const unblocked = await db.transaction<boolean>(async (client) => {
+    const result = await client.query(
+      `UPDATE blocked_ips SET is_active = FALSE WHERE ip_address = $1::inet AND is_active = TRUE`,
+      [ipAddress],
+    );
+    if ((result.rowCount ?? 0) === 0) return false;
 
-  if ((result.rowCount ?? 0) > 0) {
-    await logSecurityEvent({
-      userId: unblockedBy,
-      eventType: 'ip_unblocked',
-      ipAddress,
-      metadata: {},
-    });
-
-    logger.info('IP unblocked', { ipAddress });
+    await client.query(
+      `INSERT INTO security_events (user_id, event_type, ip_address, device_fingerprint, metadata)
+       VALUES ($1, $2, $3::inet, $4, $5)`,
+      [
+        unblockedBy,
+        'ip_unblocked',
+        ipAddress,
+        null,
+        JSON.stringify({ reason }),
+      ],
+    );
     return true;
+  });
+
+  if (unblocked) {
+    logger.info('IP unblocked', { ipAddress, unblockedBy, reason });
   }
-  return false;
+  return unblocked;
 }
 
 export async function listBlockedIps(
@@ -489,12 +517,16 @@ export async function listBlockedIps(
 
   const [dataResult, countResult] = await Promise.all([
     db.query<BlockedIpRow>(
-      `SELECT * FROM blocked_ips WHERE is_active = TRUE
+      `SELECT * FROM blocked_ips
+       WHERE is_active = TRUE
+         AND (expires_at IS NULL OR expires_at > NOW())
        ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
       [safePageSize, offset],
     ),
     db.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM blocked_ips WHERE is_active = TRUE`,
+      `SELECT COUNT(*)::text AS count FROM blocked_ips
+       WHERE is_active = TRUE
+         AND (expires_at IS NULL OR expires_at > NOW())`,
     ),
   ]);
 
@@ -538,15 +570,15 @@ export async function listSecurityEvents(
   let paramIndex = 1;
 
   if (filters?.userId) {
-    conditions.push(`user_id = $${paramIndex++}`);
+    conditions.push(`se.user_id = $${paramIndex++}`);
     params.push(filters.userId);
   }
   if (filters?.eventType) {
-    conditions.push(`event_type = $${paramIndex++}`);
+    conditions.push(`se.event_type = $${paramIndex++}`);
     params.push(filters.eventType);
   }
   if (filters?.ipAddress) {
-    conditions.push(`ip_address = $${paramIndex++}::inet`);
+    conditions.push(`se.ip_address = $${paramIndex++}::inet`);
     params.push(filters.ipAddress);
   }
 
@@ -554,12 +586,27 @@ export async function listSecurityEvents(
 
   const [dataResult, countResult] = await Promise.all([
     db.query<SecurityEventRow>(
-      `SELECT * FROM security_events ${whereClause}
-       ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      `SELECT se.*,
+              u.role AS user_role,
+              NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS user_name,
+              u.email AS user_email,
+              COALESCE(p.id, staff_account.provider_id) AS provider_profile_id
+         FROM security_events se
+         LEFT JOIN users u ON u.id = se.user_id
+         LEFT JOIN providers p ON p.user_id = se.user_id
+         LEFT JOIN LATERAL (
+           SELECT ps.provider_id
+             FROM provider_staff ps
+            WHERE ps.user_id = se.user_id
+            ORDER BY ps.created_at DESC, ps.id
+            LIMIT 1
+         ) staff_account ON u.role = 'provider_staff'
+         ${whereClause}
+        ORDER BY se.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, safePageSize, offset],
     ),
     db.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM security_events ${whereClause}`,
+      `SELECT COUNT(*)::text AS count FROM security_events se ${whereClause}`,
       params,
     ),
   ]);
@@ -580,21 +627,20 @@ export async function listSecurityEvents(
  *
  * Post-fix:
  *   1. Single SELECT to find suspicious IPs (unchanged).
- *   2. Single SELECT to find which of those are already actively
- *      blocked (anti-join via NOT EXISTS in next step).
- *   3. Single INSERT ... ON CONFLICT DO UPDATE for new blocks /
- *      inactive-row reactivations (bulk).
- *   4. Single INSERT ... SELECT for security_events bulk write.
+ *   2. Single SELECT to load the newest block row per suspicious IP.
+ *   3. One bulk UPDATE for inactive/expired rows plus one bulk INSERT
+ *      for addresses with no history, avoiding duplicate inactive rows.
+ *   4. Single bulk INSERT for security_events.
  *
- * Net: 4 queries total regardless of N suspicious IPs (vs 3N+1
- * pre-fix). At N=100 this drops cron from ~301 RTTs to 4.
+ * Net: at most 6 queries total regardless of N suspicious IPs (vs 3N+1
+ * pre-fix), including the transaction boundary and both write shapes.
  */
 export async function detectSuspiciousIps(): Promise<number> {
   const configuredThreshold = await settingsService.getSettingInteger('suspicious_ip_threshold');
   const threshold = Math.min(500, Math.max(10, configuredThreshold));
 
   const suspicious = await db.query<{ ip_address: string; fail_count: string }>(
-    `SELECT ip_address, COUNT(*)::text AS fail_count FROM login_attempts
+    `SELECT host(ip_address)::text AS ip_address, COUNT(*)::text AS fail_count FROM login_attempts
      WHERE success = FALSE AND created_at > NOW() - INTERVAL '1 hour'
      GROUP BY ip_address
      HAVING COUNT(*) >= $1`,
@@ -603,39 +649,78 @@ export async function detectSuspiciousIps(): Promise<number> {
 
   if (suspicious.rows.length === 0) return 0;
 
-  // Step 2: anti-join — find which suspicious IPs are NOT already
-  // actively blocked. This is the set we need to insert/reactivate.
+  // Step 2: load the newest block row for each suspicious address. The table
+  // has a partial unique index for ACTIVE rows only, so blindly inserting an
+  // address with an inactive history row creates one duplicate per unblock /
+  // automatic re-block cycle. Reuse that newest row instead.
   const ips = suspicious.rows.map((r) => r.ip_address);
-  const existing = await db.query<{ ip_address: string }>(
-    `SELECT host(ip_address)::text AS ip_address
+  const existing = await db.query<{
+    id: string;
+    ip_address: string;
+    currently_blocked: boolean;
+  }>(
+    `SELECT DISTINCT ON (ip_address)
+            id,
+            host(ip_address)::text AS ip_address,
+            (is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())) AS currently_blocked
        FROM blocked_ips
       WHERE ip_address = ANY($1::inet[])
-        AND is_active = TRUE
-        AND (expires_at IS NULL OR expires_at > NOW())`,
+      ORDER BY ip_address, created_at DESC, id DESC`,
     [ips],
   );
-  const alreadyBlockedSet = new Set(existing.rows.map((r) => r.ip_address));
+  const latestByIp = new Map(existing.rows.map((row) => [row.ip_address, row]));
+  const alreadyBlockedSet = new Set(
+    existing.rows.filter((row) => row.currently_blocked).map((row) => row.ip_address),
+  );
   const toBlock = suspicious.rows.filter((r) => !alreadyBlockedSet.has(r.ip_address));
 
   if (toBlock.length === 0) return 0;
 
   await db.transaction(async (client) => {
-    // Step 3: bulk INSERT/upsert. ON CONFLICT activates existing rows
-    // for IPs whose block had expired or was manually deactivated.
-    const valuesSql: string[] = [];
-    const params: unknown[] = [];
-    let i = 1;
-    for (const r of toBlock) {
-      valuesSql.push(`($${i++}::inet, $${i++}, NULL, NOW() + INTERVAL '24 hours', TRUE)`);
-      params.push(r.ip_address, `Auto-blocked: ${r.fail_count} failed login attempts in 1 hour`);
+    // Step 3a: reactivate the newest inactive/expired history row. This keeps
+    // one row per address while preserving the security-event timeline.
+    const toReactivate = toBlock.filter((row) => latestByIp.has(row.ip_address));
+    if (toReactivate.length > 0) {
+      const valuesSql: string[] = [];
+      const params: unknown[] = [];
+      let i = 1;
+      for (const row of toReactivate) {
+        valuesSql.push(`($${i++}::uuid, $${i++}::text)`);
+        params.push(
+          latestByIp.get(row.ip_address)!.id,
+          `Auto-blocked: ${row.fail_count} failed login attempts in 1 hour`,
+        );
+      }
+      await client.query(
+        `UPDATE blocked_ips AS blocked
+            SET is_active = TRUE,
+                reason = incoming.reason,
+                blocked_by = NULL,
+                expires_at = NOW() + INTERVAL '24 hours'
+           FROM (VALUES ${valuesSql.join(', ')}) AS incoming(id, reason)
+          WHERE blocked.id = incoming.id`,
+        params,
+      );
     }
-    await client.query(
-      `INSERT INTO blocked_ips (ip_address, reason, blocked_by, expires_at, is_active)
-       VALUES ${valuesSql.join(', ')}`,
-      params,
-    );
 
-    // Step 4: bulk security event log.
+    // Step 3b: only addresses with no prior row receive an INSERT.
+    const toInsert = toBlock.filter((row) => !latestByIp.has(row.ip_address));
+    if (toInsert.length > 0) {
+      const valuesSql: string[] = [];
+      const params: unknown[] = [];
+      let i = 1;
+      for (const row of toInsert) {
+        valuesSql.push(`($${i++}::inet, $${i++}, NULL, NOW() + INTERVAL '24 hours', TRUE)`);
+        params.push(row.ip_address, `Auto-blocked: ${row.fail_count} failed login attempts in 1 hour`);
+      }
+      await client.query(
+        `INSERT INTO blocked_ips (ip_address, reason, blocked_by, expires_at, is_active)
+         VALUES ${valuesSql.join(', ')}`,
+        params,
+      );
+    }
+
+    // Step 4: bulk security event log for both inserts and reactivations.
     const eventValuesSql: string[] = [];
     const eventParams: unknown[] = [];
     let j = 1;
@@ -708,11 +793,17 @@ export function formatBlockedIp(row: BlockedIpRow): {
 
 export function formatSecurityEvent(row: SecurityEventRow): {
   id: string; userId: string | null; eventType: string; ipAddress: string | null;
-  deviceFingerprint: string | null; metadata: Record<string, unknown>; createdAt: Date;
+  userRole: string | null; userName: string | null; userEmail: string | null;
+  providerProfileId: string | null; deviceFingerprint: string | null;
+  metadata: Record<string, unknown>; createdAt: Date;
 } {
   return {
     id: row.id,
     userId: row.user_id,
+    userRole: row.user_role ?? null,
+    userName: row.user_name ?? null,
+    userEmail: row.user_email ?? null,
+    providerProfileId: row.provider_profile_id ?? null,
     eventType: row.event_type,
     ipAddress: row.ip_address,
     deviceFingerprint: row.device_fingerprint,

@@ -90,6 +90,9 @@ export default function TierProgressionScreen(): React.ReactElement {
   const currentIdx = progressionTiers.findIndex((tier) => tier.tier === currentTier);
   const foundingTier = allTiers.find((tier) => tier.tier === 'founding');
   const currentCommissionLabel = formatCommission(currentCommission);
+  const currentAgreementLabel = data.currentCommissionSource === 'provider_contract'
+    ? 'Your provider-specific default agreement'
+    : 'Your current default tier agreement';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -125,7 +128,8 @@ export default function TierProgressionScreen(): React.ReactElement {
                 <Text style={[styles.currentTier, { color: TIER_COLORS[currentTier] ?? colors.text }]}>
                   {tierLabel(currentTier)}
                 </Text>
-                <Text style={styles.currentCommission}>{currentCommissionLabel}% live commission rate</Text>
+                <Text style={styles.currentCommission}>{currentCommissionLabel}% default commission</Text>
+                <Text style={styles.currentAgreementSource}>{currentAgreementLabel}</Text>
               </View>
             </View>
 
@@ -135,7 +139,9 @@ export default function TierProgressionScreen(): React.ReactElement {
                 <Text style={styles.parallelTitle}>Founding sits beside the standard ladder</Text>
                 <Text style={styles.parallelText}>
                   Your Founding status is assigned by onService and is not a rung above Elite.
-                  Your live commission is {currentCommissionLabel}%. The standard New to Elite path is shown for context.
+                  Your current default commission is {currentCommissionLabel}%. A booking can use a more specific
+                  category agreement, and the rate fixed for that booking is shown in the job. The standard New to
+                  Elite path is shown for context.
                 </Text>
               </View>
             ) : null}
@@ -229,14 +235,17 @@ export default function TierProgressionScreen(): React.ReactElement {
                 <View style={styles.maxTierIconWrap}><Crown size={48} color={colors.warning} /></View>
                 <Text style={styles.maxTierTitle}>Highest standard tier</Text>
                 <Text style={styles.maxTierText}>
-                  Elite is the final step on the standard ladder. Your current live commission rate is {currentCommissionLabel}%.
+                  Elite is the final step on the standard ladder. Your current default commission is {currentCommissionLabel}%.
                 </Text>
               </View>
             )}
           </View>
           <View style={[styles.tierColumn, !isPhone && styles.tierColumnWide]}>
             <Text style={styles.sectionTitle}>Provider level paths</Text>
-            <Text style={styles.sectionIntro}>Commission values below are the current Admin-controlled rates.</Text>
+            <Text style={styles.sectionIntro}>
+              These are the current base rates for work without a provider, category, or subcategory agreement.
+              Each booking keeps the rate shown when its financial terms are fixed.
+            </Text>
             {foundingTier ? (
               <View style={styles.tierGroup}>
                 <Text style={styles.tierGroupLabel}>PARALLEL INVITE-ONLY STATUS</Text>
@@ -292,7 +301,7 @@ function TierCard({ tier, isCurrent, isParallel = false }: { tier: TierRequireme
           <Text style={[styles.tierCardName, { color: TIER_COLORS[tier.tier] ?? colors.text }]}>
             {tier.tier.charAt(0).toUpperCase() + tier.tier.slice(1)}
           </Text>
-          <Text style={styles.tierCardCommission}>{formatCommission(tier.commission)}% live commission</Text>
+          <Text style={styles.tierCardCommission}>{formatCommission(tier.commission)}% base tier agreement</Text>
         </View>
         {isCurrent && (
           <View style={[styles.currentBadge, { backgroundColor: TIER_COLORS[tier.tier] }]}>
@@ -362,6 +371,7 @@ const styles = StyleSheet.create({
   currentLabel: { ...typography.caption, color: colors.textTertiary, marginBottom: 2 },
   currentTier: { ...typography.h3, fontWeight: '700', marginBottom: 2 },
   currentCommission: { ...typography.bodySmall, color: colors.textSecondary },
+  currentAgreementSource: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.xs },
 
   parallelCard: {
     backgroundColor: colors.surface,

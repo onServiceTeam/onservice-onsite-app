@@ -6,6 +6,7 @@ export interface EarningsSummary {
   earnedThisWeek: number;
   earnedThisMonth: number;
   pendingEscrow: number;
+  pendingEscrowReviewCount: number;
   jobsToday: number;
   jobsThisWeek: number;
   jobsThisMonth: number;

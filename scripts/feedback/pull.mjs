@@ -16,7 +16,8 @@
 //
 // Usage:
 //   FEEDBACK_EXPORT_KEY=xxxx node scripts/feedback/pull.mjs
-//   node scripts/feedback/pull.mjs --key xxxx --api https://app.onservice.ph
+//   FEEDBACK_EXPORT_KEY=xxxx node scripts/feedback/pull.mjs --api https://app.onservice.ph
+//   FEEDBACK_EXPORT_KEY=xxxx node scripts/feedback/pull.mjs --api http://localhost:7381 --out-dir C:\\temp\\feedback
 
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve, basename } from 'node:path';
@@ -34,19 +35,22 @@ function arg(name) {
 // (allow <ip>; deny all), but app.onservice.ph proxies /api/ ungated, so the
 // key-protected export is reachable from anywhere. Override with --api if needed.
 const API = (arg('api') || process.env.FEEDBACK_API || 'https://app.onservice.ph').replace(/\/$/, '');
-const KEY = arg('key') || process.env.FEEDBACK_EXPORT_KEY;
+const KEY = process.env.FEEDBACK_EXPORT_KEY;
 
 if (!KEY) {
-  console.error('Missing key. Set FEEDBACK_EXPORT_KEY or pass --key <value>.');
+  console.error('Missing key. Set FEEDBACK_EXPORT_KEY in the process environment.');
   process.exit(1);
 }
 
-const outDir = resolve(repoRoot, 'docs', 'qa', 'ux-testing');
+const requestedOutDir = arg('out-dir');
+const outDir = requestedOutDir
+  ? resolve(requestedOutDir)
+  : resolve(repoRoot, 'docs', 'qa', 'ux-testing');
 const shotsDir = resolve(outDir, 'feedback-screenshots');
 
 async function get(path, accept) {
-  const url = `${API}/api/v1/feedback/${path}?key=${encodeURIComponent(KEY)}&limit=5000`;
-  const res = await fetch(url, { headers: { accept } });
+  const url = `${API}/api/v1/feedback/${path}?limit=5000`;
+  const res = await fetch(url, { headers: { accept, 'x-feedback-key': KEY } });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`GET ${path} -> ${res.status} ${res.statusText} ${body.slice(0, 200)}`);
@@ -61,6 +65,7 @@ function collectShotUrls(json) {
     const p = sub.payload ?? {};
     for (const u of p.screenshots ?? []) if (typeof u === 'string') urls.add(u);
     for (const it of p.items ?? []) {
+      if (typeof it.screenshot === 'string') urls.add(it.screenshot);
       for (const u of it.screenshots ?? []) if (typeof u === 'string') urls.add(u);
     }
   }
@@ -69,7 +74,7 @@ function collectShotUrls(json) {
 
 function safeName(url) {
   const b = basename(url.split('?')[0]);
-  return b.replace(/[^A-Za-z0-9._-]/g, '_') || 'shot';
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}\.(?:jpe?g|png|webp)$/i.test(b) ? b : null;
 }
 
 try {
@@ -88,11 +93,12 @@ try {
   let downloaded = 0;
   for (const url of shotUrls) {
     try {
-      const abs = url.startsWith('http') ? url : `${API}${url}`;
-      const r = await fetch(abs);
+      const name = safeName(url);
+      if (!name) continue;
+      const protectedUrl = `${API}/api/v1/feedback/export-screenshot/${encodeURIComponent(name)}`;
+      const r = await fetch(protectedUrl, { headers: { 'x-feedback-key': KEY } });
       if (!r.ok) continue;
       const buf = Buffer.from(await r.arrayBuffer());
-      const name = safeName(url);
       await writeFile(resolve(shotsDir, name), buf);
       md = md.split(url).join(`feedback-screenshots/${name}`);
       downloaded += 1;

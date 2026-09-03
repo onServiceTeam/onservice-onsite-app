@@ -5,11 +5,14 @@ import {
   ArrowRight,
   Banknote,
   Bell,
+  Building2,
   ChevronDown,
   ClipboardList,
+  FileText,
   Key,
   Menu,
   RefreshCw,
+  Receipt,
   Scale,
   Search,
   Settings,
@@ -24,7 +27,7 @@ interface HeaderProps {
   onOpenNavigation?: () => void;
 }
 
-type AdminSearchKind = 'customer' | 'provider' | 'booking' | 'support' | 'dispute' | 'payout';
+type AdminSearchKind = 'customer' | 'provider' | 'business' | 'contract' | 'booking' | 'statement' | 'payment' | 'legacy_sales_record' | 'gateway_retry' | 'support' | 'dispute' | 'payout';
 
 interface AdminRecordResult {
   kind: AdminSearchKind;
@@ -38,7 +41,13 @@ interface AdminRecordResult {
 const RECORD_KIND_META = {
   customer: { label: 'Customer', Icon: Users },
   provider: { label: 'Provider', Icon: Wrench },
+  business: { label: 'Business account', Icon: Building2 },
+  contract: { label: 'Contract', Icon: FileText },
   booking: { label: 'Booking', Icon: ClipboardList },
+  statement: { label: 'Statement', Icon: Receipt },
+  payment: { label: 'Payment', Icon: Banknote },
+  legacy_sales_record: { label: 'Legacy sales record', Icon: Receipt },
+  gateway_retry: { label: 'Gateway retry', Icon: RefreshCw },
   support: { label: 'Support', Icon: Ticket },
   dispute: { label: 'Dispute', Icon: Scale },
   payout: { label: 'Payout', Icon: Banknote },

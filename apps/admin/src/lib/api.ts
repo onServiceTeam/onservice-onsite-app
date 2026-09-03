@@ -139,6 +139,16 @@ async function request<T>(url: string, init: ApiRequestInit, isRetry = false): P
   } catch (err) {
     if (
       err instanceof ApiError
+      && err.body?.error?.code === 'password_rotation_required'
+      && typeof window !== 'undefined'
+      && window.location.pathname !== '/change-password'
+    ) {
+      window.history.replaceState(null, '', '/change-password');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      throw err;
+    }
+    if (
+      err instanceof ApiError
       && err.status === 401
       && !isRetry
       && !url.endsWith('/api/v1/auth/admin/refresh')

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { expect, it, vi } from 'vitest';
 
@@ -30,7 +30,9 @@ it('Bug UX-345 — role-profile create and archive flows collect reasons in-page
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><StaffRolesPage /></QueryClientProvider>);
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Create Role' }));
+  const createRole = await screen.findByRole('button', { name: 'Create Role' });
+  await waitFor(() => expect(createRole).toBeEnabled());
+  fireEvent.click(createRole);
   expect(screen.getByLabelText('Reason')).toBeInTheDocument();
   expect(screen.getByText(/does not grant panel access/i)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));

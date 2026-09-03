@@ -23,12 +23,14 @@ Support hours for the team using this manual are Monday to Saturday, 8:00 AM to 
 
 1. Open https://admin.onservice.ph.
 2. Enter your admin email and password.
-3. Enter your 6-digit code from your authenticator app (TOTP 2FA). 2FA is mandatory for every admin account. If you have never set it up, the app shows a QR code and a manual secret on first login. Scan it with Google Authenticator or Authy, then enter the code.
+3. Enter your 6-digit code from your authenticator app. If the authenticator is unavailable, choose **Use a recovery code** and enter one unused 10-character code. 2FA is mandatory for every admin-tier account, including the DPO. If you have never set it up, the app shows a QR code and a manual secret on first login. Scan it with a private authenticator, enter the code, then save all eight one-time recovery codes in a private password manager before proceeding. Never put a recovery code in Support, chat, a screenshot, or a shared document. If enrollment is interrupted, stop and contact the security owner instead of improvising a reset.
 4. You land on the Dashboard.
 
 Only three account roles can enter the admin app at all: `super_admin`, `admin`, and `dpo`. Any other account gets "Access denied. Admin privileges required."
 
-If the app sends you straight to a "Change Password" screen, your password was flagged for forced rotation. Set a new one before you can do anything else.
+If the app sends you straight to a **Change Password** screen, your password was flagged for forced rotation. The API and live-chat connection also block operational work, so another tab or a copied URL cannot bypass it. Set a new one before doing anything else. The verified browser receives a replacement session; every other session for that account is signed out.
+
+If both the authenticator and all recovery codes are unavailable, stop and contact the security owner. Do not ask another operator to disable 2FA, paste a secret into chat, or edit the database. Privileged recovery remains launch-held and must not be improvised.
 
 > **Set (editable):** Super-admin accounts are Ken plus one Operations Lead only. Everyone else is `admin`, a support-agent-style limited login, or `dpo`. Keep the super_admin count low because those accounts can move money. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
@@ -40,7 +42,7 @@ What actually controls what you can click is your single account role on the `us
 
 | Your account role | What you can do |
 |---|---|
-| `super_admin` | All currently enabled money and destructive actions: escrow release/refund, booking force-complete/cancel/reassign, dispute resolve/escalate/reopen, payout internal-review decisions and approve/reject/complete, provider wallet adjust, reconciliation run, settings edit/reset, staff and roles management, cancellation-policy edit, Catalog publishing, Service Areas create/edit/activate/pause/default/waitlist-notify decisions, and delete notification templates. BIR issuance/finalization remains disabled for every role under E22. |
+| `super_admin` | All currently enabled money and destructive actions: escrow release/refund, booking force-complete/cancel/reassign, enabled dispute resolve/escalate actions, payout internal-review decisions and approve/reject/complete, provider wallet adjust, reconciliation run, settings edit/reset, staff and roles management, cancellation-policy edit, Catalog publishing, Service Areas create/edit/activate/pause/default/waitlist-notify decisions, and the complete Notification Templates lifecycle. Dispute Reopen, free redo, and refund-with-warning remain held under E51. BIR issuance/finalization remains disabled for every role under E22. |
 | `admin` | Read and operational access. You can view every page and do non-money operational work such as provider vetting and support case handling. Catalog publishing and Service Areas market mutation are read-only because the API reserves them for `super_admin`. On money, destructive, and configuration-publishing surfaces you see a read-only banner. |
 | `dpo` | Admin-tier, plus the compliance powers: search consent records and handle Data Subject Requests under the Data Privacy Act. This is a real, separate role required by NPC rules, not a nickname for super_admin. |
 
@@ -142,11 +144,11 @@ How to suspend a provider (use carefully):
 
 There is no "delete provider" button. Removal from operation is done by Suspend or the `deactivated` status. See `04-provider-vetting-and-filtering.md` for the full vetting scorecard and tier rules.
 
-Provider tiers and commission (for reference while changing tiers):
+Provider tiers and seeded base commission (reference only; exact rates can differ by effective agreement):
 
 | Tier | Commission | Requirements (auto-eligibility signal) |
 |---|---|---|
-| `founding` | 10% | Invite-only launch batch. Parallel tier, not a step in the ladder. |
+| `founding` | 10% seeded base | Invite-only parallel tier. E63 hold: do not newly assign. |
 | `new` | 15% | Default on signup. |
 | `verified` | 13% | 5+ jobs, 4.0+ rating. |
 | `pro` | 11% | 25+ jobs, 4.5+ rating, no open disputes. |
@@ -245,9 +247,25 @@ At the 2026-08-24 production audit, all 29 active services needed scope (17 fixe
 
 ### 2.10 Pricing Rules (`/pricing-rules`)
 
-Surge/multiplier rules of three types: `rush`, `holiday`, `peak_hours`. Each has a multiplier, optional scope (category or service area), priority, platform surge share, and an active toggle.
+Pricing rules can increase the customer total for new fixed-price bookings and
+split that increase between provider and platform. Ordinary admins may inspect
+scope and lifecycle history. Only super-admin may create/edit a draft, run the
+server preview, publish, or retire.
 
-> **Set (editable):** Surge pricing is off at launch. Turn on a modest `peak_hours` rule only after the live booking curve shows a real demand pattern, and decide which holidays count at that point. _Recommended default. To change it, edit here and anywhere this value is referenced._
+1. Create an inactive draft with an explicit category scope and service-area
+   scope. Global is a deliberate high-impact selection, never a blank default.
+2. Add representative fixed-price services, areas, dates, and times. Preview
+   loads the canonical catalog price and applies the same resolver as booking
+   creation. Review the winner, all overlaps, customer total, platform surge,
+   and provider surge.
+3. Publish only from the current unexpired preview and write what was verified.
+   Draft or active-rule changes make the preview stale.
+4. Retire a rule with a reason instead of deleting it. Published terms are not
+   edited in place. Existing booking and transaction evidence does not change.
+
+Surge pricing remains off by recommended launch posture unless live demand and
+provider-capacity evidence supports a reviewed rule. Follow
+`docs/runbooks/pricing-rule-publication.md` before production migration or use.
 
 ### 2.11 Disputes (`/disputes`)
 
@@ -258,40 +276,52 @@ age predicate; it is an attention view, not an invented support-SLA countdown.
 The selected view is preserved in the URL and enforced against the whole queue.
 The page live-updates when a dispute is filed.
 
-Super_admin actions: Resolve (choose a resolution type) and Escalate (reason at
-least 10, only when tier < 3). Plain admins see a read-only banner. Resolve now
-opens an in-app confirmation that names the customer-refund/provider-funds
-impact before sending the existing request. The confirmation is not proof that
-money moved; verify the resulting Money and Audit records.
+The queue is read-only for decisions. Open **Review 360** on the case before
+assigning, messaging, escalating, or resolving it. This removes the former
+duplicate quick-resolution form that could move money without the complete
+claim, evidence, history, approved-refund preview, and support context in view.
+Plain admins remain read-only inside Dispute 360; enabled decisions require a
+super-admin account. A decision confirmation is not proof that money moved;
+verify the resulting Money and Audit records.
 
 Resolution types and what they mean:
 
 | Resolution | Refund | Side effect |
 |---|---|---|
 | `full_refund` | 100% | Customer fully refunded. |
-| `refund_with_warning` | 100% | Customer refunded, provider warned. |
+| `refund_with_warning` | 100% | **E51 hold:** the provider warning is not recorded canonically; do not use. |
 | `refund_with_suspension` | 100% | Customer refunded, provider suspended. |
 | `partial_refund` | choose 0-100% | Remainder released to provider. |
 | `split_decision` | choose 0-100% | As above, framed as shared fault. |
 | `no_refund` | 0% | Full escrow released to provider. |
-| `free_redo` | 0% | No refund; provider redoes the job. |
+| `free_redo` | 0% | **E51 hold:** no replacement work order is created; do not use. |
 
 Resolution decision notes must be at least 20 characters. Follow the decision
 tree in `09-trust-safety-and-disputes.md`. Do not improvise refund percentages.
 E18/E24 still hold unsafe settlement paths; the queue redesign did not change
 escrow, refund, filing-window, or direct participant-settlement behavior.
+E51 additionally holds Reopen, `free_redo`, and `refund_with_warning` until
+their real appeal, redo-work-order, and provider-warning workflows exist.
 
 ### 2.12 Dispute detail / Dispute 360 (`/disputes/:id`)
 
 One dispute. Header shows tier, age, priority score. Side-by-side customer claim and provider response. Evidence grouped by who uploaded it. Customer and provider 90-day history with a risk flag (`OK` / `REVIEW_REQUIRED` / `AT_RISK`).
 
-Admin actions: Assign to a named active admin, Resolve & notify (shows an estimated-refund preview and a confirm step, super_admin), Escalate (at least 10 chars), Message parties (customer/provider/both, 5-2000), Reopen a resolved dispute (super_admin, reason at least 20).
+Admin actions: Assign to a named active admin, Resolve & notify (shows an
+approved-refund preview and a confirm step, super_admin), Escalate (at least 10
+chars), and Send case update (customer/provider/both, 5-2000). A case update is
+a one-way notification; use the linked Support case when you need a reply. The
+visible Reopen control is held under E51 even for super-admin because the
+current path does not safely reverse or preserve the prior settlement.
 
 How to resolve a dispute:
 1. Read both sides and all evidence.
 2. Check both parties' 90-day risk flags. `AT_RISK` on the complainer matters.
 3. Apply the decision tree from `09-trust-safety-and-disputes.md`.
-4. Click Resolve & notify, pick the resolution type, write decision notes (at least 20 chars), check the refund preview, confirm. Both parties are notified.
+4. Click Resolve & notify, pick an enabled resolution type, write decision notes
+   (at least 20 chars), check the approved-refund preview, and confirm. Both
+   parties are notified that the decision was recorded. Verify the Booking 360
+   Money view and retry state before saying the refund or release completed.
 
 ### 2.13 Financials (`/financials`)
 
@@ -325,9 +355,25 @@ Note: a payout at or above the internal review threshold (default ₱500,000) la
 
 ### 2.15 Notification Templates (`/notification-templates`)
 
-Edit the message templates (push, SMS, email, in-app) by type (`booking_update`, `payment`, `dispute_update`, `tier_upgrade`, `payout`, `referral`, `suki`, `promo`, `system`). Each has a title and body template with `{{variable}}` placeholders and an active toggle. Delete is super_admin only.
+This is a read workspace for ordinary admins and a reasoned publishing control
+for `super_admin`. Only `new_job_available` and `booking_matched` are connected.
+Their active title/body override is used for both the in-app inbox row and its
+best-effort push. SMS and email are not connected to this editor.
 
-How to change a message customers receive: find the template by slug, edit the body, keep the `{{variable}}` placeholders intact, save. (Reminder: the in-app Help/FAQ text is NOT here, it is hardcoded and needs a code release to change.)
+All other rows are reference-only. Their stored channel is metadata and does
+not activate delivery. An inactive, missing, or deleted connected row does not
+stop the booking notice; the API uses built-in fallback copy. Do not deactivate
+a template to suppress a required notice.
+
+For a connected copy change, a super-admin must inspect the runtime variables,
+review the sample preview, keep placeholders within the declared contract, and
+record why the change is needed. Create, edit, activate, deactivate, and delete
+all require a reason and leave transactional Admin evidence. Ordinary admins
+can inspect the same truth for support but cannot mutate it.
+
+Per-channel variants, SMS/email delivery, locale publication, version history,
+rollback, and test-send are held under E66. Help/FAQ text is also not managed
+here; it requires a code release.
 
 ### 2.16 Marketing (`/marketing`)
 
@@ -339,9 +385,18 @@ Recurring-booking subscriptions. Filter by status (`active`, `paused`, `cancelle
 
 ### 2.18 Business Accounts (`/business-accounts`, detail `/business-accounts/:id`)
 
-B2B accounts (office, condo, restaurant, hotel, retail, school, hospital, other). Filter by status (`pending`, `active`, `suspended`, `closed`). Fields include company, contact details, payment terms, volume discount, monthly credit limit. The detail page manages the account.
+B2B accounts (office, condo, restaurant, hotel, retail, school, hospital, other). Filter by status (`pending`, `active`, `suspended`, `closed`). Fields include company, contact details, projected payment terms, projected volume discount, and projected billing credit. Approved versioned terms, not the projection fields, are the commercial authority. Approved billing credit is a conservative revolving exposure ceiling across unbilled work plus unpaid controlled statements; it is not a monthly spending allowance. The detail page remains held from production use under E55/E56 pending production inventory, provider funding/settlement, and clean CI evidence.
 
 The detail page identifies the business owner and the internal relationship manager. Only super-admin can change that manager. Select an active admin/super-admin account with an active directory profile and enter a specific reason. The assignment changes internal relationship ownership only: it does not grant account access, move money, alter billing, or reassign support cases. Use the links beside the current manager to inspect their Staff record, active owned support cases, and the exact assignment audit before changing ownership.
+
+The Bookings & support tab is trustworthy only for bookings explicitly stamped
+with this business account. Use it to open Booking 360, Customer 360, Provider
+360, support, dispute, and retained invoice-line context. Do not use Generate
+invoice or Mark paid operationally while E55 is open. The legacy generator can
+select personal bookings through current membership, and Mark paid does not
+verify an amount or external payment record or write the audit trail claimed by
+the old dialog. Preserve every existing invoice and payment reference for
+review; do not delete, relink, regenerate, or overwrite historical records.
 
 ### 2.19 Service Areas (`/service-areas`)
 
@@ -377,7 +432,7 @@ Retention Signals is a deterministic attention score over active customer
 accounts, not a churn probability or outreach permission. Open Customer 360
 before action. Quality Evidence contains legacy stored snapshots only; E47
 blocks recomputation because their weighting conflicts with the approved
-monthly scorecard. Commission Evidence shows the live configured rate and
+monthly scorecard. Commission Evidence shows the effective-dated base rate and
 operational samples, but E48 removes automated rate advice. It cannot publish a
 rate, calculate provider earnings, or replace the Financials and Payout records.
 See `12-quality-standards-and-kpis.md` for the approved human review cadence.
@@ -425,10 +480,12 @@ The ticket queue. Types: `booking_issue`, `payment_issue`, `provider_no_show`, `
 Customers and providers can open and follow their own tickets in the shared in-app Support screens. Those tickets enter this queue automatically. Contacts received through email (support@onservice.ph for customers, providers@onservice.ph for providers) or Messenger still need an agent-created ticket so they use the same case record.
 
 How to work a ticket:
-1. Find it by ticket number, subject, customer/provider name, phone, email, or provider business. Account and Booking 360 link back to their exact case views.
-2. Open it, confirm priority, and assign it from the active-agent list. Provider cases link to Provider 360; customer cases link to Customer 360.
+1. Find it by ticket number, subject, customer/provider name, phone, email, provider business, or customer project title. Account, Booking 360, and Projects link back to their exact case views.
+2. Open it, confirm priority, and assign it from the active-agent list. Provider cases link to Provider 360; customer cases link to Customer 360; a project-linked customer case also returns to the exact planning record.
 3. Reply to the user, or post an internal note (internal notes are admin-only).
 4. Update status as you go. To mark `resolved` or `closed` you must add resolution notes of at least 10 characters.
+
+A support case can identify one related booking or one related planning project, never both. A project link is case context only. It does not assign a provider, create a booking, authorize a quote, or affect payment. Create the case on behalf of the customer who owns the project; the server rejects unrelated project/customer combinations.
 
 When a user replies to a waiting case, it returns to the active queue. Automated reminders and five-day auto-close are not implemented. Staff must review waiting cases manually and must not assume reminders were sent. See `06-customer-support-sop.md` and `07-provider-support-sop.md` for triage and SLA targets.
 
@@ -448,7 +505,7 @@ The settings registry is grouped by operational category. Inactive legacy insura
 
 Super_admin can Edit and Reset only a **Live control**. Each change requires an audited reason of at least 10 characters. **Launch hold** and **Not connected** rows are read-only for every role, including super_admin. This prevents a stored value from making customer/provider wording disagree with API, worker, money, or security enforcement. Plain admins are read-only for all rows.
 
-How to change a setting (super_admin): find it by category, confirm the **Live control** badge and read its impact text, click Edit, set the new value within the allowed range, type a reason, and save. Cache-backed consumers refresh within about 60 seconds; Flush cache forces those readers to fetch again. Common live controls include commission rate per tier, service fee rate, `auto_dispatch_enabled`, and the internal large-payout review threshold. The escrow auto-confirm and filing-window rows are now visibly read-only because E18 makes that pair a money-path hard stop and their authoritative workers still use deployed configuration. Never change a money setting without Ken's go-ahead. See `10-money-and-compliance-ops.md`.
+How to change a setting (super_admin): find it by category, confirm the **Live control** badge and read its impact text, click Edit, set the new value within the allowed range, type a reason, and save. Cache-backed consumers refresh within about 60 seconds; Flush cache forces those readers to fetch again. Examples include the service-fee rate for new pricing, internal large-payout review threshold, quote lifetime for new quotes, service-radius maximum for new provider changes, and strict refresh-token fingerprint enforcement. Direct commission rows are retired under E50 and `auto_dispatch_enabled` is held under E33; use Commission Controls for prospective commission agreements. The escrow auto-confirm and filing-window rows are read-only under E18. Never change a money setting without Ken's go-ahead. See `10-money-and-compliance-ops.md`.
 
 ### 2.28 Cancellation Policy (`/settings/cancellation-policy`)
 
@@ -460,7 +517,7 @@ For support, verify the booking's payment, timing, arrival/no-show evidence, and
 
 ### 2.29 Change Password (`/change-password`) and 404
 
-Change your own password here. If your account is flagged for forced rotation, every page redirects you here until you set a new password. The 404 page is the catch-all for any unknown URL.
+Change your own password here. If your account is flagged for forced rotation, the page shell, API, and Socket.IO connection all refuse other operator work until you set a new password. A successful change signs out every other session and gives this verified browser one replacement session. The 404 page is the catch-all for any unknown URL.
 
 ### 2.30 Communications (`/communications`)
 
@@ -478,11 +535,17 @@ How to triage a submission:
 4. Choose `Done` only when the verified work is actually complete. Keep the owner and record the result.
 5. Choose `Dismissed` for spam, stress input, duplicates, or non-actionable content and explain why. Do not silently delete feedback.
 
-Ordinary admins see masked contact details and masked personal data inside free text. Status, owner, and note changes are permanent audit-log events. The key-protected exports remain available for private research and backup, but they are not the operating queue.
+Ordinary admins see masked contact details and masked personal data inside free text. Screenshot evidence is private and loads only through the selected feedback record's authenticated Admin proxy. Do not copy, publish, or attempt to open the stored `/uploads/feedback/...` identifier; it is evidence metadata, not a public link. Status, owner, and note changes are permanent audit-log events. The header-keyed pull remains available for authorized private research and backup, but it is not the operating queue.
+
+If the queue, selected record, decision history, or owner directory is unavailable, use that section's Retry action. Do not infer a zero queue or continue triage from stale content. The save action remains unavailable until the selected record, active-owner directory, and append-only history are all current. While a decision is saving, queue navigation is locked to the same record.
+
+If another operator changed the submission after you loaded it, the API rejects your stale decision. Read the conflict message, choose **Reload latest feedback**, review the newer status, owner, and note, then decide whether your intended change is still correct. Never paste the old note back without reconciling the newer decision.
 
 ### 2.32 Projects (`/projects`)
 
-Oversight for larger multi-stage customer projects. Use it to inspect project status, milestones, linked bookings, participants, and exceptions that need operations support. Milestone escrow is not launch-approved until the legal and accounting decision in escalation E12 is resolved, so do not describe a planning milestone as protected escrow.
+Read-only oversight for customer-created larger-work planning records. Search the complete planning index by project ID, title, description, city, customer, or legacy provider; narrow by planning status; and use pagination rather than assuming the visible page is the full queue. Applied search, status, page, and exact selected project stay in the URL so a support handoff can reproduce the same context. Use the result-wide summary above the list when reporting queue counts.
+
+Inspect the plan status, advisory estimate, milestones, choices/materials, documents, owning customer, and any legacy provider link. Open Customer 360, Provider 360 for a historical provider identity, or the exact project-filtered Support queue when assistance is needed. Customers can open a support case from their project and return to that exact plan from the case thread. This linkage is planning context only: Projects do not create or link bookings, assign providers, move money, or change historical transactions. Use Booking 360, Dispatch, and Financials for those canonical operations. Milestone escrow is not launch-approved until the legal and accounting decision in escalation E12 is resolved, so never describe a planning milestone or amount as protected escrow.
 
 ---
 
@@ -507,14 +570,16 @@ Throughout the week: for each supported privileged action you would have taken, 
 A super_admin signs off each item. Until all are checked, the new admin stays read-only.
 
 Navigation and roles
-- [ ] Can log in, including completing 2FA, and can change own password.
+- [ ] Can log in with TOTP or one recovery code, explain that a recovery code is single-use, securely store all eight enrollment codes before proceeding, and change their own password.
+- [ ] Can explain why forced password rotation blocks the API and live chat as well as page navigation, and why a successful change signs out other sessions.
+- [ ] Knows that factor removal and ad hoc lost-factor reset are launch-held and must not be improvised.
 - [ ] Can explain the difference between the account role and the named DB role, and why "super_admin only" buttons are greyed out for them.
 - [ ] Can find every current sidebar page and the detail/change-password routes without help.
 
 Providers
 - [ ] Can open a Provider 360 and view KYC docs through the proxy.
 - [ ] Can state all four KYC evidence files (NBI, government ID front, government ID back, selfie), explain which three the server currently enforces, and apply the E36 manual ID-back stop.
-- [ ] Can name the five tiers and their commission rates from memory.
+- [ ] Can name the five tiers, then find the effective base/provider agreement and the booking's immutable commission terms without quoting a rate from memory.
 - [ ] Knows there is no delete; removal is Suspend or `deactivated`.
 
 Bookings and dispatch

@@ -14,6 +14,7 @@ import * as walletService from '../services/wallet.service';
 import * as notificationService from '../services/notification.service';
 import * as securityService from '../services/security.service';
 import * as bookingOfferService from '../services/booking-offer.service';
+import * as financialTermsService from '../services/booking-financial-terms.service';
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import crypto from 'node:crypto';
@@ -358,6 +359,18 @@ router.post(
                 [bookingId],
               );
               if (booking.rows[0]) {
+                // E50: authorization, financial-term snapshot, booking state,
+                // and escrow hold are one atomic unit. A settings or provider
+                // tier change after this commit cannot rewrite this booking.
+                await financialTermsService.appendAuthorizationTermsInTransaction(
+                  client,
+                  {
+                    bookingId,
+                    event: 'external_payment_authorized',
+                    sourceEventId: intent.id,
+                    metadata: { paymongoPaymentId },
+                  },
+                );
                 await escrowService.holdInEscrowInTransaction(
                   client,
                   bookingId,

@@ -1,12 +1,8 @@
-// MED-N144 / MED-N157 / MED-N159 / MED-N168 — upload + webhook + auth gating cluster.
+// MED-N157 / MED-N159 / MED-N168 — webhook + auth gating cluster.
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-const UPLOAD_SVC = readFileSync(
-  resolve(__dirname, '../src/services/upload.service.ts'),
-  'utf8',
-);
 const WEBHOOK_ROUTES = readFileSync(
   resolve(__dirname, '../src/routes/webhook.routes.ts'),
   'utf8',
@@ -27,26 +23,6 @@ const PROMOTION_ROUTES = readFileSync(
 function stripLineComments(src: string): string {
   return src.split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
 }
-
-describe('MED-N144 — upload allowed-MIME admin-tunable', () => {
-  it('MED-N144 — loadAllowedMime helper reads from settings', () => {
-    expect(UPLOAD_SVC).toMatch(/async function loadAllowedMime/);
-    expect(UPLOAD_SVC).toMatch(/settingsService\.getSetting\('allowed_image_mime_types'\)/);
-  });
-
-  it('MED-N144 — falls back to FALLBACK_ALLOWED_MIME on read failure', () => {
-    expect(UPLOAD_SVC).toMatch(/return FALLBACK_ALLOWED_MIME/);
-  });
-
-  it('MED-N144 — validateFile is async + uses loadAllowedMime', () => {
-    expect(stripLineComments(UPLOAD_SVC)).toMatch(/export async function validateFile/);
-    expect(stripLineComments(UPLOAD_SVC)).toMatch(/const allowedMime = await loadAllowedMime/);
-  });
-
-  it('MED-N144 — sync shim retained for callers that cannot easily go async', () => {
-    expect(UPLOAD_SVC).toMatch(/export function validateFileSync/);
-  });
-});
 
 describe('MED-N157 — webhook routes via intent_kind metadata, not string prefix', () => {
   it('MED-N157 — webhook routes prefer metadata.intent_kind over topup_ prefix', () => {

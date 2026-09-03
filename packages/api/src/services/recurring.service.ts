@@ -69,6 +69,54 @@ interface RecurringInstanceRow {
   booking_status?: string | null;
 }
 
+interface RecurringSourceBookingRow {
+  customer_id: string;
+  category_id: string;
+  subcategory_id: string | null;
+  booking_type: string;
+  status: string;
+}
+
+interface AdminRecurringDetailRow extends RecurringBookingRow {
+  customer_name: string | null;
+  provider_name: string | null;
+  original_booking_status: string | null;
+  original_booking_total: number | null;
+  failed_instances: number;
+  skipped_instances: number;
+  generated_instances: number;
+  open_support_tickets: number;
+}
+
+interface AdminRecurringInstanceRow extends RecurringInstanceRow {
+  booking_total_amount: number | null;
+  booking_scheduled_at: string | null;
+  booking_provider_id: string | null;
+  booking_provider_name: string | null;
+  open_support_tickets: number;
+}
+
+export interface AdminRecurringDetail extends Record<string, unknown> {
+  customerName: string | null;
+  originalBookingStatus: string | null;
+  originalBookingTotal: number | null;
+  operationalPaymentMode: 'manual_per_booking';
+  providerAssignmentState: 'legacy_provider_link' | 'unassigned';
+  legacyAutoChargePreference: boolean;
+  failedInstances: number;
+  skippedInstances: number;
+  generatedInstances: number;
+  openSupportTickets: number;
+}
+
+export interface AdminRecurringInstance extends Record<string, unknown> {
+  bookingTotalAmount: number | null;
+  bookingScheduledAt: string | null;
+  bookingProviderId: string | null;
+  bookingProviderName: string | null;
+  openSupportTickets: number;
+}
+
 interface CountRow { count: string }
 
 // Phase 14 Dispatch 05 — Bug 208 + Bug 1132.
@@ -81,7 +129,7 @@ interface CreateRecurringParams {
   providerId?: string;
   categoryId: string;
   subcategoryId: string;
-  originalBookingId?: string;
+  originalBookingId: string;
   frequency: 'weekly' | 'bi_weekly' | 'monthly';
   preferredDay: number;
   preferredTime: string;
@@ -204,6 +252,33 @@ export async function createRecurringBooking(
   const pricing = await getRecurringPricePreview(params.subcategoryId);
   if (pricing.categoryId !== params.categoryId) {
     throw createAppError('Subcategory does not belong to the selected category.', 400);
+  }
+
+  // BUG-SEC-021 — recurring setup is an extension of one eligible booking,
+  // not an unaudited way to manufacture a schedule from arbitrary IDs. The
+  // customer UI has always opened this flow from a completed booking, but the
+  // API previously trusted originalBookingId (or allowed it to be omitted),
+  // including when it belonged to another customer or service. Verify the
+  // source record server-side without changing the E41/D29 provider-assignment
+  // behavior that remains under an explicit architecture hold.
+  const sourceResult = await db.query<RecurringSourceBookingRow>(
+    `SELECT customer_id, category_id, subcategory_id, booking_type, status
+       FROM bookings
+      WHERE id = $1 AND customer_id = $2`,
+    [params.originalBookingId, params.customerId],
+  );
+  if (sourceResult.rows.length === 0) {
+    throw createAppError('Eligible source booking not found.', 404);
+  }
+  const source = sourceResult.rows[0]!;
+  if (!['confirmed', 'resolved', 'payout_ready', 'paid_out'].includes(source.status)) {
+    throw createAppError('Recurring setup requires a customer-confirmed completed booking.', 409);
+  }
+  if (source.booking_type !== 'fixed_price') {
+    throw createAppError('Only completed fixed-price bookings can become recurring.', 409);
+  }
+  if (source.category_id !== params.categoryId || source.subcategory_id !== params.subcategoryId) {
+    throw createAppError('Recurring service must match the completed source booking.', 409);
   }
   const { servicePrice, serviceFee, totalAmount } = pricing;
   const nextDate = calculateNextDate(params.frequency, params.preferredDay);
@@ -550,6 +625,118 @@ export async function getRecurringInstances(
 
   return {
     items: dataResult.rows,
+    total: Number(countResult.rows[0]?.count ?? 0),
+  };
+}
+
+export async function getAdminRecurringBooking(
+  recurringId: string,
+): Promise<AdminRecurringDetail> {
+  const result = await db.query<AdminRecurringDetailRow>(
+    `SELECT rb.*,
+            NULLIF(TRIM(CONCAT(cu.first_name, ' ', cu.last_name)), '') AS customer_name,
+            COALESCE(
+              NULLIF(TRIM(p.business_name), ''),
+              NULLIF(TRIM(CONCAT(pu.first_name, ' ', pu.last_name)), '')
+            ) AS provider_name,
+            sc.name AS category_name,
+            ssc.name AS subcategory_name,
+            ob.status AS original_booking_status,
+            ob.total_amount AS original_booking_total,
+            (SELECT COUNT(*)::int FROM recurring_instances ri
+              WHERE ri.recurring_booking_id = rb.id AND ri.status = 'failed') AS failed_instances,
+            (SELECT COUNT(*)::int FROM recurring_instances ri
+              WHERE ri.recurring_booking_id = rb.id AND ri.status = 'skipped') AS skipped_instances,
+            (SELECT COUNT(*)::int FROM recurring_instances ri
+              WHERE ri.recurring_booking_id = rb.id AND ri.booking_id IS NOT NULL) AS generated_instances,
+            (SELECT COUNT(*)::int
+               FROM recurring_instances ri
+               JOIN support_tickets st ON st.booking_id = ri.booking_id
+              WHERE ri.recurring_booking_id = rb.id
+                AND st.status NOT IN ('resolved', 'closed')) AS open_support_tickets
+       FROM recurring_bookings rb
+       LEFT JOIN users cu ON cu.id = rb.customer_id
+       LEFT JOIN providers p ON p.id = rb.provider_id
+       LEFT JOIN users pu ON pu.id = p.user_id
+       LEFT JOIN service_categories sc ON sc.id = rb.category_id
+       LEFT JOIN service_subcategories ssc ON ssc.id = rb.subcategory_id
+       LEFT JOIN bookings ob ON ob.id = rb.original_booking_id
+      WHERE rb.id = $1`,
+    [recurringId],
+  );
+  if (result.rows.length === 0) {
+    throw createAppError('Recurring booking not found.', 404);
+  }
+  const row = result.rows[0]!;
+  return {
+    ...formatRecurringBooking(row),
+    customerName: row.customer_name,
+    providerName: row.provider_name,
+    originalBookingStatus: row.original_booking_status,
+    originalBookingTotal: row.original_booking_total == null ? null : Number(row.original_booking_total),
+    operationalPaymentMode: 'manual_per_booking',
+    providerAssignmentState: row.provider_id ? 'legacy_provider_link' : 'unassigned',
+    legacyAutoChargePreference: row.auto_charge,
+    failedInstances: Number(row.failed_instances ?? 0),
+    skippedInstances: Number(row.skipped_instances ?? 0),
+    generatedInstances: Number(row.generated_instances ?? 0),
+    openSupportTickets: Number(row.open_support_tickets ?? 0),
+  };
+}
+
+export async function getAdminRecurringInstances(
+  recurringId: string,
+  page = 1,
+  pageSize = 20,
+): Promise<{ items: AdminRecurringInstance[]; total: number }> {
+  // Resolve the parent first so an empty history cannot masquerade as a valid
+  // series. The Admin support panel needs a reliable not-found distinction.
+  const parent = await db.query<{ id: string }>(
+    `SELECT id FROM recurring_bookings WHERE id = $1`,
+    [recurringId],
+  );
+  if (parent.rows.length === 0) {
+    throw createAppError('Recurring booking not found.', 404);
+  }
+  const offset = (page - 1) * pageSize;
+  const [dataResult, countResult] = await Promise.all([
+    db.query<AdminRecurringInstanceRow>(
+      `SELECT ri.*, b.status AS booking_status,
+              b.total_amount AS booking_total_amount,
+              b.scheduled_at AS booking_scheduled_at,
+              b.provider_id AS booking_provider_id,
+              COALESCE(
+                NULLIF(TRIM(p.business_name), ''),
+                NULLIF(TRIM(CONCAT(pu.first_name, ' ', pu.last_name)), '')
+              ) AS booking_provider_name,
+              (SELECT COUNT(*)::int FROM support_tickets st
+                WHERE st.booking_id = b.id
+                  AND st.status NOT IN ('resolved', 'closed')) AS open_support_tickets
+         FROM recurring_instances ri
+         LEFT JOIN bookings b ON b.id = ri.booking_id
+         LEFT JOIN providers p ON p.id = b.provider_id
+         LEFT JOIN users pu ON pu.id = p.user_id
+        WHERE ri.recurring_booking_id = $1
+        ORDER BY ri.scheduled_date DESC
+        LIMIT $2 OFFSET $3`,
+      [recurringId, pageSize, offset],
+    ),
+    db.query<CountRow>(
+      `SELECT COUNT(*)::text AS count
+         FROM recurring_instances
+        WHERE recurring_booking_id = $1`,
+      [recurringId],
+    ),
+  ]);
+  return {
+    items: dataResult.rows.map((row) => ({
+      ...formatRecurringInstance(row),
+      bookingTotalAmount: row.booking_total_amount == null ? null : Number(row.booking_total_amount),
+      bookingScheduledAt: row.booking_scheduled_at,
+      bookingProviderId: row.booking_provider_id,
+      bookingProviderName: row.booking_provider_name,
+      openSupportTickets: Number(row.open_support_tickets ?? 0),
+    })),
     total: Number(countResult.rows[0]?.count ?? 0),
   };
 }

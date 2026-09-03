@@ -394,17 +394,23 @@ export async function processRefund(
           throw createAppError('Refund processing failed. Please contact support.', 502);
         }
       }
-    } else if (paymongoPaymentId === null && process.env.NODE_ENV === 'production') {
-      // Production should always have a payment id by the time refund
-      // runs (the webhook captures it on payment.paid). If we get here
-      // in prod, log loudly but don't block the refund — the customer
-      // still gets the wallet credit; we just need ops to reconcile
-      // with PayMongo manually.
-      logger.error('Refund attempted without PayMongo payment ID — manual reconciliation required', {
+    } else if (intent.payment_method !== 'wallet' && process.env.NODE_ENV === 'production') {
+      // A gateway-funded production payment must have a real PayMongo
+      // payment ID. Marking the local intent refunded without issuing the
+      // external refund makes the operator UI and ledger lie about money the
+      // customer has not received. Throw so the durable payment-only outbox
+      // remains pending for reconciliation. Wallet-funded payments are local
+      // and intentionally have no PayMongo payment ID.
+      logger.error('Gateway refund blocked by missing or invalid PayMongo payment ID', {
         bookingId,
         intentId: intent.id,
         paymongoIntentId: intent.paymongo_intent_id,
+        paymongoPaymentId,
       });
+      throw createAppError(
+        'Refund payment reference is missing or invalid. Manual reconciliation is required.',
+        409,
+      );
     }
 
     const finalStatus = newCumulative >= intentAmount ? 'refunded' : 'partially_refunded';

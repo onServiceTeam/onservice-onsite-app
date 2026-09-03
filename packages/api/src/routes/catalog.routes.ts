@@ -440,17 +440,11 @@ router.get(
     try {
       requireAdmin(req);
       const subcategoryId = req.params['id'] as string;
-      interface AddonRow { id: string; subcategory_id: string; name: string; description: string; price: number; is_active: boolean; display_order: number }
-      const result = await db.query<AddonRow>(
-        `SELECT * FROM service_addons WHERE subcategory_id = $1 ORDER BY display_order ASC, name ASC`,
-        [subcategoryId],
-      );
+      const result = await catalogService.getAdminAddonsForSubcategory(subcategoryId);
       res.json({
         success: true,
-        data: result.rows.map((a) => ({
-          id: a.id, subcategoryId: a.subcategory_id, name: a.name, description: a.description,
-          price: a.price, isActive: a.is_active, displayOrder: a.display_order,
-        })),
+        data: result.addons,
+        meta: { priceCapCentavos: result.priceCapCentavos },
       });
     } catch (error) {
       next(error);

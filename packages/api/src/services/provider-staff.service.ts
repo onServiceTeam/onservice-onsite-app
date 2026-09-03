@@ -334,7 +334,12 @@ export async function reviewStaff(params: {
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
        VALUES ($1, $2, 'provider_staff', $3, $4::jsonb)`,
-      [params.adminId, actionType, params.staffId, JSON.stringify({ reason: params.reason ?? null })],
+      [
+        params.adminId,
+        actionType,
+        params.staffId,
+        JSON.stringify({ providerId: row.provider_id, reason: params.reason ?? null }),
+      ],
     );
 
     return updated.rows[0]!;
@@ -416,7 +421,7 @@ export async function setStaffSuspension(params: {
         params.adminId,
         params.suspend ? 'provider_staff_suspended' : 'provider_staff_reactivated',
         params.staffId,
-        JSON.stringify({ previousStatus: row.status, nextStatus }),
+        JSON.stringify({ providerId: row.provider_id, previousStatus: row.status, nextStatus }),
         reason.slice(0, 500),
         reason,
       ],

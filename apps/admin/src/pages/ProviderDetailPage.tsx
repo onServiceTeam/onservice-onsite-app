@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   useQuery,
   useMutation,
@@ -229,7 +229,11 @@ interface Note {
 
 const TABS = ['profile', 'certifications', 'jobs', 'financials', 'reviews', 'staff', 'disputes', 'activity', 'notes'] as const;
 type TabId = (typeof TABS)[number];
-void TABS;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseProviderTab(value: string | null): TabId {
+  return TABS.includes(value as TabId) ? value as TabId : 'profile';
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -294,7 +298,67 @@ const TIER_BADGE: Record<string, 'info' | 'success' | 'warning' | 'default'> = {
 
 export default function ProviderDetailPage(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
-  const [activeTab, setActiveTab] = useState<TabId>('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = parseProviderTab(searchParams.get('tab'));
+  const certificationIdFilter = searchParams.get('certificationId')?.trim() ?? '';
+  const staffIdFilter = searchParams.get('staffId')?.trim() ?? '';
+  const noteIdFilter = searchParams.get('noteId')?.trim() ?? '';
+  const reviewIdFilter = searchParams.get('reviewId')?.trim() ?? '';
+  const adminActionIdFilter = searchParams.get('adminActionId')?.trim() ?? '';
+
+  const selectTab = (tab: TabId): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (tab === 'profile') next.delete('tab');
+      else next.set('tab', tab);
+      if (tab !== 'certifications') next.delete('certificationId');
+      if (tab !== 'staff') next.delete('staffId');
+      if (tab !== 'notes') next.delete('noteId');
+      if (tab !== 'reviews') next.delete('reviewId');
+      if (tab !== 'activity') next.delete('adminActionId');
+      return next;
+    });
+  };
+
+  const clearCertificationFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('certificationId');
+      return next;
+    });
+  };
+
+  const clearStaffFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('staffId');
+      return next;
+    });
+  };
+
+  const clearNoteFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('noteId');
+      return next;
+    });
+  };
+
+  const clearReviewFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('reviewId');
+      return next;
+    });
+  };
+
+  const clearAdminActionFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('adminActionId');
+      return next;
+    });
+  };
 
   const profile = useQuery({
     queryKey: ['admin-provider-profile', id],
@@ -339,7 +403,7 @@ export default function ProviderDetailPage(): React.ReactElement {
 
       <ProviderHeader profile={p} />
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)}>
+      <Tabs value={activeTab} onValueChange={(v) => selectTab(v as TabId)}>
         <TabsList className="flex h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto rounded-xl p-1">
           <TabsTrigger className="min-h-11 shrink-0" value="profile">Profile</TabsTrigger>
           <TabsTrigger className="min-h-11 shrink-0" value="certifications">Certifications</TabsTrigger>
@@ -356,7 +420,12 @@ export default function ProviderDetailPage(): React.ReactElement {
           <ProfileTab profile={p} />
         </TabsContent>
         <TabsContent value="certifications">
-          <CertificationsTab providerId={id} certifications={p.certifications ?? []} />
+          <CertificationsTab
+            providerId={id}
+            certifications={p.certifications ?? []}
+            exactCertificationId={certificationIdFilter}
+            onClearExactCertification={clearCertificationFilter}
+          />
         </TabsContent>
         <TabsContent value="jobs">
           <JobsTab providerId={id} />
@@ -365,19 +434,35 @@ export default function ProviderDetailPage(): React.ReactElement {
           <FinancialsTab providerId={id} />
         </TabsContent>
         <TabsContent value="reviews">
-          <ReviewsTab providerId={id} />
+          <ReviewsTab
+            providerId={id}
+            exactReviewId={reviewIdFilter}
+            onClearExactReview={clearReviewFilter}
+          />
         </TabsContent>
         <TabsContent value="staff">
-          <StaffTab providerId={id} />
+          <StaffTab
+            providerId={id}
+            exactStaffId={staffIdFilter}
+            onClearExactStaff={clearStaffFilter}
+          />
         </TabsContent>
         <TabsContent value="disputes">
           <DisputesTab providerId={id} />
         </TabsContent>
         <TabsContent value="activity">
-          <ActivityTab providerId={id} />
+          <ActivityTab
+            providerId={id}
+            exactAdminActionId={adminActionIdFilter}
+            onClearExactAdminAction={clearAdminActionFilter}
+          />
         </TabsContent>
         <TabsContent value="notes">
-          <NotesTab providerId={id} />
+          <NotesTab
+            providerId={id}
+            exactNoteId={noteIdFilter}
+            onClearExactNote={clearNoteFilter}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -1013,9 +1098,13 @@ const CERTIFICATION_STATUS_BADGE = {
 export function CertificationsTab({
   providerId,
   certifications,
+  exactCertificationId = '',
+  onClearExactCertification,
 }: {
   providerId: string;
   certifications: ProviderCertification[];
+  exactCertificationId?: string;
+  onClearExactCertification?: () => void;
 }): React.ReactElement {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState('');
@@ -1043,6 +1132,19 @@ export function CertificationsTab({
     cert.isVerified && (!cert.expiryDate || cert.expiryDate >= todayManila),
   ).length;
   const awaitingReview = certifications.filter((cert) => !cert.isVerified).length;
+  const rawCertificationId = exactCertificationId.trim();
+  const hasExactSelection = rawCertificationId.length > 0;
+  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(rawCertificationId);
+  const requestedCertificationId = exactSelectionMalformed
+    ? rawCertificationId
+    : rawCertificationId.toLowerCase();
+  const selectedCertification = !exactSelectionMalformed && hasExactSelection
+    ? certifications.find((certification) => certification.id === requestedCertificationId) ?? null
+    : null;
+  const exactSelectionMissing = hasExactSelection && !exactSelectionMalformed && !selectedCertification;
+  const displayedCertifications = hasExactSelection
+    ? (selectedCertification ? [selectedCertification] : [])
+    : certifications;
 
   return (
     <div className="mt-4 space-y-4">
@@ -1062,17 +1164,56 @@ export function CertificationsTab({
       <p className="text-sm text-[var(--color-text-secondary)]">
         Only verified, unexpired certifications appear to customers. Any provider edit automatically removes verification and returns the credential here for review.
       </p>
+      {selectedCertification && (
+        <Card className="border-sky-200 bg-sky-50 p-4" role="status">
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-900">Exact certification evidence</p>
+          <p className="mt-1 text-sm text-sky-950">
+            Showing only certification <span className="font-mono text-xs">{selectedCertification.id}</span> from this provider&apos;s current retained credentials.
+          </p>
+          {onClearExactCertification && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactCertification}>
+              View all certifications
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMalformed && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">Certification ID must be a complete UUID. No certification is selected.</p>
+          {onClearExactCertification && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactCertification}>
+              View all certifications
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMissing && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">
+            The requested certification is not part of this provider&apos;s retained credential list. No substitute certification is shown.
+          </p>
+          {onClearExactCertification && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactCertification}>
+              View all certifications
+            </Button>
+          )}
+        </Card>
+      )}
       {actionError && <p role="alert" className="text-sm text-[var(--color-danger)]">{actionError}</p>}
 
-      {certifications.length === 0 ? (
+      {!hasExactSelection && certifications.length === 0 ? (
         <EmptyState title="No certifications" description="This provider has not added a certification yet." />
-      ) : (
+      ) : displayedCertifications.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {certifications.map((cert) => {
+          {displayedCertifications.map((cert) => {
             const expired = Boolean(cert.expiryDate && cert.expiryDate < todayManila);
             const status = expired ? 'expired' : cert.isVerified ? 'verified' : 'pending';
             return (
-              <Card key={cert.id} className="border border-[var(--color-border)] p-4">
+              <Card
+                key={cert.id}
+                aria-current={cert.id === selectedCertification?.id ? 'true' : undefined}
+                className={`border p-4 ${cert.id === selectedCertification?.id ? 'border-sky-400 ring-2 ring-sky-100' : 'border-[var(--color-border)]'}`}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1124,7 +1265,7 @@ export function CertificationsTab({
             );
           })}
         </div>
-      )}
+      ) : null}
 
       {unverifyTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1401,7 +1542,15 @@ export function FinancialsTab({ providerId }: { providerId: string }): React.Rea
                 <tr><td colSpan={6} className="text-center py-6 text-[var(--color-text-secondary)]">No payouts yet.</td></tr>
               ) : f.recentPayouts.map((po) => (
                 <tr key={po.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2 font-mono text-xs">{po.id.slice(0, 8)}</td>
+                  <td className="px-3 py-2">
+                    <Link
+                      to={`/payouts?payoutId=${encodeURIComponent(po.id)}`}
+                      aria-label={`Open payout ${po.id}`}
+                      className="font-mono text-xs text-[var(--color-secondary)] hover:underline"
+                    >
+                      {po.id.slice(0, 8)}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2">{formatDateOnly(po.createdAt)}</td>
                   <td className="px-3 py-2">{po.method}</td>
                   <td className="px-3 py-2 text-right">{formatPHP(po.amount)}</td>
@@ -1435,10 +1584,22 @@ export function FinancialsTab({ providerId }: { providerId: string }): React.Rea
 
 // ─── Reviews Tab ──────────────────────────────────────────────────────────
 
-export function ReviewsTab({ providerId }: { providerId: string }): React.ReactElement {
+export function ReviewsTab({
+  providerId,
+  exactReviewId = '',
+  onClearExactReview,
+}: {
+  providerId: string;
+  exactReviewId?: string;
+  onClearExactReview?: () => void;
+}): React.ReactElement {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const { requestReason, reasonDialog } = useReasonDialog();
+  const rawReviewId = exactReviewId.trim();
+  const hasExactSelection = rawReviewId.length > 0;
+  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(rawReviewId);
+  const requestedReviewId = exactSelectionMalformed ? rawReviewId : rawReviewId.toLowerCase();
 
   // BUG-PHASE20-01 fix: API returns a paginated envelope
   // {rows, total, page, pageSize}, not Review[]. Pre-fix the page typed
@@ -1448,17 +1609,18 @@ export function ReviewsTab({ providerId }: { providerId: string }): React.ReactE
   // this paginated pattern (Disputes, Jobs already correct) get the
   // same treatment.
   const q = useQuery({
-    queryKey: ['admin-provider-reviews', providerId, page],
+    queryKey: ['admin-provider-reviews', providerId, hasExactSelection ? requestedReviewId : page],
     queryFn: async () => {
       const res = await api.get<{
         success: true;
         data: { rows: Review[]; total: number; page: number; pageSize: number };
       }>(
         `/api/v1/admin/providers/${providerId}/reviews`,
-        { params: { page, pageSize: 20 } },
+        { params: hasExactSelection ? { reviewId: requestedReviewId } : { page, pageSize: 20 } },
       );
       return res.data.data;
     },
+    enabled: !exactSelectionMalformed,
   });
 
   const visibility = useMutation({
@@ -1521,21 +1683,67 @@ export function ReviewsTab({ providerId }: { providerId: string }): React.ReactE
   if (q.isLoading) return <LoadingState label="Loading reviews…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
   // BUG-PHASE20-01: extract rows from paginated envelope
-  const data = q.data!;
+  const data = q.data ?? { rows: [], total: 0, page: 1, pageSize: 20 };
   const reviews = data.rows;
+  const selectedReview = !exactSelectionMalformed && hasExactSelection
+    ? reviews.find((review) => review.id === requestedReviewId) ?? null
+    : null;
+  const exactSelectionMissing = hasExactSelection && !exactSelectionMalformed && !selectedReview;
+  const displayedReviews = hasExactSelection ? (selectedReview ? [selectedReview] : []) : reviews;
 
-  if (data.total === 0) return <EmptyState title="No reviews yet" description="This provider has not received any reviews." />;
+  if (!hasExactSelection && data.total === 0) return <EmptyState title="No reviews yet" description="This provider has not received any reviews." />;
 
   return (
     <div className="space-y-3 mt-4">
+      {selectedReview && (
+        <Card className="border-sky-200 bg-sky-50 p-4" role="status">
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-900">Exact provider review evidence</p>
+          <p className="mt-1 text-sm text-sky-950">
+            Showing only review <span className="font-mono text-xs">{selectedReview.id}</span> from this provider&apos;s canonical review record.
+          </p>
+          {onClearExactReview && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactReview}>
+              View all provider reviews
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMalformed && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">Provider review ID must be a complete UUID. No review is selected.</p>
+          {onClearExactReview && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactReview}>
+              View all provider reviews
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMissing && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">
+            The requested review is not part of this provider&apos;s canonical review record. No substitute review is shown.
+          </p>
+          {onClearExactReview && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactReview}>
+              View all provider reviews
+            </Button>
+          )}
+        </Card>
+      )}
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-[var(--color-text-secondary)]">{data.total} review{data.total === 1 ? '' : 's'} on record</p>
+        {!hasExactSelection && (
+          <p className="text-xs text-[var(--color-text-secondary)]">{data.total} review{data.total === 1 ? '' : 's'} on record</p>
+        )}
         {(visibility.isError || response.isError) && (
           <p role="alert" className="text-xs text-red-700">{getErrorMessage(visibility.error ?? response.error)}</p>
         )}
       </div>
-      {reviews.map((r) => (
-        <Card key={r.id} className={`p-4 ${!r.isVisible ? 'opacity-60' : ''}`}>
+      {displayedReviews.map((r) => (
+        <Card
+          key={r.id}
+          aria-current={r.id === selectedReview?.id ? 'true' : undefined}
+          className={`p-4 ${!r.isVisible ? 'opacity-60' : ''} ${r.id === selectedReview?.id ? 'border-sky-400 ring-2 ring-sky-100' : ''}`}
+        >
           <div className="flex justify-between items-start gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -1602,7 +1810,7 @@ export function ReviewsTab({ providerId }: { providerId: string }): React.ReactE
           </div>
         </Card>
       ))}
-      {data.total > data.pageSize && (
+      {!hasExactSelection && data.total > data.pageSize && (
         <Pagination
           page={data.page}
           pageSize={data.pageSize}
@@ -1689,26 +1897,92 @@ export function DisputesTab({ providerId }: { providerId: string }): React.React
 
 // ─── Activity Tab ─────────────────────────────────────────────────────────
 
-export function ActivityTab({ providerId }: { providerId: string }): React.ReactElement {
+export function ActivityTab({
+  providerId,
+  exactAdminActionId = '',
+  onClearExactAdminAction,
+}: {
+  providerId: string;
+  exactAdminActionId?: string;
+  onClearExactAdminAction?: () => void;
+}): React.ReactElement {
   const [limit, setLimit] = useState(50);
+  const rawAdminActionId = exactAdminActionId.trim();
+  const hasExactAdminAction = rawAdminActionId.length > 0;
+  const hasValidExactAdminAction = UUID_REGEX.test(rawAdminActionId);
+  const requestedAdminActionId = hasValidExactAdminAction
+    ? rawAdminActionId.toLowerCase()
+    : rawAdminActionId;
   const q = useQuery({
-    queryKey: ['admin-provider-activity', providerId, limit],
+    queryKey: ['admin-provider-activity', providerId, limit, requestedAdminActionId],
     queryFn: async () => {
       const res = await api.get<{ success: true; data: ActivityRow[] }>(
         `/api/v1/admin/providers/${providerId}/activity`,
-        { params: { limit } },
+        {
+          params: hasExactAdminAction
+            ? { limit: 1, adminActionId: requestedAdminActionId }
+            : { limit },
+        },
       );
       return res.data.data;
     },
+    enabled: !hasExactAdminAction || hasValidExactAdminAction,
   });
 
+  if (hasExactAdminAction && !hasValidExactAdminAction) {
+    return (
+      <ErrorState
+        title="Invalid provider activity link"
+        description="Admin action ID must be a complete UUID. No activity records were requested."
+        action={onClearExactAdminAction ? (
+          <Button variant="secondary" size="sm" onClick={onClearExactAdminAction}>
+            Clear activity selection
+          </Button>
+        ) : undefined}
+      />
+    );
+  }
   if (q.isLoading) return <LoadingState label="Loading activity…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
   const rows = q.data!;
+  const exactActivity = hasExactAdminAction
+    ? rows.find((row) => row.id === `admin_action:${requestedAdminActionId}`) ?? null
+    : null;
+  const visibleRows = hasExactAdminAction ? exactActivity ? [exactActivity] : [] : rows;
 
   return (
     <div className="mt-4 space-y-3">
-      <select
+      {hasExactAdminAction && exactActivity && (
+        <Card className="border-2 border-[var(--color-secondary)] bg-[var(--color-secondary)]/5 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-[var(--color-text)]">Exact provider account decision</p>
+              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                This activity row is scoped by both the provider account and admin-action ID retained by the Audit Log.
+              </p>
+            </div>
+            {onClearExactAdminAction && (
+              <Button variant="secondary" size="sm" onClick={onClearExactAdminAction}>
+                Show recent provider activity
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+      {hasExactAdminAction && !exactActivity && (
+        <Card className="border-2 border-[var(--color-warning)] bg-[var(--color-warning)]/5 p-4" role="alert">
+          <p className="text-sm font-semibold text-[var(--color-text)]">Admin decision is not in this provider activity file</p>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+            The requested decision never belonged to this provider or is unavailable. No substitute activity is shown; return to the Audit Log for the durable event record.
+          </p>
+          {onClearExactAdminAction && (
+            <Button className="mt-3" variant="secondary" size="sm" onClick={onClearExactAdminAction}>
+              Show recent provider activity
+            </Button>
+          )}
+        </Card>
+      )}
+      {!hasExactAdminAction && <select
         aria-label="Provider activity row limit"
         value={limit}
         onChange={(event) => setLimit(Number(event.target.value))}
@@ -1717,9 +1991,11 @@ export function ActivityTab({ providerId }: { providerId: string }): React.React
         <option value={50}>Last 50</option>
         <option value={100}>Last 100</option>
         <option value={200}>Last 200</option>
-      </select>
-      {rows.length === 0 ? (
-        <EmptyState title="No activity" description="No recent admin actions, account events, or login attempts on file." />
+      </select>}
+      {visibleRows.length === 0 ? (
+        !hasExactAdminAction
+          ? <EmptyState title="No activity" description="No recent admin actions, account events, or login attempts on file." />
+          : null
       ) : (
       <Card className="p-0 overflow-x-auto">
         <table className="w-full text-sm">
@@ -1735,8 +2011,14 @@ export function ActivityTab({ providerId }: { providerId: string }): React.React
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className="border-t border-slate-100">
+          {visibleRows.map((r) => (
+            <tr
+              key={r.id}
+              aria-current={hasExactAdminAction ? 'true' : undefined}
+              className={hasExactAdminAction
+                ? 'border-t border-[var(--color-secondary)] bg-[var(--color-secondary)]/5'
+                : 'border-t border-slate-100'}
+            >
               <td className="px-3 py-2 whitespace-nowrap">{formatDate(r.createdAt)}</td>
               <td className="px-3 py-2"><Badge label={r.source} variant={r.source === 'admin_action' ? 'danger' : r.source === 'login' ? 'info' : 'success'} /></td>
               <td className="px-3 py-2 text-xs">
@@ -1785,7 +2067,15 @@ const STAFF_STATUS_BADGE: Record<StaffMember['status'], 'success' | 'warning' | 
   deactivated: 'default',
 };
 
-export function StaffTab({ providerId }: { providerId: string }): React.ReactElement {
+export function StaffTab({
+  providerId,
+  exactStaffId = '',
+  onClearExactStaff,
+}: {
+  providerId: string;
+  exactStaffId?: string;
+  onClearExactStaff?: () => void;
+}): React.ReactElement {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState('');
   const { requestReason, reasonDialog } = useReasonDialog();
@@ -1794,6 +2084,10 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
     decision: 'rejected' | 'sent_back';
   } | null>(null);
   const [reviewReason, setReviewReason] = useState('');
+  const rawStaffId = exactStaffId.trim();
+  const hasExactSelection = rawStaffId.length > 0;
+  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(rawStaffId);
+  const requestedStaffId = exactSelectionMalformed ? rawStaffId : rawStaffId.toLowerCase();
 
   const q = useQuery({
     queryKey: ['admin-provider-staff', providerId],
@@ -1803,6 +2097,7 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
       );
       return res.data.data;
     },
+    enabled: !exactSelectionMalformed,
   });
 
   const invalidate = (): void => {
@@ -1838,7 +2133,12 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
 
   if (q.isLoading) return <LoadingState label="Loading team members…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
-  const staff = q.data!;
+  const staff = q.data ?? [];
+  const selectedStaff = !exactSelectionMalformed && hasExactSelection
+    ? staff.find((member) => member.id === requestedStaffId) ?? null
+    : null;
+  const exactSelectionMissing = hasExactSelection && !exactSelectionMalformed && !selectedStaff;
+  const displayedStaff = hasExactSelection ? (selectedStaff ? [selectedStaff] : []) : staff;
   const busy = review.isPending || suspend.isPending;
 
   function approve(s: StaffMember): void {
@@ -1879,13 +2179,52 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
         Their job performance counts toward this provider&apos;s overall rating; the per-member
         numbers below are the breakdown.
       </p>
+      {selectedStaff && (
+        <Card className="border-sky-200 bg-sky-50 p-4" role="status">
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-900">Exact team member evidence</p>
+          <p className="mt-1 text-sm text-sky-950">
+            Showing only team member <span className="font-mono text-xs">{selectedStaff.id}</span> from this provider&apos;s current retained team records.
+          </p>
+          {onClearExactStaff && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactStaff}>
+              View all team members
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMalformed && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">Team member ID must be a complete UUID. No team member is selected.</p>
+          {onClearExactStaff && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactStaff}>
+              View all team members
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMissing && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">
+            The requested team member is not part of this provider&apos;s retained team list. No substitute team member is shown.
+          </p>
+          {onClearExactStaff && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactStaff}>
+              View all team members
+            </Button>
+          )}
+        </Card>
+      )}
       {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
 
-      {staff.length === 0 ? (
+      {!hasExactSelection && staff.length === 0 ? (
         <EmptyState title="No team members" description="This provider hasn't added any staff yet." />
-      ) : (
-        staff.map((s) => (
-          <Card key={s.id} className="p-4">
+      ) : displayedStaff.length > 0 ? (
+        displayedStaff.map((s) => (
+          <Card
+            key={s.id}
+            aria-current={s.id === selectedStaff?.id ? 'true' : undefined}
+            className={`p-4 ${s.id === selectedStaff?.id ? 'border-sky-400 ring-2 ring-sky-100' : ''}`}
+          >
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -1932,7 +2271,7 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
             </div>
           </Card>
         ))
-      )}
+      ) : null}
 
       {reviewDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1993,12 +2332,24 @@ export function StaffTab({ providerId }: { providerId: string }): React.ReactEle
   );
 }
 
-export function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
+export function NotesTab({
+  providerId,
+  exactNoteId = '',
+  onClearExactNote,
+}: {
+  providerId: string;
+  exactNoteId?: string;
+  onClearExactNote?: () => void;
+}): React.ReactElement {
   const queryClient = useQueryClient();
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
   const myUserId = useAuthStore((s) => s.user?.id);
   const { requestReason, reasonDialog } = useReasonDialog();
+  const rawNoteId = exactNoteId.trim();
+  const hasExactSelection = rawNoteId.length > 0;
+  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(rawNoteId);
+  const requestedNoteId = exactSelectionMalformed ? rawNoteId : rawNoteId.toLowerCase();
 
   const q = useQuery({
     queryKey: ['admin-provider-notes', providerId],
@@ -2008,6 +2359,7 @@ export function NotesTab({ providerId }: { providerId: string }): React.ReactEle
       );
       return res.data.data;
     },
+    enabled: !exactSelectionMalformed,
   });
 
   const [body, setBody] = useState('');
@@ -2092,10 +2444,50 @@ export function NotesTab({ providerId }: { providerId: string }): React.ReactEle
 
   if (q.isLoading) return <LoadingState label="Loading notes…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
-  const notes = q.data!;
+  const notes = q.data ?? [];
+  const selectedNote = !exactSelectionMalformed && hasExactSelection
+    ? notes.find((note) => note.id === requestedNoteId) ?? null
+    : null;
+  const exactSelectionMissing = hasExactSelection && !exactSelectionMalformed && !selectedNote;
+  const displayedNotes = hasExactSelection ? (selectedNote ? [selectedNote] : []) : notes;
 
   return (
     <div className="space-y-4 mt-4">
+      {selectedNote && (
+        <Card className="border-sky-200 bg-sky-50 p-4" role="status">
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-900">Exact provider note evidence</p>
+          <p className="mt-1 text-sm text-sky-950">
+            Showing only active internal note <span className="font-mono text-xs">{selectedNote.id}</span> from this provider&apos;s current support file.
+          </p>
+          {onClearExactNote && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactNote}>
+              View all provider notes
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMalformed && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">Provider note ID must be a complete UUID. No internal note is selected.</p>
+          {onClearExactNote && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactNote}>
+              View all provider notes
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMissing && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">
+            The requested note is not in this provider&apos;s active internal file. It may have been deleted or belong to another provider. The Audit Log remains the durable event record. No substitute note is shown.
+          </p>
+          {onClearExactNote && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactNote}>
+              View all provider notes
+            </Button>
+          )}
+        </Card>
+      )}
       <Card className="p-4">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3 inline-flex items-center gap-1">
           <Plus size={14} /> Add internal note
@@ -2130,13 +2522,17 @@ export function NotesTab({ providerId }: { providerId: string }): React.ReactEle
       {removeError && <p role="alert" className="text-sm text-[var(--color-danger)]">{removeError}</p>}
       {noteActionError && <p role="alert" className="text-sm text-[var(--color-danger)]">{noteActionError}</p>}
 
-      {notes.length === 0 ? (
+      {!hasExactSelection && notes.length === 0 ? (
         <EmptyState title="No notes yet" description="Add the first internal note above." />
       ) : (
-        notes.map((n) => {
+        displayedNotes.map((n) => {
           const canEdit = isSuperAdmin || n.authorId === myUserId;
           return (
-            <Card key={n.id} className={`p-4 ${n.pinned ? 'border-amber-300 bg-amber-50/40' : ''}`}>
+            <Card
+              key={n.id}
+              aria-current={n.id === selectedNote?.id ? 'true' : undefined}
+              className={`p-4 ${n.pinned ? 'border-amber-300 bg-amber-50/40' : ''} ${n.id === selectedNote?.id ? 'border-sky-400 ring-2 ring-sky-100' : ''}`}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap text-xs">

@@ -20,6 +20,7 @@ import { logger } from '../utils/logger';
 import { neutralizeCsvFormula } from '../utils/csv';
 import { maskPiiInObject, maskPiiInString, type Json } from '../utils/pii-mask';
 import { CONSENT_TYPES, isConsentType, type ConsentType } from '../types/compliance.types';
+import { generalAuditVisibilityClause } from '../utils/admin-audit-visibility';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -54,6 +55,8 @@ export interface DsrRecord {
   dueAt: string;
   completedAt: string | null;
   handledBy: string | null;
+  handledByName: string | null;
+  handledByEmail: string | null;
   userMessage: string | null;
   adminNotes: string | null;
   responsePayloadUrl: string | null;
@@ -106,6 +109,8 @@ interface DsrRow {
   due_at: Date;
   completed_at: Date | null;
   handled_by: string | null;
+  handler_name?: string | null;
+  handler_email?: string | null;
   user_message: string | null;
   admin_notes: string | null;
   response_payload_url: string | null;
@@ -155,10 +160,31 @@ const DSR_COLS = `id, user_id, request_type, status,
        user_message, admin_notes, response_payload_url, rejection_reason`;
 
 const DSR_COLS_WITH_USER = `dsr.id, dsr.user_id, u.email AS user_email,
-       u.role AS user_role, p.id AS provider_profile_id,
+       u.role AS user_role,
+       COALESCE(p.id, staff_account.provider_id) AS provider_profile_id,
        dsr.request_type, dsr.status,
        dsr.received_at, dsr.due_at, dsr.completed_at, dsr.handled_by,
+       NULLIF(TRIM(CONCAT_WS(' ', handler.first_name, handler.last_name)), '') AS handler_name,
+       handler.email AS handler_email,
        dsr.user_message, dsr.admin_notes, dsr.response_payload_url, dsr.rejection_reason`;
+
+// A provider-staff login belongs to the provider through provider_staff rather
+// than providers.user_id. Keep that relationship in the canonical DSR subject
+// projection so a DPO can reach the employing Provider 360 record. The current
+// product supports one active provider context at a time; if historical rows
+// exist, the newest relationship is the same deterministic precedent used by
+// the support queue.
+const DSR_SUBJECT_JOINS = `
+       LEFT JOIN users u ON u.id = dsr.user_id
+       LEFT JOIN providers p ON p.user_id = dsr.user_id
+       LEFT JOIN users handler ON handler.id = dsr.handled_by
+       LEFT JOIN LATERAL (
+         SELECT ps.provider_id
+           FROM provider_staff ps
+          WHERE ps.user_id = dsr.user_id
+          ORDER BY ps.created_at DESC, ps.id
+          LIMIT 1
+       ) staff_account ON u.role = 'provider_staff'`;
 
 // ─────────────────────────────────────────────────────────────────
 // Mappers
@@ -195,6 +221,8 @@ function mapDsr(r: DsrRow, now: Date = new Date()): DsrRecord {
     dueAt: r.due_at.toISOString(),
     completedAt: r.completed_at ? r.completed_at.toISOString() : null,
     handledBy: r.handled_by,
+    handledByName: r.handler_name ?? null,
+    handledByEmail: r.handler_email ?? null,
     userMessage: r.user_message,
     adminNotes: r.admin_notes,
     responsePayloadUrl: r.response_payload_url,
@@ -523,8 +551,7 @@ export async function listDsrs(filter: {
   const rowsResult = await db.query<DsrRow>(
     `SELECT ${DSR_COLS_WITH_USER}
        FROM data_subject_requests dsr
-       LEFT JOIN users u ON u.id = dsr.user_id
-       LEFT JOIN providers p ON p.user_id = dsr.user_id
+       ${DSR_SUBJECT_JOINS}
        ${whereSql}
       ORDER BY dsr.due_at ASC, dsr.received_at DESC
       LIMIT ${limit} OFFSET ${offset}`,
@@ -581,11 +608,30 @@ export interface PendingMaterialConsent {
 interface PendingMaterialRow {
   consent_type: string;
   latest_version: string;
-  effective_at: string;
+  effective_at: string | Date | null;
   change_summary: string;
+  published_at: Date;
+  database_now: Date;
   user_current_version: string | null;
   user_last_action_at: Date | null;
   user_granted: boolean | null;
+}
+
+function resolveConsentActivation(
+  effectiveAt: string | Date | null,
+  publishedAt: Date,
+  databaseNow: Date,
+): { effectiveAt: string; isActive: boolean } {
+  const candidate = effectiveAt instanceof Date
+    ? effectiveAt
+    : typeof effectiveAt === 'string'
+      ? new Date(effectiveAt)
+      : publishedAt;
+  const resolved = Number.isFinite(candidate.getTime()) ? candidate : publishedAt;
+  return {
+    effectiveAt: resolved.toISOString(),
+    isActive: resolved.getTime() <= databaseNow.getTime(),
+  };
 }
 
 export async function getPendingMaterialConsents(
@@ -595,30 +641,46 @@ export async function getPendingMaterialConsents(
     throw createAppError('userId is required.', 400);
   }
 
-  // The CTE collects, per consent_type, the latest admin_actions row
-  // where details.material is the boolean true. Postgres jsonb '?'
-  // operator + boolean cast covers both `"material":true` and a stored
-  // string "true". DISTINCT ON keeps only the newest publish per type.
+  // First normalize every material publication's activation timestamp.
+  // Missing and malformed legacy effectiveAt values retain the historical
+  // publish-time behavior instead of crashing the entire endpoint. The next
+  // CTE excludes future activations before DISTINCT ON so an already-active
+  // prior material version remains authoritative until its successor starts.
+  // Postgres jsonb text extraction + boolean cast covers both
+  // `"material":true` and a stored string "true".
   // The LATERAL join then pulls the user's most recent consent_records
   // row for that type so we can decide if a re-consent is needed.
   const sql = `
-    WITH latest_material AS (
-      SELECT DISTINCT ON (details->>'consentType')
-             details->>'consentType'   AS consent_type,
-             details->>'version'       AS latest_version,
-             COALESCE(details->>'effectiveAt', created_at::text) AS effective_at,
-             COALESCE(details->>'changeSummary', '')             AS change_summary,
-             created_at                AS published_at
+    WITH material_publications AS (
+      SELECT id,
+             details->>'consentType' AS consent_type,
+             details->>'version' AS latest_version,
+             CASE
+               WHEN NULLIF(BTRIM(details->>'effectiveAt'), '') IS NULL THEN created_at
+               WHEN pg_input_is_valid(details->>'effectiveAt', 'timestamp with time zone')
+                 THEN (details->>'effectiveAt')::timestamptz
+               ELSE created_at
+             END AS effective_at,
+             COALESCE(details->>'changeSummary', '') AS change_summary,
+             created_at AS published_at
         FROM admin_actions
        WHERE action_type = 'consent_version_published'
          AND target_type = 'consent_version'
          AND (details->>'material')::boolean IS TRUE
-       ORDER BY details->>'consentType', created_at DESC
+    ), latest_material AS (
+      SELECT DISTINCT ON (consent_type)
+             consent_type, latest_version, effective_at,
+             change_summary, published_at
+        FROM material_publications
+       WHERE effective_at <= NOW()
+       ORDER BY consent_type, published_at DESC, id DESC
     )
     SELECT lm.consent_type,
            lm.latest_version,
            lm.effective_at,
            lm.change_summary,
+           lm.published_at,
+           NOW() AS database_now,
            ucr.version       AS user_current_version,
            ucr.granted_at    AS user_last_action_at,
            ucr.granted       AS user_granted
@@ -645,13 +707,22 @@ export async function getPendingMaterialConsents(
 
   const result = await db.query<PendingMaterialRow>(sql, [userId]);
 
-  return result.rows.map((r) => {
+  return result.rows.flatMap((r) => {
+    const activation = resolveConsentActivation(
+      r.effective_at,
+      r.published_at,
+      r.database_now,
+    );
+    // Defense in depth: the SQL already excludes scheduled rows. Retain the
+    // same boundary here so a future row can never become a prompt if a
+    // compatibility layer or mocked query returns more than the SQL asked for.
+    if (!activation.isActive) return [];
     const lastAction: 'granted' | 'revoked' | null =
       r.user_granted === null ? null : r.user_granted ? 'granted' : 'revoked';
     return {
       consentType: r.consent_type,
       latestVersion: r.latest_version,
-      effectiveAt: r.effective_at,
+      effectiveAt: activation.effectiveAt,
       changeSummary: r.change_summary,
       userCurrentVersion: r.user_current_version,
       userLastActionAt: r.user_last_action_at
@@ -690,8 +761,7 @@ export async function getDsr(id: string): Promise<DsrRecord | null> {
   const result = await db.query<DsrRow>(
     `SELECT ${DSR_COLS_WITH_USER}
        FROM data_subject_requests dsr
-       LEFT JOIN users u ON u.id = dsr.user_id
-       LEFT JOIN providers p ON p.user_id = dsr.user_id
+       ${DSR_SUBJECT_JOINS}
       WHERE dsr.id = $1`,
     [id],
   );
@@ -711,8 +781,7 @@ export async function updateDsrStatus(input: {
   const currentResult = await db.query<DsrRow>(
     `SELECT ${DSR_COLS_WITH_USER}
        FROM data_subject_requests dsr
-       LEFT JOIN users u ON u.id = dsr.user_id
-       LEFT JOIN providers p ON p.user_id = dsr.user_id
+       ${DSR_SUBJECT_JOINS}
       WHERE dsr.id = $1`,
     [input.id],
   );
@@ -840,6 +909,7 @@ function maskIpForRole(
 }
 
 interface ExportAuditFilter {
+  entryId?: string;
   userId?: string;
   action?: string;
   entityType?: string;
@@ -848,7 +918,7 @@ interface ExportAuditFilter {
   from?: string;
   to?: string;
   limit?: number;
-  /** Role of the admin calling the export (for PII masking). */
+  /** Role of the admin calling the export (for authorization and PII masking). */
   viewerRole?: string;
 }
 
@@ -871,6 +941,15 @@ function buildExportWhere(filter: ExportAuditFilter): { whereSql: string; params
   const where: string[] = [];
   const params: unknown[] = [];
 
+  // Match the on-screen general Audit Log boundary. Missing roles fail closed
+  // to the ordinary-admin view so a future direct caller cannot bypass D34.
+  const visibilityClause = generalAuditVisibilityClause(filter.viewerRole);
+  if (visibilityClause) where.push(visibilityClause);
+
+  if (filter.entryId) {
+    params.push(filter.entryId);
+    where.push(`combined.id = $${params.length}`);
+  }
   if (filter.userId) {
     params.push(filter.userId);
     where.push(`combined.user_id = $${params.length}`);
@@ -1039,8 +1118,7 @@ export async function getDsrAlerts(): Promise<DsrRecord[]> {
   const result = await db.query<DsrRow>(
     `SELECT ${DSR_COLS_WITH_USER}
        FROM data_subject_requests dsr
-       LEFT JOIN users u ON u.id = dsr.user_id
-       LEFT JOIN providers p ON p.user_id = dsr.user_id
+       ${DSR_SUBJECT_JOINS}
       WHERE dsr.status IN ('received', 'in_progress')
         AND dsr.due_at - NOW() <= INTERVAL '2 days'
       ORDER BY dsr.due_at ASC`,

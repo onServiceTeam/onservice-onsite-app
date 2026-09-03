@@ -306,6 +306,8 @@ export interface TierRequirement {
 export interface TierProgressionData {
   currentTier: string;
   currentCommission: number;
+  currentCommissionSource: 'tier_default' | 'provider_contract';
+  currentCommissionRateVersionId: string;
   progressionTrack: 'founding' | 'standard';
   promotionMode: 'admin_review';
   nextTier: TierRequirement | null;

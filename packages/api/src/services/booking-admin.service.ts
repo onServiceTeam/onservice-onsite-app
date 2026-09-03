@@ -22,6 +22,7 @@ import * as paymentService from './payment.service';
 import * as gatewayRetryService from './gateway-retry.service';
 import * as socketService from './socket.service';
 import * as matchingService from './matching.service';
+import * as financialTermsService from './booking-financial-terms.service';
 import { maskEmail, maskPhilippinePhone, type ActorRole } from '../utils/pii-mask';
 import { canTransition, type BookingStatus } from '../types/booking.types';
 
@@ -65,6 +66,36 @@ export interface BookingDetail {
     avatarUrl: string | null;
     rating: number | null;
     lifetimeJobs: number;
+  } | null;
+  businessContext: {
+    billingMode: string | null;
+    linkageState: 'complete' | 'legacy_unreviewed' | 'inconsistent';
+    linkageIssues: string[];
+    account: {
+      id: string;
+      companyName: string;
+      status: string;
+    } | null;
+    contract: {
+      id: string;
+      businessAccountId: string;
+      contractType: string;
+      frequency: string | null;
+      status: string;
+    } | null;
+    termsVersion: {
+      id: string;
+      businessAccountId: string;
+      version: number;
+      effectiveFrom: string;
+    } | null;
+    statements: Array<{
+      id: string;
+      businessAccountId: string;
+      number: string;
+      status: string;
+      settlementState: string;
+    }>;
   } | null;
   createdAt: string;
 }
@@ -153,6 +184,12 @@ export interface RefundResult {
   refundedAmount: number;
   reason: string;
   adminActionId: string;
+  supportTicketId: string;
+  remainingEscrowAmount: number;
+  customerWalletCredited: boolean;
+  idempotentReplay: boolean;
+  paymentProcessingQueued: boolean;
+  paymentProcessingStatus: 'processed' | 'queued' | 'manual_attention';
 }
 
 export interface ReassignResult {
@@ -268,6 +305,26 @@ export async function getBookingDetail(
     provider_last_name: string | null;
     provider_phone: string | null;
     provider_avatar: string | null;
+    business_account_id: string | null;
+    business_company_name: string | null;
+    business_account_status: string | null;
+    contract_id: string | null;
+    contract_account_id: string | null;
+    contract_type: string | null;
+    contract_frequency: string | null;
+    contract_status: string | null;
+    business_account_terms_version_id: string | null;
+    terms_account_id: string | null;
+    terms_version: number | null;
+    terms_effective_from: Date | null;
+    billing_mode: string | null;
+    business_statements: Array<{
+      id: string;
+      businessAccountId: string;
+      number: string;
+      status: string;
+      settlementState: string;
+    }> | null;
   }>(
     `SELECT b.id, b.status, b.escrow_status, b.booking_type,
             b.scheduled_at, b.completed_at, b.confirmed_at, b.cancelled_at,
@@ -294,7 +351,38 @@ export async function getBookingDetail(
             pu.first_name   AS provider_first_name,
             pu.last_name    AS provider_last_name,
             pu.phone        AS provider_phone,
-            pu.avatar_url   AS provider_avatar
+            pu.avatar_url   AS provider_avatar,
+            b.business_account_id,
+            ba.company_name AS business_company_name,
+            ba.status       AS business_account_status,
+            b.contract_id,
+            bc.business_account_id AS contract_account_id,
+            bc.contract_type,
+            bc.frequency AS contract_frequency,
+            bc.status AS contract_status,
+            b.business_account_terms_version_id,
+            batv.business_account_id AS terms_account_id,
+            batv.version AS terms_version,
+            batv.effective_from AS terms_effective_from,
+            b.billing_mode,
+            COALESCE((
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'id', linked.id::text,
+                  'businessAccountId', linked.business_account_id::text,
+                  'number', linked.invoice_number,
+                  'status', linked.status,
+                  'settlementState', linked.settlement_state
+                ) ORDER BY linked.created_at DESC, linked.id DESC
+              )
+              FROM (
+                SELECT DISTINCT bi.id, bi.business_account_id, bi.invoice_number,
+                       bi.status, bi.settlement_state, bi.created_at
+                  FROM business_invoice_items bii
+                  JOIN business_invoices bi ON bi.id = bii.invoice_id
+                 WHERE bii.booking_id = b.id
+              ) linked
+            ), '[]'::jsonb) AS business_statements
        FROM bookings b
        LEFT JOIN service_categories sc     ON sc.id  = b.category_id
        LEFT JOIN service_subcategories ssc ON ssc.id = b.subcategory_id
@@ -302,6 +390,10 @@ export async function getBookingDetail(
        LEFT JOIN providers p               ON p.id   = b.provider_id
        LEFT JOIN users pu                  ON pu.id  = p.user_id
        LEFT JOIN conversations c           ON c.booking_id = b.id
+       LEFT JOIN business_accounts ba      ON ba.id = b.business_account_id
+       LEFT JOIN business_contracts bc     ON bc.id = b.contract_id
+       LEFT JOIN business_account_term_versions batv
+         ON batv.id = b.business_account_terms_version_id
       WHERE b.id = $1`,
     [bookingId],
   );
@@ -358,6 +450,77 @@ export async function getBookingDetail(
       }
     : null;
 
+  const statements = Array.isArray(row.business_statements) ? row.business_statements : [];
+  const hasBusinessEvidence = Boolean(
+    row.business_account_id
+      || row.contract_id
+      || row.business_account_terms_version_id
+      || row.billing_mode === 'business_terms'
+      || statements.length > 0,
+  );
+  const linkageIssues: string[] = [];
+  if (hasBusinessEvidence) {
+    if (row.billing_mode === 'business_terms') {
+      if (!row.business_account_id) linkageIssues.push('Controlled business billing is missing its account link.');
+      if (!row.contract_id) linkageIssues.push('Controlled business billing is missing its contract link.');
+      if (!row.business_account_terms_version_id) {
+        linkageIssues.push('Controlled business billing is missing its immutable account terms version.');
+      }
+    } else if (row.billing_mode === 'consumer_prepay') {
+      linkageIssues.push('Business linkage exists on a consumer-prepay booking.');
+    }
+    if (row.business_account_id && row.contract_account_id
+      && row.business_account_id !== row.contract_account_id) {
+      linkageIssues.push('The contract belongs to a different business account.');
+    }
+    if (row.business_account_id && row.terms_account_id
+      && row.business_account_id !== row.terms_account_id) {
+      linkageIssues.push('The account terms version belongs to a different business account.');
+    }
+    if (row.business_account_id
+      && statements.some((statement) => statement.businessAccountId !== row.business_account_id)) {
+      linkageIssues.push('A linked statement belongs to a different business account.');
+    }
+  }
+  const linkageState: 'complete' | 'legacy_unreviewed' | 'inconsistent' = linkageIssues.length > 0
+    ? 'inconsistent'
+    : row.billing_mode === 'business_terms'
+      ? 'complete'
+      : 'legacy_unreviewed';
+  const businessContext = hasBusinessEvidence
+    ? {
+        billingMode: row.billing_mode ?? null,
+        linkageState,
+        linkageIssues,
+        account: row.business_account_id
+          ? {
+              id: row.business_account_id,
+              companyName: row.business_company_name ?? 'Business account',
+              status: row.business_account_status ?? 'unknown',
+            }
+          : null,
+        contract: row.contract_id && row.contract_account_id
+          ? {
+              id: row.contract_id,
+              businessAccountId: row.contract_account_id,
+              contractType: row.contract_type ?? 'unknown',
+              frequency: row.contract_frequency,
+              status: row.contract_status ?? 'unknown',
+            }
+          : null,
+        termsVersion: row.business_account_terms_version_id && row.terms_account_id
+          && row.terms_version !== null && row.terms_effective_from
+          ? {
+              id: row.business_account_terms_version_id,
+              businessAccountId: row.terms_account_id,
+              version: row.terms_version,
+              effectiveFrom: row.terms_effective_from.toISOString(),
+            }
+          : null,
+        statements,
+      }
+    : null;
+
   return {
     id: row.id,
     status: row.status,
@@ -379,6 +542,7 @@ export async function getBookingDetail(
     address,
     customer,
     provider,
+    businessContext,
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -779,7 +943,9 @@ export async function manualReleaseEscrow(
   const result = await db.transaction(async (client) => {
     const breakdown = await escrowService.releaseEscrowInTransaction(client, bookingId);
     const releasedAmount =
-      Number(breakdown.providerReceives ?? 0) + Number(breakdown.platformRetains ?? 0);
+      Number(breakdown.providerReceives ?? 0)
+      + Number(breakdown.platformRetains ?? 0)
+      + Number(breakdown.guaranteeFundContribution ?? 0);
 
     const actionResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
@@ -845,6 +1011,8 @@ export async function refundBookingEscrow(
   refundAmount: number,
   reason: string,
   adminUserId: string,
+  supportTicketId: string,
+  idempotencyKey: string,
 ): Promise<RefundResult> {
   if (
     !Number.isFinite(refundAmount) ||
@@ -854,6 +1022,13 @@ export async function refundBookingEscrow(
     throw createAppError('refundAmount must be a positive integer (centavos).', 400);
   }
   const trimmedReason = requireReason(reason, 10);
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(supportTicketId)) {
+    throw createAppError('supportTicketId must be a valid UUID.', 400);
+  }
+  if (!uuidPattern.test(idempotencyKey)) {
+    throw createAppError('idempotencyKey must be a valid UUID.', 400);
+  }
 
   // Phase 14 Dispatch 06 — Bug 71. Pre-D06 the escrow refund ran in
   // escrowService.refundFromEscrow's internal transaction, then the
@@ -862,15 +1037,102 @@ export async function refundBookingEscrow(
   // escrow pending_balance debit) without an audit trail. Now: ONE
   // outer transaction wraps the trx-aware refund helper + the
   // admin_actions INSERT. Gateway refund (paymentService.processRefund)
-  // stays post-commit per the documented pattern (gateway calls are
-  // idempotent and tolerate retry).
+  // stays post-commit per the documented pattern. Its retry action never
+  // repeats the already-committed escrow movement.
   const result = await db.transaction(async (client) => {
-    await escrowService.refundFromEscrowInTransaction(
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [idempotencyKey]);
+    const replayResult = await client.query<{
+      id: string;
+      details: Record<string, unknown>;
+      reason: string;
+    }>(
+      `SELECT id, details, reason
+         FROM admin_actions
+        WHERE action_type = 'refund_issued'
+          AND details ->> 'idempotencyKey' = $1
+        LIMIT 1`,
+      [idempotencyKey],
+    );
+    const replay = replayResult.rows[0];
+    if (replay) {
+      if (String(replay.details.bookingId) !== bookingId) {
+        throw createAppError('This refund request key belongs to a different booking.', 409);
+      }
+      if (
+        Number(replay.details.refundAmount) !== refundAmount
+        || String(replay.details.supportTicketId) !== supportTicketId
+        || replay.reason !== trimmedReason
+      ) {
+        throw createAppError('This refund request key was already used with different parameters.', 409);
+      }
+      const paymentRetryId = String(replay.details.paymentRetryId ?? '');
+      const retryStatus = paymentRetryId
+        ? await client.query<{ status: string }>(
+            'SELECT status FROM gateway_retry_queue WHERE id = $1',
+            [paymentRetryId],
+          )
+        : null;
+      const persistedRetryStatus = retryStatus?.rows[0]?.status;
+      const paymentProcessingStatus: RefundResult['paymentProcessingStatus'] = persistedRetryStatus === 'succeeded'
+        ? 'processed'
+        : persistedRetryStatus === 'pending' || persistedRetryStatus === 'in_progress'
+          ? 'queued'
+          : 'manual_attention';
+      return {
+        adminActionId: replay.id,
+        supportTicketId: String(replay.details.supportTicketId),
+        remainingEscrowAmount: Number(replay.details.remainingEscrowAmount),
+        customerWalletCredited: replay.details.customerWalletCredited === true,
+        idempotentReplay: true,
+        paymentRetryId,
+        paymentProcessingQueued: paymentProcessingStatus === 'queued',
+        paymentProcessingStatus,
+      };
+    }
+
+    const ticketResult = await client.query<{ id: string; ticket_number: string }>(
+      `SELECT id, ticket_number
+         FROM support_tickets
+        WHERE id = $1
+          AND booking_id = $2
+          AND status NOT IN ('resolved', 'closed')
+        FOR SHARE`,
+      [supportTicketId, bookingId],
+    );
+    const ticket = ticketResult.rows[0];
+    if (!ticket) {
+      throw createAppError('Select an active support case linked to this booking before issuing a refund.', 409);
+    }
+
+    const movement = await escrowService.refundFromEscrowInTransaction(
       client,
       bookingId,
       refundAmount,
       trimmedReason,
     );
+    const nextEscrowStatus = movement.remainingEscrowCentavos === 0
+      ? 'refunded'
+      : 'partially_refunded';
+    await client.query(
+      `UPDATE bookings SET escrow_status = $2, updated_at = NOW() WHERE id = $1`,
+      [bookingId, nextEscrowStatus],
+    );
+
+    // Durable outbox: create the payment-only work item before the local
+    // refund commits. A process stop between COMMIT and the immediate gateway
+    // call can no longer strand the customer refund. The worker never repeats
+    // the escrow debit.
+    const retryResult = await client.query<{ id: string }>(
+      `INSERT INTO gateway_retry_queue
+         (action_type, booking_id, amount_centavos, description, last_error, status, next_retry_at)
+       VALUES ('process_payment_refund', $1, $2, $3, $4, 'pending', NOW() + INTERVAL '10 minutes')
+       RETURNING id`,
+      [bookingId, refundAmount, trimmedReason, 'Initial payment refund attempt pending'],
+    );
+    const paymentRetryId = retryResult.rows[0]?.id;
+    if (!paymentRetryId) {
+      throw createAppError('Failed to create durable payment refund operation.', 500);
+    }
 
     const actionResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
@@ -879,7 +1141,18 @@ export async function refundBookingEscrow(
       [
         adminUserId,
         bookingId,
-        JSON.stringify({ bookingId, refundAmount }),
+        JSON.stringify({
+          bookingId,
+          refundAmount,
+          supportTicketId,
+          supportTicketNumber: ticket.ticket_number,
+          idempotencyKey,
+          remainingEscrowAmount: movement.remainingEscrowCentavos,
+          customerWalletCredited: movement.customerWalletCredited,
+          paymentMethod: movement.paymentMethod,
+          nextEscrowStatus,
+          paymentRetryId,
+        }),
         trimmedReason.slice(0, 500),
         trimmedReason,
       ],
@@ -889,7 +1162,31 @@ export async function refundBookingEscrow(
       throw createAppError('Failed to record refund admin action.', 500);
     }
 
-    return { adminActionId };
+    await client.query(
+      `INSERT INTO support_ticket_messages
+         (ticket_id, sender_id, sender_role, message, is_internal_note)
+       VALUES ($1, $2, 'super_admin', $3, TRUE)`,
+      [
+        supportTicketId,
+        adminUserId,
+        `Refund issued: ${refundAmount} centavos. Remaining booking escrow: ${movement.remainingEscrowCentavos} centavos. Admin action: ${adminActionId}. Reason: ${trimmedReason}`,
+      ],
+    );
+    await client.query(
+      `UPDATE support_tickets SET updated_at = NOW() WHERE id = $1`,
+      [supportTicketId],
+    );
+
+    return {
+      adminActionId,
+      supportTicketId,
+      remainingEscrowAmount: movement.remainingEscrowCentavos,
+      customerWalletCredited: movement.customerWalletCredited,
+      idempotentReplay: false,
+      paymentRetryId,
+      paymentProcessingQueued: true,
+      paymentProcessingStatus: 'queued' as const,
+    };
   });
 
   logger.info('Booking escrow refund executed', {
@@ -904,14 +1201,100 @@ export async function refundBookingEscrow(
   // ordering. Failure here is logged but does not roll back the money/audit
   // pair, which are already durable — the gateway dispute resolution lives
   // outside our transaction boundary.
-  try {
-    await paymentService.processRefund(bookingId, refundAmount, trimmedReason);
-  } catch (err) {
-    logger.error('Gateway refund call failed after escrow + audit committed (logged, not rolled back)', {
-      bookingId,
-      refundAmount,
-      error: err instanceof Error ? err.message : String(err),
-    });
+  let paymentProcessingQueued = result.paymentProcessingQueued;
+  let paymentProcessingStatus = result.paymentProcessingStatus;
+  if (!result.idempotentReplay) {
+    try {
+      await paymentService.processRefund(bookingId, refundAmount, trimmedReason);
+      try {
+        const marked = await db.query(
+          `UPDATE gateway_retry_queue
+              SET status = 'succeeded', attempts = 1, last_attempted_at = NOW(),
+                  succeeded_at = NOW(), updated_at = NOW(), last_error = NULL
+            WHERE id = $1 AND status = 'pending'`,
+          [result.paymentRetryId],
+        );
+        if ((marked.rowCount ?? 0) === 1) {
+          paymentProcessingQueued = false;
+          paymentProcessingStatus = 'processed';
+        } else {
+          paymentProcessingQueued = false;
+          paymentProcessingStatus = 'manual_attention';
+          logger.error('Payment refund succeeded but its durable operation was not pending', {
+            bookingId,
+            paymentRetryId: result.paymentRetryId,
+          });
+        }
+      } catch (markErr) {
+        paymentProcessingQueued = false;
+        paymentProcessingStatus = 'manual_attention';
+        logger.error('Payment refund succeeded but its durable operation could not be marked succeeded', {
+          bookingId,
+          paymentRetryId: result.paymentRetryId,
+          error: markErr instanceof Error ? markErr.message : String(markErr),
+        });
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      if (result.customerWalletCredited && /no payment found/i.test(error)) {
+        logger.info('Wallet admin refund completed without a payment-intent row', {
+          bookingId,
+          refundAmount,
+        });
+        try {
+          const marked = await db.query(
+            `UPDATE gateway_retry_queue
+                SET status = 'succeeded', attempts = 1, last_attempted_at = NOW(),
+                    succeeded_at = NOW(), updated_at = NOW(), last_error = NULL
+              WHERE id = $1 AND status = 'pending'`,
+            [result.paymentRetryId],
+          );
+          if ((marked.rowCount ?? 0) === 1) {
+            paymentProcessingQueued = false;
+            paymentProcessingStatus = 'processed';
+          } else {
+            paymentProcessingQueued = false;
+            paymentProcessingStatus = 'manual_attention';
+            logger.error('Wallet refund completed but its durable operation was not pending', {
+              bookingId,
+              paymentRetryId: result.paymentRetryId,
+            });
+          }
+        } catch (markErr) {
+          paymentProcessingQueued = false;
+          paymentProcessingStatus = 'manual_attention';
+          logger.error('Wallet refund completed but its durable operation could not be marked succeeded', {
+            bookingId,
+            paymentRetryId: result.paymentRetryId,
+            error: markErr instanceof Error ? markErr.message : String(markErr),
+          });
+        }
+      } else {
+        logger.error('Payment refund processing failed after escrow + audit committed; durable retry remains pending', {
+          bookingId,
+          refundAmount,
+          paymentRetryId: result.paymentRetryId,
+          error,
+        });
+        try {
+          await db.query(
+            `UPDATE gateway_retry_queue
+                SET attempts = 1, last_attempted_at = NOW(), last_error = $2,
+                    next_retry_at = NOW() + INTERVAL '2 minutes', updated_at = NOW()
+              WHERE id = $1 AND status = 'pending'`,
+            [result.paymentRetryId, error.slice(0, 2000)],
+          );
+        } catch (markErr) {
+          logger.error('Durable payment refund retry exists but its initial error could not be recorded', {
+            bookingId,
+            paymentRetryId: result.paymentRetryId,
+            error: markErr instanceof Error ? markErr.message : String(markErr),
+          });
+        }
+        paymentProcessingQueued = true;
+        paymentProcessingStatus = 'queued';
+      }
+    }
   }
 
   return {
@@ -919,6 +1302,12 @@ export async function refundBookingEscrow(
     refundedAmount: refundAmount,
     reason: trimmedReason,
     adminActionId: result.adminActionId,
+    supportTicketId: result.supportTicketId,
+    remainingEscrowAmount: result.remainingEscrowAmount,
+    customerWalletCredited: result.customerWalletCredited,
+    idempotentReplay: result.idempotentReplay,
+    paymentProcessingQueued,
+    paymentProcessingStatus,
   };
 }
 
@@ -1093,6 +1482,24 @@ export async function reassignBookingProvider(
     if (!adminActionId) {
       throw createAppError('Failed to record reassign admin action.', 500);
     }
+
+    // E50: a reassignment changes which provider agreement governs future
+    // disbursement. Append a new immutable version in the same transaction;
+    // pre-payment reassignments intentionally have no financial terms yet.
+    await financialTermsService.appendProviderAssignmentTermsInTransaction(
+      client,
+      {
+        bookingId,
+        providerId: newProviderId,
+        event: 'provider_reassigned',
+        sourceEventId: adminActionId,
+        createdBy: adminUserId,
+        metadata: {
+          oldProviderId: booking.provider_id,
+          reason: trimmedReason,
+        },
+      },
+    );
 
     logger.info('Booking provider reassigned', {
       bookingId,
@@ -1301,7 +1708,7 @@ export async function cancelBookingAsAdmin(
           bookingId, totalCustomerRefund, error: errMsg,
         });
         await gatewayRetryService.enqueueRetry({
-          actionType: 'refund_from_escrow',
+          actionType: 'process_payment_refund',
           bookingId,
           amountCentavos: totalCustomerRefund,
           description: 'Admin cancellation refund',
@@ -1354,14 +1761,16 @@ export async function forceCompleteBooking(
     // waited up to a full day after explicit admin force-complete
     // to actually receive their money. Now: release escrow + flip
     // to 'payout_ready' inside the SAME transaction when the
-    // booking has escrow held. Pre-check escrow_status so we don't
-    // throw on bookings that never had a payment captured.
+    // booking has escrow held. A prior operator partial refund still leaves a
+    // provider/platform remainder that must be released here. Pre-check
+    // escrow_status so we don't throw on bookings that never had a payment
+    // captured.
     const escrowStatusRow = await client.query<{ escrow_status: string | null }>(
       `SELECT escrow_status FROM bookings WHERE id = $1`,
       [bookingId],
     );
     const escrowStatus = escrowStatusRow.rows[0]?.escrow_status ?? null;
-    const releasable = escrowStatus === 'held';
+    const releasable = escrowStatus === 'held' || escrowStatus === 'partially_refunded';
     let escrowReleased = false;
     if (releasable) {
       await escrowService.releaseEscrowInTransaction(client, bookingId);

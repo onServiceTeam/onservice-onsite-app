@@ -13,6 +13,9 @@ import * as businessService from './business.service';
 import * as serviceAreaService from './service-area.service';
 import * as settingsService from './settings.service';
 import { formatPHP } from '../utils/currency';
+import * as financialTermsService from './booking-financial-terms.service';
+import * as escrowService from './escrow.service';
+import * as businessInvoiceControlService from './business-invoice-control.service';
 
 interface BookingRow {
   id: string;
@@ -139,6 +142,26 @@ export async function calculateServiceFee(servicePrice: number): Promise<number>
 
 export async function createBooking(params: CreateBookingParams): Promise<BookingRow> {
   await assertBookableLocation(params.latitude, params.longitude);
+  if (params.businessAccountId && params.bookingType !== 'fixed_price') {
+    throw createAppError(
+      'Business-account billing currently supports fixed-price contracted services only.',
+      400,
+    );
+  }
+  if (params.businessAccountId && params.promoCode) {
+    throw createAppError('Promo codes cannot be combined with a contracted business booking.', 400);
+  }
+  if (params.businessAccountId) {
+    const businessBookingEnabled = await settingsService.getSettingBoolean(
+      'feature_flag.business_contract_booking_enabled',
+    );
+    if (!businessBookingEnabled) {
+      throw createAppError(
+        'Company booking is temporarily held while onService completes the controlled provider-settlement and dispute workflow. Personal booking remains available.',
+        409,
+      );
+    }
+  }
   // Phase 14 Dispatch 05 — Bug 175.
   // Fixed-price bookings now REQUIRE subcategoryId AND a non-null
   // base_price in service_subcategories. There is no fallback to a
@@ -207,18 +230,25 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
   // Inert for normal bookings (businessAccountId is never set by them).
   let businessAccountId: string | null = null;
   let contractId: string | null = null;
+  let businessAccountTermsVersionId: string | null = null;
   if (params.bookingType === 'fixed_price' && params.businessAccountId) {
     const contract = await businessService.resolveBookingContract(
       params.customerId,
       params.businessAccountId,
       params.categoryId,
       params.subcategoryId ?? null,
+      params.scheduledAt,
     );
-    if (contract) {
-      baseServicePrice = contract.agreedRate;
-      businessAccountId = params.businessAccountId;
-      contractId = contract.contractId;
+    if (!contract) {
+      throw createAppError(
+        'This company booking is not eligible. Confirm your booking permission and ask onService to publish matching account terms and a contract.',
+        409,
+      );
     }
+    baseServicePrice = contract.agreedRate;
+    businessAccountId = params.businessAccountId;
+    contractId = contract.contractId;
+    businessAccountTermsVersionId = contract.accountTermsVersionId;
   }
 
   if (params.bookingType === 'fixed_price' && baseServicePrice <= 0) {
@@ -325,6 +355,19 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
   // Also converts the per-addon INSERT loop to a single multi-row INSERT
   // for performance (was 1 round-trip per addon).
   const newBooking = await db.transaction(async (client) => {
+    if (businessAccountId && businessAccountTermsVersionId) {
+      await businessInvoiceControlService.assertBusinessCreditAvailableInTransaction(
+        client,
+        {
+          accountId: businessAccountId,
+          contractId: contractId!,
+          termsVersionId: businessAccountTermsVersionId,
+          customerId: params.customerId,
+          scheduledAt: params.scheduledAt,
+          newBookingAmount: totalAmount,
+        },
+      );
+    }
     const result = await client.query<BookingRow>(
       `INSERT INTO bookings (
         customer_id, category_id, subcategory_id, booking_type,
@@ -333,8 +376,9 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
         service_price, service_fee, total_amount,
         surge_multiplier, surge_amount, pricing_rule_id, rebooked_from_id,
         status, business_account_id, contract_id,
+        business_account_terms_version_id, billing_mode,
         is_hourly, estimated_hours, hourly_rate
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       RETURNING *`,
       [
         params.customerId,
@@ -359,6 +403,8 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
         initialStatus,
         businessAccountId,
         contractId,
+        businessAccountTermsVersionId,
+        businessAccountId ? 'business_terms' : 'consumer_prepay',
         isHourly,
         estimatedHoursCapped,
         hourlyRateSnapshot,
@@ -409,6 +455,22 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
          VALUES ${placeholders.join(', ')}`,
         values,
       );
+    }
+
+    if (params.bookingType === 'fixed_price') {
+      await financialTermsService.appendPricingTermsInTransaction(client, {
+        bookingId: booking.id,
+        event: 'booking_priced',
+        sourceEventId: booking.id,
+        createdBy: params.customerId,
+        metadata: {
+          priceSource: contractId ? 'business_contract' : isHourly ? 'hourly_catalog' : 'catalog',
+          contractId,
+          pricingRuleId,
+          promoApplied: promoDiscountCents > 0,
+          addonsCount: resolvedAddons.length,
+        },
+      });
     }
 
     return booking;
@@ -1216,33 +1278,40 @@ export async function getBookingQuotes(bookingId: string): Promise<Record<string
 }
 
 export async function acceptQuote(bookingId: string, quoteId: string, customerId: string): Promise<Record<string, unknown>> {
-  const booking = await getBookingByIdAdmin(bookingId);
-  if (booking.customer_id !== customerId) {
-    throw createAppError('Not authorized.', 403);
-  }
-  if (booking.status !== 'quoted' && booking.status !== 'requested') {
-    throw createAppError('Booking is not in a state to accept quotes.', 409);
-  }
-
-  interface QuoteAcceptRow { id: string; provider_id: string; quoted_price: number }
-  const quoteResult = await db.query<QuoteAcceptRow>(
-    `SELECT id, provider_id, quoted_price FROM booking_quotes
-     WHERE id = $1 AND booking_id = $2 AND expires_at > NOW()`,
-    [quoteId, bookingId],
-  );
-  if (quoteResult.rows.length === 0) {
-    throw createAppError('Quote not found or expired.', 404);
-  }
-
-  const quote = quoteResult.rows[0]!;
-  const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
-    customerId, quote.provider_id, quote.quoted_price,
-  );
-  const discountedPrice = quote.quoted_price - discountAmount;
-  const serviceFee = await calculateServiceFee(discountedPrice);
-  const totalAmount = discountedPrice + serviceFee;
-
   return db.transaction(async (client) => {
+    const bookingResult = await client.query<BookingRow>(
+      `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
+      [bookingId],
+    );
+    const booking = bookingResult.rows[0];
+    if (!booking) throw createAppError('Booking not found.', 404);
+    if (booking.customer_id !== customerId) throw createAppError('Not authorized.', 403);
+    if (booking.status !== 'quoted' && booking.status !== 'requested') {
+      throw createAppError('Booking is not in a state to accept quotes.', 409);
+    }
+
+    interface QuoteAcceptRow { id: string; provider_id: string; quoted_price: number }
+    const quoteResult = await client.query<QuoteAcceptRow>(
+      `SELECT id, provider_id, quoted_price
+         FROM booking_quotes
+        WHERE id = $1
+          AND booking_id = $2
+          AND expires_at > NOW()
+          AND COALESCE(status, 'submitted') = 'submitted'
+          AND is_accepted = FALSE
+        FOR UPDATE`,
+      [quoteId, bookingId],
+    );
+    const quote = quoteResult.rows[0];
+    if (!quote) throw createAppError('Quote not found, expired, or already resolved.', 404);
+
+    const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
+      customerId, quote.provider_id, quote.quoted_price,
+    );
+    const discountedPrice = quote.quoted_price - discountAmount;
+    const serviceFee = await calculateServiceFee(discountedPrice);
+    const totalAmount = discountedPrice + serviceFee;
+
     await client.query(
       `UPDATE booking_quotes SET is_accepted = TRUE, status = 'accepted', updated_at = NOW()
        WHERE id = $1`,
@@ -1267,6 +1336,18 @@ export async function acceptQuote(bookingId: string, quoteId: string, customerId
        WHERE id = $1`,
       [bookingId, quote.provider_id, discountedPrice, serviceFee, totalAmount, discountAmount],
     );
+
+    await financialTermsService.appendPricingTermsInTransaction(client, {
+      bookingId,
+      event: 'quote_accepted',
+      sourceEventId: quoteId,
+      createdBy: customerId,
+      metadata: {
+        quoteId,
+        quotedPriceCentavos: quote.quoted_price,
+        sukiDiscountCentavos: discountAmount,
+      },
+    });
 
     logger.info('Quote accepted', {
       bookingId, quoteId, providerId: quote.provider_id,
@@ -1514,20 +1595,21 @@ export async function respondToChangeOrder(
   customerId: string,
   approved: boolean,
 ): Promise<Record<string, unknown>> {
-  const coResult = await db.query<ChangeOrderRow>(
-    `SELECT co.* FROM change_orders co
-     JOIN bookings b ON b.id = co.booking_id
-     WHERE co.id = $1 AND b.customer_id = $2 AND co.status = 'pending'`,
-    [changeOrderId, customerId],
-  );
-  if (coResult.rows.length === 0) {
-    throw createAppError('Change order not found or already resolved.', 404);
-  }
-
-  const co = coResult.rows[0]!;
   const newStatus = approved ? 'approved' : 'declined';
 
-  await db.transaction(async (client) => {
+  return db.transaction(async (client) => {
+    const coResult = await client.query<ChangeOrderRow>(
+      `SELECT co.* FROM change_orders co
+       JOIN bookings b ON b.id = co.booking_id
+       WHERE co.id = $1 AND b.customer_id = $2 AND co.status = 'pending'
+       FOR UPDATE OF co, b`,
+      [changeOrderId, customerId],
+    );
+    if (coResult.rows.length === 0) {
+      throw createAppError('Change order not found or already resolved.', 404);
+    }
+    const co = coResult.rows[0]!;
+
     const updateResult = await client.query(
       `UPDATE change_orders SET status = $2, customer_responded_at = NOW(), updated_at = NOW()
        WHERE id = $1 AND status = 'pending' RETURNING id`,
@@ -1539,19 +1621,19 @@ export async function respondToChangeOrder(
 
     if (!approved) {
       logger.info('Change order declined', { changeOrderId });
+      return { id: changeOrderId, status: newStatus, paymentRequired: false };
     }
-  });
 
-  if (approved) {
-    const bookingResult = await db.query<{ service_price: number; service_fee: number; total_amount: number }>(
-      `SELECT service_price, service_fee, total_amount FROM bookings WHERE id = $1`,
+    const bookingResult = await client.query<{ service_price: number; service_fee: number; total_amount: number }>(
+      `SELECT service_price, service_fee, total_amount FROM bookings WHERE id = $1 FOR UPDATE`,
       [co.booking_id],
     );
     const current = bookingResult.rows[0];
     if (!current) throw createAppError('Booking not found.', 404);
 
+    const terms = await financialTermsService.getLatestFinalTermsInTransaction(client, co.booking_id);
     const newServicePrice = current.service_price + co.additional_amount;
-    const newServiceFee = await calculateServiceFee(newServicePrice);
+    const newServiceFee = financialTermsService.calculateServiceFeeFromTerms(newServicePrice, terms);
     const newTotalAmount = newServicePrice + newServiceFee;
     const additionalTotal = newTotalAmount - current.total_amount;
     const additionalServiceFee = additionalTotal - co.additional_amount;
@@ -1572,9 +1654,7 @@ export async function respondToChangeOrder(
       additionalServiceFee,
       additionalTotal,
     };
-  }
-
-  return { id: changeOrderId, status: newStatus, paymentRequired: false };
+  });
 }
 
 /**
@@ -1755,8 +1835,9 @@ export async function finalizeChangeOrderPayment(
       );
     }
 
+    const currentTerms = await financialTermsService.getLatestFinalTermsInTransaction(client, co.booking_id);
     const newServicePrice = current.service_price + co.additional_amount;
-    const newServiceFee = await calculateServiceFee(newServicePrice);
+    const newServiceFee = financialTermsService.calculateServiceFeeFromTerms(newServicePrice, currentTerms);
     const newTotalAmount = newServicePrice + newServiceFee;
     const additionalTotal = newTotalAmount - current.total_amount;
 
@@ -1848,6 +1929,26 @@ export async function finalizeChangeOrderPayment(
       [co.booking_id, newServicePrice, newServiceFee, newTotalAmount],
     );
 
+    // E50: an authorized change order appends a new immutable terms version
+    // using the booking's original commission and fee agreement. The added
+    // escrow hold is part of this same transaction, so price, customer debit,
+    // financial evidence, and held funds cannot diverge.
+    await financialTermsService.appendAmendedTermsInTransaction(
+      client,
+      {
+        bookingId: co.booking_id,
+        event: 'change_order_authorized',
+        sourceEventId: changeOrderId,
+        createdBy: customerId,
+        metadata: {
+          paymentKind: paymentProof.kind,
+          additionalServiceAmountCentavos: co.additional_amount,
+          additionalTotalCentavos: additionalTotal,
+        },
+      },
+    );
+    await escrowService.holdInEscrowInTransaction(client, co.booking_id, additionalTotal);
+
     logger.info('Change order payment finalized — booking amounts updated', {
       changeOrderId,
       bookingId: co.booking_id,
@@ -1921,18 +2022,27 @@ export async function getChangeOrders(bookingId: string): Promise<Record<string,
     [bookingId],
   );
   const baseline = bookingRow.rows[0];
+  const latestTerms = baseline ? await financialTermsService.getLatestTermsOrNull(bookingId) : null;
+  const terms = latestTerms?.termsState === 'final' ? latestTerms : null;
+  const financialTermsReviewRequired = baseline !== undefined && terms === null;
 
   return Promise.all(
     result.rows.map(async (co) => {
       let additionalServiceFee: number | null = null;
       let additionalTotal: number | null = null;
-      if (baseline) {
+      if (baseline && terms) {
         const newServicePrice = baseline.service_price + co.additional_amount;
-        const newServiceFee = await calculateServiceFee(newServicePrice);
+        const newServiceFee = financialTermsService.calculateServiceFeeFromTerms(newServicePrice, terms);
         additionalTotal = (newServicePrice + newServiceFee) - baseline.total_amount;
         additionalServiceFee = additionalTotal - co.additional_amount;
       }
-      return formatChangeOrder(co, additionalServiceFee, additionalTotal, lineItemsMap[co.id] ?? []);
+      return formatChangeOrder(
+        co,
+        additionalServiceFee,
+        additionalTotal,
+        lineItemsMap[co.id] ?? [],
+        financialTermsReviewRequired,
+      );
     }),
   );
 }
@@ -1942,6 +2052,7 @@ function formatChangeOrder(
   additionalServiceFee: number | null = null,
   additionalTotal: number | null = null,
   lineItems: Record<string, unknown>[] = [],
+  financialTermsReviewRequired = false,
 ): Record<string, unknown> {
   return {
     id: co.id,
@@ -1951,6 +2062,7 @@ function formatChangeOrder(
     additionalAmount: co.additional_amount,
     additionalServiceFee,
     additionalTotal,
+    financialTermsReviewRequired,
     lineItems,
     photos: co.photos ?? [],
     status: co.status,

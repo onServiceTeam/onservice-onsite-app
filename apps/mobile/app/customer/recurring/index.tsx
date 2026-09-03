@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -50,19 +50,34 @@ export default function RecurringListScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
+  // BUG-UX-911 — the previous one-page query silently hid every recurring
+  // series after the first 20. Keep server pagination and expose both
+  // scroll-based and explicit load-more controls so phone, tablet, desktop,
+  // keyboard, and assistive-technology users can reach the full history.
+  const {
+    data, isLoading, isError, refetch, isRefetching,
+    fetchNextPage, hasNextPage, isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['recurring-bookings'],
-    queryFn: async () => {
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
       const res = await api.get<{
         success: boolean;
         data: RecurringBooking[];
-        pagination: { total: number };
-      }>('/api/v1/recurring');
+        pagination: { page?: number; pageSize?: number; total: number; totalPages?: number };
+      }>('/api/v1/recurring', { params: { page: pageParam, pageSize: 20 } });
       return res.data;
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((count, result) => count + result.data.length, 0);
+      if (loaded >= lastPage.pagination.total) return undefined;
+      return (lastPage.pagination.page ?? allPages.length) + 1;
     },
   });
 
-  const items = data?.data ?? [];
+  const items = Array.from(
+    new Map((data?.pages ?? []).flatMap((pageResult) => pageResult.data).map((item) => [item.id, item])).values(),
+  );
 
   const { breakpoint } = useResponsive();
   const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 3 });
@@ -155,8 +170,10 @@ export default function RecurringListScreen(): React.ReactElement {
           contentContainerStyle={[styles.list, numColumns > 1 && styles.listWide]}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
+            <RefreshControl refreshing={isRefetching && !isFetchingNextPage} onRefresh={() => void refetch()} />
           }
+          onEndReached={() => { if (hasNextPage && !isFetchingNextPage) void fetchNextPage(); }}
+          onEndReachedThreshold={0.4}
           // BUG-PHASE173-01 — empty state has a "Browse Services" CTA so a
           // customer with no recurring bookings has a path forward.
           ListEmptyComponent={
@@ -168,6 +185,17 @@ export default function RecurringListScreen(): React.ReactElement {
               onAction={() => router.push(Routes.TABS.HOME)}
             />
           }
+          ListFooterComponent={hasNextPage ? (
+            <TouchableOpacity
+              style={styles.loadMore}
+              onPress={() => void fetchNextPage()}
+              disabled={isFetchingNextPage}
+              accessibilityRole="button"
+              accessibilityLabel="Load more recurring bookings"
+            >
+              <Text style={styles.loadMoreText}>{isFetchingNextPage ? 'Loading more…' : 'Load More'}</Text>
+            </TouchableOpacity>
+          ) : null}
         />
         </View>
       )}
@@ -251,4 +279,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
   },
   emptyCtaText: { color: colors.white, fontWeight: '600', fontSize: 14 },
+  loadMore: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+  },
+  loadMoreText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
 });

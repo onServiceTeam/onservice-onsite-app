@@ -34,7 +34,6 @@ describe('RATE_LIMITS_RELAXED — behavioral', () => {
 const CONFIG = readFileSync(resolve(__dirname, '../src/config/platform.config.ts'), 'utf8');
 const RL = readFileSync(resolve(__dirname, '../src/middleware/rate-limit.middleware.ts'), 'utf8');
 const SVC = readFileSync(resolve(__dirname, '../src/services/security.service.ts'), 'utf8');
-const AUTH_ROUTES = readFileSync(resolve(__dirname, '../src/routes/auth.routes.ts'), 'utf8');
 const AUTH_SVC = readFileSync(resolve(__dirname, '../src/services/auth.service.ts'), 'utf8');
 
 describe('RATE_LIMITS_RELAXED — production safety + coverage', () => {
@@ -51,10 +50,6 @@ describe('RATE_LIMITS_RELAXED — production safety + coverage', () => {
   it('the global + auth + upload limiters in middleware lift their caps when relaxed', () => {
     const matches = RL.match(/platformConfig\.rateLimitsRelaxed\s*\?\s*1_000_000/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it('the inline auth-routes limiter (the OTP/login one) lifts its cap when relaxed', () => {
-    expect(AUTH_ROUTES).toMatch(/platformConfig\.rateLimitsRelaxed\s*[\s\S]{0,40}1_000_000/);
   });
 
   it('sendOtp skips the resend cooldown + hourly cap when relaxed', () => {

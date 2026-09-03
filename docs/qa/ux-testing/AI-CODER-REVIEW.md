@@ -78,11 +78,9 @@ Day-to-day company triage now belongs in the admin app at **Tester Feedback**
 active named admin, and record the verification or dismissal note. These changes
 are audit-logged, and ordinary admins receive masked contact/free-text PII.
 
-The same data remains available for private analysis or backup using the key:
-
-- Spreadsheet: `https://app.onservice.ph/api/v1/feedback/export.csv?key=<key>`
-- Readable report: `https://app.onservice.ph/api/v1/feedback/export.md?key=<key>`
-
-(Screenshots in the human exports are full `https://app.onservice.ph/uploads/...`
-links you can click; the local-file rewrite only happens in the AI coder's repo
-pull.)
+The same data remains available for private analysis or backup using the pull
+command in Step 1. It sends the key in the `x-feedback-key` request header,
+downloads screenshot evidence through the protected route, and rewrites the
+digest to local gitignored files. Do not put the export key in a browser URL and
+do not copy a stored `/uploads/feedback/...` identifier; direct screenshot
+storage paths are intentionally blocked.

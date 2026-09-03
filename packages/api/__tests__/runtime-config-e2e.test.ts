@@ -31,6 +31,16 @@ jest.mock('../src/config/redis.config', () => ({
 
 import * as settingsService from '../src/services/settings.service';
 
+const FIXED_UPDATED_AT = new Date('2026-01-01T00:00:00.000Z');
+
+function mutationContext(reason = 'Approved runtime setting change.') {
+  return {
+    changedBy: 'admin-user-id',
+    reason,
+    expectedUpdatedAt: FIXED_UPDATED_AT.toISOString(),
+  };
+}
+
 function fakeRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: 'row-id',
@@ -51,7 +61,7 @@ function fakeRow(overrides: Record<string, unknown> = {}): Record<string, unknow
     is_active: true,
     requires_restart: false,
     updated_by: null,
-    updated_at: new Date(),
+    updated_at: FIXED_UPDATED_AT,
     created_at: new Date(),
     ...overrides,
   };
@@ -60,6 +70,7 @@ function fakeRow(overrides: Record<string, unknown> = {}): Record<string, unknow
 describe('runtime-config-e2e', () => {
   beforeEach(() => {
     dbQueryMock.mockReset();
+    dbTransactionMock.mockReset();
     redisGetMock.mockReset();
     redisSetMock.mockReset();
     redisDelMock.mockReset();
@@ -102,35 +113,42 @@ describe('runtime-config-e2e', () => {
 
   describe('updateSetting validation', () => {
     it('rejects values below the configured minimum', async () => {
-      dbQueryMock.mockResolvedValueOnce({
-        rows: [fakeRow({ value_type: 'number', min_value: '5', max_value: '20' })],
+      dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+        const clientQuery = jest.fn().mockResolvedValue({
+          rows: [fakeRow({ value_type: 'number', min_value: '5', max_value: '20' })],
+          rowCount: 1,
+        });
+        return (cb as (client: { query: typeof clientQuery }) => Promise<unknown>)({ query: clientQuery });
       });
       await expect(
-        settingsService.updateSetting('service_fee_rate', '1', 'admin-user-id'),
+        settingsService.updateSetting('service_fee_rate', '1', mutationContext()),
       ).rejects.toMatchObject({ statusCode: 400 });
     });
 
     it('rejects values above the configured maximum', async () => {
-      dbQueryMock.mockResolvedValueOnce({
-        rows: [fakeRow({ value_type: 'number', min_value: '5', max_value: '20' })],
+      dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
+        const clientQuery = jest.fn().mockResolvedValue({
+          rows: [fakeRow({ value_type: 'number', min_value: '5', max_value: '20' })],
+          rowCount: 1,
+        });
+        return (cb as (client: { query: typeof clientQuery }) => Promise<unknown>)({ query: clientQuery });
       });
       await expect(
-        settingsService.updateSetting('service_fee_rate', '999', 'admin-user-id'),
+        settingsService.updateSetting('service_fee_rate', '999', mutationContext()),
       ).rejects.toMatchObject({ statusCode: 400 });
     });
   });
 
   describe('updateSetting side effects', () => {
     it('writes audit row and busts cache on success (CRIT-N13: trx-aware)', async () => {
-      // CRIT-N13 fix: UPDATE + audit INSERT now run inside a single trx.
-      // SELECT current (outside trx).
-      dbQueryMock.mockResolvedValueOnce({
-        rows: [fakeRow({ value_type: 'number', min_value: '5', max_value: '20' })],
-      });
+      const lockedRow = fakeRow({ value_type: 'number', min_value: '5', max_value: '20' });
       const txCalls: Array<{ sql: string; params: unknown[] }> = [];
       dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
         const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
           txCalls.push({ sql, params });
+          if (/SELECT \*/.test(sql) && /FOR UPDATE/.test(sql)) {
+            return { rows: [lockedRow], rowCount: 1 };
+          }
           if (/UPDATE platform_settings/.test(sql)) {
             return { rows: [fakeRow({ value_type: 'number', value: '12' })], rowCount: 1 };
           }
@@ -140,7 +158,11 @@ describe('runtime-config-e2e', () => {
         return (cb as any)({ query: clientQuery });
       });
 
-      await settingsService.updateSetting('service_fee_rate', '12', 'admin-user-id', 'tuning');
+      await settingsService.updateSetting(
+        'service_fee_rate',
+        '12',
+        mutationContext('Approved fee tuning change.'),
+      );
 
       // The audit insert is inside the trx, not in dbQueryMock.
       const auditCall = txCalls.find((c) => c.sql.includes('platform_settings_audit'));
@@ -151,19 +173,14 @@ describe('runtime-config-e2e', () => {
 
   describe('resetToDefault', () => {
     it('writes the default_value back to the row (CRIT-N13: trx-aware)', async () => {
-      // SELECT in resetToDefault
-      dbQueryMock.mockResolvedValueOnce({
-        rows: [fakeRow({ value: '99', default_value: '10' })],
-      });
-      // SELECT inside updateSetting (outside trx)
-      dbQueryMock.mockResolvedValueOnce({
-        rows: [fakeRow({ value: '99', default_value: '10' })],
-      });
-      // updateSetting trx
+      const lockedRow = fakeRow({ value: '99', default_value: '10' });
       const txCalls: Array<{ sql: string; params: unknown[] }> = [];
       dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
         const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
           txCalls.push({ sql, params });
+          if (/SELECT \*/.test(sql) && /FOR UPDATE/.test(sql)) {
+            return { rows: [lockedRow], rowCount: 1 };
+          }
           if (/UPDATE platform_settings/.test(sql)) {
             return { rows: [fakeRow({ value: '10' })], rowCount: 1 };
           }
@@ -173,7 +190,10 @@ describe('runtime-config-e2e', () => {
         return (cb as any)({ query: clientQuery });
       });
 
-      await settingsService.resetToDefault('service_fee_rate', 'admin-user-id');
+      await settingsService.resetToDefault(
+        'service_fee_rate',
+        mutationContext('Restore the approved platform default.'),
+      );
       // The UPDATE call inside the trx must have been called with default_value '10'.
       const updateCall = txCalls.find((c) => /UPDATE platform_settings/.test(c.sql));
       expect(updateCall).toBeDefined();

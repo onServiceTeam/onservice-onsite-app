@@ -103,6 +103,8 @@ export interface RevenueByDimension {
 // ─────────────────────────────────────────────────────────────────
 
 export interface EscrowSummary {
+  available: boolean;
+  message: string | null;
   totalInEscrowCentavos: number;
   pendingReleaseCount: number;
   agingBuckets: {
@@ -112,7 +114,9 @@ export interface EscrowSummary {
   }[];
   pendingReleaseList: Array<{
     bookingId: string;
+    customerId: string;
     customerName: string;
+    providerId: string | null;
     providerName: string;
     amountCentavos: number;
     completedAt: string | null;
@@ -167,6 +171,9 @@ export interface PaymentOperationsSummary {
     id: string;
     bookingId: string | null;
     topupId: string | null;
+    paymongoIntentId: string | null;
+    paymongoPaymentId: string | null;
+    customerId: string | null;
     customerName: string | null;
     amountCentavos: number;
     refundedAmountCentavos: number;
@@ -195,13 +202,15 @@ export interface PaymentOperationsSummary {
 // ─────────────────────────────────────────────────────────────────
 
 export interface GuaranteeFundSummary {
+  available: boolean;
+  message: string | null;
   currentBalanceCentavos: number;
   inflow30dCentavos: number;
   outflow30dCentavos: number;
   net30dCentavos: number;
   averageMonthlyOutflowCentavos: number;
-  runwayMonths: number;
-  needsReplenishment: boolean;
+  runwayMonths: number | null;
+  needsReplenishment: boolean | null;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -563,7 +572,9 @@ interface EscrowWalletRow {
 
 interface EscrowPendingRow {
   booking_id: string;
+  customer_id: string;
   customer_name: string;
+  provider_id: string | null;
   provider_name: string | null;
   amount: string;
   completed_at: Date | null;
@@ -575,8 +586,10 @@ interface EscrowPendingRow {
  * Tab 3 — escrow snapshot. Returns the total currently held in the
  * `platform_escrow` wallet plus a per-booking aging breakdown for bookings
  * that are completed but whose escrow has not yet been released. Three
- * queries: wallet balance, unbounded aging aggregates, and one bounded page
- * of booking detail.
+ * queries on a healthy installation: wallet balance, unbounded aging
+ * aggregates, and one bounded page of booking detail. A missing platform
+ * wallet returns an explicit unavailable result before any backlog query so
+ * operators cannot mistake missing accounting infrastructure for zero funds.
  */
 export async function getEscrowSummary(
   options: { limit?: number; offset?: number } = {},
@@ -588,15 +601,27 @@ export async function getEscrowSummary(
   // bounded without making records beyond an arbitrary cap unreachable.
   const safeLimit = clampLimit(options.limit);
   const safeOffset = clampOffset(options.offset);
-  const [walletRes, aggRes, listRes] = await Promise.all([
-    db.query<EscrowWalletRow>(
-      `SELECT
-         COALESCE(available_balance, 0)::text AS available,
-         COALESCE(pending_balance, 0)::text   AS pending
-         FROM wallets
-        WHERE type = 'platform_escrow' AND user_id IS NULL
-        LIMIT 1`,
-    ),
+  const walletRes = await db.query<EscrowWalletRow>(
+    `SELECT
+       COALESCE(available_balance, 0)::text AS available,
+       COALESCE(pending_balance, 0)::text   AS pending
+       FROM wallets
+      WHERE type = 'platform_escrow' AND user_id IS NULL
+      LIMIT 1`,
+  );
+
+  if (!walletRes.rows[0]) {
+    return {
+      available: false,
+      message: 'Escrow accounting is unavailable because the platform wallet is missing.',
+      totalInEscrowCentavos: 0,
+      pendingReleaseCount: 0,
+      agingBuckets: [],
+      pendingReleaseList: [],
+    };
+  }
+
+  const [aggRes, listRes] = await Promise.all([
     db.query<{ bucket: '0-24h' | '24-48h' | '48-168h' | '168h+'; count: string; total: string }>(
       `SELECT
          CASE
@@ -616,7 +641,9 @@ export async function getEscrowSummary(
     db.query<EscrowPendingRow>(
       `SELECT
          b.id::text                                                       AS booking_id,
+         b.customer_id::text                                              AS customer_id,
          TRIM(COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) AS customer_name,
+         b.provider_id::text                                              AS provider_id,
          p.business_name                                                  AS provider_name,
          b.total_amount::text                                             AS amount,
          b.completed_at                                                   AS completed_at,
@@ -658,7 +685,9 @@ export async function getEscrowSummary(
 
   const pendingReleaseList: EscrowSummary['pendingReleaseList'] = listRes.rows.map((row) => ({
     bookingId: row.booking_id,
+    customerId: row.customer_id,
     customerName: row.customer_name || '(unknown)',
+    providerId: row.provider_id,
     providerName: row.provider_name ?? '(unassigned)',
     amountCentavos: Number(row.amount),
     completedAt: row.completed_at ? row.completed_at.toISOString() : null,
@@ -670,6 +699,8 @@ export async function getEscrowSummary(
   ).map((b) => ({ bucket: b, count: bucketTotals[b].count, totalCentavos: bucketTotals[b].total }));
 
   return {
+    available: true,
+    message: null,
     totalInEscrowCentavos: available + pending,
     pendingReleaseCount: totalPendingCount, // accurate count (was: list length)
     agingBuckets,
@@ -797,6 +828,9 @@ interface PaymentIntentOpsRow {
   id: string;
   booking_id: string | null;
   topup_id: string | null;
+  paymongo_intent_id: string | null;
+  paymongo_payment_id: string | null;
+  customer_id: string | null;
   customer_name: string | null;
   amount: string;
   refunded_amount: string;
@@ -821,10 +855,34 @@ interface GatewayRetryOpsRow {
 }
 
 export async function getPaymentOperationsSummary(
-  options: { retryLimit?: number; retryOffset?: number } = {},
+  options: {
+    retryLimit?: number;
+    retryOffset?: number;
+    paymentAttemptId?: string;
+    intentSearch?: string;
+    retrySearch?: string;
+  } = {},
 ): Promise<PaymentOperationsSummary> {
   const retryLimit = clampLimit(options.retryLimit);
   const retryOffset = clampOffset(options.retryOffset);
+  const paymentAttemptId = options.paymentAttemptId?.trim() || undefined;
+  const intentSearch = options.intentSearch?.trim() || undefined;
+  const intentWhere = paymentAttemptId
+    ? 'WHERE pi.id = $1::uuid'
+    : intentSearch
+      ? `WHERE LOWER(pi.id::text) = LOWER($1)
+            OR LOWER(pi.booking_id::text) = LOWER($1)
+            OR LOWER(pi.topup_id) = LOWER($1)
+            OR LOWER(b.customer_id::text) = LOWER($1)
+            OR LOWER(pi.paymongo_intent_id) = LOWER($1)
+            OR LOWER(pi.paymongo_payment_id) = LOWER($1)`
+      : '';
+  const intentParams = paymentAttemptId ? [paymentAttemptId] : intentSearch ? [intentSearch] : [];
+  const retrySearch = options.retrySearch?.trim() || undefined;
+  const retryWhere = retrySearch ? 'AND LOWER(id::text) = LOWER($3)' : '';
+  const retryParams = retrySearch
+    ? [retryLimit, retryOffset, retrySearch]
+    : [retryLimit, retryOffset];
   const [paymentIntentsAvailable, gatewayRetriesAvailable] = await Promise.all([
     tableExists('payment_intents'),
     tableExists('gateway_retry_queue'),
@@ -873,6 +931,9 @@ export async function getPaymentOperationsSummary(
              pi.id::text AS id,
              pi.booking_id::text AS booking_id,
              pi.topup_id,
+             pi.paymongo_intent_id,
+             pi.paymongo_payment_id,
+             b.customer_id::text AS customer_id,
              CASE WHEN pi.booking_id IS NULL THEN NULL
                   ELSE TRIM(COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, ''))
              END AS customer_name,
@@ -882,11 +943,13 @@ export async function getPaymentOperationsSummary(
              pi.status,
              pi.created_at,
              pi.updated_at
-             FROM payment_intents pi
-            LEFT JOIN bookings b ON b.id = pi.booking_id
-             LEFT JOIN users cu ON cu.id = b.customer_id
-            ORDER BY pi.updated_at DESC
-            LIMIT 50`,
+              FROM payment_intents pi
+             LEFT JOIN bookings b ON b.id = pi.booking_id
+              LEFT JOIN users cu ON cu.id = b.customer_id
+             ${intentWhere}
+             ORDER BY pi.updated_at DESC
+             LIMIT 50`,
+          intentParams,
         )
       : Promise.resolve({ rows: [] as PaymentIntentOpsRow[] }),
     gatewayRetriesAvailable
@@ -905,10 +968,11 @@ export async function getPaymentOperationsSummary(
                   next_retry_at, last_attempted_at, last_error
              FROM gateway_retry_queue
             WHERE status IN ('pending', 'in_progress', 'failed_permanent')
+              ${retryWhere}
             ORDER BY CASE status WHEN 'failed_permanent' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
                      next_retry_at ASC
             LIMIT $1 OFFSET $2`,
-          [retryLimit, retryOffset],
+          retryParams,
         )
       : Promise.resolve({ rows: [] as GatewayRetryOpsRow[] }),
   ]);
@@ -941,6 +1005,9 @@ export async function getPaymentOperationsSummary(
       id: row.id,
       bookingId: row.booking_id,
       topupId: row.topup_id,
+      paymongoIntentId: row.paymongo_intent_id,
+      paymongoPaymentId: row.paymongo_payment_id,
+      customerId: row.customer_id,
       customerName: row.customer_name?.trim() || null,
       amountCentavos: Number(row.amount),
       refundedAmountCentavos: Number(row.refunded_amount),
@@ -1006,13 +1073,15 @@ export async function getGuaranteeFundSummary(): Promise<GuaranteeFundSummary> {
 
   if (!walletId) {
     return {
+      available: false,
+      message: 'Guarantee-fund accounting is unavailable because the platform wallet is missing.',
       currentBalanceCentavos: balance,
       inflow30dCentavos: 0,
       outflow30dCentavos: 0,
       net30dCentavos: 0,
       averageMonthlyOutflowCentavos: 0,
-      runwayMonths: Number.POSITIVE_INFINITY,
-      needsReplenishment: balance < GUARANTEE_FLOOR_CENTAVOS,
+      runwayMonths: null,
+      needsReplenishment: null,
     };
   }
 
@@ -1036,6 +1105,8 @@ export async function getGuaranteeFundSummary(): Promise<GuaranteeFundSummary> {
     runwayMonths < 3 || balance < GUARANTEE_FLOOR_CENTAVOS;
 
   return {
+    available: true,
+    message: null,
     currentBalanceCentavos: balance,
     inflow30dCentavos: inflow30,
     outflow30dCentavos: outflow30,

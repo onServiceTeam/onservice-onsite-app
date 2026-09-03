@@ -16,6 +16,7 @@ it('Bug UX-674 — a connected template rejects placeholders its live workflow c
     bodyTemplate: '{{providerName}} arrives at {{scheduledTime}} for {{bookingId}}.',
     type: 'booking_update',
     channel: 'all',
+    reason: 'Testing unsupported live workflow variables.',
   })).rejects.toMatchObject({ statusCode: 400 });
   expect(transactionMock).not.toHaveBeenCalled();
 });

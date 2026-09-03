@@ -28,6 +28,7 @@ const BusinessAccountDetailPage = lazy(() => import('@/pages/BusinessAccountDeta
 const ServiceAreasPage = lazy(() => import('@/pages/ServiceAreasPage'));
 const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'));
 const AuditLogPage = lazy(() => import('@/pages/AuditLogPage'));
+const SecurityOperationsPage = lazy(() => import('@/pages/SecurityOperationsPage'));
 const SystemSettingsPage = lazy(() => import('@/pages/SystemSettingsPage'));
 const CancellationPolicyPage = lazy(() => import('@/pages/settings/CancellationPolicyPage'));
 const SupportTicketsPage = lazy(() => import('@/pages/SupportTicketsPage'));
@@ -124,6 +125,7 @@ export default function App(): React.ReactElement {
               <Route path="/service-areas" element={<ServiceAreasPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/audit-log" element={<AuditLogPage />} />
+              <Route path="/security" element={<SecurityOperationsPage />} />
               <Route path="/support-tickets" element={<SupportTicketsPage />} />
               <Route path="/settings" element={<SystemSettingsPage />} />
               <Route path="/settings/cancellation-policy" element={<CancellationPolicyPage />} />

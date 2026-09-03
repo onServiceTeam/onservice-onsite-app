@@ -1,8 +1,7 @@
 // Phase 14 Remediation #4 — visual baseline spec for SystemSettingsPage
 // Page: apps/admin/src/pages/SystemSettingsPage.tsx
 //
-// Captures 4 states (loading, empty, error, success) at 3 viewport
-// widths (1280, 1440, 1920). Operator runs
+// Captures operational states at tablet and desktop widths. Operator runs
 //   pnpm exec playwright test tests/visual/system-settings.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
@@ -11,9 +10,9 @@ import { test, expect, waitForVisualSettled } from './_fixtures';
 const ROUTE = '/settings';
 
 test.describe('SystemSettingsPage', () => {
-  for (const width of [1280, 1440, 1920]) {
+  for (const width of [820, 1024, 1280, 1440, 1920]) {
     test.describe(`@${width}`, () => {
-      test.use({ viewport: { width, height: 800 } });
+      test.use({ viewport: { width, height: 900 } });
 
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
@@ -30,12 +29,7 @@ test.describe('SystemSettingsPage', () => {
           void route;
         });
         await page.goto(ROUTE);
-        // Operator wires the right test-id selector when the screen's
-        // skeleton mounts. Default to a forgiving locator that should
-        // match the canonical Skeleton component.
-        await expect(page.locator('[data-testid="skeleton"], .skeleton').first()).toBeVisible({
-          timeout: 2000,
-        }).catch(() => {});
+        await expect(page.getByLabel('Loading system settings')).toBeVisible();
         await expect(page).toHaveScreenshot(`system-settings-loading-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
@@ -49,7 +43,10 @@ test.describe('SystemSettingsPage', () => {
             route.fulfill({
               status: 200,
               contentType: 'application/json',
-              body: JSON.stringify({ data: [], pagination: { total: 0, page: 1 } }),
+              body: JSON.stringify({
+                success: true,
+                data: { categories: [], settings: {} },
+              }),
             });
           } else {
             route.continue();
@@ -79,6 +76,22 @@ test.describe('SystemSettingsPage', () => {
         await page.goto(ROUTE);
         await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`system-settings-error-${width}.png`, {
+          fullPage: true,
+          maxDiffPixelRatio: 0.01,
+        });
+      });
+
+      test('review-change dialog', async ({ page }) => {
+        await page.goto(ROUTE);
+        await waitForVisualSettled(page);
+        await page.getByRole('button', { name: 'Edit setting nbi_expiry_warning_days' }).click();
+        await page.getByLabel('Value for nbi_expiry_warning_days').fill('45');
+        await page.getByLabel('Audit reason for nbi_expiry_warning_days').fill(
+          'Align provider reminders with the approved compliance review window.',
+        );
+        await page.getByRole('button', { name: 'Review change' }).click();
+        await expect(page.getByRole('dialog', { name: 'Confirm this setting change' })).toBeVisible();
+        await expect(page).toHaveScreenshot(`system-settings-review-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
         });

@@ -89,6 +89,114 @@ function str(v: unknown, cap: number): string {
   return String(v).trim().slice(0, cap);
 }
 
+function textLimitError(value: unknown, cap: number, label: string): string | null {
+  if (value === null || value === undefined) return null;
+  if (String(value).trim().length <= cap) return null;
+  return `${label} must be ${cap.toLocaleString('en-US')} characters or fewer.`;
+}
+
+function recordLimitError(
+  value: unknown,
+  maxKeys: number,
+  valueCap: number,
+  label: string,
+): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return `${label} must be submitted as named fields.`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length > maxKeys) {
+    return `${label} can contain at most ${maxKeys} fields.`;
+  }
+  for (const [key, fieldValue] of entries) {
+    if (String(key).trim().length > 80) {
+      return `${label} contains a field name longer than 80 characters.`;
+    }
+    const error = textLimitError(fieldValue, valueCap, `${label} field “${String(key).trim() || 'unnamed'}”`);
+    if (error) return error;
+  }
+  return null;
+}
+
+function screenshotLimitError(value: unknown, max: number, label: string): string | null {
+  if (value === null || value === undefined) return null;
+  if (!Array.isArray(value)) return `${label} must be submitted as a list.`;
+  if (value.length > max) return `${label} can contain at most ${max} images.`;
+  for (const entry of value) {
+    const error = textLimitError(entry, 500, `${label} storage identifier`);
+    if (error) return error;
+  }
+  return null;
+}
+
+function submissionLimitError(body: Record<string, unknown>): string | null {
+  const scalarLimits: Array<[unknown, number, string]> = [
+    [body.testerName, MAX.name, 'Tester name'],
+    [body.testerContact, MAX.contact, 'Tester contact'],
+    [body.role, 40, 'Tester role'],
+    [body.device, 120, 'Device'],
+    [body.nps, 5, 'Recommendation score'],
+    [body.ideas, MAX.longText, 'Additional ideas'],
+  ];
+  for (const [value, cap, label] of scalarLimits) {
+    const error = textLimitError(value, cap, label);
+    if (error) return error;
+  }
+
+  if (body.areas !== null && body.areas !== undefined) {
+    if (!Array.isArray(body.areas)) return 'Tested areas must be submitted as a list.';
+    if (body.areas.length > AREAS.length) return `Tested areas can contain at most ${AREAS.length} entries.`;
+    for (const area of body.areas) {
+      const error = textLimitError(area, 40, 'Tested area');
+      if (error) return error;
+    }
+  }
+
+  const recordLimits: Array<[unknown, number, number, string]> = [
+    [body.ratings, MAX.ratings, 10, 'Ratings'],
+    [body.answers, MAX.answers, MAX.shortText, 'Answers'],
+    [body.prices, MAX.prices, 40, 'Price feedback'],
+  ];
+  for (const [value, maxKeys, valueCap, label] of recordLimits) {
+    const error = recordLimitError(value, maxKeys, valueCap, label);
+    if (error) return error;
+  }
+
+  const topLevelScreenshotError = screenshotLimitError(body.screenshots, 20, 'General screenshots');
+  if (topLevelScreenshotError) return topLevelScreenshotError;
+
+  if (body.items !== null && body.items !== undefined) {
+    if (!Array.isArray(body.items)) return 'Issue details must be submitted as a list.';
+    if (body.items.length > MAX.items) return `Issue details can contain at most ${MAX.items} items.`;
+    for (let index = 0; index < body.items.length; index += 1) {
+      const item = body.items[index];
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return `Issue ${index + 1} must be submitted as named fields.`;
+      }
+      const typed = item as Record<string, unknown>;
+      const itemLimits: Array<[unknown, number, string]> = [
+        [typed.area, 40, `Issue ${index + 1} area`],
+        [typed.type, 40, `Issue ${index + 1} type`],
+        [typed.severity, 40, `Issue ${index + 1} severity`],
+        [typed.where, MAX.itemField, `Issue ${index + 1} screen`],
+        [typed.what, MAX.itemField, `Issue ${index + 1} description`],
+        [typed.expected, MAX.itemField, `Issue ${index + 1} expected result`],
+        [typed.repro, MAX.itemField, `Issue ${index + 1} reproduction steps`],
+        [typed.screenshot, 500, `Issue ${index + 1} screenshot note`],
+      ];
+      for (const [value, cap, label] of itemLimits) {
+        const error = textLimitError(value, cap, label);
+        if (error) return error;
+      }
+      const screenshotError = screenshotLimitError(typed.screenshots, 10, `Issue ${index + 1} screenshots`);
+      if (screenshotError) return screenshotError;
+    }
+  }
+
+  return null;
+}
+
 function cleanRecord(v: unknown, maxKeys: number, valueCap: number): Record<string, string> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
   const out: Record<string, string> = {};
@@ -121,15 +229,24 @@ export function validateAndNormalize(body: unknown): ValidateResult {
     return { ok: false, spam: true };
   }
 
+  // Reject overflow explicitly. Silently slicing a tester's words creates a
+  // plausible-looking but incomplete research record and allowed the original
+  // stress submission to pollute the queue. The browser exposes the same caps,
+  // while this server check remains authoritative for direct requests.
+  const limitError = submissionLimitError(b);
+  if (limitError) {
+    return { ok: false, spam: false, reason: limitError };
+  }
+
   const testerName = str(b.testerName, MAX.name) || null;
   const testerContact = str(b.testerContact, MAX.contact) || null;
   const role = str(b.role, 40).toLowerCase() || null;
   const device = str(b.device, 120) || null;
 
   const areas = Array.isArray(b.areas)
-    ? (b.areas as unknown[])
+    ? [...new Set((b.areas as unknown[])
         .map((a) => str(a, 40).toLowerCase())
-        .filter((a): a is (typeof AREAS)[number] => (AREAS as readonly string[]).includes(a))
+        .filter((a): a is (typeof AREAS)[number] => (AREAS as readonly string[]).includes(a)))]
     : [];
 
   let nps: number | null = null;

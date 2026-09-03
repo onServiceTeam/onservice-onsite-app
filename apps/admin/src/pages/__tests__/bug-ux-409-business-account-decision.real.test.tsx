@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
@@ -36,7 +36,7 @@ describe('business-account approval', () => {
     vi.mocked(api.post).mockReset().mockResolvedValue({ data: { success: true } } as never);
   });
 
-  it('Bug UX-409 — approval states payment impact before calling the business-account API', async () => {
+  it('Bug UX-409 — the business list routes approval to Account 360 instead of exposing a blind money decision', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
@@ -46,18 +46,9 @@ describe('business-account approval', () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Approve business account Cebu Build Co' }),
-    );
-    expect(screen.getByRole('dialog')).toBeTruthy();
-    expect(screen.getByText(/net 30 payment terms/i)).toBeTruthy();
+    const reviewLink = await screen.findByRole('link', { name: 'Review business account Cebu Build Co' });
+    expect(reviewLink).toHaveAttribute('href', '/business-accounts/business-1');
+    expect(screen.queryByRole('button', { name: /Approve business account/i })).toBeNull();
     expect(api.post).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Approve account' }));
-    await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith(
-        '/api/v1/admin/business-accounts/business-1/approve',
-      );
-    });
   });
 });

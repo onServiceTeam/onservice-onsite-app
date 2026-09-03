@@ -24,7 +24,7 @@ it('Bug UX-735 — manual payout completion accepts a method-neutral external tr
 
   render(<QueryClientProvider client={client}><MemoryRouter><PayoutsPage /></MemoryRouter></QueryClientProvider>);
 
-  fireEvent.click(await screen.findByRole('button', { name: /complete payout/i }));
+  fireEvent.click(await screen.findByRole('button', { name: /record payout .* as sent/i }));
   expect(screen.getByLabelText('External Transfer Reference (optional, max 100 chars)')).toHaveAttribute(
     'placeholder',
     'Bank, wallet, or gateway reference',

@@ -127,15 +127,16 @@ async function autoConfirmBookings(): Promise<number> {
 }
 
 async function expireStaleQuotes(): Promise<number> {
-  const { expiryHours: quoteExpiryHours } = await settingsService.getQuotePolicy();
-
+  // Quote lifetime is fixed when the provider submits: submitQuote stores the
+  // resolved setting in booking_quotes.expires_at and clients display that
+  // exact deadline. Re-reading today's setting here would retroactively move
+  // older deadlines, so the worker consumes only the per-quote snapshot.
   const expired = await db.query<ExpiredQuoteRow>(
     `UPDATE booking_quotes
      SET status = 'expired', updated_at = NOW()
      WHERE status = 'submitted'
-       AND created_at < NOW() - INTERVAL '1 hour' * $1
+       AND expires_at < NOW()
      RETURNING id, booking_id, provider_id`,
-    [quoteExpiryHours],
   );
 
   for (const quote of expired.rows) {
@@ -207,14 +208,16 @@ async function expireUnmatchedBookings(): Promise<number> {
 }
 
 async function checkNbiExpiry(): Promise<number> {
+  const warningDays = await settingsService.getNbiExpiryWarningDays();
   const expiringProviders = await db.query<ExpiringNbiRow>(
     `SELECT p.user_id, p.business_name, p.nbi_expiry_date,
             EXTRACT(DAY FROM p.nbi_expiry_date - NOW())::int AS days_until
      FROM providers p
      WHERE p.nbi_expiry_date IS NOT NULL
-       AND p.nbi_expiry_date < NOW() + INTERVAL '30 days'
+       AND p.nbi_expiry_date < NOW() + INTERVAL '1 day' * $1
        AND p.nbi_expiry_notified = FALSE
        AND p.status = 'approved'`,
+    [warningDays],
   );
 
   for (const provider of expiringProviders.rows) {

@@ -1,9 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
-import RedisStore from 'rate-limit-redis';
-import { redis } from '../config/redis.config';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { authRateLimitMiddleware } from '../middleware/rate-limit.middleware';
 import { getClientIp } from '../middleware/ip-block.middleware';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
@@ -20,6 +18,7 @@ import {
 } from '../validators/auth.validators';
 import * as authService from '../services/auth.service';
 import * as securityService from '../services/security.service';
+import * as adminTwoFactorService from '../services/admin-2fa.service';
 import { platformConfig } from '../config/platform.config';
 import { generateTotpSecret, verifyTotp, generateTotpUri, encryptSecret, decryptSecret } from '../utils/totp';
 import {
@@ -104,8 +103,12 @@ export function adminAuthOrSetupToken(
         role: UserProfileRow['role'];
         is_active: boolean;
         session_version: number | string;
+        must_rotate_password: boolean | null;
       }>(
-        `SELECT role, is_active, session_version FROM users WHERE id = $1`,
+        `SELECT role, is_active, session_version,
+                COALESCE(must_rotate_password, FALSE) AS must_rotate_password
+           FROM users
+          WHERE id = $1`,
         [payload.userId],
       );
       const account = canonical.rows[0];
@@ -137,12 +140,25 @@ export function adminAuthOrSetupToken(
         next();
         return;
       }
-      if (payload.type === 'pre_auth_2fa' || payload.type === 'refresh') {
+      if (payload.type !== undefined && payload.type !== 'access') {
         next(createAppError('Invalid authentication token.', 401));
         return;
       }
       if (!ADMIN_TIER.has(account.role)) {
         next(createAppError('Admin role required.', 403));
+        return;
+      }
+      // SEC-042 — a normal admin session must obey the same forced-password
+      // precondition as every other API. The dedicated setup token remains
+      // allowed above because first login intentionally completes TOTP setup
+      // before issuing the rotation-flagged full session.
+      if (account.must_rotate_password === true) {
+        const rotationRequired = createAppError(
+          'Password rotation is required before continuing.',
+          428,
+        );
+        rotationRequired.code = 'password_rotation_required';
+        next(rotationRequired);
         return;
       }
       req.user = {
@@ -168,46 +184,9 @@ export function adminAuthOrSetupToken(
   })();
 }
 
-// BUG-PHASE23-04 fix: pre-fix this used the default in-memory store,
-// which (a) reset counters on every API restart (security regression
-// vs Phase 17's Redis fix for the global limiter), and (b) gave each
-// k8s/ECS replica its own counters → effective limit = N×configured
-// where N is replica count. Use the same Redis-backed store as the
-// global limiter (rate-limit.middleware.ts), with prefix `rl:auth-routes:`
-// to keep counters separate from the global `rl:global:` and the other
-// auth path's `rl:auth:`.
-type RedisStoreOpts = ConstructorParameters<typeof RedisStore>[0];
-function buildAuthRoutesStore(): InstanceType<typeof RedisStore> {
-  const opts = {
-    prefix: 'rl:auth-routes:',
-    sendCommand: (...args: string[]): Promise<unknown> =>
-      (redis as unknown as { call: (...a: string[]) => Promise<unknown> }).call(...args),
-  } as unknown as RedisStoreOpts;
-  return new RedisStore(opts);
-}
-
-const authRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  // Test-mode (staging only, never production) lifts the cap for QA testers.
-  limit: () =>
-    platformConfig.rateLimitsRelaxed
-      ? 1_000_000
-      : Number(process.env.RATE_LIMIT_AUTH_MAX_REQUESTS) || 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: buildAuthRoutesStore(),
-  message: {
-    success: false,
-    error: {
-      message: 'Too many authentication attempts. Please try again later.',
-      statusCode: 429,
-    },
-  },
-});
-
 router.post(
   '/send-otp',
-  authRateLimit,
+  authRateLimitMiddleware,
   validationMiddleware(sendOtpSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -282,7 +261,7 @@ router.post(
 
 router.post(
   '/verify-otp',
-  authRateLimit,
+  authRateLimitMiddleware,
   validationMiddleware(verifyOtpSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -448,38 +427,67 @@ router.patch(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { firstName, lastName } = req.body;
-
-      const sets: string[] = [];
-      const vals: unknown[] = [];
-      let idx = 1;
-
-      if (firstName !== undefined) {
-        sets.push(`first_name = $${idx++}`);
-        vals.push(firstName);
-      }
-      if (lastName !== undefined) {
-        sets.push(`last_name = $${idx++}`);
-        vals.push(lastName);
-      }
-      if (sets.length === 0) {
+      if (firstName === undefined && lastName === undefined) {
         res.status(400).json({ success: false, error: { message: 'No fields to update.', statusCode: 400 } });
         return;
       }
 
-      sets.push(`updated_at = NOW()`);
-      vals.push(req.user!.userId);
+      // OPS-371 — customer/provider identity edits and their before/after
+      // evidence commit together. The dormant response-after-send audit
+      // prototype cannot guarantee this, so the canonical writer owns it.
+      const updated = await db.transaction(async (client) => {
+        const beforeResult = await client.query<UserProfileRow>(
+          `SELECT id, phone, email, first_name, last_name, role, avatar_url,
+                  is_verified, is_active, session_version, created_at
+             FROM users
+            WHERE id = $1
+            FOR UPDATE`,
+          [req.user!.userId],
+        );
+        const before = beforeResult.rows[0];
+        if (!before) throw createAppError('User not found.', 404);
 
-      const result = await db.query<UserProfileRow>(
-        `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx} RETURNING id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at`,
-        vals,
-      );
+        const nextFirstName = firstName ?? before.first_name;
+        const nextLastName = lastName ?? before.last_name;
+        if (nextFirstName === before.first_name && nextLastName === before.last_name) {
+          return before;
+        }
 
-      if (result.rows.length === 0) {
-        res.status(404).json({ success: false, error: { message: 'User not found.', statusCode: 404 } });
-        return;
-      }
+        const updateResult = await client.query<UserProfileRow>(
+          `UPDATE users
+              SET first_name = $1,
+                  last_name = $2,
+                  updated_at = NOW()
+            WHERE id = $3
+          RETURNING id, phone, email, first_name, last_name, role, avatar_url,
+                    is_verified, is_active, session_version, created_at`,
+          [nextFirstName, nextLastName, req.user!.userId],
+        );
+        const row = updateResult.rows[0];
+        if (!row) throw createAppError('User not found.', 404);
 
-      res.json({ success: true, data: formatUserResponse(result.rows[0]!) });
+        const auditResult = await client.query<{ id: string }>(
+          `INSERT INTO audit_log
+             (user_id, action, entity_type, entity_id, old_values, new_values,
+              ip_address, user_agent)
+           VALUES ($1, 'user_profile_updated', 'users', $1, $2::jsonb, $3::jsonb,
+                   $4::inet, $5)
+           RETURNING id`,
+          [
+            req.user!.userId,
+            JSON.stringify({ firstName: before.first_name, lastName: before.last_name }),
+            JSON.stringify({ firstName: row.first_name, lastName: row.last_name }),
+            req.ip ?? null,
+            req.headers['user-agent'] ?? null,
+          ],
+        );
+        if (!auditResult.rows[0]?.id) {
+          throw createAppError('Unable to record the profile change.', 500);
+        }
+        return row;
+      });
+
+      res.json({ success: true, data: formatUserResponse(updated) });
     } catch (error) {
       next(error);
     }
@@ -488,7 +496,7 @@ router.patch(
 
 router.post(
   '/admin/login',
-  authRateLimit,
+  authRateLimitMiddleware,
   // MED-N84 fix — Zod schema replaces the inline manual type checks
   // for consistency with the rest of the routes.
   validationMiddleware(adminLoginSchema),
@@ -763,13 +771,13 @@ router.post(
 // --- Admin 2FA: Verify TOTP code after password login ---
 router.post(
   '/admin/2fa/verify',
-  authRateLimit,
+  authRateLimitMiddleware,
   // MED-N84 fix — Zod schema replaces inline manual checks.
   validationMiddleware(adminTwoFactorVerifySchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const clientIp = getClientIp(req);
-      const { preAuthToken, totpCode } = req.body;
+      const { preAuthToken, totpCode, backupCode } = req.body;
 
       const jwt = await import('jsonwebtoken');
       const secret = process.env.JWT_SECRET;
@@ -817,19 +825,31 @@ router.post(
           || Number(user.session_version) !== Number(payload.sessionVersion ?? 1)) {
         throw createAppError('This authentication session has been revoked. Please login again.', 401);
       }
-      const decryptedSecret = decryptSecret(user.totp_secret!);
-      // window=2 (±60s) tolerates moderate device clock drift (common on
-      // emulators) without meaningfully weakening 2FA (lockout + rate limit
-      // still bound brute force).
-      const valid = verifyTotp(decryptedSecret, totpCode, 2);
-      if (!valid) {
-        await securityService.logSecurityEvent({
-          userId: user.id,
-          eventType: 'admin_2fa_failed',
-          ipAddress: clientIp,
-          metadata: { reason: 'invalid_totp' },
-        });
-        throw createAppError('Invalid verification code. Please try again.', 401);
+      let verificationMethod: 'totp' | 'backup_code' = 'totp';
+      let backupCodesRemaining: number | undefined;
+      if (backupCode) {
+        verificationMethod = 'backup_code';
+        const consumed = await adminTwoFactorService.consumeBackupCode(
+          user.id,
+          backupCode as string,
+          clientIp,
+        );
+        backupCodesRemaining = consumed.remainingCodes;
+      } else {
+        const decryptedSecret = decryptSecret(user.totp_secret!);
+        // window=2 (±60s) tolerates moderate device clock drift (common on
+        // emulators) without meaningfully weakening 2FA (lockout + rate limit
+        // still bound brute force).
+        const valid = verifyTotp(decryptedSecret, totpCode as string, 2);
+        if (!valid) {
+          await securityService.logSecurityEvent({
+            userId: user.id,
+            eventType: 'admin_2fa_failed',
+            ipAddress: clientIp,
+            metadata: { reason: 'invalid_totp' },
+          });
+          throw createAppError('Invalid verification code. Please try again.', 401);
+        }
       }
 
       await db.query(
@@ -857,7 +877,10 @@ router.post(
         userId: user.id,
         eventType: 'admin_login_2fa_verified',
         ipAddress: clientIp,
-        metadata: {},
+        metadata: {
+          verificationMethod,
+          ...(backupCodesRemaining !== undefined ? { backupCodesRemaining } : {}),
+        },
       });
 
       // LAUNCH-LIMITATIONS #12 — pull must_rotate_password so the
@@ -891,6 +914,7 @@ router.post(
           user: formatUserResponse(fullUser.rows[0]!),
           sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
           mustRotatePassword: fullUser.rows[0]?.must_rotate_password === true,
+          ...(backupCodesRemaining !== undefined ? { backupCodesRemaining } : {}),
         },
       });
     } catch (error) {
@@ -956,6 +980,7 @@ router.post(
 
       logger.info('Admin 2FA setup initiated', { userId });
 
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json({
         success: true,
         data: {
@@ -1012,12 +1037,26 @@ router.post(
         throw createAppError('Invalid verification code. Please try again with a new code from your authenticator app.', 400);
       }
 
-      await db.query(
-        `UPDATE users SET totp_enabled = TRUE, updated_at = NOW() WHERE id = $1`,
-        [userId],
-      );
+      // SEC-038 — activation and the first eight recovery codes are one
+      // transaction. A code-generation failure cannot leave TOTP enabled with
+      // no recovery path, and any old active recovery set is soft-deleted.
+      const backupBundle = await db.transaction(async (client) => {
+        const enabled = await client.query(
+          `UPDATE users
+              SET totp_enabled = TRUE,
+                  updated_at = NOW()
+            WHERE id = $1
+              AND totp_enabled = FALSE`,
+          [userId],
+        );
+        if ((enabled.rowCount ?? 0) !== 1) {
+          throw createAppError('2FA is already enabled.', 409);
+        }
+        return adminTwoFactorService.generateBackupCodesInTransaction(client, userId);
+      });
 
       logger.info('Admin 2FA enabled', { userId });
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
 
       // When enrolment was forced via the pre_auth_2fa_setup token, mint full
       // tokens so the admin completes login in one round-trip instead of being
@@ -1062,6 +1101,8 @@ router.post(
             user: formatUserResponse(fullUser.rows[0]!),
             mustRotatePassword: fullUser.rows[0]?.must_rotate_password === true,
             sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
+            backupCodes: backupBundle.codes,
+            backupCodesGeneratedAt: backupBundle.generatedAt,
           },
         });
         return;
@@ -1069,7 +1110,11 @@ router.post(
 
       res.json({
         success: true,
-        data: { message: 'Two-factor authentication is now enabled.' },
+        data: {
+          message: 'Two-factor authentication is now enabled.',
+          backupCodes: backupBundle.codes,
+          backupCodesGeneratedAt: backupBundle.generatedAt,
+        },
       });
     } catch (error) {
       next(error);
@@ -1164,7 +1209,7 @@ router.post(
   },
 );
 
-// --- Admin 2FA: Disable ---
+// --- Admin 2FA: Disable (launch-held) ---
 router.post(
   '/admin/2fa/disable',
   authMiddleware,
@@ -1172,44 +1217,23 @@ router.post(
   validationMiddleware(adminTwoFactorDisableSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const userId = req.user!.userId;
       const role = req.user!.role;
-      const { totpCode } = req.body;
 
       // E01 / D15 — admin tier (admin, super_admin, dpo) all manage 2FA.
       if (role !== 'admin' && role !== 'super_admin' && role !== 'dpo') {
         throw createAppError('2FA is only available for admin accounts.', 403);
       }
 
-      const userResult = await db.query<{ totp_secret: string | null; totp_enabled: boolean }>(
-        `SELECT totp_secret, totp_enabled FROM users WHERE id = $1`,
-        [userId],
+      // SEC-043 — factor removal is a privileged-account recovery transition,
+      // not a profile toggle. Keep the public route fail-closed until the
+      // governed recovery authority, audit, session revocation, and last-seat
+      // invariants are approved. No account or factor state is read or written.
+      const held = createAppError(
+        'Administrator recovery changes are unavailable until the governed recovery workflow is enabled.',
+        409,
       );
-
-      if (userResult.rows.length === 0) throw createAppError('User not found.', 404);
-      const user = userResult.rows[0]!;
-
-      if (!user.totp_enabled || !user.totp_secret) {
-        throw createAppError('2FA is not currently enabled.', 400);
-      }
-
-      const decryptedDisableSecret = decryptSecret(user.totp_secret);
-      const valid = verifyTotp(decryptedDisableSecret, totpCode);
-      if (!valid) {
-        throw createAppError('Invalid verification code.', 401);
-      }
-
-      await db.query(
-        `UPDATE users SET totp_secret = NULL, totp_enabled = FALSE, updated_at = NOW() WHERE id = $1`,
-        [userId],
-      );
-
-      logger.info('Admin 2FA disabled', { userId });
-
-      res.json({
-        success: true,
-        data: { message: 'Two-factor authentication has been disabled.' },
-      });
+      held.code = 'privileged_recovery_policy_required';
+      throw held;
     } catch (error) {
       next(error);
     }

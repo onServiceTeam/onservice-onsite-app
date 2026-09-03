@@ -12,6 +12,7 @@
 
 import React, { useMemo, useState, type FormEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import {
@@ -115,6 +116,27 @@ interface MarketingOverview {
   channelBreakdown: ChannelBreakdownRow[];
 }
 
+interface PromotionBanner {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  imageUrl: string | null;
+  badge: string | null;
+  ctaText: string | null;
+  ctaLink: string | null;
+  targetAudience: 'all' | 'new_customers' | 'returning' | 'providers';
+  startDate: string;
+  endDate: string | null;
+  isActive: boolean;
+  displayOrder: number;
+  createdAt: string;
+}
+
+type MarketingTab = 'overview' | 'banners' | 'promos' | 'campaigns';
+
+const MARKETING_TABS = new Set<MarketingTab>(['overview', 'banners', 'promos', 'campaigns']);
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const FALLBACK_CHANNEL_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'facebook_ads', label: 'Facebook Ads' },
   { value: 'google_ads', label: 'Google Ads' },
@@ -132,6 +154,30 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
 }
 
+function fmtDateTime(iso: string | null): string {
+  if (!iso) return 'No end date';
+  return new Date(iso).toLocaleString('en-PH', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Manila',
+  });
+}
+
+function parseMarketingTab(value: string | null): MarketingTab {
+  return value && MARKETING_TABS.has(value as MarketingTab)
+    ? value as MarketingTab
+    : 'overview';
+}
+
+function promotionDeliveryLabel(promotion: PromotionBanner): string {
+  if (promotion.targetAudience !== 'all') return 'Audience not connected';
+  if (!promotion.isActive) return 'Draft / paused';
+  const now = Date.now();
+  if (new Date(promotion.startDate).getTime() > now) return 'Scheduled for customer home';
+  if (promotion.endDate && new Date(promotion.endDate).getTime() < now) return 'Ended';
+  return 'Live on customer home';
+}
+
 function channelLabel(value: string): string {
   return FALLBACK_CHANNEL_OPTIONS.find((o) => o.value === value)?.label
     ?? value.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
@@ -146,6 +192,97 @@ function toChannelOptions(channels: string[]): Array<{ value: string; label: str
 export default function MarketingPage(): React.ReactElement {
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawPromotionId = searchParams.get('promotionId')?.trim() ?? '';
+  const rawPromoCodeId = searchParams.get('promoCodeId')?.trim() ?? '';
+  const rawCampaignId = searchParams.get('campaignId')?.trim() ?? '';
+  const exactSelections = [rawPromotionId, rawPromoCodeId, rawCampaignId].filter(Boolean);
+  const hasAmbiguousExactSelection = exactSelections.length > 1;
+  const hasMalformedExactSelection = exactSelections.length === 1 && !UUID_REGEX.test(exactSelections[0]!);
+  const requestedPromotionId = !hasAmbiguousExactSelection && UUID_REGEX.test(rawPromotionId)
+    ? rawPromotionId.toLowerCase()
+    : '';
+  const requestedPromoCodeId = !hasAmbiguousExactSelection && UUID_REGEX.test(rawPromoCodeId)
+    ? rawPromoCodeId.toLowerCase()
+    : '';
+  const requestedCampaignId = !hasAmbiguousExactSelection && UUID_REGEX.test(rawCampaignId)
+    ? rawCampaignId.toLowerCase()
+    : '';
+  const selectedTab: MarketingTab | null = requestedPromotionId
+    ? 'banners'
+    : requestedPromoCodeId
+      ? 'promos'
+      : requestedCampaignId
+        ? 'campaigns'
+        : null;
+  const activeTab = selectedTab ?? parseMarketingTab(searchParams.get('tab'));
+
+  const exactPromotionQuery = useQuery({
+    queryKey: ['admin-promotion-banners', 'exact', requestedPromotionId],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: PromotionBanner }>(
+        `/api/v1/promotions/${requestedPromotionId}`,
+      );
+      if (response.data.data.id !== requestedPromotionId) {
+        throw new Error('The home-banner response did not match the selected audit record.');
+      }
+      return response.data.data;
+    },
+    enabled: Boolean(requestedPromotionId),
+    retry: false,
+  });
+
+  const exactPromoCodeQuery = useQuery({
+    queryKey: ['admin-marketing-promos', 'exact', requestedPromoCodeId],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: PromoCode }>(
+        `/api/v1/admin/marketing/promos/${requestedPromoCodeId}`,
+      );
+      if (response.data.data.id !== requestedPromoCodeId) {
+        throw new Error('The promo-code response did not match the selected audit record.');
+      }
+      return response.data.data;
+    },
+    enabled: Boolean(requestedPromoCodeId),
+    retry: false,
+  });
+
+  const exactCampaignQuery = useQuery({
+    queryKey: ['admin-marketing-campaigns', 'exact', requestedCampaignId],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: MarketingCampaign }>(
+        `/api/v1/admin/marketing/campaigns/${requestedCampaignId}`,
+      );
+      if (response.data.data.id !== requestedCampaignId) {
+        throw new Error('The campaign response did not match the selected audit record.');
+      }
+      return response.data.data;
+    },
+    enabled: Boolean(requestedCampaignId),
+    retry: false,
+  });
+
+  const clearExactSelection = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('promotionId');
+      next.delete('promoCodeId');
+      next.delete('campaignId');
+      return next;
+    });
+  };
+
+  const selectTab = (tab: MarketingTab): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (tab === 'overview') next.delete('tab');
+      else next.set('tab', tab);
+      next.delete('promotionId');
+      next.delete('promoCodeId');
+      next.delete('campaignId');
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -156,7 +293,41 @@ export default function MarketingPage(): React.ReactElement {
         </p>
       </div>
 
-      <Tabs defaultValue="overview">
+      {hasAmbiguousExactSelection && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          The Marketing link contains more than one exact record. No record was loaded. Clear the selection and open one audit record at a time.
+          <div className="mt-3"><Button type="button" size="sm" variant="outline" onClick={clearExactSelection}>Clear selection</Button></div>
+        </div>
+      )}
+      {hasMalformedExactSelection && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          The selected Marketing record ID is invalid. No record request was sent.
+          <div className="mt-3"><Button type="button" size="sm" variant="outline" onClick={clearExactSelection}>Clear selection</Button></div>
+        </div>
+      )}
+      {(exactPromotionQuery.isLoading || exactPromoCodeQuery.isLoading || exactCampaignQuery.isLoading) && (
+        <LoadingState label="Loading selected Marketing audit evidence..." />
+      )}
+      {exactPromotionQuery.isError && (
+        <ErrorState title="Selected home banner could not be loaded" description={getErrorMessage(exactPromotionQuery.error)} action={<Button type="button" variant="outline" onClick={clearExactSelection}>Clear selection</Button>} />
+      )}
+      {exactPromoCodeQuery.isError && (
+        <ErrorState title="Selected promo code could not be loaded" description={getErrorMessage(exactPromoCodeQuery.error)} action={<Button type="button" variant="outline" onClick={clearExactSelection}>Clear selection</Button>} />
+      )}
+      {exactCampaignQuery.isError && (
+        <ErrorState title="Selected campaign could not be loaded" description={getErrorMessage(exactCampaignQuery.error)} action={<Button type="button" variant="outline" onClick={clearExactSelection}>Clear selection</Button>} />
+      )}
+      {exactPromotionQuery.data && (
+        <PromotionEvidenceCard promotion={exactPromotionQuery.data} onClear={clearExactSelection} />
+      )}
+      {exactPromoCodeQuery.data && (
+        <PromoCodeEvidenceCard promo={exactPromoCodeQuery.data} onClear={clearExactSelection} />
+      )}
+      {exactCampaignQuery.data && (
+        <CampaignEvidenceCard campaign={exactCampaignQuery.data} onClear={clearExactSelection} />
+      )}
+
+      <Tabs key={activeTab} defaultValue={activeTab} onValueChange={(value) => selectTab(value as MarketingTab)}>
         <TabsList className="h-auto w-full justify-start overflow-x-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="banners">Home Banners</TabsTrigger>
@@ -178,6 +349,83 @@ export default function MarketingPage(): React.ReactElement {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function EvidenceField({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }): React.ReactElement {
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-sky-700">{label}</dt>
+      <dd className={`mt-1 break-words text-sm text-slate-950 ${mono ? 'font-mono' : ''}`}>{value}</dd>
+    </div>
+  );
+}
+
+function EvidenceShell({ children, onClear }: { children: React.ReactNode; onClear: () => void }): React.ReactElement {
+  return (
+    <Card className="border-sky-200 bg-sky-50/70 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Selected audit evidence</p>
+          <p className="mt-1 text-sm text-sky-950">Read-only canonical record. Verify this record before taking a separate operational action.</p>
+        </div>
+        <Button type="button" size="sm" variant="outline" onClick={onClear}>Clear selection</Button>
+      </div>
+      <dl className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{children}</dl>
+    </Card>
+  );
+}
+
+function PromotionEvidenceCard({ promotion, onClear }: { promotion: PromotionBanner; onClear: () => void }): React.ReactElement {
+  return (
+    <EvidenceShell onClear={onClear}>
+      <EvidenceField label="Home banner" value={promotion.title} />
+      <EvidenceField label="Promotion ID" value={promotion.id} mono />
+      <EvidenceField label="Delivery status" value={promotionDeliveryLabel(promotion)} />
+      <EvidenceField label="Audience" value={promotion.targetAudience === 'all' ? 'All customers' : `${promotion.targetAudience} (not connected)`} />
+      <EvidenceField label="Customer copy" value={[promotion.badge, promotion.subtitle].filter(Boolean).join(' · ') || 'Title only'} />
+      <EvidenceField label="Starts · Manila" value={fmtDateTime(promotion.startDate)} />
+      <EvidenceField label="Ends · Manila" value={fmtDateTime(promotion.endDate)} />
+      <EvidenceField label="CTA" value={promotion.ctaText ? `${promotion.ctaText} → ${promotion.ctaLink ?? 'Destination missing'}` : 'No CTA'} />
+      <EvidenceField label="Display order" value={promotion.displayOrder} />
+    </EvidenceShell>
+  );
+}
+
+function PromoCodeEvidenceCard({ promo, onClear }: { promo: PromoCode; onClear: () => void }): React.ReactElement {
+  const discount = promo.discountType === 'percentage'
+    ? `${promo.discountValue}%`
+    : formatCurrency(promo.discountValue);
+  return (
+    <EvidenceShell onClear={onClear}>
+      <EvidenceField label="Promo code" value={promo.code} mono />
+      <EvidenceField label="Promo code ID" value={promo.id} mono />
+      <EvidenceField label="Stored status" value={promo.active ? 'Active configuration · runtime gate, validity, and limits still apply' : 'Inactive'} />
+      <EvidenceField label="Description" value={promo.description || 'No description'} />
+      <EvidenceField label="Discount" value={discount} />
+      <EvidenceField label="Maximum discount" value={promo.maxDiscountCentavos === null ? 'No stored cap' : formatCurrency(promo.maxDiscountCentavos)} />
+      <EvidenceField label="Minimum order" value={formatCurrency(promo.minimumOrderCentavos)} />
+      <EvidenceField label="Usage" value={`${promo.timesUsed} used · ${promo.usageLimitTotal ?? 'No total limit'} total · ${promo.usageLimitPerCustomer} per customer`} />
+      <EvidenceField label="Validity" value={`${fmtDate(promo.validFrom)} → ${fmtDate(promo.validUntil)}`} />
+      <EvidenceField label="Created" value={fmtDateTime(promo.createdAt)} />
+    </EvidenceShell>
+  );
+}
+
+function CampaignEvidenceCard({ campaign, onClear }: { campaign: MarketingCampaign; onClear: () => void }): React.ReactElement {
+  return (
+    <EvidenceShell onClear={onClear}>
+      <EvidenceField label="Campaign" value={campaign.name} />
+      <EvidenceField label="Campaign ID" value={campaign.id} mono />
+      <EvidenceField label="Evidence source" value="Staff-reported tracking record" />
+      <EvidenceField label="Channel" value={channelLabel(campaign.channel)} />
+      <EvidenceField label="Period" value={`${fmtDate(campaign.startedAt)} → ${fmtDate(campaign.endedAt)}`} />
+      <EvidenceField label="Recorded spend" value={formatCurrency(campaign.spendCentavos)} />
+      <EvidenceField label="Reported outcomes" value={`${campaign.attributedSignups} signups · ${campaign.attributedFirstBookings} first bookings`} />
+      <EvidenceField label="Reported economics" value={`${formatCurrency(campaign.attributedRevenueCentavos)} revenue · ${formatCurrency(campaign.cpaCentavos)} CPA · ${campaign.roiPercent}% ROI`} />
+      <EvidenceField label="Recorded notes" value={campaign.notes || 'No notes'} />
+      <EvidenceField label="Created" value={fmtDateTime(campaign.createdAt)} />
+    </EvidenceShell>
   );
 }
 
@@ -1009,7 +1257,23 @@ function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactE
       return res.data.data;
     },
   });
-  const channelOptions = toChannelOptions(channelsQuery.data ?? []);
+  const activeChannels = channelsQuery.data ?? [];
+  const activeChannelOptions = toChannelOptions(activeChannels);
+
+  const recordedChannelsQuery = useQuery({
+    queryKey: ['admin-marketing-recorded-channels'],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: string[] }>('/api/v1/admin/marketing/campaigns/channels');
+      return res.data.data;
+    },
+  });
+  const activeChannelSet = new Set(activeChannels);
+  const filterChannelOptions = toChannelOptions([
+    ...new Set([...activeChannels, ...(recordedChannelsQuery.data ?? [])]),
+  ]).map((option) => ({
+    ...option,
+    label: activeChannelSet.has(option.value) ? option.label : `${option.label} (retired)`,
+  }));
 
   const campaignsQuery = useQuery({
     queryKey: ['admin-marketing-campaigns', channelFilter, page],
@@ -1121,33 +1385,45 @@ function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactE
           action={<Button type="button" variant="outline" onClick={() => void channelsQuery.refetch()}>Try again</Button>}
         />
       )}
+      {recordedChannelsQuery.isError && (
+        <ErrorState
+          title="Historical channel filters could not be loaded"
+          description="Campaign records remain visible. Retry to restore filters for channels that are no longer approved for new records."
+          action={<Button type="button" variant="outline" onClick={() => void recordedChannelsQuery.refetch()}>Try again</Button>}
+        />
+      )}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Label htmlFor="channel-filter" className="text-xs">
-            Channel
-          </Label>
-          <select
-            id="channel-filter"
-            value={channelFilter}
-            onChange={(e) => {
-              setChannelFilter(e.target.value);
-              setPage(1);
-            }}
-            className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
-          >
-            <option value="">All</option>
-            {channelOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="channel-filter" className="text-xs">
+              Channel
+            </Label>
+            <select
+              id="channel-filter"
+              value={channelFilter}
+              onChange={(e) => {
+                setChannelFilter(e.target.value);
+                setPage(1);
+              }}
+              className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
+            >
+              <option value="">All</option>
+              {filterChannelOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="max-w-xl text-xs text-[var(--color-text-secondary)]">
+            Retired channels remain available for historical filtering but cannot be selected for new campaign records.
+          </p>
         </div>
         {isSuperAdmin && (
           <Button
             onClick={() => setShowCreate(true)}
             size="sm"
-            disabled={channelsQuery.isLoading || channelsQuery.isError || channelOptions.length === 0}
+            disabled={channelsQuery.isLoading || channelsQuery.isError || activeChannelOptions.length === 0}
           >
             <Plus size={14} /> Create Campaign
           </Button>
@@ -1176,7 +1452,7 @@ function CampaignsTab({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactE
 
       {showCreate && (
         <CreateCampaignDialog
-          channelOptions={channelOptions}
+          channelOptions={activeChannelOptions}
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             invalidate();

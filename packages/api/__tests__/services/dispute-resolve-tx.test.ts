@@ -14,6 +14,7 @@ jest.mock('../../src/models/db', () => {
 jest.mock('../../src/services/dispute.service', () => ({
   resolveDisputeInTransaction: jest.fn(),
   resolveDispute: jest.fn(),
+  assertDisputeResolutionAvailable: jest.fn(),
   assignDispute: jest.fn(),
   escalateDispute: jest.fn(),
 }));

@@ -3,10 +3,16 @@
 // permits, contract). Money does not move per milestone (advisory amounts only).
 import api from './api';
 import type { ApiResponse } from './api';
+import { platformConfig } from '../config/platform.config';
+import { appendImageToFormData } from '../utils/multipart';
 
 export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled';
 export type MilestoneStatus = 'pending' | 'in_progress' | 'completed';
 export type DocType = 'blueprint' | 'permit' | 'contract' | 'photo' | 'other';
+
+// Mirrors the API validator's 2,000,000,000-centavo ceiling. The API remains
+// authoritative; this value only prevents an avoidable rejected form submit.
+export const PROJECT_ADVISORY_BUDGET_MAX_PESOS = 20_000_000;
 
 export interface Project {
   id: string;
@@ -52,7 +58,8 @@ export interface ProjectDocument {
   id: string;
   projectId: string;
   label: string;
-  fileUrl: string;
+  fileUrl: string | null;
+  accessPath: string;
   docType: DocType;
   uploadedBy: string | null;
   createdAt: string;
@@ -88,7 +95,15 @@ export async function createProject(input: {
   return res.data.data;
 }
 
-export async function updateProject(id: string, patch: Partial<{ title: string; description: string; status: ProjectStatus }>): Promise<Project> {
+export interface UpdateProjectPatch {
+  title?: string;
+  description?: string;
+  address?: string | null;
+  city?: string | null;
+  estimatedTotal?: number | null;
+}
+
+export async function updateProject(id: string, patch: UpdateProjectPatch): Promise<Project> {
   const res = await api.patch<ApiResponse<Project>>(`/api/v1/projects/${id}`, patch);
   return res.data.data;
 }
@@ -98,17 +113,56 @@ export async function addMilestone(projectId: string, input: { title: string; de
   return res.data.data;
 }
 
-export async function updateMilestone(milestoneId: string, patch: Partial<{ title: string; description: string; status: MilestoneStatus; amount: number; targetDate: string }>): Promise<ProjectMilestone> {
+export async function updateMilestone(milestoneId: string, patch: Partial<{ title: string; description: string; status: MilestoneStatus; amount: number | null; targetDate: string | null }>): Promise<ProjectMilestone> {
   const res = await api.patch<ApiResponse<ProjectMilestone>>(`/api/v1/projects/milestones/${milestoneId}`, patch);
   return res.data.data;
 }
 
-export async function addSelection(projectId: string, input: { category: string; label: string; value: string; detail?: string }): Promise<ProjectSelection> {
+export async function deleteMilestone(milestoneId: string): Promise<void> {
+  await api.delete(`/api/v1/projects/milestones/${milestoneId}`);
+}
+
+export async function addSelection(projectId: string, input: { category: string; label: string; value: string; detail?: string; sortOrder?: number }): Promise<ProjectSelection> {
   const res = await api.post<ApiResponse<ProjectSelection>>(`/api/v1/projects/${projectId}/selections`, input);
   return res.data.data;
+}
+
+export async function updateSelection(selectionId: string, patch: Partial<{ category: string; label: string; value: string; detail: string | null; sortOrder: number }>): Promise<ProjectSelection> {
+  const res = await api.patch<ApiResponse<ProjectSelection>>(`/api/v1/projects/selections/${selectionId}`, patch);
+  return res.data.data;
+}
+
+export async function deleteSelection(selectionId: string): Promise<void> {
+  await api.delete(`/api/v1/projects/selections/${selectionId}`);
 }
 
 export async function addDocument(projectId: string, input: { label: string; fileUrl: string; docType?: DocType }): Promise<ProjectDocument> {
   const res = await api.post<ApiResponse<ProjectDocument>>(`/api/v1/projects/${projectId}/documents`, input);
   return res.data.data;
+}
+
+export async function uploadProjectDocument(
+  projectId: string,
+  input: { label: string; docType: DocType; uri: string },
+): Promise<ProjectDocument> {
+  const form = new FormData();
+  form.append('label', input.label.trim());
+  form.append('docType', input.docType);
+  await appendImageToFormData(form, 'file', input.uri, 'project-document');
+  const res = await api.post<ApiResponse<ProjectDocument>>(
+    `/api/v1/projects/${projectId}/documents/upload`,
+    form,
+  );
+  return res.data.data;
+}
+
+export async function getProjectDocumentAccess(documentId: string): Promise<{ url: string; expiresInSeconds: number }> {
+  const res = await api.get<ApiResponse<{ url: string; expiresInSeconds: number }>>(
+    `/api/v1/projects/documents/${documentId}/access`,
+  );
+  const access = res.data.data;
+  return {
+    ...access,
+    url: /^https?:\/\//.test(access.url) ? access.url : `${platformConfig.apiUrl}${access.url}`,
+  };
 }

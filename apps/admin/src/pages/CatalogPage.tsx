@@ -1,6 +1,7 @@
 import React, { useState, Fragment, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { Badge, ErrorState, Label, LoadingState, Input, Textarea, useReasonDialog } from '@/components/ui';
@@ -10,6 +11,7 @@ import { useAuthStore } from '@/stores/auth.store';
 
 const CURRENCY_SYMBOL = '₱';
 const CUSTOMER_SERVICE_SCOPE_MIN = 30;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface Subcategory {
   id: string;
@@ -49,15 +51,40 @@ interface Addon {
   price: number;
   isActive: boolean;
   displayOrder: number;
+  exceedsCurrentPriceCap: boolean;
 }
 
 type ModalMode = null | 'addCategory' | 'editCategory' | 'addSubcategory' | 'editSubcategory' | 'addAddon' | 'editAddon';
 
 export default function CatalogPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { requestReason, reasonDialog } = useReasonDialog();
   const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const rawCategoryId = searchParams.get('categoryId')?.trim() ?? '';
+  const rawSubcategoryId = searchParams.get('subcategoryId')?.trim() ?? '';
+  const rawAddonId = searchParams.get('addonId')?.trim() ?? '';
+  const rawView = searchParams.get('view')?.trim() ?? '';
+  const requestedCategoryId = UUID_REGEX.test(rawCategoryId) ? rawCategoryId.toLowerCase() : '';
+  const requestedSubcategoryId = UUID_REGEX.test(rawSubcategoryId) ? rawSubcategoryId.toLowerCase() : '';
+  const requestedAddonId = UUID_REGEX.test(rawAddonId) ? rawAddonId.toLowerCase() : '';
+  const catalogParamError = rawCategoryId && !requestedCategoryId
+    ? 'The service category ID must be a complete UUID.'
+    : rawSubcategoryId && !requestedSubcategoryId
+      ? 'The customer service ID must be a complete UUID.'
+      : rawAddonId && !requestedAddonId
+        ? 'The service add-on ID must be a complete UUID.'
+        : requestedSubcategoryId && !requestedCategoryId
+          ? 'A customer service evidence link must include its category ID.'
+          : requestedAddonId && (!requestedCategoryId || !requestedSubcategoryId)
+            ? 'A service add-on evidence link must include its category and customer service IDs.'
+            : rawView && rawView !== 'addons'
+              ? 'The requested catalog view is not supported.'
+              : rawView === 'addons' && (!requestedCategoryId || !requestedSubcategoryId)
+                ? 'The add-on view must include its category and customer service IDs.'
+            : '';
+  const [localExpandedCategory, setLocalExpandedCategory] = useState<string | null>(null);
+  const expandedCategory = requestedCategoryId || localExpandedCategory;
   const [serviceFilter, setServiceFilter] = useState<'all' | 'needsScope' | 'inactive'>('all');
   const [modal, setModal] = useState<ModalMode>(null);
   const [editTarget, setEditTarget] = useState<Category | Subcategory | null>(null);
@@ -136,6 +163,17 @@ export default function CatalogPage(): React.ReactElement {
     if (isAddonModal) {
       if (!addonName.trim()) return 'Add-on name is required.';
       if (!isFiniteNumber(addonPrice) || Number(addonPrice) < 0) return 'Add-on price must be a valid non-negative amount.';
+      const addonPriceCentavos = Math.round(Number(addonPrice) * 100);
+      const preservesGrandfatheredPrice = modal === 'editAddon'
+        && addonEditTarget !== null
+        && addonPriceCentavos === addonEditTarget.price;
+      if (
+        addonPriceCapCentavos !== null
+        && !preservesGrandfatheredPrice
+        && addonPriceCentavos > addonPriceCapCentavos
+      ) {
+        return `Add-on price cannot exceed the current ${formatCurrency(addonPriceCapCentavos)} authoring limit.`;
+      }
       if (!isFiniteNumber(addonOrder)) return 'Display order must be a valid number.';
       return null;
     }
@@ -217,7 +255,10 @@ export default function CatalogPage(): React.ReactElement {
     onError: (err) => setError(getErrorMessage(err)),
   });
 
-  const [expandedAddons, setExpandedAddons] = useState<string | null>(null);
+  const [localExpandedAddons, setLocalExpandedAddons] = useState<string | null>(null);
+  const expandedAddons = (requestedAddonId || rawView === 'addons') && requestedSubcategoryId
+    ? requestedSubcategoryId
+    : localExpandedAddons;
   // D27 Phase 2 — which subcategory's intake-field editor is open.
   const [expandedIntake, setExpandedIntake] = useState<string | null>(null);
 
@@ -229,28 +270,37 @@ export default function CatalogPage(): React.ReactElement {
   } = useQuery({
     queryKey: ['adminAddons', expandedAddons],
     queryFn: async () => {
-      if (!expandedAddons) return [];
-      const res = await api.get<{ success: boolean; data: Addon[] }>(
+      if (!expandedAddons) return { addons: [], priceCapCentavos: null };
+      const res = await api.get<{ success: boolean; data: Addon[]; meta: { priceCapCentavos: number } }>(
         `/api/v1/catalog/admin/subcategories/${expandedAddons}/addons`,
       );
-      return res.data.data;
+      return {
+        addons: res.data.data,
+        priceCapCentavos: res.data.meta.priceCapCentavos,
+      };
     },
     enabled: !!expandedAddons,
   });
 
   const addonMutation = useMutation({
     mutationFn: async () => {
-      const body = {
-        subcategoryId: addonSubcatId,
+      const price = addonPrice ? Math.round(Number(addonPrice) * 100) : 0;
+      const commonBody = {
         name: addonName.trim(),
         description: addonDesc.trim(),
-        price: addonPrice ? Math.round(Number(addonPrice) * 100) : 0,
         displayOrder: Number(addonOrder),
       };
       if (modal === 'addAddon') {
-        await api.post('/api/v1/catalog/admin/addons', body);
+        await api.post('/api/v1/catalog/admin/addons', {
+          subcategoryId: addonSubcatId,
+          ...commonBody,
+          price,
+        });
       } else if (modal === 'editAddon' && addonEditTarget) {
-        await api.put(`/api/v1/catalog/admin/addons/${addonEditTarget.id}`, body);
+        await api.put(`/api/v1/catalog/admin/addons/${addonEditTarget.id}`, {
+          ...commonBody,
+          ...(price !== addonEditTarget.price ? { price } : {}),
+        });
       }
     },
     onSuccess: () => {
@@ -359,6 +409,53 @@ export default function CatalogPage(): React.ReactElement {
     setModal('editAddon');
   }
 
+  function toggleCategory(categoryId: string): void {
+    const nextCategoryId = expandedCategory === categoryId ? null : categoryId;
+    setLocalExpandedCategory(nextCategoryId);
+    setLocalExpandedAddons(null);
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextCategoryId) params.set('categoryId', nextCategoryId);
+      else params.delete('categoryId');
+      params.delete('subcategoryId');
+      params.delete('addonId');
+      params.delete('view');
+      return params;
+    });
+  }
+
+  function toggleAddons(categoryId: string, subcategoryId: string): void {
+    const nextSubcategoryId = expandedAddons === subcategoryId ? null : subcategoryId;
+    setLocalExpandedCategory(categoryId);
+    setLocalExpandedAddons(nextSubcategoryId);
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('categoryId', categoryId);
+      if (nextSubcategoryId) {
+        params.set('subcategoryId', nextSubcategoryId);
+        params.set('view', 'addons');
+      } else {
+        params.delete('subcategoryId');
+        params.delete('view');
+      }
+      params.delete('addonId');
+      return params;
+    });
+  }
+
+  function clearCatalogEvidence(): void {
+    setLocalExpandedCategory(null);
+    setLocalExpandedAddons(null);
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('categoryId');
+      params.delete('subcategoryId');
+      params.delete('addonId');
+      params.delete('view');
+      return params;
+    });
+  }
+
   async function deactivateService(service: Subcategory): Promise<void> {
     const reason = await requestReason({
       title: 'Deactivate customer service?',
@@ -435,6 +532,37 @@ export default function CatalogPage(): React.ReactElement {
     (service) => service.description.trim().length < CUSTOMER_SERVICE_SCOPE_MIN,
   ).length;
   const readyScopeCount = activeServices.length - missingScopeCount;
+  const addons = addonsData?.addons ?? [];
+  const addonPriceCapCentavos = addonsData?.priceCapCentavos ?? null;
+  const activeAddonsAboveCap = addons.filter((addon) => addon.exceedsCurrentPriceCap);
+  const selectedCategory = requestedCategoryId
+    ? categories.find((category) => category.id === requestedCategoryId)
+    : undefined;
+  const selectedServiceOwner = requestedSubcategoryId
+    ? categories.find((category) => (
+        category.subcategories.some((subcategory) => subcategory.id === requestedSubcategoryId)
+      ))
+    : undefined;
+  const selectedAddon = requestedAddonId
+    ? addons.find((addon) => addon.id === requestedAddonId)
+    : undefined;
+  const catalogSelectionError = catalogParamError
+    || (requestedCategoryId && !selectedCategory
+      ? 'The selected service category is no longer present in the retained catalog.'
+      : '')
+    || (requestedSubcategoryId && !selectedServiceOwner
+      ? 'The selected customer service is no longer present in the retained catalog.'
+      : '')
+    || (selectedServiceOwner && selectedServiceOwner.id !== requestedCategoryId
+      ? 'The selected customer service does not belong to the category recorded in this link.'
+      : '')
+    || (requestedAddonId && !isAddonsLoading && !isAddonsError && !selectedAddon
+      ? 'The selected service add-on is no longer present under the recorded customer service.'
+      : '');
+  const editingGrandfatheredAddon = modal === 'editAddon'
+    && addonEditTarget !== null
+    && addonPriceCapCentavos !== null
+    && addonEditTarget.price > addonPriceCapCentavos;
   const visibleCategories = serviceFilter === 'all'
     ? categories
     : categories
@@ -492,6 +620,20 @@ export default function CatalogPage(): React.ReactElement {
         </div>
       )}
 
+      {catalogSelectionError && (
+        <div role="alert" className="mb-4 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900">
+          <p className="font-semibold">Catalog selection unavailable</p>
+          <p className="mt-1">{catalogSelectionError}</p>
+          <button
+            type="button"
+            onClick={clearCatalogEvidence}
+            className="mt-3 min-h-11 rounded-md border border-red-300 bg-white px-3 py-2 font-semibold"
+          >
+            Remove catalog selection
+          </button>
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-4" aria-label="Catalog publishing status">
         <button
           type="button"
@@ -543,7 +685,10 @@ export default function CatalogPage(): React.ReactElement {
         {visibleCategories.map((cat) => {
           const categoryExpanded = serviceFilter !== 'all' || expandedCategory === cat.id;
           return (
-          <div key={cat.id} className="bg-white rounded-xl border border-[var(--color-border)] overflow-hidden">
+          <div
+            key={cat.id}
+            className={`bg-white rounded-xl border overflow-hidden ${requestedCategoryId === cat.id ? 'border-sky-500 ring-2 ring-sky-200' : 'border-[var(--color-border)]'}`}
+          >
             <div className="flex items-center justify-between gap-3 px-3 py-2 sm:px-5 sm:py-3">
               <button
                 type="button"
@@ -552,13 +697,18 @@ export default function CatalogPage(): React.ReactElement {
                 className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-2 text-left hover:bg-[var(--color-surface-hover)]"
                 onClick={() => {
                   if (serviceFilter === 'all') {
-                    setExpandedCategory(expandedCategory === cat.id ? null : cat.id);
+                    toggleCategory(cat.id);
                   }
                 }}
               >
                 {cat.iconUrl && <img src={cat.iconUrl} alt="" className="w-8 h-8 rounded-lg object-cover" />}
                 <span className="min-w-0 flex-1">
-                  <p className="font-medium text-[var(--color-text)]">{cat.name}</p>
+                  <p className="font-medium text-[var(--color-text)]">
+                    {cat.name}
+                    {requestedCategoryId === cat.id && !requestedSubcategoryId ? (
+                      <span className="sr-only"> Selected catalog record</span>
+                    ) : null}
+                  </p>
                   <p className="text-xs text-[var(--color-text-secondary)]">
                     {cat.subcategories.length} service{cat.subcategories.length !== 1 ? 's' : ''} — Order: {cat.displayOrder}
                   </p>
@@ -604,10 +754,15 @@ export default function CatalogPage(): React.ReactElement {
                     <tbody>
                       {cat.subcategories.map((sub) => (
                         <Fragment key={sub.id}>
-                        <tr className="border-t border-[var(--color-border)]">
+                        <tr className={`border-t border-[var(--color-border)] ${requestedSubcategoryId === sub.id ? 'bg-sky-50' : ''}`}>
                           <td className="px-5 py-3">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-sm font-medium text-[var(--color-text)]">{sub.name}</p>
+                              <p className="text-sm font-medium text-[var(--color-text)]">
+                                {sub.name}
+                                {requestedSubcategoryId === sub.id && !requestedAddonId ? (
+                                  <span className="sr-only"> Selected catalog record</span>
+                                ) : null}
+                              </p>
                               {sub.isActive === false ? <Badge label="Inactive" variant="outline" /> : null}
                             </div>
                             {sub.description.trim().length >= CUSTOMER_SERVICE_SCOPE_MIN ? (
@@ -661,7 +816,7 @@ export default function CatalogPage(): React.ReactElement {
                           <td className="px-5 py-3 text-right">
                             <button
                               type="button"
-                              onClick={() => setExpandedAddons(expandedAddons === sub.id ? null : sub.id)}
+                              onClick={() => toggleAddons(cat.id, sub.id)}
                               aria-expanded={expandedAddons === sub.id}
                               aria-label={`${expandedAddons === sub.id ? 'Hide' : 'Show'} add-ons for ${sub.name}`}
                               className="min-h-11 px-3 py-2 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-md transition-colors mr-1"
@@ -732,20 +887,37 @@ export default function CatalogPage(): React.ReactElement {
                                     Retry add-ons
                                   </button>
                                 </div>
-                              ) : (addonsData ?? []).length === 0 ? (
+                              ) : addons.length === 0 ? (
                                 <p className="text-xs text-[var(--color-text-secondary)]">No add-ons yet.</p>
                               ) : (
                                 <div className="space-y-1">
-                                  {(addonsData ?? []).map((addon) => (
-                                    <div key={addon.id} className="flex flex-col gap-3 bg-white rounded-md px-3 py-2 border border-purple-100 sm:flex-row sm:items-center sm:justify-between">
+                                  {activeAddonsAboveCap.length > 0 && addonPriceCapCentavos !== null ? (
+                                    <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                                      <span className="font-semibold">
+                                        {activeAddonsAboveCap.length} active add-on{activeAddonsAboveCap.length === 1 ? '' : 's'} {activeAddonsAboveCap.length === 1 ? 'is' : 'are'} above the current {formatCurrency(addonPriceCapCentavos)} authoring limit.
+                                      </span>{' '}
+                                      {activeAddonsAboveCap.length === 1 ? 'It remains' : 'They remain'} visible and bookable to customers until a super admin edits each price to the allowed range or deactivates the add-on. Historical booking prices do not change.
+                                    </div>
+                                  ) : null}
+                                  {addons.map((addon) => (
+                                    <div
+                                      key={addon.id}
+                                      className={`flex flex-col gap-3 bg-white rounded-md px-3 py-2 border sm:flex-row sm:items-center sm:justify-between ${requestedAddonId === addon.id ? 'border-sky-500 ring-2 ring-sky-200' : 'border-purple-100'}`}
+                                    >
                                       <div className="min-w-0">
-                                        <span className="text-sm font-medium text-[var(--color-text)]">{addon.name}</span>
+                                        <span className="text-sm font-medium text-[var(--color-text)]">
+                                          {addon.name}
+                                          {requestedAddonId === addon.id ? (
+                                            <span className="sr-only"> Selected catalog record</span>
+                                          ) : null}
+                                        </span>
                                         {addon.description && (
                                           <span className="ml-2 text-xs text-[var(--color-text-secondary)]">{addon.description}</span>
                                         )}
                                       </div>
                                       <div className="flex flex-wrap items-center gap-2">
                                         <span className="text-sm font-medium text-[var(--color-text)]">{formatCurrency(addon.price)}</span>
+                                        {addon.exceedsCurrentPriceCap && <Badge label="Above current price limit" variant="warning" />}
                                         {!addon.isActive && <span className="text-xs text-red-600">(inactive)</span>}
                                         {isSuperAdmin && <button
                                           type="button"
@@ -861,6 +1033,9 @@ export default function CatalogPage(): React.ReactElement {
                         type="number"
                         step="0.01"
                         min="0"
+                        max={addonPriceCapCentavos !== null && !editingGrandfatheredAddon
+                          ? String(addonPriceCapCentavos / 100)
+                          : undefined}
                         value={addonPrice}
                         onChange={(e) => setAddonPrice(e.target.value)}
                         required

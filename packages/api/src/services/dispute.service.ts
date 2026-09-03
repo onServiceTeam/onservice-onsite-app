@@ -27,6 +27,9 @@ interface DisputeRow {
   resolved_by: string | null;
   created_at: Date;
   updated_at: Date;
+  // Returned by audited mutation helpers after their canonical admin_actions
+  // row commits in the same transaction. It is not a disputes table column.
+  adminActionId?: string;
   // BUG-PHASE40-03 — populated only by listDisputes (LEFT JOIN
   // bookings + users + providers). Other dispute queries return
   // null/undefined for these. The admin DisputesPage list column
@@ -67,6 +70,19 @@ interface CountRow { count: string }
 type DisputeType = 'no_show' | 'incomplete' | 'substandard' | 'damage' | 'theft' | 'overcharge' | 'other';
 type ResolutionType = 'full_refund' | 'partial_refund' | 'no_refund' | 'free_redo'
   | 'refund_with_warning' | 'refund_with_suspension' | 'split_decision';
+
+const HELD_RESOLUTION_TYPES = new Set<ResolutionType>(['free_redo', 'refund_with_warning']);
+
+export function assertDisputeResolutionAvailable(resolutionType: ResolutionType): void {
+  if (HELD_RESOLUTION_TYPES.has(resolutionType)) {
+    throw createAppError(
+      resolutionType === 'free_redo'
+        ? 'Free redo is temporarily unavailable because it does not yet create a replacement work order. Use a linked support case.'
+        : 'Refund with warning is temporarily unavailable because it does not yet record a provider warning. Use Provider 360 and a linked support case.',
+      409,
+    );
+  }
+}
 
 import { platformConfig } from '../config/platform.config';
 
@@ -544,6 +560,7 @@ export async function resolveDisputeInTransaction(
     internalNotes?: string;
   },
 ): Promise<{ dispute: DisputeRow; refundAmount: number; refundPercent: number; bookingId: string; bookingTotalAmount: number; providerId: string | null }> {
+  assertDisputeResolutionAvailable(data.resolutionType);
   const dispute = await client.query<DisputeRow>(
     `SELECT * FROM disputes WHERE id = $1 FOR UPDATE`,
     [disputeId],
@@ -610,10 +627,10 @@ export async function resolveDisputeInTransaction(
 
   await client.query(
     `INSERT INTO notifications (user_id, type, title, body, data)
-     VALUES ($1, 'dispute_update', 'Dispute Resolved', $2, $3)`,
+     VALUES ($1, 'dispute_update', 'Dispute Decision Recorded', $2, $3)`,
     [
       bk.customer_id,
-      `Your dispute has been resolved: ${formatResolutionType(data.resolutionType)}.`,
+      `A decision was recorded for your dispute: ${formatResolutionType(data.resolutionType)}. Open the case and booking payment history for processing status.`,
       JSON.stringify({ disputeId, bookingId: d.booking_id, resolution: data.resolutionType }),
     ],
   );
@@ -626,10 +643,10 @@ export async function resolveDisputeInTransaction(
     if (provider.rows[0]) {
       await client.query(
         `INSERT INTO notifications (user_id, type, title, body, data)
-         VALUES ($1, 'dispute_update', 'Dispute Resolved', $2, $3)`,
+         VALUES ($1, 'dispute_update', 'Dispute Decision Recorded', $2, $3)`,
         [
           provider.rows[0].user_id,
-          `A dispute for your booking has been resolved: ${formatResolutionType(data.resolutionType)}.`,
+          `A decision was recorded for a dispute on your booking: ${formatResolutionType(data.resolutionType)}. Open the case and booking payment history for processing status.`,
           JSON.stringify({ disputeId, bookingId: d.booking_id, resolution: data.resolutionType }),
         ],
       );
@@ -766,9 +783,10 @@ export async function escalateDispute(disputeId: string, adminId: string, reason
       [newTier, disputeId],
     );
 
-    await client.query(
+    const auditResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
-       VALUES ($1, 'dispute_escalated', 'dispute', $2, $3, $4, $5)`,
+       VALUES ($1, 'dispute_escalated', 'dispute', $2, $3, $4, $5)
+       RETURNING id`,
       [adminId, disputeId,
        JSON.stringify({ previousTier: d.tier, newTier }),
        reason.slice(0, 500),
@@ -776,8 +794,10 @@ export async function escalateDispute(disputeId: string, adminId: string, reason
     );
 
     if (result.rows.length === 0) throw createAppError('Failed to escalate dispute — concurrent modification.', 409);
+    const adminActionId = auditResult.rows[0]?.id;
+    if (!adminActionId) throw createAppError('Failed to record dispute escalation audit.', 500);
     logger.info('Dispute escalated', { disputeId, fromTier: d.tier, toTier: newTier });
-    return result.rows[0]!;
+    return { ...result.rows[0]!, adminActionId };
   });
 }
 
@@ -795,14 +815,17 @@ export async function assignDispute(disputeId: string, adminId: string, assignee
     );
     if (result.rows.length === 0) throw createAppError('Dispute not found or already resolved.', 404);
 
-    await client.query(
+    const auditResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, 'dispute_assigned', 'dispute', $2, $3)`,
+       VALUES ($1, 'dispute_assigned', 'dispute', $2, $3)
+       RETURNING id`,
       [adminId, disputeId, JSON.stringify({ assignedTo: assigneeId })],
     );
 
+    const adminActionId = auditResult.rows[0]?.id;
+    if (!adminActionId) throw createAppError('Failed to record dispute assignment audit.', 500);
     logger.info('Dispute assigned', { disputeId, assigneeId });
-    return result.rows[0]!;
+    return { ...result.rows[0]!, adminActionId };
   });
 }
 
@@ -987,13 +1010,13 @@ export async function autoEscalateStaleDisputes(): Promise<number> {
 
 function formatResolutionType(type: string): string {
   const labels: Record<string, string> = {
-    full_refund: 'Full refund issued',
-    partial_refund: 'Partial refund issued',
+    full_refund: 'Full refund approved',
+    partial_refund: 'Partial refund approved',
     no_refund: 'No refund — claim denied',
-    free_redo: 'Free service redo offered',
-    refund_with_warning: 'Refund issued, provider warned',
-    refund_with_suspension: 'Refund issued, provider suspended',
-    split_decision: 'Split decision — partial refund and compensation',
+    free_redo: 'Free service redo selected',
+    refund_with_warning: 'Full refund approved, provider warning selected',
+    refund_with_suspension: 'Full refund approved, provider suspended',
+    split_decision: 'Split decision — partial refund approved',
   };
   return labels[type] ?? type;
 }

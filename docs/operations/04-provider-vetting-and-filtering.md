@@ -313,11 +313,11 @@ A reference who hesitates on question 3 or 4, or who turns out to be a relative 
 
 ## 5. Provider tiers and commission rates
 
-Five tiers. Commission is flat per tier (it does not change inside a tier) and is taken off the service price. The provider receives service price minus commission. These are the canonical defaults; they are admin-tunable in **Settings -> Commissions** (`commission_rate_<tier>`), so always confirm the live value there before quoting a provider.
+Five tiers. Commission is taken off the service price, but it can vary within a tier through effective-dated provider/category/service agreements. The table is the seeded base schedule. Use **Financials -> Commission Controls** for prospective terms and Booking 360's immutable financial terms for an existing booking. The legacy direct Settings rows are read-only under E50.
 
 | Tier | Commission | What it means | Requirements to reach it |
 |---|---|---|---|
-| **Founding** | **10%** | Invite-only launch-batch tier. First 50 providers per city, 10% locked for 12 months. Parallel tier, not a rung on the normal ladder. | Admin-assigned at invite. Never an automatic promotion or a downgrade target. |
+| **Founding** | **10% seeded base** | Invite-only parallel tier. E63 holds the unsupported first-50/12-month entitlement claim. | Do not newly assign while E63 is open. Never an automatic promotion or downgrade target. |
 | **New** | **15%** | Default tier on signup. | None. Everyone starts here unless invited as Founding. |
 | **Verified** | **13%** | Proven on the platform. | 5+ completed jobs, 4.0+ rating. |
 | **Pro** | **11%** | Reliable, dispute-free. | 25+ jobs, 4.5+ rating, no open disputes. |
@@ -375,16 +375,16 @@ A rejected provider cannot currently resubmit through the app because the canoni
 The one that expires on a clock is the NBI clearance.
 
 - The provider row carries `nbi_expiry_date` and `nbi_expiry_notified`.
-- A background worker (`checkNbiExpiry`) finds approved providers whose NBI expires within the warning window (default 30 days, tunable as `provider.nbi_expiry_warning_days`) and have not been notified yet, sends them "NBI Clearance Expiring Soon" (or "...Expired"), then marks them notified.
+- A background worker (`checkNbiExpiry`) finds approved providers inside the stored 30-day warning window and marks one shared `nbi_expiry_notified` flag. E62 holds this setting because an early warning prevents the same row from being selected at expiry, while a provider first selected after expiry can be auto-suspended contrary to the manual launch policy.
 - In the mobile app the provider sees an NbiStatusBanner that classifies their status as `missing`, `expired`, `expiring`, or `valid`.
 
 Re-verification SOP:
 
-- [ ] When a provider's NBI shows `expiring`, they should upload a fresh clearance before it lapses.
+- [ ] When a provider's NBI shows `expiring`, open a support case and request renewal. The approved-provider app does not currently provide a secure NBI renewal submission, so do not promise an in-app upload or collect KYC through chat/email; escalate under E62/E35.
 - [ ] When it shows `expired`, the provider should not be taking new jobs. See the auto-suspend decision below.
-- [ ] Re-verify the new NBI the same way you did at application (name match, issued within 6 months), then update `nbi_expiry_date`.
+- [ ] Re-verify a replacement only through the future approved renewal workflow. Provider 360 currently displays the date read-only; do not make an off-platform or direct database update.
 
-> **Set (editable):** the app does not auto-suspend on NBI expiry. At launch we run a manual chase, then manual suspend. Support contacts the provider when the NBI shows `expired`, holds them off dispatch by toggling availability, and suspends them only if they ignore the chase. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **E62 launch hold:** the intended launch policy is manual chase followed by reasoned manual suspension, but the worker is inconsistent and must not be relied on. Staff review the provider and active-work context manually, open a support case, and escalate suspension. The warning-window setting is read-only until warning, expiry, renewal, and enforcement use separate auditable states.
 
 Other documents (proof of address, business permit, tax certificate, certifications) can also carry an `expires_at` in the document store. Re-check any that are expiry-dated on the same monthly pass you use for tier promotions.
 
@@ -453,7 +453,7 @@ How to suspend (admin steps):
 How to reactivate:
 
 1. **Providers**, filter to `suspended`, open the provider, click **Reactivate**.
-2. Status flips `suspended -> approved`, audited as `provider_reactivated`. Confirm the reason for suspension is actually resolved first (new NBI uploaded, incident closed, etc.).
+2. Status flips `suspended -> approved`, audited as `provider_reactivated`. Confirm the reason for suspension is actually resolved first. For NBI cases, do not reactivate from an emailed/chat document or direct database update; E62 requires an approved renewal and verification workflow first. Other examples include a closed incident with recorded evidence.
 
 Removal: there is no hard delete in the admin UI and we do not delete provider records (they carry financial and audit history). To take someone off the platform for good, suspend them and leave them suspended. The `deactivated` status exists as a terminal state and is filterable, but no current admin button sets it.
 
@@ -518,7 +518,7 @@ Every newly approved provider is on probation for their first 3 jobs. This is po
 | Cancellations (rolling 30 days) | 0 to 1 | 3 (the warning threshold) | 5 (the auto-suspend signal) |
 | Disputes | 0 open | 1 open, or a `free_redo` resolution | A `refund_with_suspension` resolution (auto-suspends) |
 | Repeated 1-star ratings | none | the `provider_consecutive_one_star` alert fires | a pattern with confirmed cause |
-| NBI clearance | `valid` | `expiring` (30-day warning) | `expired` and ignoring the chase |
+| NBI clearance | `valid` | `expiring` in the manual queue (worker notice is unreliable under E62) | `expired`; reasoned manual suspension review required |
 | On-time arrival | 90%+ | 75 to 89% | under 75% with complaints |
 
 The numbers above are the same ones used by the app's config and by `12-quality-standards-and-kpis.md`. The dispatch rating floor (`total_reviews >= 5` AND `rating < 2.5`) is automatic and silently drops a provider from offers; treat it as a trigger to review for a manual suspension, not as the whole response.
@@ -571,7 +571,7 @@ A provider who is genuinely skilled but slipping is worth saving; recruiting and
 - **Per-category skills question bank:** yes, a fixed bank per category, maintained as a real section in `13-policies-codes-and-templates.md`. (editable)
 - **Probation (Section 12.1):** first 3 completed jobs, mandatory before/after photos, buddy on standby. (editable)
 - **Strike rule (Section 12.3):** 3 strikes in a rolling 90 days = suspension review; safety/trust incidents skip the count. (editable)
-- **NBI expiry handling:** no auto-suspend; manual chase by support, then manual suspend if ignored. (editable)
+- **NBI expiry handling:** intended policy is manual chase then manual suspend, but E62 holds the inconsistent worker and missing renewal workflow. (held)
 - **Rejection reason codes:** adopt the R01-R10 taxonomy in Section 8. (editable)
 
 Each item above is the working default so the team is never blocked. To change one, edit it here and anywhere this doc references it.

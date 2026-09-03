@@ -80,6 +80,7 @@ const NOTIFICATION_ICONS: Record<string, IconComponent> = {
   new_message: MessageSquare,
   chat_started: MessageSquare,
   chat_last_message: MessageSquare,
+  support_update: MessageSquare,
   change_order_expired: AlertTriangle,
   recurring_auto_charge_succeeded: CheckCircle2,
   recurring_auto_charge_failed: AlertTriangle,
