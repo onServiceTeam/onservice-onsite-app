@@ -1,28 +1,26 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
 
-const payoutId = '66666666-6666-4666-8666-666666666666';
-const setSearchParamsMock = vi.hoisted(() => vi.fn());
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<Record<string, unknown>>('react-router-dom');
-  return { ...actual, useSearchParams: () => [new URLSearchParams(`payoutId=${payoutId}`), setSearchParamsMock] };
-});
-
+const PAYOUT_ID = '11790000-0000-4000-8000-000000001179';
 const apiMocks = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn() }));
 vi.mock('@/lib/api', () => ({ default: apiMocks, getErrorMessage: () => 'Request failed' }));
+vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
+vi.mock('@/stores/auth.store', () => ({
+  useAuthStore: (selector: (state: unknown) => unknown) => selector({ user: { role: 'admin' } }),
+}));
 
 import PayoutsPage from '../PayoutsPage';
 
-it('Bug UX-520 — a global payout result opens a visibly exact read-only queue filter', async () => {
+it('Bug UX-1179 — exact payout mode refuses to show a mismatched payout as substitute evidence', async () => {
   apiMocks.get.mockResolvedValueOnce({ data: {
     success: true,
     data: [{
-      id: payoutId,
-      providerId: '77777777-7777-4777-8777-777777777777',
-      walletId: '88888888-8888-4888-8888-888888888888',
+      id: '21790000-0000-4000-8000-000000001179',
+      providerId: '31790000-0000-4000-8000-000000001179',
+      walletId: '41790000-0000-4000-8000-000000001179',
       amount: 50000,
       method: 'gcash',
       destinationAccount: '09*******67',
@@ -38,7 +36,7 @@ it('Bug UX-520 — a global payout result opens a visibly exact read-only queue 
       completedAt: '2026-09-03T10:00:00.000Z',
       requiresAmlReview: false,
       amlThresholdAtRequest: null,
-      providerBusinessName: 'Cebu Cleaners',
+      providerBusinessName: 'Wrong Provider',
     }],
     pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
   } });
@@ -46,14 +44,12 @@ it('Bug UX-520 — a global payout result opens a visibly exact read-only queue 
 
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter><PayoutsPage /></MemoryRouter>
+      <MemoryRouter initialEntries={[`/payouts?payoutId=${PAYOUT_ID}`]}>
+        <PayoutsPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 
-  expect(screen.getByText(/Exact payout/i)).toBeVisible();
-  expect(screen.getByText('66666666')).toBeVisible();
-  await waitFor(() => expect(apiMocks.get).toHaveBeenCalledWith('/api/v1/payouts', {
-    params: { page: 1, pageSize: 20, payoutId },
-  }));
-  expect(screen.getByRole('button', { name: 'Clear' })).toBeVisible();
+  expect(await screen.findByRole('alert')).toHaveTextContent('No substitute payout is shown');
+  expect(screen.queryByText('Wrong Provider')).not.toBeInTheDocument();
 });

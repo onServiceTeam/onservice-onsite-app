@@ -1538,7 +1538,15 @@ export function FinancialsTab({ providerId }: { providerId: string }): React.Rea
                 <tr><td colSpan={6} className="text-center py-6 text-[var(--color-text-secondary)]">No payouts yet.</td></tr>
               ) : f.recentPayouts.map((po) => (
                 <tr key={po.id} className="border-t border-slate-100">
-                  <td className="px-3 py-2 font-mono text-xs">{po.id.slice(0, 8)}</td>
+                  <td className="px-3 py-2">
+                    <Link
+                      to={`/payouts?payoutId=${encodeURIComponent(po.id)}`}
+                      aria-label={`Open payout ${po.id}`}
+                      className="font-mono text-xs text-[var(--color-secondary)] hover:underline"
+                    >
+                      {po.id.slice(0, 8)}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2">{formatDateOnly(po.createdAt)}</td>
                   <td className="px-3 py-2">{po.method}</td>
                   <td className="px-3 py-2 text-right">{formatPHP(po.amount)}</td>
