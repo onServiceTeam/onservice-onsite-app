@@ -93,7 +93,7 @@ Ticket fields in admin (`/support-tickets`):
 Rules:
 
 - One issue, one ticket. If a customer raises two unrelated things, open two tickets so SLAs and resolution notes stay clean.
-- Resolving or closing requires a resolution note of at least 10 characters. Write what you actually did, not "resolved."
+- Resolving or closing requires an internal resolution note of at least 10 characters. Write what you actually did, not "resolved." This note is for the Admin audit record and is not shown to the customer. Send the customer a separate public reply that clearly explains the outcome before resolving when the case requires a response.
 - Internal notes are for us. Never put anything in a reply-to-user message that you meant as an internal note.
 - If the ticket is waiting on the customer or provider and that user replies, the system returns it to `in_progress` when assigned or `open` when unassigned. Resolved and closed user threads are read-only; create a new case if a genuinely new issue remains.
 - For email or Messenger intake, first open Customer 360 or Provider 360, then use **Create support case**. Do not paste an arbitrary user or booking ID. The resulting case belongs to that account and records the acting admin.

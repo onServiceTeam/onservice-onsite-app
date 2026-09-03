@@ -952,8 +952,9 @@ export async function updateTicketStatus(
   // BUG-PHASE154-01 fix — pre-fix resolution_notes had no server cap.
   // Same defense-in-depth pattern as Phase 152/153. resolution_notes
   // is admin-supplied at status='resolved' transition; an unbounded
-  // value would persist to the TEXT column and surface in admin
-  // ticket detail (and customer-facing ticket history). Cap at
+  // value would persist to the TEXT column and surface in Admin
+  // ticket detail and audit history. Participant routes deliberately omit this
+  // internal resolution record. Cap at
   // 5000 to mirror the description cap on the same table — both
   // are TEXT and similarly free-form.
   if (resolutionNotes !== undefined && typeof resolutionNotes !== 'string') {

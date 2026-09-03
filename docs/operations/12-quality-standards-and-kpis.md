@@ -124,7 +124,7 @@ Other support quality targets:
 
 - Reopen rate: under 8% of resolved tickets reopened within 7 days.
 - Ticket statuses to watch: a ticket sitting in `waiting_on_customer` or `waiting_on_provider` does not count against resolution time. Automated reminders and five-day auto-close are not implemented; staff review and follow up manually.
-- Resolution notes are mandatory (10+ char minimum enforced) when moving a ticket to `resolved` or `closed`. No empty closes.
+- Internal resolution notes are mandatory (10+ char minimum enforced) when moving a ticket to `resolved` or `closed`. No empty closes. They remain in the Admin audit record; participant outcomes belong in a separate public reply.
 
 ### CSAT
 

@@ -55,7 +55,7 @@ Map these to the admin ticket priority field (low/medium/high/urgent) and the pr
 5. If the provider or assigned provider staff member replies while the case is waiting, the system returns an assigned case to `in_progress` or an unassigned case to `open`. Resolved and closed provider threads are read-only; open a new case for a genuinely new issue.
 6. Work the playbook for that issue (sections 5 to 14).
 7. If the issue needs Finance or Trust & Safety, escalate per section 4 and set status `escalated`.
-8. Resolve with a clear reply. Resolution notes need at least 10 characters in admin.
+8. Resolve with a clear public reply. The separate internal resolution note needs at least 10 characters in Admin and is not shown to the provider.
 
 ---
 

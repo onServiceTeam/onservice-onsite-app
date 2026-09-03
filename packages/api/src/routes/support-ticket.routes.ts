@@ -25,6 +25,49 @@ function getParamId(req: AuthenticatedRequest): string {
   return id;
 }
 
+// Participant routes use an explicit allowlist. The underlying Admin read joins
+// internal assignment, staff identity, audit-resolution, and account fields that
+// customers/providers neither need nor should receive in their app payloads.
+type ParticipantTicketData = Pick<
+  supportTicketService.SupportTicket,
+  | 'id'
+  | 'ticket_number'
+  | 'type'
+  | 'status'
+  | 'priority'
+  | 'subject'
+  | 'description'
+  | 'booking_id'
+  | 'project_id'
+  | 'created_at'
+  | 'updated_at'
+  | 'message_count'
+> & {
+  related_business_account_id: string | null;
+  business_account_name: string | null;
+  project_title: string | null;
+};
+
+function participantTicketData(ticket: supportTicketService.SupportTicket): ParticipantTicketData {
+  return {
+    id: ticket.id,
+    ticket_number: ticket.ticket_number,
+    type: ticket.type,
+    status: ticket.status,
+    priority: ticket.priority,
+    subject: ticket.subject,
+    description: ticket.description,
+    booking_id: ticket.booking_id,
+    project_id: ticket.project_id,
+    related_business_account_id: ticket.related_business_account_id ?? null,
+    business_account_name: ticket.business_account_name ?? null,
+    project_title: ticket.project_title ?? null,
+    created_at: ticket.created_at,
+    updated_at: ticket.updated_at,
+    message_count: ticket.message_count,
+  };
+}
+
 // List tickets (admin/support agents)
 router.get(
   '/',
@@ -188,7 +231,11 @@ router.get(
         limit,
         status,
       });
-      res.json({ success: true, data: result.tickets, meta: { total: result.total, page, limit } });
+      res.json({
+        success: true,
+        data: result.tickets.map(participantTicketData),
+        meta: { total: result.total, page, limit },
+      });
     } catch (error) {
       next(error);
     }
@@ -211,7 +258,7 @@ router.get(
       }
       // includeInternal = false: hide admin internal notes from the customer.
       const messages = await supportTicketService.getTicketMessages(id, false);
-      res.json({ success: true, data: { ...ticket, messages } });
+      res.json({ success: true, data: { ...participantTicketData(ticket), messages } });
     } catch (error) {
       next(error);
     }
@@ -271,7 +318,7 @@ router.post(
         projectId,
         businessAccountId,
       });
-      res.status(201).json({ success: true, data: ticket });
+      res.status(201).json({ success: true, data: participantTicketData(ticket) });
     } catch (error) {
       next(error);
     }

@@ -195,8 +195,8 @@ function statusImpact(status: string): string {
     waiting_on_customer: 'Pauses agent work until the customer account that owns this case replies. Their reply reactivates the case.',
     waiting_on_provider: 'Pauses agent work until the provider account that owns this case replies. Their reply reactivates the case.',
     escalated: 'Places the case in the escalation queue for higher-attention review. No SLA is implied.',
-    resolved: 'Records the outcome and stops further replies unless an agent reopens the case.',
-    closed: 'Closes the case record and stops further replies unless an agent reopens it.',
+    resolved: 'Records an internal outcome and stops further replies unless an agent reopens the case. This does not send a participant message.',
+    closed: 'Closes the case record and stops further replies unless an agent reopens it. This does not send a participant message.',
   };
   return impacts[status] ?? 'Records this workflow change without sending a user message.';
 }
@@ -1289,7 +1289,7 @@ export default function SupportTicketsPage(): React.ReactElement {
             )}
             {ticket.resolution_notes && (
               <p className="md:col-span-2 xl:col-span-4">
-                <strong>Recorded resolution:</strong> {ticket.resolution_notes}
+                <strong>Internal recorded resolution:</strong> {ticket.resolution_notes}
               </p>
             )}
           </div>
@@ -1408,7 +1408,7 @@ export default function SupportTicketsPage(): React.ReactElement {
                   </p>
                   {entry.resolutionNotes && (
                     <p className="mt-2 rounded-md bg-[var(--color-bg)] p-3 text-sm text-[var(--color-text-secondary)]">
-                      <strong className="text-[var(--color-text)]">Recorded resolution:</strong> {entry.resolutionNotes}
+                       <strong className="text-[var(--color-text)]">Internal recorded resolution:</strong> {entry.resolutionNotes}
                     </p>
                   )}
                 </li>
@@ -1483,7 +1483,7 @@ export default function SupportTicketsPage(): React.ReactElement {
                   htmlFor="ticket-resolution-notes"
                   className="block text-sm font-medium text-[var(--color-text)] mb-1.5"
                 >
-                  {statusNeedsResolution ? 'Resolution and workflow note *' : 'Workflow note *'}
+                  {statusNeedsResolution ? 'Internal resolution and workflow note *' : 'Workflow note *'}
                 </label>
                 <textarea
                   id="ticket-resolution-notes"
@@ -1491,7 +1491,7 @@ export default function SupportTicketsPage(): React.ReactElement {
                   onChange={(e) => setResolutionNotes(e.target.value)}
                   rows={4}
                   maxLength={5000}
-                  placeholder="Explain why this status is correct in at least 10 characters. This remains in the audit record."
+                  placeholder="Explain what was done and why in at least 10 characters. This is internal and does not send a participant message."
                   className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                 />
                 <p className={`mt-1 text-right text-xs font-semibold ${resolutionNotes.trim().length < 10 ? 'text-amber-700' : 'text-emerald-700'}`}>

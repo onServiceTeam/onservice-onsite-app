@@ -483,7 +483,7 @@ How to work a ticket:
 1. Start with **Needs reply** across queue. It includes active cases with no public agent reply and cases whose latest public message came from the customer/provider. Assignment, status changes, priority changes, and internal notes do not clear it. Then find other work by ticket number, subject, customer/provider name, phone, email, provider business, or customer project title. Account, Booking 360, and Projects link back to their exact case views.
 2. Open it, confirm priority, and assign it from the active-agent list. Provider cases link to Provider 360; customer cases link to Customer 360; a project-linked customer case also returns to the exact planning record.
 3. Reply to the user, or post an internal note (internal notes are admin-only).
-4. Update status as you go. To mark `resolved` or `closed` you must add resolution notes of at least 10 characters.
+4. Update status as you go. To mark `resolved` or `closed` you must add an internal resolution note of at least 10 characters. It stays in the Admin audit record and is not sent to the participant. Send a separate public reply when the customer/provider needs the outcome.
 
 A support case can identify one related booking or one related planning project, never both. A project link is case context only. It does not assign a provider, create a booking, authorize a quote, or affect payment. Create the case on behalf of the customer who owns the project; the server rejects unrelated project/customer combinations.
 
