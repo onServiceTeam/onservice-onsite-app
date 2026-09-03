@@ -2887,3 +2887,38 @@ this implementation push; its Gates run `33750582881` passed, and the newer full
 CI verified that documentation with this implementation. No customer, provider,
 provider status, tier, booking, payment, audit row, database schema, master, or
 production record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BW: truthful provider-onboarding audit evidence
+
+The Audit Log labelled every `admin_actions` row as an Admin decision even
+though that table also retains provider-originated and system-originated
+operational actions. Provider application submission was therefore presented
+as if an administrator had performed it, and its destination opened only the
+generic Provider 360 workspace instead of the exact retained application event.
+
+UX-1175 renames the source and filter to the truthful, broader "Recorded action"
+language. OPS-434 attributes provider application submission to the provider
+actor rather than an administrator. UX-1176 routes a valid provider application
+action UUID to the owning Provider 360 Activity view, where the existing exact
+identifier contract renders only that retained row and refuses substitute
+evidence. Existing genuinely administrative decisions retain their Admin actor
+attribution and exact destinations.
+
+This slice changes presentation and evidence routing only. It does not approve
+or reject an application, change provider status or tier, grant a permission,
+alter a booking or payment, rewrite an audit row, or add an operational
+mutation.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. One focused API suite passes one test, four focused Admin rendered files
+pass seven tests, the expanded provider-admin API set passes 28 suites and 109
+tests, and every Admin test importing Provider 360 or Audit Log passes 90 files
+and 101 tests. Protected CI `33751876957` passed the full API, Admin, and Mobile
+suites, all three TypeScript checks, the Admin production build, and Docker
+image boot/liveness at commit `eeb1e742`. Protected Gates `33751876903` passed A
+through E and the `All gates passed` rollup at the same commit. The preceding
+documentation-only CI `33751707132` was superseded and cancelled by this
+implementation push; its Gates run `33751707130` passed, and the newer full CI
+verified that documentation with this implementation. No customer, provider,
+application state, booking, payment, audit row, database schema, master, or
+production record changed. Production synchronization remains blocked by E32.
