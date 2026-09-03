@@ -85,6 +85,8 @@ const ACTION_LABELS: Record<string, string> = {
   provider_staff_suspended: 'Provider staff suspended',
   provider_suspended: 'Provider suspended',
   provider_tier_changed: 'Provider tier changed',
+  reconciliation_alert_acknowledged: 'Reconciliation alert acknowledged',
+  reconciliation_run: 'Reconciliation snapshot created',
   refund_issued: 'Refund issued',
   review_response_updated: 'Provider review response updated',
   review_visibility_changed: 'Provider review visibility changed',
@@ -189,6 +191,13 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
       return { to: `/disputes/${id}`, label: 'Open Dispute 360' };
     case 'payout':
       return { to: `/payouts?payoutId=${id}`, label: 'Open exact payout' };
+    case 'reconciliation':
+      return UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/financials?tab=reconciliation&snapshotId=${id}`,
+            label: 'Open exact reconciliation snapshot',
+          }
+        : null;
     case 'support_ticket':
       return { to: `/support-tickets?ticketId=${id}`, label: 'Open support case' };
     case 'business':
@@ -430,7 +439,7 @@ export default function AuditLogPage(): React.ReactElement {
           <h1 className="mt-1 text-2xl font-bold text-[var(--color-text)]">Audit Log</h1>
           <p className="mt-1 max-w-3xl text-sm text-[var(--color-text-secondary)]">
             Reconstruct recorded admin decisions and selected system events, then open the customer,
-            provider, booking, support, dispute, payout, or company record that owns the event.
+            provider, booking, support, dispute, payout, reconciliation, or company record that owns the event.
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">

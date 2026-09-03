@@ -62,6 +62,7 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 const TAB_KEYS = new Set<TabKey>(TABS.map((tab) => tab.key));
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parseTab(value: string | null): TabKey {
   return value && TAB_KEYS.has(value as TabKey) ? (value as TabKey) : 'overview';
@@ -1255,20 +1256,36 @@ function phpInputToCentavos(raw: string): number | null {
   return Number.isSafeInteger(centavos) ? centavos : null;
 }
 
-function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactElement {
+function ReconciliationPanel({
+  isSuperAdmin,
+  snapshotId,
+  onSnapshotChange,
+}: {
+  isSuperAdmin: boolean;
+  snapshotId: string;
+  onSnapshotChange: (value: string) => void;
+}): React.ReactElement {
   const qc = useQueryClient();
   const [showRun, setShowRun] = useState(false);
   const [ackTarget, setAckTarget] = useState<ReconciliationRow | null>(null);
+  const invalidSnapshotId = Boolean(snapshotId && !UUID_REGEX.test(snapshotId));
 
   const q = useQuery({
-    queryKey: ['fin-reconciliation', 30],
+    queryKey: ['fin-reconciliation', snapshotId || 'recent'],
     queryFn: async () => {
+      if (snapshotId) {
+        const res = await api.get<ApiEnvelope<ReconciliationRow>>(
+          `/api/v1/admin/bir/reconciliation/${encodeURIComponent(snapshotId)}`,
+        );
+        return [normalizeReconciliationRow(res.data.data)];
+      }
       const res = await api.get<ApiEnvelope<ReconciliationRow[]>>(
         '/api/v1/admin/bir/reconciliation/recent',
         { params: { limit: 30 } },
       );
       return res.data.data.map(normalizeReconciliationRow);
     },
+    enabled: !invalidSnapshotId,
   });
 
   const [runBalance, setRunBalance] = useState('');
@@ -1287,7 +1304,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       setShowRun(false);
       setRunBalance('');
       setRunNotes('');
-      qc.invalidateQueries({ queryKey: ['fin-reconciliation', 30] });
+      qc.invalidateQueries({ queryKey: ['fin-reconciliation'] });
     },
     onError: (err) => {
       toast.error(`Failed: ${getErrorMessage(err)}`);
@@ -1307,7 +1324,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       toast.success('Acknowledged.');
       setAckTarget(null);
       setAckNote('');
-      qc.invalidateQueries({ queryKey: ['fin-reconciliation', 30] });
+      qc.invalidateQueries({ queryKey: ['fin-reconciliation'] });
     },
     onError: (err) => {
       toast.error(`Failed: ${getErrorMessage(err)}`);
@@ -1342,23 +1359,46 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-[var(--color-text)]">Recent Reconciliations</h2>
-        {isSuperAdmin && (
-          <Button onClick={() => setShowRun(true)}>Create reconciliation snapshot</Button>
-        )}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-base font-semibold text-[var(--color-text)]">
+            {snapshotId ? 'Exact Reconciliation Snapshot' : 'Recent Reconciliations'}
+          </h2>
+          {snapshotId && !invalidSnapshotId && (
+            <p className="mt-1 break-all font-mono text-xs text-[var(--color-text-secondary)]">
+              Snapshot {snapshotId}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {snapshotId && (
+            <Button variant="outline" onClick={() => onSnapshotChange('')}>
+              Back to recent reconciliations
+            </Button>
+          )}
+          {isSuperAdmin && !snapshotId && (
+            <Button onClick={() => setShowRun(true)}>Create reconciliation snapshot</Button>
+          )}
+        </div>
       </div>
 
-      {q.isLoading ? (
+      {invalidSnapshotId ? (
+        <ErrorState
+          title="Invalid reconciliation snapshot link"
+          description="The snapshot identifier must be a complete UUID. Return to recent reconciliations instead of treating this as a missing or cleared record."
+        />
+      ) : q.isLoading ? (
         <LoadingState />
       ) : q.isError ? (
         <ErrorState
-          title="Reconciliation history unavailable"
-          description={`${getErrorMessage(q.error)} Do not infer that discrepancies are clear.`}
+          title={snapshotId ? 'Reconciliation snapshot unavailable' : 'Reconciliation history unavailable'}
+          description={`${getErrorMessage(q.error)} ${snapshotId
+            ? 'Do not infer that the requested evidence does not exist or that its discrepancy is clear.'
+            : 'Do not infer that discrepancies are clear.'}`}
           action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry reconciliation</Button>}
         />
       ) : !q.data || q.data.length === 0 ? (
-        <EmptyState title="No reconciliation snapshots yet" />
+        <EmptyState title={snapshotId ? 'Reconciliation snapshot not found' : 'No reconciliation snapshots yet'} />
       ) : (
         <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 overflow-x-auto">
           <table className="w-full text-sm">
@@ -1375,7 +1415,10 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
             <tbody>
               {q.data.map((row) => (
                 <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
-                  <td className="py-2 px-3 text-[var(--color-text)]">{formatDate(row.snapshotDate)}</td>
+                  <td className="py-2 px-3 text-[var(--color-text)]">
+                    {formatDate(row.snapshotDate)}
+                    <p className="mt-1 break-all font-mono text-[11px] text-[var(--color-text-tertiary)]">Snapshot {row.id}</p>
+                  </td>
                   <td className="py-2 px-3 text-right font-medium">{row.paymongoBalance == null ? 'Not supplied' : formatCurrency(row.paymongoBalance)}</td>
                   <td className="py-2 px-3 text-right">{formatCurrency(row.expectedTotal)}</td>
                   <td className={`py-2 px-3 text-right font-semibold ${row.discrepancy === 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -2227,6 +2270,7 @@ export default function FinancialsPage(): React.ReactElement {
   const tab = parseTab(searchParams.get('tab'));
   const intentSearch = searchParams.get('intentSearch')?.trim() ?? '';
   const retrySearch = searchParams.get('retrySearch')?.trim() ?? '';
+  const reconciliationSnapshotId = searchParams.get('snapshotId')?.trim() ?? '';
   const receiptSearch = normalizeReceiptSearch({
     orNumber: searchParams.get('receiptOr') ?? '',
     customerName: searchParams.get('receiptCustomer') ?? '',
@@ -2266,6 +2310,7 @@ export default function FinancialsPage(): React.ReactElement {
         params.delete('receiptTo');
         params.delete('receiptLimit');
       }
+      if (nextTab !== 'reconciliation') params.delete('snapshotId');
       return params;
     });
   };
@@ -2309,6 +2354,16 @@ export default function FinancialsPage(): React.ReactElement {
       }
       if (value.limit !== 50) params.set('receiptLimit', String(value.limit));
       else params.delete('receiptLimit');
+      return params;
+    });
+  };
+
+  const selectReconciliationSnapshot = (value: string): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'reconciliation');
+      if (value) params.set('snapshotId', value);
+      else params.delete('snapshotId');
       return params;
     });
   };
@@ -2364,7 +2419,13 @@ export default function FinancialsPage(): React.ReactElement {
       {tab === 'commission' && <CommissionControlsPanel />}
       {tab === 'payouts' && <PayoutsPanel />}
       {tab === 'guarantee' && <GuaranteeFundPanel />}
-      {tab === 'reconciliation' && <ReconciliationPanel isSuperAdmin={isSuperAdmin} />}
+      {tab === 'reconciliation' && (
+        <ReconciliationPanel
+          isSuperAdmin={isSuperAdmin}
+          snapshotId={reconciliationSnapshotId}
+          onSnapshotChange={selectReconciliationSnapshot}
+        />
+      )}
       {tab === 'bir' && <BirReportsPanel isSuperAdmin={isSuperAdmin} />}
       {tab === 'receipts' && (
         <ReceiptsPanel
