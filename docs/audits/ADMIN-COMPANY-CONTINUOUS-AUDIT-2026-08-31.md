@@ -2846,3 +2846,44 @@ CI verified that documentation with this implementation. No customer, provider,
 account status, fraud flag, booking, payment, audit row, database schema, master,
 or production record changed. Production synchronization remains blocked by
 E32.
+
+## Checkpoint BV: exact Provider 360 account-decision evidence
+
+Provider approval, rejection, suspension, reactivation, and tier decisions
+retained their canonical `admin_actions` UUIDs in Audit Log, but the owning
+Provider 360 page opened only its generic Profile and Activity exposed a bounded
+mixed history. An older decision could disappear from that history, and a
+decision owned by another provider must never be accepted as substitute
+evidence.
+
+UX-1170 routes these provider-account decisions from Audit Log to the exact
+Provider 360 Activity target. UX-1171 requests and marks only the matching row.
+UX-1172 rejects a malformed browser target before any activity request.
+UX-1173 shows a durable no-substitute state when the requested decision is not
+returned for that provider. UX-1174 clears only the stale `adminActionId` when
+the operator leaves Activity and preserves unrelated support URL context.
+OPS-432 adds the optional exact identifier to the existing provider-activity
+route and forces a one-row request. OPS-433 applies the identifier after the
+complete provider ownership relation, including the provider account, login
+user, staff, documents, certifications, notes, service-area requests, and
+reviews. SEC-066 rejects malformed identifiers before service or database
+access.
+
+The ordinary mixed provider activity contract remains unchanged when no exact
+decision is requested. This slice is read-only. It does not approve, reject,
+suspend, reactivate, change a tier, notify, modify a booking or payment, add an
+Admin power, or rewrite historical audit evidence.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Three focused API suites pass three tests and five focused Admin rendered
+files pass five tests. The expanded provider-admin API set passes 27 suites and
+108 tests, and every Admin test importing Provider 360 or Audit Log passes 88
+files and 99 tests. Protected CI `33750618032` passed the full API, Admin, and
+Mobile suites, all three TypeScript checks, the Admin production build, and
+Docker image boot/liveness at commit `5d5e7032`. Protected Gates `33750618027`
+passed A through E and the `All gates passed` rollup at the same commit. The
+preceding documentation-only CI `33750583162` was superseded and cancelled by
+this implementation push; its Gates run `33750582881` passed, and the newer full
+CI verified that documentation with this implementation. No customer, provider,
+provider status, tier, booking, payment, audit row, database schema, master, or
+production record changed. Production synchronization remains blocked by E32.
