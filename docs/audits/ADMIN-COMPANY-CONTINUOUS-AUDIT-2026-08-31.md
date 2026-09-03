@@ -2652,3 +2652,46 @@ implementation push; its Gates run `33742464825` passed, and the newer full CI
 verified that documentation with this implementation. No customer, provider,
 note, booking, payment, audit row, database schema, master, or production
 record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BP: exact Provider 360 review audit evidence
+
+Provider-review evidence retained both the review UUID and a canonical owning
+provider UUID, but the Audit Log reopened only the provider's general Reviews
+tab. An operator investigating a rating or moderation concern could therefore
+land beside many reviews without a truthful indication of which retained
+customer review produced the event.
+
+OPS-426 extends the existing provider-review read contract with an optional
+exact `reviewId`, validating it as a UUID before service access and using a
+single-row first-page request. OPS-427 applies both the provider UUID and review
+UUID to the count and data queries, so an identifier owned by another provider
+cannot be selected. SEC-063 preserves the existing provider-scoped paginated
+contract when no exact review is requested. UX-1154 carries the valid review
+UUID from Audit Log into Provider 360 and renders only the exact matching
+provider-owned review with a visible selected state. UX-1155 rejects malformed
+review targets before requesting review data. UX-1156 shows no substitute when
+the API does not return the requested provider-owned review. UX-1157 clears
+only the stale `reviewId` when the operator leaves Reviews, preserving
+unrelated support URL context. The prior UX-1082 provider-workspace regression
+now verifies the exact Audit Log destination.
+
+This slice reuses the existing provider-review endpoint and existing Admin
+authorization. Exact mode reports the exact lookup count rather than
+mislabeling the provider's lifetime review total, and it hides irrelevant
+pagination. It does not expose reviewer contact data, change review content or
+ratings, alter provider aggregates, add moderation powers, or change historical
+audit evidence.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Three focused API suites pass three tests; nine focused Admin rendered
+files pass nine tests. The expanded affected API set passes 24 suites and 105
+tests, and the expanded Admin set passes 81 files and 92 tests. Protected CI
+`33743931496` passed the full API, Admin, and Mobile suites, all three
+TypeScript checks, the Admin production build, and Docker image boot/liveness
+at commit `58ae2ee6`. Protected Gates `33743931487` passed A through E and the
+`All gates passed` rollup at the same commit. The preceding BO
+documentation-only CI `33743710932` was superseded and cancelled by this
+implementation push; its Gates run `33743710968` passed, and the newer full CI
+verified that documentation with this implementation. No customer, provider,
+review, booking, payment, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
