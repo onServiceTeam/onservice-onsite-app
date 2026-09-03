@@ -65,9 +65,9 @@ export default function CatalogPage(): React.ReactElement {
   const rawSubcategoryId = searchParams.get('subcategoryId')?.trim() ?? '';
   const rawAddonId = searchParams.get('addonId')?.trim() ?? '';
   const rawView = searchParams.get('view')?.trim() ?? '';
-  const requestedCategoryId = UUID_REGEX.test(rawCategoryId) ? rawCategoryId : '';
-  const requestedSubcategoryId = UUID_REGEX.test(rawSubcategoryId) ? rawSubcategoryId : '';
-  const requestedAddonId = UUID_REGEX.test(rawAddonId) ? rawAddonId : '';
+  const requestedCategoryId = UUID_REGEX.test(rawCategoryId) ? rawCategoryId.toLowerCase() : '';
+  const requestedSubcategoryId = UUID_REGEX.test(rawSubcategoryId) ? rawSubcategoryId.toLowerCase() : '';
+  const requestedAddonId = UUID_REGEX.test(rawAddonId) ? rawAddonId.toLowerCase() : '';
   const catalogParamError = rawCategoryId && !requestedCategoryId
     ? 'The service category ID must be a complete UUID.'
     : rawSubcategoryId && !requestedSubcategoryId
