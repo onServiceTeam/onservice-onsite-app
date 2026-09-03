@@ -2807,3 +2807,42 @@ passed A through E and the `All gates passed` rollup at the same commit. No
 customer, provider, wallet balance, booking, payment, audit row, database
 schema, master, or production record changed. Production synchronization
 remains blocked by E32.
+
+## Checkpoint BU: exact Customer 360 account-decision evidence
+
+Customer suspension, reactivation, and fraud-review decisions retained their
+canonical `admin_actions` UUIDs in Audit Log, but Customer 360 Activity exposed
+only a bounded mixed history. An older decision could disappear from that
+history, and a decision owned by another customer must never be accepted as
+substitute evidence.
+
+UX-1161 now carries a valid Admin decision UUID from Audit Log into Customer
+360 Activity. UX-1166 requests and marks only the exact matching activity row.
+UX-1167 rejects a malformed browser target before any activity request.
+UX-1168 shows a durable no-substitute state when the requested decision is not
+returned for that customer. UX-1169 clears only the stale `adminActionId` when
+the operator leaves Activity and preserves unrelated support URL context.
+OPS-430 adds the optional exact identifier to the existing activity route and
+forces a one-row request. OPS-431 scopes the database read by both customer
+target and Admin decision UUID. SEC-065 rejects malformed identifiers before
+service or database access.
+
+The ordinary mixed customer activity contract remains unchanged when no exact
+decision is requested. This slice is read-only. It does not suspend, reactivate,
+flag, notify, change a profile, modify a booking or payment, add an Admin power,
+or rewrite historical audit evidence.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Three focused API suites pass three tests and five focused Admin rendered
+files pass five tests. The expanded customer-admin API set passes 23 suites and
+63 tests, and every Admin test importing Customer 360 or Audit Log passes 66
+files and 75 tests. Protected CI `33749524928` passed the full API, Admin, and
+Mobile suites, all three TypeScript checks, the Admin production build, and
+Docker image boot/liveness at commit `70421315`. Protected Gates `33749524899`
+passed A through E and the `All gates passed` rollup at the same commit. The
+preceding documentation-only CI `33749161293` was superseded and cancelled by
+this implementation push; its Gates run `33749161292` passed, and the newer full
+CI verified that documentation with this implementation. No customer, provider,
+account status, fraud flag, booking, payment, audit row, database schema, master,
+or production record changed. Production synchronization remains blocked by
+E32.
