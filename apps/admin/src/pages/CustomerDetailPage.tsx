@@ -925,9 +925,12 @@ export function PaymentsTab({
   const queryClient = useQueryClient();
   const [amountPesos, setAmountPesos] = useState('');
   const [reason, setReason] = useState('');
-  const requestedTransactionId = exactTransactionId.trim();
-  const hasExactTransaction = requestedTransactionId.length > 0;
-  const hasValidExactTransaction = UUID_REGEX.test(requestedTransactionId);
+  const rawTransactionId = exactTransactionId.trim();
+  const hasExactTransaction = rawTransactionId.length > 0;
+  const hasValidExactTransaction = UUID_REGEX.test(rawTransactionId);
+  const requestedTransactionId = hasValidExactTransaction
+    ? rawTransactionId.toLowerCase()
+    : rawTransactionId;
   const parsedAmount = Number(amountPesos);
   const adjustmentCentavos = Number.isFinite(parsedAmount) && parsedAmount !== 0
     ? Math.round(parsedAmount * 100)

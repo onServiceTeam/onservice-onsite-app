@@ -76,9 +76,10 @@ export default function PayoutsPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
   const statusFilter = parseStatus(searchParams.get('status'));
-  const payoutId = searchParams.get('payoutId')?.trim() ?? '';
-  const hasExactPayout = payoutId.length > 0;
-  const exactPayoutMalformed = hasExactPayout && !UUID_REGEX.test(payoutId);
+  const rawPayoutId = searchParams.get('payoutId')?.trim() ?? '';
+  const hasExactPayout = rawPayoutId.length > 0;
+  const exactPayoutMalformed = hasExactPayout && !UUID_REGEX.test(rawPayoutId);
+  const payoutId = exactPayoutMalformed ? rawPayoutId : rawPayoutId.toLowerCase();
   const providerIdFilter = searchParams.get('providerId')?.trim() ?? '';
   const directorySearch = searchParams.get('search')?.trim() ?? '';
   const [searchInput, setSearchInput] = useState(directorySearch);
