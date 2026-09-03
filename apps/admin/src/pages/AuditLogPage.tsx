@@ -32,6 +32,8 @@ interface AuditEntry {
   targetTaxMonth?: number | null;
   targetCategoryId?: string | null;
   targetSubcategoryId?: string | null;
+  targetConversationId?: string | null;
+  targetMessageId?: string | null;
   action: string;
   entityType: string;
   entityId: string | null;
@@ -249,6 +251,19 @@ function linkedCatalogId(
   return null;
 }
 
+function linkedCommunicationId(
+  entry: AuditEntry,
+  canonical: string | null | undefined,
+  detailKey: 'conversationId' | 'messageId',
+): string | null {
+  if (canonical && UUID_REGEX.test(canonical)) return canonical;
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const value = values?.[detailKey];
+    if (typeof value === 'string' && UUID_REGEX.test(value)) return value;
+  }
+  return null;
+}
+
 function searchedConsentUserId(entry: AuditEntry): string | null {
   if (entry.action !== 'consent_search') return null;
   for (const values of [entry.newValues, entry.oldValues]) {
@@ -287,6 +302,30 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
           label: 'Open exact consent evidence lookup',
         }
       : { to: '/privacy', label: 'Open consent evidence lookup' };
+  }
+  if (
+    entry.action === 'conversation_viewed'
+    || entry.action === 'message_redacted'
+    || entry.action === 'message_flag_reviewed'
+    || entry.action === 'admin_message_sent'
+  ) {
+    const conversationId = linkedCommunicationId(
+      entry,
+      entry.targetConversationId,
+      'conversationId',
+    );
+    const messageId = linkedCommunicationId(entry, entry.targetMessageId, 'messageId');
+    if (conversationId) {
+      const params = new URLSearchParams({ conversationId });
+      if (entry.entityType === 'booking' && entry.entityId && UUID_REGEX.test(entry.entityId)) {
+        params.set('bookingId', entry.entityId);
+      }
+      if (messageId) params.set('messageId', messageId);
+      return {
+        to: `/communications?${params.toString()}`,
+        label: messageId ? 'Open exact conversation message' : 'Open exact conversation',
+      };
+    }
   }
   if (!entry.entityId) return null;
   const id = encodeURIComponent(entry.entityId);

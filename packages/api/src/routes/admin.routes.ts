@@ -2384,6 +2384,8 @@ interface AuditLogRow {
   target_tax_month: number | null;
   target_category_id: string | null;
   target_subcategory_id: string | null;
+  target_conversation_id: string | null;
+  target_message_id: string | null;
 }
 
 router.get(
@@ -2573,7 +2575,60 @@ router.get(
                       FROM service_addons addon
                      WHERE addon.id = combined.entity_id
                   )
-                END AS target_subcategory_id
+                END AS target_subcategory_id,
+                CASE WHEN combined.action IN (
+                  'conversation_viewed',
+                  'message_redacted',
+                  'message_flag_reviewed',
+                  'admin_message_sent'
+                ) THEN COALESCE(
+                  (
+                    SELECT message.conversation_id
+                      FROM messages message
+                      JOIN conversations conversation ON conversation.id = message.conversation_id
+                     WHERE message.id::text = combined.new_values->>'messageId'
+                       AND (
+                         combined.entity_type <> 'booking'
+                         OR conversation.booking_id = combined.entity_id
+                       )
+                     LIMIT 1
+                  ),
+                  (
+                    SELECT conversation.id
+                      FROM conversations conversation
+                     WHERE conversation.id::text = combined.new_values->>'conversationId'
+                       AND (
+                         combined.entity_type <> 'booking'
+                         OR conversation.booking_id = combined.entity_id
+                       )
+                     LIMIT 1
+                  ),
+                  (
+                    SELECT message.conversation_id
+                      FROM messages message
+                     WHERE combined.entity_type = 'message'
+                       AND message.id = combined.entity_id
+                     LIMIT 1
+                  )
+                ) END AS target_conversation_id,
+                CASE WHEN combined.action IN (
+                  'message_redacted',
+                  'message_flag_reviewed',
+                  'admin_message_sent'
+                ) THEN COALESCE(
+                  (
+                    SELECT message.id
+                      FROM messages message
+                      JOIN conversations conversation ON conversation.id = message.conversation_id
+                     WHERE message.id::text = combined.new_values->>'messageId'
+                       AND (
+                         combined.entity_type <> 'booking'
+                         OR conversation.booking_id = combined.entity_id
+                       )
+                     LIMIT 1
+                  ),
+                  CASE WHEN combined.entity_type = 'message' THEN combined.entity_id END
+                ) END AS target_message_id
            FROM (${baseRelation}) combined
            LEFT JOIN users u ON u.id = combined.user_id
            LEFT JOIN users target_user
@@ -2610,6 +2665,8 @@ router.get(
           targetTaxMonth: r.target_tax_month,
           targetCategoryId: r.target_category_id,
           targetSubcategoryId: r.target_subcategory_id,
+          targetConversationId: r.target_conversation_id,
+          targetMessageId: r.target_message_id,
           action: r.action,
           entityType: r.entity_type,
           entityId: r.entity_id,

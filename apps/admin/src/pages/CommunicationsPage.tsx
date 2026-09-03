@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { MessageSquare, Flag, AlertTriangle, Search, EyeOff, CheckCircle2 } from '@/components/icons';
@@ -67,6 +67,8 @@ interface Thread {
 
 type TabId = 'all' | 'flagged' | 'reported' | 'queue';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function fmtTime(iso: string | null): string {
   if (!iso) return '';
   return new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' });
@@ -77,12 +79,30 @@ function fmtTime(iso: string | null): string {
 export default function CommunicationsPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const bookingFilter = (searchParams.get('bookingId') ?? '').trim();
-  const [tab, setTab] = useState<TabId>(() => bookingFilter ? 'all' : 'queue');
+  const rawConversationId = (searchParams.get('conversationId') ?? '').trim();
+  const rawMessageId = (searchParams.get('messageId') ?? '').trim();
+  const requestedConversationId = UUID_REGEX.test(rawConversationId) ? rawConversationId : '';
+  const requestedMessageId = UUID_REGEX.test(rawMessageId) ? rawMessageId : '';
+  const communicationParamError = rawConversationId && !requestedConversationId
+    ? 'The conversation ID must be a complete UUID.'
+    : rawMessageId && !requestedMessageId
+      ? 'The message ID must be a complete UUID.'
+      : requestedMessageId && !requestedConversationId
+        ? 'A message evidence link must include its conversation ID.'
+        : '';
+  const [tab, setTab] = useState<TabId>(() => (
+    bookingFilter || requestedConversationId ? 'all' : 'queue'
+  ));
   const [search, setSearch] = useState(() => bookingFilter);
   const [searchDraft, setSearchDraft] = useState(() => bookingFilter);
   const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => (
+    communicationParamError ? null : requestedConversationId || null
+  ));
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(() => (
+    communicationParamError ? null : requestedMessageId || null
+  ));
+  const previousBookingFilter = useRef(bookingFilter);
 
   const statsQuery = useQuery({
     queryKey: ['admin-comms-stats'],
@@ -100,9 +120,45 @@ export default function CommunicationsPage(): React.ReactElement {
     setSearch(bookingFilter);
     setSearchDraft(bookingFilter);
     setPage(1);
+    if (previousBookingFilter.current !== bookingFilter) {
+      setSelectedId(null);
+      setSelectedMessageId(null);
+    }
+    previousBookingFilter.current = bookingFilter;
+  }, [bookingFilter]);
+
+  useEffect(() => {
+    if (communicationParamError) {
+      setSelectedId(null);
+      setSelectedMessageId(null);
+      return;
+    }
+    if (requestedConversationId) {
+      setTab('all');
+      setSelectedId(requestedConversationId);
+      setSelectedMessageId(requestedMessageId || null);
+    }
+  }, [communicationParamError, requestedConversationId, requestedMessageId]);
+
+  function clearCommunicationSelection(): void {
+    const next = new URLSearchParams(searchParams);
+    next.delete('conversationId');
+    next.delete('messageId');
+    setSearchParams(next, { replace: true });
     setSelectedId(null);
     setSelectedMessageId(null);
-  }, [bookingFilter]);
+  }
+
+  function selectCommunication(conversationId: string, messageId: string | null): void {
+    if (rawConversationId || rawMessageId) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('conversationId');
+      next.delete('messageId');
+      setSearchParams(next, { replace: true });
+    }
+    setSelectedId(conversationId);
+    setSelectedMessageId(messageId);
+  }
 
   return (
     <div className="space-y-5">
@@ -133,6 +189,8 @@ export default function CommunicationsPage(): React.ReactElement {
               onClick={() => {
                 const next = new URLSearchParams(searchParams);
                 next.delete('bookingId');
+                next.delete('conversationId');
+                next.delete('messageId');
                 setSearchParams(next, { replace: true });
                 setSearch('');
                 setSearchDraft('');
@@ -144,6 +202,26 @@ export default function CommunicationsPage(): React.ReactElement {
           </div>
         </div>
       )}
+
+      {communicationParamError ? (
+        <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900">
+          <p className="font-semibold">Conversation evidence link unavailable</p>
+          <p className="mt-1">{communicationParamError}</p>
+          <Button type="button" size="sm" variant="outline" className="mt-3" onClick={clearCommunicationSelection}>
+            Remove evidence selection
+          </Button>
+        </div>
+      ) : requestedConversationId ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            <span className="font-semibold">Selected audit evidence</span>{' '}
+            <span className="font-mono text-xs">{requestedMessageId || requestedConversationId}</span>
+          </p>
+          <Button type="button" size="sm" variant="outline" onClick={clearCommunicationSelection}>
+            Clear selection
+          </Button>
+        </div>
+      ) : null}
 
       {/* Stats */}
       {statsQuery.isError ? (
@@ -181,7 +259,7 @@ export default function CommunicationsPage(): React.ReactElement {
           <button
             key={id}
             type="button"
-            onClick={() => { setTab(id); setPage(1); setSelectedId(null); setSelectedMessageId(null); }}
+            onClick={() => { clearCommunicationSelection(); setTab(id); setPage(1); }}
             className={`min-h-11 shrink-0 px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${
               tab === id
                 ? 'border-[var(--color-secondary)] text-[var(--color-text)] font-medium'
@@ -200,7 +278,7 @@ export default function CommunicationsPage(): React.ReactElement {
             <form
               role="search"
               className="flex gap-2"
-              onSubmit={(event) => { event.preventDefault(); setSearch(searchDraft.trim()); setPage(1); setSelectedId(null); }}
+              onSubmit={(event) => { event.preventDefault(); setSearch(searchDraft.trim()); setPage(1); clearCommunicationSelection(); }}
             >
               <div className="relative min-w-0 flex-1">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" />
@@ -214,7 +292,7 @@ export default function CommunicationsPage(): React.ReactElement {
               </div>
               <Button type="submit" size="sm">Search</Button>
               {(search || searchDraft) && (
-                <Button type="button" size="sm" variant="outline" onClick={() => { setSearch(''); setSearchDraft(''); setPage(1); setSelectedId(null); }}>
+                <Button type="button" size="sm" variant="outline" onClick={() => { setSearch(''); setSearchDraft(''); setPage(1); clearCommunicationSelection(); }}>
                   Clear
                 </Button>
               )}
@@ -223,13 +301,12 @@ export default function CommunicationsPage(): React.ReactElement {
           {tab === 'queue' ? (
             <QueueList
               onSelect={(conversationId, messageId) => {
-                setSelectedId(conversationId);
-                setSelectedMessageId(messageId);
+                selectCommunication(conversationId, messageId);
               }}
               selectedId={selectedId}
               selectedMessageId={selectedMessageId}
               page={page}
-              onPageChange={(nextPage) => { setPage(nextPage); setSelectedId(null); setSelectedMessageId(null); }}
+              onPageChange={(nextPage) => { setPage(nextPage); clearCommunicationSelection(); }}
             />
           ) : (
             <ConversationList
@@ -237,10 +314,9 @@ export default function CommunicationsPage(): React.ReactElement {
               search={search}
               autoSelectBookingId={bookingFilter || undefined}
               page={page}
-              onPageChange={(nextPage) => { setPage(nextPage); setSelectedId(null); setSelectedMessageId(null); }}
+              onPageChange={(nextPage) => { setPage(nextPage); clearCommunicationSelection(); }}
               onSelect={(conversationId) => {
-                setSelectedId(conversationId);
-                setSelectedMessageId(null);
+                selectCommunication(conversationId, null);
               }}
               selectedId={selectedId}
             />
@@ -250,7 +326,11 @@ export default function CommunicationsPage(): React.ReactElement {
         {/* Right: thread */}
         <div>
           {selectedId ? (
-            <ConversationThread conversationId={selectedId} focusMessageId={selectedMessageId} />
+            <ConversationThread
+              conversationId={selectedId}
+              focusMessageId={selectedMessageId}
+              expectedBookingId={requestedConversationId ? bookingFilter || null : null}
+            />
           ) : (
             <Card className="p-8">
               <EmptyState
@@ -454,9 +534,11 @@ function QueueList({
 function ConversationThread({
   conversationId,
   focusMessageId,
+  expectedBookingId,
 }: {
   conversationId: string;
   focusMessageId: string | null;
+  expectedBookingId: string | null;
 }): React.ReactElement {
   const queryClient = useQueryClient();
   const [redactingId, setRedactingId] = useState<string | null>(null);
@@ -529,6 +611,30 @@ function ConversationThread({
   );
 
   const thread = q.data;
+  if (thread.id !== conversationId) {
+    return (
+      <ErrorState
+        title="Conversation evidence mismatch"
+        description="The returned conversation does not match the selected audit record. No conversation content is shown."
+      />
+    );
+  }
+  if (expectedBookingId && thread.bookingId !== expectedBookingId) {
+    return (
+      <ErrorState
+        title="Conversation evidence mismatch"
+        description="The selected conversation does not belong to the booking recorded in this link. No conversation content is shown."
+      />
+    );
+  }
+  if (focusMessageId && !thread.messages.some((message) => message.id === focusMessageId)) {
+    return (
+      <ErrorState
+        title="Message evidence unavailable"
+        description="The selected message is not present in the retained conversation. No different message has been substituted."
+      />
+    );
+  }
 
   return (
     <Card className="p-0 overflow-hidden">
