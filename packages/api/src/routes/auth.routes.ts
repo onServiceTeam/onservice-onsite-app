@@ -504,6 +504,7 @@ router.post(
     try {
       const clientIp = getClientIp(req);
       const { email, password } = req.body;
+      const accountEmail = email.toLowerCase().trim();
 
       // Account-scoped brute-force lockout, independent of source IP. The IP
       // limiter + IP auto-block do nothing against an attacker rotating source
@@ -514,7 +515,6 @@ router.post(
       // relaxed-test flag the same way checkOtpLockout does so QA isn't blocked.
       const ADMIN_LOGIN_LOCKOUT_THRESHOLD = 8;
       if (!platformConfig.rateLimitsRelaxed) {
-        const accountEmail = email.toLowerCase().trim();
         const failed = await db.query<{ count: string }>(
           `SELECT COUNT(*)::text AS count FROM login_attempts
            WHERE phone = $1 AND attempt_type = 'admin_login' AND success = FALSE
@@ -552,12 +552,12 @@ router.post(
                 session_version,
                 COALESCE(must_rotate_password, FALSE) AS must_rotate_password
          FROM users WHERE email = $1 AND role IN ('admin', 'super_admin', 'dpo')`,
-        [email.toLowerCase().trim()],
+        [accountEmail],
       );
 
       if (result.rows.length === 0) {
         await securityService.recordLoginAttempt({
-          phone: email,
+          phone: accountEmail,
           ipAddress: clientIp,
           attemptType: 'admin_login',
           success: false,
@@ -566,7 +566,7 @@ router.post(
         await securityService.logSecurityEvent({
           eventType: 'admin_login_failed',
           ipAddress: clientIp,
-          metadata: { email, reason: 'user_not_found' },
+          metadata: { email: accountEmail, reason: 'user_not_found' },
         });
         throw createAppError('Invalid email or password.', 401);
       }
@@ -585,7 +585,7 @@ router.post(
       const valid = verifyOutcome.valid;
       if (!valid) {
         await securityService.recordLoginAttempt({
-          phone: email,
+          phone: accountEmail,
           ipAddress: clientIp,
           attemptType: 'admin_login',
           success: false,
@@ -595,7 +595,7 @@ router.post(
           userId: user.id,
           eventType: 'admin_login_failed',
           ipAddress: clientIp,
-          metadata: { email, reason: 'invalid_password' },
+          metadata: { email: accountEmail, reason: 'invalid_password' },
         });
         throw createAppError('Invalid email or password.', 401);
       }
@@ -621,7 +621,7 @@ router.post(
         process.env.ADMIN_DISABLE_2FA === '1' || process.env.ADMIN_DISABLE_2FA === 'true';
       if (twoFaDisabled) {
         logger.warn('ADMIN_DISABLE_2FA is active — admin login is password-only', {
-          email, nodeEnv: process.env.NODE_ENV,
+          email: accountEmail, nodeEnv: process.env.NODE_ENV,
         });
       }
 
@@ -654,7 +654,7 @@ router.post(
           userId: user.id,
           eventType: 'admin_login_2fa_required',
           ipAddress: clientIp,
-          metadata: { email },
+          metadata: { email: accountEmail },
         });
 
         res.json({
@@ -697,7 +697,7 @@ router.post(
           userId: user.id,
           eventType: 'admin_login_2fa_setup_required',
           ipAddress: clientIp,
-          metadata: { email },
+          metadata: { email: accountEmail },
         });
 
         res.json({
@@ -724,7 +724,7 @@ router.post(
       );
 
       await securityService.recordLoginAttempt({
-        phone: email,
+        phone: accountEmail,
         ipAddress: clientIp,
         attemptType: 'admin_login',
         success: true,
@@ -734,7 +734,7 @@ router.post(
         userId: user.id,
         eventType: 'admin_login',
         ipAddress: clientIp,
-        metadata: { email },
+        metadata: { email: accountEmail },
       });
 
       logger.info('Admin login', { userId: user.id, email: user.email });
