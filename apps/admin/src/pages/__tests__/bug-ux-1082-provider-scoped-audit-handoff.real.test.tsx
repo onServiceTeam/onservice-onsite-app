@@ -55,7 +55,12 @@ it('Bug UX-1082 — provider-scoped audit targets reopen the correct durable Pro
         createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z',
         user: { id: 'provider-user-1', fullName: 'Ramil Santos', phone: 'masked', email: null,
           contactMasked: true, avatarUrl: null, isVerified: true, isActive: true, lastLoginAt: null },
-        documents: {}, categories: [], services: [], serviceAreas: [], certifications: [], portfolio: [],
+        documents: {}, categories: [], services: [], serviceAreas: [], certifications: [{
+          id: CERT_ID, name: 'Electrical Installation NC II', issuingBody: 'TESDA',
+          certificateNumber: 'TESDA-42', issuedDate: '2025-01-01', expiryDate: '2030-01-01',
+          isVerified: true, verifiedAt: '2026-08-01T00:00:00.000Z', hasDocument: true,
+          documentUrl: '/private/certificate', createdAt: '2025-01-01T00:00:00.000Z',
+        }], portfolio: [],
       } } };
     }
     throw new Error(`Unexpected GET ${url}`);
@@ -73,12 +78,13 @@ it('Bug UX-1082 — provider-scoped audit targets reopen the correct durable Pro
     </QueryClientProvider>,
   );
 
-  const certificationLink = await screen.findByRole('link', { name: /Open provider certifications/ });
-  expect(certificationLink).toHaveAttribute('href', `/providers/${PROVIDER_ID}?tab=certifications`);
+  const certificationLink = await screen.findByRole('link', { name: /Open exact provider certification/ });
+  expect(certificationLink).toHaveAttribute('href', `/providers/${PROVIDER_ID}?tab=certifications&certificationId=${CERT_ID}`);
   expect(screen.getByRole('link', { name: /Open provider support notes/ })).toHaveAttribute('href', `/providers/${PROVIDER_ID}?tab=notes`);
   expect(screen.getByRole('link', { name: /Open provider reviews/ })).toHaveAttribute('href', `/providers/${PROVIDER_ID}?tab=reviews`);
 
   fireEvent.click(certificationLink);
   expect(await screen.findByRole('tab', { name: 'Certifications' })).toHaveAttribute('data-state', 'active');
-  expect(screen.getByText('No certifications')).toBeVisible();
+  expect(screen.getByText('Exact certification evidence')).toBeVisible();
+  expect(screen.getByText('Electrical Installation NC II')).toBeVisible();
 });

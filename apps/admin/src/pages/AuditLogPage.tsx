@@ -476,12 +476,17 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
     }
     case 'provider_certification': {
       const providerId = linkedProviderId(entry);
-      return providerId
-        ? {
-            to: `/providers/${encodeURIComponent(providerId)}?tab=certifications`,
-            label: 'Open provider certifications',
-          }
-        : null;
+      if (!providerId) return null;
+      const params = new URLSearchParams({ tab: 'certifications' });
+      if (UUID_REGEX.test(entry.entityId)) {
+        params.set('certificationId', entry.entityId);
+      }
+      return {
+        to: `/providers/${encodeURIComponent(providerId)}?${params.toString()}`,
+        label: UUID_REGEX.test(entry.entityId)
+          ? 'Open exact provider certification'
+          : 'Open provider certifications',
+      };
     }
     case 'provider_note': {
       const providerId = linkedProviderId(entry);

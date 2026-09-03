@@ -229,6 +229,7 @@ interface Note {
 
 const TABS = ['profile', 'certifications', 'jobs', 'financials', 'reviews', 'staff', 'disputes', 'activity', 'notes'] as const;
 type TabId = (typeof TABS)[number];
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parseProviderTab(value: string | null): TabId {
   return TABS.includes(value as TabId) ? value as TabId : 'profile';
@@ -299,12 +300,22 @@ export default function ProviderDetailPage(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = parseProviderTab(searchParams.get('tab'));
+  const certificationIdFilter = searchParams.get('certificationId')?.trim() ?? '';
 
   const selectTab = (tab: TabId): void => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       if (tab === 'profile') next.delete('tab');
       else next.set('tab', tab);
+      if (tab !== 'certifications') next.delete('certificationId');
+      return next;
+    });
+  };
+
+  const clearCertificationFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('certificationId');
       return next;
     });
   };
@@ -369,7 +380,12 @@ export default function ProviderDetailPage(): React.ReactElement {
           <ProfileTab profile={p} />
         </TabsContent>
         <TabsContent value="certifications">
-          <CertificationsTab providerId={id} certifications={p.certifications ?? []} />
+          <CertificationsTab
+            providerId={id}
+            certifications={p.certifications ?? []}
+            exactCertificationId={certificationIdFilter}
+            onClearExactCertification={clearCertificationFilter}
+          />
         </TabsContent>
         <TabsContent value="jobs">
           <JobsTab providerId={id} />
@@ -1026,9 +1042,13 @@ const CERTIFICATION_STATUS_BADGE = {
 export function CertificationsTab({
   providerId,
   certifications,
+  exactCertificationId = '',
+  onClearExactCertification,
 }: {
   providerId: string;
   certifications: ProviderCertification[];
+  exactCertificationId?: string;
+  onClearExactCertification?: () => void;
 }): React.ReactElement {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState('');
@@ -1056,6 +1076,15 @@ export function CertificationsTab({
     cert.isVerified && (!cert.expiryDate || cert.expiryDate >= todayManila),
   ).length;
   const awaitingReview = certifications.filter((cert) => !cert.isVerified).length;
+  const hasExactSelection = Boolean(exactCertificationId);
+  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(exactCertificationId);
+  const selectedCertification = !exactSelectionMalformed && hasExactSelection
+    ? certifications.find((certification) => certification.id === exactCertificationId) ?? null
+    : null;
+  const exactSelectionMissing = hasExactSelection && !exactSelectionMalformed && !selectedCertification;
+  const displayedCertifications = hasExactSelection
+    ? (selectedCertification ? [selectedCertification] : [])
+    : certifications;
 
   return (
     <div className="mt-4 space-y-4">
@@ -1075,17 +1104,56 @@ export function CertificationsTab({
       <p className="text-sm text-[var(--color-text-secondary)]">
         Only verified, unexpired certifications appear to customers. Any provider edit automatically removes verification and returns the credential here for review.
       </p>
+      {selectedCertification && (
+        <Card className="border-sky-200 bg-sky-50 p-4" role="status">
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-900">Exact certification evidence</p>
+          <p className="mt-1 text-sm text-sky-950">
+            Showing only certification <span className="font-mono text-xs">{selectedCertification.id}</span> from this provider&apos;s current retained credentials.
+          </p>
+          {onClearExactCertification && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactCertification}>
+              View all certifications
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMalformed && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">Certification ID must be a complete UUID. No certification is selected.</p>
+          {onClearExactCertification && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactCertification}>
+              View all certifications
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMissing && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">
+            The requested certification is not part of this provider&apos;s retained credential list. No substitute certification is shown.
+          </p>
+          {onClearExactCertification && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactCertification}>
+              View all certifications
+            </Button>
+          )}
+        </Card>
+      )}
       {actionError && <p role="alert" className="text-sm text-[var(--color-danger)]">{actionError}</p>}
 
-      {certifications.length === 0 ? (
+      {!hasExactSelection && certifications.length === 0 ? (
         <EmptyState title="No certifications" description="This provider has not added a certification yet." />
-      ) : (
+      ) : displayedCertifications.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {certifications.map((cert) => {
+          {displayedCertifications.map((cert) => {
             const expired = Boolean(cert.expiryDate && cert.expiryDate < todayManila);
             const status = expired ? 'expired' : cert.isVerified ? 'verified' : 'pending';
             return (
-              <Card key={cert.id} className="border border-[var(--color-border)] p-4">
+              <Card
+                key={cert.id}
+                aria-current={cert.id === selectedCertification?.id ? 'true' : undefined}
+                className={`border p-4 ${cert.id === selectedCertification?.id ? 'border-sky-400 ring-2 ring-sky-100' : 'border-[var(--color-border)]'}`}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1137,7 +1205,7 @@ export function CertificationsTab({
             );
           })}
         </div>
-      )}
+      ) : null}
 
       {unverifyTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
