@@ -1644,9 +1644,45 @@ API regressions pass, including three new gateway-retry boundaries and every
 older global-search query-count contract. Seven real rendered Admin regressions
 pass, including the two new command-search and exact-URL contracts plus existing
 pagination, payment-operations, and dispute-linkage coverage. Protected CI
-`33698198759` passed the
-full API, Mobile, and rendered Admin suites, both TypeScript checks, the Admin
+`33698198759` passed the full API, Mobile, and rendered Admin suites, both
+TypeScript checks, the Admin
 production build, and Docker image boot/health at commit `cc7be31`. Protected
 Gates `33698198774` passed A through E and the `All gates passed` rollup at the
 same commit. No retry, payment, refund, release, booking, dispute, support,
 audit, or production record changed.
+
+## Checkpoint AR: exact reconciliation audit-evidence handoff
+
+Reconciliation runs and discrepancy acknowledgements are represented by typed
+`admin_actions` rows against the reconciliation snapshot, and the API already
+supported exact snapshot lookup. Audit Log nevertheless rendered that target as
+inert text. Financials also loaded only the 30 most recent snapshots and did not
+show their immutable IDs, so an operator could not return from governance
+history to the exact money-comparison evidence that produced the event.
+
+UX-1066 gives both reconciliation actions explicit operator labels and maps a
+valid `reconciliation` audit target to
+`/financials?tab=reconciliation&snapshotId=<id>`. Financials restores that URL
+with the existing read-only exact-snapshot endpoint, displays only the retained
+record and its complete immutable ID, and provides a clear return to recent
+reconciliations. The exact evidence view does not offer the unrelated create
+snapshot action; an active discrepancy still uses the existing super-admin
+acknowledgement contract.
+
+UX-1067 rejects a malformed snapshot handoff in the browser before any API
+request and explains that it must not be interpreted as missing or cleared
+evidence. Audit Log likewise leaves a malformed reconciliation target inert
+instead of constructing an invalid financial route. Reconciliation arithmetic,
+snapshot creation, acknowledgement rules, wallet balances, and external money
+behavior are unchanged. E37 still holds any claim that the combined audit
+timeline is a globally complete or correlated mutation trail.
+
+Local Admin TypeScript and focused ESLint pass. Eight real rendered Admin
+regressions pass across exact audit handoff, malformed-link failure, existing
+snapshot creation and acknowledgement, expected-only labeling, exact PHP input,
+and prior Business Account audit linkage. Protected CI `33699583886` passed the
+full API, Mobile, and rendered Admin suites, both TypeScript checks, the Admin
+production build, and Docker image boot/health at commit `9ffdd61`. Protected
+Gates `33699583879` passed A through E and the `All gates passed` rollup at the
+same commit. No reconciliation, wallet, payment, booking, support, audit, or
+production record changed.
