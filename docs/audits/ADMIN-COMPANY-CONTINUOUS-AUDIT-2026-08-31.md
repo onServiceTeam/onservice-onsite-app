@@ -3461,3 +3461,45 @@ together with the work-context guard. No support case, customer, provider,
 booking, project, business account, payment, audit row, database schema,
 master, or production record changed. Production synchronization remains
 blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CL: unique regression evidence identifiers
+
+The global test-title audit found ten genuine collisions where unrelated
+regressions claimed the same Bug ID. Passing results were still behaviorally
+useful, but the duplicated labels violated the permanent one-bug, one-test,
+one-file audit rule and made it impossible to cite one guarantee unambiguously.
+
+The correction changes only filenames and title identifiers. Mobile demo-mode
+credential disposal is now SEC-068, while SEC-011 remains the provider quote
+eligibility guarantee. The Turnstile production-secret guard is SEC-069, while
+SEC-012 remains the earlier project-creation authorization guarantee. Customer
+planning-project creation and milestone-forward controls are UX-1224 and
+UX-1225, while UX-128 and UX-129 remain the provider commission and reminder
+date guarantees.
+
+Six API guarantees that had reused UI identifiers are now OPS-450 through
+OPS-455: Booking 360 proof derivation, atomic review visibility moderation,
+separate public/private review response storage, privacy-reduced participant
+proof access, staff candidate scope, and atomic role-profile audit creation.
+Their Admin or Mobile counterparts retain UX-308, UX-455, UX-456, UX-309,
+UX-342, and UX-345 respectively.
+
+After correction, an exact scan of direct `it()` and `test()` regression titles
+finds 1,374 titles and zero duplicate IDs. The three changed Mobile suites pass
+six tests, and the seven changed API suites pass seven tests. The ten retained
+counterparts also pass: five Admin files/five tests, two Mobile suites/two
+tests, and three API suites/thirteen tests. Changed-test ESLint and staged diff
+checks pass. The staged diff contains nine file renames and ten title-number
+changes, with no test logic or production code change.
+
+Protected CI `33795192037` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at correction commit `27e4eafb`. Protected Gates `33795192137`
+passed A through E and the `All gates passed` rollup at the same commit. The
+preceding Checkpoint CK documentation CI `33795101938` was superseded and
+cancelled by the correction push; its Gates run `33795101935` passed, and the
+newer full CI verified that checkpoint together with the relabeled regressions.
+No test behavior, application behavior, customer, provider, support case,
+booking, project, payment, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32, and raw
+audit PII remains blocked by E72.
