@@ -3930,3 +3930,37 @@ This commit is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CX: active Admin Support refresh
+
+The shared message service already locks the Support case before a write,
+rejects participant and public Admin replies after resolution/closure, permits
+only private Admin notes on terminal cases, atomically resumes a waiting case
+when its participant replies, and creates a privacy-safe participant
+notification after a durable public Admin reply. The Mobile thread polls every
+20 seconds. The Admin Support queue, summary, exact case, and decision history
+had no refresh interval, so a customer/provider reply could leave an operator's
+open browser view stale indefinitely despite the server-side resume and
+Needs-reply logic being correct.
+
+UX-1253 adds a 20-second active refresh interval to the Admin queue and summary
+while in queue mode, and to the exact case plus decision history while in case
+mode. React Query still pauses or adapts to browser visibility/network state;
+the change does not claim live-chat presence, push delivery, or a response SLA.
+Local Admin mutations continue to invalidate the same queries immediately.
+The customer SOP and Admin training manual state those boundaries explicitly.
+
+The focused rendered regression changes the mocked participant response after
+the interval and proves the visible queue updates without a manual reload. The
+complete Admin Support inventory passes 45 files and 47 tests. Admin
+TypeScript, changed-file ESLint, and diff integrity checks pass. The permanent
+unique-ID scanner passes 1,417 titled regressions with zero duplicates.
+Implementation commit `74e0aa99` changes read refresh behavior, test evidence,
+and operating guidance only. It does not create or change any Support case,
+message, status, priority, assignment, notification, customer, provider,
+booking, payment, audit row, database schema, master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
