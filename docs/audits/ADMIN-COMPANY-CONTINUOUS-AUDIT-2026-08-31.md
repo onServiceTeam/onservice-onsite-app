@@ -3420,3 +3420,44 @@ provider, account state, booking, project, business account, payment, audit
 row, database schema, master, or production record changed. Production
 synchronization remains blocked by E32, and raw audit PII remains blocked by
 E72.
+
+## Checkpoint CK: fail-closed Support work-context conflicts
+
+The API already rejects a support request that combines a planning project
+with a booking or business account, because planning records do not confer job,
+provider, payment, or company authority. The Admin Support workspace did not
+apply that same rule before querying. A stale or manually combined URL could
+therefore send contradictory list, exact-case, history, owner-context, or
+create inputs and leave the operator with an indirect server error or unrelated
+background reads.
+
+UX-1222 detects a planning project combined with a booking or business account
+before any ticket-list, case-detail, history, owner-confirmation, or create
+request. The recovery control can keep the operational booking context and its
+permitted business-account context while removing only the planning project.
+UX-1223 verifies the opposite choice: keeping the planning project removes both
+booking and business-account fields, including the browser-supplied business
+label, before the server-confirmed owner form becomes available. Other queue
+and account filters remain intact.
+
+This slice changes browser-link validation and recovery only. It does not
+create, assign, reply to, close, reopen, or edit a support case; create a
+project or booking relationship; change a customer, provider, business account,
+payment, or audit row; reveal raw PII; or add an Admin or API mutation.
+
+Local Admin TypeScript, changed-file ESLint, and staged diff checks pass. Both
+new real-render regressions pass two files and two tests, and every rendered
+test that directly imports Support Tickets passes 24 files and 26 tests.
+
+Protected CI `33793853740` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at implementation commit `4078b2d0`. The complete Admin job
+finished successfully in 9 minutes 46 seconds within the 15-minute limit.
+Protected Gates `33793853760` passed A through E and the `All gates passed`
+rollup at the same commit. The preceding Checkpoint CJ documentation CI
+`33793786057` was superseded and cancelled by the implementation push; its
+Gates run `33793786101` passed, and the newer full CI verified that checkpoint
+together with the work-context guard. No support case, customer, provider,
+booking, project, business account, payment, audit row, database schema,
+master, or production record changed. Production synchronization remains
+blocked by E32, and raw audit PII remains blocked by E72.
