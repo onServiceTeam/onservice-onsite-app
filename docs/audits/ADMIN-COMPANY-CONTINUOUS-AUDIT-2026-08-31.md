@@ -1686,3 +1686,44 @@ production build, and Docker image boot/health at commit `9ffdd61`. Protected
 Gates `33699583879` passed A through E and the `All gates passed` rollup at the
 same commit. No reconciliation, wallet, payment, booking, support, audit, or
 production record changed.
+
+## Checkpoint AS: canonical audit target identity and account handoff
+
+The combined Audit Log identified the operator through `userRole`, but did not
+separately identify the account targeted by an event. Many real
+`admin_actions` rows use the singular `user` target for customer/provider force
+logout, DPO role changes, administrator password or 2FA events, consent search,
+and audit export. The Admin UI recognized only the plural `users` target and,
+for that older shape, treated the actor role as the target role. A super-admin
+acting on a customer or provider could therefore produce inert text or a link
+classified from the super-admin instead of the account that support needed to
+inspect.
+
+OPS-402 keeps actor and target identity distinct at the API boundary. The
+timeline query still returns the masked actor identity, while a separate
+canonical target-user join returns `targetUserRole` and the target provider's
+profile ID when one exists. The provider relationship cannot duplicate an
+event because `providers.user_id` is unique. These fields describe the current
+account destination; the immutable before/after event details remain the
+evidence for a historical role transition.
+
+UX-1068 handles both `user` and `users` target forms. Customer events open the
+exact Customer 360 record, provider events open the exact provider profile,
+provider-staff events open that participant's support history, and
+admin/super-admin/DPO events open an exact Staff directory search. An older
+event may fall back to the actor role only when actor and target are the same
+account. An unclassified user remains on the safe participant-support path
+instead of being guessed from an unrelated operator. OPS-403 makes Staff
+directory search resolve both the canonical login-account UUID and the
+directory-profile UUID, and its visible search contract now includes account
+IDs.
+
+Local API and Admin TypeScript checks, affected-file ESLint, and
+`git diff --check` pass. Four related API suites pass 10 tests, and six related
+rendered Admin files pass 11 tests. Protected CI `33701447073` passed the full
+API, Mobile, and rendered Admin suites, both TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `d1e8efb`.
+Protected Gates `33701447127` passed A through E and the `All gates passed`
+rollup at the same commit. No user role, login session, staff profile, provider,
+customer, support case, audit row, database schema, or production record
+changed. Production synchronization remains blocked by E32.
