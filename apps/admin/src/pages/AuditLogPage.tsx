@@ -260,6 +260,7 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
     case 'notification_template':
       return { to: '/notification-templates', label: 'Open notification templates' };
     case 'admin_staff':
+      return { to: `/staff?search=${id}`, label: 'Find exact staff directory profile' };
     case 'admin_role':
       return { to: '/staff', label: 'Open Staff & Roles' };
     case 'config':
@@ -271,6 +272,7 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
 }
 
 function entityLabel(entry: AuditEntry): string {
+  if (entry.entityType === 'admin_staff') return 'Staff directory profile';
   if (entry.entityType !== 'user' && entry.entityType !== 'users') return humanizeSlug(entry.entityType);
   const targetRole = targetAccountRole(entry);
   if (targetRole === 'customer') return 'Customer account';
