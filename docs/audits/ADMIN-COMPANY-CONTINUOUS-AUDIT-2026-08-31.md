@@ -2207,3 +2207,39 @@ through E and the `All gates passed` rollup at the same commit. No conversation,
 message, booking, user, moderation decision, audit row, database schema, master,
 or production record changed. Production synchronization remains blocked by
 E32.
+
+## Checkpoint BF: exact pricing-rule audit evidence
+
+Pricing-rule draft, publication, and retirement decisions already retained the
+exact rule UUID, but the general Audit Log discarded that identity by opening
+the broad Pricing Rules list. Pagination and lifecycle filters could therefore
+hide the audited rule, and a failed list left finance operations unable to
+reconstruct the same retained pricing decision.
+
+UX-1101 maps a valid pricing-rule target to
+`/pricing-rules?ruleId=<id>`. The Pricing Rules workspace validates the target
+and loads it through the existing Admin exact-detail endpoint independently of
+the paginated list. It renders the rule ID, lifecycle, scope, schedule,
+multiplier, platform/provider surge split, publication or retirement time, and
+the recorded reason in a dedicated read-only evidence panel. This handoff does
+not open a draft editor or invoke preview, publication, or retirement.
+
+UX-1102 rejects malformed saved rule IDs before making a detail request.
+UX-1103 rejects an exact-detail response whose ID differs from the requested
+audit target and explicitly refuses to substitute another list record. UX-1104
+removes only `ruleId` when the operator clears the evidence, preserving any
+other workspace context in the URL. The approved E28/E54 pricing publication
+contract remains unchanged: super-admin-only mutation, server-authoritative
+preview, future bookings only, immutable existing booking totals, and retained
+retirement history.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. All
+33 rendered Pricing Rules and Audit Log files pass 42 tests. Protected CI
+`33719914072` passed 863 API suites and 3,234 tests, 381 Admin files and 470
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, both TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `39e929b`.
+Protected Gates `33719914096` passed A through E and the `All gates passed`
+rollup at the same commit. No pricing rule, preview, booking, payment, provider
+share, platform revenue, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
