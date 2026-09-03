@@ -3038,3 +3038,35 @@ the newer full CI verified that documentation with this implementation. No
 customer, provider, payout, wallet, booking, payment, audit row, database
 schema, master, or production record changed. Production synchronization
 remains blocked by E32.
+
+## Checkpoint CA: canonical account-activity UUID handling
+
+Customer 360 and Provider 360 exact activity views accepted uppercase Admin
+action UUIDs as valid, then compared the lowercase canonical activity row to
+the unchanged uppercase browser value. A valid identifier copied from an
+external support tool or manually entered URL could therefore show a false
+ownership/missing warning after the API returned the correct account decision.
+
+UX-1189 normalizes a valid Customer 360 Admin action UUID before both the
+scoped API request and browser-side no-substitute comparison. UX-1190 applies
+the same canonical boundary to Provider 360 activity. Malformed values still
+block the request, exact mode still requests one row, and normal recent
+activity remains unchanged when no exact identifier is present.
+
+This slice changes evidence lookup only. It does not suspend, reactivate,
+approve, reject, flag, notify, modify a customer or provider, rewrite an Admin
+action, change a booking or payment, or add an Admin mutation.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Four
+focused activity files pass four tests. The full local rendered Admin suite,
+which included both new regressions, passes 467 files and 556 tests with one
+skipped file and three explicit todos. Protected CI `33758551396` passed the
+full API, Admin, and Mobile suites, all three TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `26da2f59`.
+Protected Gates `33758551671` passed A through E and the `All gates passed`
+rollup at the same commit. The preceding documentation-only CI `33758440834`
+was superseded and cancelled by this implementation push; its Gates run
+`33758440867` passed, and the newer full CI verified that documentation with
+this implementation. No customer, provider, account decision, booking,
+payment, audit row, database schema, master, or production record changed.
+Production synchronization remains blocked by E32.
