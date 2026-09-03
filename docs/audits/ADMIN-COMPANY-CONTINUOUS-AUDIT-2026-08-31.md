@@ -4022,3 +4022,36 @@ This checkpoint is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CZ: canonical Admin login lockout identity
+
+The Admin login route counted recent failures with the lower-case, trimmed
+email, but wrote failed attempt rows and related security-event metadata with
+the operator-entered casing and whitespace. PostgreSQL compares these stored
+identifiers case-sensitively. An attacker could therefore vary the casing of a
+real Admin email and split attempts across multiple values instead of building
+one account-scoped lockout history.
+
+SEC-045 canonicalizes the email identity once at the start of Admin login and
+uses that same value for the lockout count, account lookup, successful and
+failed attempt rows, and security-event metadata. This preserves the existing
+IP controls and lockout thresholds while making every spelling variant of one
+Admin email resolve to one account boundary. It does not alter credentials,
+sessions, roles, permissions, user records, customer/provider workflows, or
+business transactions.
+
+The focused route-level regression sends a mixed-case email and proves that the
+lockout query, account query, failed-attempt record, and security event all use
+the canonical value. The wider API authentication inventory passes 25 suites
+and 89 tests, including login, password, session, and 2FA coverage. API
+TypeScript, changed-file ESLint, and diff integrity checks pass. The permanent
+unique-ID scanner passes 1,418 titled regressions with zero duplicates.
+
+Implementation commit `1b6b469f` changes only Admin login identity handling and
+its behavioral regression. E67 and E68 remain active private 2FA recovery
+governance holds and were not changed or published.
+
+This checkpoint is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
