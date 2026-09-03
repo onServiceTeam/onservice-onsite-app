@@ -2493,3 +2493,54 @@ payment, customer, provider, setting, historical audit row, database schema,
 master, or production record changed. PII-reveal events still need a truthful
 exact handoff to their originating masked audit record; this checkpoint does
 not claim that linkage. Production synchronization remains blocked by E32.
+
+## Checkpoint BL: exact PII-reveal origin evidence and input boundaries
+
+A Super Admin raw-audit PII reveal already wrote a durable `pii_reveal`
+decision whose system target and details both identify the original
+`audit_log` row. The general Audit Log displayed that accountability record but
+could not reopen its exact original event. Filtering by the target's entity
+identity was not equivalent to filtering by the event itself, and the screen's
+CSV action would have had no way to preserve an exact event selection.
+
+OPS-424 adds an exact event filter to the combined timeline. The canonical
+identity is the pair of source stream and event UUID, so SEC-060 requires a
+valid `audit_log` or `admin_actions` source whenever `entryId` is supplied.
+SEC-058 rejects malformed event UUIDs before database access. SEC-059 verifies
+that the existing D34 privacy visibility clause is still applied before an
+ordinary Admin's exact filter, so knowing a UUID cannot cross the DPO-owned
+record boundary. OPS-425 applies the same exact event and source pair to the
+masked CSV exporter, preventing the screen from promising a one-event export
+while downloading a broader timeline.
+
+UX-1136 maps a valid system-scoped `pii_reveal` accountability row to
+`/audit-log?source=audit_log&entryId=<id>`, loads only that original masked
+event, and selects its evidence panel automatically on desktop, tablet, and
+mobile layouts. The panel identifies the exact event and explicitly states
+that its on-screen and exported values remain masked. UX-1137 rejects a
+malformed target without a request. UX-1138 hides a response whose event ID or
+source differs from the requested pair instead of substituting a plausible
+row. UX-1139 preserves the exact pair in CSV export. UX-1140 rejects an exact
+event URL that omits its source. UX-1141 makes conflicting valid origin IDs in
+a retained reveal row inert rather than choosing one and creating false
+forensic evidence.
+
+Review of the existing raw-reveal route also found that it accepted arbitrary
+row-ID strings and copied an unbounded justification into `full_notes` even
+though the documented contract caps the reason at 500 characters. SEC-061 now
+requires a UUID before database access, and SEC-062 enforces the 20-to-500
+character justification boundary before the raw row is read. This checkpoint
+does not add a raw-reveal control, invoke that endpoint, or expose raw values.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. The combined API audit, compliance, and latent-route regression set
+passes 54 suites and 97 tests. All 44 rendered Audit Log files pass 51 tests.
+Protected CI `33735641399` passed 888 API suites and 3,259 tests, 418 Admin
+files and 507 tests with one intentionally skipped file and three existing
+honest TODOs, 531 Mobile suites and 910 tests with 84 TODOs, all three
+TypeScript checks, the Admin production build, and Docker image boot/liveness
+at commit `dbaf695e`. Protected Gates `33735641486` passed A through E and the
+`All gates passed` rollup at the same commit. No raw PII was requested or
+returned; no customer, provider, booking, payment, audit row, database schema,
+master, or production record changed. Production synchronization remains
+blocked by E32.
