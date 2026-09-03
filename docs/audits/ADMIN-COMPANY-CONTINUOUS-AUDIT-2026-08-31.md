@@ -3964,3 +3964,61 @@ This commit is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CY: deliberate Admin password rotation workspace
+
+The password-change API already had the correct security boundary: it locks the
+Admin account row, verifies the current credential, writes the new current-cost
+hash, clears forced rotation, advances the account session generation, removes
+refresh sessions, revokes CSRF tokens, writes an Admin audit action, disconnects
+live sockets, and gives only the verified browser one replacement session. The
+screen reduced that workflow to a narrow form and automatically left its
+success state after 800 milliseconds. It did not clearly separate credential
+and session effects from unchanged business records, did not mark required
+fields programmatically and visually, used raw controls, validated while the
+operator typed, and provided no loading icon or deliberate completion action.
+
+UX-1254 rebuilds the route as a bounded Stitch-aligned security workspace. It
+uses the shared Card, Input, Label, and Button controls, one-column tablet and
+two-column desktop compositions, semantic tokens, 44-pixel actions, explicit
+required-field semantics, blur-timed validation, a visible submit spinner, and
+a friendly connection-failure message. The forced-rotation state explains that
+both the React guard and API boundary remain active and intentionally exposes no
+cancel action. A voluntary visit can return without changing the password.
+
+After the server commits, the form clears credential values and stays on an
+announced success state until the operator chooses Continue to operations. The
+screen accurately states that this browser receives the replacement session,
+other browser and realtime sessions end, and existing bookings, Support cases,
+assignments, permissions, transactions, and audit history remain unchanged.
+E67 and E68 remain active private recovery-governance holds and were not edited,
+resolved, or published by this checkpoint.
+
+The focused Change Password inventory passes two files and 10 tests. The wider
+Admin authentication inventory has seven passing files, one existing skipped
+file, 15 passing tests, and three existing todos. Five focused API password,
+session, forced-rotation, socket, 2FA-boundary, and cookie-session suites pass
+all 15 tests. The complete Admin inventory passes 511 files with one existing
+skipped file, 600 tests with three existing todos, and no failures. Admin
+TypeScript, changed-file ESLint, diff integrity, and the production build pass;
+the build transforms 2,843 modules. The permanent unique-ID scanner passes
+1,418 titled regressions with zero duplicates.
+
+The built app was exercised in Chromium at 768x1024, 1280x900, and 1440x900.
+All three widths had equal document/client widths and no console warning, console
+error, or page error. The first tablet capture exposed that the shared Radix
+checkbox inherited the global 44-pixel button minimum as its visible box. The
+page now uses a 16-pixel native checkbox indicator inside a 44-pixel labelled
+target; the app was rebuilt, recaptured, and rechecked. Forced rotation had no
+cancel action, submitted successfully against a controlled route, and rendered
+the deliberate success state without navigation or overflow.
+
+Implementation commit `3dbfef68` changes only Admin presentation, local form
+state, and rendered tests. It does not change any password policy, password,
+session, role, permission, customer, provider, booking, Support case, payment,
+transaction, audit row, database schema, master, or production record.
+
+This checkpoint is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
