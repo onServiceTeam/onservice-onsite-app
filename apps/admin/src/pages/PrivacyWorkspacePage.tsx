@@ -1,6 +1,6 @@
-import React, { useState, type FormEvent } from 'react';
+import React, { useEffect, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api, { getErrorMessage } from '@/lib/api';
 import {
   AlertTriangle,
@@ -37,6 +37,11 @@ interface ConsentSearchResult {
 const CONSENT_PAGE_SIZE = 100;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function parseConsentPage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
 function formatDate(value: string): string {
   return new Date(value).toLocaleString('en-PH', {
     timeZone: 'Asia/Manila',
@@ -46,10 +51,38 @@ function formatDate(value: string): string {
 }
 
 export default function PrivacyWorkspacePage(): React.ReactElement {
-  const [consentSearchDraft, setConsentSearchDraft] = useState('');
-  const [consentUserId, setConsentUserId] = useState('');
-  const [consentOffset, setConsentOffset] = useState(0);
-  const [consentInputError, setConsentInputError] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedConsentValue = searchParams.get('consentUserId')?.trim() ?? '';
+  const linkedConsentUserId = UUID_PATTERN.test(linkedConsentValue) ? linkedConsentValue : '';
+  const linkedConsentInvalid = linkedConsentValue.length > 0 && linkedConsentUserId.length === 0;
+  const linkedConsentPage = parseConsentPage(searchParams.get('consentPage'));
+  const [consentSearchDraft, setConsentSearchDraft] = useState(linkedConsentValue);
+  const [consentUserId, setConsentUserId] = useState(linkedConsentUserId);
+  const [consentPage, setConsentPage] = useState(linkedConsentUserId ? linkedConsentPage : 1);
+  const [consentInputError, setConsentInputError] = useState(
+    linkedConsentInvalid ? 'Enter the complete user ID in UUID format.' : '',
+  );
+  const consentOffset = (consentPage - 1) * CONSENT_PAGE_SIZE;
+
+  useEffect(() => {
+    setConsentSearchDraft(linkedConsentValue);
+    setConsentUserId(linkedConsentUserId);
+    setConsentPage(linkedConsentUserId ? linkedConsentPage : 1);
+    setConsentInputError(
+      linkedConsentInvalid ? 'Enter the complete user ID in UUID format.' : '',
+    );
+  }, [linkedConsentInvalid, linkedConsentPage, linkedConsentUserId, linkedConsentValue]);
+
+  function writeConsentLocation(userId: string | null, nextPage = 1): void {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (userId) next.set('consentUserId', userId);
+      else next.delete('consentUserId');
+      if (userId && nextPage > 1) next.set('consentPage', String(nextPage));
+      else next.delete('consentPage');
+      return next;
+    });
+  }
 
   const dsrAlerts = useQuery({
     queryKey: ['privacyDsrAlerts'],
@@ -84,6 +117,19 @@ export default function PrivacyWorkspacePage(): React.ReactElement {
   const overdueDsrs = urgentDsrs.filter((item) => item.isOverdue);
   const consentRows = consentSearch.data?.rows ?? [];
   const consentTotal = consentSearch.data?.total ?? 0;
+  const consentTotalPages = Math.max(1, Math.ceil(consentTotal / CONSENT_PAGE_SIZE));
+
+  useEffect(() => {
+    if (consentSearch.isSuccess && consentPage > consentTotalPages) {
+      setConsentPage(consentTotalPages);
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        if (consentTotalPages > 1) next.set('consentPage', String(consentTotalPages));
+        else next.delete('consentPage');
+        return next;
+      }, { replace: true });
+    }
+  }, [consentPage, consentSearch.isSuccess, consentTotalPages, setSearchParams]);
 
   function submitConsentSearch(event: FormEvent): void {
     event.preventDefault();
@@ -91,12 +137,14 @@ export default function PrivacyWorkspacePage(): React.ReactElement {
     if (!UUID_PATTERN.test(nextUserId)) {
       setConsentInputError('Enter the complete user ID in UUID format.');
       setConsentUserId('');
-      setConsentOffset(0);
+      setConsentPage(1);
+      writeConsentLocation(null);
       return;
     }
     setConsentInputError('');
-    setConsentOffset(0);
+    setConsentPage(1);
     setConsentUserId(nextUserId);
+    writeConsentLocation(nextUserId);
   }
 
   return (
@@ -197,6 +245,24 @@ export default function PrivacyWorkspacePage(): React.ReactElement {
         {consentInputError && (
           <p id="privacy-consent-user-error" role="alert" className="mt-3 text-sm text-red-700">{consentInputError}</p>
         )}
+        {linkedConsentInvalid && (
+          <div className="mt-3 flex flex-col gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+            <p>The saved consent lookup ID is invalid, so no consent-record request was sent.</p>
+            <button
+              type="button"
+              className="min-h-11 rounded-lg border border-red-300 bg-white px-4 font-semibold"
+              onClick={() => {
+                setConsentSearchDraft('');
+                setConsentUserId('');
+                setConsentPage(1);
+                setConsentInputError('');
+                writeConsentLocation(null);
+              }}
+            >
+              Remove invalid lookup
+            </button>
+          </div>
+        )}
 
         {consentSearch.isFetching && <p className="mt-4 text-sm text-[var(--color-text-secondary)]">Searching consent evidence…</p>}
         {consentSearch.isError && (
@@ -231,8 +297,12 @@ export default function PrivacyWorkspacePage(): React.ReactElement {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={consentOffset === 0 || consentSearch.isFetching}
-                  onClick={() => setConsentOffset((current) => Math.max(0, current - CONSENT_PAGE_SIZE))}
+                  disabled={consentPage === 1 || consentSearch.isFetching}
+                  onClick={() => {
+                    const nextPage = Math.max(1, consentPage - 1);
+                    setConsentPage(nextPage);
+                    writeConsentLocation(consentUserId, nextPage);
+                  }}
                   className="min-h-11 rounded-lg border border-[var(--color-border)] px-4 text-sm font-semibold disabled:opacity-50"
                 >
                   Previous
@@ -240,7 +310,11 @@ export default function PrivacyWorkspacePage(): React.ReactElement {
                 <button
                   type="button"
                   disabled={consentOffset + consentRows.length >= consentTotal || consentSearch.isFetching}
-                  onClick={() => setConsentOffset((current) => current + CONSENT_PAGE_SIZE)}
+                  onClick={() => {
+                    const nextPage = consentPage + 1;
+                    setConsentPage(nextPage);
+                    writeConsentLocation(consentUserId, nextPage);
+                  }}
                   className="min-h-11 rounded-lg border border-[var(--color-border)] px-4 text-sm font-semibold disabled:opacity-50"
                 >
                   Next

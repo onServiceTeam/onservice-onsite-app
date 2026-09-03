@@ -58,6 +58,7 @@ const ACTION_LABELS: Record<string, string> = {
   booking_force_completed: 'Booking force-completed',
   booking_reassigned: 'Booking reassigned',
   config_changed: 'Configuration changed',
+  consent_search: 'Consent evidence searched',
   consent_version_published: 'Consent version published',
   conversation_viewed: 'Private booking conversation viewed',
   customer_credited: 'Customer wallet adjusted',
@@ -169,6 +170,17 @@ function linkedBusinessAccountId(entry: AuditEntry): string | null {
   return null;
 }
 
+function searchedConsentUserId(entry: AuditEntry): string | null {
+  if (entry.action !== 'consent_search') return null;
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const filters = values?.filters;
+    if (!filters || typeof filters !== 'object' || Array.isArray(filters)) continue;
+    const userId = (filters as Record<string, unknown>).userId;
+    if (typeof userId === 'string' && UUID_REGEX.test(userId)) return userId;
+  }
+  return null;
+}
+
 function targetAccountRole(entry: AuditEntry): string | null {
   if (entry.entityType !== 'user' && entry.entityType !== 'users') return null;
   if (entry.targetUserRole) return entry.targetUserRole;
@@ -188,6 +200,15 @@ function targetAccountRole(entry: AuditEntry): string | null {
 }
 
 function entityDestination(entry: AuditEntry): { to: string; label: string } | null {
+  if (entry.action === 'consent_search') {
+    const searchedUserId = searchedConsentUserId(entry);
+    return searchedUserId
+      ? {
+          to: `/privacy?consentUserId=${encodeURIComponent(searchedUserId)}`,
+          label: 'Open exact consent evidence lookup',
+        }
+      : { to: '/privacy', label: 'Open consent evidence lookup' };
+  }
   if (!entry.entityId) return null;
   const id = encodeURIComponent(entry.entityId);
   switch (entry.entityType) {
@@ -294,6 +315,7 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
 }
 
 function entityLabel(entry: AuditEntry): string {
+  if (entry.action === 'consent_search') return 'Consent evidence lookup';
   if (entry.entityType === 'admin_staff') return 'Staff directory profile';
   if (entry.entityType === 'dsr_request' || entry.entityType === 'data_subject_request') {
     return 'Data subject request';
