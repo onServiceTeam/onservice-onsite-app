@@ -102,6 +102,19 @@ const STATUSES = [
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const LINKED_ID_LABELS = {
+  ticketId: 'support case',
+  bookingId: 'booking',
+  projectId: 'project',
+  businessAccountId: 'business account',
+  userId: 'case owner',
+  relatedCustomerId: 'related customer',
+  relatedProviderId: 'related provider',
+  assignedAgentId: 'assigned agent',
+} as const;
+type LinkedIdKey = keyof typeof LINKED_ID_LABELS;
+
 const STATUS_VARIANTS: Record<string, 'info' | 'success' | 'warning' | 'danger' | 'outline'> = {
   open: 'info',
   in_progress: 'warning',
@@ -130,6 +143,10 @@ function parsePage(value: string | null): number {
 
 function parseOption(value: string | null, allowed: readonly string[]): string {
   return value && allowed.includes(value) ? value : '';
+}
+
+function canonicalUuid(value: string): string {
+  return UUID_REGEX.test(value) ? value.toLowerCase() : '';
 }
 
 function isProviderTicket(ticket: Ticket): boolean {
@@ -190,17 +207,31 @@ export default function SupportTicketsPage(): React.ReactElement {
   const unassignedFilter = searchParams.get('unassigned') === '1';
   const activeFilter = searchParams.get('active') === '1';
   const searchFilter = (searchParams.get('search') ?? '').trim();
-  const bookingFilter = searchParams.get('bookingId') ?? '';
-  const projectFilter = searchParams.get('projectId') ?? '';
-  const businessAccountFilter = searchParams.get('businessAccountId') ?? '';
+  const linkedIdValues: Record<LinkedIdKey, string> = {
+    ticketId: searchParams.get('ticketId')?.trim() ?? '',
+    bookingId: searchParams.get('bookingId')?.trim() ?? '',
+    projectId: searchParams.get('projectId')?.trim() ?? '',
+    businessAccountId: searchParams.get('businessAccountId')?.trim() ?? '',
+    userId: searchParams.get('userId')?.trim() ?? '',
+    relatedCustomerId: searchParams.get('relatedCustomerId')?.trim() ?? '',
+    relatedProviderId: searchParams.get('relatedProviderId')?.trim() ?? '',
+    assignedAgentId: searchParams.get('assignedAgentId')?.trim() ?? '',
+  };
+  const invalidLinkedIdKeys = (Object.keys(LINKED_ID_LABELS) as LinkedIdKey[])
+    .filter((key) => linkedIdValues[key].length > 0 && !UUID_REGEX.test(linkedIdValues[key]));
+  const bookingFilter = canonicalUuid(linkedIdValues.bookingId);
+  const projectFilter = canonicalUuid(linkedIdValues.projectId);
+  const businessAccountFilter = canonicalUuid(linkedIdValues.businessAccountId);
   const businessAccountName = searchParams.get('businessName') ?? 'Selected business account';
-  const userFilter = searchParams.get('userId') ?? '';
-  const relatedCustomerFilter = searchParams.get('relatedCustomerId') ?? '';
-  const relatedProviderFilter = searchParams.get('relatedProviderId') ?? '';
-  const assignedAgentFilter = searchParams.get('assignedAgentId') ?? '';
+  const userFilter = canonicalUuid(linkedIdValues.userId);
+  const relatedCustomerFilter = canonicalUuid(linkedIdValues.relatedCustomerId);
+  const relatedProviderFilter = canonicalUuid(linkedIdValues.relatedProviderId);
+  const assignedAgentFilter = canonicalUuid(linkedIdValues.assignedAgentId);
   const assignedAgentName = searchParams.get('agentName') ?? 'Selected staff account';
   const [selectedOverride, setSelectedOverride] = useState('');
-  const selectedId = searchParams.get('ticketId') ?? selectedOverride;
+  const selectedId = linkedIdValues.ticketId
+    ? canonicalUuid(linkedIdValues.ticketId)
+    : selectedOverride;
   const createRequested = searchParams.get('new') === '1' && !!userFilter;
   const newUserName = searchParams.get('userName') ?? 'Selected account';
   const newUserRole = searchParams.get('userRole') ?? 'customer';
@@ -247,6 +278,21 @@ export default function SupportTicketsPage(): React.ReactElement {
       params.delete('active');
       return params;
     });
+  }
+
+  function clearInvalidLinkedIds(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      for (const key of invalidLinkedIdKeys) params.delete(key);
+      if (invalidLinkedIdKeys.includes('userId')) params.delete('new');
+      if (invalidLinkedIdKeys.includes('businessAccountId')) params.delete('businessName');
+      if (invalidLinkedIdKeys.includes('assignedAgentId')) params.delete('agentName');
+      if (!params.has('userId') && !params.has('relatedCustomerId') && !params.has('relatedProviderId')) {
+        params.delete('userName');
+        params.delete('userRole');
+      }
+      return params;
+    }, { replace: true });
   }
 
   function showUnassigned(): void {
@@ -343,6 +389,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets?${params}`);
       return res.data as { data: Ticket[]; meta: { total: number } };
     },
+    enabled: invalidLinkedIdKeys.length === 0,
   });
 
   const summaryQuery = useQuery({
@@ -367,7 +414,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets/${selectedId}`);
       return res.data.data as Ticket;
     },
-    enabled: !!selectedId,
+    enabled: !!selectedId && invalidLinkedIdKeys.length === 0,
   });
 
   const historyQuery = useQuery({
@@ -376,7 +423,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets/${selectedId}/history`);
       return res.data.data as SupportTicketStatusHistoryEntry[];
     },
-    enabled: !!selectedId,
+    enabled: !!selectedId && invalidLinkedIdKeys.length === 0,
   });
 
   const updateStatusMutation = useMutation({
@@ -606,6 +653,28 @@ export default function SupportTicketsPage(): React.ReactElement {
   ];
 
   const visibleTickets = data?.data ?? [];
+
+  if (invalidLinkedIdKeys.length > 0) {
+    const invalidLabels = invalidLinkedIdKeys.map((key) => LINKED_ID_LABELS[key]).join(', ');
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-950">
+          <h1 className="text-xl font-bold">Invalid support workspace link</h1>
+          <p className="mt-2">
+            The saved {invalidLabels} {invalidLinkedIdKeys.length === 1 ? 'identifier is not a valid UUID' : 'identifiers are not valid UUIDs'}, so no ticket list or case-detail request was sent.
+          </p>
+          <p className="mt-1 text-red-800">Remove only the invalid link fields to keep the remaining queue filters.</p>
+          <button
+            type="button"
+            className="mt-4 min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold"
+            onClick={clearInvalidLinkedIds}
+          >
+            Remove invalid support links
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (createRequested) {
     const accountKind = newUserRole === 'provider_staff'

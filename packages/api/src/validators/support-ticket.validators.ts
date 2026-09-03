@@ -12,6 +12,10 @@ const ticketType = z.enum([
 
 const ticketPriority = z.enum(['low', 'medium', 'high', 'urgent']);
 
+function canonicalUuid(message: string): z.ZodType<string> {
+  return z.string().uuid(message).transform((value) => value.toLowerCase());
+}
+
 const ticketStatus = z.enum([
   'open',
   'in_progress',
@@ -28,16 +32,16 @@ export const supportTicketListQuerySchema = z.object({
   status: ticketStatus.optional(),
   type: ticketType.optional(),
   priority: ticketPriority.optional(),
-  assignedAgentId: z.string().uuid('Invalid assigned agent ID').optional(),
+  assignedAgentId: canonicalUuid('Invalid assigned agent ID').optional(),
   unassigned: z.enum(['1', 'true']).transform(() => true).optional(),
   active: z.enum(['1', 'true']).transform(() => true).optional(),
   search: z.string().trim().min(2).max(100).optional(),
-  bookingId: z.string().uuid('Invalid booking ID').optional(),
-  projectId: z.string().uuid('Invalid project ID').optional(),
-  businessAccountId: z.string().uuid('Invalid business account ID').optional(),
-  userId: z.string().uuid('Invalid user ID').optional(),
-  relatedCustomerId: z.string().uuid('Invalid related customer ID').optional(),
-  relatedProviderId: z.string().uuid('Invalid related provider ID').optional(),
+  bookingId: canonicalUuid('Invalid booking ID').optional(),
+  projectId: canonicalUuid('Invalid project ID').optional(),
+  businessAccountId: canonicalUuid('Invalid business account ID').optional(),
+  userId: canonicalUuid('Invalid user ID').optional(),
+  relatedCustomerId: canonicalUuid('Invalid related customer ID').optional(),
+  relatedProviderId: canonicalUuid('Invalid related provider ID').optional(),
 }).strict().superRefine(rejectMultipleWorkContexts);
 
 export const mySupportTicketListQuerySchema = z.object({
@@ -51,9 +55,9 @@ const createSupportTicketFields = {
   priority: ticketPriority.default('medium'),
   subject: z.string().trim().min(3, 'Subject must be at least 3 characters').max(200),
   description: z.string().trim().min(5, 'Description must be at least 5 characters').max(5000),
-  bookingId: z.string().uuid('Invalid booking ID').optional(),
-  projectId: z.string().uuid('Invalid project ID').optional(),
-  businessAccountId: z.string().uuid('Invalid business account ID').optional(),
+  bookingId: canonicalUuid('Invalid booking ID').optional(),
+  projectId: canonicalUuid('Invalid project ID').optional(),
+  businessAccountId: canonicalUuid('Invalid business account ID').optional(),
 };
 
 function rejectMultipleWorkContexts(
@@ -82,7 +86,7 @@ export const createSupportTicketSchema = z.object(createSupportTicketFields)
 
 export const adminCreateSupportTicketSchema = z.object({
   ...createSupportTicketFields,
-  userId: z.string().uuid('Invalid user ID'),
+  userId: canonicalUuid('Invalid user ID'),
 }).strict().superRefine(rejectMultipleWorkContexts);
 
 export const supportTicketMessageSchema = z.object({
@@ -108,11 +112,11 @@ export const updateSupportTicketStatusSchema = z.object({
 });
 
 export const assignSupportTicketSchema = z.object({
-  agentId: z.string().uuid('Invalid agent ID'),
+  agentId: canonicalUuid('Invalid agent ID'),
 }).strict();
 
 export const supportTicketIdParamsSchema = z.object({
-  id: z.string().uuid('Invalid support ticket ID'),
+  id: canonicalUuid('Invalid support ticket ID'),
 }).strict();
 
 export const updateSupportTicketPrioritySchema = z.object({

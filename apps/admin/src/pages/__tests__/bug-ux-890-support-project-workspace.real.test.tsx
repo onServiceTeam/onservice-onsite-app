@@ -25,8 +25,10 @@ import SupportTicketsPage from '../SupportTicketsPage';
 
 it('Bug UX-890 — Admin can filter, inspect, and return to the exact planning project attached to a support case', async () => {
   const projectId = '22222222-2222-4222-8222-222222222222';
+  const customerId = '11111111-1111-4111-8111-111111111111';
+  const ticketId = '33333333-3333-4333-8333-333333333333';
   const ticket = {
-    id: 'ticket-890', ticket_number: 'TKT-1890', user_id: 'customer-890', assigned_agent_id: null,
+    id: ticketId, ticket_number: 'TKT-1890', user_id: customerId, assigned_agent_id: null,
     type: 'general_inquiry', status: 'open', priority: 'medium', subject: 'Kitchen planning help',
     description: 'Please review this planning record.', booking_id: null, project_id: projectId,
     project_title: 'Kitchen renovation plan', resolution_notes: null, resolved_at: null, closed_at: null,
@@ -36,12 +38,12 @@ it('Bug UX-890 — Admin can filter, inspect, and return to the exact planning p
   apiMocks.get.mockImplementation(async (url: string) => {
     if (url === '/api/v1/support-tickets/summary') return { data: { data: { open: 1, escalated: 0, urgent: 0, unassigned: 1 } } };
     if (url === '/api/v1/support-tickets/agents') return { data: { data: [] } };
-    if (url === '/api/v1/support-tickets/ticket-890/history') return { data: { data: [] } };
-    if (url === '/api/v1/support-tickets/ticket-890') return { data: { data: ticket } };
+    if (url === `/api/v1/support-tickets/${ticketId}/history`) return { data: { data: [] } };
+    if (url === `/api/v1/support-tickets/${ticketId}`) return { data: { data: ticket } };
     return { data: { data: [ticket], meta: { total: 1 } } };
   });
   routerMocks.params = new URLSearchParams(
-    `projectId=${projectId}&userId=customer-890&userName=Maria%20Santos&userRole=customer`,
+    `projectId=${projectId}&userId=${customerId}&userName=Maria%20Santos&userRole=customer`,
   );
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 
@@ -55,13 +57,13 @@ it('Bug UX-890 — Admin can filter, inspect, and return to the exact planning p
 
   expect(await screen.findByText((_, element) => element?.textContent === `Project: ${projectId} (planning context)`)).toBeVisible();
   await waitFor(() => expect(apiMocks.get).toHaveBeenCalledWith(expect.stringContaining(`projectId=${projectId}`)));
-  routerMocks.params = new URLSearchParams(`projectId=${projectId}&ticketId=ticket-890`);
+  routerMocks.params = new URLSearchParams(`projectId=${projectId}&ticketId=${ticketId}`);
   view.rerender(
     <QueryClientProvider client={client}>
       <MemoryRouter><SupportTicketsPage /></MemoryRouter>
     </QueryClientProvider>,
   );
   const projectLink = await screen.findByText('Kitchen renovation plan');
-  expect(projectLink).toHaveAttribute('to', `/projects?projectId=${projectId}&source=support&ticketId=ticket-890`);
+  expect(projectLink).toHaveAttribute('to', `/projects?projectId=${projectId}&source=support&ticketId=${ticketId}`);
   expect(screen.getByText('Planning context only')).toBeVisible();
 });
