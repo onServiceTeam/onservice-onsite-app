@@ -200,13 +200,13 @@ export default function MarketingPage(): React.ReactElement {
   const hasAmbiguousExactSelection = exactSelections.length > 1;
   const hasMalformedExactSelection = exactSelections.length === 1 && !UUID_REGEX.test(exactSelections[0]!);
   const requestedPromotionId = !hasAmbiguousExactSelection && UUID_REGEX.test(rawPromotionId)
-    ? rawPromotionId
+    ? rawPromotionId.toLowerCase()
     : '';
   const requestedPromoCodeId = !hasAmbiguousExactSelection && UUID_REGEX.test(rawPromoCodeId)
-    ? rawPromoCodeId
+    ? rawPromoCodeId.toLowerCase()
     : '';
   const requestedCampaignId = !hasAmbiguousExactSelection && UUID_REGEX.test(rawCampaignId)
-    ? rawCampaignId
+    ? rawCampaignId.toLowerCase()
     : '';
   const selectedTab: MarketingTab | null = requestedPromotionId
     ? 'banners'

@@ -251,7 +251,7 @@ export default function PricingRulesPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
   const rawRuleId = searchParams.get('ruleId')?.trim() ?? '';
-  const requestedRuleId = UUID_REGEX.test(rawRuleId) ? rawRuleId : '';
+  const requestedRuleId = UUID_REGEX.test(rawRuleId) ? rawRuleId.toLowerCase() : '';
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');

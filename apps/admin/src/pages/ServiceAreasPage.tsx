@@ -137,9 +137,9 @@ export default function ServiceAreasPage(): React.ReactElement {
   const rawAreaId = searchParams.get('areaId')?.trim() ?? '';
   const rawChangeRequestId = searchParams.get('changeRequestId')?.trim() ?? '';
   const hasAmbiguousExactSelection = Boolean(rawAreaId && rawChangeRequestId);
-  const requestedAreaId = !hasAmbiguousExactSelection && UUID_REGEX.test(rawAreaId) ? rawAreaId : '';
+  const requestedAreaId = !hasAmbiguousExactSelection && UUID_REGEX.test(rawAreaId) ? rawAreaId.toLowerCase() : '';
   const requestedChangeRequestId = !hasAmbiguousExactSelection && UUID_REGEX.test(rawChangeRequestId)
-    ? rawChangeRequestId
+    ? rawChangeRequestId.toLowerCase()
     : '';
   const [searchInput, setSearchInput] = useState(search);
   const [showCreateForm, setShowCreateForm] = useState(false);

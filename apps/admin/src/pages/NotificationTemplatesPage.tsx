@@ -142,7 +142,7 @@ export default function NotificationTemplatesPage(): React.ReactElement {
   const channelFilter = parseChannel(searchParams.get('channel'));
   const rawTemplateId = searchParams.get('templateId')?.trim() ?? '';
   const hasMalformedTemplateId = Boolean(rawTemplateId) && !UUID_REGEX.test(rawTemplateId);
-  const requestedTemplateId = UUID_REGEX.test(rawTemplateId) ? rawTemplateId : '';
+  const requestedTemplateId = UUID_REGEX.test(rawTemplateId) ? rawTemplateId.toLowerCase() : '';
 
   const [editing, setEditing] = useState<Template | null>(null);
   const [creating, setCreating] = useState(false);

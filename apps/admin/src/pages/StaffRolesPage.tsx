@@ -156,7 +156,7 @@ function RolesTab(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawRoleProfileId = searchParams.get('roleProfileId')?.trim() ?? '';
   const hasMalformedRoleProfileId = Boolean(rawRoleProfileId) && !UUID_REGEX.test(rawRoleProfileId);
-  const requestedRoleProfileId = UUID_REGEX.test(rawRoleProfileId) ? rawRoleProfileId : '';
+  const requestedRoleProfileId = UUID_REGEX.test(rawRoleProfileId) ? rawRoleProfileId.toLowerCase() : '';
   const [editing, setEditing] = useState<AdminRole | null>(null);
   const [creating, setCreating] = useState(false);
   const [formName, setFormName] = useState('');
