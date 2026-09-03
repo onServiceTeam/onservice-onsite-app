@@ -19,6 +19,14 @@ import {
 import * as marketingAdminService from '../services/marketing-admin.service';
 
 const router = Router();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function requireUuid(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !UUID_REGEX.test(value)) {
+    throw createAppError(`${label} must be a valid UUID.`, 400);
+  }
+  return value;
+}
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
@@ -85,7 +93,8 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const data = await marketingAdminService.getPromoCode(req.params.id as string);
+      const id = requireUuid(req.params.id, 'Promo code ID');
+      const data = await marketingAdminService.getPromoCode(id);
       if (!data) throw createAppError('Promo code not found.', 404);
       res.json({ success: true, data });
     } catch (error) { next(error); }
@@ -164,7 +173,7 @@ router.patch(
       if (body.active !== undefined) patch.active = Boolean(body.active);
 
       const data = await marketingAdminService.updatePromoCode(
-        req.params.id as string,
+        requireUuid(req.params.id, 'Promo code ID'),
         patch,
         req.user!.userId,
       );
@@ -180,7 +189,7 @@ router.post(
     try {
       requireSuperAdmin(req);
       const data = await marketingAdminService.deactivatePromoCode(
-        req.params.id as string,
+        requireUuid(req.params.id, 'Promo code ID'),
         req.user!.userId,
       );
       res.json({ success: true, data });
@@ -226,7 +235,8 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const data = await marketingAdminService.getCampaign(req.params.id as string);
+      const id = requireUuid(req.params.id, 'Campaign ID');
+      const data = await marketingAdminService.getCampaign(id);
       if (!data) throw createAppError('Marketing campaign not found.', 404);
       res.json({ success: true, data });
     } catch (error) { next(error); }
@@ -281,7 +291,7 @@ router.patch(
       }
 
       const data = await marketingAdminService.updateCampaign(
-        req.params.id as string,
+        requireUuid(req.params.id, 'Campaign ID'),
         patch,
         req.user!.userId,
       );

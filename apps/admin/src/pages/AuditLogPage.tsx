@@ -264,6 +264,16 @@ function linkedCommunicationId(
   return null;
 }
 
+function marketingConfigRecord(entry: AuditEntry): 'promo_code' | 'campaign' | null {
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const kind = values?.kind;
+    if (typeof kind !== 'string') continue;
+    if (kind.startsWith('promo_')) return 'promo_code';
+    if (kind.startsWith('campaign_')) return 'campaign';
+  }
+  return null;
+}
+
 function searchedConsentUserId(entry: AuditEntry): string | null {
   if (entry.action !== 'consent_search') return null;
   for (const values of [entry.newValues, entry.oldValues]) {
@@ -545,14 +555,29 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
         ? { to: `/pricing-rules?ruleId=${id}`, label: 'Open exact pricing rule' }
         : null;
     case 'promotion':
-      return { to: '/marketing', label: 'Open Marketing' };
+      return UUID_REGEX.test(entry.entityId)
+        ? { to: `/marketing?tab=banners&promotionId=${id}`, label: 'Open exact home banner' }
+        : null;
     case 'notification_template':
       return { to: '/notification-templates', label: 'Open notification templates' };
     case 'admin_staff':
       return { to: `/staff?search=${id}`, label: 'Find exact staff directory profile' };
     case 'admin_role':
       return { to: '/staff', label: 'Open Staff & Roles' };
-    case 'config':
+    case 'config': {
+      const marketingRecord = marketingConfigRecord(entry);
+      if (marketingRecord === 'promo_code') {
+        return UUID_REGEX.test(entry.entityId)
+          ? { to: `/marketing?tab=promos&promoCodeId=${id}`, label: 'Open exact promo code' }
+          : null;
+      }
+      if (marketingRecord === 'campaign') {
+        return UUID_REGEX.test(entry.entityId)
+          ? { to: `/marketing?tab=campaigns&campaignId=${id}`, label: 'Open exact campaign' }
+          : null;
+      }
+      return { to: '/settings', label: 'Open System Settings' };
+    }
     case 'system':
       return { to: '/settings', label: 'Open System Settings' };
     default:
@@ -567,6 +592,12 @@ function entityLabel(entry: AuditEntry): string {
     return 'Data subject request';
   }
   if (entry.entityType === 'consent_version') return 'Consent publication';
+  if (entry.entityType === 'promotion') return 'Home banner';
+  if (entry.entityType === 'config') {
+    const marketingRecord = marketingConfigRecord(entry);
+    if (marketingRecord === 'promo_code') return 'Promo code';
+    if (marketingRecord === 'campaign') return 'Marketing campaign';
+  }
   if (entry.entityType !== 'user' && entry.entityType !== 'users') return humanizeSlug(entry.entityType);
   const targetRole = targetAccountRole(entry);
   if (targetRole === 'customer') return 'Customer account';
