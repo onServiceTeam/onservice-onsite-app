@@ -530,8 +530,16 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
         : null;
     }
     case 'service_area':
+      return UUID_REGEX.test(entry.entityId)
+        ? { to: `/service-areas?areaId=${id}`, label: 'Open exact service area' }
+        : null;
     case 'service_area_change_request':
-      return { to: '/service-areas', label: 'Open Service Areas' };
+      return UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/service-areas?changeRequestId=${id}`,
+            label: 'Open exact provider area-change decision',
+          }
+        : null;
     case 'pricing_rule':
       return UUID_REGEX.test(entry.entityId)
         ? { to: `/pricing-rules?ruleId=${id}`, label: 'Open exact pricing rule' }

@@ -134,6 +134,34 @@ router.get(
   },
 );
 
+router.get(
+  '/service-area-changes/:changeId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const changeId = req.params.changeId;
+      if (
+        typeof changeId !== 'string'
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(changeId)
+      ) {
+        throw createAppError('changeId must be a valid UUID.', 400);
+      }
+      const request = await areaChange.getById(changeId);
+      const revealContact = req.user!.role === 'super_admin';
+      res.json({
+        success: true,
+        data: {
+          ...request,
+          providerEmail: revealContact || !request.providerEmail ? request.providerEmail : maskEmail(request.providerEmail),
+          providerPhone: revealContact || !request.providerPhone ? request.providerPhone : maskPhilippinePhone(request.providerPhone),
+          contactMasked: !revealContact,
+        },
+      });
+    } catch (error) { next(error); }
+  },
+);
+
 router.post(
   '/service-area-changes/:changeId/decide',
   authMiddleware,
