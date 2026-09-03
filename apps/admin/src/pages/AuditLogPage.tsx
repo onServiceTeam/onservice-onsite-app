@@ -27,6 +27,9 @@ interface AuditEntry {
   targetUserRole?: string | null;
   targetProviderId?: string | null;
   targetBookingId?: string | null;
+  targetTaxYear?: number | null;
+  targetTaxQuarter?: number | null;
+  targetTaxMonth?: number | null;
   action: string;
   entityType: string;
   entityId: string | null;
@@ -58,6 +61,8 @@ const ACTION_LABELS: Record<string, string> = {
   booking_cancelled: 'Booking cancelled',
   booking_force_completed: 'Booking force-completed',
   booking_reassigned: 'Booking reassigned',
+  bir_2307_batch_generated: '2307 workpaper batch generated',
+  bir_2307_regenerated: '2307 workpaper batch regenerated',
   config_changed: 'Configuration changed',
   consent_search: 'Consent evidence searched',
   consent_version_published: 'Consent version published',
@@ -126,6 +131,8 @@ const ACTION_LABELS: Record<string, string> = {
   support_ticket_status_resumed_by_reply: 'Support case resumed by participant reply',
   support_ticket_priority_updated: 'Support case priority updated',
   user_profile_updated: 'Profile name updated',
+  vat_report_finalized: 'VAT workpaper locked',
+  vat_report_generated: 'VAT workpaper generated',
 };
 
 const ROLE_COLORS: Record<string, string> = {
@@ -206,6 +213,19 @@ function linkedBookingId(entry: AuditEntry): string | null {
   return null;
 }
 
+function linkedTaxNumber(
+  entry: AuditEntry,
+  canonical: number | null | undefined,
+  detailKey: 'taxYear' | 'taxQuarter' | 'periodYear' | 'periodMonth',
+): number | null {
+  if (Number.isInteger(canonical)) return canonical ?? null;
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const value = values?.[detailKey];
+    if (typeof value === 'number' && Number.isInteger(value)) return value;
+  }
+  return null;
+}
+
 function searchedConsentUserId(entry: AuditEntry): string | null {
   if (entry.action !== 'consent_search') return null;
   for (const values of [entry.newValues, entry.oldValues]) {
@@ -258,6 +278,36 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
             label: 'Open Booking 360 receipt evidence',
           }
         : null;
+    }
+    case 'bir_2307_batch': {
+      const year = linkedTaxNumber(entry, entry.targetTaxYear, 'taxYear');
+      const quarter = linkedTaxNumber(entry, entry.targetTaxQuarter, 'taxQuarter');
+      if (!UUID_REGEX.test(entry.entityId) || year === null || quarter === null) return null;
+      const params = new URLSearchParams({
+        tab: 'bir',
+        taxYear: String(year),
+        taxQuarter: String(quarter),
+        batchId: entry.entityId,
+      });
+      return {
+        to: `/financials?${params.toString()}`,
+        label: 'Open exact 2307 workpaper evidence',
+      };
+    }
+    case 'vat_report': {
+      const year = linkedTaxNumber(entry, entry.targetTaxYear, 'periodYear');
+      const month = linkedTaxNumber(entry, entry.targetTaxMonth, 'periodMonth');
+      if (!UUID_REGEX.test(entry.entityId) || year === null || month === null) return null;
+      const params = new URLSearchParams({
+        tab: 'bir',
+        taxYear: String(year),
+        vatMonth: String(month),
+        vatReportId: entry.entityId,
+      });
+      return {
+        to: `/financials?${params.toString()}`,
+        label: 'Open exact VAT workpaper evidence',
+      };
     }
     case 'recurring_booking':
       return UUID_REGEX.test(entry.entityId)

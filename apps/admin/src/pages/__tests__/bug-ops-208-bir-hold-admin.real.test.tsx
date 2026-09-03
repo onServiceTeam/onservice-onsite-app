@@ -46,7 +46,7 @@ describe('admin BIR compliance hold', () => {
     );
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/compliance hold \(E22\)/i);
-    expect(screen.getByRole('heading', { name: /internal monthly VAT reconciliation/i })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: /internal monthly VAT reconciliation/i })).toBeVisible();
     for (const button of screen.getAllByRole('button', { name: /generate|lock/i })) {
       expect(button).toBeDisabled();
     }

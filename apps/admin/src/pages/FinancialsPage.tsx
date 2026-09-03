@@ -68,6 +68,12 @@ function parseTab(value: string | null): TabKey {
   return value && TAB_KEYS.has(value as TabKey) ? (value as TabKey) : 'overview';
 }
 
+function parseBoundedInteger(value: string | null, min: number, max: number): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : null;
+}
+
 // BUG-PHASE112-01 fix — pre-fix these helpers used
 // toISOString().slice(0, 10), which is the UTC date. For an admin in
 // Manila opening this page at 00:30 Manila Thursday (= 16:30 UTC
@@ -1589,6 +1595,46 @@ interface Q2307ListEnvelope {
   total: number;
 }
 
+interface Q2307Detail {
+  id: string;
+  providerId: string;
+  providerName?: string;
+  taxYear: number;
+  taxQuarter: number;
+  grossIncome: number;
+  withholdingRate: number;
+  withheldAmount: number;
+  pdfUrl: string | null;
+  issuedAt: string;
+}
+
+interface VatReportDetail {
+  id: string;
+  periodYear: number;
+  periodMonth: number;
+  totalGrossSales: number;
+  outputVat: number;
+  inputVat: number;
+  vatPayable: number;
+  orCount: number;
+  pdfUrl: string | null;
+  finalizedAt: string | null;
+  generatedAt: string;
+}
+
+interface BirReportsPanelProps {
+  isSuperAdmin: boolean;
+  selectedYear?: number;
+  selectedQuarter?: number | null;
+  batchId?: string;
+  vatMonth?: number | null;
+  vatReportId?: string;
+  selectionError?: string;
+  onYearChange?: (year: number) => void;
+  onQuarterChange?: (quarter: number | null) => void;
+  onClearExact?: () => void;
+}
+
 function normalizeBirOverview(data: BirOverviewData): BirOverviewData {
   const summary = data.annualSummary;
   return {
@@ -1611,11 +1657,36 @@ function normalizeBirOverview(data: BirOverviewData): BirOverviewData {
   };
 }
 
-export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactElement {
+export function BirReportsPanel({
+  isSuperAdmin,
+  selectedYear,
+  selectedQuarter,
+  batchId = '',
+  vatMonth = null,
+  vatReportId = '',
+  selectionError = '',
+  onYearChange,
+  onQuarterChange,
+  onClearExact,
+}: BirReportsPanelProps): React.ReactElement {
   const qc = useQueryClient();
   const currentYear = Number(todayIso().slice(0, 4));
-  const [year, setYear] = useState<number>(currentYear);
-  const [expandedQuarter, setExpandedQuarter] = useState<number | null>(null);
+  const [localYear, setLocalYear] = useState<number>(currentYear);
+  const [localExpandedQuarter, setLocalExpandedQuarter] = useState<number | null>(null);
+  const year = selectedYear ?? localYear;
+  const expandedQuarter = selectedQuarter === undefined
+    ? localExpandedQuarter
+    : selectedQuarter;
+
+  const setYear = (value: number): void => {
+    if (onYearChange) onYearChange(value);
+    else setLocalYear(value);
+  };
+
+  const setExpandedQuarter = (value: number | null): void => {
+    if (onQuarterChange) onQuarterChange(value);
+    else setLocalExpandedQuarter(value);
+  };
 
   const overviewQ = useQuery({
     queryKey: ['bir-overview', year],
@@ -1685,21 +1756,39 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
         amount: Number(row.amount ?? row.withheldAmount ?? 0),
       }));
     },
-    enabled: expandedQuarter !== null,
+    enabled: expandedQuarter !== null && !selectionError,
   });
 
-  const yearOptions = [currentYear - 2, currentYear - 1, currentYear];
+  const exactBatchQ = useQuery({
+    queryKey: ['bir-2307-exact', batchId],
+    queryFn: async () => {
+      const res = await api.get<ApiEnvelope<Q2307Detail>>(
+        `/api/v1/admin/bir/2307/${batchId}`,
+      );
+      return res.data.data;
+    },
+    enabled: Boolean(batchId) && !selectionError,
+  });
 
-  if (overviewQ.isLoading) return <LoadingState />;
-  if (overviewQ.isError) return (
-    <ErrorState
-      title="Tax workpapers unavailable"
-      description={`${getErrorMessage(overviewQ.error)} Do not infer that filing or withholding work is complete.`}
-      action={<Button variant="outline" className="min-h-11" onClick={() => { void overviewQ.refetch(); }}>Retry workpapers</Button>}
-    />
-  );
+  const exactVatQ = useQuery({
+    queryKey: ['bir-vat-exact', year, vatMonth, vatReportId],
+    queryFn: async () => {
+      const res = await api.get<ApiEnvelope<VatReportDetail>>(
+        `/api/v1/admin/bir/vat/reports/${year}/${vatMonth}`,
+      );
+      return res.data.data;
+    },
+    enabled: Boolean(vatReportId) && vatMonth !== null && !selectionError,
+  });
+
+  const yearOptions = Array.from(new Set([
+    currentYear - 2,
+    currentYear - 1,
+    currentYear,
+    year,
+  ])).sort((a, b) => a - b);
+
   const d = overviewQ.data;
-  if (!d) return <EmptyState title="No BIR data" />;
 
   return (
     <div>
@@ -1714,6 +1803,17 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
           Philippine accountant approves the taxpayer profile, document type, tax basis, and serial authority.
         </p>
       </div>
+      {selectionError && (
+        <div role="alert" className="mb-6 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900">
+          <p className="font-semibold">Invalid tax-workpaper evidence link</p>
+          <p className="mt-1">{selectionError} No exact evidence request was sent.</p>
+          {onClearExact && (
+            <Button variant="outline" size="sm" className="mt-3" onClick={onClearExact}>
+              Remove invalid evidence selection
+            </Button>
+          )}
+        </div>
+      )}
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-4 mb-6 flex items-end gap-3">
         <div>
           <Label htmlFor="bir-year">Year</Label>
@@ -1730,6 +1830,149 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
         </div>
       </div>
 
+      {batchId && !selectionError && (
+        <section className="mb-6 rounded-xl border border-[var(--color-border)] bg-white p-5" aria-labelledby="exact-2307-heading">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-secondary)]">Audit evidence</p>
+              <h2 id="exact-2307-heading" className="mt-1 text-base font-semibold text-[var(--color-text)]">
+                Exact 2307 Workpaper Evidence
+              </h2>
+            </div>
+            {onClearExact && (
+              <Button variant="outline" size="sm" onClick={onClearExact}>Return to workpaper summary</Button>
+            )}
+          </div>
+          {exactBatchQ.isLoading ? (
+            <p className="mt-4 text-sm text-[var(--color-text-secondary)]">Loading exact batch evidence…</p>
+          ) : exactBatchQ.isError ? (
+            <ErrorState
+              title="2307 workpaper evidence unavailable"
+              description={getErrorMessage(exactBatchQ.error)}
+              action={<Button variant="outline" onClick={() => { void exactBatchQ.refetch(); }}>Retry exact evidence</Button>}
+            />
+          ) : exactBatchQ.data ? (
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Batch ID</p>
+                <p className="mt-1 break-all text-sm font-medium text-[var(--color-text)]">{exactBatchQ.data.id}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Provider</p>
+                <Link className="mt-1 inline-block text-sm font-medium text-[var(--color-secondary)] hover:underline" to={`/providers/${exactBatchQ.data.providerId}`}>
+                  {exactBatchQ.data.providerName ?? exactBatchQ.data.providerId}
+                </Link>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Tax period</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">Q{exactBatchQ.data.taxQuarter} {exactBatchQ.data.taxYear}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Issued</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatDateTime(exactBatchQ.data.issuedAt)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Gross income basis</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatCurrency(exactBatchQ.data.grossIncome)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Withholding rate</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{(exactBatchQ.data.withholdingRate * 100).toFixed(2)}%</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Withheld amount</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatCurrency(exactBatchQ.data.withheldAmount)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Stored artifact</p>
+                {exactBatchQ.data.pdfUrl ? (
+                  <a className="mt-1 inline-block text-sm font-medium text-[var(--color-secondary)] hover:underline" href={exactBatchQ.data.pdfUrl} target="_blank" rel="noopener noreferrer">Open retained PDF</a>
+                ) : (
+                  <p className="mt-1 text-sm text-[var(--color-text-secondary)]">No PDF retained</p>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      )}
+
+      {vatReportId && vatMonth !== null && !selectionError && (
+        <section className="mb-6 rounded-xl border border-[var(--color-border)] bg-white p-5" aria-labelledby="exact-vat-heading">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-secondary)]">Audit evidence</p>
+              <h2 id="exact-vat-heading" className="mt-1 text-base font-semibold text-[var(--color-text)]">
+                Exact VAT Workpaper Evidence
+              </h2>
+            </div>
+            {onClearExact && (
+              <Button variant="outline" size="sm" onClick={onClearExact}>Return to workpaper summary</Button>
+            )}
+          </div>
+          {exactVatQ.isLoading ? (
+            <p className="mt-4 text-sm text-[var(--color-text-secondary)]">Loading exact VAT evidence…</p>
+          ) : exactVatQ.isError ? (
+            <ErrorState
+              title="VAT workpaper evidence unavailable"
+              description={getErrorMessage(exactVatQ.error)}
+              action={<Button variant="outline" onClick={() => { void exactVatQ.refetch(); }}>Retry exact evidence</Button>}
+            />
+          ) : exactVatQ.data && exactVatQ.data.id !== vatReportId ? (
+            <ErrorState
+              title="VAT workpaper identity mismatch"
+              description="The retained period record does not match the audit target. Do not use it as evidence for this event."
+            />
+          ) : exactVatQ.data ? (
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Report ID</p>
+                <p className="mt-1 break-all text-sm font-medium text-[var(--color-text)]">{exactVatQ.data.id}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Tax period</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{MonthName(exactVatQ.data.periodMonth)} {exactVatQ.data.periodYear}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Status</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{exactVatQ.data.finalizedAt ? 'Locked' : 'Draft'}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Generated</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatDateTime(exactVatQ.data.generatedAt)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Gross sales</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatCurrency(exactVatQ.data.totalGrossSales)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Output VAT</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatCurrency(exactVatQ.data.outputVat)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Input VAT / payable</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatCurrency(exactVatQ.data.inputVat)} / {formatCurrency(exactVatQ.data.vatPayable)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Source sales records</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{exactVatQ.data.orCount}</p>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      )}
+
+      {overviewQ.isLoading ? (
+        <LoadingState />
+      ) : overviewQ.isError ? (
+        <ErrorState
+          title="Tax workpaper summary unavailable"
+          description={`${getErrorMessage(overviewQ.error)} Exact retained evidence above remains independently available; do not infer that filing or withholding work is complete.`}
+          action={<Button variant="outline" className="min-h-11" onClick={() => { void overviewQ.refetch(); }}>Retry workpaper summary</Button>}
+        />
+      ) : !d ? (
+        <EmptyState title="No BIR data" />
+      ) : (
+        <>
       {/* Annual summary */}
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 mb-6">
         <h2 className="text-base font-semibold text-[var(--color-text)] mb-3">Internal Tax Workpaper Summary ({d.year})</h2>
@@ -1862,9 +2105,9 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() =>
-                          setExpandedQuarter((prev) => (prev === qb.quarter ? null : qb.quarter))
-                        }
+                        onClick={() => setExpandedQuarter(
+                          expandedQuarter === qb.quarter ? null : qb.quarter,
+                        )}
                       >
                         {expandedQuarter === qb.quarter ? 'Hide list' : 'View list'}
                       </Button>
@@ -1908,6 +2151,8 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }
@@ -2271,6 +2516,28 @@ export default function FinancialsPage(): React.ReactElement {
   const intentSearch = searchParams.get('intentSearch')?.trim() ?? '';
   const retrySearch = searchParams.get('retrySearch')?.trim() ?? '';
   const reconciliationSnapshotId = searchParams.get('snapshotId')?.trim() ?? '';
+  const rawTaxYear = searchParams.get('taxYear')?.trim() ?? '';
+  const rawTaxQuarter = searchParams.get('taxQuarter')?.trim() ?? '';
+  const rawVatMonth = searchParams.get('vatMonth')?.trim() ?? '';
+  const rawBatchId = searchParams.get('batchId')?.trim() ?? '';
+  const rawVatReportId = searchParams.get('vatReportId')?.trim() ?? '';
+  const taxYear = parseBoundedInteger(rawTaxYear, 2024, 2100);
+  const taxQuarter = parseBoundedInteger(rawTaxQuarter, 1, 4);
+  const vatMonth = parseBoundedInteger(rawVatMonth, 1, 12);
+  const batchId = UUID_REGEX.test(rawBatchId) ? rawBatchId : '';
+  const vatReportId = UUID_REGEX.test(rawVatReportId) ? rawVatReportId : '';
+  const taxSelectionError = tab !== 'bir' ? ''
+    : rawTaxYear && taxYear === null ? 'Tax year must be a whole year from 2024 through 2100.'
+      : rawTaxQuarter && taxQuarter === null ? 'Tax quarter must be 1 through 4.'
+        : rawVatMonth && vatMonth === null ? 'VAT month must be 1 through 12.'
+          : rawBatchId && !batchId ? 'The 2307 batch ID must be a complete UUID.'
+            : rawVatReportId && !vatReportId ? 'The VAT report ID must be a complete UUID.'
+              : batchId && vatReportId ? 'Choose either one 2307 batch or one VAT report, not both.'
+                : batchId && (taxYear === null || taxQuarter === null)
+                  ? 'An exact 2307 batch link must include its tax year and quarter.'
+                  : vatReportId && (taxYear === null || vatMonth === null)
+                    ? 'An exact VAT report link must include its tax year and month.'
+                    : '';
   const receiptSearch = normalizeReceiptSearch({
     orNumber: searchParams.get('receiptOr') ?? '',
     customerName: searchParams.get('receiptCustomer') ?? '',
@@ -2311,6 +2578,13 @@ export default function FinancialsPage(): React.ReactElement {
         params.delete('receiptLimit');
       }
       if (nextTab !== 'reconciliation') params.delete('snapshotId');
+      if (nextTab !== 'bir') {
+        params.delete('taxYear');
+        params.delete('taxQuarter');
+        params.delete('batchId');
+        params.delete('vatMonth');
+        params.delete('vatReportId');
+      }
       return params;
     });
   };
@@ -2364,6 +2638,47 @@ export default function FinancialsPage(): React.ReactElement {
       params.set('tab', 'reconciliation');
       if (value) params.set('snapshotId', value);
       else params.delete('snapshotId');
+      return params;
+    });
+  };
+
+  const selectTaxYear = (value: number): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'bir');
+      params.set('taxYear', String(value));
+      params.delete('taxQuarter');
+      params.delete('batchId');
+      params.delete('vatMonth');
+      params.delete('vatReportId');
+      return params;
+    });
+  };
+
+  const selectTaxQuarter = (value: number | null): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'bir');
+      params.set('taxYear', String(taxYear ?? Number(todayIso().slice(0, 4))));
+      if (value === null) params.delete('taxQuarter');
+      else params.set('taxQuarter', String(value));
+      params.delete('batchId');
+      params.delete('vatMonth');
+      params.delete('vatReportId');
+      return params;
+    });
+  };
+
+  const clearTaxEvidence = (): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('batchId');
+      params.delete('vatMonth');
+      params.delete('vatReportId');
+      if (taxSelectionError) {
+        params.delete('taxYear');
+        params.delete('taxQuarter');
+      }
       return params;
     });
   };
@@ -2426,7 +2741,20 @@ export default function FinancialsPage(): React.ReactElement {
           onSnapshotChange={selectReconciliationSnapshot}
         />
       )}
-      {tab === 'bir' && <BirReportsPanel isSuperAdmin={isSuperAdmin} />}
+      {tab === 'bir' && (
+        <BirReportsPanel
+          isSuperAdmin={isSuperAdmin}
+          selectedYear={taxYear ?? undefined}
+          selectedQuarter={taxQuarter}
+          batchId={batchId}
+          vatMonth={vatMonth}
+          vatReportId={vatReportId}
+          selectionError={taxSelectionError}
+          onYearChange={selectTaxYear}
+          onQuarterChange={selectTaxQuarter}
+          onClearExact={clearTaxEvidence}
+        />
+      )}
       {tab === 'receipts' && (
         <ReceiptsPanel
           key={receiptSearchKey}

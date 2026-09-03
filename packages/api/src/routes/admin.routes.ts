@@ -2379,6 +2379,9 @@ interface AuditLogRow {
   target_user_role: string | null;
   target_provider_id: string | null;
   target_booking_id: string | null;
+  target_tax_year: number | null;
+  target_tax_quarter: number | null;
+  target_tax_month: number | null;
 }
 
 router.get(
@@ -2513,13 +2516,40 @@ router.get(
                     SELECT review.provider_id
                       FROM reviews review
                      WHERE review.id = combined.entity_id
+                  ) END,
+                  CASE WHEN combined.entity_type = 'bir_2307_batch' THEN (
+                    SELECT batch.provider_id
+                      FROM bir_2307_batches batch
+                     WHERE batch.id = combined.entity_id
                   ) END
                 ) AS target_provider_id,
                 CASE WHEN combined.entity_type = 'official_receipt' THEN (
                   SELECT receipt.booking_id
                     FROM official_receipts receipt
                    WHERE receipt.id = combined.entity_id
-                ) END AS target_booking_id
+                ) END AS target_booking_id,
+                CASE
+                  WHEN combined.entity_type = 'bir_2307_batch' THEN (
+                    SELECT batch.tax_year
+                      FROM bir_2307_batches batch
+                     WHERE batch.id = combined.entity_id
+                  )
+                  WHEN combined.entity_type = 'vat_report' THEN (
+                    SELECT report.period_year
+                      FROM vat_monthly_reports report
+                     WHERE report.id = combined.entity_id
+                  )
+                END AS target_tax_year,
+                CASE WHEN combined.entity_type = 'bir_2307_batch' THEN (
+                  SELECT batch.tax_quarter
+                    FROM bir_2307_batches batch
+                   WHERE batch.id = combined.entity_id
+                ) END AS target_tax_quarter,
+                CASE WHEN combined.entity_type = 'vat_report' THEN (
+                  SELECT report.period_month
+                    FROM vat_monthly_reports report
+                   WHERE report.id = combined.entity_id
+                ) END AS target_tax_month
            FROM (${baseRelation}) combined
            LEFT JOIN users u ON u.id = combined.user_id
            LEFT JOIN users target_user
@@ -2551,6 +2581,9 @@ router.get(
           targetUserRole: r.target_user_role,
           targetProviderId: r.target_provider_id,
           targetBookingId: r.target_booking_id,
+          targetTaxYear: r.target_tax_year,
+          targetTaxQuarter: r.target_tax_quarter,
+          targetTaxMonth: r.target_tax_month,
           action: r.action,
           entityType: r.entity_type,
           entityId: r.entity_id,

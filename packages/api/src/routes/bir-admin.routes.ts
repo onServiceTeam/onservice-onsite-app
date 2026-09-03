@@ -192,7 +192,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       requireAdmin(req);
-      const data = await bir2307Service.getBatchById(req.params.id as string);
+      const data = await bir2307Service.getBatchById(requireUuid(req.params.id, '2307 batch ID'));
       if (!data) throw createAppError('BIR 2307 batch not found.', 404);
       res.json({ success: true, data });
     } catch (error) { next(error); }
