@@ -45,6 +45,8 @@ function requireAdmin(req: AuthenticatedRequest): void {
 // char abuse string would bloat audit storage. Same server-cap shape
 // as Phase 152-168 + Phase 179 + Phase 180.
 const DECIDE_REASON_MAX = 5000;
+const PII_REVEAL_REASON_MAX = 500;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function validateDecideReason(value: string): void {
   if (value.length > DECIDE_REASON_MAX) {
     throw createAppError(
@@ -210,12 +212,19 @@ router.post(
     try {
       requireSuperAdmin(req);
       const auditLogId = req.params.auditLogId;
-      if (typeof auditLogId !== 'string' || !auditLogId) {
-        throw createAppError('auditLogId required.', 400);
+      if (typeof auditLogId !== 'string' || !UUID_REGEX.test(auditLogId)) {
+        throw createAppError('auditLogId must be a valid UUID.', 400);
       }
       const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
-      if (reason.trim().length < 20) {
+      const normalizedReason = reason.trim();
+      if (normalizedReason.length < 20) {
         throw createAppError('Reveal reason must be at least 20 characters.', 400);
+      }
+      if (normalizedReason.length > PII_REVEAL_REASON_MAX) {
+        throw createAppError(
+          `Reveal reason cannot exceed ${PII_REVEAL_REASON_MAX} characters.`,
+          400,
+        );
       }
 
       const { db } = await import('../models/db');
@@ -250,8 +259,8 @@ router.post(
             ip: req.ip,
             user_agent: req.headers['user-agent'] ?? null,
           }),
-          reason.trim().slice(0, 500),
-          reason.trim(),
+          normalizedReason,
+          normalizedReason,
         ],
       );
 

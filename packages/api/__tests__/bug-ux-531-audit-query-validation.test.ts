@@ -44,6 +44,7 @@ describe('admin audit timeline query validation', () => {
 
   it('Bug UX-540 — accepts every supported exact timeline filter', () => {
     expect(parseAuditTimelineExportQuery({
+      entryId: '00000000-0000-4000-8000-000000000000',
       userId: '11111111-1111-4111-8111-111111111111',
       action: ' booking ',
       entityType: 'booking',
@@ -53,6 +54,7 @@ describe('admin audit timeline query validation', () => {
       to: '2026-08-30',
       limit: '10000',
     })).toEqual({
+      entryId: '00000000-0000-4000-8000-000000000000',
       userId: '11111111-1111-4111-8111-111111111111',
       action: 'booking',
       entityType: 'booking',

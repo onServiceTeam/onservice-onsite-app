@@ -2410,6 +2410,10 @@ router.get(
       const visibilityClause = generalAuditVisibilityClause(req.user!.role);
       if (visibilityClause) filters.push(visibilityClause);
 
+      if (parsed.entryId) {
+        filters.push(`combined.id = $${paramIdx++}`);
+        params.push(parsed.entryId);
+      }
       if (parsed.userId) {
         filters.push(`combined.user_id = $${paramIdx++}`);
         params.push(parsed.userId);

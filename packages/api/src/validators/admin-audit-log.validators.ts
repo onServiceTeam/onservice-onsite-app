@@ -3,6 +3,7 @@ import { createAppError } from '../middleware/error.middleware';
 export type AuditTimelineSource = 'audit_log' | 'admin_actions';
 
 export interface AuditTimelineFilters {
+  entryId?: string;
   userId?: string;
   action?: string;
   entityType?: string;
@@ -72,6 +73,11 @@ function validCalendarDate(value: string): boolean {
 }
 
 export function parseAuditTimelineFilters(query: Record<string, unknown>): AuditTimelineFilters {
+  const entryId = optionalString(query, 'entryId', 36);
+  if (entryId && !UUID_REGEX.test(entryId)) {
+    throw createAppError('entryId must be a valid UUID.', 400);
+  }
+
   const userId = optionalString(query, 'userId', 36);
   if (userId && !UUID_REGEX.test(userId)) {
     throw createAppError('userId must be a valid UUID.', 400);
@@ -92,6 +98,9 @@ export function parseAuditTimelineFilters(query: Record<string, unknown>): Audit
   if (sourceRaw && !SOURCES.has(sourceRaw)) {
     throw createAppError('source must be audit_log or admin_actions.', 400);
   }
+  if (entryId && !sourceRaw) {
+    throw createAppError('source is required when entryId is provided.', 400);
+  }
 
   const from = optionalString(query, 'from', 10);
   const to = optionalString(query, 'to', 10);
@@ -106,6 +115,7 @@ export function parseAuditTimelineFilters(query: Record<string, unknown>): Audit
   }
 
   return {
+    entryId,
     userId,
     action,
     entityType,

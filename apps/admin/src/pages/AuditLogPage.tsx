@@ -298,6 +298,17 @@ function linkedCommissionRateId(entry: AuditEntry): string | null {
   return null;
 }
 
+function linkedPiiRevealAuditEntryId(entry: AuditEntry): string | null {
+  if (entry.action !== 'pii_reveal' || entry.entityType !== 'system') return null;
+  const detailId = entry.newValues?.audit_log_id;
+  const validDetailId = typeof detailId === 'string' && UUID_REGEX.test(detailId)
+    ? detailId
+    : null;
+  const validEntityId = entry.entityId && UUID_REGEX.test(entry.entityId) ? entry.entityId : null;
+  if (validDetailId && validEntityId && validDetailId !== validEntityId) return null;
+  return validDetailId ?? validEntityId;
+}
+
 function searchedConsentUserId(entry: AuditEntry): string | null {
   if (entry.action !== 'consent_search') return null;
   for (const values of [entry.newValues, entry.oldValues]) {
@@ -328,6 +339,14 @@ function targetAccountRole(entry: AuditEntry): string | null {
 }
 
 function entityDestination(entry: AuditEntry): { to: string; label: string } | null {
+  const revealedAuditEntryId = linkedPiiRevealAuditEntryId(entry);
+  if (revealedAuditEntryId) {
+    const params = new URLSearchParams({ source: 'audit_log', entryId: revealedAuditEntryId });
+    return {
+      to: `/audit-log?${params.toString()}`,
+      label: 'Open exact original masked audit event',
+    };
+  }
   if (entry.action === 'consent_search') {
     const searchedUserId = searchedConsentUserId(entry);
     return searchedUserId
@@ -628,6 +647,7 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
 
 function entityLabel(entry: AuditEntry): string {
   if (entry.action === 'consent_search') return 'Consent evidence lookup';
+  if (linkedPiiRevealAuditEntryId(entry)) return 'Original audit event';
   if (linkedCommissionRateId(entry)) return 'Commission agreement';
   if (entry.entityType === 'admin_staff') return 'Staff directory profile';
   if (entry.entityType === 'dsr_request' || entry.entityType === 'data_subject_request') {
@@ -656,6 +676,7 @@ function entityLabel(entry: AuditEntry): string {
 }
 
 function exactEntityTimeline(entry: AuditEntry): string | null {
+  if (linkedPiiRevealAuditEntryId(entry)) return null;
   if (!entry.entityId || !UUID_REGEX.test(entry.entityId)) return null;
   const params = new URLSearchParams({ entityType: entry.entityType, entityId: entry.entityId });
   return `/audit-log?${params.toString()}`;
@@ -696,6 +717,7 @@ function EntityLink({ entry }: { entry: AuditEntry }): React.ReactElement {
 export default function AuditLogPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
+  const entryIdFilter = searchParams.get('entryId')?.trim() ?? '';
   const actionFilter = searchParams.get('action')?.trim() ?? '';
   const entityTypeFilter = searchParams.get('entityType')?.trim() ?? '';
   const entityIdFilter = searchParams.get('entityId')?.trim() ?? '';
@@ -730,25 +752,32 @@ export default function AuditLogPage(): React.ReactElement {
   const dateError = fromDate && toDate && fromDate > toDate
     ? 'From date must be before or equal to To date.'
     : '';
+  const entryIdError = entryIdFilter && !UUID_REGEX.test(entryIdFilter)
+    ? 'Audit entry ID must be a complete UUID.'
+    : '';
+  const entrySourceError = entryIdFilter && sourceFilter === 'all'
+    ? 'An exact audit event link must include its recorded source.'
+    : '';
   const entityIdError = entityIdFilter && !UUID_REGEX.test(entityIdFilter)
     ? 'Record ID must be a complete UUID.'
     : '';
   const userIdError = userIdFilter && !UUID_REGEX.test(userIdFilter)
     ? 'Actor ID must be a complete UUID.'
     : '';
-  const filterError = dateError || entityIdError || userIdError;
+  const filterError = dateError || entryIdError || entrySourceError || entityIdError || userIdError;
   const hasFilters = Boolean(
-    actionFilter || entityTypeFilter || entityIdFilter || userIdFilter
+    entryIdFilter || actionFilter || entityTypeFilter || entityIdFilter || userIdFilter
     || sourceFilter !== 'all' || fromDate || toDate,
   );
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: [
-      'admin', 'audit-log', page, actionFilter, entityTypeFilter, entityIdFilter,
+      'admin', 'audit-log', page, entryIdFilter, actionFilter, entityTypeFilter, entityIdFilter,
       userIdFilter, sourceFilter, fromDate, toDate,
     ],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize };
+      if (entryIdFilter) params.entryId = entryIdFilter;
       if (actionFilter) params.action = actionFilter;
       if (entityTypeFilter) params.entityType = entityTypeFilter;
       if (entityIdFilter) params.entityId = entityIdFilter;
@@ -759,12 +788,35 @@ export default function AuditLogPage(): React.ReactElement {
       const response = await api.get<AuditResponse>('/api/v1/admin/audit-log', { params });
       return response.data;
     },
-    placeholderData: (previous) => previous,
+    placeholderData: entryIdFilter ? undefined : (previous) => previous,
     enabled: !filterError,
   });
 
-  const entries = data?.data ?? [];
+  const responseEntries = data?.data ?? [];
+  const exactEntry = entryIdFilter && UUID_REGEX.test(entryIdFilter)
+    ? responseEntries.find((entry) => (
+        entry.id === entryIdFilter
+        && (sourceFilter === 'all' || (entry.source ?? 'audit_log') === sourceFilter)
+      )) ?? null
+    : null;
+  const exactSelectionError = entryIdFilter && data && responseEntries.length > 0 && !exactEntry
+    ? 'The server response did not match the requested audit event. No substitute event is shown.'
+    : '';
+  const entries = entryIdFilter ? (exactEntry ? [exactEntry] : []) : responseEntries;
   const pagination = data?.pagination;
+
+  useEffect(() => {
+    if (!entryIdFilter) return;
+    if (filterError || !data) {
+      if (filterError) setSelectedEntry(null);
+      return;
+    }
+    setSelectedEntry((current) => {
+      if (!exactEntry) return null;
+      if (current?.id === exactEntry.id && current.source === exactEntry.source) return current;
+      return exactEntry;
+    });
+  }, [data, entryIdFilter, exactEntry, filterError]);
 
   function applyFilters(event: React.FormEvent): void {
     event.preventDefault();
@@ -805,6 +857,7 @@ export default function AuditLogPage(): React.ReactElement {
     setExportNotice('');
     try {
       const params: Record<string, string | number> = { limit: 10_000 };
+      if (entryIdFilter) params.entryId = entryIdFilter;
       if (actionFilter) params.action = actionFilter;
       if (entityTypeFilter) params.entityType = entityTypeFilter;
       if (entityIdFilter) params.entityId = entityIdFilter;
@@ -855,7 +908,7 @@ export default function AuditLogPage(): React.ReactElement {
             type="button"
             variant="outline"
             onClick={() => void exportCsv()}
-            disabled={exporting || Boolean(filterError)}
+            disabled={exporting || Boolean(filterError) || Boolean(exactSelectionError)}
           >
             <Download size={16} aria-hidden="true" />
             {exporting ? 'Preparing CSV…' : 'Export filtered CSV'}
@@ -868,6 +921,17 @@ export default function AuditLogPage(): React.ReactElement {
         recorded system events. It is not a complete HTTP request trace while E37 remains open. CSV exports
         use the same two sources and filters, mask contact/network/free-text PII, cap at 10,000 rows, and are audited.
       </div>
+
+      {entryIdFilter && !entryIdError && !entrySourceError && (
+        <Card className="border-sky-200 bg-sky-50 p-4" role="status">
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-900">Exact event evidence</p>
+          <p className="mt-1 text-sm text-sky-950">
+            Showing only audit entry <span className="font-mono text-xs">{entryIdFilter}</span> from the
+            {' '}{sourceFilter === 'all' ? 'selected timeline' : SOURCE_BADGE[sourceFilter].label.toLowerCase()}.
+            Values remain masked on this screen and in its CSV export.
+          </p>
+        </Card>
+      )}
 
       <Card className="p-4 md:p-5">
         <form onSubmit={applyFilters} className="space-y-4" aria-label="Audit timeline filters">
@@ -962,6 +1026,7 @@ export default function AuditLogPage(): React.ReactElement {
       </Card>
 
       {filterError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{filterError}</p>}
+      {exactSelectionError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{exactSelectionError}</p>}
       {exportError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">Export failed: {exportError}</p>}
       {exportNotice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{exportNotice}</p>}
 
@@ -972,7 +1037,9 @@ export default function AuditLogPage(): React.ReactElement {
       ) : entries.length === 0 ? (
         <EmptyState
           title="No matching recorded events"
-          description={hasFilters
+          description={entryIdFilter
+            ? 'That exact audit event is not available within your role and the selected source.'
+            : hasFilters
             ? 'No event matches the submitted filters. Clear or broaden one filter.'
             : 'No admin decision or selected system event has been recorded yet.'}
           icon={<ClipboardList size={30} className="text-slate-400" />}

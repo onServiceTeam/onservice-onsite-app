@@ -909,6 +909,7 @@ function maskIpForRole(
 }
 
 interface ExportAuditFilter {
+  entryId?: string;
   userId?: string;
   action?: string;
   entityType?: string;
@@ -945,6 +946,10 @@ function buildExportWhere(filter: ExportAuditFilter): { whereSql: string; params
   const visibilityClause = generalAuditVisibilityClause(filter.viewerRole);
   if (visibilityClause) where.push(visibilityClause);
 
+  if (filter.entryId) {
+    params.push(filter.entryId);
+    where.push(`combined.id = $${params.length}`);
+  }
   if (filter.userId) {
     params.push(filter.userId);
     where.push(`combined.user_id = $${params.length}`);
