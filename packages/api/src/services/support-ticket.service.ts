@@ -56,6 +56,7 @@ const VALID_STATUSES = [
   'closed',
 ] as const;
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
+const VALID_TICKET_OWNER_ROLES = ['customer', 'provider', 'provider_staff'] as const;
 
 export interface SupportTicket {
   id: string;
@@ -626,10 +627,19 @@ export async function createTicket(params: {
   // cases, the booking must belong to that customer, provider owner, or the
   // provider staff member assigned to perform it.
   const userResult = await db.query<{ role: string }>(
-    `SELECT role FROM users WHERE id = $1`,
+    `SELECT role
+       FROM users
+      WHERE id = $1
+        AND role IN ('customer', 'provider', 'provider_staff')`,
     [params.userId],
   );
-  if (!userResult.rows[0]) {
+  const ticketOwner = userResult.rows[0];
+  if (
+    !ticketOwner ||
+    !VALID_TICKET_OWNER_ROLES.includes(
+      ticketOwner.role as (typeof VALID_TICKET_OWNER_ROLES)[number],
+    )
+  ) {
     throw createAppError('Support ticket account not found.', 404);
   }
 

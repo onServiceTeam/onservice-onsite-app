@@ -20,7 +20,9 @@ it('Bug UX-888 — a project-linked support case is accepted only for its custom
   const customerId = '11111111-1111-4111-8111-111111111111';
   const projectId = '22222222-2222-4222-8222-222222222222';
   queryMock.mockImplementation(async (sql: string, params: unknown[] = []) => {
-    if (sql.includes('SELECT role FROM users')) return { rows: [{ role: 'customer' }] };
+    if (sql.includes('FROM users') && sql.includes('role IN')) {
+      return { rows: [{ role: 'customer' }] };
+    }
     if (sql.includes('FROM projects project_context')) {
       return { rows: [{ allowed: params[0] === projectId && params[1] === customerId }] };
     }
