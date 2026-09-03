@@ -1,5 +1,6 @@
 import React, { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
@@ -21,6 +22,7 @@ import { TrendingUp } from '@/components/icons';
 import { useAuthStore } from '@/stores/auth.store';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type RuleType = 'rush' | 'holiday' | 'peak_hours';
 type PublicationStatus = 'draft' | 'published' | 'retired' | 'legacy_active' | 'legacy_inactive';
 
@@ -246,7 +248,10 @@ function ruleToForm(rule: PricingRule): DraftForm {
 
 export default function PricingRulesPage(): React.ReactElement {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isSuperAdmin = useAuthStore((state) => state.user?.role === 'super_admin');
+  const rawRuleId = searchParams.get('ruleId')?.trim() ?? '';
+  const requestedRuleId = UUID_REGEX.test(rawRuleId) ? rawRuleId : '';
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -269,6 +274,21 @@ export default function PricingRulesPage(): React.ReactElement {
       const response = await api.get<PaginatedResult<PricingRule>>('/api/v1/admin/pricing-rules', { params });
       return response.data;
     },
+  });
+
+  const exactRuleQuery = useQuery({
+    queryKey: ['adminPricingRules', 'exact', requestedRuleId],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: PricingRule }>(
+        `/api/v1/admin/pricing-rules/${requestedRuleId}`,
+      );
+      if (response.data.data.id !== requestedRuleId) {
+        throw new Error('The pricing-rule response did not match the selected audit record.');
+      }
+      return response.data.data;
+    },
+    enabled: Boolean(requestedRuleId),
+    retry: false,
   });
 
   const catalogQuery = useQuery({
@@ -476,6 +496,12 @@ export default function PricingRulesPage(): React.ReactElement {
     saveMutation.mutate();
   };
 
+  const clearExactRule = (): void => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('ruleId');
+    setSearchParams(next, { replace: true });
+  };
+
   const rules = rulesQuery.data?.data ?? [];
   const isBusy = saveMutation.isPending || previewMutation.isPending || publishMutation.isPending || retireMutation.isPending;
   const eligiblePreviewSubcategories = fixedSubcategories.filter((item) =>
@@ -552,6 +578,56 @@ export default function PricingRulesPage(): React.ReactElement {
 
       {actionError && !editing && !previewTarget && !retireTarget && (
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{actionError}</div>
+      )}
+
+      {rawRuleId && (
+        <section
+          aria-labelledby="selected-pricing-rule-heading"
+          className="rounded-2xl border border-sky-200 bg-sky-50 p-4 sm:p-5"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Selected audit evidence</p>
+              <h2 id="selected-pricing-rule-heading" className="mt-1 text-lg font-semibold text-slate-950">
+                Exact pricing rule
+              </h2>
+            </div>
+            <Button type="button" size="sm" variant="outline" onClick={clearExactRule}>Clear selection</Button>
+          </div>
+          {!requestedRuleId ? (
+            <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-white p-3 text-sm text-red-800">
+              The audit link contains an invalid pricing-rule ID. No pricing record was loaded.
+            </p>
+          ) : exactRuleQuery.isLoading ? (
+            <div className="mt-4 h-24 animate-pulse rounded-xl bg-white" aria-label="Loading selected pricing rule" />
+          ) : exactRuleQuery.isError || !exactRuleQuery.data ? (
+            <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-white p-3 text-sm text-red-800">
+              The exact pricing rule could not be loaded. No other pricing rule was substituted.
+            </p>
+          ) : (
+            <div className="mt-4 rounded-xl border border-sky-200 bg-white p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-semibold text-slate-950">{exactRuleQuery.data.name}</p>
+                  <p className="mt-1 break-all font-mono text-xs text-slate-500">{exactRuleQuery.data.id}</p>
+                </div>
+                <Badge
+                  label={STATUS_LABELS[exactRuleQuery.data.publicationStatus]}
+                  variant={STATUS_VARIANTS[exactRuleQuery.data.publicationStatus]}
+                />
+              </div>
+              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                <div><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Scope</dt><dd className="mt-1 text-slate-800">{scopeLabel(exactRuleQuery.data)}</dd></div>
+                <div><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Schedule</dt><dd className="mt-1 text-slate-800">{scheduleLabel(exactRuleQuery.data)}</dd></div>
+                <div><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Customer price</dt><dd className="mt-1 font-semibold text-slate-950">×{exactRuleQuery.data.multiplier.toFixed(2)}</dd></div>
+                <div><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Surge split</dt><dd className="mt-1 text-slate-800">Platform {Math.round(exactRuleQuery.data.platformSurgeShare * 100)}% · Provider {Math.round((1 - exactRuleQuery.data.platformSurgeShare) * 100)}%</dd></div>
+              </dl>
+              <p className="mt-4 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">
+                {lifecycleEvidence(exactRuleQuery.data)}
+              </p>
+            </div>
+          )}
+        </section>
       )}
 
       {editing && (

@@ -533,7 +533,9 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
     case 'service_area_change_request':
       return { to: '/service-areas', label: 'Open Service Areas' };
     case 'pricing_rule':
-      return { to: '/pricing-rules', label: 'Open Pricing Rules' };
+      return UUID_REGEX.test(entry.entityId)
+        ? { to: `/pricing-rules?ruleId=${id}`, label: 'Open exact pricing rule' }
+        : null;
     case 'promotion':
       return { to: '/marketing', label: 'Open Marketing' };
     case 'notification_template':
