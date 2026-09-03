@@ -7,7 +7,7 @@ const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn(), replace: mockReplace }),
   useLocalSearchParams: () => ({
-    projectId: '22222222-2222-4222-8222-222222222222',
+    projectId: '22222222-2222-4222-8222-22222222222A',
     projectTitle: 'Kitchen renovation plan',
     type: 'general_inquiry',
     subject: 'Help with Kitchen renovation plan',
@@ -39,7 +39,7 @@ it('Bug UX-892 — the support form shows and submits the canonical planning pro
     subject: 'Help with Kitchen renovation plan',
     description: 'I need help understanding the next planning step.',
     bookingId: undefined,
-    projectId: '22222222-2222-4222-8222-222222222222',
+    projectId: '22222222-2222-4222-8222-22222222222a',
     priority: undefined,
   }));
   expect(mockReplace).toHaveBeenCalledWith('/support/ticket-892');

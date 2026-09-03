@@ -6,7 +6,7 @@ const mockPush = jest.fn();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn(), push: mockPush }),
-  useLocalSearchParams: () => ({ id: 'ticket-307' }),
+  useLocalSearchParams: () => ({ id: '30700000-abcd-4abc-8def-000000000307' }),
 }));
 jest.mock('@/stores/auth.store', () => ({
   useAuthStore: (selector: (state: unknown) => unknown) => selector({ user: { id: 'provider-307', role: 'provider' } }),
@@ -17,7 +17,7 @@ jest.mock('@/services/api', () => ({
     get: jest.fn().mockResolvedValue({
       data: {
         data: {
-          id: 'ticket-307', ticket_number: 'TKT-1307', type: 'booking_issue', status: 'in_progress',
+          id: '30700000-abcd-4abc-8def-000000000307', ticket_number: 'TKT-1307', type: 'booking_issue', status: 'in_progress',
           priority: 'medium', subject: 'Job access question', description: 'Please review this job.',
           booking_id: 'booking-307', created_at: '2026-09-01T00:00:00.000Z', updated_at: '2026-09-01T00:00:00.000Z',
           messages: [],

@@ -19,6 +19,7 @@ import {
 } from '@/services/support.service';
 import { useResponsive } from '@/hooks/useResponsive';
 import { ErrorState } from '@/components/ui';
+import { canonicalSupportUuid } from '@/utils/support-link';
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -43,24 +44,25 @@ export default function SupportThreadScreen(): React.ReactElement {
   const router = useRouter();
   const { isPhone } = useResponsive();
   const queryClient = useQueryClient();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id: rawId } = useLocalSearchParams<{ id: string }>();
+  const ticketId = canonicalSupportUuid(rawId);
   const myUserId = useAuthStore((s) => s.user?.id);
   const viewerRole = useAuthStore((s) => s.user?.role);
   const scrollRef = useRef<ScrollView>(null);
   const [draft, setDraft] = useState('');
 
   const ticketQuery = useQuery({
-    queryKey: ['support', 'ticket', id],
-    queryFn: () => getMyTicket(id),
-    enabled: !!id,
+    queryKey: ['support', 'ticket', ticketId],
+    queryFn: () => getMyTicket(ticketId),
+    enabled: !!ticketId,
     refetchInterval: 20_000, // light polling so support replies appear
   });
 
   const mutation = useMutation({
-    mutationFn: (message: string) => addTicketMessage(id, message),
+    mutationFn: (message: string) => addTicketMessage(ticketId, message),
     onSuccess: () => {
       setDraft('');
-      void queryClient.invalidateQueries({ queryKey: ['support', 'ticket', id] });
+      void queryClient.invalidateQueries({ queryKey: ['support', 'ticket', ticketId] });
       void queryClient.invalidateQueries({ queryKey: ['support', 'mine'] });
     },
   });
@@ -90,13 +92,15 @@ export default function SupportThreadScreen(): React.ReactElement {
     mutation.mutate(text);
   };
 
-  if (!id) {
+  if (!ticketId) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <ErrorState
           title="Support request unavailable"
-          message="This link does not identify a support request. Return to Support and open the request again."
+          message="This link does not contain a valid support request ID. Return to Support and open the request again."
           onRetry={() => router.back()}
+          actionLabel="Return to Support"
+          actionAccessibilityLabel="Return to Support"
         />
       </SafeAreaView>
     );

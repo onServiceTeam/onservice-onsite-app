@@ -5,9 +5,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft } from '@/components/icons';
-import { Button } from '@/components/ui';
+import { Button, ErrorState } from '@/components/ui';
 import { Routes, buildRoute } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
+import { canonicalSupportUuid, supportLinkValue } from '@/utils/support-link';
 import {
   createTicket,
   SUPPORT_TYPE_LABELS,
@@ -41,6 +42,14 @@ export default function NewSupportRequestScreen(): React.ReactElement {
   const initialType = (TYPE_ORDER.includes(params.type as SupportTicketType)
     ? (params.type as SupportTicketType)
     : 'general_inquiry');
+  const rawBookingId = supportLinkValue(params.bookingId);
+  const rawProjectId = supportLinkValue(params.projectId);
+  const bookingId = canonicalSupportUuid(params.bookingId);
+  const projectId = canonicalSupportUuid(params.projectId);
+  const hasInvalidWorkContext =
+    (!!rawBookingId && !bookingId) ||
+    (!!rawProjectId && !projectId);
+  const hasConflictingWorkContext = !!bookingId && !!projectId;
 
   const [type, setType] = useState<SupportTicketType>(initialType);
   const initialPriority = (['low', 'medium', 'high', 'urgent'] as const).find(
@@ -76,11 +85,33 @@ export default function NewSupportRequestScreen(): React.ReactElement {
       type,
       subject: trimmedSubject,
       description: trimmedBody,
-      bookingId: params.bookingId || undefined,
-      projectId: params.projectId || undefined,
+      bookingId: bookingId || undefined,
+      projectId: projectId || undefined,
       priority: initialPriority,
     });
   };
+
+  if (hasInvalidWorkContext || hasConflictingWorkContext) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.title}>New request</Text>
+        </View>
+        <ErrorState
+          title="Support context unavailable"
+          message={hasInvalidWorkContext
+            ? 'This link contains an invalid booking or project. No support request was sent. Return to the related work record and try again.'
+            : 'A support request can be linked to a booking or a planning project, not both. No support request was sent. Return to the related work record and choose one context.'}
+          onRetry={() => router.back()}
+          actionLabel="Return to related work"
+          actionAccessibilityLabel="Return to related work"
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -99,15 +130,15 @@ export default function NewSupportRequestScreen(): React.ReactElement {
           keyboardShouldPersistTaps="handled"
           accessibilityLabel={isPhone ? 'Support request form' : 'Desktop support request workspace'}
         >
-          {params.bookingId ? (
+          {bookingId ? (
             <View style={styles.bookingTag}>
-              <Text style={styles.bookingTagText}>Linked to booking {params.bookingId.slice(0, 8)}</Text>
+              <Text style={styles.bookingTagText}>Linked to booking {bookingId.slice(0, 8)}</Text>
             </View>
           ) : null}
-          {params.projectId ? (
+          {projectId ? (
             <View style={styles.bookingTag}>
               <Text style={styles.bookingTagText}>
-                Linked to project {params.projectTitle?.trim() || params.projectId.slice(0, 8)}
+                Linked to project {params.projectTitle?.trim() || projectId.slice(0, 8)}
               </Text>
             </View>
           ) : null}
@@ -156,9 +187,9 @@ export default function NewSupportRequestScreen(): React.ReactElement {
           />
 
           <Text style={styles.hint}>
-            {params.bookingId
+            {bookingId
               ? 'Keeping this conversation in the app lets support open the linked booking, respond faster, and preserve the message history if there is a dispute.'
-              : params.projectId
+              : projectId
                 ? 'Support will receive this planning project as context. It remains separate from bookings, quotes, and payments.'
                 : 'Keeping this conversation in the app gives support the account context and message history needed to help you.'}
           </Text>
