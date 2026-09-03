@@ -24,6 +24,8 @@ interface AuditEntry {
   userId: string | null;
   userEmail: string | null;
   userRole: string | null;
+  targetUserRole?: string | null;
+  targetProviderId?: string | null;
   action: string;
   entityType: string;
   entityId: string | null;
@@ -160,6 +162,24 @@ function linkedBusinessAccountId(entry: AuditEntry): string | null {
   return null;
 }
 
+function targetAccountRole(entry: AuditEntry): string | null {
+  if (entry.entityType !== 'user' && entry.entityType !== 'users') return null;
+  if (entry.targetUserRole) return entry.targetUserRole;
+
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const accountType = values?.accountType;
+    if (typeof accountType === 'string') return accountType;
+  }
+
+  // Legacy self-authored system events used `users` and exposed only the
+  // actor role. It is target evidence only when actor and target are the same
+  // account; never use an unrelated operator's role to classify the target.
+  if (entry.entityType === 'users' && entry.entityId === entry.userId) {
+    return entry.userRole;
+  }
+  return null;
+}
+
 function entityDestination(entry: AuditEntry): { to: string; label: string } | null {
   if (!entry.entityId) return null;
   const id = encodeURIComponent(entry.entityId);
@@ -170,23 +190,32 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
       return { to: `/customers/${id}`, label: 'Open Customer 360' };
     case 'provider':
       return { to: `/providers/${id}`, label: 'Open Provider 360' };
-    case 'users':
-      if (entry.userRole === 'customer') {
+    case 'user':
+    case 'users': {
+      const targetRole = targetAccountRole(entry);
+      if (targetRole === 'customer') {
         return { to: `/customers/${id}`, label: 'Open Customer 360' };
       }
-      if (entry.userRole === 'provider') {
+      if (targetRole === 'provider') {
+        if (entry.targetProviderId && UUID_REGEX.test(entry.targetProviderId)) {
+          return {
+            to: `/providers/${encodeURIComponent(entry.targetProviderId)}`,
+            label: 'Open Provider 360',
+          };
+        }
         return { to: `/providers?search=${id}`, label: 'Find Provider 360' };
       }
-      if (entry.userRole === 'provider_staff') {
+      if (targetRole === 'provider_staff') {
         return {
           to: `/support-tickets?userId=${id}&userRole=provider_staff`,
           label: 'Open provider staff support history',
         };
       }
-      if (entry.userRole === 'admin' || entry.userRole === 'super_admin' || entry.userRole === 'dpo') {
-        return { to: '/staff', label: 'Open Staff & Roles' };
+      if (targetRole === 'admin' || targetRole === 'super_admin' || targetRole === 'dpo') {
+        return { to: `/staff?search=${id}`, label: 'Find exact staff account' };
       }
       return { to: `/support-tickets?userId=${id}`, label: 'Open participant support history' };
+    }
     case 'dispute':
       return { to: `/disputes/${id}`, label: 'Open Dispute 360' };
     case 'payout':
@@ -242,11 +271,12 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
 }
 
 function entityLabel(entry: AuditEntry): string {
-  if (entry.entityType !== 'users') return humanizeSlug(entry.entityType);
-  if (entry.userRole === 'customer') return 'Customer account';
-  if (entry.userRole === 'provider') return 'Provider account';
-  if (entry.userRole === 'provider_staff') return 'Provider staff account';
-  if (entry.userRole === 'admin' || entry.userRole === 'super_admin' || entry.userRole === 'dpo') {
+  if (entry.entityType !== 'user' && entry.entityType !== 'users') return humanizeSlug(entry.entityType);
+  const targetRole = targetAccountRole(entry);
+  if (targetRole === 'customer') return 'Customer account';
+  if (targetRole === 'provider') return 'Provider account';
+  if (targetRole === 'provider_staff') return 'Provider staff account';
+  if (targetRole === 'admin' || targetRole === 'super_admin' || targetRole === 'dpo') {
     return 'Staff account';
   }
   return 'User account';

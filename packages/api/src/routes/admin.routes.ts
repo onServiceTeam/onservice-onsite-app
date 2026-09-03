@@ -2375,6 +2375,8 @@ interface AuditLogRow {
   created_at: Date;
   user_email: string | null;
   user_role: string | null;
+  target_user_role: string | null;
+  target_provider_id: string | null;
 }
 
 router.get(
@@ -2466,9 +2468,16 @@ router.get(
       const total = Number(countResult.rows[0]?.count ?? 0);
 
       const dataResult = await db.query<AuditLogRow>(
-        `SELECT combined.*, u.email AS user_email, u.role AS user_role
+        `SELECT combined.*, u.email AS user_email, u.role AS user_role,
+                target_user.role AS target_user_role,
+                target_provider.id AS target_provider_id
            FROM (${baseRelation}) combined
            LEFT JOIN users u ON u.id = combined.user_id
+           LEFT JOIN users target_user
+             ON combined.entity_type IN ('user', 'users')
+            AND target_user.id = combined.entity_id
+           LEFT JOIN providers target_provider
+             ON target_provider.user_id = target_user.id
          ${whereClause}
          ORDER BY combined.created_at DESC, combined.id DESC
          LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
@@ -2487,6 +2496,11 @@ router.get(
           // when raw contact is genuinely required for one record.
           userEmail: r.user_email ? maskEmail(r.user_email) : null,
           userRole: r.user_role,
+          // Keep the account being acted upon separate from the operator who
+          // performed the action. A super-admin force-logging-out a customer
+          // must lead support to Customer 360, not the staff directory.
+          targetUserRole: r.target_user_role,
+          targetProviderId: r.target_provider_id,
           action: r.action,
           entityType: r.entity_type,
           entityId: r.entity_id,

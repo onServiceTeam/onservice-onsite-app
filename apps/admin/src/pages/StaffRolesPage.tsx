@@ -630,7 +630,7 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
               value={searchDraft}
               maxLength={100}
               onChange={(event) => setSearchDraft(event.target.value)}
-              placeholder="Name, email, or phone"
+              placeholder="Name, email, phone, or account ID"
               className="h-11 min-w-0 flex-1 rounded border border-[var(--color-border)] px-3 text-sm"
             />
             <button type="submit" className="h-11 rounded bg-[var(--color-primary)] px-3 text-sm font-semibold text-white">Search</button>

@@ -307,6 +307,8 @@ export async function listStaff(params: {
       CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${idx} ESCAPE '\\'
       OR COALESCE(u.email, '') ILIKE $${idx} ESCAPE '\\'
       OR u.phone ILIKE $${idx} ESCAPE '\\'
+      OR u.id::text ILIKE $${idx} ESCAPE '\\'
+      OR COALESCE(ast.id::text, '') ILIKE $${idx} ESCAPE '\\'
     )`);
     values.push(`%${escaped}%`);
     idx += 1;
