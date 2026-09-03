@@ -3685,3 +3685,40 @@ This commit is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CR: customer company route integrity
+
+The earlier Business Account audit recorded that every customer company UUID
+was strictly validated. The server routes did enforce UUID schemas, but the
+Mobile company detail screen enabled account and member reads for any non-empty
+route string, and the statement screen enabled its financial read for any two
+non-empty strings. Malformed browser or notification links therefore reached
+the API and surfaced as indirect availability or permission failures instead
+of failing locally as invalid links.
+
+UX-1239 rejects a malformed Business Account route before account or member
+reads and offers a truthful return to company workspaces. UX-1240 canonicalizes
+a valid uppercase account UUID before both reads. UX-1241 rejects a malformed
+statement ID before the customer financial read. UX-1242 canonicalizes both
+the company and statement UUIDs before requesting the statement. Existing
+company render fixtures now use valid UUIDs rather than bypass-shaped labels.
+
+A shared Mobile route-ID utility now owns trimming, UUID validation, and
+lowercase canonicalization. The Support link validator delegates to the same
+utility without changing its behavior, preventing the two route families from
+drifting.
+
+The eight focused company regressions pass eight tests. The complete Mobile
+business/company-named inventory passes 16 suites and 16 tests, and the
+complete Mobile Support-named inventory passes 30 suites and 40 tests. Mobile
+TypeScript, changed-file ESLint, and diff integrity checks pass. The permanent
+unique-ID scanner passes 1,397 titled regressions with zero duplicates.
+Implementation commit `c4b4170c` changes client route validation and recovery
+only. It does not change customer membership, financial permissions, statement
+content, API authorization, database schema, company, booking, Support,
+payment, audit, master, or production data.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
