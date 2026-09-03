@@ -1840,3 +1840,54 @@ at commit `bdef4bc`. Protected Gates `33705958566` passed A through E and the
 `All gates passed` rollup at the same commit. No DSR, consent, breach, user,
 support, audit, database-schema, or production record changed. Production
 synchronization remains blocked by E32.
+
+## Checkpoint AW: exact consent-publication audit evidence
+
+Consent publication is represented by an immutable `admin_actions` event with
+two identities: the event row ID and a dedicated `consent_version` target ID.
+The general Audit Log retained the target ID, but the DPO Consent Versions API
+discarded it when mapping publication history and offered no exact read route.
+Even an authorized super-admin could therefore see that a version was
+published without reliably reopening the publication evidence that owned the
+event. Filtering by visible text would not be a durable substitute as the
+history grows or version labels repeat across consent types.
+
+OPS-406 retains both identities in the DPO API contract and adds a bounded,
+read-only lookup of one `consent_version_published` event by its existing target
+UUID. It scopes the query to both the publication action and target type, so an
+unrelated admin action cannot satisfy the lookup. Future publication responses
+and history rows now expose the same target UUID without changing how either
+identifier is generated or rewriting historical evidence.
+
+OPS-407 exposes that lookup through a validated
+`GET /api/v1/admin/compliance/consent-versions/:id` route. The route retains the
+existing D34 DPO/super-admin boundary and returns an explicit not-found result
+instead of falling through to a broad history scan. It adds no publication,
+activation, acknowledgement, or rollback mutation.
+
+UX-1072 maps a valid `consent_version` Audit Log target to
+`/consent-versions?tab=history&publicationId=<id>`. Consent Versions restores
+that URL through the exact endpoint and renders consent type, version, material
+classification, scheduled/effective state, Manila effective and publication
+times, publisher, recorded summary, publication target ID, and audit event ID.
+History cards and desktop rows can create the same durable evidence URL.
+UX-1073 rejects malformed publication IDs in the browser before any detail
+request, distinguishes invalid input from missing evidence, and removes only
+the bad identifier while preserving the History tab. E71 Option A remains
+unchanged: publication is recorded immediately and a future material version
+does not require customer/provider re-consent before its effective timestamp.
+
+Local API and Admin TypeScript, affected-file ESLint, and `git diff --check`
+pass. Seven related API suites pass 37 tests and five related rendered Admin
+files pass five tests. The complete local Admin suite passes 350 files and 439
+tests, with one intentionally skipped file and three existing honest TODOs. A
+broader local API run passed 845 suites and 3,213 tests before two Docker-only
+nginx checks stopped because Docker Desktop is unavailable and three unrelated
+jsdom/jest-axe suites stopped on the OneDrive dependency tree's reproducible
+`UNKNOWN: read` error. Those were environment load failures, not assertion
+failures. Protected CI `33707727250` then passed the full API, Mobile, and
+rendered Admin suites, both TypeScript checks, the Admin production build, and
+Docker image boot/liveness at commit `a5ff678`. Protected Gates `33707727274`
+passed A through E and the `All gates passed` rollup at the same commit. No
+consent publication, acknowledgement, DSR, user, audit, database-schema, or
+production record changed. Production synchronization remains blocked by E32.
