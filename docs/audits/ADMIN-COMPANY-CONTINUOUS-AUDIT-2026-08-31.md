@@ -3849,3 +3849,42 @@ This commit is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CV: accountable Support escalation handoff
+
+An Admin could move an unassigned case into `escalated` with only a generic
+workflow note. The case then appeared in the escalation queue without a named
+person accountable for its next action, while the customer and provider SOPs
+routed different issues to Finance, Trust & Safety, Engineering, the DPO, or
+Ken. Status alone did not identify who owned the handoff or what decision was
+needed.
+
+OPS-466 rejects an Admin status transition to `escalated` while the locked case
+has no assigned active owner. Existing escalated records are not changed. The
+normal named-agent assignment flow remains the source of ownership and already
+validates active Admin/super-admin accounts plus an append-only assignment
+action. The assigned owner remains accountable until the case is reassigned.
+
+UX-1251 blocks the same unassigned transition in the rendered Admin workspace
+and explains how to recover. For an assigned case, the escalation dialog now
+labels the note as an escalation handoff and asks for its destination, decision
+needed, evidence already checked, next action, and urgency. The customer SOP,
+provider SOP, and Admin training manual record the same rule. No department or
+authorization capability is invented: Finance and Trust & Safety remain
+operational destinations backed by the current Admin/super-admin access model.
+
+The focused API and rendered Admin regressions each pass. The broader API
+Support/ticket inventory has 50 suites: 49 pass, one existing suite is
+intentionally skipped, 62 tests pass, and there are no failures. The complete
+Admin Support inventory passes 44 files and 46 tests. Admin and API TypeScript,
+changed-file ESLint, and diff integrity checks pass. The permanent unique-ID
+scanner passes 1,414 titled regressions with zero duplicates. Implementation
+commit `75aaba7f` changes only future Support status-transition validation,
+Admin handoff presentation, tests, and operating guidance. It does not change
+any existing case, assignment, message, customer, provider, booking, payment,
+audit row, database schema, master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
