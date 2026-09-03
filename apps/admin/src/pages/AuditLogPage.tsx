@@ -464,6 +464,16 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
         ? { to: `/recurring?seriesId=${id}`, label: 'Open exact recurring series' }
         : null;
     case 'customer':
+      if (entry.action === 'customer_credited') {
+        return { to: `/customers/${id}?tab=payments`, label: 'Open customer payment history' };
+      }
+      if (
+        entry.action === 'customer_suspended'
+        || entry.action === 'customer_reactivated'
+        || entry.action === 'customer_flagged_fraud'
+      ) {
+        return { to: `/customers/${id}?tab=activity`, label: 'Open customer account activity' };
+      }
       return { to: `/customers/${id}`, label: 'Open Customer 360' };
     case 'provider':
       return { to: `/providers/${id}`, label: 'Open Provider 360' };
