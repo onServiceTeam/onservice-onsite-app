@@ -2383,3 +2383,54 @@ rollup at the same commit. No notification template, notification delivery,
 customer, provider, booking, payment, historical audit row, database schema,
 master, or production record changed. Production synchronization remains
 blocked by E32.
+
+## Checkpoint BJ: exact retained role-profile audit evidence
+
+Administrative-role audit rows retained an exact role-profile UUID but opened
+only the broad Staff workspace. The normal Role Profiles list intentionally
+excludes archived profiles, so pagination, a list failure, or archival could
+hide the exact record an operator needed to explain. The existing `roleId`
+query parameter belongs to the Staff directory filter and cannot safely carry
+this different audit selection.
+
+OPS-420 adds a bounded exact-detail service read that resolves an active or
+soft-deleted role profile by UUID. It returns the retained profile metadata and
+both active and historical linked staff-profile counts without changing the
+active-only list. OPS-421 exposes that evidence at the exact Admin route.
+SEC-054 verifies that only Super Admin may read it, and SEC-055 rejects a
+malformed UUID before service access.
+
+UX-1124 maps a valid `admin_role` audit target to
+`/staff?tab=roles&roleProfileId=<id>` and renders the retained profile even when
+the active list fails. The read-only panel identifies the exact ID, lifecycle,
+description, permission metadata, linked-profile counts, Manila timestamps,
+and archive reason. It also states that these role-profile permissions are
+descriptive metadata: account access remains controlled by `users.role` and
+server route authorization. The panel is current retained state, not an
+immutable historical version; the Audit Log remains the historical evidence.
+
+UX-1125 rejects malformed exact targets before requesting the record. UX-1126
+rejects a response whose ID differs from the requested audit target. UX-1127
+removes only `roleProfileId` when the operator clears the evidence, preserving
+the Role Profiles tab, ordinary Staff `roleId` filter, and pagination. UX-1128
+removes the hidden exact target when the operator leaves the Role Profiles tab.
+
+E39 remains open for the privileged-account lifecycle, last-Super-Admin
+protection, and recovery design. This checkpoint adds no account creation,
+access grant, access revocation, role assignment, session invalidation, or
+recovery behavior, and it does not claim that editing a role profile changes
+authorization.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Four focused API suites pass four tests; the expanded Staff and role API
+set passes 34 suites and 73 tests with one pre-existing skipped suite and test.
+Five focused Admin files pass five tests, and 57 rendered Staff, role, and Audit
+Log files pass 68 tests. Protected CI `33729449034` passed 877 API suites and
+3,248 tests, 405 Admin files and 494 tests with one intentionally skipped file
+and three existing honest TODOs, 531 Mobile suites and 910 tests with 84 TODOs,
+all three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `6baf6e39`. Protected Gates `33729449225` passed A
+through E and the `All gates passed` rollup at the same commit. No role profile,
+staff account, authorization, session, customer, provider, booking, payment,
+historical audit row, database schema, master, or production record changed.
+Production synchronization remains blocked by E32.
