@@ -3332,3 +3332,44 @@ No recurring schedule, generated booking, customer, provider, support case,
 payment, audit row, database schema, master, or production record changed.
 Production synchronization remains blocked by E32, and raw audit PII remains
 blocked by E72.
+
+## Checkpoint CI: canonical Support Tickets workspace links
+
+The Support Tickets workspace accepted uppercase case, booking, project,
+business-account, owner, related-customer, related-provider, and assigned-agent
+UUIDs as valid but retained their browser casing. Exact detail and history could
+therefore reject a canonical lowercase case returned by the API, while queue,
+creation, and assignment requests could use a different textual form from the
+durable record identifier. Malformed linked identifiers also did not present one
+consistent fail-closed recovery path across the workspace.
+
+UX-1217 canonicalizes an exact support-case link before detail and history
+requests. UX-1218 canonicalizes linked queue filters before the list request.
+UX-1219 blocks list, detail, and history requests when any linked identifier is
+malformed, then removes only the invalid fields while preserving valid queue
+filters. OPS-443 through OPS-447 enforce the same boundary on Admin queue,
+exact-case, agent-created case, assignment, and participant-created case routes
+before ownership or linkage checks.
+
+This slice changes identifier representation and invalid-link recovery only. It
+does not create, assign, reply to, close, reopen, or edit a support case; change
+a customer, provider, booking, project, business account, payment, or audit row;
+reveal raw PII; or add an Admin mutation.
+
+Local Admin and API TypeScript, changed-file ESLint, and `git diff --check`
+pass. The three new real-render regressions pass three tests, every rendered
+test that directly imports Support Tickets passes 20 files and 22 tests at the
+implementation commit, and the direct API route/validator inventory passes 12
+suites and 16 tests.
+
+Protected CI `33791035690` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at implementation commit `77fff51b`. Protected Gates
+`33791035675` passed A through E and the `All gates passed` rollup at the same
+commit. The preceding Checkpoint CH documentation CI `33790942438` was
+superseded and cancelled by this implementation push; its Gates run
+`33790942435` passed, and the newer full CI verified that checkpoint together
+with the Support Tickets change. No support case, customer, provider, booking,
+project, business account, payment, audit row, database schema, master, or
+production record changed. Production synchronization remains blocked by E32,
+and raw audit PII remains blocked by E72.
