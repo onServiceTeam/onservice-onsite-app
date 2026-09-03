@@ -2168,3 +2168,42 @@ Protected Gates `33716790289` passed A through E and the `All gates passed`
 rollup at the same commit. No category, service, add-on, booking, price, audit,
 database-schema, master, or production record changed. Production
 synchronization remains blocked by E32.
+
+## Checkpoint BE: exact communication moderation audit evidence
+
+Conversation and message moderation actions were recorded in the general Audit
+Log, but they could only return support to the owning Booking 360 record. That
+lost the exact conversation and message under review, and a paginated or failed
+conversation queue could prevent an operator from reconstructing the decision.
+Optional action JSON was not sufficient because some legitimate customer-only
+support notifications have no conversation, while an unrelated older
+conversation can exist for the same booking.
+
+OPS-417 resolves retained conversation and message identity relationally for
+conversation views, message redactions, flag reviews, and Admin replies. It
+verifies that the message belongs to the conversation and, for booking-targeted
+events, that the conversation belongs to the audited booking. It does not
+substitute another conversation when the audited action has no exact retained
+communication identity.
+
+UX-1096 maps an event with canonical communication identity to a durable
+`conversationId`, optional `bookingId`, and optional `messageId` URL. The
+Communications workspace loads that exact thread independently of the queue,
+marks the selected audit evidence, and can therefore preserve the evidence when
+the general list fails. UX-1097 through UX-1099 reject malformed identifiers,
+a mismatched conversation response, a missing target message, and a
+booking/conversation ownership mismatch without falling back to another row.
+UX-1100 removes exact audit state when the operator deliberately leaves the
+selection, changes workspace mode, or opens a normal queue conversation.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Five focused API suites pass 23 tests, and 38 rendered Communications and
+Audit Log files pass 47 tests. Protected CI `33718299000` passed 863 API suites
+and 3,234 tests, 377 Admin files and 466 tests with one intentionally skipped
+file and three existing honest TODOs, 531 Mobile suites and 910 tests with 84
+TODOs, both TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `a036f0a`. Protected Gates `33718298994` passed A
+through E and the `All gates passed` rollup at the same commit. No conversation,
+message, booking, user, moderation decision, audit row, database schema, master,
+or production record changed. Production synchronization remains blocked by
+E32.
