@@ -2243,3 +2243,47 @@ Protected Gates `33719914096` passed A through E and the `All gates passed`
 rollup at the same commit. No pricing rule, preview, booking, payment, provider
 share, platform revenue, audit row, database schema, master, or production
 record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BG: exact market and provider area-change audit evidence
+
+Service-area configuration actions and provider area-change decisions retained
+exact UUIDs, but the general Audit Log could only leave those targets inert or
+open a broad workspace. The normal area-change queue also contains pending
+requests only, so an approved, rejected, or cancelled decision could disappear
+from the operator surface that needed to explain it later.
+
+OPS-418 adds a bounded exact-detail read for a retained provider area-change
+request in any lifecycle state. It resolves the owning Provider 360 record and
+the current and requested market names, while preserving the same role-aware
+contact masking used by the pending queue. SEC-046 verifies that an ordinary
+Admin receives masked provider email and phone values. SEC-047 rejects a
+malformed request ID before service access, and SEC-048 rejects a non-Admin
+account before loading the record.
+
+UX-1105 maps service-area events to an exact `areaId` URL and loads the retained
+market independently of the paginated list. UX-1106 does the same for a
+provider area-change decision, including completed decisions outside the
+pending queue and a direct Provider 360 exit. The evidence panels identify the
+record, geography, coverage radius, supply, customer and booking counts,
+requested location and radius, lifecycle, recorded reason, and decision time.
+UX-1107 through UX-1110 fail closed for simultaneous targets, malformed IDs,
+and mismatched server responses, then remove only the exact target when the
+operator clears the selection so ordinary filters remain intact.
+
+E46 remains open because the repository still conflicts over direct market
+activation versus the staged planned, recruiting, soft-launch, and active
+lifecycle. This read-side work does not choose that policy or change any
+activation, launch, matching, provider coverage, customer coverage, booking,
+or historical audit behavior.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Nineteen related API service-area and area-change suites pass 58 tests,
+and 40 rendered Service Areas and Audit Log files pass 49 tests. Protected CI
+`33721657468` passed 867 API suites and 3,238 tests, 387 Admin files and 476
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, both TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `177ac9ec`.
+Protected Gates `33721657414` passed A through E and the `All gates passed`
+rollup at the same commit. No service area, provider area-change request,
+customer, provider, booking, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
