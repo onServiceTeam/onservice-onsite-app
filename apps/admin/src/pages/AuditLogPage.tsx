@@ -95,6 +95,7 @@ const ACTION_LABELS: Record<string, string> = {
   provider_staff_suspended: 'Provider staff suspended',
   provider_suspended: 'Provider suspended',
   provider_tier_changed: 'Provider tier changed',
+  recurring_booking_cancelled: 'Recurring booking cancelled',
   reconciliation_alert_acknowledged: 'Reconciliation alert acknowledged',
   reconciliation_run: 'Reconciliation snapshot created',
   refund_issued: 'Refund issued',
@@ -214,6 +215,10 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
   switch (entry.entityType) {
     case 'booking':
       return { to: `/bookings/${id}`, label: 'Open Booking 360' };
+    case 'recurring_booking':
+      return UUID_REGEX.test(entry.entityId)
+        ? { to: `/recurring?seriesId=${id}`, label: 'Open exact recurring series' }
+        : null;
     case 'customer':
       return { to: `/customers/${id}`, label: 'Open Customer 360' };
     case 'provider':
