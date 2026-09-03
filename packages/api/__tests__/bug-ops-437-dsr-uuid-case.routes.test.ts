@@ -22,7 +22,7 @@ jest.mock('../src/services/compliance-admin.service', () => ({}));
 
 import complianceAdminRouter from '../src/routes/compliance-admin.routes';
 
-it('Bug OPS-408 - an uppercase DSR route UUID reaches the service in canonical form', async () => {
+it('Bug OPS-437 - an uppercase DSR route UUID reaches the service in canonical form', async () => {
   const dsrId = '12080000-abcd-4abc-8def-000000001208';
   exactDsr.mockResolvedValue({ id: dsrId, status: 'in_progress' });
   const app = express();

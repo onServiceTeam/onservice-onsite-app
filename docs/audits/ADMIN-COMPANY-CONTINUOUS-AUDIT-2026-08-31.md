@@ -3207,3 +3207,50 @@ implementation push; its Gates run `33765313026` passed, and the newer full CI
 verified that documentation with this implementation. No customer, provider,
 configuration record, booking, payment, audit row, database schema, master, or
 production record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint CF: canonical privacy evidence UUID handling
+
+The Data Protection Log, Consent Versions, and Privacy Workspace accepted
+uppercase UUIDs as valid but retained their browser casing. The API and stored
+records use canonical lowercase identifiers, so an operator could reach the
+right DSR, consent publication, or user-consent search and still receive a
+false mismatch or lose a stable exact-record handoff.
+
+UX-1208 normalizes a valid linked DSR identifier before exact retrieval.
+UX-1209 does the same for a consent-publication identifier. UX-1210 normalizes
+a consent user linked from another Admin workspace, and UX-1211 normalizes a
+manually submitted consent-user identifier before the API query and browser
+URL are updated. OPS-437 through OPS-439 enforce the same canonical boundary
+on DSR, publication, and consent-search routes, including the retained DPO
+search evidence. Malformed identifiers still fail validation and no raw PII
+reveal path was added.
+
+The three API regressions were initially assigned OPS-408 through OPS-410, which
+collided with earlier unrelated regressions. Their unique audit labels and
+filenames were corrected to OPS-437 through OPS-439 without changing behavior,
+and the renamed tests pass three suites and three tests locally. This correction
+keeps the one-bug, one-test audit trail unambiguous.
+
+This slice changes evidence lookup only. It does not alter a privacy policy or
+consent version, create or process a DSR, reveal raw audit PII, modify a user,
+booking, payment, or audit row, change permissions, or add an Admin mutation.
+
+Local Admin and API TypeScript, changed-file ESLint, and `git diff --check`
+pass. Four focused real-render regressions pass four tests, every rendered test
+that directly imports the three changed Admin pages passes 27 files and 31
+tests, and all direct compliance Admin route tests pass 11 suites and 41 tests.
+The first UX-1209 run exposed only a non-ASCII test-expectation transport issue;
+the rendered publication evidence and canonical API path were correct. The
+expectation was replaced with a semantic text match and the focused suite then
+passed.
+
+Protected CI `33784095896` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at implementation commit `5f103e01`. Protected Gates
+`33784095594` passed A through E and the `All gates passed` rollup at the same
+commit. The preceding documentation commit `a2a9c9b0` also completed rather
+than being superseded: CI `33783245659` and Gates `33783245675` both passed.
+No customer, provider, privacy record, consent record, DSR, booking, payment,
+audit row, database schema, master, or production record changed. Production
+synchronization remains blocked by E32, and raw audit PII remains blocked by
+E72.

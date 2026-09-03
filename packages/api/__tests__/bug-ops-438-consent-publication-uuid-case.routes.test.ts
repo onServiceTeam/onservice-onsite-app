@@ -22,7 +22,7 @@ jest.mock('../src/services/compliance-admin.service', () => ({
 
 import complianceAdminRouter from '../src/routes/compliance-admin.routes';
 
-it('Bug OPS-409 - an uppercase consent-publication UUID reaches the service in canonical form', async () => {
+it('Bug OPS-438 - an uppercase consent-publication UUID reaches the service in canonical form', async () => {
   const publicationId = '12090000-abcd-4abc-8def-000000001209';
   exactPublication.mockResolvedValue({
     id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',

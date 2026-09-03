@@ -24,7 +24,7 @@ jest.mock('../src/models/db', () => ({ db: { query: (...args: unknown[]) => dbQu
 
 import complianceAdminRouter from '../src/routes/compliance-admin.routes';
 
-it('Bug OPS-410 - an uppercase consent-search UUID is canonical in lookup and retained audit evidence', async () => {
+it('Bug OPS-439 - an uppercase consent-search UUID is canonical in lookup and retained audit evidence', async () => {
   const userId = '12110000-abcd-4abc-8def-000000001211';
   searchConsent.mockResolvedValue({ rows: [], total: 0 });
   dbQuery.mockResolvedValue({ rows: [], rowCount: 1 });
