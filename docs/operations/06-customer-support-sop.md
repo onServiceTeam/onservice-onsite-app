@@ -354,6 +354,7 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 
 - [ ] Inbox zero attempt on email + FB at start, midday, and end of shift.
 - [ ] Every open contact has a ticket with a type, a priority, and an assignee.
+- [ ] Clear the Admin **Needs reply** queue. It ignores assignment, workflow changes, and internal notes; only a public agent reply clears the marker until the participant replies again.
 - [ ] No P1 ticket older than 15 minutes without a human reply.
 - [ ] No P2 ticket sitting past first-response SLA.
 - [ ] Anything money-moving or account-changing is escalated, not sat on.

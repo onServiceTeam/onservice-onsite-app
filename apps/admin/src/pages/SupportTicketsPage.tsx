@@ -38,6 +38,8 @@ interface Ticket {
   agent_first_name?: string;
   agent_last_name?: string;
   message_count?: number;
+  first_agent_reply_at?: string | null;
+  needs_agent_reply?: boolean;
   messages?: TicketMessage[];
 }
 
@@ -74,6 +76,7 @@ interface SupportQueueSummary {
   escalated: number;
   urgent: number;
   unassigned: number;
+  awaitingReply: number;
 }
 
 interface SupportTicketStatusHistoryEntry {
@@ -215,6 +218,7 @@ export default function SupportTicketsPage(): React.ReactElement {
   const priorityFilter = parseOption(searchParams.get('priority'), PRIORITIES);
   const unassignedFilter = searchParams.get('unassigned') === '1';
   const activeFilter = searchParams.get('active') === '1';
+  const needsReplyFilter = searchParams.get('needsReply') === '1';
   const searchFilter = (searchParams.get('search') ?? '').trim();
   const linkedIdValues: Record<LinkedIdKey, string> = {
     ticketId: searchParams.get('ticketId')?.trim() ?? '',
@@ -303,6 +307,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       else params.delete(key);
       params.delete('unassigned');
       params.delete('active');
+      params.delete('needsReply');
       return params;
     });
   }
@@ -372,6 +377,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       params.delete('page');
       params.delete('status');
       params.delete('priority');
+      params.delete('needsReply');
       params.set('unassigned', '1');
       params.set('active', '1');
       return params;
@@ -384,7 +390,21 @@ export default function SupportTicketsPage(): React.ReactElement {
       params.delete('page');
       params.delete('status');
       params.delete('unassigned');
+      params.delete('needsReply');
       params.set('priority', 'urgent');
+      params.set('active', '1');
+      return params;
+    });
+  }
+
+  function showNeedsReply(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('page');
+      params.delete('status');
+      params.delete('priority');
+      params.delete('unassigned');
+      params.set('needsReply', '1');
       params.set('active', '1');
       return params;
     });
@@ -433,6 +453,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       priorityFilter,
       unassignedFilter,
       activeFilter,
+      needsReplyFilter,
       searchFilter,
       bookingFilter,
       projectFilter,
@@ -449,6 +470,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       if (priorityFilter) params.set('priority', priorityFilter);
       if (unassignedFilter) params.set('unassigned', '1');
       if (activeFilter) params.set('active', '1');
+      if (needsReplyFilter) params.set('needsReply', '1');
       if (searchFilter) params.set('search', searchFilter);
       if (bookingFilter) params.set('bookingId', bookingFilter);
       if (projectFilter) params.set('projectId', projectFilter);
@@ -710,6 +732,23 @@ export default function SupportTicketsPage(): React.ReactElement {
       key: 'messages',
       header: 'Msgs',
       render: (r) => <span className="text-center">{r.message_count ?? 0}</span>,
+    },
+    {
+      key: 'first_response',
+      header: 'First public reply',
+      render: (r) => r.needs_agent_reply ? (
+        <span className="font-semibold text-red-700">Needs reply</span>
+      ) : r.first_agent_reply_at ? (
+        new Date(r.first_agent_reply_at).toLocaleString('en-PH', {
+          timeZone: 'Asia/Manila',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      ) : (
+        <span className="text-[var(--color-text-tertiary)]">No public reply</span>
+      ),
     },
     {
       key: 'updated',
@@ -1722,7 +1761,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       ) : (
         <section
           aria-label="Support queue signals"
-          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
         >
         {[
           {
@@ -1748,6 +1787,12 @@ export default function SupportTicketsPage(): React.ReactElement {
             count: summaryQuery.data?.unassigned ?? 0,
             tone: 'text-[var(--color-text)]',
             action: showUnassigned,
+          },
+          {
+            label: 'Needs reply',
+            count: summaryQuery.data?.awaitingReply ?? 0,
+            tone: 'text-red-700',
+            action: showNeedsReply,
           },
         ].map((signal) => (
           <button
@@ -1850,7 +1895,7 @@ export default function SupportTicketsPage(): React.ReactElement {
             Active unassigned only ×
           </button>
         )}
-        {activeFilter && !unassignedFilter && (
+        {activeFilter && !unassignedFilter && !needsReplyFilter && (
           <button
             type="button"
             className="min-h-11 rounded-md border border-orange-300 bg-orange-50 px-3 text-sm font-semibold text-orange-900"
@@ -1862,6 +1907,21 @@ export default function SupportTicketsPage(): React.ReactElement {
             })}
           >
             Active cases only ×
+          </button>
+        )}
+        {needsReplyFilter && (
+          <button
+            type="button"
+            className="min-h-11 rounded-md border border-red-300 bg-red-50 px-3 text-sm font-semibold text-red-900"
+            onClick={() => setSearchParams((current) => {
+              const params = new URLSearchParams(current);
+              params.delete('needsReply');
+              params.delete('active');
+              params.delete('page');
+              return params;
+            })}
+          >
+            Awaiting agent reply only (clear)
           </button>
         )}
       </div>

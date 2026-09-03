@@ -58,6 +58,23 @@ const VALID_STATUSES = [
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 const VALID_TICKET_OWNER_ROLES = ['customer', 'provider', 'provider_staff'] as const;
 
+// A case needs an agent reply when it is active and either has no public
+// messages yet (the original description is the participant's first report)
+// or its latest public message came from the customer/provider. Assignment,
+// status changes, priority changes, and internal notes must not make a case
+// look answered.
+const NEEDS_AGENT_REPLY_SQL = `(
+  st.status NOT IN ('resolved', 'closed')
+  AND COALESCE((
+    SELECT latest_public.sender_role IN ('customer', 'provider')
+      FROM support_ticket_messages latest_public
+     WHERE latest_public.ticket_id = st.id
+       AND latest_public.is_internal_note = FALSE
+     ORDER BY latest_public.created_at DESC, latest_public.id DESC
+     LIMIT 1
+  ), TRUE)
+)`;
+
 export interface SupportTicket {
   id: string;
   ticket_number: string;
@@ -90,6 +107,8 @@ export interface SupportTicket {
   agent_first_name?: string;
   agent_last_name?: string;
   message_count?: string;
+  first_agent_reply_at?: string | null;
+  needs_agent_reply?: boolean;
 }
 
 export interface TicketMessage {
@@ -136,6 +155,7 @@ interface ListTicketsParams {
   relatedProviderId?: string;
   unassigned?: boolean;
   active?: boolean;
+  needsReply?: boolean;
 }
 
 export interface SupportQueueSummary {
@@ -143,6 +163,7 @@ export interface SupportQueueSummary {
   escalated: number;
   urgent: number;
   unassigned: number;
+  awaitingReply: number;
 }
 
 export interface SupportTicketStatusHistoryEntry {
@@ -164,7 +185,7 @@ export async function listTickets(
 ): Promise<{ tickets: SupportTicket[]; total: number }> {
   const {
     page, limit, status, type, priority, assignedAgentId, search, bookingId, projectId, businessAccountId,
-    userId, relatedCustomerId, relatedProviderId, unassigned, active,
+    userId, relatedCustomerId, relatedProviderId, unassigned, active, needsReply,
   } = params;
   const offset = (page - 1) * limit;
   const conditions: string[] = [];
@@ -192,6 +213,9 @@ export async function listTickets(
   }
   if (active) {
     conditions.push("st.status NOT IN ('resolved', 'closed')");
+  }
+  if (needsReply) {
+    conditions.push(NEEDS_AGENT_REPLY_SQL);
   }
   if (bookingId) {
     conditions.push(`st.booking_id = $${idx++}`);
@@ -301,7 +325,13 @@ export async function listTickets(
             business_context.company_name AS business_account_name,
             business_context.status AS business_account_status,
             ag.first_name AS agent_first_name, ag.last_name AS agent_last_name,
-            (SELECT COUNT(*) FROM support_ticket_messages stm WHERE stm.ticket_id = st.id) AS message_count
+            (SELECT COUNT(*) FROM support_ticket_messages stm WHERE stm.ticket_id = st.id) AS message_count,
+            (SELECT MIN(first_reply.created_at)
+               FROM support_ticket_messages first_reply
+              WHERE first_reply.ticket_id = st.id
+                AND first_reply.is_internal_note = FALSE
+                AND first_reply.sender_role IN ('admin', 'super_admin', 'support_agent')) AS first_agent_reply_at,
+            ${NEEDS_AGENT_REPLY_SQL} AS needs_agent_reply
      FROM support_tickets st
      ${joins}
      LEFT JOIN users ag ON st.assigned_agent_id = ag.id
@@ -323,6 +353,7 @@ export async function getSupportQueueSummary(): Promise<SupportQueueSummary> {
     escalated_count: string;
     urgent_count: string;
     unassigned_count: string;
+    awaiting_reply_count: string;
   }>(
     `SELECT COUNT(*) FILTER (WHERE status = 'open')::text AS open_count,
             COUNT(*) FILTER (WHERE status = 'escalated')::text AS escalated_count,
@@ -331,8 +362,9 @@ export async function getSupportQueueSummary(): Promise<SupportQueueSummary> {
             )::text AS urgent_count,
             COUNT(*) FILTER (
               WHERE assigned_agent_id IS NULL AND status NOT IN ('resolved', 'closed')
-            )::text AS unassigned_count
-       FROM support_tickets`,
+            )::text AS unassigned_count,
+            COUNT(*) FILTER (WHERE ${NEEDS_AGENT_REPLY_SQL})::text AS awaiting_reply_count
+       FROM support_tickets st`,
   );
   const row = result.rows[0];
   return {
@@ -340,6 +372,7 @@ export async function getSupportQueueSummary(): Promise<SupportQueueSummary> {
     escalated: Number(row?.escalated_count ?? 0),
     urgent: Number(row?.urgent_count ?? 0),
     unassigned: Number(row?.unassigned_count ?? 0),
+    awaitingReply: Number(row?.awaiting_reply_count ?? 0),
   };
 }
 

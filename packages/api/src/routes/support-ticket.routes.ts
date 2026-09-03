@@ -34,7 +34,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const {
-        page, limit, status, type, priority, assignedAgentId, unassigned, active,
+        page, limit, status, type, priority, assignedAgentId, unassigned, active, needsReply,
         search, bookingId, projectId, businessAccountId, userId, relatedCustomerId, relatedProviderId,
       } =
         req.query as unknown as {
@@ -46,6 +46,7 @@ router.get(
           assignedAgentId?: string;
           unassigned?: boolean;
           active?: boolean;
+          needsReply?: boolean;
           search?: string;
           bookingId?: string;
           projectId?: string;
@@ -63,6 +64,7 @@ router.get(
         assignedAgentId,
         unassigned,
         active,
+        needsReply,
         search,
         bookingId,
         projectId,

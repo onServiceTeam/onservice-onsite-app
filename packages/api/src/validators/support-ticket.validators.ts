@@ -35,6 +35,7 @@ export const supportTicketListQuerySchema = z.object({
   assignedAgentId: canonicalUuid('Invalid assigned agent ID').optional(),
   unassigned: z.enum(['1', 'true']).transform(() => true).optional(),
   active: z.enum(['1', 'true']).transform(() => true).optional(),
+  needsReply: z.enum(['1', 'true']).transform(() => true).optional(),
   search: z.string().trim().min(2).max(100).optional(),
   bookingId: canonicalUuid('Invalid booking ID').optional(),
   projectId: canonicalUuid('Invalid project ID').optional(),

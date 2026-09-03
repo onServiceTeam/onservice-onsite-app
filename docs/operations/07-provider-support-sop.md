@@ -334,6 +334,8 @@ When a provider asks "what do I get if a customer cancels," the live cancellatio
 
 Provider ticket intake is available in the shared in-app Support screens. Email and Facebook Messenger remain valid channels; the agent logs those external contacts in admin on the provider's behalf so all work uses the same case record.
 
+At each handoff, review **Needs reply** across queue. It includes active cases with no public agent reply and cases where the provider's latest public message is newer than the agent's. Assignment, status changes, priority changes, and internal notes do not count as a provider-facing response.
+
 ---
 
 ## 17. Quick reference card
