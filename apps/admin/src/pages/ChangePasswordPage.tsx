@@ -19,9 +19,31 @@ import React, { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import api, { getErrorMessage } from '@/lib/api';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+} from '@/components/ui';
+import { CheckCircle2, Key, Lock, RefreshCw, Shield } from '@/components/icons';
 
 const MIN_LEN = 12;
 const MAX_LEN = 128;
+
+function passwordChangeErrorMessage(error: unknown): string {
+  const message = getErrorMessage(error);
+  if (/failed to fetch|network error|network request failed/i.test(message)) {
+    return "We couldn't reach onService. Check your connection and try again.";
+  }
+  if (/^http 5\d\d$|internal server error|unexpected error/i.test(message)) {
+    return "We couldn't update your password right now. Try again. If it keeps failing, contact a super administrator.";
+  }
+  return message;
+}
 
 export default function ChangePasswordPage(): React.ReactElement {
   const navigate = useNavigate();
@@ -33,6 +55,8 @@ export default function ChangePasswordPage(): React.ReactElement {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [newTouched, setNewTouched] = useState(false);
+  const [confirmTouched, setConfirmTouched] = useState(false);
 
   // Client-side validity is the SAME predicate the server enforces
   // so we can disable the submit button until the user actually
@@ -63,168 +87,243 @@ export default function ChangePasswordPage(): React.ReactElement {
         newPassword,
       });
       clearMustRotate();
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
       setDone(true);
-      // Quick handoff to dashboard — done state is shown briefly so
-      // the user gets confirmation rather than an unexplained route
-      // change.
-      setTimeout(() => navigate('/'), 800);
     } catch (err) {
-      setError(getErrorMessage(err));
+      setError(passwordChangeErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto py-8">
+    <div className="mx-auto w-full max-w-5xl space-y-6 py-2">
+      <header className="flex items-start gap-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
+          <Key className="h-6 w-6" aria-hidden="true" />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-[var(--color-text-secondary)]">Account security</p>
+          <h1 className="mt-1 text-2xl font-bold text-[var(--color-text)]">
+            Change password
+          </h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--color-text-secondary)]">
+            Replace the password used to enter the operations console. The
+            change takes effect immediately and is recorded in the Admin audit
+            trail.
+          </p>
+        </div>
+      </header>
+
       {mustRotatePassword && (
         <div
-          className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+          className="flex items-start gap-3 rounded-lg border border-[var(--color-warning)] bg-[var(--color-warning-bg)] p-4 text-sm text-[var(--color-text)]"
           role="status"
           aria-live="polite"
         >
-          <p className="font-semibold">Password rotation required</p>
-          <p className="mt-1">
-            Your account is flagged for a password rotation campaign. Set a new
-            password to continue. You will not be able to access other admin
-            screens until this is done.
-          </p>
+          <Lock className="mt-0.5 h-5 w-5 shrink-0 text-[var(--color-warning)]" aria-hidden="true" />
+          <div>
+            <p className="font-semibold">Password rotation required</p>
+            <p className="mt-1 leading-5">
+              Set a new password before continuing. The API also blocks all
+              customer, provider, booking, support, money, and configuration
+              actions until this rotation succeeds.
+            </p>
+          </div>
         </div>
       )}
 
-      <h1 className="text-2xl font-semibold text-[var(--color-text)] mb-1">
-        Change password
-      </h1>
-      <p className="text-sm text-[var(--color-text-secondary)] mb-6">
-        Enter your current password and a new one. The new password must be
-        between {MIN_LEN} and {MAX_LEN} characters. This browser will receive
-        a replacement session; every other administrator session for your
-        account will be signed out.
-      </p>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+        {done ? (
+          <Card className="border-[var(--color-success)]" role="status" aria-live="polite">
+            <CardContent className="flex min-h-80 flex-col items-start justify-center p-6 sm:p-8">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--color-success-bg)] text-[var(--color-success)]">
+                <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+              </div>
+              <h2 className="mt-6 text-xl font-semibold text-[var(--color-text)]">Password updated</h2>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--color-text-secondary)]">
+                This browser now has a replacement session. Other signed-in
+                browsers and active realtime connections for your account have
+                been ended.
+              </p>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--color-text-secondary)]">
+                Existing bookings, support cases, assignments, permissions,
+                transactions, and audit history were not changed.
+              </p>
+              <Button type="button" className="mt-6" onClick={() => navigate('/')}>
+                Continue to operations
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Set a new password</CardTitle>
+              <CardDescription>
+                Use {MIN_LEN} to {MAX_LEN} characters. Passwords are case-sensitive,
+                and the new password must differ from the current one.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form noValidate onSubmit={(e) => void onSubmit(e)} className="space-y-4" aria-busy={submitting}>
+                <div className="space-y-2">
+                  <Label htmlFor="cp-old">
+                    Current password <span aria-hidden="true" className="text-[var(--color-danger)]">*</span>
+                  </Label>
+                  <Input
+                    id="cp-old"
+                    type={showPasswords ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    value={oldPassword}
+                    onChange={(event) => {
+                      setOldPassword(event.target.value);
+                      setError(null);
+                    }}
+                    disabled={submitting}
+                    aria-required="true"
+                  />
+                </div>
 
-      <form onSubmit={(e) => void onSubmit(e)} className="space-y-4">
-        <div>
-          <label
-            htmlFor="cp-old"
-            className="block text-sm font-medium text-[var(--color-text)] mb-1"
-          >
-            Current password
-          </label>
-          <input
-            id="cp-old"
-            type={showPasswords ? 'text' : 'password'}
-            autoComplete="current-password"
-            value={oldPassword}
-            onChange={(e) => setOldPassword(e.target.value)}
-            disabled={submitting || done}
-            required
-            className="h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-          />
-        </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cp-new">
+                    New password <span aria-hidden="true" className="text-[var(--color-danger)]">*</span>
+                  </Label>
+                  <Input
+                    id="cp-new"
+                    type={showPasswords ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(event) => {
+                      setNewPassword(event.target.value);
+                      setError(null);
+                    }}
+                    onBlur={() => setNewTouched(true)}
+                    disabled={submitting}
+                    maxLength={MAX_LEN}
+                    aria-required="true"
+                    aria-invalid={newTouched && (newTooShort || newTooLong || newSameAsOld)}
+                    aria-describedby="cp-new-help"
+                  />
+                  <p id="cp-new-help" className="min-h-4 text-xs text-[var(--color-text-secondary)]">
+                    {newTouched && newTooShort && (
+                      <span className="text-[var(--color-danger)]" role="alert">
+                        Too short. Use at least {MIN_LEN} characters.
+                      </span>
+                    )}
+                    {newTouched && newTooLong && (
+                      <span className="text-[var(--color-danger)]" role="alert">
+                        Too long. Use at most {MAX_LEN} characters.
+                      </span>
+                    )}
+                    {newTouched && newSameAsOld && (
+                      <span className="text-[var(--color-danger)]" role="alert">
+                        The new password must differ from the current password.
+                      </span>
+                    )}
+                    {(!newTouched || (!newTooShort && !newTooLong && !newSameAsOld)) && (
+                      <span>{newLen}/{MAX_LEN} characters</span>
+                    )}
+                  </p>
+                </div>
 
-        <div>
-          <label
-            htmlFor="cp-new"
-            className="block text-sm font-medium text-[var(--color-text)] mb-1"
-          >
-            New password
-          </label>
-          <input
-            id="cp-new"
-            type={showPasswords ? 'text' : 'password'}
-            autoComplete="new-password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            disabled={submitting || done}
-            required
-            minLength={MIN_LEN}
-            maxLength={MAX_LEN}
-            aria-describedby="cp-new-help"
-            className="h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-          />
-          <p id="cp-new-help" className="text-xs mt-1">
-            {newTooShort && (
-              <span className="text-red-600">
-                Too short — must be at least {MIN_LEN} characters.
-              </span>
-            )}
-            {newTooLong && (
-              <span className="text-red-600">
-                Too long — must be at most {MAX_LEN} characters.
-              </span>
-            )}
-            {newSameAsOld && (
-              <span className="text-red-600">
-                Must differ from the current password.
-              </span>
-            )}
-            {!newTooShort && !newTooLong && !newSameAsOld && (
-              <span className="text-[var(--color-text-secondary)]">
-                {newLen}/{MAX_LEN} characters
-              </span>
-            )}
-          </p>
-        </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cp-confirm">
+                    Confirm new password <span aria-hidden="true" className="text-[var(--color-danger)]">*</span>
+                  </Label>
+                  <Input
+                    id="cp-confirm"
+                    type={showPasswords ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(event) => {
+                      setConfirmPassword(event.target.value);
+                      setError(null);
+                    }}
+                    onBlur={() => setConfirmTouched(true)}
+                    disabled={submitting}
+                    aria-required="true"
+                    aria-invalid={confirmTouched && confirmMismatch}
+                    aria-describedby={confirmTouched && confirmMismatch ? 'cp-confirm-error' : undefined}
+                  />
+                  {confirmTouched && confirmMismatch && (
+                    <p id="cp-confirm-error" className="text-xs text-[var(--color-danger)]" role="alert">
+                      Passwords do not match.
+                    </p>
+                  )}
+                </div>
 
-        <div>
-          <label
-            htmlFor="cp-confirm"
-            className="block text-sm font-medium text-[var(--color-text)] mb-1"
-          >
-            Confirm new password
-          </label>
-          <input
-            id="cp-confirm"
-            type={showPasswords ? 'text' : 'password'}
-            autoComplete="new-password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            disabled={submitting || done}
-            required
-            className="h-11 w-full px-3 py-2 border border-[var(--color-border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-          />
-          {confirmMismatch && (
-            <p className="text-xs mt-1 text-red-600">Passwords don't match.</p>
-          )}
-        </div>
+                <Label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-[var(--color-border)] px-3 text-[var(--color-text-secondary)]">
+                  <input
+                    type="checkbox"
+                    checked={showPasswords}
+                    onChange={(event) => setShowPasswords(event.target.checked)}
+                    disabled={submitting}
+                    aria-label="Show passwords"
+                    className="h-4 w-4 shrink-0 rounded border border-[var(--color-border-strong)] accent-[var(--color-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-secondary)]"
+                  />
+                  <span>Show passwords</span>
+                </Label>
 
-        <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-          <input
-            type="checkbox"
-            checked={showPasswords}
-            onChange={(e) => setShowPasswords(e.target.checked)}
-            disabled={submitting || done}
-          />
-          Show passwords
-        </label>
+                {error && (
+                  <div
+                    className="rounded-md border border-[var(--color-danger)] bg-[var(--color-danger-bg)] p-3 text-sm text-[var(--color-danger)]"
+                    role="alert"
+                  >
+                    <span className="font-semibold">Password was not updated. </span>
+                    {error}
+                  </div>
+                )}
 
-        {error && (
-          <div
-            className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-            role="alert"
-          >
-            {error}
-          </div>
+                <div className="flex flex-col-reverse gap-3 border-t border-[var(--color-border)] pt-4 sm:flex-row sm:justify-end">
+                  {!mustRotatePassword && (
+                    <Button type="button" variant="outline" onClick={() => navigate('/')} disabled={submitting}>
+                      Cancel and return
+                    </Button>
+                  )}
+                  <Button type="submit" disabled={!formValid || submitting}>
+                    {submitting && <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                    {submitting ? 'Updating password...' : 'Update password'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         )}
 
-        {done && (
-          <div
-            className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700"
-            role="status"
-            aria-live="polite"
-          >
-            Password updated. Redirecting…
-          </div>
-        )}
+        <aside className="space-y-4" aria-label="Password change impact">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Shield className="h-5 w-5 text-[var(--color-primary)]" aria-hidden="true" />
+                <CardTitle>What this secures</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-3 text-sm leading-5 text-[var(--color-text-secondary)]">
+                <li>This browser stays signed in with a replacement session.</li>
+                <li>Every other browser session for this account is revoked.</li>
+                <li>Open support and messaging connections are disconnected.</li>
+                <li>The password-rotation requirement clears only after the server commits the change.</li>
+              </ul>
+            </CardContent>
+          </Card>
 
-        <button
-          type="submit"
-          disabled={!formValid || submitting || done}
-          className="w-full inline-flex items-center justify-center px-4 py-2 rounded-md bg-[var(--color-primary)] text-white text-sm font-medium hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed"
-        >
-          {submitting ? 'Updating…' : done ? 'Done' : 'Update password'}
-        </button>
-      </form>
+          <Card>
+            <CardHeader>
+              <CardTitle>Before you continue</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm leading-6 text-[var(--color-text-secondary)]">
+                Use a unique password stored in a private password manager. Do
+                not put passwords or recovery codes in support tickets, chats,
+                screenshots, or shared documents.
+              </p>
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }

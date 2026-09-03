@@ -89,6 +89,7 @@ describe('LL#12 ChangePasswordPage — validation + submit', () => {
       { target: { value: 'short' } });
     fireEvent.change(container.querySelector('#cp-confirm') as HTMLInputElement,
       { target: { value: 'short' } });
+    fireEvent.blur(container.querySelector('#cp-new') as HTMLInputElement);
     const btn = container.querySelector('button[type="submit"]') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
     expect(container.textContent ?? '').toContain('at least 12 characters');
@@ -102,9 +103,10 @@ describe('LL#12 ChangePasswordPage — validation + submit', () => {
       { target: { value: 'new-password-strong-2026' } });
     fireEvent.change(container.querySelector('#cp-confirm') as HTMLInputElement,
       { target: { value: 'totally-different' } });
+    fireEvent.blur(container.querySelector('#cp-confirm') as HTMLInputElement);
     const btn = container.querySelector('button[type="submit"]') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
-    expect(container.textContent ?? '').toContain("Passwords don't match");
+    expect(container.textContent ?? '').toContain('Passwords do not match');
   });
 
   it('disables submit when new == old', () => {
@@ -116,6 +118,7 @@ describe('LL#12 ChangePasswordPage — validation + submit', () => {
       { target: { value: same } });
     fireEvent.change(container.querySelector('#cp-confirm') as HTMLInputElement,
       { target: { value: same } });
+    fireEvent.blur(container.querySelector('#cp-new') as HTMLInputElement);
     const btn = container.querySelector('button[type="submit"]') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
     expect(container.textContent ?? '').toContain('differ from the current password');
