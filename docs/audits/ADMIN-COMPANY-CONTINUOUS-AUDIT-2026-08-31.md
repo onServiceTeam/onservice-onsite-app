@@ -3292,3 +3292,43 @@ renamed behaviorally unchanged privacy tests. No customer, provider, support,
 audit, privacy, booking, payment, database schema, master, or production record
 changed. Production synchronization remains blocked by E32, and raw audit PII
 remains blocked by E72.
+
+## Checkpoint CH: canonical recurring support links and completed CI coverage
+
+The Recurring workspace accepted an uppercase schedule UUID as valid but kept
+its browser casing. The API and stored schedule use canonical lowercase IDs, so
+the operator could load the right record and then receive a false mismatch or
+lose the exact schedule handoff.
+
+UX-1215 normalizes a valid schedule UUID before detail and history requests.
+UX-1216 rejects a malformed schedule link without sending either exact request
+and preserves the remaining queue filters when the invalid field is removed.
+OPS-441 applies the same canonical boundary to the Admin recurring route, while
+OPS-442 does so for the customer recurring route before its owner lookup.
+
+This slice changes identifier representation and exact-record lookup only. It
+does not create, change, pause, cancel, or charge a recurring schedule; generate
+a booking; alter a customer, provider, payment, support case, or audit record;
+or add an Admin mutation.
+
+Local Admin and API TypeScript, changed-file ESLint, and
+`git diff --check` pass. Every rendered test that directly imports Recurring
+passes five files and seven tests. The direct API recurring inventory passes 25
+suites and 60 tests; one separately environment-gated integration suite remains
+honestly skipped by its declared guard.
+
+The original CI run `33786766995` was cancelled. Its second attempt completed
+all 493 Admin files and 582 tests successfully, but GitHub cancelled job
+finalization at the old ten-minute job limit. Commit `771718c5` raises only
+the Admin CI job limit to 15 minutes and records the measured reason in the
+workflow. Protected CI `33789558235` then passed the full API, Admin, and
+Mobile suites, all three TypeScript checks, the Admin production build, and
+Docker image boot/liveness at that commit. Protected Gates `33789558222`
+passed A through E and the `All gates passed` rollup. The preceding Checkpoint
+CG documentation CI `33786690886` was superseded and cancelled by the
+recurring implementation push; its Gates run `33786690873` passed, and the
+newer full CI verified that documentation together with the recurring change.
+No recurring schedule, generated booking, customer, provider, support case,
+payment, audit row, database schema, master, or production record changed.
+Production synchronization remains blocked by E32, and raw audit PII remains
+blocked by E72.
