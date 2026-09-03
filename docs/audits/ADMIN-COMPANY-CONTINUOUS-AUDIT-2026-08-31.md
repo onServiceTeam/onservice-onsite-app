@@ -3254,3 +3254,41 @@ No customer, provider, privacy record, consent record, DSR, booking, payment,
 audit row, database schema, master, or production record changed. Production
 synchronization remains blocked by E32, and raw audit PII remains blocked by
 E72.
+
+## Checkpoint CG: canonical Audit Log UUID filters
+
+The general Audit Log accepted uppercase event, actor, and entity UUIDs as
+valid but retained their browser casing. Exact event selection could therefore
+reject the canonical lowercase event returned by the API, while actor/entity
+filters and CSV export could use a different textual form from the durable
+record identifier.
+
+UX-1212 normalizes a valid exact event UUID before the request and no-substitute
+comparison. UX-1213 normalizes a manually submitted entity UUID before it is
+written to the browser URL and sent to the API. UX-1214 applies the same
+boundary to an actor UUID. OPS-440 makes list and export parsing canonical on
+the server, so both read paths receive the same event, actor, and entity
+identifier form. Malformed values retain the existing validation and error
+behavior.
+
+This slice changes evidence lookup and filter representation only. It does not
+reveal raw PII, weaken D34 privacy-event segregation, create or edit an audit
+row, modify a customer, provider, booking, support case, payment, or
+configuration record, or add an Admin mutation.
+
+Local Admin and API TypeScript, changed-file ESLint, and `git diff --check`
+pass. The three focused real-render regressions pass three tests, every rendered
+test that directly imports Audit Log passes 52 files and 59 tests, and the
+direct audit-validator inventory passes three suites and nine tests.
+
+Protected CI `33785559218` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at implementation commit `aa5749a6`. Protected Gates
+`33785558920` passed A through E and the `All gates passed` rollup at the same
+commit. The preceding Checkpoint CF/audit-ID correction CI `33785448273` was
+superseded and cancelled by this implementation push; its Gates run
+`33785448185` passed, and the newer full CI verified that checkpoint and the
+renamed behaviorally unchanged privacy tests. No customer, provider, support,
+audit, privacy, booking, payment, database schema, master, or production record
+changed. Production synchronization remains blocked by E32, and raw audit PII
+remains blocked by E72.
