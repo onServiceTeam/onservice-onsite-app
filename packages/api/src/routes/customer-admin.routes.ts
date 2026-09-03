@@ -132,7 +132,17 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const data = await customerAdminService.getCustomerPayments((req.params.id as string));
+      const transactionId = req.query.transactionId;
+      if (
+        transactionId !== undefined
+        && (typeof transactionId !== 'string' || !UUID_REGEX.test(transactionId))
+      ) {
+        throw createAppError('transactionId must be a valid UUID.', 400);
+      }
+      const data = await customerAdminService.getCustomerPayments(
+        req.params.id as string,
+        transactionId,
+      );
       res.json({ success: true, data });
     } catch (error) {
       next(error);

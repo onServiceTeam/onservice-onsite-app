@@ -221,6 +221,7 @@ interface ActivityRow {
 
 const TABS = ['profile', 'bookings', 'payments', 'disputes', 'referrals', 'activity'] as const;
 type TabId = (typeof TABS)[number];
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parseCustomerTab(value: string | null): TabId {
   return TABS.includes(value as TabId) ? value as TabId : 'profile';
@@ -243,12 +244,22 @@ export default function CustomerDetailPage(): React.ReactElement {
   const customerId = id ?? '';
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = parseCustomerTab(searchParams.get('tab'));
+  const transactionIdFilter = searchParams.get('transactionId')?.trim() ?? '';
 
   const selectTab = (tab: TabId): void => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       if (tab === 'profile') next.delete('tab');
       else next.set('tab', tab);
+      if (tab !== 'payments') next.delete('transactionId');
+      return next;
+    });
+  };
+
+  const clearTransactionFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('transactionId');
       return next;
     });
   };
@@ -315,7 +326,11 @@ export default function CustomerDetailPage(): React.ReactElement {
           <BookingsTab customerId={customerId} />
         </TabsContent>
         <TabsContent value="payments">
-          <PaymentsTab customerId={customerId} />
+          <PaymentsTab
+            customerId={customerId}
+            exactTransactionId={transactionIdFilter}
+            onClearExactTransaction={clearTransactionFilter}
+          />
         </TabsContent>
         <TabsContent value="disputes">
           <DisputesTab customerId={customerId} />
@@ -882,25 +897,41 @@ export function BookingsTab({ customerId }: { customerId: string }): React.React
 
 // ─── PaymentsTab ──────────────────────────────────────────────────────────
 
-export function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement {
+export function PaymentsTab({
+  customerId,
+  exactTransactionId = '',
+  onClearExactTransaction,
+}: {
+  customerId: string;
+  exactTransactionId?: string;
+  onClearExactTransaction?: () => void;
+}): React.ReactElement {
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
   const queryClient = useQueryClient();
   const [amountPesos, setAmountPesos] = useState('');
   const [reason, setReason] = useState('');
+  const requestedTransactionId = exactTransactionId.trim();
+  const hasExactTransaction = requestedTransactionId.length > 0;
+  const hasValidExactTransaction = UUID_REGEX.test(requestedTransactionId);
   const parsedAmount = Number(amountPesos);
   const adjustmentCentavos = Number.isFinite(parsedAmount) && parsedAmount !== 0
     ? Math.round(parsedAmount * 100)
     : null;
 
   const q = useQuery({
-    queryKey: ['admin-customer-payments', customerId],
+    queryKey: ['admin-customer-payments', customerId, requestedTransactionId],
     queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: Payments }>(
-        `/api/v1/admin/customers/${customerId}/payments`,
-      );
+      const path = `/api/v1/admin/customers/${customerId}/payments`;
+      const res = hasExactTransaction
+        ? await api.get<{ success: boolean; data: Payments }>(
+            path,
+            { params: { transactionId: requestedTransactionId } },
+          )
+        : await api.get<{ success: boolean; data: Payments }>(path);
       return res.data.data;
     },
+    enabled: !hasExactTransaction || hasValidExactTransaction,
   });
 
   const credit = useMutation({
@@ -919,12 +950,61 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
     },
   });
 
+  if (hasExactTransaction && !hasValidExactTransaction) {
+    return (
+      <ErrorState
+        title="Invalid wallet transaction link"
+        description="Wallet transaction ID must be a complete UUID. No payment records were requested."
+        action={onClearExactTransaction ? (
+          <Button variant="secondary" size="sm" onClick={onClearExactTransaction}>
+            Clear transaction selection
+          </Button>
+        ) : undefined}
+      />
+    );
+  }
   if (q.isLoading) return <LoadingState />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
   const data = q.data!;
+  const exactTransaction = hasExactTransaction
+    ? data.recentTransactions.find((transaction) => transaction.id === requestedTransactionId) ?? null
+    : null;
+  const visibleTransactions = hasExactTransaction
+    ? exactTransaction ? [exactTransaction] : []
+    : data.recentTransactions;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {hasExactTransaction && exactTransaction && (
+        <Card className="border-2 border-[var(--color-secondary)] bg-[var(--color-secondary)]/5 p-4 md:col-span-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-[var(--color-text)]">Exact customer wallet transaction</p>
+              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                This row is scoped by both the customer account and transaction ID retained by the audit decision.
+              </p>
+            </div>
+            {onClearExactTransaction && (
+              <Button variant="secondary" size="sm" onClick={onClearExactTransaction}>
+                Show recent payment history
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+      {hasExactTransaction && !exactTransaction && (
+        <Card className="border-2 border-[var(--color-warning)] bg-[var(--color-warning)]/5 p-4 md:col-span-3" role="alert">
+          <p className="text-sm font-semibold text-[var(--color-text)]">Wallet transaction is not in this customer ledger</p>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+            The requested transaction was deleted, never belonged to this customer, or is unavailable. No substitute transaction is shown; return to the Audit Log for the durable decision record.
+          </p>
+          {onClearExactTransaction && (
+            <Button className="mt-3" variant="secondary" size="sm" onClick={onClearExactTransaction}>
+              Show recent payment history
+            </Button>
+          )}
+        </Card>
+      )}
       <KpiCard
         title="Wallet available"
         value={fmtCentavos(data.walletAvailable)}
@@ -941,7 +1021,7 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
         icon={<CreditCard size={16} />}
       />
 
-      {isSuperAdmin && (
+      {isSuperAdmin && !hasExactTransaction && (
         <Card className="p-5 md:col-span-3">
           <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Adjust customer wallet</h3>
           <p className="text-xs text-[var(--color-text-secondary)] mb-3">
@@ -1003,9 +1083,11 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
       )}
 
       <Card className="p-5 md:col-span-3">
-        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Recent wallet transactions</h3>
-        {data.recentTransactions.length === 0 ? (
-          <EmptyState title="No wallet transactions yet." />
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">
+          {hasExactTransaction ? 'Wallet transaction evidence' : 'Recent wallet transactions'}
+        </h3>
+        {visibleTransactions.length === 0 ? (
+          !hasExactTransaction ? <EmptyState title="No wallet transactions yet." /> : null
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -1020,8 +1102,14 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
                 </tr>
               </thead>
               <tbody>
-                {data.recentTransactions.map((t) => (
-                  <tr key={t.id} className="border-t border-[var(--color-border)]">
+                {visibleTransactions.map((t) => (
+                  <tr
+                    key={t.id}
+                    aria-current={hasExactTransaction ? 'true' : undefined}
+                    className={hasExactTransaction
+                      ? 'border-t border-[var(--color-secondary)] bg-[var(--color-secondary)]/5'
+                      : 'border-t border-[var(--color-border)]'}
+                  >
                     <td className="px-3 py-2">
                       <Badge label={t.type} variant="info" />
                     </td>
@@ -1058,7 +1146,7 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
         )}
       </Card>
 
-      <Card className="p-5 md:col-span-3">
+      {!hasExactTransaction && <Card className="p-5 md:col-span-3">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Recent payment intents</h3>
         {data.recentPaymentIntents.length === 0 ? (
           <EmptyState title="No payment intents yet." />
@@ -1117,7 +1205,7 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
             </table>
           </div>
         )}
-      </Card>
+      </Card>}
     </div>
   );
 }

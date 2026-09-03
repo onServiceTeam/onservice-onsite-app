@@ -298,6 +298,15 @@ function linkedCommissionRateId(entry: AuditEntry): string | null {
   return null;
 }
 
+function linkedCustomerWalletTransactionId(entry: AuditEntry): string | null {
+  if (entry.action !== 'customer_credited' || entry.entityType !== 'customer') return null;
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const transactionId = values?.transactionId;
+    if (typeof transactionId === 'string' && UUID_REGEX.test(transactionId)) return transactionId;
+  }
+  return null;
+}
+
 function linkedPiiRevealAuditEntryId(entry: AuditEntry): string | null {
   if (entry.action !== 'pii_reveal' || entry.entityType !== 'system') return null;
   const detailId = entry.newValues?.audit_log_id;
@@ -465,7 +474,15 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
         : null;
     case 'customer':
       if (entry.action === 'customer_credited') {
-        return { to: `/customers/${id}?tab=payments`, label: 'Open customer payment history' };
+        const transactionId = linkedCustomerWalletTransactionId(entry);
+        const params = new URLSearchParams({ tab: 'payments' });
+        if (transactionId) params.set('transactionId', transactionId);
+        return {
+          to: `/customers/${id}?${params.toString()}`,
+          label: transactionId
+            ? 'Open exact customer wallet transaction'
+            : 'Open customer payment history',
+        };
       }
       if (
         entry.action === 'customer_suspended'

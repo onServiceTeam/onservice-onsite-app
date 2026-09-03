@@ -493,7 +493,14 @@ export async function getCustomerBookings(
 // Payments
 // ─────────────────────────────────────────────────────────────────
 
-export async function getCustomerPayments(customerId: string): Promise<CustomerPayments> {
+export async function getCustomerPayments(
+  customerId: string,
+  transactionId?: string,
+): Promise<CustomerPayments> {
+  const transactionWhere = transactionId
+    ? "WHERE w.user_id = $1 AND w.type = 'customer' AND wt.id = $2"
+    : "WHERE w.user_id = $1 AND w.type = 'customer'";
+  const transactionParams = transactionId ? [customerId, transactionId] : [customerId];
   const [walletRow, txRow, intentRow, methodCounts] = await Promise.all([
     db.query<{ available: string; pending: string }>(
       `SELECT COALESCE(available_balance, 0)::text AS available,
@@ -515,10 +522,10 @@ export async function getCustomerPayments(customerId: string): Promise<CustomerP
               wt.booking_id, wt.created_at
          FROM wallet_transactions wt
          JOIN wallets w ON w.id = wt.wallet_id
-        WHERE w.user_id = $1 AND w.type = 'customer'
+        ${transactionWhere}
         ORDER BY wt.created_at DESC
         LIMIT 50`,
-      [customerId],
+      transactionParams,
     ),
     db.query<{
       id: string;

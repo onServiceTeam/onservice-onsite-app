@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
 
 const CUSTOMER_ID = '11600000-0000-4000-8000-000000001160';
+const TRANSACTION_ID = '31600000-0000-4000-8000-000000001160';
 const apiMocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock('@/lib/api', () => ({ default: apiMocks, getErrorMessage: () => 'Request failed' }));
 vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
@@ -22,7 +23,7 @@ it('Bug UX-1160 — a customer wallet audit decision opens that customer payment
     entityType: 'customer',
     entityId: CUSTOMER_ID,
     oldValues: null,
-    newValues: { deltaAmount: 12500 },
+    newValues: { deltaAmount: 12500, transactionId: TRANSACTION_ID },
     ipAddress: null,
     userAgent: null,
     reason: 'Service recovery credit',
@@ -36,8 +37,8 @@ it('Bug UX-1160 — a customer wallet audit decision opens that customer payment
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByRole('link', { name: /Open customer payment history/ })).toHaveAttribute(
+  expect(await screen.findByRole('link', { name: /Open exact customer wallet transaction/ })).toHaveAttribute(
     'href',
-    `/customers/${CUSTOMER_ID}?tab=payments`,
+    `/customers/${CUSTOMER_ID}?tab=payments&transactionId=${TRANSACTION_ID}`,
   );
 });
