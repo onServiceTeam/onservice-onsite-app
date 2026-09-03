@@ -3005,3 +3005,36 @@ the newer full CI verified that documentation with this implementation. No
 customer, provider, payment, retry, wallet, booking, audit row, database schema,
 master, or production record changed. Production synchronization remains
 blocked by E32.
+
+## Checkpoint BZ: canonical exact-money UUID handling
+
+PostgreSQL UUIDs are case-insensitive on input and are returned in canonical
+lowercase form. The exact Payouts and Customer 360 wallet views accepted an
+uppercase UUID as valid, but compared the lowercase API row against the
+unchanged uppercase browser value. A valid copied identifier could therefore
+produce a false "record not found" result after the server returned the right
+record.
+
+UX-1187 normalizes a valid payout UUID before the exact API request and before
+the browser-side no-substitute comparison. UX-1188 applies the same canonical
+boundary to an exact customer wallet transaction. Malformed values retain the
+existing blocked-request behavior, and ordinary queue/history views remain
+unchanged when no exact identifier is present.
+
+This slice changes exact evidence matching only. It does not approve, reject,
+transfer, retry, refund, adjust, or change any payout, payment, wallet balance,
+booking, audit row, permission, or historical record.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Six
+focused exact-money rendered files pass six tests, every rendered test importing
+Payouts passes 14 files and 16 tests, and the combined Payouts/Customer 360 set
+passes 36 files and 40 tests. Protected CI `33757199516` passed the full API,
+Admin, and Mobile suites, all three TypeScript checks, the Admin production
+build, and Docker image boot/liveness at commit `f954013e`. Protected Gates
+`33757199574` passed A through E and the `All gates passed` rollup at the same
+commit. The preceding documentation-only CI `33757026947` was superseded and
+cancelled by this implementation push; its Gates run `33757026966` passed, and
+the newer full CI verified that documentation with this implementation. No
+customer, provider, payout, wallet, booking, payment, audit row, database
+schema, master, or production record changed. Production synchronization
+remains blocked by E32.
