@@ -30,6 +30,8 @@ interface AuditEntry {
   targetTaxYear?: number | null;
   targetTaxQuarter?: number | null;
   targetTaxMonth?: number | null;
+  targetCategoryId?: string | null;
+  targetSubcategoryId?: string | null;
   action: string;
   entityType: string;
   entityId: string | null;
@@ -119,9 +121,17 @@ const ACTION_LABELS: Record<string, string> = {
   refund_issued: 'Refund issued',
   review_response_updated: 'Provider review response updated',
   review_visibility_changed: 'Provider review visibility changed',
+  service_addon_created: 'Service add-on created',
+  service_addon_deleted: 'Service add-on deactivated',
+  service_addon_updated: 'Service add-on updated',
   service_area_created: 'Service area created',
   service_area_deleted: 'Service area deleted',
   service_area_updated: 'Service area updated',
+  service_category_created: 'Service category created',
+  service_category_updated: 'Service category updated',
+  service_subcategory_created: 'Customer service created',
+  service_subcategory_deleted: 'Customer service deactivated',
+  service_subcategory_updated: 'Customer service updated',
   staff_added: 'Staff member added',
   staff_removed: 'Staff member removed',
   staff_role_changed: 'Staff role changed',
@@ -226,6 +236,19 @@ function linkedTaxNumber(
   return null;
 }
 
+function linkedCatalogId(
+  entry: AuditEntry,
+  canonical: string | null | undefined,
+  detailKey: 'categoryId' | 'subcategoryId',
+): string | null {
+  if (canonical && UUID_REGEX.test(canonical)) return canonical;
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const value = values?.[detailKey];
+    if (typeof value === 'string' && UUID_REGEX.test(value)) return value;
+  }
+  return null;
+}
+
 function searchedConsentUserId(entry: AuditEntry): string | null {
   if (entry.action !== 'consent_search') return null;
   for (const values of [entry.newValues, entry.oldValues]) {
@@ -308,6 +331,34 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
         to: `/financials?${params.toString()}`,
         label: 'Open exact VAT workpaper evidence',
       };
+    }
+    case 'service_category':
+      return UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/catalog?categoryId=${id}`,
+            label: 'Open exact service category',
+          }
+        : null;
+    case 'service_subcategory': {
+      const categoryId = linkedCatalogId(entry, entry.targetCategoryId, 'categoryId');
+      if (!UUID_REGEX.test(entry.entityId) || !categoryId) return null;
+      const params = new URLSearchParams({ categoryId, subcategoryId: entry.entityId });
+      return { to: `/catalog?${params.toString()}`, label: 'Open exact customer service' };
+    }
+    case 'service_addon': {
+      const categoryId = linkedCatalogId(entry, entry.targetCategoryId, 'categoryId');
+      const subcategoryId = linkedCatalogId(
+        entry,
+        entry.targetSubcategoryId,
+        'subcategoryId',
+      );
+      if (!UUID_REGEX.test(entry.entityId) || !categoryId || !subcategoryId) return null;
+      const params = new URLSearchParams({
+        categoryId,
+        subcategoryId,
+        addonId: entry.entityId,
+      });
+      return { to: `/catalog?${params.toString()}`, label: 'Open exact service add-on' };
     }
     case 'recurring_booking':
       return UUID_REGEX.test(entry.entityId)

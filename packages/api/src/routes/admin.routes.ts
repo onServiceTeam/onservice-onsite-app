@@ -2382,6 +2382,8 @@ interface AuditLogRow {
   target_tax_year: number | null;
   target_tax_quarter: number | null;
   target_tax_month: number | null;
+  target_category_id: string | null;
+  target_subcategory_id: string | null;
 }
 
 router.get(
@@ -2549,7 +2551,29 @@ router.get(
                   SELECT report.period_month
                     FROM vat_monthly_reports report
                    WHERE report.id = combined.entity_id
-                ) END AS target_tax_month
+                ) END AS target_tax_month,
+                CASE
+                  WHEN combined.entity_type = 'service_category' THEN combined.entity_id
+                  WHEN combined.entity_type = 'service_subcategory' THEN (
+                    SELECT subcategory.category_id
+                      FROM service_subcategories subcategory
+                     WHERE subcategory.id = combined.entity_id
+                  )
+                  WHEN combined.entity_type = 'service_addon' THEN (
+                    SELECT subcategory.category_id
+                      FROM service_addons addon
+                      JOIN service_subcategories subcategory ON subcategory.id = addon.subcategory_id
+                     WHERE addon.id = combined.entity_id
+                  )
+                END AS target_category_id,
+                CASE
+                  WHEN combined.entity_type = 'service_subcategory' THEN combined.entity_id
+                  WHEN combined.entity_type = 'service_addon' THEN (
+                    SELECT addon.subcategory_id
+                      FROM service_addons addon
+                     WHERE addon.id = combined.entity_id
+                  )
+                END AS target_subcategory_id
            FROM (${baseRelation}) combined
            LEFT JOIN users u ON u.id = combined.user_id
            LEFT JOIN users target_user
@@ -2584,6 +2608,8 @@ router.get(
           targetTaxYear: r.target_tax_year,
           targetTaxQuarter: r.target_tax_quarter,
           targetTaxMonth: r.target_tax_month,
+          targetCategoryId: r.target_category_id,
+          targetSubcategoryId: r.target_subcategory_id,
           action: r.action,
           entityType: r.entity_type,
           entityId: r.entity_id,
