@@ -2095,3 +2095,40 @@ Mobile suites and 910 tests with 84 TODOs, both TypeScript checks, the Admin
 production build, and Docker image boot/liveness at commit `4b7fcfb`.
 Protected Gates `33713924555` passed A through E and the `All gates passed`
 rollup at the same commit. Production synchronization remains blocked by E32.
+
+## Checkpoint BC: exact held tax-workpaper audit evidence
+
+The general Audit Log recorded BIR 2307 batch and VAT report events but did not
+provide a durable route back to the exact retained workpaper. Historical event
+JSON was not a reliable source for the reporting period or provider owner, and
+the Financials page kept its BIR period only in component state. An operator
+could therefore see that tax evidence changed without being able to reopen and
+verify the same batch or report.
+
+OPS-413 resolves a retained 2307 batch's provider, tax year, and quarter from
+the database and exposes those canonical owners with the audit event. OPS-414
+does the same for a VAT report's tax year and month. OPS-415 rejects a malformed
+2307 batch identifier before querying Postgres. UX-1085 and UX-1086 give the
+four tax actions clear labels and map them to durable Financials URLs carrying
+the exact period and immutable batch or report identifier.
+
+The BIR workspace now validates `taxYear`, `taxQuarter`, `batchId`, `vatMonth`,
+and `vatReportId` URL state, keeps historical selected years available in its
+selector, and renders exact retained evidence through the existing bounded
+detail endpoints. It refuses a VAT response whose report identifier does not
+match the audit target, reports malformed or unavailable evidence explicitly,
+and can still load exact evidence when the annual summary request fails. The
+held generate, regenerate, and finalize controls remain disabled under E22.
+This work does not create or finalize a tax document, change a provider ledger,
+move money, alter a transaction, or update an existing audit row.
+
+Local API and Admin TypeScript, affected-file ESLint, and `git diff --check`
+pass. Six API financial and BIR suites pass 63 tests. Six focused rendered
+Admin tax-evidence files pass six tests, and all 50 Financials and Audit Log
+files pass 59 tests. Protected CI `33715547263` passed 861 API suites and 3,232
+tests, 366 Admin files and 455 tests with one intentionally skipped file and
+three existing honest TODOs, 531 Mobile suites and 910 tests with 84 TODOs,
+both TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `4de0977`. Protected Gates `33715547245` passed A
+through E and the `All gates passed` rollup at the same commit. Production
+synchronization remains blocked by E32.
