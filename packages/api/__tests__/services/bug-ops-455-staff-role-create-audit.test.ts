@@ -12,7 +12,7 @@ jest.mock('../../src/utils/logger', () => ({
 
 import { createRole } from '../../src/services/staff.service';
 
-it('Bug UX-345 — creating an operations role profile records the actor, reason, and non-authoritative access context atomically', async () => {
+it('Bug OPS-455 — creating an operations role profile records the actor, reason, and non-authoritative access context atomically', async () => {
   const role = {
     id: 'role-1', name: 'case_reviewer', description: 'Case queue profile',
     permissions: ['support.view'], created_at: '2026-08-25', updated_at: '2026-08-25',

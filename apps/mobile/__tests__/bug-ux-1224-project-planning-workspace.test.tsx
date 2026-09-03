@@ -12,7 +12,7 @@ jest.mock('@/services/project.service', () => ({ createProject: jest.fn() }));
 
 import NewProjectScreen from '../app/customer/projects/new';
 
-it('Bug UX-128 — desktop project creation is a bounded workspace that clearly separates planning from hiring and payment', () => {
+it('Bug UX-1224 — desktop project creation is a bounded workspace that clearly separates planning from hiring and payment', () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><NewProjectScreen /></QueryClientProvider>);
 

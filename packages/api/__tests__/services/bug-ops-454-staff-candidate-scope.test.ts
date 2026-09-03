@@ -9,7 +9,7 @@ import { searchStaffCandidates } from '../../src/services/staff.service';
 describe('Staff directory candidate scope', () => {
   beforeEach(() => dbQueryMock.mockReset());
 
-  it('Bug UX-342 — candidate search is limited to active admin-tier accounts not already profiled and escapes wildcards', async () => {
+  it('Bug OPS-454 — candidate search is limited to active admin-tier accounts not already profiled and escapes wildcards', async () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [] });
 
     await searchStaffCandidates('an%_', 50);

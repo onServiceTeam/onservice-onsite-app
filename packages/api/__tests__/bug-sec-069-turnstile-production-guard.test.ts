@@ -12,7 +12,7 @@ const baseEnv = (): NodeJS.ProcessEnv => ({
 });
 
 describe('Turnstile production startup guard', () => {
-  it('Bug SEC-012 — canonical Turnstile and legacy CAPTCHA secrets both satisfy the fail-closed startup guard', () => {
+  it('Bug SEC-069 — canonical Turnstile and legacy CAPTCHA secrets both satisfy the fail-closed startup guard', () => {
     expect(() => validateProductionSecrets({
       ...baseEnv(),
       TURNSTILE_SECRET_KEY: 'turnstile-live-secret',

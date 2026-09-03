@@ -7,7 +7,7 @@ jest.mock('../src/services/settings.service', () => ({ getMaxProviderServiceRadi
 
 import { setReviewVisibility } from '../src/services/provider-admin.service';
 
-it('Bug UX-455 — review visibility changes are provider-scoped and audited atomically with the moderation reason', async () => {
+it('Bug OPS-451 — review visibility changes are provider-scoped and audited atomically with the moderation reason', async () => {
   queryMock
     .mockResolvedValueOnce({ rows: [{ is_visible: true }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })

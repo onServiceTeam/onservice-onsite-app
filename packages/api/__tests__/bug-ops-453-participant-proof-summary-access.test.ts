@@ -36,7 +36,7 @@ jest.mock('../src/utils/logger', () => ({
 
 import bookingRouter from '../src/routes/booking.routes';
 
-it('Bug UX-309 — assigned staff receive the shared proof record without private support or held signature files', async () => {
+it('Bug OPS-453 — assigned staff receive the shared proof record without private support or held signature files', async () => {
   dbQueryMock.mockResolvedValueOnce({
     rows: [{
       customer_id: 'customer-1', provider_user_id: 'provider-user-1',

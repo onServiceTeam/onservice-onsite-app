@@ -6,7 +6,7 @@ jest.mock('../src/models/db', () => ({
 
 import { getBookingProofSummary } from '../src/services/booking-proof.service';
 
-it('Bug UX-308 — Booking 360 derives one truthful proof summary from linked work records', async () => {
+it('Bug OPS-450 — Booking 360 derives one truthful proof summary from linked work records', async () => {
   const now = Date.now();
   dbQueryMock
     .mockResolvedValueOnce({

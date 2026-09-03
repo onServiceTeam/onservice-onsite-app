@@ -7,7 +7,7 @@ jest.mock('../src/services/settings.service', () => ({ getMaxProviderServiceRadi
 
 import { setReviewAdminResponse } from '../src/services/provider-admin.service';
 
-it('Bug UX-456 — a public review response stores public text separately from the private audit rationale', async () => {
+it('Bug OPS-452 — a public review response stores public text separately from the private audit rationale', async () => {
   queryMock
     .mockResolvedValueOnce({ rows: [{ admin_response: null }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })

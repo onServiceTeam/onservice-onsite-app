@@ -31,7 +31,7 @@ jest.mock('@/services/project.service', () => ({
 
 import ProjectDetailScreen from '../app/customer/projects/[id]';
 
-it('Bug UX-129 — completed project milestones cannot be reset by a generic tap and active milestones use an explicit forward action', async () => {
+it('Bug UX-1225 — completed project milestones cannot be reset by a generic tap and active milestones use an explicit forward action', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><ProjectDetailScreen /></QueryClientProvider>);
 
