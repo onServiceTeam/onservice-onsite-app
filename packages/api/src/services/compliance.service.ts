@@ -20,6 +20,7 @@ import { logger } from '../utils/logger';
 import { neutralizeCsvFormula } from '../utils/csv';
 import { maskPiiInObject, maskPiiInString, type Json } from '../utils/pii-mask';
 import { CONSENT_TYPES, isConsentType, type ConsentType } from '../types/compliance.types';
+import { generalAuditVisibilityClause } from '../utils/admin-audit-visibility';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -916,7 +917,7 @@ interface ExportAuditFilter {
   from?: string;
   to?: string;
   limit?: number;
-  /** Role of the admin calling the export (for PII masking). */
+  /** Role of the admin calling the export (for authorization and PII masking). */
   viewerRole?: string;
 }
 
@@ -938,6 +939,11 @@ const AUDIT_TIMELINE_RELATION = `
 function buildExportWhere(filter: ExportAuditFilter): { whereSql: string; params: unknown[] } {
   const where: string[] = [];
   const params: unknown[] = [];
+
+  // Match the on-screen general Audit Log boundary. Missing roles fail closed
+  // to the ordinary-admin view so a future direct caller cannot bypass D34.
+  const visibilityClause = generalAuditVisibilityClause(filter.viewerRole);
+  if (visibilityClause) where.push(visibilityClause);
 
   if (filter.userId) {
     params.push(filter.userId);

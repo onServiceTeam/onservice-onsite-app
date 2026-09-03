@@ -97,6 +97,7 @@ import {
   maskUserAgent,
   type Json,
 } from '../utils/pii-mask';
+import { generalAuditVisibilityClause } from '../utils/admin-audit-visibility';
 
 const router = Router();
 const PROVIDER_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -2394,6 +2395,12 @@ router.get(
       const filters: string[] = [];
       const params: unknown[] = [];
       let paramIdx = 1;
+
+      // D34: ordinary operations admins must not receive DPO-owned privacy
+      // records through the general timeline, including through exact filters.
+      // Super admins retain cross-boundary governance review authority.
+      const visibilityClause = generalAuditVisibilityClause(req.user!.role);
+      if (visibilityClause) filters.push(visibilityClause);
 
       if (parsed.userId) {
         filters.push(`combined.user_id = $${paramIdx++}`);
