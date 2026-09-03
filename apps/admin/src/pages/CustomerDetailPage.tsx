@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -220,8 +220,11 @@ interface ActivityRow {
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 const TABS = ['profile', 'bookings', 'payments', 'disputes', 'referrals', 'activity'] as const;
-void TABS;
 type TabId = (typeof TABS)[number];
+
+function parseCustomerTab(value: string | null): TabId {
+  return TABS.includes(value as TabId) ? value as TabId : 'profile';
+}
 
 function fmtCentavos(centavos: number): string {
   const pesos = centavos / 100;
@@ -238,7 +241,17 @@ function fmtDate(iso: string | null): string {
 export default function CustomerDetailPage(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const customerId = id ?? '';
-  const [tab, setTab] = useState<TabId>('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = parseCustomerTab(searchParams.get('tab'));
+
+  const selectTab = (tab: TabId): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (tab === 'profile') next.delete('tab');
+      else next.set('tab', tab);
+      return next;
+    });
+  };
 
   const profileQuery = useQuery({
     queryKey: ['admin-customer-profile', customerId],
@@ -285,7 +298,7 @@ export default function CustomerDetailPage(): React.ReactElement {
 
       <CustomerHeader profile={profile} />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabId)}>
+      <Tabs value={activeTab} onValueChange={(v) => selectTab(v as TabId)}>
         <TabsList className="flex h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto rounded-xl p-1">
           <TabsTrigger className="min-h-11 shrink-0" value="profile">Profile</TabsTrigger>
           <TabsTrigger className="min-h-11 shrink-0" value="bookings">Bookings</TabsTrigger>
