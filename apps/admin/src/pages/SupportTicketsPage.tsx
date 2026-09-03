@@ -231,6 +231,7 @@ export default function SupportTicketsPage(): React.ReactElement {
   const bookingFilter = canonicalUuid(linkedIdValues.bookingId);
   const projectFilter = canonicalUuid(linkedIdValues.projectId);
   const businessAccountFilter = canonicalUuid(linkedIdValues.businessAccountId);
+  const hasConflictingWorkContext = !!projectFilter && (!!bookingFilter || !!businessAccountFilter);
   const businessAccountName = searchParams.get('businessName') ?? 'Selected business account';
   const userFilter = canonicalUuid(linkedIdValues.userId);
   const relatedCustomerFilter = canonicalUuid(linkedIdValues.relatedCustomerId);
@@ -299,6 +300,24 @@ export default function SupportTicketsPage(): React.ReactElement {
         params.delete('userName');
         params.delete('userRole');
       }
+      return params;
+    }, { replace: true });
+  }
+
+  function removeProjectContext(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('projectId');
+      return params;
+    }, { replace: true });
+  }
+
+  function keepProjectContext(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('bookingId');
+      params.delete('businessAccountId');
+      params.delete('businessName');
       return params;
     }, { replace: true });
   }
@@ -397,7 +416,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets?${params}`);
       return res.data as { data: Ticket[]; meta: { total: number } };
     },
-    enabled: invalidLinkedIdKeys.length === 0 && !createRequested,
+    enabled: invalidLinkedIdKeys.length === 0 && !hasConflictingWorkContext && !createRequested,
   });
 
   const summaryQuery = useQuery({
@@ -422,7 +441,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets/account-context/${userFilter}`);
       return res.data.data as SupportAccountContext;
     },
-    enabled: createRequested && invalidLinkedIdKeys.length === 0,
+    enabled: createRequested && invalidLinkedIdKeys.length === 0 && !hasConflictingWorkContext,
   });
 
   const detailQuery = useQuery({
@@ -431,7 +450,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets/${selectedId}`);
       return res.data.data as Ticket;
     },
-    enabled: !!selectedId && invalidLinkedIdKeys.length === 0,
+    enabled: !!selectedId && invalidLinkedIdKeys.length === 0 && !hasConflictingWorkContext,
   });
 
   const historyQuery = useQuery({
@@ -440,7 +459,7 @@ export default function SupportTicketsPage(): React.ReactElement {
       const res = await api.get(`/api/v1/support-tickets/${selectedId}/history`);
       return res.data.data as SupportTicketStatusHistoryEntry[];
     },
-    enabled: !!selectedId && invalidLinkedIdKeys.length === 0,
+    enabled: !!selectedId && invalidLinkedIdKeys.length === 0 && !hasConflictingWorkContext,
   });
 
   const updateStatusMutation = useMutation({
@@ -692,6 +711,39 @@ export default function SupportTicketsPage(): React.ReactElement {
           >
             Remove invalid support links
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasConflictingWorkContext) {
+    const retainedContextLabel = bookingFilter ? 'booking' : 'business account';
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-950">
+          <h1 className="text-xl font-bold">Conflicting support work context</h1>
+          <p className="mt-2">
+            A support workspace can use a booking and its business account, or a planning project, but it cannot combine a planning project with either operational context.
+          </p>
+          <p className="mt-1 text-red-800">
+            No ticket list, case-detail, owner-confirmation, or create request was sent. Choose the context that matches the support case.
+          </p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              className="min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold"
+              onClick={removeProjectContext}
+            >
+              Use {retainedContextLabel} context
+            </button>
+            <button
+              type="button"
+              className="min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold"
+              onClick={keepProjectContext}
+            >
+              Use planning project context
+            </button>
+          </div>
         </div>
       </div>
     );
