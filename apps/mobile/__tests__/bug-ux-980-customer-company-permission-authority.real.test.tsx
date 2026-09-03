@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
-  useLocalSearchParams: () => ({ id: 'business-980' }),
+  useLocalSearchParams: () => ({ id: '98000000-abcd-4abc-8def-000000000980' }),
 }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1024, breakpoint: 'tablet', isPhone: false, isTablet: true, isDesktop: false }),
@@ -14,7 +14,7 @@ jest.mock('@/hooks/useFeatureFlags', () => ({
 }));
 jest.mock('@/services/business.service', () => ({
   getBusinessAccount: jest.fn().mockResolvedValue({
-    id: 'business-980', companyName: 'Permission Authority Co', businessType: 'other',
+    id: '98000000-abcd-4abc-8def-000000000980', companyName: 'Permission Authority Co', businessType: 'other',
     city: 'Cebu City', province: 'Cebu', status: 'active',
     viewerPermissions: {
       role: 'manager', canBook: true, canApprove: true,
@@ -40,7 +40,7 @@ it('Bug UX-980 — viewer-specific account permission remains authoritative when
 
   expect(await screen.findByText('Approved credit')).toBeTruthy();
   expect(screen.getByText('Team access could not be loaded. Pull down to retry.')).toBeTruthy();
-  expect(getCurrentTerms).toHaveBeenCalledWith('business-980');
+  expect(getCurrentTerms).toHaveBeenCalledWith('98000000-abcd-4abc-8def-000000000980');
   expect(getContracts).toHaveBeenCalled();
   expect(getInvoices).toHaveBeenCalled();
 });

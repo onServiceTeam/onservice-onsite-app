@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
-  useLocalSearchParams: () => ({ id: 'business-1' }),
+  useLocalSearchParams: () => ({ id: '97600000-abcd-4abc-8def-000000000976' }),
 }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1024, breakpoint: 'tablet', isPhone: false, isTablet: true, isDesktop: false }),
@@ -17,7 +17,7 @@ jest.mock('@/stores/auth.store', () => ({
 }));
 jest.mock('@/services/business.service', () => ({
   getBusinessAccount: jest.fn().mockResolvedValue({
-    id: 'business-1', companyName: 'Cebu Build Co', businessType: 'other',
+    id: '97600000-abcd-4abc-8def-000000000976', companyName: 'Cebu Build Co', businessType: 'other',
     city: 'Cebu City', province: 'Cebu', status: 'active',
     viewerPermissions: {
       role: 'member', canBook: true, canApprove: false,

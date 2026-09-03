@@ -28,6 +28,7 @@ import { Briefcase, Building2, ChevronLeft, ChevronRight, MessageSquare, Receipt
 import { ErrorState, SkeletonCard } from '@/components/ui';
 import Badge from '@/components/ui/Badge';
 import { buildRoute, Routes } from '@/config/navigation';
+import { canonicalRouteUuid } from '@/utils/route-id';
 
 const STATUS_STYLE: Record<string, { color: string; background: string }> = {
   active: { color: colors.successDark, background: colors.successLight },
@@ -107,7 +108,7 @@ function InvoiceCard({ accountId, invoice }: { accountId: string; invoice: Busin
 export default function BusinessAccountWorkspaceScreen(): React.ReactElement {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
-  const accountId = Array.isArray(params.id) ? params.id[0] ?? '' : params.id ?? '';
+  const accountId = canonicalRouteUuid(params.id);
   const featureFlags = useFeatureFlags();
   const { isPhone } = useResponsive();
 
@@ -161,7 +162,17 @@ export default function BusinessAccountWorkspaceScreen(): React.ReactElement {
     void Promise.all(requests);
   }
 
-  if (!accountId) return <ErrorState title="Company not found" message="The company workspace link is incomplete." />;
+  if (!accountId) {
+    return (
+      <ErrorState
+        title="Company not found"
+        message="This company workspace link does not contain a valid Business Account ID."
+        onRetry={() => router.back()}
+        actionLabel="Return to company workspaces"
+        actionAccessibilityLabel="Return to company workspaces"
+      />
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

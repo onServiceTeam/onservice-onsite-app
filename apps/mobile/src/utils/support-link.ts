@@ -1,10 +1,9 @@
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { canonicalRouteUuid, routeParamValue } from './route-id';
 
 export function supportLinkValue(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
+  return routeParamValue(value);
 }
 
 export function canonicalSupportUuid(value: unknown): string {
-  const candidate = supportLinkValue(value);
-  return UUID_REGEX.test(candidate) ? candidate.toLowerCase() : '';
+  return canonicalRouteUuid(value);
 }

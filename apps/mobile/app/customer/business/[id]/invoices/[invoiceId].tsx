@@ -18,6 +18,7 @@ import { ChevronLeft, ChevronRight, Receipt } from '@/components/icons';
 import { ErrorState, SkeletonCard } from '@/components/ui';
 import Badge from '@/components/ui/Badge';
 import { buildRoute, Routes } from '@/config/navigation';
+import { canonicalRouteUuid } from '@/utils/route-id';
 
 function label(value: string): string {
   return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -39,8 +40,8 @@ function dateTime(value: string): string {
 export default function BusinessStatementScreen(): React.ReactElement {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string | string[]; invoiceId?: string | string[] }>();
-  const accountId = Array.isArray(params.id) ? params.id[0] ?? '' : params.id ?? '';
-  const invoiceId = Array.isArray(params.invoiceId) ? params.invoiceId[0] ?? '' : params.invoiceId ?? '';
+  const accountId = canonicalRouteUuid(params.id);
+  const invoiceId = canonicalRouteUuid(params.invoiceId);
   const { isPhone } = useResponsive();
   const query = useQuery({
     queryKey: ['customer-business-statement', accountId, invoiceId],
@@ -48,7 +49,17 @@ export default function BusinessStatementScreen(): React.ReactElement {
     enabled: accountId.length > 0 && invoiceId.length > 0,
   });
 
-  if (!accountId || !invoiceId) return <ErrorState title="Statement not found" message="The company statement link is incomplete." />;
+  if (!accountId || !invoiceId) {
+    return (
+      <ErrorState
+        title="Statement not found"
+        message="This company statement link does not contain valid Business Account and statement IDs."
+        onRetry={() => router.back()}
+        actionLabel="Return to company records"
+        actionAccessibilityLabel="Return to company records"
+      />
+    );
+  }
 
   const statement = query.data;
   const settlementState = statement?.settlementState === 'legacy_unreviewed'

@@ -4,14 +4,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
-  useLocalSearchParams: () => ({ id: 'business-1', invoiceId: 'invoice-1' }),
+  useLocalSearchParams: () => ({
+    id: '97400000-abcd-4abc-8def-000000000974',
+    invoiceId: '97400000-abcd-4abc-8def-000000000975',
+  }),
 }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1280, breakpoint: 'desktop', isPhone: false, isTablet: false, isDesktop: true }),
 }));
 jest.mock('@/services/business.service', () => ({
   getInvoiceDetail: jest.fn().mockResolvedValue({
-    id: 'invoice-1', invoiceNumber: 'INV-202609-TEST', billingPeriodStart: '2026-08-01',
+    id: '97400000-abcd-4abc-8def-000000000975', invoiceNumber: 'INV-202609-TEST', billingPeriodStart: '2026-08-01',
     billingPeriodEnd: '2026-08-31', dueDate: '2026-09-30', currency: 'PHP',
     totalAmount: 100_000, status: 'paid', settlementState: 'credit_due',
     balance: { adjustmentTotal: -30_000, paymentTotal: 80_000, adjustedTotal: 70_000, balanceDue: -10_000 },
