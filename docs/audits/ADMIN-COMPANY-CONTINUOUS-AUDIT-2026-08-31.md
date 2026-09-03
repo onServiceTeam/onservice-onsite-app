@@ -3722,3 +3722,48 @@ This commit is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CS: persona-safe Support no-show classification
+
+The shared Support type list exposed `provider_no_show` to customers,
+providers, and provider staff without requiring a booking. That contradicted
+the two operating playbooks: a provider no-show is a customer case tied to the
+affected job, while a provider reporting that the customer did not meet them
+on-site must use `booking_issue` and preserve arrival evidence under the E60
+hold. The old intake could therefore create a durable record with the wrong
+persona and no job from which Support could verify the event.
+
+UX-1243 removes the customer-facing classification from provider and provider-
+staff Mobile intake. UX-1244 prevents a prefilled customer no-show case from
+being sent without its booking and explains how to recover. UX-1245 preserves
+the intended customer path when the booking is present. UX-1246 applies the
+same restriction to an agent creating a provider-owned case in Admin, and
+UX-1247 preserves the customer-with-booking path there. The Admin queue keeps
+the complete type filter, so existing historical records remain findable and
+unchanged.
+
+OPS-459 rejects a provider or provider-staff owner for new
+`provider_no_show` records at the shared write service. OPS-460 requires the
+affected booking for a customer-owned record. OPS-461 proves that a customer
+with an authorized booking can still create the case and that the verified
+booking ID reaches the insert. Both self-service and agent-created API routes
+use this service guard, so a direct request cannot bypass the UI rule. The
+provider SOP and Admin training manual now state the same classification
+contract.
+
+The complete Mobile Support/provider-no-show inventory passes 33 suites and
+43 tests. The complete Admin Support inventory passes 40 files and 42 tests.
+The API Support/ticket inventory has 48 suites: 47 pass, one existing suite is
+intentionally skipped, 60 tests pass, and there are no failures. Mobile,
+Admin, and API TypeScript, changed-file ESLint, and diff integrity checks pass.
+The permanent unique-ID scanner passes 1,405 titled regressions with zero
+duplicates. Implementation commit `3015d271` changes new-case classification
+and guidance only. It does not modify any existing Support case, booking,
+customer, provider, cancellation, refund, payout, payment, audit, schema,
+master, or production record. E60-held arrival timing and money behavior are
+untouched.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
