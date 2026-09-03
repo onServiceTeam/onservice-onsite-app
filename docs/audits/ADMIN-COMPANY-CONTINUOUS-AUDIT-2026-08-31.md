@@ -3888,3 +3888,45 @@ This commit is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CW: server-owned Support triage priority
+
+The participant Support validator reused the Admin creation fields, so a
+customer/provider could submit low, medium, high, or urgent queue priority. The
+Mobile form did not display a priority control, but it accepted a hidden
+priority route parameter and forwarded it. The customer safety screen used
+that path legitimately for an urgent safety report, which meant simply
+deleting participant priority would have silently weakened safety intake.
+
+OPS-467 separates the two authorities. Agent-created cases retain all four
+priorities. Ordinary participant intake rejects a direct `priority` field and
+starts at the server-controlled neutral `medium` priority. A participant may
+instead submit the explicit boolean `safetyConcern`; the route, not the client,
+maps that report to `urgent`. The case remains subject to first-agent triage
+and a reasoned priority correction when the facts differ.
+
+UX-1252 replaces the Mobile hidden priority payload with explicit safety
+context. The dedicated customer safety entry passes that context, the Support
+form visibly says urgent safety review was requested, and it directs anyone in
+immediate danger to call 911 because the asynchronous Support thread is not an
+emergency line. Ordinary booking, project, company, and general Support forms
+send no priority or safety flag. Participant read responses also no longer
+include internal queue priority. The customer SOP, Admin training manual, and
+screen linkage ledger record the same ownership boundary.
+
+Three focused API suites pass three tests, including unchanged Admin priority
+creation and the neutral participant default. Three focused Mobile suites pass
+three tests. The broader API Support/ticket inventory has 51 suites: 50 pass,
+one existing suite is intentionally skipped, 63 tests pass, and there are no
+failures. The complete Mobile Support inventory passes 32 suites and 42 tests.
+API and Mobile TypeScript, changed-file ESLint, and diff integrity checks pass.
+The permanent unique-ID scanner passes 1,416 titled regressions with zero
+duplicates. Implementation commit `14066c8c` changes future intake validation,
+request presentation, response serialization, tests, and operating guidance
+only. It does not alter any existing case, priority, customer, provider,
+booking, payment, audit row, database schema, master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
