@@ -2287,3 +2287,52 @@ Protected Gates `33721657414` passed A through E and the `All gates passed`
 rollup at the same commit. No service area, provider area-change request,
 customer, provider, booking, audit row, database schema, master, or production
 record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BH: exact Marketing audit evidence and banner write boundary
+
+Home-banner audit rows retained a promotion UUID but opened only the broad
+Marketing workspace. Promo-code and campaign changes were retained as legacy
+`config` events whose record kind lived in action values, so the general Audit
+Log treated them as System Settings changes. Operators could not reliably
+reopen the exact Marketing record after pagination, filtering, or a list
+failure, and the campaign workspace did not distinguish its manually entered
+attribution figures from system-measured outcomes.
+
+OPS-419 adds bounded exact-detail reads for the retained home banner, promo
+code, and campaign records. SEC-049 rejects malformed identifiers before
+service access, and SEC-050 rejects non-Admin accounts before any exact Admin
+Marketing record is loaded. UX-1111 through UX-1113 map each supported audit
+event to the matching durable Marketing tab and render a separate read-only
+evidence panel even when the general list fails. The panels identify canonical
+IDs, banner delivery and customer copy, promo validity and usage limits, and
+campaign spend and staff-reported attribution without implying that manual
+campaign figures are measured platform events.
+
+UX-1114 through UX-1117 fail closed for simultaneous targets, malformed IDs,
+and server responses whose record ID does not match the request. Clearing the
+evidence removes only the three exact target parameters and preserves normal
+workspace context. Review also found that the interface hid every home-banner
+mutation from ordinary Admin accounts while the API still accepted their
+direct create and update calls. SEC-051 aligns the server boundary with the
+existing interface and current platform-wide mutation policy by making all
+home-banner writes Super Admin-only. UX-1118 states that read-only boundary in
+the Admin interface instead of leaving a blank action column. Ordinary Admin
+read access remains available for support and audit work.
+
+E37 remains open because the repository does not yet have an approved global,
+correlated audit-event architecture. This checkpoint preserves the existing
+best-effort Marketing audit writes and restores exact read-side evidence; it
+does not introduce a competing event schema or claim that all related writes
+are atomic with their audit rows.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Nineteen related API Marketing, promo, and promotion suites pass 95
+tests, and 43 rendered Marketing and Audit Log files pass 52 tests. Protected
+CI `33724751153` passed 871 API suites and 3,242 tests, 395 Admin files and 484
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, all three TypeScript checks, the
+Admin production build, and Docker image boot/liveness at commit `d6b53679`.
+Protected Gates `33724751166` passed A through E and the `All gates passed`
+rollup at the same commit. No banner, promo code, campaign, customer, provider,
+booking, payment, historical audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
