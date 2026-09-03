@@ -1553,9 +1553,12 @@ export function ActivityTab({
   onClearExactAdminAction?: () => void;
 }): React.ReactElement {
   const [limit, setLimit] = useState(50);
-  const requestedAdminActionId = exactAdminActionId.trim();
-  const hasExactAdminAction = requestedAdminActionId.length > 0;
-  const hasValidExactAdminAction = UUID_REGEX.test(requestedAdminActionId);
+  const rawAdminActionId = exactAdminActionId.trim();
+  const hasExactAdminAction = rawAdminActionId.length > 0;
+  const hasValidExactAdminAction = UUID_REGEX.test(rawAdminActionId);
+  const requestedAdminActionId = hasValidExactAdminAction
+    ? rawAdminActionId.toLowerCase()
+    : rawAdminActionId;
   const q = useQuery({
     queryKey: ['admin-customer-activity', customerId, limit, requestedAdminActionId],
     queryFn: async () => {
