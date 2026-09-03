@@ -1727,3 +1727,33 @@ Protected Gates `33701447127` passed A through E and the `All gates passed`
 rollup at the same commit. No user role, login session, staff profile, provider,
 customer, support case, audit row, database schema, or production record
 changed. Production synchronization remains blocked by E32.
+
+## Checkpoint AT: exact staff-profile audit handoff
+
+Staff creation, removal, and profile-edit actions record the directory-profile
+UUID as an `admin_staff` target. Checkpoint AS made Staff directory search
+resolve both profile and login-account UUIDs, but Audit Log still sent these
+events to the unfiltered Staff & Roles landing page. An operator investigating
+one staff-management event therefore had to copy the shortened identifier and
+manually recover the affected profile.
+
+UX-1069 maps a valid `admin_staff` audit target to
+`/staff?search=<profile-id>`, labels it as a Staff directory profile, and keeps
+the role-definition `admin_role` target on the broader Staff & Roles workspace.
+A real in-router regression now clicks the rendered Audit Log destination,
+proves that the exact profile-ID query survives navigation, proves that Staff
+directory requests that ID from the server, and proves that the matching staff
+card is rendered. The test also overrides the suite's intentionally shallow
+router stub so the handoff is exercised through the real React Router link and
+URL contract.
+
+Local Admin TypeScript, affected-file ESLint, and `git diff --check` pass. Four
+related rendered Admin files pass seven tests across canonical target identity,
+source discrimination, Staff account coverage, and the new exact-profile
+handoff. Protected CI `33703354158` passed the full API, Mobile, and rendered
+Admin suites, both TypeScript checks, the Admin production build, and Docker
+image boot/liveness at commit `ce4dcab`. Protected Gates `33703354163` passed A
+through E and the `All gates passed` rollup at the same commit. No staff
+profile, role, user account, login session, support case, audit row, database
+schema, or production record changed. Production synchronization remains
+blocked by E32.
