@@ -1891,3 +1891,50 @@ Docker image boot/liveness at commit `a5ff678`. Protected Gates `33707727274`
 passed A through E and the `All gates passed` rollup at the same commit. No
 consent publication, acknowledgement, DSR, user, audit, database-schema, or
 production record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint AX: durable subject-consent lookup and audit handoff
+
+The DPO Privacy Workspace already required an exact user UUID and paged consent
+records on the server, but the selected subject and page lived only in React
+state. Refresh, bookmark, browser back, or a handoff to another authorized
+operator discarded the investigation. An out-of-range stale page could also
+show an empty result even when earlier consent evidence still existed.
+
+UX-1074 makes `consentUserId` and `consentPage` durable URL state while keeping
+the current local state path compatible with the existing rendered harness.
+Submitting a valid UUID writes the subject to the URL, pagination writes only
+pages after page one, and navigation restores the exact bounded server query.
+UX-1075 rejects a malformed saved subject UUID before the sensitive consent
+endpoint is called, explains why no request was sent, and lets the operator
+remove the invalid lookup without changing another workspace route. UX-1077
+uses the returned total to recover an out-of-range page to the last real page,
+updates the durable URL, and refetches its evidence instead of reporting a
+false empty history.
+
+The consent-search audit writer uses the requested user as its target when one
+is supplied, but must use the DPO's own account as a non-null database fallback
+for a broad search. Audit Log previously treated every `consent_search` target
+as an actual account destination. A broad event could therefore open the DPO's
+Staff record, and an exact event did not return to the consent evidence that
+was searched. UX-1076 reads the immutable `details.filters.userId` only when it
+is a valid UUID, labels the event `Consent evidence searched`, and opens the
+exact Privacy Workspace lookup. A broad event opens the unfiltered privacy
+lookup instead of pretending the fallback operator was the subject.
+
+This remains inside D34: ordinary admins do not receive `consent_search` rows,
+DPO and super-admin are the only roles that can call consent search, and DPO
+sessions still cannot enter marketplace, staff, or money workspaces. No contact
+data or consent content is placed in the URL; only the existing account UUID
+and bounded page number are retained.
+
+Local Admin TypeScript, affected-file ESLint, and `git diff --check` pass. Seven
+focused rendered Admin files pass seven tests across URL restoration, invalid
+input, exact audit handoff, stale-page recovery, existing pagination, privacy
+home, and workload separation. The complete local Admin suite passes 354 files
+and 443 tests, with one intentionally skipped file and three existing honest
+TODOs. Protected CI `33708893115` passed the full API, Mobile, and rendered
+Admin suites, both TypeScript checks, the Admin production build, and Docker
+image boot/liveness at commit `af52bf4`. Protected Gates `33708893180` passed A
+through E and the `All gates passed` rollup at the same commit. No consent,
+DSR, user, staff, support, audit, database-schema, or production record changed.
+Production synchronization remains blocked by E32.
