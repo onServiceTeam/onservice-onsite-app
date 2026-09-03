@@ -496,6 +496,7 @@ export async function listConsentVersions(): Promise<ConsentVersionSummary[]> {
 
 export interface PublishedConsentVersion {
   id: string;
+  targetId: string;
   consentType: string;
   version: string;
   effectiveAt: string;
@@ -517,6 +518,7 @@ export interface PublishedConsentVersion {
 
 interface PublishedRow {
   id: string;
+  target_id: string;
   admin_id: string | null;
   details: {
     consentType?: string;
@@ -526,6 +528,20 @@ interface PublishedRow {
     material?: boolean;
   } | null;
   created_at: Date;
+}
+
+function mapPublishedConsentVersion(row: PublishedRow): PublishedConsentVersion {
+  return {
+    id: row.id,
+    targetId: row.target_id,
+    consentType: row.details?.consentType ?? '',
+    version: row.details?.version ?? '',
+    effectiveAt: row.details?.effectiveAt ?? row.created_at.toISOString(),
+    changeSummary: row.details?.changeSummary ?? '',
+    material: row.details?.material === true,
+    publishedBy: row.admin_id,
+    publishedAt: row.created_at.toISOString(),
+  };
 }
 
 export async function publishConsentVersion(input: {
@@ -593,11 +609,11 @@ export async function publishConsentVersion(input: {
 
   let result;
   try {
-    result = await db.query<{ id: string; created_at: Date }>(
+    result = await db.query<{ id: string; target_id: string; created_at: Date }>(
       `INSERT INTO admin_actions
          (admin_id, action_type, target_type, target_id, details, reason)
        VALUES ($1, 'consent_version_published', 'consent_version', uuid_generate_v4(), $2::jsonb, $3)
-       RETURNING id, created_at`,
+       RETURNING id, target_id, created_at`,
       [
         input.adminUserId,
         JSON.stringify({
@@ -632,6 +648,7 @@ export async function publishConsentVersion(input: {
 
   return {
     id: row.id,
+    targetId: row.target_id,
     consentType: input.consentType.trim(),
     version: input.version.trim(),
     effectiveAt: effective,
@@ -652,7 +669,7 @@ export async function listPublishedConsentVersions(filter: {
     where = `AND details->>'consentType' = $${params.length}`;
   }
   const result = await db.query<PublishedRow>(
-    `SELECT id, admin_id, details, created_at
+    `SELECT id, target_id, admin_id, details, created_at
        FROM admin_actions
       WHERE action_type = 'consent_version_published'
         AND target_type = 'consent_version'
@@ -661,14 +678,21 @@ export async function listPublishedConsentVersions(filter: {
     params,
   );
 
-  return result.rows.map((r) => ({
-    id: r.id,
-    consentType: r.details?.consentType ?? '',
-    version: r.details?.version ?? '',
-    effectiveAt: r.details?.effectiveAt ?? r.created_at.toISOString(),
-    changeSummary: r.details?.changeSummary ?? '',
-    material: r.details?.material === true,
-    publishedBy: r.admin_id,
-    publishedAt: r.created_at.toISOString(),
-  }));
+  return result.rows.map(mapPublishedConsentVersion);
+}
+
+export async function getPublishedConsentVersion(
+  targetId: string,
+): Promise<PublishedConsentVersion | null> {
+  const result = await db.query<PublishedRow>(
+    `SELECT id, target_id, admin_id, details, created_at
+       FROM admin_actions
+      WHERE action_type = 'consent_version_published'
+        AND target_type = 'consent_version'
+        AND target_id = $1
+      LIMIT 1`,
+    [targetId],
+  );
+  const row = result.rows[0];
+  return row ? mapPublishedConsentVersion(row) : null;
 }

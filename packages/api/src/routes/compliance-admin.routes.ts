@@ -443,6 +443,20 @@ router.get(
   },
 );
 
+router.get(
+  '/consent-versions/:id',
+  authMiddleware,
+  requireDpoRole,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const targetId = requireUuid(req.params.id, 'Consent publication ID');
+      const data = await complianceAdmin.getPublishedConsentVersion(targetId);
+      if (!data) throw createAppError('Consent publication not found.', 404);
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
 router.post(
   '/consent-versions',
   authMiddleware,

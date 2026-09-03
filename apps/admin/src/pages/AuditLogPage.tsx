@@ -244,6 +244,13 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
             label: 'Open exact privacy case',
           }
         : null;
+    case 'consent_version':
+      return UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/consent-versions?tab=history&publicationId=${id}`,
+            label: 'Open exact consent publication',
+          }
+        : null;
     case 'business':
     case 'business_account':
       return { to: `/business-accounts/${id}`, label: 'Open business account' };
@@ -291,6 +298,7 @@ function entityLabel(entry: AuditEntry): string {
   if (entry.entityType === 'dsr_request' || entry.entityType === 'data_subject_request') {
     return 'Data subject request';
   }
+  if (entry.entityType === 'consent_version') return 'Consent publication';
   if (entry.entityType !== 'user' && entry.entityType !== 'users') return humanizeSlug(entry.entityType);
   const targetRole = targetAccountRole(entry);
   if (targetRole === 'customer') return 'Customer account';

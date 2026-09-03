@@ -57,6 +57,7 @@ interface ConsentVersionSummary {
 
 interface PublishedConsentVersion {
   id: string;
+  targetId: string;
   consentType: string;
   version: string;
   effectiveAt: string;
@@ -79,7 +80,12 @@ interface ConsentVersionsResponse {
   };
 }
 
+interface ConsentPublicationResponse {
+  data: PublishedConsentVersion;
+}
+
 type ConsentTab = 'current' | 'history';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parseTab(value: string | null): ConsentTab {
   return value === 'history' ? 'history' : 'current';
@@ -87,6 +93,14 @@ function parseTab(value: string | null): ConsentTab {
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
+}
+
+function fmtDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
 }
 
 function fmtManilaDay(value: string): string {
@@ -119,6 +133,12 @@ export default function ConsentVersionsPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const tab = parseTab(searchParams.get('tab'));
+  const linkedPublicationValue = searchParams.get('publicationId')?.trim() ?? '';
+  const linkedPublicationId = UUID_REGEX.test(linkedPublicationValue)
+    ? linkedPublicationValue
+    : null;
+  const linkedPublicationInvalid = linkedPublicationValue.length > 0
+    && linkedPublicationId === null;
   const [publishOpen, setPublishOpen] = useState(false);
   const [consentType, setConsentType] = useState('');
   const [versionStr, setVersionStr] = useState('');
@@ -145,6 +165,18 @@ export default function ConsentVersionsPage(): React.ReactElement {
       const res = await api.get<ConsentVersionsResponse>('/api/v1/admin/compliance/consent-versions');
       return res.data.data;
     },
+    staleTime: 30 * 1000,
+  });
+  const linkedPublicationQuery = useQuery({
+    queryKey: ['adminConsentPublication', linkedPublicationId],
+    queryFn: async (): Promise<PublishedConsentVersion> => {
+      const response = await api.get<ConsentPublicationResponse>(
+        `/api/v1/admin/compliance/consent-versions/${encodeURIComponent(linkedPublicationId!)}`,
+      );
+      return response.data.data;
+    },
+    enabled: linkedPublicationId !== null,
+    retry: false,
     staleTime: 30 * 1000,
   });
   const allowedConsentTypes = versionsQuery.data?.allowedConsentTypes ?? [];
@@ -197,6 +229,26 @@ export default function ConsentVersionsPage(): React.ReactElement {
     || changeSummary.trim().length < 30
     || publishMutation.isPending;
   const materialIsScheduled = material && effectiveDate > todayLocalIso();
+  const linkedPublicationScheduled = linkedPublicationQuery.data
+    ? new Date(linkedPublicationQuery.data.effectiveAt).getTime() > Date.now()
+    : false;
+
+  function clearLinkedPublication(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('publicationId');
+      return params;
+    }, { replace: true });
+  }
+
+  function openPublication(record: PublishedConsentVersion): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'history');
+      params.set('publicationId', record.targetId);
+      return params;
+    });
+  }
 
   function publishVersion(): void {
     const trimmedConsentType = consentType.trim();
@@ -265,6 +317,15 @@ export default function ConsentVersionsPage(): React.ReactElement {
       render: (r) => r.publishedBy ? <span className="font-mono text-xs">{r.publishedBy.slice(0, 8)}</span> : '—',
     },
     { key: 'publishedAt', header: 'Published at', render: (r) => fmtDate(r.publishedAt) },
+    {
+      key: 'evidence',
+      header: 'Evidence',
+      render: (r) => (
+        <Button variant="outline" className="min-h-11" onClick={() => openPublication(r)}>
+          Open evidence
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -292,6 +353,60 @@ export default function ConsentVersionsPage(): React.ReactElement {
       <section role="note" className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950">
         This workspace records platform evidence. Publishing does not certify legal compliance or file anything with the NPC. A material flag tells the apps to require a fresh acknowledgement for that consent type.
       </section>
+
+      {linkedPublicationInvalid && (
+        <ErrorState
+          title="Invalid consent publication link"
+          description="The saved publication ID is not a valid UUID, so no evidence request was sent. Remove it to keep the current workspace tab."
+          action={<Button variant="outline" onClick={clearLinkedPublication}>Remove invalid publication link</Button>}
+        />
+      )}
+
+      {linkedPublicationId && linkedPublicationQuery.isLoading && (
+        <LoadingState label="Loading linked consent publication…" />
+      )}
+
+      {linkedPublicationId && linkedPublicationQuery.isError && (
+        <ErrorState
+          title="Linked consent publication unavailable"
+          description={getErrorMessage(linkedPublicationQuery.error)}
+          action={(
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="outline" onClick={() => void linkedPublicationQuery.refetch()}>Retry publication evidence</Button>
+              <Button variant="outline" onClick={clearLinkedPublication}>Return to publication history</Button>
+            </div>
+          )}
+        />
+      )}
+
+      {linkedPublicationQuery.data && (
+        <Card aria-label="Selected consent publication evidence">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-secondary)]">Selected publication evidence</p>
+              <h2 className="mt-1 text-lg font-semibold leading-none tracking-tight text-slate-900">
+                {linkedPublicationQuery.data.consentType.replace(/_/g, ' ')} · Version {linkedPublicationQuery.data.version}
+              </h2>
+            </div>
+            <Button variant="outline" onClick={clearLinkedPublication}>Return to full history</Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <dl className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+              <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Change class</dt><dd className="mt-1">{linkedPublicationQuery.data.material ? 'Material' : 'Routine'}</dd></div>
+              <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Activation</dt><dd className="mt-1">{linkedPublicationScheduled ? 'Scheduled' : 'Effective'}</dd></div>
+              <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Effective · Manila</dt><dd className="mt-1">{fmtDateTime(linkedPublicationQuery.data.effectiveAt)}</dd></div>
+              <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published · Manila</dt><dd className="mt-1">{fmtDateTime(linkedPublicationQuery.data.publishedAt)}</dd></div>
+              <div className="sm:col-span-2"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Publication target ID</dt><dd className="mt-1 break-all font-mono text-xs">{linkedPublicationQuery.data.targetId}</dd></div>
+              <div className="sm:col-span-2"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Audit event ID</dt><dd className="mt-1 break-all font-mono text-xs">{linkedPublicationQuery.data.id}</dd></div>
+              <div className="sm:col-span-2 xl:col-span-4"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published by</dt><dd className="mt-1 break-all font-mono text-xs">{linkedPublicationQuery.data.publishedBy ?? 'Not recorded'}</dd></div>
+            </dl>
+            <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] p-4">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Recorded change summary</h3>
+              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6">{linkedPublicationQuery.data.changeSummary || 'No summary recorded.'}</p>
+            </section>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as ConsentTab)}>
         <TabsList className="grid min-h-11 w-full grid-cols-2 sm:w-fit">
@@ -369,6 +484,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
                           <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published</dt><dd className="mt-1">{fmtDate(record.publishedAt)}</dd></div>
                           <div className="col-span-2"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published by</dt><dd className="mt-1 font-mono text-xs">{record.publishedBy ?? 'Not recorded'}</dd></div>
                         </dl>
+                        <Button variant="outline" className="mt-4 min-h-11 w-full" onClick={() => openPublication(record)}>Open publication evidence</Button>
                       </article>
                     ))}
                   </section>
