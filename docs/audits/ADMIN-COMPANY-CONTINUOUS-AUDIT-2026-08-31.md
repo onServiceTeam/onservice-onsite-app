@@ -2615,3 +2615,40 @@ push; its Gates run `33740341303` passed, and the newer full CI verified that
 documentation together with this implementation. No customer, provider,
 staff, booking, payment, audit row, database schema, master, or production
 record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BO: exact Provider 360 internal-note audit evidence
+
+Provider-note create, update, pin, and soft-delete decisions retained the note
+UUID and a canonical owning provider UUID, but the Audit Log reopened only the
+provider's general Notes tab. An operator could therefore land beside multiple
+internal notes without a truthful indication of which active support record
+owned the event. A soft-deleted note is intentionally absent from the active
+Provider 360 note list even though its Audit Log event remains durable.
+
+UX-1150 carries a valid note UUID into Provider 360 and renders an exact
+evidence state that shows only the matching active provider-owned note.
+UX-1151 rejects a malformed note target before requesting the active note
+list. UX-1152 treats a valid UUID absent from that provider's active internal
+file as deleted or mismatched, preserves the Audit Log as the durable event
+record, and shows no substitute note. UX-1153 clears only the stale `noteId`
+when the operator leaves Notes, preserving unrelated support URL context. The
+prior UX-1082 provider-workspace regression now verifies the exact Audit Log
+destination.
+
+This slice deliberately does not return or reveal soft-deleted note text. It
+reuses the existing provider-scoped active-note endpoint and existing Admin
+authorization. It does not change note creation, editing, pinning, deletion,
+ownership, audit retention, or historical evidence.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Seven
+focused rendered files pass seven tests, and the expanded set of every
+rendered test importing Audit Log or Provider Detail passes 77 files and 88
+tests. Protected CI `33742569468` passed the full API, Admin, and Mobile
+suites, all three TypeScript checks, the Admin production build, and Docker
+image boot/liveness at commit `2e03cba8`. Protected Gates `33742569487` passed
+A through E and the `All gates passed` rollup at the same commit. The preceding
+BN documentation-only CI `33742464811` was superseded and cancelled by this
+implementation push; its Gates run `33742464825` passed, and the newer full CI
+verified that documentation with this implementation. No customer, provider,
+note, booking, payment, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
