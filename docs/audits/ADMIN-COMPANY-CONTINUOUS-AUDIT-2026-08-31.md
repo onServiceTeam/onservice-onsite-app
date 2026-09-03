@@ -3173,3 +3173,37 @@ implementation push; its Gates run `33763446273` passed, and the newer full CI
 verified that documentation with this implementation. No customer, provider,
 catalog record, booking, payment, audit row, database schema, master, or
 production record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint CE: canonical configuration evidence UUID handling
+
+Eight Admin configuration workspaces accepted uppercase UUIDs as valid but
+retained their browser casing. Canonical lowercase records returned by the API
+could therefore be falsely rejected as a different pricing rule, home banner,
+promo code, campaign, notification template, role profile, service area, or
+provider service-area change request.
+
+UX-1200 normalizes a valid pricing-rule identifier before exact retrieval and
+comparison. UX-1201 through UX-1203 apply the same boundary to each Marketing
+record type. UX-1204 covers notification templates, UX-1205 covers Admin role
+profiles, and UX-1206 plus UX-1207 cover market records and provider area-change
+decisions. Malformed and ambiguous links still block their exact requests,
+returned records still must match the selected canonical ID, and each normal
+list or workspace remains unchanged without an exact identifier.
+
+This slice changes evidence lookup only. It does not publish pricing, banners,
+promos, campaigns, templates, roles, markets, or area-change decisions; modify
+a customer, provider, booking, payment, or audit row; change permissions; or
+add an Admin mutation.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. The
+eight new real-render regressions pass eight tests, and every rendered test
+that directly imports the five changed pages passes 72 files and 82 tests.
+Protected CI `33765407126` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `d509cff0`. Protected Gates `33765407269` passed A
+through E and the `All gates passed` rollup at the same commit. The preceding
+documentation-only CI `33765313035` was superseded and cancelled by this
+implementation push; its Gates run `33765313026` passed, and the newer full CI
+verified that documentation with this implementation. No customer, provider,
+configuration record, booking, payment, audit row, database schema, master, or
+production record changed. Production synchronization remains blocked by E32.
