@@ -1132,10 +1132,14 @@ export function CertificationsTab({
     cert.isVerified && (!cert.expiryDate || cert.expiryDate >= todayManila),
   ).length;
   const awaitingReview = certifications.filter((cert) => !cert.isVerified).length;
-  const hasExactSelection = Boolean(exactCertificationId);
-  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(exactCertificationId);
+  const rawCertificationId = exactCertificationId.trim();
+  const hasExactSelection = rawCertificationId.length > 0;
+  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(rawCertificationId);
+  const requestedCertificationId = exactSelectionMalformed
+    ? rawCertificationId
+    : rawCertificationId.toLowerCase();
   const selectedCertification = !exactSelectionMalformed && hasExactSelection
-    ? certifications.find((certification) => certification.id === exactCertificationId) ?? null
+    ? certifications.find((certification) => certification.id === requestedCertificationId) ?? null
     : null;
   const exactSelectionMissing = hasExactSelection && !exactSelectionMalformed && !selectedCertification;
   const displayedCertifications = hasExactSelection
@@ -1592,8 +1596,10 @@ export function ReviewsTab({
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const { requestReason, reasonDialog } = useReasonDialog();
-  const hasExactSelection = Boolean(exactReviewId);
-  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(exactReviewId);
+  const rawReviewId = exactReviewId.trim();
+  const hasExactSelection = rawReviewId.length > 0;
+  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(rawReviewId);
+  const requestedReviewId = exactSelectionMalformed ? rawReviewId : rawReviewId.toLowerCase();
 
   // BUG-PHASE20-01 fix: API returns a paginated envelope
   // {rows, total, page, pageSize}, not Review[]. Pre-fix the page typed
@@ -1603,14 +1609,14 @@ export function ReviewsTab({
   // this paginated pattern (Disputes, Jobs already correct) get the
   // same treatment.
   const q = useQuery({
-    queryKey: ['admin-provider-reviews', providerId, hasExactSelection ? exactReviewId : page],
+    queryKey: ['admin-provider-reviews', providerId, hasExactSelection ? requestedReviewId : page],
     queryFn: async () => {
       const res = await api.get<{
         success: true;
         data: { rows: Review[]; total: number; page: number; pageSize: number };
       }>(
         `/api/v1/admin/providers/${providerId}/reviews`,
-        { params: hasExactSelection ? { reviewId: exactReviewId } : { page, pageSize: 20 } },
+        { params: hasExactSelection ? { reviewId: requestedReviewId } : { page, pageSize: 20 } },
       );
       return res.data.data;
     },
@@ -1680,7 +1686,7 @@ export function ReviewsTab({
   const data = q.data ?? { rows: [], total: 0, page: 1, pageSize: 20 };
   const reviews = data.rows;
   const selectedReview = !exactSelectionMalformed && hasExactSelection
-    ? reviews.find((review) => review.id === exactReviewId) ?? null
+    ? reviews.find((review) => review.id === requestedReviewId) ?? null
     : null;
   const exactSelectionMissing = hasExactSelection && !exactSelectionMalformed && !selectedReview;
   const displayedReviews = hasExactSelection ? (selectedReview ? [selectedReview] : []) : reviews;
@@ -2078,8 +2084,10 @@ export function StaffTab({
     decision: 'rejected' | 'sent_back';
   } | null>(null);
   const [reviewReason, setReviewReason] = useState('');
-  const hasExactSelection = Boolean(exactStaffId);
-  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(exactStaffId);
+  const rawStaffId = exactStaffId.trim();
+  const hasExactSelection = rawStaffId.length > 0;
+  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(rawStaffId);
+  const requestedStaffId = exactSelectionMalformed ? rawStaffId : rawStaffId.toLowerCase();
 
   const q = useQuery({
     queryKey: ['admin-provider-staff', providerId],
@@ -2127,7 +2135,7 @@ export function StaffTab({
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
   const staff = q.data ?? [];
   const selectedStaff = !exactSelectionMalformed && hasExactSelection
-    ? staff.find((member) => member.id === exactStaffId) ?? null
+    ? staff.find((member) => member.id === requestedStaffId) ?? null
     : null;
   const exactSelectionMissing = hasExactSelection && !exactSelectionMalformed && !selectedStaff;
   const displayedStaff = hasExactSelection ? (selectedStaff ? [selectedStaff] : []) : staff;
@@ -2338,8 +2346,10 @@ export function NotesTab({
   const isSuperAdmin = role === 'super_admin';
   const myUserId = useAuthStore((s) => s.user?.id);
   const { requestReason, reasonDialog } = useReasonDialog();
-  const hasExactSelection = Boolean(exactNoteId);
-  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(exactNoteId);
+  const rawNoteId = exactNoteId.trim();
+  const hasExactSelection = rawNoteId.length > 0;
+  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(rawNoteId);
+  const requestedNoteId = exactSelectionMalformed ? rawNoteId : rawNoteId.toLowerCase();
 
   const q = useQuery({
     queryKey: ['admin-provider-notes', providerId],
@@ -2436,7 +2446,7 @@ export function NotesTab({
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
   const notes = q.data ?? [];
   const selectedNote = !exactSelectionMalformed && hasExactSelection
-    ? notes.find((note) => note.id === exactNoteId) ?? null
+    ? notes.find((note) => note.id === requestedNoteId) ?? null
     : null;
   const exactSelectionMissing = hasExactSelection && !exactSelectionMalformed && !selectedNote;
   const displayedNotes = hasExactSelection ? (selectedNote ? [selectedNote] : []) : notes;
