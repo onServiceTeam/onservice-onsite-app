@@ -115,11 +115,11 @@ export function parseAuditTimelineFilters(query: Record<string, unknown>): Audit
   }
 
   return {
-    entryId,
-    userId,
+    entryId: entryId?.toLowerCase(),
+    userId: userId?.toLowerCase(),
     action,
     entityType,
-    entityId,
+    entityId: entityId?.toLowerCase(),
     source: sourceRaw as AuditTimelineSource | undefined,
     from,
     to,

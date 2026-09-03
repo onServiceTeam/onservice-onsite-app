@@ -197,6 +197,10 @@ function shortId(value: string): string {
   return value.slice(0, 8).toUpperCase();
 }
 
+function canonicalUuidOrOriginal(value: string): string {
+  return UUID_REGEX.test(value) ? value.toLowerCase() : value;
+}
+
 function linkedBusinessAccountId(entry: AuditEntry): string | null {
   for (const values of [entry.newValues, entry.oldValues]) {
     const accountId = values?.businessAccountId;
@@ -804,11 +808,11 @@ function EntityLink({ entry }: { entry: AuditEntry }): React.ReactElement {
 export default function AuditLogPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
-  const entryIdFilter = searchParams.get('entryId')?.trim() ?? '';
+  const entryIdFilter = canonicalUuidOrOriginal(searchParams.get('entryId')?.trim() ?? '');
   const actionFilter = searchParams.get('action')?.trim() ?? '';
   const entityTypeFilter = searchParams.get('entityType')?.trim() ?? '';
-  const entityIdFilter = searchParams.get('entityId')?.trim() ?? '';
-  const userIdFilter = searchParams.get('userId')?.trim() ?? '';
+  const entityIdFilter = canonicalUuidOrOriginal(searchParams.get('entityId')?.trim() ?? '');
+  const userIdFilter = canonicalUuidOrOriginal(searchParams.get('userId')?.trim() ?? '');
   const sourceFilter = parseSource(searchParams.get('source'));
   const fromDate = searchParams.get('from') ?? '';
   const toDate = searchParams.get('to') ?? '';
@@ -910,8 +914,12 @@ export default function AuditLogPage(): React.ReactElement {
     const params = new URLSearchParams();
     if (draftAction.trim()) params.set('action', draftAction.trim());
     if (draftEntityType.trim()) params.set('entityType', draftEntityType.trim().toLowerCase());
-    if (draftEntityId.trim()) params.set('entityId', draftEntityId.trim());
-    if (draftUserId.trim()) params.set('userId', draftUserId.trim());
+    if (draftEntityId.trim()) {
+      params.set('entityId', canonicalUuidOrOriginal(draftEntityId.trim()));
+    }
+    if (draftUserId.trim()) {
+      params.set('userId', canonicalUuidOrOriginal(draftUserId.trim()));
+    }
     if (draftSource !== 'all') params.set('source', draftSource);
     if (draftFrom) params.set('from', draftFrom);
     if (draftTo) params.set('to', draftTo);
