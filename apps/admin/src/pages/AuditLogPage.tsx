@@ -490,12 +490,17 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
     }
     case 'provider_note': {
       const providerId = linkedProviderId(entry);
-      return providerId
-        ? {
-            to: `/providers/${encodeURIComponent(providerId)}?tab=notes`,
-            label: 'Open provider support notes',
-          }
-        : null;
+      if (!providerId) return null;
+      const params = new URLSearchParams({ tab: 'notes' });
+      if (UUID_REGEX.test(entry.entityId)) {
+        params.set('noteId', entry.entityId);
+      }
+      return {
+        to: `/providers/${encodeURIComponent(providerId)}?${params.toString()}`,
+        label: UUID_REGEX.test(entry.entityId)
+          ? 'Open exact provider note context'
+          : 'Open provider support notes',
+      };
     }
     case 'provider_staff': {
       const providerId = linkedProviderId(entry);

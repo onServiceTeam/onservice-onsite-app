@@ -302,6 +302,7 @@ export default function ProviderDetailPage(): React.ReactElement {
   const activeTab = parseProviderTab(searchParams.get('tab'));
   const certificationIdFilter = searchParams.get('certificationId')?.trim() ?? '';
   const staffIdFilter = searchParams.get('staffId')?.trim() ?? '';
+  const noteIdFilter = searchParams.get('noteId')?.trim() ?? '';
 
   const selectTab = (tab: TabId): void => {
     setSearchParams((current) => {
@@ -310,6 +311,7 @@ export default function ProviderDetailPage(): React.ReactElement {
       else next.set('tab', tab);
       if (tab !== 'certifications') next.delete('certificationId');
       if (tab !== 'staff') next.delete('staffId');
+      if (tab !== 'notes') next.delete('noteId');
       return next;
     });
   };
@@ -326,6 +328,14 @@ export default function ProviderDetailPage(): React.ReactElement {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.delete('staffId');
+      return next;
+    });
+  };
+
+  const clearNoteFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('noteId');
       return next;
     });
   };
@@ -420,7 +430,11 @@ export default function ProviderDetailPage(): React.ReactElement {
           <ActivityTab providerId={id} />
         </TabsContent>
         <TabsContent value="notes">
-          <NotesTab providerId={id} />
+          <NotesTab
+            providerId={id}
+            exactNoteId={noteIdFilter}
+            onClearExactNote={clearNoteFilter}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -2143,12 +2157,22 @@ export function StaffTab({
   );
 }
 
-export function NotesTab({ providerId }: { providerId: string }): React.ReactElement {
+export function NotesTab({
+  providerId,
+  exactNoteId = '',
+  onClearExactNote,
+}: {
+  providerId: string;
+  exactNoteId?: string;
+  onClearExactNote?: () => void;
+}): React.ReactElement {
   const queryClient = useQueryClient();
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
   const myUserId = useAuthStore((s) => s.user?.id);
   const { requestReason, reasonDialog } = useReasonDialog();
+  const hasExactSelection = Boolean(exactNoteId);
+  const exactSelectionMalformed = hasExactSelection && !UUID_REGEX.test(exactNoteId);
 
   const q = useQuery({
     queryKey: ['admin-provider-notes', providerId],
@@ -2158,6 +2182,7 @@ export function NotesTab({ providerId }: { providerId: string }): React.ReactEle
       );
       return res.data.data;
     },
+    enabled: !exactSelectionMalformed,
   });
 
   const [body, setBody] = useState('');
@@ -2242,10 +2267,50 @@ export function NotesTab({ providerId }: { providerId: string }): React.ReactEle
 
   if (q.isLoading) return <LoadingState label="Loading notes…" />;
   if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button size="sm" variant="outline" onClick={() => void q.refetch()}>Retry</Button>} />;
-  const notes = q.data!;
+  const notes = q.data ?? [];
+  const selectedNote = !exactSelectionMalformed && hasExactSelection
+    ? notes.find((note) => note.id === exactNoteId) ?? null
+    : null;
+  const exactSelectionMissing = hasExactSelection && !exactSelectionMalformed && !selectedNote;
+  const displayedNotes = hasExactSelection ? (selectedNote ? [selectedNote] : []) : notes;
 
   return (
     <div className="space-y-4 mt-4">
+      {selectedNote && (
+        <Card className="border-sky-200 bg-sky-50 p-4" role="status">
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-900">Exact provider note evidence</p>
+          <p className="mt-1 text-sm text-sky-950">
+            Showing only active internal note <span className="font-mono text-xs">{selectedNote.id}</span> from this provider&apos;s current support file.
+          </p>
+          {onClearExactNote && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactNote}>
+              View all provider notes
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMalformed && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">Provider note ID must be a complete UUID. No internal note is selected.</p>
+          {onClearExactNote && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactNote}>
+              View all provider notes
+            </Button>
+          )}
+        </Card>
+      )}
+      {exactSelectionMissing && (
+        <Card className="border-red-200 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-medium text-red-800">
+            The requested note is not in this provider&apos;s active internal file. It may have been deleted or belong to another provider. The Audit Log remains the durable event record. No substitute note is shown.
+          </p>
+          {onClearExactNote && (
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onClearExactNote}>
+              View all provider notes
+            </Button>
+          )}
+        </Card>
+      )}
       <Card className="p-4">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3 inline-flex items-center gap-1">
           <Plus size={14} /> Add internal note
@@ -2280,13 +2345,17 @@ export function NotesTab({ providerId }: { providerId: string }): React.ReactEle
       {removeError && <p role="alert" className="text-sm text-[var(--color-danger)]">{removeError}</p>}
       {noteActionError && <p role="alert" className="text-sm text-[var(--color-danger)]">{noteActionError}</p>}
 
-      {notes.length === 0 ? (
+      {!hasExactSelection && notes.length === 0 ? (
         <EmptyState title="No notes yet" description="Add the first internal note above." />
       ) : (
-        notes.map((n) => {
+        displayedNotes.map((n) => {
           const canEdit = isSuperAdmin || n.authorId === myUserId;
           return (
-            <Card key={n.id} className={`p-4 ${n.pinned ? 'border-amber-300 bg-amber-50/40' : ''}`}>
+            <Card
+              key={n.id}
+              aria-current={n.id === selectedNote?.id ? 'true' : undefined}
+              className={`p-4 ${n.pinned ? 'border-amber-300 bg-amber-50/40' : ''} ${n.id === selectedNote?.id ? 'border-sky-400 ring-2 ring-sky-100' : ''}`}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap text-xs">
