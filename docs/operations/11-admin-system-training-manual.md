@@ -485,6 +485,8 @@ How to work a ticket:
 3. Reply to the user, or post an internal note (internal notes are admin-only).
 4. Update status as you go. To mark `resolved` or `closed` you must add an internal resolution note of at least 10 characters. It stays in the Admin audit record and is not sent to the participant. Send a separate public reply when the customer/provider needs the outcome.
 
+Before choosing `escalated`, assign an active case owner. That owner remains accountable until another active Admin owner accepts the case. The required escalation handoff records the destination, decision needed, evidence already checked, next action, and urgency. The API rejects an unassigned escalation; the status alone is not an ownership handoff.
+
 A support case can identify one related booking or one related planning project, never both. A project link is case context only. It does not assign a provider, create a booking, authorize a quote, or affect payment. Create the case on behalf of the customer who owns the project; the server rejects unrelated project/customer combinations.
 
 When a user replies to a waiting case, it returns to the active queue. Automated reminders and five-day auto-close are not implemented. Staff must review waiting cases manually and must not assume reminders were sent. See `06-customer-support-sop.md` and `07-provider-support-sop.md` for triage and SLA targets.

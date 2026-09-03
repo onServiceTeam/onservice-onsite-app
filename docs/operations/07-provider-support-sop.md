@@ -69,6 +69,8 @@ Map these to the admin ticket priority field (low/medium/high/urgent) and the pr
 
 Money actions (refund, payout, escrow release) always stay with super-admin staff. Support agents get a limited admin login that cannot reach money buttons; they gather facts, attach evidence, and hand to a super_admin to execute. Do not promise an outcome you cannot perform.
 
+Before setting the Support case to `escalated`, assign an active case owner. The current owner remains accountable until the case is reassigned. The escalation handoff must name the destination, decision needed, evidence already checked, next action, and urgency. The server rejects an unassigned escalation.
+
 > **Set (editable):** Super-admin/Ken reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout before it goes out. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 ---

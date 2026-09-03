@@ -1023,6 +1023,9 @@ export async function updateTicketStatus(
       const current = currentResult.rows[0];
       if (!current) throw createAppError('Ticket not found.', 404);
       if (current.status === status) throw createAppError('Ticket already has that status.', 409);
+      if (status === 'escalated' && !current.assigned_agent_id) {
+        throw createAppError('Assign a case owner before escalating this support request.', 409);
+      }
       const providerOwned = current.user_role === 'provider' || current.user_role === 'provider_staff';
       if (status === 'waiting_on_customer' && current.user_role !== 'customer') {
         throw createAppError('Only a customer-owned case can wait on a customer reply.', 400);

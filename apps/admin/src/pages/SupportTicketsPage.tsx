@@ -194,7 +194,7 @@ function statusImpact(status: string): string {
     in_progress: 'Marks the case as actively owned work. This action does not send a user message.',
     waiting_on_customer: 'Pauses agent work until the customer account that owns this case replies. Their reply reactivates the case.',
     waiting_on_provider: 'Pauses agent work until the provider account that owns this case replies. Their reply reactivates the case.',
-    escalated: 'Places the case in the escalation queue for higher-attention review. No SLA is implied.',
+    escalated: 'Places the case in the escalation queue. The assigned case owner remains accountable until reassigned. Record the destination, decision needed, evidence, next action, and urgency; no SLA is implied.',
     resolved: 'Records an internal outcome and stops further replies unless an agent reopens the case. This does not send a participant message.',
     closed: 'Closes the case record and stops further replies unless an agent reopens it. This does not send a participant message.',
   };
@@ -1127,6 +1127,7 @@ export default function SupportTicketsPage(): React.ReactElement {
     const ticket = detailQuery.data;
     const terminalCase = ticket.status === 'resolved' || ticket.status === 'closed';
     const statusNeedsResolution = pendingStatus === 'resolved' || pendingStatus === 'closed';
+    const escalationNeedsOwner = pendingStatus === 'escalated' && !ticket.assigned_agent_id;
     return (
       <div className="space-y-4">
         <button
@@ -1483,7 +1484,11 @@ export default function SupportTicketsPage(): React.ReactElement {
                   htmlFor="ticket-resolution-notes"
                   className="block text-sm font-medium text-[var(--color-text)] mb-1.5"
                 >
-                  {statusNeedsResolution ? 'Internal resolution and workflow note *' : 'Workflow note *'}
+                  {pendingStatus === 'escalated'
+                    ? 'Escalation handoff *'
+                    : statusNeedsResolution
+                      ? 'Internal resolution and workflow note *'
+                      : 'Workflow note *'}
                 </label>
                 <textarea
                   id="ticket-resolution-notes"
@@ -1491,9 +1496,16 @@ export default function SupportTicketsPage(): React.ReactElement {
                   onChange={(e) => setResolutionNotes(e.target.value)}
                   rows={4}
                   maxLength={5000}
-                  placeholder="Explain what was done and why in at least 10 characters. This is internal and does not send a participant message."
+                  placeholder={pendingStatus === 'escalated'
+                    ? 'Name the destination, decision needed, evidence, next action, and urgency.'
+                    : 'Explain what was done and why in at least 10 characters. This is internal and does not send a participant message.'}
                   className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                 />
+                {escalationNeedsOwner && (
+                  <p role="alert" className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    Assign an active case owner before escalating. That person remains accountable until the case is reassigned.
+                  </p>
+                )}
                 <p className={`mt-1 text-right text-xs font-semibold ${resolutionNotes.trim().length < 10 ? 'text-amber-700' : 'text-emerald-700'}`}>
                   {resolutionNotes.trim().length}/10 minimum
                 </p>
@@ -1530,6 +1542,7 @@ export default function SupportTicketsPage(): React.ReactElement {
                     }}
                     disabled={
                       updateStatusMutation.isPending ||
+                      escalationNeedsOwner ||
                       resolutionNotes.trim().length < 10
                     }
                     className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"

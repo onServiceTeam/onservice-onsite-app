@@ -140,6 +140,8 @@ Notes:
 
 Support agents cannot move money or change account state. Those actions are super-admin only in the admin app and every one writes an audited reason. Know what you can do and what you must hand up.
 
+Before setting a case to `escalated`, assign an active case owner. The current owner remains accountable until another owner accepts the case. In the escalation handoff, record the destination, decision needed, evidence already checked, next action, and urgency. An escalation status without a named owner is rejected.
+
 > **Set (editable):** money actions (refund, payout, escrow release) stay with `super_admin` staff and never reach a support agent. The live API and admin UI enforce that account-role gate. The finer named `finance` role is metadata until a separate authorization decision is implemented. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
 | Situation | Support agent does | Escalate to | Why |
