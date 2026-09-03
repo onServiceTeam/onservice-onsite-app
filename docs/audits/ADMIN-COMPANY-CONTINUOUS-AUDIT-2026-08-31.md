@@ -2544,3 +2544,39 @@ at commit `dbaf695e`. Protected Gates `33735641486` passed A through E and the
 returned; no customer, provider, booking, payment, audit row, database schema,
 master, or production record changed. Production synchronization remains
 blocked by E32.
+
+## Checkpoint BM: exact Provider 360 certification audit evidence
+
+Provider-certification decisions retained both the certification UUID and a
+canonical owning provider UUID, but the Audit Log reopened only the provider's
+general Certifications tab. An operator investigating a verification or
+removal decision could therefore land beside multiple credentials without a
+truthful indication of which retained record owned the event.
+
+UX-1142 carries the valid certification UUID into Provider 360 and renders an
+exact-evidence state that shows only the matching retained credential. The
+selected card is visibly identified on desktop, tablet, and mobile layouts,
+while the existing full-list view remains unchanged when no exact target is
+present. UX-1143 rejects a malformed target before selecting any credential.
+UX-1144 treats a valid UUID that is absent from the provider's canonical
+credential list as a mismatch and shows no substitute. UX-1145 clears only the
+stale `certificationId` when the operator leaves Certifications, preserving
+unrelated support URL context. The prior UX-1082 workspace regression now also
+verifies the exact Audit Log destination and retained credential render.
+
+This slice adds no certification lookup or alternative ownership source. It
+uses the provider profile's existing canonical certification collection and
+the relationally resolved owner introduced by OPS-409. It does not change a
+provider's verification status, tier, customer-facing credential visibility,
+document access, or historical audit evidence.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Seven
+focused rendered files pass seven tests, and the expanded set of every rendered
+test importing Audit Log or Provider Detail passes 69 files and 80 tests.
+Protected CI `33738602014` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `78c22838`. Protected Gates `33738602006` passed A
+through E and the `All gates passed` rollup at the same commit. No customer,
+provider, certification, booking, payment, audit row, database schema, master,
+or production record changed. Production synchronization remains blocked by
+E32.
