@@ -2922,3 +2922,38 @@ implementation push; its Gates run `33751707130` passed, and the newer full CI
 verified that documentation with this implementation. No customer, provider,
 application state, booking, payment, audit row, database schema, master, or
 production record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BX: exact Provider 360 payout evidence
+
+Provider 360 showed each recent payout's retained UUID as dead text, forcing an
+operator to copy or re-find the record in a separate queue. The Payouts page
+accepted an exact identifier but could combine it with stale queue filters,
+request malformed browser input, or render an unrelated response as if it were
+the requested evidence.
+
+UX-1177 links each Provider 360 payout directly to its canonical Payouts record.
+UX-1178 rejects a malformed payout UUID before any API request. UX-1179 filters
+the response again in the browser and shows a durable no-substitute state when
+the requested row is absent or mismatched. UX-1180 makes the exact identifier
+override stale page, provider, search, and status filters. The existing UX-520
+handoff assertion now renders a real matching record rather than treating an
+empty response as successful exact evidence. Exact mode hides unrelated queue
+filters and pagination, while clearing the selection removes only the payout
+identifier and page.
+
+This slice is read-only. It does not approve, reject, transfer, retry, clear an
+AML review, change a payout amount or destination, alter a provider wallet,
+rewrite a retained payout, or add a financial mutation.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Six
+focused rendered files pass six tests, and every Admin test importing Payouts
+or Provider 360 passes 56 files and 62 tests. Protected CI `33753355632` passed
+the full API, Admin, and Mobile suites, all three TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `5814b49c`.
+Protected Gates `33753355634` passed A through E and the `All gates passed`
+rollup at the same commit. The preceding documentation-only CI `33753283501`
+was superseded and cancelled by this implementation push; its Gates run
+`33753283543` passed, and the newer full CI verified that documentation with
+this implementation. No customer, provider, payout, wallet, booking, payment,
+audit row, database schema, master, or production record changed. Production
+synchronization remains blocked by E32.
