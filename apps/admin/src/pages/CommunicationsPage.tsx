@@ -81,8 +81,8 @@ export default function CommunicationsPage(): React.ReactElement {
   const bookingFilter = (searchParams.get('bookingId') ?? '').trim();
   const rawConversationId = (searchParams.get('conversationId') ?? '').trim();
   const rawMessageId = (searchParams.get('messageId') ?? '').trim();
-  const requestedConversationId = UUID_REGEX.test(rawConversationId) ? rawConversationId : '';
-  const requestedMessageId = UUID_REGEX.test(rawMessageId) ? rawMessageId : '';
+  const requestedConversationId = UUID_REGEX.test(rawConversationId) ? rawConversationId.toLowerCase() : '';
+  const requestedMessageId = UUID_REGEX.test(rawMessageId) ? rawMessageId.toLowerCase() : '';
   const communicationParamError = rawConversationId && !requestedConversationId
     ? 'The conversation ID must be a complete UUID.'
     : rawMessageId && !requestedMessageId
