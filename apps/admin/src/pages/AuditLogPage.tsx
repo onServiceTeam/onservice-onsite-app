@@ -576,7 +576,12 @@ function entityDestination(entry: AuditEntry): { to: string; label: string } | n
     case 'admin_staff':
       return { to: `/staff?search=${id}`, label: 'Find exact staff directory profile' };
     case 'admin_role':
-      return { to: '/staff', label: 'Open Staff & Roles' };
+      return UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/staff?tab=roles&roleProfileId=${id}`,
+            label: 'Open exact role profile',
+          }
+        : null;
     case 'config': {
       const marketingRecord = marketingConfigRecord(entry);
       if (marketingRecord === 'promo_code') {

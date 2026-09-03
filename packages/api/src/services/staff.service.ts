@@ -13,6 +13,13 @@ export interface AdminRole {
   staff_count?: string;
 }
 
+export interface AdminRoleEvidence extends AdminRole {
+  deleted_at: string | null;
+  deleted_reason: string | null;
+  active_staff_count: string;
+  historical_staff_count: string;
+}
+
 export interface AdminStaff {
   id: string;
   profile_id?: string | null;
@@ -68,6 +75,24 @@ export async function getRoleById(roleId: string): Promise<AdminRole | null> {
   // Phase 14 Dispatch 06 — Bug 127: filter soft-deleted roles.
   const result = await db.query<AdminRole>(
     `SELECT * FROM admin_roles WHERE id = $1 AND deleted_at IS NULL`,
+    [roleId],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function getRoleEvidenceById(roleId: string): Promise<AdminRoleEvidence | null> {
+  const result = await db.query<AdminRoleEvidence>(
+    `SELECT ar.id, ar.name, ar.description, ar.permissions, ar.created_at, ar.updated_at,
+            ar.deleted_at, ar.deleted_reason,
+            (SELECT COUNT(*)::text
+               FROM admin_staff staff
+              WHERE staff.role_id = ar.id
+                AND staff.is_active = TRUE) AS active_staff_count,
+            (SELECT COUNT(*)::text
+               FROM admin_staff staff
+              WHERE staff.role_id = ar.id) AS historical_staff_count
+       FROM admin_roles ar
+      WHERE ar.id = $1`,
     [roleId],
   );
   return result.rows[0] ?? null;

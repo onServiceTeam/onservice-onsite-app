@@ -17,6 +17,15 @@ interface AdminRole {
   staff_count?: number | string;
 }
 
+interface AdminRoleEvidence extends AdminRole {
+  deleted_at: string | null;
+  deleted_reason: string | null;
+  active_staff_count: number | string;
+  historical_staff_count: number | string;
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function getStaffCount(role: AdminRole): number {
   return parseInt(String(role.staff_count ?? '0'), 10) || 0;
 }
@@ -95,10 +104,59 @@ function formatLastLogin(value: string | null): string {
   });
 }
 
+function formatManilaTimestamp(value: string | null): string {
+  if (!value) return 'Not recorded';
+  return new Date(value).toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
+}
+
+function RoleProfileEvidenceCard({ role, onClear }: { role: AdminRoleEvidence; onClear: () => void }): React.ReactElement {
+  const archived = Boolean(role.deleted_at);
+  return (
+    <section aria-label="Selected role profile record" className="rounded-xl border border-sky-200 bg-sky-50/70 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Linked current role profile</p>
+          <p className="mt-1 text-sm text-sky-950">
+            This is the retained role profile&apos;s current state, not an immutable historical version. Compare the Audit Log event for the values recorded when the change occurred.
+          </p>
+        </div>
+        <button type="button" className="min-h-11 rounded border border-sky-300 bg-white px-3 text-sm font-semibold text-sky-900" onClick={onClear}>Clear selection</button>
+      </div>
+      <dl className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <RoleEvidenceField label="Role profile ID" value={role.id} mono />
+        <RoleEvidenceField label="Profile name" value={formatLabel(role.name)} />
+        <RoleEvidenceField label="Current status" value={archived ? 'Archived' : 'Active'} />
+        <RoleEvidenceField label="Access authority" value="Operations metadata only; account role and server route checks remain authoritative" />
+        <RoleEvidenceField label="Description" value={role.description || 'No description recorded'} />
+        <RoleEvidenceField label="Active directory profiles" value={String(role.active_staff_count)} />
+        <RoleEvidenceField label="All linked directory profiles" value={String(role.historical_staff_count)} />
+        <RoleEvidenceField label="Permissions metadata" value={role.permissions.length > 0 ? role.permissions.join(', ') : 'None'} mono />
+        <RoleEvidenceField label="Created" value={formatManilaTimestamp(role.created_at)} />
+        <RoleEvidenceField label="Last updated" value={formatManilaTimestamp(role.updated_at)} />
+        {archived && <RoleEvidenceField label="Archived" value={formatManilaTimestamp(role.deleted_at)} />}
+        {archived && <RoleEvidenceField label="Archive reason" value={role.deleted_reason || 'No reason retained'} />}
+      </dl>
+    </section>
+  );
+}
+
+function RoleEvidenceField({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }): React.ReactElement {
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-sky-700">{label}</dt>
+      <dd className={`mt-1 break-words text-sm text-slate-950 ${mono ? 'font-mono' : ''}`}>{value}</dd>
+    </div>
+  );
+}
+
 // ─── Roles Tab ──────────────────────────────────────────────────────
 
 function RolesTab(): React.ReactElement {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawRoleProfileId = searchParams.get('roleProfileId')?.trim() ?? '';
+  const hasMalformedRoleProfileId = Boolean(rawRoleProfileId) && !UUID_REGEX.test(rawRoleProfileId);
+  const requestedRoleProfileId = UUID_REGEX.test(rawRoleProfileId) ? rawRoleProfileId : '';
   const [editing, setEditing] = useState<AdminRole | null>(null);
   const [creating, setCreating] = useState(false);
   const [formName, setFormName] = useState('');
@@ -123,6 +181,20 @@ function RolesTab(): React.ReactElement {
       const res = await api.get('/api/v1/staff/permissions');
       return res.data.data as string[];
     },
+  });
+
+  const exactRoleQuery = useQuery({
+    queryKey: ['adminRoles', 'exact', requestedRoleProfileId],
+    queryFn: async () => {
+      const res = await api.get(`/api/v1/staff/roles/${requestedRoleProfileId}`);
+      const role = res.data.data as AdminRoleEvidence;
+      if (role.id !== requestedRoleProfileId) {
+        throw new Error('The role-profile response did not match the selected record.');
+      }
+      return role;
+    },
+    enabled: Boolean(requestedRoleProfileId),
+    retry: false,
   });
 
   const createMutation = useMutation({
@@ -162,6 +234,14 @@ function RolesTab(): React.ReactElement {
     setFormPerms([]);
     setFormReason('');
     setError('');
+  }
+
+  function clearRoleProfileSelection(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('roleProfileId');
+      return params;
+    });
   }
 
   function startEdit(role: AdminRole): void {
@@ -218,6 +298,21 @@ function RolesTab(): React.ReactElement {
           the account role and server route checks. Editing these labels does not grant or revoke access.
         </p>
       </div>
+      {hasMalformedRoleProfileId && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          The selected role-profile ID is invalid. No detail request was sent.
+          <div className="mt-3"><button type="button" className="min-h-11 rounded border border-red-300 bg-white px-3 font-semibold" onClick={clearRoleProfileSelection}>Clear selection</button></div>
+        </div>
+      )}
+      {exactRoleQuery.isLoading && <p className="rounded-lg border border-[var(--color-border)] bg-white p-4 text-sm text-[var(--color-text-secondary)]">Loading selected role profile...</p>}
+      {exactRoleQuery.isError && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <p className="font-semibold">Selected role profile could not be loaded</p>
+          <p className="mt-1">{getErrorMessage(exactRoleQuery.error)} The Audit Log event still retains its recorded change.</p>
+          <button type="button" className="mt-3 min-h-11 rounded border border-red-300 bg-white px-3 font-semibold" onClick={clearRoleProfileSelection}>Clear selection</button>
+        </div>
+      )}
+      {exactRoleQuery.data && <RoleProfileEvidenceCard role={exactRoleQuery.data} onClear={clearRoleProfileSelection} />}
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">Roles</h2>
         {!showForm && (
@@ -1266,6 +1361,7 @@ export default function StaffRolesPage(): React.ReactElement {
     setSearchParams((current) => {
       const params = new URLSearchParams(current);
       params.delete('page');
+      if (nextTab !== 'roles') params.delete('roleProfileId');
       if (nextTab === 'staff') params.delete('tab');
       else params.set('tab', nextTab);
       return params;
