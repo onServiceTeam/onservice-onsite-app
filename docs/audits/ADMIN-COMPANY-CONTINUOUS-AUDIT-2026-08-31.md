@@ -3605,3 +3605,40 @@ This commit is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CP: participant Support link integrity
+
+The Mobile Support creation screen previously trusted booking and planning-
+project IDs supplied by navigation. A malformed ID was displayed and sent to
+the API, while a link containing both contexts could show and submit a form
+that the server must reject. The participant thread screen also sent a
+malformed case ID to its owner-scoped endpoint before explaining that the link
+was unusable.
+
+UX-1229 rejects simultaneous booking and planning-project context before the
+creation form or mutation is available. UX-1230 rejects malformed linked-work
+IDs at the same boundary and states that no request was sent. UX-1231 keeps a
+malformed Support thread ID local, sends no owner-scoped read, and gives the
+participant a truthful Return to Support action. UX-1232 canonicalizes a valid
+uppercase thread UUID before the request. Existing project creation coverage
+also now proves that a valid uppercase project UUID is submitted in canonical
+lowercase form.
+
+The shared Mobile error state now supports screen-specific action and
+accessibility labels. Its existing Try Again and Retry loading defaults remain
+unchanged. Two non-Support render suites covering customer addresses and
+provider jobs pass six tests against those defaults.
+
+The nine focused and neighboring Support regressions pass nine tests. The
+complete Mobile Support-named inventory passes 24 suites and 34 tests. Mobile
+TypeScript, changed-file ESLint, and diff integrity checks pass. The permanent
+unique-ID scanner passes 1,385 titled regressions with zero duplicates.
+Implementation commit `6c1caf95` changes navigation validation, local error
+recovery, and UUID normalization only. It does not create or alter a Support
+case, booking, project, business account, customer, provider, payment, audit,
+database schema, master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
