@@ -4166,6 +4166,22 @@ refund, payout, booking, customer, provider, audit, database-schema, GitHub,
 master, or production record. E32 still blocks production synchronization and
 E72 still blocks generic raw audit-PII reveal.
 
+## Checkpoint DH: force-complete client validation is behavior-tested
+
+The Phase 142 Admin regression had been checking the BookingDetailPage source
+text instead of rendering the action panel. That could pass while the actual
+operator control was wired incorrectly. The regression now renders the real
+`BookingActions` component, opens the force-complete form, verifies the visible
+20-character hint, proves a 19-character reason leaves confirmation disabled,
+and proves a valid reason enables confirmation. It does not submit the
+destructive action. Server-side minimum-length enforcement remains covered by
+the API booking-admin tests.
+
+The focused Admin test passes 1 file and 1 test; Admin TypeScript and targeted
+ESLint also pass. This is a test-quality correction only. It changes no
+booking, payment, refund, customer, provider, support, audit, database-schema,
+GitHub, master, or production record. E32, E72, and E73 remain in force.
+
 ## Checkpoint DF: feedback queue ownership state is internally consistent
 
 The Feedback workspace described `new` as an unowned review queue, but the
