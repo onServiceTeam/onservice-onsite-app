@@ -19,6 +19,7 @@ interface Dispute {
   tier: number;
   assignedTo: string | null;
   resolutionType: string | null;
+  /** Approved refund in integer PHP centavos, as returned by the API. */
   refundAmount: number;
   refundPercent: number | null;
   decisionNotes: string | null;

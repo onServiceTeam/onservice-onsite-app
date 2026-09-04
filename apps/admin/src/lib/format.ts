@@ -1,6 +1,8 @@
 /**
- * Format centavos as Philippine Peso currency string.
- * All amounts in the system are stored as integer centavos.
+ * Format integer Philippine-peso centavos as a display currency string.
+ * All monetary amounts in the API contract are stored and transported as
+ * integer centavos. Callers must not pass a peso amount (for example, 1250
+ * means ₱12.50 here, not ₱1,250.00).
  *
  * BUG-PHASE37-01 fix — pre-fix this returned `₱NaN` for any nullish or
  * non-finite input. The dashboard shows ₱NaN on Revenue / Platform

@@ -4544,6 +4544,13 @@ The focused privacy recovery tests pass, and changed-file ESLint passes. This
 checkpoint is local only. E32 still blocks production synchronization and
 E71/E72/E73 remain in force.
 
+### Checkpoint EE - dispute refund display unit contract (H13) (2026-09-04)
+
+- **Finding:** The API and admin dispute detail both represent `refundAmount` as integer PHP centavos, but the duplicated admin interfaces did not state that unit.
+- **Action:** Made the unit explicit at the shared formatter and each admin dispute type boundary. Added a real DOM-render regression test proving `125,000` centavos renders as `₱1,250.00` in the dispute queue.
+- **Verification:** The test covers the rendered queue output. This is display-contract documentation and verification only; no refund calculation, gateway call, or historical transaction changed.
+- This checkpoint is local only. E32 still blocks production synchronization and E71/E72/E73 remain in force.
+
 ## Checkpoint DX: Settings navigation active-state clarity
 
 The admin sidebar used prefix matching for `/settings`, so the dedicated

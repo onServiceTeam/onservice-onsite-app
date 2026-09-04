@@ -63,6 +63,7 @@ export interface DisputeFullDetail {
   resolvedAt: string | null;
   resolvedBy: string | null;
   resolutionType: string | null;
+  /** Approved refund in integer PHP centavos, as returned by the API. */
   refundAmount: number | null;
   decisionNotes: string | null;
   internalNotes: string | null;
@@ -117,6 +118,7 @@ interface AssignableAdmin {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
+/** Format an integer PHP-centavos value from the admin API for display. */
 function fmtCentavos(centavos: number): string {
   return (centavos / 100).toLocaleString('en-PH', {
     style: 'currency',

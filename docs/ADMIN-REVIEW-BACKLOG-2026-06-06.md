@@ -73,10 +73,10 @@
 - **Fix:** 1. Add a reusable hook (e.g., useLastUpdated) that tracks query timestamp and updates a "Last updated: X seconds ago" string via setInterval. 2. Add a <LastUpdated timestamp={latestFetchTime} /> component to the header of each page, alongside a manual Refresh button that calls query.refetch(). 3. For DisputesPage: add after line 110; SupportTicketsPage: add in list view header (line 479); StaffRolesPage: add at page level (line 581). 4. Fix DashboardPage's static refreshedAt bug by making it reactive. Pattern: see DashboardPage line 195-204 but use a real-time clock, not a one-time timestamp.
 - **Evidence:** DisputesPage.tsx:100-110; SupportTicketsPage.tsx:145-155; StaffRolesPage.tsx:73-87
 
-### H13. DisputeDetailPage & DisputesPage — correctness (small)
-- **Observation:** The DisputesPage shows refundAmount formatted as currency (line 220, using formatCurrency). However, the interface declares refundAmount as a number (line 22), and formatCurrency is called on centavos but the code assumes PHP. If the backend ever returns amounts in a different currency or unit, the display will be silently wrong.
-- **Fix:** 1. Add a JSDoc comment to the Dispute interface in DisputesPage.tsx (line 12-31) documenting that refundAmount is in centavos: `/** Amount in centavos (divide by 100 for PHP) */`. 2. Optionally create a type-safe wrapper: define a branded type `type Centavos = number & { readonly __brand: 'centavos' }` in the API service's formatDispute() function to ensure the contract is explicit. 3. Update formatCurrency() in format.ts to add a comment clarifying it accepts centavos. These changes add zero runtime cost but prevent silent data flow corruption if backend logic changes.
-- **Evidence:** DisputesPage.tsx:220; dispute-admin.service.ts:113-118
+### H13. DisputeDetailPage & DisputesPage — correctness (small) — RESOLVED 2026-09-04
+- **Observation:** The DisputesPage showed `refundAmount` as a generic number while `formatCurrency` assumes centavos; a future unit change could silently display the wrong amount.
+- **Resolution:** Documented the integer PHP-centavos contract at the shared formatter, both admin dispute interfaces, and the detail formatter. Added `bug-ux-1296-dispute-refund-centavos-contract.real.test.tsx`, which renders the queue and verifies `125,000` API centavos display as `₱1,250.00`, not `₱125,000.00`.
+- **Evidence:** `apps/admin/src/lib/format.ts`; `apps/admin/src/pages/DisputesPage.tsx`; `apps/admin/src/pages/DisputeDetailPage.tsx`; `packages/api/src/services/dispute-admin.service.ts`
 
 ### H14. FinancialsPage - Receipts tab — bug (small)
 - **Observation:** The Receipts table renders providerName directly without null checking. The ReceiptRow interface defines providerName as string|null (line 1358), but the render at line 1578 does {row.providerName} with no fallback, so null values will display as literal 'null' text.

@@ -44,6 +44,7 @@ export interface DisputeFullDetail {
   resolvedAt: string | null;
   resolvedBy: string | null;
   resolutionType: string | null;
+  /** Approved refund in integer PHP centavos. */
   refundAmount: number | null;
   decisionNotes: string | null;
   internalNotes: string | null;
@@ -112,6 +113,7 @@ export interface AdminResolveInput {
 export interface AdminResolveResult {
   disputeId: string;
   resolutionType: string;
+  /** Refund amount in integer PHP centavos. */
   refundAmount: number;
   adminActionId: string;
 }
