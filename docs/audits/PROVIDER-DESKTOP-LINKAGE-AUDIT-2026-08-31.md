@@ -145,6 +145,17 @@ Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
 and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
 and E73 remain in force.
 
+## Checkpoint PV-03: full mobile customer/provider regression remains green
+
+After the provider test conversions, the complete mobile Jest inventory passes
+549 suites and 926 assertions, with 84 existing device-flow todos. No new
+device or live-server claim is made by this run; native camera, GPS quality,
+push delivery, and Maestro baseline capture remain separately recorded work.
+
+This verification changes no customer, provider, booking, payment, support,
+audit, database, GitHub, master, or production record. E32, E72, and E73
+remain in force.
+
 ## Honest residual limits
 
 - The fixture audit exercises HTTP conversation history but has no Socket.IO
