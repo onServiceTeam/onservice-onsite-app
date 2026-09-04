@@ -90,15 +90,15 @@
 - **Fix:** Replace line 1071: const currentYear = new Date().getFullYear(); With: const currentYear = Number(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }).slice(0, 4)); And replace the fallback in line 1050: year: Number(data.year ?? summary?.year ?? new Date().getFullYear()), With: year: Number(data.year ?? summary?.year ?? Number(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }).slice(0, 4))), This matches the established pattern from todayIso() (line 69-70) and follows the same fix strategy as BUG-PHASE112-01.
 - **Evidence:** FinancialsPage.tsx lines 69-71 (correct pattern) vs line 1071 (no timezone)
 
-### H16. ConsentVersionsPage / Published by truncation — ux-friction (medium)
-- **Observation:** Published by column shows first 8 chars of the admin's user ID. Operators can't identify which admin (by name, email, or full ID) made the publish without drilling into the backend.
-- **Fix:** In compliance-admin.service.ts, modify listPublishedConsentVersions() to LEFT JOIN admin_actions with the users table on admin_id = id, fetching user.email and user.first_name/last_name. Update the PublishedConsentVersion interface to include adminEmail (string | null) and adminName (string | null) fields. Return these in the mapped response (e.g., 'adminName: `${r.first_name} ${r.last_name}` || null'). In ConsentVersionsPage.tsx, update the 'Published by' column renderer to display adminName if present, fallback to truncated ID as before. This gives operators immediate identification while preserving backward compatibility.</concreteFix> </invoke>
-- **Evidence:** ConsentVersionsPage.tsx line 240 (renders publishedBy.slice(0, 8)); compliance-admin.routes.ts line 371 (listPublishedConsentVersions doesn't join admin details)
+### H16. ConsentVersionsPage / Published by truncation - ux-friction (medium) - RESOLVED 2026-09-04
+- **Observation:** The published-version history exposed only the first eight characters of the publisher's admin ID in its table, forcing an operator to open another record to identify the responsible admin.
+- **Resolution:** The publication list and exact-publication lookup now left-join the publisher's user record and return display name and email alongside the immutable admin ID. The desktop table and responsive cards show the readable identity and retain the ID suffix for traceability; legacy or deleted publisher records fall back to the truncated ID.
+- **Evidence:** `packages/api/src/services/compliance-admin.service.ts`; `apps/admin/src/pages/ConsentVersionsPage.tsx`; `packages/api/__tests__/bug-ux-1301-consent-publisher-identity.test.ts`; `apps/admin/src/pages/__tests__/bug-ux-1301-consent-publisher-identity.real.test.tsx`.
 
-### H17. ConsentVersionsPage / Change summary character count — ux-friction (small)
-- **Observation:** Textarea for change summary requires 'Minimum 30 characters' but doesn't show live character count. Operators guess or trial-and-error.
-- **Fix:** Add a live character counter below the textarea (after line 372 in ConsentVersionsPage.tsx): `<p className="text-xs text-slate-500 mt-1">{changeSummary.trim().length}/30 characters minimum</p>`. This mirrors the required aria-describedby pattern already in place and gives operators immediate feedback on whether they've met the 30-char threshold.
-- **Evidence:** ConsentVersionsPage.tsx lines 363–375 (Textarea with aria-describedby but no count display)
+### H17. ConsentVersionsPage / Change summary character count - ux-friction (small) - RESOLVED 2026-09-04
+- **Observation:** The publish form required a 30-character change summary but gave no live indication of progress toward that requirement.
+- **Resolution:** The accessible help text now includes a live trimmed-character count, so the operator sees the same input length used by the submit guard while typing.
+- **Evidence:** `apps/admin/src/pages/ConsentVersionsPage.tsx`; `apps/admin/src/pages/__tests__/bug-ux-1302-consent-summary-counter.real.test.tsx`.
 
 ### H18. LoginPage / Admin 2FA — missing-feature (medium)
 - **Observation:** No recovery path when an admin loses their authenticator device. If an authenticator is lost/broken, the admin cannot log in because the 2FA verify step requires a TOTP code from that authenticator. The backend endpoint to disable 2FA (/admin/2fa/disable at auth.routes.ts line 1081) requires a valid TOTP code, creating a catch-22 where a locked-out admin cannot re-enable access.

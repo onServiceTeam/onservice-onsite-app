@@ -66,9 +66,11 @@ interface PublishedConsentVersion {
    * LAUNCH-LIMITATIONS #5 — when true, the publish event forces every
    * user with an older grant of this consentType to re-acknowledge.
    * Server returns false for legacy publishes that predate the flag.
-   */
+  */
   material: boolean;
   publishedBy: string | null;
+  publishedByName?: string | null;
+  publishedByEmail?: string | null;
   publishedAt: string;
 }
 
@@ -126,6 +128,22 @@ export function manilaDateToIso(value: string, now: Date = new Date()): string {
   return value.trim()
     ? new Date(`${value.trim()}T00:00:00+08:00`).toISOString()
     : now.toISOString();
+}
+
+function publisherIdentity(record: PublishedConsentVersion): React.ReactElement {
+  if (!record.publishedBy) return <span>—</span>;
+  const primary = record.publishedByName || record.publishedByEmail || record.publishedBy.slice(0, 8);
+  return (
+    <span className="block min-w-[9rem]">
+      <span className="block text-xs font-medium text-slate-800">{primary}</span>
+      {record.publishedByName && record.publishedByEmail && (
+        <span className="block truncate text-xs text-slate-500" title={record.publishedByEmail}>{record.publishedByEmail}</span>
+      )}
+      <span className="block font-mono text-[10px] text-slate-400" title={`Publisher ID: ${record.publishedBy}`}>
+        {record.publishedBy.slice(0, 8)}
+      </span>
+    </span>
+  );
 }
 
 export default function ConsentVersionsPage(): React.ReactElement {
@@ -314,7 +332,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
     {
       key: 'publishedBy',
       header: 'Published by',
-      render: (r) => r.publishedBy ? <span className="font-mono text-xs">{r.publishedBy.slice(0, 8)}</span> : '—',
+      render: publisherIdentity,
     },
     { key: 'publishedAt', header: 'Published at', render: (r) => fmtDate(r.publishedAt) },
     {
@@ -398,7 +416,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
               <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published · Manila</dt><dd className="mt-1">{fmtDateTime(linkedPublicationQuery.data.publishedAt)}</dd></div>
               <div className="sm:col-span-2"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Publication target ID</dt><dd className="mt-1 break-all font-mono text-xs">{linkedPublicationQuery.data.targetId}</dd></div>
               <div className="sm:col-span-2"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Audit event ID</dt><dd className="mt-1 break-all font-mono text-xs">{linkedPublicationQuery.data.id}</dd></div>
-              <div className="sm:col-span-2 xl:col-span-4"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published by</dt><dd className="mt-1 break-all font-mono text-xs">{linkedPublicationQuery.data.publishedBy ?? 'Not recorded'}</dd></div>
+              <div className="sm:col-span-2 xl:col-span-4"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published by</dt><dd className="mt-1">{publisherIdentity(linkedPublicationQuery.data)}</dd></div>
             </dl>
             <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] p-4">
               <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Recorded change summary</h3>
@@ -482,7 +500,7 @@ export default function ConsentVersionsPage(): React.ReactElement {
                         <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                           <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Effective</dt><dd className="mt-1">{fmtDate(record.effectiveAt)}</dd></div>
                           <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published</dt><dd className="mt-1">{fmtDate(record.publishedAt)}</dd></div>
-                          <div className="col-span-2"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published by</dt><dd className="mt-1 font-mono text-xs">{record.publishedBy ?? 'Not recorded'}</dd></div>
+                          <div className="col-span-2"><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Published by</dt><dd className="mt-1">{publisherIdentity(record)}</dd></div>
                         </dl>
                         <Button variant="outline" className="mt-4 min-h-11 w-full" onClick={() => openPublication(record)}>Open publication evidence</Button>
                       </article>
@@ -560,7 +578,8 @@ export default function ConsentVersionsPage(): React.ReactElement {
                 aria-describedby="cv-summary-help"
               />
               <p id="cv-summary-help" className="text-xs text-slate-500 mt-1">
-                Minimum 30 characters. Will appear in the audit trail.
+                Minimum 30 characters. Will appear in the audit trail.{' '}
+                <span aria-live="polite">{changeSummary.trim().length}/30 characters</span>
               </p>
             </div>
             {/* LAUNCH-LIMITATIONS #5 — material flag toggle. */}

@@ -513,6 +513,8 @@ export interface PublishedConsentVersion {
    */
   material: boolean;
   publishedBy: string | null;
+  publishedByName: string | null;
+  publishedByEmail: string | null;
   publishedAt: string;
 }
 
@@ -520,6 +522,8 @@ interface PublishedRow {
   id: string;
   target_id: string;
   admin_id: string | null;
+  admin_name: string | null;
+  admin_email: string | null;
   details: {
     consentType?: string;
     version?: string;
@@ -540,6 +544,8 @@ function mapPublishedConsentVersion(row: PublishedRow): PublishedConsentVersion 
     changeSummary: row.details?.changeSummary ?? '',
     material: row.details?.material === true,
     publishedBy: row.admin_id,
+    publishedByName: row.admin_name ?? null,
+    publishedByEmail: row.admin_email ?? null,
     publishedAt: row.created_at.toISOString(),
   };
 }
@@ -655,6 +661,8 @@ export async function publishConsentVersion(input: {
     changeSummary: input.changeSummary.trim(),
     material: input.material === true,
     publishedBy: input.adminUserId,
+    publishedByName: null,
+    publishedByEmail: null,
     publishedAt: row.created_at.toISOString(),
   };
 }
@@ -666,15 +674,19 @@ export async function listPublishedConsentVersions(filter: {
   let where = '';
   if (filter.consentType) {
     params.push(filter.consentType);
-    where = `AND details->>'consentType' = $${params.length}`;
+    where = `AND a.details->>'consentType' = $${params.length}`;
   }
   const result = await db.query<PublishedRow>(
-    `SELECT id, target_id, admin_id, details, created_at
-       FROM admin_actions
-      WHERE action_type = 'consent_version_published'
-        AND target_type = 'consent_version'
+    `SELECT a.id, a.target_id, a.admin_id,
+            NULLIF(BTRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS admin_name,
+            u.email AS admin_email,
+            a.details, a.created_at
+       FROM admin_actions a
+       LEFT JOIN users u ON u.id = a.admin_id
+      WHERE a.action_type = 'consent_version_published'
+        AND a.target_type = 'consent_version'
         ${where}
-      ORDER BY created_at DESC`,
+      ORDER BY a.created_at DESC`,
     params,
   );
 
@@ -685,11 +697,15 @@ export async function getPublishedConsentVersion(
   targetId: string,
 ): Promise<PublishedConsentVersion | null> {
   const result = await db.query<PublishedRow>(
-    `SELECT id, target_id, admin_id, details, created_at
-       FROM admin_actions
-      WHERE action_type = 'consent_version_published'
-        AND target_type = 'consent_version'
-        AND target_id = $1
+    `SELECT a.id, a.target_id, a.admin_id,
+            NULLIF(BTRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS admin_name,
+            u.email AS admin_email,
+            a.details, a.created_at
+       FROM admin_actions a
+       LEFT JOIN users u ON u.id = a.admin_id
+      WHERE a.action_type = 'consent_version_published'
+        AND a.target_type = 'consent_version'
+        AND a.target_id = $1
       LIMIT 1`,
     [targetId],
   );

@@ -4667,3 +4667,10 @@ E71/E72/E73 remain in force.
 - **Action:** Recorded the existing page-level DPO/super-admin gate and no-read behavior as the H1 resolution. Rechecked the H2 date contract and kept instant-based comparisons in `listDsrs`, `getDsrAlerts`, and `mapDsr`; Manila is applied only for user-facing formatting. No unsafe timezone SQL change was made.
 - **Verification:** The real admin render tests cover unauthorized queue suppression and DPO review access; the API compliance tests cover the overdue/alert SQL contract and mapped DSR timing. No privacy case, notification, financial, booking, database, GitHub, master, or production record was changed.
 - This checkpoint is local only. E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
+
+### Checkpoint EL - Consent Versions publisher identity and entry guidance (H16/H17) (2026-09-04)
+
+- **Finding:** The consent audit history showed only a truncated publisher ID, and its required 30-character change summary gave no live progress feedback.
+- **Action:** Added publisher name/email lookup with an immutable ID fallback to both publication reads, rendered that identity in desktop and responsive history surfaces, and added a trimmed live character counter to the publication form. E71's consent effective-date and re-consent governance behavior was not changed.
+- **Verification:** New real admin tests cover the rendered publisher identity and counter; the API test covers the user join and mapped identity, while existing scheduled-publication and exact-evidence tests remain green. No consent publication, grant, customer, provider, database, GitHub, master, or production record was changed.
+- This checkpoint is local only. E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
