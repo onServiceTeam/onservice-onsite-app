@@ -1,4 +1,4 @@
-import React, { useState, type FormEvent } from 'react';
+import React, { useEffect, useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -77,6 +77,12 @@ export default function BusinessAccountsPage(): React.ReactElement {
   const statusFilter = parseStatus(searchParams.get('status'));
   const search = searchParams.get('search')?.trim() ?? '';
   const [searchInput, setSearchInput] = useState(search);
+
+  // The URL is the source of truth for directory filters. Keep the editable
+  // field aligned when browser Back/Forward or another in-app link changes it.
+  useEffect(() => {
+    setSearchInput(search);
+  }, [search]);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['adminBusinessAccounts', page, search, statusFilter],

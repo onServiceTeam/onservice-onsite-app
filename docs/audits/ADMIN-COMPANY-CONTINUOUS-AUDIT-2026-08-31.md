@@ -4768,3 +4768,20 @@ publication control. Admin business-account tests, TypeScript, and targeted
 lint pass locally. No terms, booking, invoice, payment, provider, customer,
 database, GitHub, master, or production record changed. E32, E67, E68, E71,
 E72, E73, and E74 remain in force.
+
+## Checkpoint ES: business-account directory history state
+
+The business-account directory used the URL for its active search filter, but
+the editable search field was initialized only on first mount. After an
+operator used browser Back or Forward, the table could show the historical
+results while the field still displayed a different search term. That is a
+support and operations usability defect because the visible filter no longer
+described the records on screen.
+
+The field now follows the URL whenever the URL filter changes, while still
+allowing an operator to type a new value before submitting it. `bug-ux-1308-
+business-account-search-history.real.test.tsx` renders the page through a
+real MemoryRouter history transition and asserts the recovered query is shown
+in the actual textbox. No account, booking, invoice, payment, provider,
+customer, database, GitHub, master, or production record changed. E32, E67,
+E68, E71, E72, E73, and E74 remain in force.
