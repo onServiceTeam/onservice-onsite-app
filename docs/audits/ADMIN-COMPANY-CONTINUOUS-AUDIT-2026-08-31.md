@@ -4187,6 +4187,32 @@ changes no feedback submission, customer, provider, booking, payment,
 support case, audit row, database schema, GitHub branch, master branch, or
 production record. E32, E72, and E73 remain in force.
 
+## Checkpoint DG: support attention semantics verified across roles
+
+The support linkage audit traced the customer/provider inbox, participant
+thread, API owner-scoped read model, and Admin queue. The participant list's
+`message_count` is a count of customer-visible messages only; it is not
+presented as unread. The Admin queue's `Needs reply` signal is a separate
+server-side calculation based on the latest public sender and excludes closed
+cases, internal notes, and administrative changes. Customer and provider
+status labels correctly translate `waiting_on_customer` and
+`waiting_on_provider` into the signed-in persona's “Waiting on you” or
+“Waiting on customer/provider” wording.
+
+The Admin queue and detail workspace refresh their active queue, summary, and
+open detail on a bounded 20-second interval. Participant support pages use
+the existing owner-scoped routes and preserve the linked booking, project, or
+Business Account context. No cumulative message count was relabeled as an
+unread count, and no new notification or money-path behavior was introduced.
+
+Verification passes 49 API support suites and 62 tests with one existing
+intentional skip, plus 32 mobile support suites and 42 tests. API feedback
+coverage passes 17 suites and 29 tests; the one remaining failure is the
+existing Docker-only nginx privacy test, which cannot start without Docker
+Desktop. This checkpoint changes no support case, notification, customer,
+provider, booking, payment, audit row, database schema, GitHub branch, master
+branch, or production record. E32, E72, and E73 remain in force.
+
 ## Checkpoint DE: Admin dispute decisions wake both participants
 
 The Admin dispute-resolution path durably wrote decision notifications for the
