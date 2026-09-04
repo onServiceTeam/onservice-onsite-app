@@ -13,6 +13,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  ErrorState,
   Input,
   Label,
   Pagination,
@@ -787,7 +788,11 @@ export default function PricingRulesPage(): React.ReactElement {
       {rulesQuery.isLoading ? (
         <div className="space-y-3">{[1, 2, 3].map((item) => <div key={item} className="h-28 animate-pulse rounded-xl bg-slate-100" />)}</div>
       ) : rulesQuery.isError ? (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Pricing rules could not be loaded.</div>
+        <ErrorState
+          title="Pricing rules unavailable"
+          description="The pricing rules could not be read. Do not treat this as an empty or safe-to-change queue."
+          action={<Button variant="outline" onClick={() => void rulesQuery.refetch()}>Retry pricing rules</Button>}
+        />
       ) : rules.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center text-slate-600">
           <TrendingUp size={40} className="mx-auto mb-3 text-slate-400" />

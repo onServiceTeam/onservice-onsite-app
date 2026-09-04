@@ -4331,3 +4331,23 @@ The focused regression passes one file and one real rendered test. The broader
 Dashboard/Dispute inventory passes 18 files and 24 tests. This checkpoint is
 local only. E32 still blocks production synchronization and E72/E73 remain in
 force.
+
+## Checkpoint DM: Pricing-rule queue outage recovery
+
+The Admin Pricing Rules workspace previously showed only a red failure sentence
+when its list request failed. It offered no retry, so an operator reviewing
+customer-price controls had to leave the page or refresh the browser, and the
+failure state did not explain that the list was not safe to interpret as empty.
+
+UX-1261 now uses the shared error state, explicitly warns operators not to
+treat an unavailable pricing queue as empty or safe to change, and offers an
+in-place `Retry pricing rules` action. A successful retry returns to the normal
+empty or populated state while preserving the current filters. The change is
+read-only presentation and recovery behavior; pricing calculations,
+publication, historical booking terms, database records, GitHub, master, and
+production are unchanged.
+
+The focused regression passes one file and one real rendered test. Admin
+TypeScript and changed-file ESLint pass, and `git diff --check` passes. This
+checkpoint is local only. E32 still blocks production synchronization and
+E72/E73 remain in force.
