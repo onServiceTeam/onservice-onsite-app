@@ -4660,3 +4660,10 @@ E71/E72/E73 remain in force.
 - **Finding:** The point-in-time admin backlog still described H4, H5, H7, and H9 as open even though their current implementations and behavioral regressions had already landed. Leaving those records open made the audit trail disagree with the code and obscured the remaining work.
 - **Action:** Reconciled the backlog entries with the current code. Booking 360 action feedback, recurring-series support workspace linkage, authoritative dispatch reassignment validation, and provider review responses are now recorded as resolved. No new mutation or production behavior was introduced by this reconciliation.
 - **Verification:** Rechecked `bug-ux-715-booking-action-success-feedback.real.test.tsx`, `bug-ux-910-recurring-support-workspace.real.test.tsx`, `bug-ux-1078-recurring-audit-handoff.real.test.tsx`, `bug-ux-456-review-response-workflow.real.test.tsx`, and the four admin reassignment API regressions (`UX-484`, `UX-485`, `UX-486`, `UX-710`). E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
+
+### Checkpoint EK - DSR permission and timestamp contract reconciliation (H1/H2) (2026-09-04)
+
+- **Finding:** The admin backlog was stale in two ways: it described the DSR page as confusing for unauthorized operations admins, and it proposed converting absolute PostgreSQL due timestamps to Manila wall-clock timestamps.
+- **Action:** Recorded the existing page-level DPO/super-admin gate and no-read behavior as the H1 resolution. Rechecked the H2 date contract and kept instant-based comparisons in `listDsrs`, `getDsrAlerts`, and `mapDsr`; Manila is applied only for user-facing formatting. No unsafe timezone SQL change was made.
+- **Verification:** The real admin render tests cover unauthorized queue suppression and DPO review access; the API compliance tests cover the overdue/alert SQL contract and mapped DSR timing. No privacy case, notification, financial, booking, database, GitHub, master, or production record was changed.
+- This checkpoint is local only. E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
