@@ -156,6 +156,19 @@ This verification changes no customer, provider, booking, payment, support,
 audit, database, GitHub, master, or production record. E32, E72, and E73
 remain in force.
 
+## Checkpoint PV-04: provider completion notes are behavior-tested
+
+The provider completion-notes regression had been checking the source for a
+`maxLength` prop and counter expression. It now renders the actual completion
+workspace, waits for the verified job record, checks the mounted notes input's
+`maxlength="2000"`, enters a note, and verifies the visible character counter.
+The test stops before uploading photos, capturing a signature, or submitting
+the completion transition.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
 ## Honest residual limits
 
 - The fixture audit exercises HTTP conversation history but has no Socket.IO
