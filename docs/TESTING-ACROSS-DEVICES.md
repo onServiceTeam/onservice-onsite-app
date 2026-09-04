@@ -75,7 +75,8 @@ work from any device, anywhere — no install, just a browser:
 
 - **Admin / back office:** `https://admin.onservice.ph`
 - **Customer + provider (web):** `https://app.onservice.ph`  *(I deploy this
-  alongside the admin site once DNS is live; same map-screen caveat as above)*
+  alongside the admin site once DNS is live; the browser-safe map behavior is
+  described above)*
 - The apps talk to the live API at `https://api.onservice.ph`.
 
 This is the easiest way to give testers and staff access: send them a link.

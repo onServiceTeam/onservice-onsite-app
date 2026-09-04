@@ -1,11 +1,11 @@
 // apps/mobile/src/web-stubs/react-native-maps.tsx
 //
-// Phase 200 — web stub for react-native-maps (no browser support). Metro
-// resolves react-native-maps to this file on the web platform (see
-// metro.config.js). Screens that show a map (address picker, tracker,
-// provider active-job, provider service-area) render this lightweight
-// placeholder in a browser instead of crashing the bundle. Full maps remain
-// available in the native mobile app.
+// Phase 200 - browser-safe adapter for react-native-maps. Metro resolves
+// react-native-maps to this file on the web platform (see metro.config.js).
+// Screens that show a map (address picker, tracker, provider active-job,
+// provider service-area) render a location/status preview in a browser rather
+// than crashing the bundle. Full interactive maps remain available in the
+// native mobile app.
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 

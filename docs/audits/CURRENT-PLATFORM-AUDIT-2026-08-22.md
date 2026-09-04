@@ -105,7 +105,7 @@ This trace exposes the key company rule: admin pages must not invent a second st
 ### Product, admin, and documentation
 
 - Admin access is mostly one broad authenticated shell. The training manual itself says finance/super-admin gating and a limited support role are still pre-launch work. Route, sidebar, button, and server RBAC must be reconciled as one permission matrix.
-- Dispatch still has a TODO for deriving its initial map center from active/default service-area data.
+- Fixed: Dispatch derives its initial map center from the active default service area, then the first active/soft-launch area, with a Metro Cebu fallback only when service-area configuration is unavailable. `bug-phase97-01-dispatch-map-center.test.ts` verifies the configured center at render time.
 - Pricing contains a deferred surge-rule resolution TODO in a money path; this cannot be changed without resolving the current pricing authority and tests.
 - Historical audits and strategy files contained stale screen counts, Boracay-first direction, old fee values, and old server details. They are retained as history but now carry warnings.
 - The former 29-page catalog's 354 Admin baselines remain intact. Later route-specific matrices bring the current catalog to 33 specs and 552 PNGs; W16 adds Projects populated/loading/empty/error coverage at 768/1280/1440/1920. W17 re-captures and strictly verifies the existing 12 Support Queue states at 1280/1440/1920 after adding project context and correcting the shared error-row accessibility state; the total remains 552 because no route or state was added. Any future Admin route still needs explicit visual-state coverage when it lands.

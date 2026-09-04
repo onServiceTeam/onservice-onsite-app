@@ -4597,3 +4597,8 @@ data.
 The focused rendered intake-field test is part of the admin audit inventory.
 This checkpoint is local only. E32 still blocks production synchronization and
 E71/E72/E73 remain in force.
+### Checkpoint EA - dispatch map source documentation reconciled (2026-09-04)
+
+- **Finding:** The living platform audit still described Dispatch's initial map center as an unresolved TODO, although the console already reads the active/default service-area center and has a real render test for the configured value.
+- **Action:** Corrected the current audit register and clarified the mobile browser map adapter and device-testing language. No runtime behavior changed in this documentation-only correction.
+- **Verification:** Existing `bug-phase97-01-dispatch-map-center.test.ts` covers the configured-center render path; no production or money-path behavior was changed.
