@@ -727,24 +727,30 @@ export async function listBookingsAdmin(
     }
   }
   if (filters.search) {
+    // Operator searches use two different matching expectations: names and
+    // labels should find a term anywhere, while UUIDs should match from the
+    // beginning so a copied ID prefix does not surface unrelated records that
+    // happen to contain the same characters in the middle.
+    const broadSearchParam = paramIdx;
+    const identifierPrefixParam = paramIdx + 1;
     conditions.push(`(
-      b.id::text ILIKE $${paramIdx}
-      OR b.customer_id::text ILIKE $${paramIdx}
-      OR COALESCE(b.provider_id::text, '') ILIKE $${paramIdx}
-      OR COALESCE(b.city, '') ILIKE $${paramIdx}
-      OR CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${paramIdx}
-      OR u.phone ILIKE $${paramIdx}
-      OR COALESCE(u.email, '') ILIKE $${paramIdx}
-      OR COALESCE(p.business_name, '') ILIKE $${paramIdx}
-      OR CONCAT_WS(' ', pu.first_name, pu.last_name) ILIKE $${paramIdx}
-      OR COALESCE(pu.phone, '') ILIKE $${paramIdx}
-      OR COALESCE(ss.name, '') ILIKE $${paramIdx}
-      OR COALESCE(sc.name, '') ILIKE $${paramIdx}
-      OR COALESCE(ba.company_name, '') ILIKE $${paramIdx}
-      OR COALESCE(latest_invoice.invoice_number, '') ILIKE $${paramIdx}
+      b.id::text ILIKE $${identifierPrefixParam}
+      OR b.customer_id::text ILIKE $${identifierPrefixParam}
+      OR COALESCE(b.provider_id::text, '') ILIKE $${identifierPrefixParam}
+      OR COALESCE(b.city, '') ILIKE $${broadSearchParam}
+      OR CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${broadSearchParam}
+      OR u.phone ILIKE $${broadSearchParam}
+      OR COALESCE(u.email, '') ILIKE $${broadSearchParam}
+      OR COALESCE(p.business_name, '') ILIKE $${broadSearchParam}
+      OR CONCAT_WS(' ', pu.first_name, pu.last_name) ILIKE $${broadSearchParam}
+      OR COALESCE(pu.phone, '') ILIKE $${broadSearchParam}
+      OR COALESCE(ss.name, '') ILIKE $${broadSearchParam}
+      OR COALESCE(sc.name, '') ILIKE $${broadSearchParam}
+      OR COALESCE(ba.company_name, '') ILIKE $${broadSearchParam}
+      OR COALESCE(latest_invoice.invoice_number, '') ILIKE $${broadSearchParam}
     )`);
-    params.push(`%${filters.search}%`);
-    paramIdx++;
+    params.push(`%${filters.search}%`, `${filters.search}%`);
+    paramIdx += 2;
   }
 
   if (view === 'active') {

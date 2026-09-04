@@ -4602,3 +4602,9 @@ E71/E72/E73 remain in force.
 - **Finding:** The living platform audit still described Dispatch's initial map center as an unresolved TODO, although the console already reads the active/default service-area center and has a real render test for the configured value.
 - **Action:** Corrected the current audit register and clarified the mobile browser map adapter and device-testing language. No runtime behavior changed in this documentation-only correction.
 - **Verification:** Existing `bug-phase97-01-dispatch-map-center.test.ts` covers the configured-center render path; no production or money-path behavior was changed.
+
+### Checkpoint EB - booking identifier search semantics (2026-09-04)
+
+- **Finding:** Booking queue search used one substring pattern for UUID identifiers and human-readable fields. Searching an ID fragment could match an unrelated record whose UUID contained that fragment in the middle.
+- **Action:** Added separate broad and identifier-prefix parameters. Booking, customer, and provider UUIDs now match from the beginning; names, contact fields, cities, services, businesses, and invoice numbers remain substring-searchable.
+- **Verification:** `bug-ux-1293-admin-booking-identifier-prefix.test.ts` asserts the generated query and parameter order. This is a read-only search correction; no booking or money state is changed.
