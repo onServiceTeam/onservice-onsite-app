@@ -4688,3 +4688,26 @@ E71/E72/E73 remain in force.
 - **Action:** Rechecked the page, navigation, and API boundary. The workspace gives operators reasoned block/unblock actions, exact event filters, paginated queues, source-specific recovery, and links from security events to the correct customer, provider, provider-staff employer, or staff record. No new security mutation was introduced in this audit step.
 - **Verification:** The three real admin security tests and four API security input/atomicity/linkage tests pass. No IP block, security event, customer, provider, support, financial, database, GitHub, master, or production record was changed.
 - This checkpoint is local only. E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
+## Checkpoint EO: service-area change review reconciliation
+
+The historical admin backlog still described provider service-area changes as
+an unimplemented backend-only feature. A current-state review found the
+opposite: `ServiceAreasPage` already renders the pending request queue and
+connects it to the existing Provider 360, service-area, and support context.
+
+The rendered regression set proves the required operator workflow: a pending
+request shows provider identity, current/requested markets, radius, and the
+reviewed location pin; a super-admin decision requires a 30-5,000 character
+reason and posts to the authoritative decision route; ordinary admins receive
+read-only guidance; provider filtering and directory failures remain honest;
+and successful decisions invalidate the request queue and related market
+queries. The service rechecks current provider status, market status, radius,
+coordinates, and concurrent coverage changes inside its transaction before
+updating matching data and writing the audit row.
+
+The stale H24 backlog record was marked resolved. This reconciliation changes
+documentation only; no provider, service-area, matching, notification, audit,
+payment, or production record was changed. Five real rendered Admin tests pass
+for the queue, cross-role impact copy, failure recovery, provider filtering,
+and read-only role behavior. Production synchronization remains blocked by
+E32, and provider application review remains paused by E74.
