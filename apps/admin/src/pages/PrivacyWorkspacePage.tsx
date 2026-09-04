@@ -274,7 +274,16 @@ export default function PrivacyWorkspacePage(): React.ReactElement {
 
         {consentSearch.isFetching && <p className="mt-4 text-sm text-[var(--color-text-secondary)]">Searching consent evidence…</p>}
         {consentSearch.isError && (
-          <p role="alert" className="mt-4 text-sm text-red-700">{getErrorMessage(consentSearch.error)}</p>
+          <div role="alert" className="mt-4 flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+            <span>Consent evidence could not be loaded: {getErrorMessage(consentSearch.error)}</span>
+            <button
+              type="button"
+              className="min-h-11 shrink-0 rounded-lg border border-red-300 bg-white px-4 font-semibold"
+              onClick={() => void consentSearch.refetch()}
+            >
+              Retry consent lookup
+            </button>
+          </div>
         )}
         {consentUserId && consentSearch.isSuccess && consentRows.length === 0 && (
           <p className="mt-4 rounded-lg border border-dashed border-[var(--color-border)] p-4 text-sm text-[var(--color-text-secondary)]">No consent records match this user ID.</p>

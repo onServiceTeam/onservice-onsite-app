@@ -4523,18 +4523,23 @@ tests, including the existing guarantee-fund unavailable regression. Admin
 TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
 still blocks production synchronization and E72/E73 remain in force.
 
-## Checkpoint DW: Privacy workload retry truthfulness
+## Checkpoint DW: Privacy workspace recovery controls
 
 The privacy workspace correctly replaced failed DSR workload counts with an
 unavailable marker, but its alert told the operator to retry without providing
-a retry control. That left recovery dependent on navigating away and could
-make a time-sensitive privacy queue harder to inspect.
+a retry control. The consent evidence lookup likewise surfaced a raw error
+sentence without a same-context retry. Those gaps left recovery dependent on
+navigating away or repeating the whole search and could make a time-sensitive
+privacy queue harder to inspect.
 
 UX-1288 now provides `Retry privacy workload` in the failed-count state. The
 alert explicitly says the unavailable counts are not zero. The retry only
 re-reads the DSR alert source and does not expose consent content, mutate a
-data-subject request, change a policy version, or write an audit record.
+data-subject request, change a policy version, or write an audit record. UX-1289
+adds `Retry consent lookup` to the failed exact-user evidence state and keeps
+the same user query in place while retrying; a failed lookup is not treated as
+no consent records.
 
-The focused privacy retry test passes, and changed-file ESLint passes. This
+The focused privacy recovery tests pass, and changed-file ESLint passes. This
 checkpoint is local only. E32 still blocks production synchronization and
 E71/E72/E73 remain in force.
