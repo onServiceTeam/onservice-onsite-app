@@ -133,6 +133,19 @@ Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
 and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
 and E73 remain in force.
 
+## Checkpoint PV-06: provider onboarding document limits are behavior-tested
+
+The provider onboarding metadata regression had been reading the documents
+screen source for the NBI expiry and government-ID `maxLength` props. It now
+renders the actual tablet/browser verification-document workspace and checks
+the two mounted fields expose `maxlength="10"` and `maxlength="64"`, matching
+the server validators. The test does not upload documents or advance the
+application.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
 ## Checkpoint PV-05: provider portfolio caption cap is behavior-tested
 
 The provider portfolio caption regression had been checking source text for
