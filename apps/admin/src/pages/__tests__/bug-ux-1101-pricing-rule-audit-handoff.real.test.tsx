@@ -77,5 +77,6 @@ it('Bug UX-1101 - a pricing audit event opens the exact retained rule even when 
   expect(await screen.findByText('Cebu evening capacity')).toBeVisible();
   expect(screen.getByText('Selected audit evidence')).toBeVisible();
   expect(screen.getByText(RULE_ID)).toBeVisible();
-  expect(await screen.findByText('Pricing rules could not be loaded.')).toBeVisible();
+  expect(await screen.findByRole('heading', { name: 'Pricing rules unavailable' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Retry pricing rules' })).toBeEnabled();
 });
