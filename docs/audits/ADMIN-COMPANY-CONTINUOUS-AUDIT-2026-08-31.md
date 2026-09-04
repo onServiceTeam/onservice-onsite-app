@@ -4565,6 +4565,13 @@ E71/E72/E73 remain in force.
 - **Verification:** `bug-ux-1298-receipt-provider-fallback.real.test.tsx` passes. No receipt, payment, tax, provider, customer, or production record changed.
 - This checkpoint is local only. E32 still blocks production synchronization and E71/E72/E73 remain in force.
 
+### Checkpoint EH - Customer 360 fraud-review action (H10) (2026-09-04)
+
+- **Finding:** A detected fraud pattern in the Customer 360 Disputes tab had no direct escalation control, forcing an operator to leave the context.
+- **Action:** Added a super-admin-only reasoned `flag_fraud` action in the alert, with explicit non-super-admin guidance, profile/dispute refresh, and success/error feedback. The existing no-money/no-booking side-effect wording remains visible in the confirmation dialog.
+- **Verification:** `bug-ux-1299-customer-dispute-fraud-action.real.test.tsx` renders the alert, submits a valid reason, verifies the exact status request, and confirms success feedback. No booking, payment, dispute resolution, or production record changed in the test.
+- This checkpoint is local only. E32 still blocks production synchronization and E71/E72/E73 remain in force.
+
 ## Checkpoint DX: Settings navigation active-state clarity
 
 The admin sidebar used prefix matching for `/settings`, so the dedicated

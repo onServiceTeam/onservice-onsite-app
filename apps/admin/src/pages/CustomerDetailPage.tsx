@@ -1259,6 +1259,12 @@ export function PaymentsTab({
 // ─── DisputesTab ──────────────────────────────────────────────────────────
 
 export function DisputesTab({ customerId }: { customerId: string }): React.ReactElement {
+  const role = useAuthStore((s) => s.user?.role);
+  const isSuperAdmin = role === 'super_admin';
+  const queryClient = useQueryClient();
+  const { requestReason, reasonDialog } = useReasonDialog();
+  const [fraudActionMessage, setFraudActionMessage] = useState('');
+  const [fraudActionError, setFraudActionError] = useState('');
   const [page, setPage] = useState(1);
   const q = useQuery({
     queryKey: ['admin-customer-disputes', customerId, page],
@@ -1269,6 +1275,41 @@ export function DisputesTab({ customerId }: { customerId: string }): React.React
       return res.data.data;
     },
   });
+
+  const flagFraudMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      await api.put(`/api/v1/admin/customers/${customerId}/status`, {
+        action: 'flag_fraud',
+        reason,
+      });
+    },
+    onSuccess: () => {
+      setFraudActionError('');
+      setFraudActionMessage('Customer added to the internal fraud-review queue.');
+      void queryClient.invalidateQueries({ queryKey: ['admin-customer-profile', customerId] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-customer-disputes', customerId] });
+    },
+    onError: (error) => {
+      setFraudActionMessage('');
+      setFraudActionError(getErrorMessage(error));
+    },
+  });
+
+  async function flagFraudFromDisputes(): Promise<void> {
+    setFraudActionMessage('');
+    setFraudActionError('');
+    const reason = await requestReason({
+      title: 'Flag customer for fraud review?',
+      description: 'This adds an internal account flag. It does not cancel bookings, move money, resolve disputes, or suspend access. Record the observable pattern and linked evidence.',
+      confirmLabel: 'Flag for review',
+      reasonLabel: 'Fraud-review reason',
+      placeholder: 'Record the observable pattern, linked cases, and evidence to review.',
+      minLength: 10,
+      maxLength: 1000,
+      tone: 'default',
+    });
+    if (reason) flagFraudMutation.mutate(reason);
+  }
 
   if (q.isLoading) return <LoadingState />;
   if (q.isError) {
@@ -1288,17 +1329,36 @@ export function DisputesTab({ customerId }: { customerId: string }): React.React
     <div className="space-y-4">
       {data.fraudPattern.flagged && (
         <Card className="p-4 border-2 border-[var(--color-warning)] bg-[var(--color-warning)]/5">
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-3">
             <AlertTriangle size={18} className="text-[var(--color-warning)] mt-0.5" />
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-[var(--color-text)]">Possible fraud pattern</p>
               <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
                 {data.fraudPattern.reason}
               </p>
+              {isSuperAdmin ? (
+                <Button
+                  className="mt-3 min-h-11"
+                  size="sm"
+                  variant="secondary"
+                  disabled={flagFraudMutation.isPending}
+                  onClick={() => void flagFraudFromDisputes()}
+                >
+                  {flagFraudMutation.isPending ? 'Flagging.' : 'Flag for fraud review'}
+                </Button>
+              ) : (
+                <p className="mt-3 text-xs text-[var(--color-text-secondary)]">
+                  Super-admin access is required to add the account flag. Use Manage status in the customer header.
+                </p>
+              )}
+              {fraudActionMessage && <p role="status" className="mt-2 text-xs text-[var(--color-success)]">{fraudActionMessage}</p>}
+              {fraudActionError && <p role="alert" className="mt-2 text-xs text-[var(--color-danger)]">{fraudActionError}</p>}
             </div>
           </div>
         </Card>
       )}
+
+      {reasonDialog}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <KpiCard
