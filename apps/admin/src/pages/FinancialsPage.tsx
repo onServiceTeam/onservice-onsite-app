@@ -86,6 +86,10 @@ function todayIso(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 }
 
+function currentManilaYear(): number {
+  return Number(todayIso().slice(0, 4));
+}
+
 function daysAgoIso(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -1700,7 +1704,7 @@ interface BirReportsPanelProps {
 function normalizeBirOverview(data: BirOverviewData): BirOverviewData {
   const summary = data.annualSummary;
   return {
-    year: Number(data.year ?? summary?.year ?? new Date().getFullYear()),
+    year: Number(data.year ?? summary?.year ?? currentManilaYear()),
     totalOutputVat: Number(data.totalOutputVat ?? summary?.totalOutputVatCentavos ?? data.totalOutputVatCentavos ?? 0),
     totalVatPayable: Number(data.totalVatPayable ?? summary?.totalVatPayableCentavos ?? data.totalVatPayableCentavos ?? 0),
     monthsFinalized: Number(data.monthsFinalized ?? summary?.monthsFinalized ?? 0),

@@ -84,6 +84,7 @@
 - **Evidence:** FinancialsPage.tsx lines 1358, 1378-1379, 1578
 
 ### H15. FinancialsPage - Overview date defaults — correctness (small)
+- **Current resolution (2026-09-04):** Resolved by UX-1295. The BIR workpaper fallback year now uses the same Manila calendar source as the year selector, so a UTC/Manila year boundary cannot display a workpaper summary under the wrong year.
 - **Observation:** The Overview tab correctly uses Manila timezone (todayIso, daysAgoIso on lines 69-77), but the BIR Reports tab's year selector defaults to currentYear (line 1071) with no timezone awareness. If a Manila admin opens the page at 23:00 Manila time on Dec 31, currentYear is already the next day UTC, so the year selector may show off-by-one. Not critical because operator can manually select the year, but inconsistent.
 - **Fix:** Replace line 1071: const currentYear = new Date().getFullYear(); With: const currentYear = Number(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }).slice(0, 4)); And replace the fallback in line 1050: year: Number(data.year ?? summary?.year ?? new Date().getFullYear()), With: year: Number(data.year ?? summary?.year ?? Number(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }).slice(0, 4))), This matches the established pattern from todayIso() (line 69-70) and follows the same fix strategy as BUG-PHASE112-01.
 - **Evidence:** FinancialsPage.tsx lines 69-71 (correct pattern) vs line 1071 (no timezone)
