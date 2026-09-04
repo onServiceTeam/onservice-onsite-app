@@ -4102,3 +4102,34 @@ proves that the loading state ends, the error is announced, and the retry
 control is available. The existing UX-1255 through UX-1257 regressions continue
 to cover copy, rejected-request recovery, and password clearing. This is a
 local implementation checkpoint only; E32, E67, E68, and E72 remain in force.
+
+The complete Admin inventory after the timeout change passes 515 files, with
+one existing skipped file and 604 passing tests plus three existing todos.
+Admin TypeScript, changed-file ESLint, `git diff --check`, the production
+build, and the unique regression-ID gate pass; the build transforms 2,843
+modules.
+
+## Checkpoint DC: accessible Admin tablet navigation drawer
+
+The compact Admin navigation used a visual overlay but did not expose dialog
+semantics, move focus into the drawer, contain keyboard Tab focus, or close on
+Escape. At tablet widths this could leave a keyboard or screen-reader operator
+interacting with the page behind an open navigation layer.
+
+UX-1259 gives the drawer an accessible name and modal semantics, moves focus to
+its first control, cycles focus within the drawer, closes on Escape, and
+restores focus to the control that opened it. Route destinations, visible role
+boundaries, and desktop navigation are unchanged. The rendered regression
+executes the modal semantics, focus ownership, Tab wrap, and Escape path.
+
+The focused drawer regression and three existing Admin shell regressions pass
+five tests. The complete Admin inventory after this change passes 516 files,
+with one existing skipped file and 605 passing tests plus three existing
+todos. Admin TypeScript, changed-file ESLint, `git diff --check`, the
+production build, and the unique regression-ID gate pass; the build transforms
+2,843 modules and the gate finds 1,423 unique titled regressions.
+
+This is a local-only Admin presentation/accessibility checkpoint. It changes
+no customer, provider, booking, Support case, payment, permission, audit row,
+database schema, GitHub branch, or production record. E32 and E72 remain in
+force.
