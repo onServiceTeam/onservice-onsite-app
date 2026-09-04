@@ -133,6 +133,18 @@ Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
 and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
 and E73 remain in force.
 
+## Checkpoint PV-05: provider portfolio caption cap is behavior-tested
+
+The provider portfolio caption regression had been checking source text for
+`maxLength={500}`. It now renders the real portfolio workspace at tablet width,
+opens the public work-photo form, completes the browser file-picker path, and
+verifies the mounted caption input exposes `maxlength="500"`. The test stops
+before consent, upload, or publication.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
 ## Checkpoint PV-02: provider withdrawal destination cap is behavior-tested
 
 The provider withdrawal destination-account regression had been checking the
