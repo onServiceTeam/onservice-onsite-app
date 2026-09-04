@@ -4681,3 +4681,10 @@ E71/E72/E73 remain in force.
 - **Action:** Rechecked the shell and recorded the existing responsive behavior: large screens use the persistent sidebar; phone and tablet widths use the Header-triggered drawer with backdrop close, Escape handling, Tab containment, and focus restoration. No shell change was needed.
 - **Verification:** The focused UX-1259, UX-403, and UX-767 shell tests pass. No customer, provider, booking, support, financial, privacy, database, GitHub, master, or production record was changed.
 - This checkpoint is local only. E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
+
+### Checkpoint EN - Security Operations workspace reconciliation (H22) (2026-09-04)
+
+- **Finding:** The historical backlog described the blocked-IP and security-event API as having no admin workspace, but the current implementation already includes one.
+- **Action:** Rechecked the page, navigation, and API boundary. The workspace gives operators reasoned block/unblock actions, exact event filters, paginated queues, source-specific recovery, and links from security events to the correct customer, provider, provider-staff employer, or staff record. No new security mutation was introduced in this audit step.
+- **Verification:** The three real admin security tests and four API security input/atomicity/linkage tests pass. No IP block, security event, customer, provider, support, financial, database, GitHub, master, or production record was changed.
+- This checkpoint is local only. E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
