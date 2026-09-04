@@ -1006,16 +1006,20 @@ export default function ServiceAreasPage(): React.ReactElement {
       {actionError && <p role="alert" className="text-sm text-red-600 mb-4">{actionError}</p>}
       {actionNotice && <p role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{actionNotice}</p>}
 
-      <DataTable columns={columns} data={areas} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No service areas found." />
+      {!isError && (
+        <>
+          <DataTable columns={columns} data={areas} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No service areas found." />
 
-      {pagination && pagination.totalPages > 1 && (
-        <Pagination
-          page={pagination.page}
-          totalPages={pagination.totalPages}
-          total={pagination.total}
-          pageSize={pagination.pageSize}
-          onPageChange={setPage}
-        />
+          {pagination && pagination.totalPages > 1 && (
+            <Pagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              total={pagination.total}
+              pageSize={pagination.pageSize}
+              onPageChange={setPage}
+            />
+          )}
+        </>
       )}
 
       {decisionTarget && (

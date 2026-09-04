@@ -4435,3 +4435,20 @@ release, notification, or other money-path action.
 The focused dispute inventory passes three files and three tests; Admin
 TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
 still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DS: Service-area directory failure truthfulness
+
+Service Areas already showed a retryable list error, but it also rendered the
+empty table underneath while the list query was failed. Operators could see
+both `Failed to load service areas.` and `No service areas found.`, which made a
+market directory outage look like a clear market inventory.
+
+UX-1268 now suppresses the table and pagination while the list source is
+unavailable. The existing retry restores the normal empty or populated market
+directory and does not affect the separate statistics, provider-change review,
+or exact audit-record queries. No market, provider coverage, customer
+bookability, or database record is changed.
+
+The focused Service Areas inventory passes five files and five tests; Admin
+TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
+still blocks production synchronization and E72/E73 remain in force.
