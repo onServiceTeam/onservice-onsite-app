@@ -4289,3 +4289,25 @@ This is a local-only linkage checkpoint. It changes no historical payment,
 refund, payout, booking, customer, provider, audit, database-schema, GitHub,
 master, or production record. E32 still blocks production synchronization and
 E72 still blocks generic raw audit-PII reveal.
+
+## Checkpoint DK: Admin browser-event portability
+
+The Admin API wrapper's forced-password-rotation redirect used the browser
+`PopStateEvent` constructor directly. TypeScript accepted it, but the shared
+repository ESLint environment does not declare that browser-specific global,
+so the Admin lint gate failed even though the redirect behavior itself was
+valid.
+
+The wrapper now dispatches the standard `Event('popstate')` after its existing
+`history.replaceState` call. React Router receives the same event type and the
+URL transition is unchanged. The rendered password-rotation regression still
+passes, and Admin TypeScript and lint pass. This is a presentation/runtime
+compatibility fix only; it changes no credentials, session, role, customer,
+provider, booking, payment, support, audit, database, GitHub, master, or
+production record.
+
+Implementation commit: `697d370f`. The complete Admin inventory at this
+checkpoint passes 516 files, with one existing skipped file, 599 passing tests,
+and three existing todos. The focused redirect test passes one file and one
+test. This checkpoint is local only. E32 still blocks production
+synchronization and E72/E73 remain in force.
