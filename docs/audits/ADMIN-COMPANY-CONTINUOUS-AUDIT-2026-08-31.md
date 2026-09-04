@@ -4750,3 +4750,21 @@ enabled dormant tab, edits both labels, confirms creation, and asserts the
 actual API payload. The existing disabled-flag render test also passes. Admin
 TypeScript, targeted ESLint, and `git diff --check` pass locally. E32, E72,
 E73, and E74 remain in force.
+
+## Checkpoint ER: non-super-admin commercial-term visibility
+
+The admin enterprise detail view described the approved terms as visible to
+ordinary admins, but `BillingSettingsCard` returned before rendering them for
+anyone who was not a super admin. That left support and operations staff with
+only the account's explicitly non-authoritative projection fields, despite the
+page saying the approved terms remained visible above.
+
+The read-only branch now renders the current versioned terms, payment terms,
+discount, and approved credit, with explicit loading, unavailable, and no
+published-version states. It still exposes no publication, manager-assignment,
+or other mutation controls to ordinary admins. `bug-ux-1307-business-read-only-
+terms.real.test.tsx` proves the real rendered admin view and the absence of the
+publication control. Admin business-account tests, TypeScript, and targeted
+lint pass locally. No terms, booking, invoice, payment, provider, customer,
+database, GitHub, master, or production record changed. E32, E67, E68, E71,
+E72, E73, and E74 remain in force.

@@ -845,10 +845,22 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
   if (!isSuperAdmin) {
     return (
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-1">Billing settings</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-1">Billing settings, read-only</h3>
         <p className="text-xs text-[var(--color-text-secondary)]">
-          Commercial terms publication and account-manager changes require a super admin. Current terms remain visible above.
+          Commercial terms publication and account-manager changes require a super admin. The approved terms below are the authority for future company bookings.
         </p>
+        <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-slate-50 p-3 text-sm">
+          {termsQuery.isLoading ? <span>Loading approved terms...</span> : termsQuery.isError ? (
+            <span role="alert" className="text-xs text-red-700">Approved terms could not be loaded. Do not treat this as no approved terms.</span>
+          ) : termsQuery.data ? (
+            <div className="grid gap-2 sm:grid-cols-4">
+              <InfoRow label="Terms version" value={`v${termsQuery.data.version}`} />
+              <InfoRow label="Payment terms" value={fmtLabel(termsQuery.data.paymentTerms)} />
+              <InfoRow label="Discount" value={fmtPercent(termsQuery.data.volumeDiscountRate)} />
+              <InfoRow label="Approved billing credit" value={formatCurrency(termsQuery.data.monthlyCreditLimit)} />
+            </div>
+          ) : <span className="font-medium text-amber-700">No approved terms version is published.</span>}
+        </div>
       </Card>
     );
   }
