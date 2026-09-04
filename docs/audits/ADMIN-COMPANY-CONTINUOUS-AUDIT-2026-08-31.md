@@ -4452,3 +4452,30 @@ bookability, or database record is changed.
 The focused Service Areas inventory passes five files and five tests; Admin
 TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
 still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DT: Business Account 360 read-source recovery
+
+Business Account 360 had several read failures that were not safe for an
+operator workspace. The primary account and member views had no in-place
+recovery. The approved-terms panel treated a failed terms read as `No approved
+terms`, and the active account-manager directory only displayed a failure
+sentence. Contracts, linked work orders and support counts, invoices, and
+invoice evidence likewise lacked local recovery controls. Those distinctions
+matter because an unavailable source must not be interpreted as an empty
+enterprise relationship, an unowned account, a publishable contract queue, or
+a zero/clear billing balance.
+
+UX-1269 through UX-1276 now provide explicit, source-specific retry actions
+for the account, members, current terms, staff directory, contracts, linked
+bookings, invoices, and invoice evidence. The terms and staff states explain
+the decision boundary; they do not allow an operator to assign or publish from
+an unavailable source. Each retry only re-reads its own query, preserves the
+current workspace, and returns to the normal empty or populated state after a
+successful response. No terms, contract, booking, support, invoice, payment,
+adjustment, refund, audit row, database row, GitHub branch, master branch, or
+production record is changed by this batch.
+
+The focused Business Account inventory passes ten files and ten real
+rendered tests, including the existing manager-picker regression. Admin
+TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
+still blocks production synchronization and E72/E73 remain in force.

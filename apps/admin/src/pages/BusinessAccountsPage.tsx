@@ -8,6 +8,8 @@ import { formatCurrency } from '@/lib/format';
 import {
   DataTable,
   Badge,
+  Button,
+  ErrorState,
   Pagination,
   type Column,
 } from '@/components/ui';
@@ -76,7 +78,7 @@ export default function BusinessAccountsPage(): React.ReactElement {
   const search = searchParams.get('search')?.trim() ?? '';
   const [searchInput, setSearchInput] = useState(search);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['adminBusinessAccounts', page, search, statusFilter],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
@@ -234,8 +236,15 @@ export default function BusinessAccountsPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p role="alert" className="text-sm text-red-600 mb-4">Failed to load business accounts. Please try again.</p>}
-      <DataTable columns={columns} data={accounts} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No business accounts found." />
+      {isError ? (
+        <ErrorState
+          title="Business accounts unavailable"
+          description="The business-account directory could not be read. Do not treat it as empty before making an account or credit decision."
+          action={<Button variant="outline" onClick={() => void refetch()}>Retry business accounts</Button>}
+        />
+      ) : (
+        <DataTable columns={columns} data={accounts} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No business accounts found." />
+      )}
 
       {pagination && pagination.totalPages > 1 && (
         <Pagination

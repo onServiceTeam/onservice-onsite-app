@@ -430,11 +430,14 @@ export default function BusinessAccountDetailPage(): React.ReactElement {
         title="Failed to load business account"
         description={getErrorMessage(accountQuery.error)}
         action={
-          <Link to="/business-accounts">
-            <Button variant="secondary" size="sm">
-              <ArrowLeft size={14} /> Back to business accounts
-            </Button>
-          </Link>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void accountQuery.refetch()}>Retry account</Button>
+            <Link to="/business-accounts">
+              <Button variant="secondary" size="sm">
+                <ArrowLeft size={14} /> Back to business accounts
+              </Button>
+            </Link>
+          </div>
         }
       />
     );
@@ -858,7 +861,14 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
           New terms affect only future company bookings. Existing bookings, statements, payments, and adjustments keep their original snapshots.
         </p>
         <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-slate-50 p-3 text-sm">
-          {termsQuery.isLoading ? <span>Loading approved terms…</span> : termsQuery.data ? (
+          {termsQuery.isLoading ? <span>Loading approved terms…</span> : termsQuery.isError ? (
+            <span role="alert" className="inline-flex flex-wrap items-center gap-2 text-xs text-red-700">
+              Approved terms could not be loaded. Do not treat this as no approved terms.
+              <Button type="button" size="sm" variant="outline" onClick={() => void termsQuery.refetch()}>
+                Retry terms
+              </Button>
+            </span>
+          ) : termsQuery.data ? (
             <div className="grid gap-2 sm:grid-cols-4">
               <InfoRow label="Terms version" value={`v${termsQuery.data.version}`} />
               <InfoRow label="Payment terms" value={fmtLabel(termsQuery.data.paymentTerms)} />
@@ -1026,7 +1036,12 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
             <span className="text-xs text-amber-700">Reason must be at least 10 characters.</span>
           )}
           {managersQuery.isError && (
-            <span role="alert" className="text-xs text-red-600">Could not load active staff members.</span>
+            <span role="alert" className="inline-flex flex-wrap items-center gap-2 text-xs text-red-600">
+              Could not load active staff members. Do not assign an owner until the directory is available.
+              <Button type="button" size="sm" variant="outline" onClick={() => void managersQuery.refetch()}>
+                Retry staff
+              </Button>
+            </span>
           )}
           {assignManager.isError && (
             <span role="alert" className="text-xs text-red-600">{getErrorMessage(assignManager.error)}</span>
@@ -1098,7 +1113,7 @@ export function MembersTab({ accountId }: { accountId: string }): React.ReactEle
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button variant="outline" onClick={() => void q.refetch()}>Retry members</Button>} />;
   const members = q.data ?? [];
 
   const columns: Column<BusinessMember>[] = [
@@ -1222,7 +1237,15 @@ export function ContractsTab({
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Business contracts unavailable"
+        description="The contract list could not be read. Do not treat it as an empty or safe-to-publish queue."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry contracts</Button>}
+      />
+    );
+  }
   const result = q.data!;
   const contracts = result.data ?? [];
   const pagination = result.pagination;
@@ -1427,7 +1450,15 @@ export function BusinessBookingsTab({
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState title="Failed to load business bookings" description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Business bookings unavailable"
+        description="The account's work-order and support linkage could not be read. Do not treat it as having no bookings."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry business bookings</Button>}
+      />
+    );
+  }
 
   const result = q.data!;
   const bookings = result.data ?? [];
@@ -1592,7 +1623,15 @@ export function InvoicesTab({
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Business invoices unavailable"
+        description="The statement list could not be read. Do not treat it as having no invoices or as clear for billing action."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry invoices</Button>}
+      />
+    );
+  }
   const result = q.data!;
   const invoices = result.data ?? [];
   const pagination = result.pagination;
@@ -1804,7 +1843,15 @@ export function InvoiceDetailPanel({ invoiceId, onClose }: { invoiceId: string; 
         <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
       </div>
       {q.isLoading ? <div className="mt-4"><LoadingState /></div> : null}
-      {q.isError ? <div className="mt-4"><ErrorState title="Failed to load invoice line items" description={getErrorMessage(q.error)} /></div> : null}
+      {q.isError ? (
+        <div className="mt-4">
+          <ErrorState
+            title="Invoice evidence unavailable"
+            description="The invoice, linked work orders, ledger, and balance could not be read. Do not treat missing evidence as a zero balance."
+            action={<Button variant="outline" onClick={() => void q.refetch()}>Retry invoice evidence</Button>}
+          />
+        </div>
+      ) : null}
       {q.data ? (
         <div className="mt-4 space-y-3">
           <div className="grid gap-3 rounded-lg border border-[var(--color-border)] bg-slate-50/70 p-3 sm:grid-cols-4">
