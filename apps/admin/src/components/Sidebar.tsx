@@ -98,7 +98,7 @@ function SidebarContent({
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  end={item.to === '/'}
+                  end={item.to === '/' || item.to === '/settings'}
                   title={item.description}
                   aria-label={collapsed ? item.label : undefined}
                   onClick={onNavigate}

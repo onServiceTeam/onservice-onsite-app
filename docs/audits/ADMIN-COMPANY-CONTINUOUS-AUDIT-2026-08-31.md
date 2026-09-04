@@ -4543,3 +4543,19 @@ no consent records.
 The focused privacy recovery tests pass, and changed-file ESLint passes. This
 checkpoint is local only. E32 still blocks production synchronization and
 E71/E72/E73 remain in force.
+
+## Checkpoint DX: Settings navigation active-state clarity
+
+The admin sidebar used prefix matching for `/settings`, so the dedicated
+`/settings/cancellation-policy` workspace highlighted both System Settings and
+Cancellation Policy. That made an operator's current control ambiguous.
+
+UX-1290 now treats System Settings as an exact-match navigation item while
+preserving parent highlighting for entity detail routes such as providers and
+bookings. The rendered navigation test proves the policy workspace has one
+active destination. No settings, policy, transaction, audit, or production
+record is changed.
+
+The navigation shell inventory passes three tests and changed-file ESLint
+passes. This checkpoint is local only. E32 still blocks production
+synchronization and E71/E72/E73 remain in force.

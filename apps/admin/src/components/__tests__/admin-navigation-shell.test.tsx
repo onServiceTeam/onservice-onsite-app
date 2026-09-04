@@ -21,7 +21,7 @@ describe('admin operations shell', () => {
     expect(screen.getByRole('link', { name: 'Cancellation Policy' })).toBeTruthy();
   });
 
-  it('Bug UX-004 — command search exposes real page destinations and its scope', () => {
+  it('Bug UX-004 - command search exposes real page destinations and its scope', () => {
     render(
       <MemoryRouter>
         <Header />
@@ -36,5 +36,16 @@ describe('admin operations shell', () => {
     expect(
       screen.getByText(/Record results mask contact details and open the canonical case workspace/i),
     ).toBeTruthy();
+  });
+
+  it('Bug UX-1290 - the cancellation policy child route has one active navigation destination', () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/cancellation-policy']}>
+        <Sidebar />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Cancellation Policy' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'System Settings' })).not.toHaveAttribute('aria-current', 'page');
   });
 });
