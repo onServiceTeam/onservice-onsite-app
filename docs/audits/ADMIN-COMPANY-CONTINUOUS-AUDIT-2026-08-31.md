@@ -4711,3 +4711,22 @@ payment, or production record was changed. Five real rendered Admin tests pass
 for the queue, cross-role impact copy, failure recovery, provider filtering,
 and read-only role behavior. Production synchronization remains blocked by
 E32, and provider application review remains paused by E74.
+
+## Checkpoint EP: dashboard deadline and chart-state reconciliation
+
+The dashboard audit confirmed that DSR deadline alerts already include the
+Manila calendar year, but their timezone/year contract had no direct rendered
+regression. A boundary test now proves a UTC timestamp crossing midnight is
+shown with the correct Manila year.
+
+The acquisition-funnel card had a real remaining gap: a successful empty
+response rendered no content, and its failure state used different wording
+from the other dashboard source failures. It now gives operators explicit
+loading, source-unavailable/retry, valid-data, and no-data states. Existing
+revenue-trend and booking-volume failure/empty behavior remains covered.
+
+The new dashboard tests are real React renders, not source-string checks. No
+DSR, analytics, customer, provider, booking, payment, audit, database,
+GitHub, master, or production record was changed. Production synchronization
+remains blocked by E32, provider application review by E74, and the existing
+money/privacy/security holds remain in force.

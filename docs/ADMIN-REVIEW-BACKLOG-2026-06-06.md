@@ -147,15 +147,15 @@
 
 ## MED (89)
 
-### M1. DashboardPage — correctness (small)
-- **Observation:** The DSR alerts prepended to the operationalAlerts list (lines 146-159) display 'dueAt' date in Manila timezone via `toLocaleDateString('en-PH')` but the formatted date string shows in the description without the year, making old overdue DSRs ambiguous (e.g., 'due 05-15' could be May 2025 or 2026).
-- **Fix:** Change line 154 in apps/admin/src/pages/DashboardPage.tsx from: ``` description: `${d.userEmail ?? 'user'} — due ${new Date(d.dueAt).toLocaleDateString('en-PH')} (${d.daysUntilDue}d)`, ``` to: ``` description: `${d.userEmail ?? 'user'} — due ${new Date(d.dueAt).toLocaleString('en-PH', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Manila' })} (${d.daysUntilDue}d)`, ``` This matches the pattern from AuditLogPage.tsx and ensures Manila timezone accuracy consistent with all other admin date formatting.
-- **Evidence:** DashboardPage.tsx lines 149-157: DSR alert description builds a string with just date; AuditLogPage.tsx line 72-81 shows the correct format with year included via toLocaleString.
+### M1. DashboardPage - correctness (small) - RESOLVED 2026-09-04
+- **Observation:** The historical review found DSR dashboard alerts without an unambiguous calendar year.
+- **Resolution:** The current dashboard formats DSR due dates with the `Asia/Manila` timezone and numeric year, month, and day fields. This keeps a UTC timestamp that crosses midnight aligned with the calendar date operators see in the Philippines.
+- **Evidence:** `apps/admin/src/pages/DashboardPage.tsx`; `apps/admin/src/pages/__tests__/bug-ux-1303-dashboard-dsr-year.real.test.tsx`.
 
-### M2. DashboardPage — ux-friction (small)
-- **Observation:** The Acquisition Funnel card (lines 336-354) only shows loading state ('Loading funnel...') if data is undefined. If the query errors or returns empty, the card silently shows nothing. No error message is displayed if the funnel endpoint fails.
-- **Fix:** Add error state checks for all three chart-level queries. Example for Funnel (lines 336-352): Replace the current ternary with a three-way check: `if (funnel.isLoading) { <LoadingState label="Loading funnel..." /> } else if (funnel.isError) { <ErrorState title="Failed to load funnel" description="Could not retrieve acquisition funnel data" action={<Button onClick={() => funnel.refetch()}>Retry</Button>} /> } else if (!funnel.data) { <p>No funnel data</p> } else { <FunnelSteps /> }`. Apply the same pattern to revenueTrend and bookingVolume, replacing their empty-state-only checks with full isLoading/isError/isEmpty guards. Use existing ErrorState component (already imported) with a Retry action bound to each query's refetch method. This mirrors the error-handling pattern already used on detail pages (BookingDetailPage, CompliancePage) and main-level dashboard error handling (lines 180-191).
-- **Evidence:** DashboardPage.tsx lines 336-354: conditional only checks `if (funnel.data)` but doesn't guard against `funnel.isError`.
+### M2. DashboardPage - ux-friction (small) - RESOLVED 2026-09-04
+- **Observation:** The historical dashboard funnel card could fail or receive no dataset without giving the operator a useful state.
+- **Resolution:** The acquisition-funnel card now has explicit loading, source-unavailable with retry, valid-data, and no-data states. The revenue-trend and booking-volume cards retain the same explicit state contract. No zero or empty result is presented as a system-health claim.
+- **Evidence:** `apps/admin/src/pages/DashboardPage.tsx`; `apps/admin/src/pages/__tests__/bug-ux-1304-dashboard-funnel-states.real.test.tsx`; `apps/admin/src/pages/__tests__/bug-ux-336-dashboard-source-failure.real.test.tsx`; `apps/admin/src/pages/__tests__/bug-ux-505-dashboard-source-states.real.test.tsx`.
 
 ### M3. AnalyticsPage - A/B Tests Tab — missing-feature (small)
 - **Observation:** The A/B Tests tab allows creating tests (Form shows 'trafficSplit' input) but the UI form only shows two preset variant names ('Variant A Name' / 'Variant B Name'). The create modal does not ask for variantAName/variantBName inputs, so all tests are created with defaults ('Control' / 'Variant B'). The results panel later shows these hardcoded names, making test management confusing when multiple tests exist.

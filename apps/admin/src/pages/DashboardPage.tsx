@@ -572,17 +572,7 @@ export default function DashboardPage(): React.ReactElement {
             {funnel.isLoading ? (
               <LoadingState label="Loading acquisition funnel..." />
             ) : funnel.isError ? (
-              <div className="py-4 text-center">
-                <p className="text-sm text-red-600">Failed to load funnel.</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => void funnel.refetch()}
-                >
-                  Retry
-                </Button>
-              </div>
+              <SourceError label="Acquisition funnel" onRetry={() => void funnel.refetch()} />
             ) : funnel.data ? (
               <div className="space-y-3 py-4">
                 <FunnelStep label="Registered" value={funnel.data.registered} percent={100} />
@@ -605,7 +595,13 @@ export default function DashboardPage(): React.ReactElement {
                   }
                 />
               </div>
-            ) : null}
+            ) : (
+              <EmptyState
+                title="No acquisition data yet"
+                description="The selected period has no registered accounts to show in the funnel."
+                icon={<BarChart3 size={28} className="text-slate-400" />}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
