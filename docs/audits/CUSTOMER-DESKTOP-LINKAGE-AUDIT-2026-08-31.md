@@ -191,6 +191,15 @@ Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
 and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
 and E73 remain in force.
 
+## Checkpoint CV-02: customer safety copy stays within the live tracking contract
+
+The GPS-streaming regression had been checking source files for removed copy
+and a retained socket listener. It now renders the customer desktop safety
+workspace and verifies the user-visible contract: status updates and booking
+status tracking are described, while the recorded service location is clearly
+distinguished from a live provider pin. Device GPS production and push
+delivery remain separate evidence items.
+
 ## Visual review
 
 The 768-pixel layouts preserve a compact tablet/browser workspace without

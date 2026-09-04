@@ -206,6 +206,43 @@ Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
 and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
 and E73 remain in force.
 
+## Checkpoint PV-08: provider checklist renders the server-defined service scope
+
+The dead-checklist regression had been checking that an obsolete constant was
+absent from the source. It now renders a provider desktop checklist response
+with a plumbing-specific section and item, verifies those server values are
+visible, verifies the old cleaning-only task is absent, and verifies the
+canonical checklist request path. No checklist item is changed.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
+## Checkpoint PV-09: provider calendar preserves Manila boundary jobs
+
+The calendar timezone regression had been checking implementation text only.
+It now renders the provider desktop calendar with the device timezone set to
+UTC, verifies the API range is anchored to the full Manila month, selects May
+1, and verifies a 06:30 Manila appointment (April 30 UTC) appears on that
+day. This protects the schedule-to-job linkage at month boundaries without
+changing any appointment.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
+## Checkpoint PV-10: provider directions use the real job destination
+
+The dead-ETA regression had been checking that obsolete style names were
+absent from source. It now renders the provider desktop directions workspace
+with a server-shaped booking, verifies the actual customer and address, opens
+Google Maps with the canonical coordinates, verifies Waze is present, and
+confirms no fabricated ETA is shown. No arrival or booking status is changed.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
 ## Honest residual limits
 
 - The fixture audit exercises HTTP conversation history but has no Socket.IO
