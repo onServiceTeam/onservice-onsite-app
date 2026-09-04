@@ -708,9 +708,14 @@ export function DisputeActions({
             <RefreshCw size={14} /> Assign
           </Button>
           {agentsQuery.isError && (
-            <span role="alert" className="text-xs text-red-600">
-              Active admins could not be loaded. Refresh this page to try again.
-            </span>
+            <>
+              <span role="alert" className="text-xs text-red-600">
+                Active admins could not be loaded. Retry before assigning this dispute.
+              </span>
+              <Button type="button" size="sm" variant="outline" onClick={() => void agentsQuery.refetch()}>
+                Retry active admins
+              </Button>
+            </>
           )}
           {assignMut.isError && (
             <span role="alert" className="text-xs text-red-600">

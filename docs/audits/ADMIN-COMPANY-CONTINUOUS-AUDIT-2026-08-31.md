@@ -4387,3 +4387,51 @@ refund, or database record is changed.
 The focused Booking Operations inventory passes five files and five tests;
 Admin TypeScript and changed-file ESLint pass. This checkpoint is local only.
 E32 still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DP: Provider directory failure recovery
+
+Provider Management previously hid the table after a failed directory request,
+but left only a sentence telling the operator to refresh the page. In an
+approval, suspension, or tier-control workspace, that strands the operator and
+does not provide a local recovery path.
+
+UX-1265 now renders the shared error state with a clear warning not to make
+provider decisions from an unavailable queue and a `Retry providers` action.
+Successful retry restores the normal empty or populated directory. No provider
+status, tier, vetting, payout, booking, or database record is changed.
+
+The focused provider-management inventory passes four files and four tests;
+Admin TypeScript and changed-file ESLint pass. This checkpoint is local only.
+E32 still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DQ: Audit timeline failure recovery
+
+The Admin Audit Log showed a non-actionable error state when its combined event
+timeline failed to load. Operators could not retry from the workspace, and the
+screen did not explicitly distinguish an unavailable timeline from an empty
+history.
+
+UX-1266 now warns that an unavailable timeline is not proof that no action was
+recorded and provides `Retry audit timeline`. A successful retry returns to the
+normal filtered empty or populated state. This change does not reveal raw PII or
+alter audit records, exports, customer/provider records, money records,
+database rows, GitHub, master, or production.
+
+The focused Audit Log inventory passes four files and nine tests; Admin
+TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
+still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DR: Dispute assignee directory recovery
+
+Dispute Detail disabled assignment when the active-admin directory failed, but
+only told the operator to refresh the page. That made a support ownership
+handoff unnecessarily dependent on leaving the dispute workspace.
+
+UX-1267 now offers `Retry active admins` and states that assignment must wait
+until the directory is available. A successful retry repopulates named active
+admins. The change does not assign a dispute or invoke any resolution, refund,
+release, notification, or other money-path action.
+
+The focused dispute inventory passes three files and three tests; Admin
+TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
+still blocks production synchronization and E72/E73 remain in force.

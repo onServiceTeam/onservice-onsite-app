@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
-import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { Badge, Button, DataTable, ErrorState, Pagination, type Column } from '@/components/ui';
 import { VettingChecklist, buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
 import { Star } from '@/components/icons';
 
@@ -87,7 +87,7 @@ export default function ProvidersPage(): React.ReactElement {
     setSearchParams(params, { replace: true });
   };
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['adminProviders', page, search, statusFilter, tierFilter, serviceAreaFilter],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
@@ -299,9 +299,11 @@ export default function ProvidersPage(): React.ReactElement {
       )}
 
       {isError && (
-        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-          Failed to load providers. Please try refreshing the page.
-        </div>
+        <ErrorState
+          title="Provider directory unavailable"
+          description="The provider directory could not be read. Do not make approval, suspension, or tier decisions from an unavailable queue."
+          action={<Button variant="outline" onClick={() => void refetch()}>Retry providers</Button>}
+        />
       )}
 
       {!isError && (

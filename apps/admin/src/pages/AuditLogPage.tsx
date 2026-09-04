@@ -861,7 +861,7 @@ export default function AuditLogPage(): React.ReactElement {
     || sourceFilter !== 'all' || fromDate || toDate,
   );
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: [
       'admin', 'audit-log', page, entryIdFilter, actionFilter, entityTypeFilter, entityIdFilter,
       userIdFilter, sourceFilter, fromDate, toDate,
@@ -1128,7 +1128,11 @@ export default function AuditLogPage(): React.ReactElement {
       {isLoading && !data ? (
         <LoadingState label="Loading recorded events…" />
       ) : isError ? (
-        <ErrorState title="Failed to load audit timeline" description={getErrorMessage(error)} />
+        <ErrorState
+          title="Audit timeline unavailable"
+          description={`${getErrorMessage(error)} Do not treat an unavailable timeline as proof that no action was recorded.`}
+          action={<Button variant="outline" onClick={() => void refetch()}>Retry audit timeline</Button>}
+        />
       ) : entries.length === 0 ? (
         <EmptyState
           title="No matching recorded events"
