@@ -4730,3 +4730,23 @@ DSR, analytics, customer, provider, booking, payment, audit, database,
 GitHub, master, or production record was changed. Production synchronization
 remains blocked by E32, provider application review by E74, and the existing
 money/privacy/security holds remain in force.
+
+## Checkpoint EQ: dormant A/B draft variant fields
+
+The A/B testing launch flag remains disabled because assignment and exposure
+reporting are not implemented. While reviewing the held admin surface, the
+draft form was still missing the two variant-name fields that the existing API
+contract accepts. That would have forced future operators to rely on database
+defaults and would have made the draft definition less explicit.
+
+The form now collects Variant A and Variant B names, defaults them to the
+current server-compatible labels, rejects blank labels before confirmation,
+and trims both values in the submitted payload. This does not enable A/B
+testing, assign users, record exposure, change analytics, or alter any
+production row.
+
+`bug-ux-1305-analytics-ab-variant-fields.real.test.tsx` renders the explicitly
+enabled dormant tab, edits both labels, confirms creation, and asserts the
+actual API payload. The existing disabled-flag render test also passes. Admin
+TypeScript, targeted ESLint, and `git diff --check` pass locally. E32, E72,
+E73, and E74 remain in force.

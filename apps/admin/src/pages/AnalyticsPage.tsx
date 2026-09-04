@@ -124,7 +124,14 @@ function AbTestsTab(): React.ReactElement {
   const queryClient = useQueryClient();
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', targetMetric: 'conversion_rate', trafficSplit: 0.5 });
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    variantAName: 'Control',
+    variantBName: 'Variant B',
+    targetMetric: 'conversion_rate',
+    trafficSplit: 0.5,
+  });
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
 
@@ -141,8 +148,21 @@ function AbTestsTab(): React.ReactElement {
       ...body,
       name: body.name.trim(),
       description: body.description.trim(),
+      variantAName: body.variantAName.trim(),
+      variantBName: body.variantBName.trim(),
     }),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['admin', 'ab-tests'] }); setShowCreate(false); setForm({ name: '', description: '', targetMetric: 'conversion_rate', trafficSplit: 0.5 }); },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'ab-tests'] });
+      setShowCreate(false);
+      setForm({
+        name: '',
+        description: '',
+        variantAName: 'Control',
+        variantBName: 'Variant B',
+        targetMetric: 'conversion_rate',
+        trafficSplit: 0.5,
+      });
+    },
   });
 
   const statusMut = useMutation({
@@ -175,6 +195,12 @@ function AbTestsTab(): React.ReactElement {
       setActionError('Test name is required.');
       return;
     }
+    const variantAName = form.variantAName.trim();
+    const variantBName = form.variantBName.trim();
+    if (!variantAName || !variantBName) {
+      setActionError('Both variant names are required.');
+      return;
+    }
     if (!Number.isFinite(form.trafficSplit) || form.trafficSplit < 0.1 || form.trafficSplit > 0.9) {
       setActionError('Traffic split must be between 0.1 and 0.9.');
       return;
@@ -186,7 +212,13 @@ function AbTestsTab(): React.ReactElement {
     });
     if (!accepted) return;
     setActionError('');
-    createMut.mutate({ ...form, name });
+    createMut.mutate({
+      ...form,
+      name,
+      description: form.description.trim(),
+      variantAName,
+      variantBName,
+    });
   }
 
   async function updateStatus(test: AbTest, status: string): Promise<void> {
@@ -224,6 +256,16 @@ function AbTestsTab(): React.ReactElement {
           <div className="space-y-1">
             <Label htmlFor="ab-test-desc">Description</Label>
             <Textarea id="ab-test-desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What hypothesis are you testing?" rows={2} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="ab-test-variant-a">Variant A name</Label>
+              <Input id="ab-test-variant-a" value={form.variantAName} onChange={(e) => setForm({ ...form, variantAName: e.target.value })} placeholder="e.g., Current experience" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ab-test-variant-b">Variant B name</Label>
+              <Input id="ab-test-variant-b" value={form.variantBName} onChange={(e) => setForm({ ...form, variantBName: e.target.value })} placeholder="e.g., New experience" />
+            </div>
           </div>
           <div className="flex flex-wrap gap-3">
             <div className="space-y-1">
