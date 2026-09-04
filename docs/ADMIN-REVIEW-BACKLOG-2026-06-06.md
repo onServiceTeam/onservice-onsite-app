@@ -79,10 +79,10 @@
 - **Resolution:** Documented the integer PHP-centavos contract at the shared formatter, both admin dispute interfaces, and the detail formatter. Added `bug-ux-1296-dispute-refund-centavos-contract.real.test.tsx`, which renders the queue and verifies `125,000` API centavos display as `₱1,250.00`, not `₱125,000.00`.
 - **Evidence:** `apps/admin/src/lib/format.ts`; `apps/admin/src/pages/DisputesPage.tsx`; `apps/admin/src/pages/DisputeDetailPage.tsx`; `packages/api/src/services/dispute-admin.service.ts`
 
-### H14. FinancialsPage - Receipts tab — bug (small)
-- **Observation:** The Receipts table renders providerName directly without null checking. The ReceiptRow interface defines providerName as string|null (line 1358), but the render at line 1578 does {row.providerName} with no fallback, so null values will display as literal 'null' text.
-- **Fix:** Update line 1578 in /apps/admin/src/pages/FinancialsPage.tsx from: <td className="py-2 px-3 text-[var(--color-text)]">{row.providerName}</td> to: <td className="py-2 px-3 text-[var(--color-text)]">{row.providerName ?? '—'}</td> This uses the null-coalescing operator to display an em-dash for null values, consistent with how the PDF column (line 1602) handles missing values.</concreteFix> </invoke>
-- **Evidence:** FinancialsPage.tsx lines 1358, 1378-1379, 1578
+### H14. FinancialsPage - Receipts tab - bug (small) — RESOLVED 2026-09-04
+- **Observation:** The Receipts table previously risked rendering a null provider name as an unusable value.
+- **Resolution:** The current implementation safely renders `Provider record` when a provider ID exists but the name is unavailable, and `-` when both are absent. Added `bug-ux-1298-receipt-provider-fallback.real.test.tsx`, which renders a null provider name and verifies the safe placeholder instead of `null`.
+- **Evidence:** `apps/admin/src/pages/FinancialsPage.tsx`; `apps/admin/src/pages/__tests__/bug-ux-1298-receipt-provider-fallback.real.test.tsx`
 
 ### H15. FinancialsPage - Overview date defaults — correctness (small)
 - **Current resolution (2026-09-04):** Resolved by UX-1295. The BIR workpaper fallback year now uses the same Manila calendar source as the year selector, so a UTC/Manila year boundary cannot display a workpaper summary under the wrong year.

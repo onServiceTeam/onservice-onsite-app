@@ -4558,6 +4558,13 @@ E71/E72/E73 remain in force.
 - **Verification:** `bug-ux-1297-dispatch-loaded-page-visible.real.test.tsx` renders 51 active bookings and verifies the table reports all 51. No booking, provider, assignment, payment, or production state changes.
 - This checkpoint is local only. E32 still blocks production synchronization and E71/E72/E73 remain in force.
 
+### Checkpoint EG - legacy receipt provider fallback (H14) (2026-09-04)
+
+- **Finding:** The legacy sales-record table must not expose a null provider name as user-facing data.
+- **Action:** Verified the existing table distinguishes a missing name with a safe placeholder, including the provider-ID-present case. Added a real DOM-render regression test for the null-name case.
+- **Verification:** `bug-ux-1298-receipt-provider-fallback.real.test.tsx` passes. No receipt, payment, tax, provider, customer, or production record changed.
+- This checkpoint is local only. E32 still blocks production synchronization and E71/E72/E73 remain in force.
+
 ## Checkpoint DX: Settings navigation active-state clarity
 
 The admin sidebar used prefix matching for `/settings`, so the dedicated
