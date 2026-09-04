@@ -4182,6 +4182,21 @@ changes no promo, customer, provider, booking, payment, support, audit,
 database-schema, GitHub, master, or production record. E32, E72, and E73
 remain in force.
 
+## Checkpoint DJ: booking-admin reason cap has a real service-level guard
+
+The Phase 168 regression had been reading `booking-admin.service.ts` and
+matching the private helper's implementation. It now calls the public
+`forceCompleteBooking` service with a 5,001-character reason and verifies the
+request is rejected with HTTP 400 before a database transaction is opened.
+This checks the boundary that an Admin operator actually reaches while
+preserving the existing booking-action and audit-note behavior for valid
+reasons.
+
+The focused API test passes 1 file and 1 test; API TypeScript and targeted
+ESLint pass. This is a validation-test correction only. It changes no booking,
+payment, refund, customer, provider, support, audit, database-schema, GitHub,
+master, or production record. E32, E72, and E73 remain in force.
+
 ## Checkpoint DH: force-complete client validation is behavior-tested
 
 The Phase 142 Admin regression had been checking the BookingDetailPage source
