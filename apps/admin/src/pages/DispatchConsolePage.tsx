@@ -1125,6 +1125,20 @@ export default function DispatchConsolePage(): React.ReactElement {
             </DialogDescription>
           </DialogHeader>
           <div>
+            {messageTarget && (
+              <div className="mb-4 rounded border border-slate-200 bg-slate-50 p-3" aria-label="Recent booking support activity">
+                <p className="text-sm font-semibold text-slate-800">Review recent support activity</p>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  Check the booking conversation and timeline before sending another participant update. They are the canonical record of message text and delivery history.
+                </p>
+                <Link
+                  to={`/communications?bookingId=${encodeURIComponent(messageTarget.id)}`}
+                  className="mt-2 inline-flex min-h-11 items-center text-xs font-semibold text-[var(--color-secondary)] hover:underline"
+                >
+                  Review conversation
+                </Link>
+              </div>
+            )}
             <Label htmlFor="message-body">Message</Label>
             <Textarea
               id="message-body"

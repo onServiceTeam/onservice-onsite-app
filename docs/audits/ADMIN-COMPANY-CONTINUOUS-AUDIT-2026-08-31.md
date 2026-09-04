@@ -4649,6 +4649,12 @@ E71/E72/E73 remain in force.
 - **Action:** Centralized the current Manila year helper and used it for the BIR response fallback. This changes only which year label is shown when the API omits a year; it does not generate, finalize, or alter any tax workpaper.
 - **Verification:** `bug-ux-1295-bir-manila-year-fallback.real.test.tsx` renders `BirReportsPanel` at `2026-12-31T16:30:00Z`, asserts the Manila-year `2027` summary, and verifies the request year. No financial, tax, booking, provider, customer, audit, database, GitHub, master, or production record is changed.
 
+### Checkpoint EJ - dispatch support-message handoff (2026-09-04)
+
+- **Finding:** Dispatch allowed an operator to send a booking support message without an in-context reminder to review earlier support contact. Booking 360 already had the durable `admin_message_sent` timeline events and Communications already owned message text, but Dispatch did not connect the operator to either record.
+- **Action:** Added a booking-scoped `Review conversation` link and clear copy in the Dispatch support-message dialog. The dialog does not create a second message-history source or expose a partial copy of communication content.
+- **Verification:** `bug-ux-1300-dispatch-support-history.real.test.tsx`, `bug-ux-482-admin-support-message-access.real.test.tsx`, and `bug-ux-483-audit-support-message-label.real.test.tsx` pass; admin TypeScript and changed-file ESLint pass. No message, notification, booking, financial, audit, database, GitHub, master, or production record was changed by this UI handoff.
+
 ### Checkpoint EI - stale high-priority backlog reconciliation (2026-09-04)
 
 - **Finding:** The point-in-time admin backlog still described H4, H5, H7, and H9 as open even though their current implementations and behavioral regressions had already landed. Leaving those records open made the audit trail disagree with the code and obscured the remaining work.
