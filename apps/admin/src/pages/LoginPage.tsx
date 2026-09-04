@@ -8,6 +8,8 @@ import { Button, Label, Input } from '@/components/ui';
 import { DEMO_MODE, DEMO_ADMIN } from '@/config/demo';
 import { Loader2, RefreshCw } from 'lucide-react';
 
+const ADMIN_2FA_SETUP_TIMEOUT_MS = 15_000;
+
 function AdminAuthShell({
   title,
   description,
@@ -175,17 +177,28 @@ export default function LoginPage(): React.ReactElement {
     setSetupUri('');
     setSetupQrDataUrl('');
     setEnrolCode('');
+    const controller = new AbortController();
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
-      const setupRes = await api.post(
-        '/api/v1/auth/admin/2fa/setup',
-        {},
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      const setupRes = await Promise.race([
+        api.post(
+          '/api/v1/auth/admin/2fa/setup',
+          {},
+          { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal },
+        ),
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            controller.abort();
+            reject(new Error('Admin 2FA setup request timed out.'));
+          }, ADMIN_2FA_SETUP_TIMEOUT_MS);
+        }),
+      ]);
       setSetupSecret(setupRes.data.data.secret);
       setSetupUri(setupRes.data.data.uri);
     } catch {
       setError('We could not generate the setup key. Try again. If this temporary sign-in expired, return to login and sign in again.');
     } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
       setSetupLoading(false);
     }
   };

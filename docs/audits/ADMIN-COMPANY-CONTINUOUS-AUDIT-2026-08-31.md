@@ -4088,3 +4088,17 @@ and rendered regression evidence. It does not change any customer, provider,
 booking, Support case, payment, payout, transaction, audit record, database
 schema, master branch, GitHub branch, or production record. E32 still blocks
 production synchronization and E72 still blocks generic raw audit-PII reveal.
+
+## Checkpoint DB: bounded Admin 2FA setup recovery
+
+The setup-key recovery state now also has a bounded network wait. A request that
+never settles is aborted after 15 seconds and becomes the same truthful,
+retryable error state as an ordinary request failure. The temporary setup token
+is not persisted, and the timeout does not change the existing server-side
+2FA, recovery-code, session, or credential contracts.
+
+UX-1258 executes the hanging-request path with a real rendered LoginPage and
+proves that the loading state ends, the error is announced, and the retry
+control is available. The existing UX-1255 through UX-1257 regressions continue
+to cover copy, rejected-request recovery, and password clearing. This is a
+local implementation checkpoint only; E32, E67, E68, and E72 remain in force.
