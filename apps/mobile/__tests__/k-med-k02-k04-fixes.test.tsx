@@ -88,7 +88,7 @@ jest.mock('@/services/provider-api.service', () => ({
 }));
 jest.mock('@/lib/toast', () => ({ showToast: (...args: unknown[]) => mockToast(...args) }));
 jest.mock('@/utils/errors', () => ({
-  getErrorMessage: (...args: unknown[]) => mockGetErrorMessage(...args),
+  getErrorMessage: (error: unknown, fallback: string) => mockGetErrorMessage(error, fallback),
 }));
 jest.unmock('@/stores/auth.store');
 
