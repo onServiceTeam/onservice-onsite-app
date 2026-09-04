@@ -268,3 +268,22 @@ conversation link, booking trail, payment state, dispute decision, DSR task,
 provider review, and audit record against the customer/provider contracts
 above. Existing admin code remains evidence of an implementation, not proof
 that the operating model is correct.
+
+## Checkpoint CV-04: browser address selection preserves exact-location truth
+
+The browser build used a native-map stub for the customer address picker. A
+browser fallback must not turn the configured service-area center into a
+customer's exact property location, because that can route a provider to the
+wrong place. The browser map preview now displays the configured center as
+reference only. Customers can use device geolocation or enter explicit
+decimal latitude and longitude, then enter the barangay and continue through
+the existing coverage check. The exact-coordinate path is blocked while the
+active service-area source is unavailable and rejects coordinates outside the
+Philippines.
+
+UX-1287 is a real browser-harness regression: it enters coordinates and the
+barangay, verifies the visible marker and exact-coordinate confirmation state,
+and proves that the area center is not silently selected. Existing address
+precision and tablet workspace tests pass. Mobile TypeScript and targeted
+ESLint pass. No booking, address, coverage, provider, payment, or database
+record is changed. E32, E72, and E73 remain in force.

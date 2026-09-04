@@ -288,3 +288,19 @@ custom-quote browser audit is now complete. The next autonomous stage is the
 admin/company overhaul: recheck every queue, field, control, and 360 view
 against the customer/provider records rather than treating the existing admin
 surface as presumptively correct.
+
+## Checkpoint PV-13: provider map surfaces remain browser-safe
+
+The shared browser map fallback is used by provider active-job and
+service-area workspaces as well as the customer address picker. It now renders
+an honest map preview with coordinate/overlay context instead of a blank or
+crashing native-map import. Provider service-area actions continue to use the
+existing location-permission and reviewed request workflow; the preview does
+not approve a radius, assign coverage, fabricate a route, or create live GPS
+evidence. The provider active-job workspace continues to show the address and
+the existing Directions actions when coordinates are absent.
+
+The provider map render regressions and the customer browser address
+regression pass. This is local browser-harness evidence only. Native map
+tiles, device GPS quality, and live provider-location production remain
+separate device/server evidence. E32, E72, and E73 remain in force.
