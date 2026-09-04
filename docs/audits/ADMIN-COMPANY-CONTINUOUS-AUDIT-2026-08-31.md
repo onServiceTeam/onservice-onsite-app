@@ -4165,3 +4165,33 @@ This is a local-only linkage checkpoint. It changes no historical payment,
 refund, payout, booking, customer, provider, audit, database-schema, GitHub,
 master, or production record. E32 still blocks production synchronization and
 E72 still blocks generic raw audit-PII reveal.
+
+## Checkpoint DE: Admin dispute decisions wake both participants
+
+The Admin dispute-resolution path durably wrote decision notifications for the
+customer and provider, but did not pass those rows to the shared push-delivery
+and retry path. A participant could therefore see the decision only after
+opening the app manually. The legacy resolution wrapper had the same gap.
+
+OPS-469 makes the transactional dispute-resolution helper return the exact
+notification IDs, recipients, and routing data it wrote. Both the current Admin
+resolution service and the legacy wrapper deliver those stored rows after the
+transaction commits. Delivery is best-effort and isolated from the already
+committed dispute, audit, and settlement work; preferences, quiet hours,
+stale-token cleanup, and push retries remain owned by the shared notification
+service. No refund amount, gateway operation, role gate, or settlement state
+was changed.
+
+The focused dispute-resolution inventory passes 7 suites and 65 tests,
+including the customer/provider decision-row contract, Admin transaction
+boundary, provider response paths, and refund retry safety. The complete API
+inventory passes 926 suites, with 4 existing skips and 3,297 passing tests;
+the only failures are the 2 existing Docker-only nginx certificate tests,
+which cannot start because Docker Desktop is unavailable. API TypeScript,
+changed-file ESLint, `git diff --check`, and the unique regression-ID gate pass;
+the gate finds 1,425 unique titled regressions.
+
+This is a local-only linkage checkpoint. It changes no historical payment,
+refund, payout, booking, customer, provider, audit, database-schema, GitHub,
+master, or production record. E32 still blocks production synchronization and
+E72 still blocks generic raw audit-PII reveal.

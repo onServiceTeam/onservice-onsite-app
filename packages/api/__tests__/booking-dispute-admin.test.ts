@@ -956,6 +956,7 @@ describe('adminResolveDispute', () => {
       bookingId: BOOKING_ID,
       bookingTotalAmount: 8888,
       providerId: PROVIDER_ID,
+      pushRequests: [],
     });
     const calls = setupTxRecorder(async (sql) => {
       if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-res' }]);

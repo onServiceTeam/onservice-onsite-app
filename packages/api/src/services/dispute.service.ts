@@ -497,7 +497,7 @@ export async function addProviderResponse(
     });
   }
 
-  await deliverDisputeParticipantPushes(result.pushRequests, disputeId);
+  await deliverDisputeParticipantPushes(result.pushRequests ?? [], disputeId);
 
   if (action === 'accept') {
     const totalAmount = Number(bk.total_amount);
@@ -636,7 +636,15 @@ export async function resolveDisputeInTransaction(
     decisionNotes: string;
     internalNotes?: string;
   },
-): Promise<{ dispute: DisputeRow; refundAmount: number; refundPercent: number; bookingId: string; bookingTotalAmount: number; providerId: string | null }> {
+): Promise<{
+  dispute: DisputeRow;
+  refundAmount: number;
+  refundPercent: number;
+  bookingId: string;
+  bookingTotalAmount: number;
+  providerId: string | null;
+  pushRequests: DisputeParticipantPushRequest[];
+}> {
   assertDisputeResolutionAvailable(data.resolutionType);
   const dispute = await client.query<DisputeRow>(
     `SELECT * FROM disputes WHERE id = $1 FOR UPDATE`,
@@ -702,15 +710,14 @@ export async function resolveDisputeInTransaction(
     );
   }
 
-  await client.query(
-    `INSERT INTO notifications (user_id, type, title, body, data)
-     VALUES ($1, 'dispute_update', 'Dispute Decision Recorded', $2, $3)`,
-    [
-      bk.customer_id,
-      `A decision was recorded for your dispute: ${formatResolutionType(data.resolutionType)}. Open the case and booking payment history for processing status.`,
-      JSON.stringify({ disputeId, bookingId: d.booking_id, resolution: data.resolutionType }),
-    ],
-  );
+  const pushRequests: DisputeParticipantPushRequest[] = [];
+  const decisionBody = `A decision was recorded for your dispute: ${formatResolutionType(data.resolutionType)}. Open the case and booking payment history for processing status.`;
+  pushRequests.push(await insertDisputeParticipantNotification(client, {
+    userId: bk.customer_id,
+    title: 'Dispute Decision Recorded',
+    body: decisionBody,
+    data: { disputeId, bookingId: d.booking_id, resolution: data.resolutionType },
+  }));
 
   if (bk.provider_id) {
     const provider = await client.query<ProviderLookupRow>(
@@ -718,15 +725,12 @@ export async function resolveDisputeInTransaction(
       [bk.provider_id],
     );
     if (provider.rows[0]) {
-      await client.query(
-        `INSERT INTO notifications (user_id, type, title, body, data)
-         VALUES ($1, 'dispute_update', 'Dispute Decision Recorded', $2, $3)`,
-        [
-          provider.rows[0].user_id,
-          `A decision was recorded for a dispute on your booking: ${formatResolutionType(data.resolutionType)}. Open the case and booking payment history for processing status.`,
-          JSON.stringify({ disputeId, bookingId: d.booking_id, resolution: data.resolutionType }),
-        ],
-      );
+      pushRequests.push(await insertDisputeParticipantNotification(client, {
+        userId: provider.rows[0].user_id,
+        title: 'Dispute Decision Recorded',
+        body: `A decision was recorded for a dispute on your booking: ${formatResolutionType(data.resolutionType)}. Open the case and booking payment history for processing status.`,
+        data: { disputeId, bookingId: d.booking_id, resolution: data.resolutionType },
+      }));
     }
   }
 
@@ -742,6 +746,7 @@ export async function resolveDisputeInTransaction(
     bookingId: d.booking_id,
     bookingTotalAmount: totalAmount,
     providerId: bk.provider_id,
+    pushRequests,
   };
 }
 
@@ -768,6 +773,8 @@ export async function resolveDispute(
     );
     return helper;
   });
+
+  await deliverDisputeParticipantPushes(result.pushRequests, disputeId);
 
   const refundAmount = result.refundAmount;
   const totalAmount = result.bookingTotalAmount;

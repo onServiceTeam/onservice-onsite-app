@@ -53,6 +53,7 @@ const HAPPY_HELPER = {
   bookingId: BOOKING_ID,
   bookingTotalAmount: 50000,
   providerId: PROVIDER_ID,
+  pushRequests: [],
 };
 
 beforeEach(() => {

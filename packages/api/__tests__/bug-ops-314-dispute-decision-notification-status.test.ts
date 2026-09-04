@@ -56,6 +56,9 @@ it('Bug OPS-314 — participant dispute notifications say refund approved and di
       if (/SELECT user_id FROM providers/.test(sql)) {
         return { rows: [{ user_id: 'provider-user-1' }], rowCount: 1 };
       }
+      if (/INSERT INTO notifications/.test(sql)) {
+        return { rows: [{ id: `notification-${calls.filter((call) => /INSERT INTO notifications/.test(call.sql)).length}` }], rowCount: 1 };
+      }
       return { rows: [], rowCount: 1 };
     }),
   };
@@ -67,8 +70,9 @@ it('Bug OPS-314 — participant dispute notifications say refund approved and di
 
   const notifications = calls.filter((call) => /INSERT INTO notifications/.test(call.sql));
   expect(notifications).toHaveLength(2);
-  expect(notifications.every((call) => call.sql.includes("'Dispute Decision Recorded'"))).toBe(true);
-  expect(notifications.every((call) => String(call.params[1]).includes('Full refund approved'))).toBe(true);
-  expect(notifications.every((call) => String(call.params[1]).includes('processing status'))).toBe(true);
-  expect(notifications.every((call) => !String(call.params[1]).includes('refund issued'))).toBe(true);
+  expect(notifications.every((call) => call.params[1] === 'Dispute Decision Recorded')).toBe(true);
+  expect(notifications.every((call) => String(call.params[2]).includes('Full refund approved'))).toBe(true);
+  expect(notifications.every((call) => String(call.params[2]).includes('processing status'))).toBe(true);
+  expect(notifications.every((call) => !String(call.params[2]).includes('refund issued'))).toBe(true);
+  expect(notifications.every((call) => String(call.params[3]).includes('"notificationType":"dispute_update"'))).toBe(true);
 });

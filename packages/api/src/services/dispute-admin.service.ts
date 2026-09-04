@@ -538,6 +538,7 @@ export async function adminResolveDispute(
       bookingId: helper.bookingId,
       providerId: helper.providerId,
       bookingTotalAmount: helper.bookingTotalAmount,
+      pushRequests: helper.pushRequests,
     };
   });
 
@@ -548,6 +549,17 @@ export async function adminResolveDispute(
     resolutionType: input.resolutionType,
     refundAmount: resolution.refundAmount,
   });
+
+  const pushRequests = resolution.pushRequests ?? [];
+  const pushResults = await Promise.allSettled(
+    pushRequests.map((request) => notificationService.deliverStoredNotificationPush(request)),
+  );
+  if (pushResults.some((result) => result.status === 'rejected')) {
+    logger.warn('Dispute decision push failed after durable inbox delivery', {
+      disputeId,
+      notificationIds: pushRequests.map((request) => request.notificationId),
+    });
+  }
 
   // Post-commit: gateway escrow refund/release. Errors are logged but do
   // not roll back the durable dispute resolution + audit row.
