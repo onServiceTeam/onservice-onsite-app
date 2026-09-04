@@ -4055,3 +4055,36 @@ This checkpoint is local only. GitHub remains at `27e4eafb` under the recorded
 push restriction, so protected CI is not yet available for this checkpoint.
 No production synchronization was attempted. Production synchronization
 remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint DA: Admin 2FA setup recovery and pre-authentication hygiene
+
+The forced Admin 2FA enrollment screen could leave an operator with no useful
+recovery path when the setup-key request failed. The page showed a one-way
+loading message instead of a retry action, and its instructional copy still
+described authenticator codes while the operator was entering a recovery code.
+The temporary password also remained in browser React state after the first
+password-authentication step or after abandoning a temporary 2FA session.
+
+UX-1255 makes the recovery-code mode description match the field and states
+that each code is single-use. UX-1256 turns a failed setup-key request into a
+truthful error plus an explicit retry action; a successful retry restores the
+QR/setup-key path. UX-1257 clears the password as soon as the server moves the
+browser into a temporary 2FA or enrollment state and again when the operator
+returns to the login screen. The pre-auth token remains only in component
+state and is still sent only to the existing narrowly scoped setup/verify
+routes. No 2FA removal, recovery reset, account mutation, or policy decision
+was introduced; E67 and E68 remain active governance holds.
+
+Each behavior has its own rendered regression file. The focused Admin
+authentication inventory passes five files and five tests. The complete Admin
+inventory passes 514 files, with one existing skipped file and 603 passing
+tests plus three existing todos. Admin TypeScript, changed-file ESLint,
+`git diff --check`, and the production build all pass; the build transforms
+2,843 modules. The current local tree contains the implementation and tests
+for this checkpoint, while the prior remote branch remains at `27e4eafb`.
+
+This checkpoint changes only Admin login presentation, temporary client state,
+and rendered regression evidence. It does not change any customer, provider,
+booking, Support case, payment, payout, transaction, audit record, database
+schema, master branch, GitHub branch, or production record. E32 still blocks
+production synchronization and E72 still blocks generic raw audit-PII reveal.

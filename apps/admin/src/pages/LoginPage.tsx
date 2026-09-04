@@ -4,8 +4,9 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAuthStore, type AdminUser } from '@/stores/auth.store';
 import api, { getErrorMessage } from '@/lib/api';
-import { Label, Input } from '@/components/ui';
+import { Button, Label, Input } from '@/components/ui';
 import { DEMO_MODE, DEMO_ADMIN } from '@/config/demo';
+import { Loader2, RefreshCw } from 'lucide-react';
 
 function AdminAuthShell({
   title,
@@ -103,6 +104,7 @@ export default function LoginPage(): React.ReactElement {
   const [setupSecret, setSetupSecret] = useState('');
   const [setupUri, setSetupUri] = useState('');
   const [setupQrDataUrl, setSetupQrDataUrl] = useState('');
+  const [setupLoading, setSetupLoading] = useState(false);
   const [enrolCode, setEnrolCode] = useState('');
   const [issuedBackupCodes, setIssuedBackupCodes] = useState<string[]>([]);
   const [backupCodesSaved, setBackupCodesSaved] = useState(false);
@@ -166,6 +168,28 @@ export default function LoginPage(): React.ReactElement {
     return <Navigate to="/" replace />;
   }
 
+  const load2FASetup = async (token: string): Promise<void> => {
+    setError('');
+    setSetupLoading(true);
+    setSetupSecret('');
+    setSetupUri('');
+    setSetupQrDataUrl('');
+    setEnrolCode('');
+    try {
+      const setupRes = await api.post(
+        '/api/v1/auth/admin/2fa/setup',
+        {},
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setSetupSecret(setupRes.data.data.secret);
+      setSetupUri(setupRes.data.data.uri);
+    } catch {
+      setError('We could not generate the setup key. Try again. If this temporary sign-in expired, return to login and sign in again.');
+    } finally {
+      setSetupLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
     setError('');
@@ -179,6 +203,7 @@ export default function LoginPage(): React.ReactElement {
       if (data.requires2FA) {
         setRequires2FA(true);
         setPreAuthToken(data.preAuthToken);
+        setPassword('');
         setLoading(false);
         setTimeout(() => totpInputRef.current?.focus(), 100);
         return;
@@ -188,18 +213,8 @@ export default function LoginPage(): React.ReactElement {
       if (data.requires2FASetup) {
         setPreAuthToken(data.preAuthToken);
         setRequires2FASetup(true);
-        // Kick off setup immediately to fetch secret + otpauth URI
-        try {
-          const setupRes = await api.post(
-            '/api/v1/auth/admin/2fa/setup',
-            {},
-            { headers: { Authorization: `Bearer ${data.preAuthToken}` } },
-          );
-          setSetupSecret(setupRes.data.data.secret);
-          setSetupUri(setupRes.data.data.uri);
-        } catch (setupErr) {
-          setError(getErrorMessage(setupErr));
-        }
+        setPassword('');
+        await load2FASetup(data.preAuthToken);
         setLoading(false);
         return;
       }
@@ -416,8 +431,26 @@ export default function LoginPage(): React.ReactElement {
                   </code>
                 </div>
               </>
+            ) : setupLoading ? (
+              <p role="status" className="mb-4 flex min-h-11 items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Generating setup key&hellip;
+              </p>
             ) : (
-              <p className="mb-4 text-sm text-[var(--color-text-secondary)]">Generating QR code&hellip;</p>
+              <div className="mb-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-4">
+                <p className="text-sm leading-6 text-[var(--color-text-secondary)]">
+                  The setup key is not available yet. Retry here, or return to login if the temporary sign-in has expired.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void load2FASetup(preAuthToken)}
+                  className="mt-3 w-full"
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  Try generating setup again
+                </Button>
+              </div>
             )}
 
             <div className="mb-5">
@@ -453,8 +486,11 @@ export default function LoginPage(): React.ReactElement {
                 setEnrolCode('');
                 setSetupSecret('');
                 setSetupUri('');
+                setSetupQrDataUrl('');
+                setSetupLoading(false);
                 setIssuedBackupCodes([]);
                 setEnrolledUser(null);
+                setPassword('');
                 setError('');
               }}
               className="w-full mt-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
@@ -471,7 +507,9 @@ export default function LoginPage(): React.ReactElement {
     return (
       <AdminAuthShell
         title="Verify it’s you"
-        description="Enter the current six-digit code from your authenticator app."
+        description={usingBackupCode
+          ? 'Enter one unused recovery code. Each recovery code works only once.'
+          : 'Enter the current six-digit code from your authenticator app.'}
       >
           <form
             onSubmit={(e) => void handle2FAVerify(e)}
@@ -538,6 +576,7 @@ export default function LoginPage(): React.ReactElement {
                 setTotpCode('');
                 setBackupCode('');
                 setUsingBackupCode(false);
+                setPassword('');
                 setError('');
               }}
               className="w-full mt-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
