@@ -4674,3 +4674,10 @@ E71/E72/E73 remain in force.
 - **Action:** Added publisher name/email lookup with an immutable ID fallback to both publication reads, rendered that identity in desktop and responsive history surfaces, and added a trimmed live character counter to the publication form. E71's consent effective-date and re-consent governance behavior was not changed.
 - **Verification:** New real admin tests cover the rendered publisher identity and counter; the API test covers the user join and mapped identity, while existing scheduled-publication and exact-evidence tests remain green. No consent publication, grant, customer, provider, database, GitHub, master, or production record was changed.
 - This checkpoint is local only. E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
+
+### Checkpoint EM - Admin compact navigation reconciliation (H21) (2026-09-04)
+
+- **Finding:** The historical admin backlog still described a desktop-only fixed sidebar, but the current shell had already been rebuilt for compact browser widths.
+- **Action:** Rechecked the shell and recorded the existing responsive behavior: large screens use the persistent sidebar; phone and tablet widths use the Header-triggered drawer with backdrop close, Escape handling, Tab containment, and focus restoration. No shell change was needed.
+- **Verification:** The focused UX-1259, UX-403, and UX-767 shell tests pass. No customer, provider, booking, support, financial, privacy, database, GitHub, master, or production record was changed.
+- This checkpoint is local only. E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
