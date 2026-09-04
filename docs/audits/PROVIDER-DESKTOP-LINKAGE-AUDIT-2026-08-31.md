@@ -194,6 +194,18 @@ Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
 and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
 and E73 remain in force.
 
+## Checkpoint PV-07: customer and provider help show the shared version
+
+The help-version regression had been checking both help-screen source files
+for an import and JSX expression. It now renders the customer and provider
+help workspaces at desktop width and asserts that each visible footer matches
+`platformConfig.appVersion`. This keeps the support handoff identifier the
+same for customers, providers, and the profile surfaces.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
 ## Honest residual limits
 
 - The fixture audit exercises HTTP conversation history but has no Socket.IO

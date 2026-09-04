@@ -179,6 +179,18 @@ review. Those are carried into the following admin stage and must be checked
 against role privacy, notification consent, Booking 360, Support, Provider
 360, Disputes, Audit Log, and held money semantics.
 
+## Checkpoint CV-01: customer and provider help show the shared version
+
+The help-version regression had been checking source text instead of what a
+user could see. It now renders both help workspaces at desktop width and
+asserts that each visible footer matches `platformConfig.appVersion`, keeping
+the version a support agent asks for aligned across customer and provider
+support handoffs.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
 ## Visual review
 
 The 768-pixel layouts preserve a compact tablet/browser workspace without
