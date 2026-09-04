@@ -66,6 +66,9 @@ it('Bug UX-863 — Admin feedback rejects malformed query, path, and triage fiel
   expect((await request(app)
     .patch(`/admin/feedback/${FEEDBACK_ID}/triage`)
     .send({ status: 'new', assignedAdminId: null, note: 'Returned for another review.' })).status).toBe(400);
+  expect((await request(app)
+    .patch(`/admin/feedback/${FEEDBACK_ID}/triage`)
+    .send({ status: 'new', assignedAdminId: '22222222-2222-4222-8222-222222222222', note: 'Returned for another review.', expectedUpdatedAt: '2026-08-24T00:00:00.000Z' })).status).toBe(400);
 
   expect(listFeedbackMock).not.toHaveBeenCalled();
   expect(getFeedbackMock).not.toHaveBeenCalled();

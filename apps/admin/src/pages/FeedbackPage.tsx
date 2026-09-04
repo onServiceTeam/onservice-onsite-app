@@ -524,7 +524,11 @@ export default function FeedbackPage(): React.ReactElement {
                   Status
                   <select
                     value={editStatus}
-                    onChange={(event) => setEditStatus(event.target.value as FeedbackStatus)}
+                    onChange={(event) => {
+                      const nextStatus = event.target.value as FeedbackStatus;
+                      setEditStatus(nextStatus);
+                      if (nextStatus === 'new') setOwnerId('');
+                    }}
                     aria-label="Tester feedback status"
                     disabled={updateMutation.isPending}
                     className="mt-1.5 h-11 w-full rounded-md border border-[var(--color-border)] bg-white px-3 text-sm font-normal"
@@ -538,7 +542,7 @@ export default function FeedbackPage(): React.ReactElement {
                     value={ownerId}
                     onChange={(event) => setOwnerId(event.target.value)}
                     aria-label="Tester feedback owner"
-                    disabled={agentsQuery.isLoading || agentsQuery.isError || updateMutation.isPending}
+                    disabled={editStatus === 'new' || agentsQuery.isLoading || agentsQuery.isError || updateMutation.isPending}
                     className="mt-1.5 h-11 w-full rounded-md border border-[var(--color-border)] bg-white px-3 text-sm font-normal disabled:opacity-50"
                   >
                     <option value="">{agentsQuery.isLoading ? 'Loading active admins…' : 'Unassigned'}</option>

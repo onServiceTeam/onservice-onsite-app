@@ -313,6 +313,9 @@ export async function updateFeedbackTriage(params: {
   if (note.length > TRIAGE_NOTE_MAX) {
     throw createAppError(`Triage note must be ${TRIAGE_NOTE_MAX} characters or fewer.`, 400);
   }
+  if (params.status === 'new' && params.assignedAdminId) {
+    throw createAppError('New feedback must remain unassigned until an owner accepts it.', 400);
+  }
   if ((params.status === 'triaged' || params.status === 'done') && !params.assignedAdminId) {
     throw createAppError('An owner is required for triaged or completed feedback.', 400);
   }

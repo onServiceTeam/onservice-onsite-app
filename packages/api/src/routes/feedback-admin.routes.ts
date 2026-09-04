@@ -27,6 +27,13 @@ const feedbackTriageBodySchema = z.object({
   note: z.string().trim().min(10).max(2_000),
   expectedUpdatedAt: z.string().datetime({ offset: true }),
 }).strict().superRefine((value, context) => {
+  if (value.status === 'new' && value.assignedAdminId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['assignedAdminId'],
+      message: 'New feedback must remain unassigned until an owner accepts it.',
+    });
+  }
   if ((value.status === 'triaged' || value.status === 'done') && !value.assignedAdminId) {
     context.addIssue({
       code: z.ZodIssueCode.custom,

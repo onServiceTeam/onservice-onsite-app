@@ -4166,6 +4166,27 @@ refund, payout, booking, customer, provider, audit, database-schema, GitHub,
 master, or production record. E32 still blocks production synchronization and
 E72 still blocks generic raw audit-PII reveal.
 
+## Checkpoint DF: feedback queue ownership state is internally consistent
+
+The Feedback workspace described `new` as an unowned review queue, but the
+triage request could still carry a named owner with that status. That created a
+misleading operator state: a report could appear new while already assigned,
+and the UI and API could disagree about what returning a report to review
+meant.
+
+The Admin screen now clears and disables the owner control when an operator
+returns a report to `new`. The API body validator and service enforce the same
+invariant, so direct requests cannot persist an owned `new` record. The
+existing optimistic-concurrency, required-note, owner validation, audit-log,
+and PII-masking contracts are unchanged.
+
+The focused verification passes the rendered Admin triage regression and both
+API regressions: 3 test files and 3 tests. Admin and API TypeScript checks,
+targeted ESLint, and `git diff --check` pass. This checkpoint is local-only and
+changes no feedback submission, customer, provider, booking, payment,
+support case, audit row, database schema, GitHub branch, master branch, or
+production record. E32, E72, and E73 remain in force.
+
 ## Checkpoint DE: Admin dispute decisions wake both participants
 
 The Admin dispute-resolution path durably wrote decision notifications for the
