@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
-import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { Badge, Button, DataTable, ErrorState, Pagination, type Column } from '@/components/ui';
 import { adminConfig } from '@/config/admin.config';
 
 interface Customer {
@@ -88,7 +88,7 @@ export default function CustomersPage(): React.ReactElement {
     setSearchParams(params.toString(), { replace: true });
   };
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['adminCustomers', page, search, statusFilter, sort],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
@@ -213,10 +213,10 @@ export default function CustomersPage(): React.ReactElement {
       </div>
 
       <section aria-label="Customer account signals" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <QueueSignal label="All customers" value={data?.summary?.totalCustomers ?? 0} detail="Every customer account" selected={!statusFilter} onClick={() => updateUrlFilters({ status: '' })} />
-        <QueueSignal label="Active accounts" value={data?.summary?.activeAccounts ?? 0} detail="Account access enabled" selected={statusFilter === 'active'} onClick={() => updateUrlFilters({ status: 'active' })} />
-        <QueueSignal label="Inactive accounts" value={data?.summary?.inactiveAccounts ?? 0} detail="Includes support suspensions" selected={statusFilter === 'inactive'} onClick={() => updateUrlFilters({ status: 'inactive' })} />
-        <QueueSignal label="Fraud review" value={data?.summary?.fraudFlagged ?? 0} detail="Can overlap account state" selected={statusFilter === 'flag_fraud'} onClick={() => updateUrlFilters({ status: 'flag_fraud' })} />
+        <QueueSignal label="All customers" value={queueSignalValue(isError, isLoading, data?.summary?.totalCustomers)} detail="Every customer account" selected={!statusFilter} onClick={() => updateUrlFilters({ status: '' })} />
+        <QueueSignal label="Active accounts" value={queueSignalValue(isError, isLoading, data?.summary?.activeAccounts)} detail="Account access enabled" selected={statusFilter === 'active'} onClick={() => updateUrlFilters({ status: 'active' })} />
+        <QueueSignal label="Inactive accounts" value={queueSignalValue(isError, isLoading, data?.summary?.inactiveAccounts)} detail="Includes support suspensions" selected={statusFilter === 'inactive'} onClick={() => updateUrlFilters({ status: 'inactive' })} />
+        <QueueSignal label="Fraud review" value={queueSignalValue(isError, isLoading, data?.summary?.fraudFlagged)} detail="Can overlap account state" selected={statusFilter === 'flag_fraud'} onClick={() => updateUrlFilters({ status: 'flag_fraud' })} />
       </section>
 
       <div className="rounded-lg border border-[var(--color-border)] bg-white p-4">
@@ -270,7 +270,15 @@ export default function CustomersPage(): React.ReactElement {
         </p>
       </div>
 
-      <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} isError={isError} errorMessage="Failed to load customers. Please try again." emptyMessage="No customers match this view." />
+      {isError ? (
+        <ErrorState
+          title="Customer directory unavailable"
+          description="The customer directory and queue signals could not be read. Do not treat the unavailable counts as zero."
+          action={<Button variant="outline" onClick={() => void refetch()}>Retry customers</Button>}
+        />
+      ) : (
+        <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No customers match this view." />
+      )}
 
       {data && data.pagination.totalPages > 1 && (
         <Pagination {...data.pagination} onPageChange={setPage} />
@@ -287,7 +295,7 @@ function QueueSignal({
   onClick,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   detail: string;
   selected: boolean;
   onClick: () => void;
@@ -308,4 +316,12 @@ function QueueSignal({
       <span className="mt-0.5 block text-xs text-[var(--color-text-secondary)]">{detail}</span>
     </button>
   );
+}
+
+function queueSignalValue(isError: boolean, isLoading: boolean, value: number | undefined): number | string {
+  if (isError) return 'Unavailable';
+  if (isLoading) return 'Loading…';
+  // A successful older response may omit additive summary fields. Preserve
+  // that documented compatibility behavior; only a failed query is unknown.
+  return value ?? 0;
 }

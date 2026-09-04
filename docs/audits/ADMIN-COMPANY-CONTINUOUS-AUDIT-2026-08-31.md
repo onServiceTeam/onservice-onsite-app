@@ -4351,3 +4351,39 @@ The focused regression passes one file and one real rendered test. Admin
 TypeScript and changed-file ESLint pass, and `git diff --check` passes. This
 checkpoint is local only. E32 still blocks production synchronization and
 E72/E73 remain in force.
+
+## Checkpoint DN: Customer directory failure truthfulness
+
+Customer Management previously rendered four numeric zeroes while the
+customer-directory request was still loading or had failed. Its table showed
+an error, but there was no in-place retry, so support staff could read an
+unavailable directory as zero customers, zero inactive accounts, or zero fraud
+reviews.
+
+UX-1263 now labels queue signals `Loading…` while the request is in flight and
+`Unavailable` after failure, and replaces the failed table with a shared error
+state containing `Retry customers`. A successful retry restores the normal
+empty or populated directory. A successful older response that omits the
+additive summary fields still follows the documented compatibility default of
+zero. No customer record, fraud state, support case, payment, or database row
+is changed.
+
+The focused customer-management inventory passes five files and five tests;
+Admin TypeScript and changed-file ESLint pass. This checkpoint is local only.
+E32 still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DO: Booking queue duplicate outage state
+
+Booking Operations already had an actionable queue-level retry, but it also
+rendered a second row-level error panel telling operators to refresh the page.
+That duplicated the outage and gave conflicting recovery guidance.
+
+UX-1264 removes the obsolete second panel. The existing queue-level failure
+message and `Retry booking operations` action remain the single recovery path,
+and the strengthened real-render regression verifies the old refresh instruction
+is absent. No booking, assignment, support ownership, dispute, payment,
+refund, or database record is changed.
+
+The focused Booking Operations inventory passes five files and five tests;
+Admin TypeScript and changed-file ESLint pass. This checkpoint is local only.
+E32 still blocks production synchronization and E72/E73 remain in force.
