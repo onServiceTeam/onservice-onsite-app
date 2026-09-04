@@ -240,10 +240,10 @@ export default function BusinessAccountWorkspaceScreen(): React.ReactElement {
 
           {canViewFinancials ? (
             <View style={[styles.metrics, !isPhone && styles.metricsWide]}>
-              <View style={styles.metric}><Text style={styles.metricLabel}>Approved terms</Text><Text style={styles.metricValue}>{termsQuery.data ? `Version ${termsQuery.data.version}` : 'Not published'}</Text></View>
-              <View style={styles.metric}><Text style={styles.metricLabel}>Payment terms</Text><Text style={styles.metricValue}>{termsQuery.data ? label(termsQuery.data.paymentTerms) : '—'}</Text></View>
-              <View style={styles.metric}><Text style={styles.metricLabel}>Volume discount</Text><Text style={styles.metricValue}>{termsQuery.data ? `${termsQuery.data.volumeDiscountRate}%` : '—'}</Text></View>
-              <View style={styles.metric}><Text style={styles.metricLabel}>Approved credit</Text><Text style={styles.metricValue}>{termsQuery.data ? formatPHP(termsQuery.data.monthlyCreditLimit) : '—'}</Text></View>
+              <View style={styles.metric}><Text style={styles.metricLabel}>Approved terms</Text><Text style={styles.metricValue}>{termsQuery.isLoading ? 'Loading...' : termsQuery.data ? `Version ${termsQuery.data.version}` : 'Not published'}</Text></View>
+              <View style={styles.metric}><Text style={styles.metricLabel}>Payment terms</Text><Text style={styles.metricValue}>{termsQuery.isLoading ? 'Loading...' : termsQuery.data ? label(termsQuery.data.paymentTerms) : '—'}</Text></View>
+              <View style={styles.metric}><Text style={styles.metricLabel}>Volume discount</Text><Text style={styles.metricValue}>{termsQuery.isLoading ? 'Loading...' : termsQuery.data ? `${termsQuery.data.volumeDiscountRate}%` : '—'}</Text></View>
+              <View style={styles.metric}><Text style={styles.metricLabel}>Approved credit</Text><Text style={styles.metricValue}>{termsQuery.isLoading ? 'Loading...' : termsQuery.data ? formatPHP(termsQuery.data.monthlyCreditLimit) : '—'}</Text></View>
             </View>
           ) : membersQuery.isSuccess ? (
             <View style={styles.permissionNotice} accessibilityRole="text">
@@ -269,7 +269,7 @@ export default function BusinessAccountWorkspaceScreen(): React.ReactElement {
             {canViewFinancials ? (
               <View style={styles.column}>
                 <SectionHeading icon={<Briefcase size={19} color={colors.primary} />} title="Provider contracts" subtitle="Only contracts published by onService can govern future company work." />
-                {contractsQuery.isError ? <SectionError text="Contracts could not be loaded." /> : contracts.length === 0 ? <SectionEmpty text="No provider contracts are recorded." /> : contracts.map((contract) => <ContractCard key={contract.id} contract={contract} />)}
+                {contractsQuery.isError ? <SectionError text="Contracts could not be loaded." /> : contractsQuery.isLoading ? <SectionLoading text="Loading provider contracts..." /> : contracts.length === 0 ? <SectionEmpty text="No provider contracts are recorded." /> : contracts.map((contract) => <ContractCard key={contract.id} contract={contract} />)}
                 {contractsQuery.hasNextPage ? <LoadMore label="Load more contracts" loading={contractsQuery.isFetchingNextPage} onPress={() => void contractsQuery.fetchNextPage()} /> : null}
               </View>
             ) : null}
@@ -278,7 +278,7 @@ export default function BusinessAccountWorkspaceScreen(): React.ReactElement {
           {canViewFinancials ? (
             <View style={styles.section}>
               <SectionHeading icon={<Receipt size={19} color={colors.primary} />} title="Commercial statements" subtitle="Statements show finalized company work, adjustments, payments, and any credit owed. Internal drafts never appear here." />
-              {invoicesQuery.isError ? <SectionError text="Statements could not be loaded." /> : invoices.length === 0 ? <SectionEmpty text="No finalized statements are available." /> : (
+              {invoicesQuery.isError ? <SectionError text="Statements could not be loaded." /> : invoicesQuery.isLoading ? <SectionLoading text="Loading commercial statements..." /> : invoices.length === 0 ? <SectionEmpty text="No finalized statements are available." /> : (
                 <View style={[styles.invoiceGrid, !isPhone && styles.invoiceGridWide]}>
                   {invoices.map((invoice) => <InvoiceCard key={invoice.id} accountId={accountId} invoice={invoice} />)}
                 </View>
@@ -297,6 +297,7 @@ function SectionHeading({ icon, title, subtitle }: { icon: React.ReactNode; titl
 }
 function SectionError({ text }: { text: string }): React.ReactElement { return <Text role="alert" style={styles.sectionError}>{text} Pull down to retry.</Text>; }
 function SectionEmpty({ text }: { text: string }): React.ReactElement { return <Text style={styles.sectionEmpty}>{text}</Text>; }
+function SectionLoading({ text }: { text: string }): React.ReactElement { return <Text accessibilityRole="text" style={styles.sectionEmpty}>{text}</Text>; }
 function LoadMore({ label: text, loading, onPress }: { label: string; loading: boolean; onPress: () => void }): React.ReactElement {
   return <TouchableOpacity style={styles.loadMore} onPress={onPress} disabled={loading} accessibilityRole="button" accessibilityLabel={text}><Text style={styles.loadMoreText}>{loading ? 'Loading…' : text}</Text></TouchableOpacity>;
 }

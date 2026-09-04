@@ -287,3 +287,7 @@ and proves that the area center is not silently selected. Existing address
 precision and tablet workspace tests pass. Mobile TypeScript and targeted
 ESLint pass. No booking, address, coverage, provider, payment, or database
 record is changed. E32, E72, and E73 remain in force.
+
+## Checkpoint CW-05: enterprise workspace loading truth
+
+The customer business-account detail route now keeps its financial sections honest while their independent queries are pending. Before this checkpoint, a slower account load could render `Not published`, `No provider contracts are recorded`, or `No finalized statements are available` before terms, contracts, and statements had returned. Those were false empty states, especially visible on tablet and desktop connections. The route now renders loading labels for the four terms metrics, provider contracts, and commercial statements, while retaining existing data during later refetches. Bug UX-1306 covers the real rendered pending-query behavior. No business booking, membership, property/site, invoice, or money authority was changed; the company booking feature flag remains off.
