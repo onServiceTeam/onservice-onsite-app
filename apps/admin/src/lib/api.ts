@@ -144,7 +144,10 @@ async function request<T>(url: string, init: ApiRequestInit, isRetry = false): P
       && window.location.pathname !== '/change-password'
     ) {
       window.history.replaceState(null, '', '/change-password');
-      window.dispatchEvent(new PopStateEvent('popstate'));
+      // Use the base event constructor so the shared ESLint environment does
+      // not require a browser-only PopStateEvent global. React Router only
+      // needs the event type after replaceState has updated the URL.
+      window.dispatchEvent(new Event('popstate'));
       throw err;
     }
     if (
