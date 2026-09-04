@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
-import { Badge, Pagination } from '@/components/ui';
+import { Badge, DataFreshness, Pagination } from '@/components/ui';
 import { useAuthStore } from '@/stores/auth.store';
 
 interface AdminRole {
@@ -167,7 +167,14 @@ function RolesTab(): React.ReactElement {
   const [archiveReason, setArchiveReason] = useState('');
   const [error, setError] = useState('');
 
-  const { data: roles, isLoading, isError: isRolesError, refetch: refetchRoles } = useQuery({
+  const {
+    data: roles,
+    isLoading,
+    isError: isRolesError,
+    refetch: refetchRoles,
+    dataUpdatedAt: rolesUpdatedAt,
+    isFetching: isRolesFetching,
+  } = useQuery({
     queryKey: ['adminRoles'],
     queryFn: async () => {
       const res = await api.get('/api/v1/staff/roles');
@@ -175,7 +182,13 @@ function RolesTab(): React.ReactElement {
     },
   });
 
-  const { data: allPermissions, isError: isPermsError, refetch: refetchPermissions } = useQuery({
+  const {
+    data: allPermissions,
+    isError: isPermsError,
+    refetch: refetchPermissions,
+    dataUpdatedAt: permissionsUpdatedAt,
+    isFetching: isPermsFetching,
+  } = useQuery({
     queryKey: ['adminPermissions'],
     queryFn: async () => {
       const res = await api.get('/api/v1/staff/permissions');
@@ -315,16 +328,24 @@ function RolesTab(): React.ReactElement {
       {exactRoleQuery.data && <RoleProfileEvidenceCard role={exactRoleQuery.data} onClear={clearRoleProfileSelection} />}
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">Roles</h2>
-        {!showForm && (
-          <button
-            type="button"
-            className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isRolesError || isPermsError || !roles || !allPermissions}
-            onClick={() => { setCreating(true); setEditing(null); setError(''); }}
-          >
-            Create Role
-          </button>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <DataFreshness
+            label="Role metadata"
+            timestamp={Math.max(rolesUpdatedAt, permissionsUpdatedAt)}
+            isFetching={isRolesFetching || isPermsFetching}
+            onRefresh={() => { void Promise.all([refetchRoles(), refetchPermissions()]); }}
+          />
+          {!showForm && (
+            <button
+              type="button"
+              className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isRolesError || isPermsError || !roles || !allPermissions}
+              onClick={() => { setCreating(true); setEditing(null); setError(''); }}
+            >
+              Create Role
+            </button>
+          )}
+        </div>
       </div>
 
       {showForm && (
@@ -528,7 +549,14 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
   const [profileActionReason, setProfileActionReason] = useState('');
   const limit = adminConfig.defaultPageSize;
 
-  const { data, isLoading, isError, refetch: refetchStaff } = useQuery({
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch: refetchStaff,
+    dataUpdatedAt: staffUpdatedAt,
+    isFetching: isStaffFetching,
+  } = useQuery({
     queryKey: ['adminStaff', page, searchFilter, profileStatusFilter, accountStatusFilter, accountRoleFilter, roleProfileFilter],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
@@ -550,7 +578,13 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
     },
   });
 
-  const { data: roles, isError: isRolesError, refetch: refetchStaffRoles } = useQuery({
+  const {
+    data: roles,
+    isError: isRolesError,
+    refetch: refetchStaffRoles,
+    dataUpdatedAt: staffRolesUpdatedAt,
+    isFetching: isStaffRolesFetching,
+  } = useQuery({
     queryKey: ['adminRoles'],
     queryFn: async () => {
       const res = await api.get('/api/v1/staff/roles');
@@ -693,13 +727,21 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
           <h2 className="text-lg font-semibold">Staff operations directory</h2>
           <p className="text-sm text-[var(--color-text-secondary)]">Review account truth, directory metadata, workload, and audit history together.</p>
         </div>
-        <button
-          type="button"
-          className="min-h-11 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white"
-          onClick={() => setShowAdd(!showAdd)}
-        >
-          {showAdd ? 'Close form' : 'Add directory profile'}
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <DataFreshness
+            label="Staff directory"
+            timestamp={Math.max(staffUpdatedAt, staffRolesUpdatedAt)}
+            isFetching={isStaffFetching || isStaffRolesFetching}
+            onRefresh={() => { void Promise.all([refetchStaff(), refetchStaffRoles()]); }}
+          />
+          <button
+            type="button"
+            className="min-h-11 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white"
+            onClick={() => setShowAdd(!showAdd)}
+          >
+            {showAdd ? 'Close form' : 'Add directory profile'}
+          </button>
+        </div>
       </div>
 
       <form
@@ -1192,6 +1234,13 @@ function DpoTab(): React.ReactElement {
           The affected person must sign in again and receives only the routes allowed by the new account role.
         </p>
       </div>
+
+      <DataFreshness
+        label="DPO assignment"
+        timestamp={dpoQuery.dataUpdatedAt}
+        isFetching={dpoQuery.isFetching}
+        onRefresh={() => { void dpoQuery.refetch(); }}
+      />
 
       {dpoQuery.isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Loading DPO assignment...</p>}
       {dpoQuery.isError && (

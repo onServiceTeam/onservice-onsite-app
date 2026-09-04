@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
-import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { DataFreshness, DataTable, Badge, Pagination, type Column } from '@/components/ui';
 
 interface Ticket {
   id: string;
@@ -445,7 +445,15 @@ export default function SupportTicketsPage(): React.ReactElement {
     setPriorityNote('');
   }
 
-  const { data, isLoading, isError, error: listError } = useQuery({
+  const {
+    data,
+    isLoading,
+    isError,
+    error: listError,
+    refetch: refetchTickets,
+    dataUpdatedAt: ticketsUpdatedAt,
+    isFetching: isTicketsFetching,
+  } = useQuery({
     queryKey: [
       'adminSupportTickets',
       page,
@@ -496,6 +504,10 @@ export default function SupportTicketsPage(): React.ReactElement {
     enabled: queueMode,
     refetchInterval: SUPPORT_REFRESH_INTERVAL_MS,
   });
+
+  function refreshQueue(): void {
+    void Promise.all([refetchTickets(), summaryQuery.refetch()]);
+  }
 
   const agentsQuery = useQuery({
     queryKey: ['adminSupportAgents'],
@@ -1693,6 +1705,13 @@ export default function SupportTicketsPage(): React.ReactElement {
           cases
         </div>
       </div>
+
+      <DataFreshness
+        label="Support queue"
+        timestamp={ticketsUpdatedAt}
+        isFetching={isTicketsFetching || summaryQuery.isFetching}
+        onRefresh={refreshQueue}
+      />
 
       {(bookingFilter || projectFilter || businessAccountFilter || userFilter || relatedCustomerFilter || relatedProviderFilter) && (
         <div className="flex flex-col justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950 md:flex-row md:items-center">

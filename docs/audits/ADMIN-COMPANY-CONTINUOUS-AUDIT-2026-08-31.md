@@ -4608,3 +4608,9 @@ E71/E72/E73 remain in force.
 - **Finding:** Booking queue search used one substring pattern for UUID identifiers and human-readable fields. Searching an ID fragment could match an unrelated record whose UUID contained that fragment in the middle.
 - **Action:** Added separate broad and identifier-prefix parameters. Booking, customer, and provider UUIDs now match from the beginning; names, contact fields, cities, services, businesses, and invoice numbers remain substring-searchable.
 - **Verification:** `bug-ux-1293-admin-booking-identifier-prefix.test.ts` asserts the generated query and parameter order. This is a read-only search correction; no booking or money state is changed.
+
+### Checkpoint EC - operator queue freshness (2026-09-04)
+
+- **Finding:** Dispute Resolution, Support Queue, and Staff & Roles showed timestamps on individual records but did not expose when the current queue source was last successfully fetched or offer an in-context refresh action. Automatic refetch alone was not visible to an operator.
+- **Action:** Added the shared `DataFreshness` control. It reports the last successful React Query update, ages the label in the browser, shows an explicit no-successful-update state, disables its refresh action while requests are in flight, and is wired into the dispute queue, support queue, staff directory, role metadata, and DPO assignment workspaces.
+- **Verification:** `bug-ux-1294-admin-data-freshness.real.test.tsx` renders the control and verifies the successful-update text, refresh callback, and disabled fetching state. No booking, payout, dispute, support case, account, audit, database, GitHub, master, or production record is changed by this control.

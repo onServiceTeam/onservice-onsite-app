@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
-import { DataTable, Badge, Button, ErrorState, Pagination, type Column } from '@/components/ui';
+import { DataFreshness, DataTable, Badge, Button, ErrorState, Pagination, type Column } from '@/components/ui';
 import { useAdminSocketEvent } from '@/lib/use-admin-socket';
 import { useAuthStore } from '@/stores/auth.store';
 
@@ -98,7 +98,7 @@ export default function DisputesPage(): React.ReactElement {
     setSearchParams(params, { replace: true });
   };
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, refetch, dataUpdatedAt, isFetching } = useQuery({
     queryKey: ['adminDisputes', page, statusFilter, tierFilter, viewFilter, search],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
@@ -216,6 +216,14 @@ export default function DisputesPage(): React.ReactElement {
             You have read-only access. Open Dispute 360 to review the complete case; decisions require a super-admin account.
           </p>
         )}
+        <div className="mt-3">
+          <DataFreshness
+            label="Dispute queue"
+            timestamp={dataUpdatedAt}
+            isFetching={isFetching}
+            onRefresh={() => { void refetch(); }}
+          />
+        </div>
       </div>
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
