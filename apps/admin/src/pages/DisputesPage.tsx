@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
-import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
+import { DataTable, Badge, Button, ErrorState, Pagination, type Column } from '@/components/ui';
 import { useAdminSocketEvent } from '@/lib/use-admin-socket';
 import { useAuthStore } from '@/stores/auth.store';
 
@@ -98,7 +98,7 @@ export default function DisputesPage(): React.ReactElement {
     setSearchParams(params, { replace: true });
   };
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['adminDisputes', page, statusFilter, tierFilter, viewFilter, search],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
@@ -277,12 +277,20 @@ export default function DisputesPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p className="text-sm text-red-600 mb-4">Failed to load disputes. Please try again.</p>}
+      {isError ? (
+        <ErrorState
+          title="Dispute queue unavailable"
+          description="The dispute queue could not be read. Do not treat this as an empty queue."
+          action={<Button variant="outline" onClick={() => void refetch()}>Retry disputes</Button>}
+        />
+      ) : (
+        <>
+          <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No disputes found." />
 
-      <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No disputes found." />
-
-      {data && data.pagination.totalPages > 1 && (
-        <Pagination {...data.pagination} onPageChange={setPage} />
+          {data && data.pagination.totalPages > 1 && (
+            <Pagination {...data.pagination} onPageChange={setPage} />
+          )}
+        </>
       )}
 
     </div>
