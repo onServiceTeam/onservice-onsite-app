@@ -243,6 +243,30 @@ Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
 and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
 and E73 remain in force.
 
+## Checkpoint PV-11: payout account normalization is behavior-tested
+
+The provider payout settings and withdrawal surfaces now share the same
+digits-only destination contract. A real tablet render enters a spaced bank
+account number in both surfaces and verifies that the request payload contains
+the canonical digits-only value. This protects payout setup from being saved in
+a format that a later withdrawal cannot accept.
+
+Focused verification passes 2 tests in 1 mobile test file; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. No payout
+was created or changed. E32, E72, and E73 remain in force.
+
+## Checkpoint PV-12: founding-tier treatment is consistent across provider surfaces
+
+Real renders now verify the same founding-tier label and status treatment in
+the provider dashboard, profile, and tier workspace. This keeps the provider's
+own benefit explanation aligned with the customer-facing provider detail and
+search result rather than allowing each surface to invent a different tier
+state.
+
+Focused verification passes 2 tests in 1 mobile test file; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
 ## Honest residual limits
 
 - The fixture audit exercises HTTP conversation history but has no Socket.IO

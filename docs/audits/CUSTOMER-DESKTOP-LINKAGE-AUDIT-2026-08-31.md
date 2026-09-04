@@ -250,6 +250,16 @@ static browser fixtures.
 - Production remains untouched until E32's server identity problem is
   resolved.
 
+## Checkpoint CV-03: founding-tier treatment is visible to customers
+
+The customer provider-detail and search-result renders now verify that a
+founding provider carries the same customer-visible “Founding” treatment used
+by provider-facing surfaces. The label is evidence of the provider's tier, not
+an invented ranking or guarantee of availability.
+
+Focused verification passes 2 tests in 1 mobile test file. This is local
+test-quality evidence only. E32, E72, and E73 remain in force.
+
 ## Next stage
 
 The next autonomous stage is the suspicion-first admin/company overhaul. It
