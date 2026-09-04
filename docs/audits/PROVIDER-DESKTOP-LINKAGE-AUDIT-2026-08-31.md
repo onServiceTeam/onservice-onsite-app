@@ -121,6 +121,18 @@ No horizontal overflow, blank document, global error boundary, unhandled page
 error, unexpected console error, or unmatched API path remained in the final
 browser matrices.
 
+## Checkpoint PV-01: provider availability max-length regression is behavior-tested
+
+The provider availability reason-limit regression had been checking the screen
+source for `maxLength={500}`. It now renders the actual provider availability
+screen, opens the Date Overrides form, and verifies the real browser input
+exposes `maxlength="500"`, matching the API validator. The test changes no
+availability record and does not submit an override.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
 ## Honest residual limits
 
 - The fixture audit exercises HTTP conversation history but has no Socket.IO
