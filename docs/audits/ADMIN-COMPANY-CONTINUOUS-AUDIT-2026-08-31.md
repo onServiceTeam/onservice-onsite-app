@@ -4522,3 +4522,19 @@ The focused Financials inventory passes five files and five real rendered
 tests, including the existing guarantee-fund unavailable regression. Admin
 TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
 still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DW: Privacy workload retry truthfulness
+
+The privacy workspace correctly replaced failed DSR workload counts with an
+unavailable marker, but its alert told the operator to retry without providing
+a retry control. That left recovery dependent on navigating away and could
+make a time-sensitive privacy queue harder to inspect.
+
+UX-1288 now provides `Retry privacy workload` in the failed-count state. The
+alert explicitly says the unavailable counts are not zero. The retry only
+re-reads the DSR alert source and does not expose consent content, mutate a
+data-subject request, change a policy version, or write an audit record.
+
+The focused privacy retry test passes, and changed-file ESLint passes. This
+checkpoint is local only. E32 still blocks production synchronization and
+E71/E72/E73 remain in force.

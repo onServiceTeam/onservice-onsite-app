@@ -183,9 +183,16 @@ export default function PrivacyWorkspacePage(): React.ReactElement {
       </section>
 
       {dsrAlerts.isError && (
-        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          Privacy workload counts could not be loaded. Open the case queues directly and retry.
-        </p>
+        <div role="alert" className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+          <span>Privacy workload counts could not be loaded. Open the case queues directly; the counts are not zero.</span>
+          <button
+            type="button"
+            className="min-h-11 shrink-0 rounded-lg border border-red-300 bg-white px-4 font-semibold"
+            onClick={() => void dsrAlerts.refetch()}
+          >
+            Retry privacy workload
+          </button>
+        </div>
       )}
 
       <section aria-label="Privacy tools" className="grid gap-4 lg:grid-cols-2">
