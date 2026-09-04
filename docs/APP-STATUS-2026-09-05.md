@@ -72,7 +72,7 @@ The current local inventory is:
 
 ### Not complete, held, or not proven
 
-- **Production synchronization:** the current local branch is `codex/financials-operator-truth` at `b110d897`. It is 100 commits ahead of the locally known origin copy of that topic branch and 326 commits ahead of the locally known `origin/master`. It has not been pushed as the current release, and production has not been updated from it.
+- **Production synchronization:** the current local branch is `codex/financials-operator-truth`. The latest reviewed code fix before this status snapshot is `b110d897`; the status record itself is committed immediately after it. The branch contains newer local work than the live GitHub refs and has not been pushed as the current release. Production has not been updated from it.
 - **Server verification:** the current production SSH authorization is rejected with `Permission denied (publickey)`. The correct onService deployment area was documented as `/opt/onservice` with `/opt/onservice-onsite-app` as an alias; an unrelated Odoo add-on path must not be used. Until authorized access is restored, the server cannot be checked or updated safely.
 - **Native visual gate:** F#3 mobile PNG baselines are missing. F#4 admin baselines exist, but the count needs reconciliation before calling the release gate complete.
 - **Legal/compliance:** attorney-reviewed disclaimer wording, entity/DPO details, NPC registration, DTI and city permit verification, BIR document authority, and related operational sign-offs are not complete.
