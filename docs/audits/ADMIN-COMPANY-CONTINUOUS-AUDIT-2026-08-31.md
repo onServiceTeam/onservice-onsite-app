@@ -4578,3 +4578,22 @@ database, GitHub, master, or production record.
 The focused command-search runtime test, admin TypeScript check, and changed
 file ESLint pass. This checkpoint is local only. E32 still blocks production
 synchronization and E71/E72/E73 remain in force.
+
+## Checkpoint DZ: Catalog intake-configuration recovery
+
+The Catalog intake-field editor showed only a bare failure sentence when its
+per-service customer-question source was unavailable. Because the normal
+catalog row remained visible, an operator could not safely distinguish a
+service with no intake questions from a configuration read outage, and had to
+leave the catalog to try again.
+
+UX-1292 now gives the editor a source-specific retry and states that customer
+question configuration cannot be verified. The normal `No intake fields yet`
+state is shown only after a successful empty response. The control only
+re-reads the selected service's intake fields; it does not add, edit, delete,
+activate, deactivate, change pricing, change a booking, or alter production
+data.
+
+The focused rendered intake-field test is part of the admin audit inventory.
+This checkpoint is local only. E32 still blocks production synchronization and
+E71/E72/E73 remain in force.
