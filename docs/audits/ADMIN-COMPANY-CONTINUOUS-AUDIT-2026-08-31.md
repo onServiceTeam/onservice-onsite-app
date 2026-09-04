@@ -4551,6 +4551,13 @@ E71/E72/E73 remain in force.
 - **Verification:** The test covers the rendered queue output. This is display-contract documentation and verification only; no refund calculation, gateway call, or historical transaction changed.
 - This checkpoint is local only. E32 still blocks production synchronization and E71/E72/E73 remain in force.
 
+### Checkpoint EF - dispatch loaded-page visibility (H6) (2026-09-04)
+
+- **Finding:** Dispatch requested up to 100 active bookings but rendered only the first 50, silently hiding half of a loaded page.
+- **Action:** The table now renders the full 100-row feed page. The existing total-vs-loaded wording remains so the console does not imply that a server total above 100 is fully loaded.
+- **Verification:** `bug-ux-1297-dispatch-loaded-page-visible.real.test.tsx` renders 51 active bookings and verifies the table reports all 51. No booking, provider, assignment, payment, or production state changes.
+- This checkpoint is local only. E32 still blocks production synchronization and E71/E72/E73 remain in force.
+
 ## Checkpoint DX: Settings navigation active-state clarity
 
 The admin sidebar used prefix matching for `/settings`, so the dedicated

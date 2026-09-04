@@ -6,7 +6,8 @@
  *   - Map (top): react-leaflet OSM with custom markers per booking status and
  *     available-provider service-base markers. Provider locations are not
  *     live GPS in the v1.0 release.
- *   - Bottom-left: ACTIVE BOOKINGS list (capped at 50 rows). Reassign and
+ *   - Bottom-left: ACTIVE BOOKINGS list (shows the full 100-row feed page).
+ *     Reassign and
  *     support-message buttons are wired to real mutations. Cancellation is
  *     handed off to Booking 360 because refund inputs require full case review.
  *     Each mutation button opens a modal with client-side
@@ -16,7 +17,7 @@
  *   - Bottom-right: derived dispatch-attention queue from the loaded bookings.
  *
  * Data sources:
- *   - GET /api/v1/admin/bookings?status=active&limit=100  (graceful empty
+ *   - GET /api/v1/admin/bookings?status=active&pageSize=100  (graceful empty
  *     fallback if endpoint returns 404).
  *   - GET /api/v1/admin/providers?online=true&limit=200   (same fallback).
  *   - Live socket events: booking:created, booking:status_changed, and
@@ -420,7 +421,10 @@ export default function DispatchConsolePage(): React.ReactElement {
     });
   }, [allBookings, cityFilter, statusFilter, serviceFilter]);
 
-  const visibleBookings = filteredBookings.slice(0, 50);
+  // The API feed is intentionally page-sized at 100. Do not silently hide
+  // the second half of a loaded page; the header separately reports when the
+  // server says more rows exist than this page contains.
+  const visibleBookings = filteredBookings.slice(0, 100);
   const visibleProviders = useMemo(
     () => cityFilter
       ? allProviders.filter((provider) => provider.city === cityFilter)
