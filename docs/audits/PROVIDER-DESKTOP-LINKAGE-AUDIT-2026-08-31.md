@@ -133,6 +133,18 @@ Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
 and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
 and E73 remain in force.
 
+## Checkpoint PV-02: provider withdrawal destination cap is behavior-tested
+
+The provider withdrawal destination-account regression had been checking the
+withdrawal screen source for `maxLength={255}`. It now renders the actual
+tablet/browser withdrawal workspace, selects GCash, and verifies the mounted
+payout phone input exposes `maxlength="255"`, matching the server schema. The
+test stops before a withdrawal request or confirmation dialog.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
 ## Honest residual limits
 
 - The fixture audit exercises HTTP conversation history but has no Socket.IO
