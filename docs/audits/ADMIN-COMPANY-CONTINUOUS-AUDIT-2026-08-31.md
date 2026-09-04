@@ -4311,3 +4311,23 @@ checkpoint passes 516 files, with one existing skipped file, 599 passing tests,
 and three existing todos. The focused redirect test passes one file and one
 test. This checkpoint is local only. E32 still blocks production
 synchronization and E72/E73 remain in force.
+
+## Checkpoint DL: Dispute queue outage recovery
+
+The Admin Dispute Resolution queue previously rendered a plain failure
+sentence when its list request failed, without a recovery control. Because the
+table received an empty fallback at the same time, an operator could mistake a
+source outage for a clear queue.
+
+UX-1260 now renders the shared error state, explicitly says that the queue must
+not be treated as empty, and offers an in-place `Retry disputes` action. The
+successful retry returns to the normal empty or populated table and pagination
+state without leaving the queue or losing its URL filters. The change is
+read-only presentation and recovery behavior; it changes no dispute decision,
+money movement, participant notification, customer/provider record, audit row,
+database schema, GitHub branch, master branch, or production record.
+
+The focused regression passes one file and one real rendered test. The broader
+Dashboard/Dispute inventory passes 18 files and 24 tests. This checkpoint is
+local only. E32 still blocks production synchronization and E72/E73 remain in
+force.
