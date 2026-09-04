@@ -719,7 +719,7 @@ function paymentStatusVariant(status: string): 'success' | 'warning' | 'danger' 
   return 'default';
 }
 
-function PaymentsPanel({
+export function PaymentsPanel({
   paymentAttemptId,
   paymentAttemptSelectionError,
   onClearExactPaymentAttempt,
@@ -799,7 +799,11 @@ function PaymentsPanel({
       </div>
 
       {!data.paymentIntentsAvailable && (
-        <ErrorState title="Payment intent reporting unavailable" description="The payment-intents source is missing. Counts below are not available." />
+        <ErrorState
+          title="Payment intent reporting unavailable"
+          description="The payment-intents source is missing. Counts below are not available; do not treat the payment queue as clear."
+          action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry payment reporting</Button>}
+        />
       )}
       {data.paymentIntentsAvailable && (
         <>
@@ -962,7 +966,11 @@ function PaymentsPanel({
           )}
         </form>
         {!data.gatewayRetriesAvailable ? (
-          <ErrorState title="Gateway retry reporting unavailable" description="The gateway retry source is missing. Do not assume that the backlog is empty." />
+          <ErrorState
+            title="Gateway retry reporting unavailable"
+            description="The gateway retry source is missing. Do not assume that the backlog is empty."
+            action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry retry reporting</Button>}
+          />
         ) : data.gatewayRetries.length === 0 ? (
           <EmptyState title={retrySearch ? 'No unresolved retry matches that identifier' : 'No active or permanently failed gateway retries'} />
         ) : (
@@ -1088,7 +1096,13 @@ export function PayoutsPanel(): React.ReactElement {
   );
   const d = q.data;
   if (!d) return <EmptyState title="No payouts data" />;
-  if (!d.available) return <ErrorState title="Payout reporting unavailable" description={d.message ?? 'The payout source is unavailable.'} />;
+  if (!d.available) return (
+    <ErrorState
+      title="Payout reporting unavailable"
+      description={`${d.message ?? 'The payout source is unavailable.'} Do not treat the provider withdrawal queue as empty.`}
+      action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry payout summary</Button>}
+    />
+  );
 
   return (
     <div>
@@ -1233,6 +1247,7 @@ export function GuaranteeFundPanel(): React.ReactElement {
       <ErrorState
         title="Guarantee-fund accounting unavailable"
         description={`${d.message ?? 'The platform guarantee-fund wallet is missing.'} Do not treat this as a zero balance or a funding decision.`}
+        action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry guarantee fund</Button>}
       />
     );
   }

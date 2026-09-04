@@ -4479,3 +4479,46 @@ The focused Business Account inventory passes ten files and ten real
 rendered tests, including the existing manager-picker regression. Admin
 TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
 still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DU: Customer 360 read-source recovery
+
+Customer 360 had six independent read surfaces that stopped at a plain error:
+the primary customer profile, booking history, wallet/payment history,
+dispute and fraud signals, referral ledger, and activity history. For support
+and finance operators, those failures were not safe to interpret as no
+bookings, a zero wallet, no disputes, a clear fraud review, no referral
+activity, or no recorded history. The primary profile also offered only a
+back link, forcing a page exit to try again.
+
+UX-1277 through UX-1282 now provide source-specific in-place retry actions and
+word the failure states around the decision that must wait for the source to
+recover. A successful retry returns to the existing customer context and
+filters. No customer status, wallet credit, payment, dispute, fraud marker,
+referral, support case, audit row, database row, GitHub branch, master branch,
+or production record is changed by this batch.
+
+The focused Customer 360 inventory passes six files and six real rendered
+tests; Admin TypeScript and changed-file ESLint pass. This checkpoint is local
+only. E32 still blocks production synchronization and E72/E73 remain in
+force.
+
+## Checkpoint DV: Financials degraded-source recovery
+
+Financials had four successful API responses that explicitly reported a
+missing sub-source without a recovery control: payment-intent reporting,
+gateway refund/release retry reporting, payout reporting, and guarantee-fund
+accounting. These are not ordinary empty states. An operator must not read
+them as a clear payment queue, an empty refund backlog, no provider
+withdrawals, or a zero guarantee balance.
+
+UX-1283 through UX-1286 now provide source-specific retry actions for each
+degraded state. A successful retry restores the existing financials view; no
+payment, refund, release, payout, guarantee-fund, booking, provider, audit,
+database, GitHub, master, or production record is changed by the recovery
+control. The existing legal and operational holds remain visible and
+unchanged.
+
+The focused Financials inventory passes five files and five real rendered
+tests, including the existing guarantee-fund unavailable regression. Admin
+TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
+still blocks production synchronization and E72/E73 remain in force.

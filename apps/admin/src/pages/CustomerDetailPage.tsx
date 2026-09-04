@@ -294,11 +294,14 @@ export default function CustomerDetailPage(): React.ReactElement {
     return (
       <ErrorState title="Failed to load customer" description={getErrorMessage(profileQuery.error)}
         action={
-          <Link to="/customers">
-            <Button variant="secondary" size="sm">
-              <ArrowLeft size={14} /> Back to customers
-            </Button>
-          </Link>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void profileQuery.refetch()}>Retry customer</Button>
+            <Link to="/customers">
+              <Button variant="secondary" size="sm">
+                <ArrowLeft size={14} /> Back to customers
+              </Button>
+            </Link>
+          </div>
         }
       />
     );
@@ -783,7 +786,15 @@ export function BookingsTab({ customerId }: { customerId: string }): React.React
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Customer bookings unavailable"
+        description="The customer's booking history could not be read. Do not treat this as no bookings."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry customer bookings</Button>}
+      />
+    );
+  }
   const data = q.data!;
 
   return (
@@ -981,7 +992,15 @@ export function PaymentsTab({
     );
   }
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Customer payment history unavailable"
+        description="The customer's wallet and payment history could not be read. Do not treat missing data as a zero balance."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry customer payments</Button>}
+      />
+    );
+  }
   const data = q.data!;
   const exactTransaction = hasExactTransaction
     ? data.recentTransactions.find((transaction) => transaction.id === requestedTransactionId) ?? null
@@ -1252,7 +1271,15 @@ export function DisputesTab({ customerId }: { customerId: string }): React.React
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Customer disputes unavailable"
+        description="The customer's dispute history and fraud signals could not be read. Do not treat this as no disputes or a clear review."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry customer disputes</Button>}
+      />
+    );
+  }
   const data = q.data!;
   const fraudWindowDays = data.fraudPattern.windowDays ?? 30;
   const disputesInWindow = data.fraudPattern.disputesInWindow ?? 0;
@@ -1391,7 +1418,15 @@ export function ReferralsTab({ customerId }: { customerId: string }): React.Reac
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Customer referrals unavailable"
+        description="The customer's referral ledger could not be read. Do not treat this as no referral activity."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry customer referrals</Button>}
+      />
+    );
+  }
   const data = q.data!;
 
   return (
@@ -1589,7 +1624,15 @@ export function ActivityTab({
     );
   }
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Customer activity unavailable"
+        description="The customer's activity history could not be read. Do not treat this as no recorded activity."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry customer activity</Button>}
+      />
+    );
+  }
   const rows = q.data!;
   const exactActivity = hasExactAdminAction
     ? rows.find((row) => row.id === `admin_action:${requestedAdminActionId}`) ?? null
