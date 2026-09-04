@@ -4166,6 +4166,22 @@ refund, payout, booking, customer, provider, audit, database-schema, GitHub,
 master, or production record. E32 still blocks production synchronization and
 E72 still blocks generic raw audit-PII reveal.
 
+## Checkpoint DI: promo validity timezone is behavior-tested at both write points
+
+The Phase 115 Admin regression had been scanning `MarketingPage.tsx` for two
+timezone suffixes. It now renders the real Promo Codes workspace, opens the
+Create dialog, submits a date, and asserts the exact Manila end-of-day value
+sent to the API. It then opens the real Edit dialog, changes the date, and
+asserts the exact PATCH value. The test therefore covers both operator write
+paths without activating promo redemption or changing any pricing behavior.
+
+The focused Admin test passes 1 file and 1 test; Admin TypeScript and targeted
+ESLint pass; the Admin test scan contains no remaining `readFileSync` or
+`readFile` source-content tests. This is local test-quality evidence only. It
+changes no promo, customer, provider, booking, payment, support, audit,
+database-schema, GitHub, master, or production record. E32, E72, and E73
+remain in force.
+
 ## Checkpoint DH: force-complete client validation is behavior-tested
 
 The Phase 142 Admin regression had been checking the BookingDetailPage source
