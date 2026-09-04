@@ -22,6 +22,9 @@ jest.mock('../src/models/db', () => ({
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
+jest.mock('../src/services/notification.service', () => ({
+  deliverStoredNotificationPush: jest.fn().mockResolvedValue(undefined),
+}));
 
 import { db } from '../src/models/db';
 import { addProviderResponse } from '../src/services/dispute.service';
@@ -48,6 +51,7 @@ describe('§35b — dispute refund failure is enqueued for retry, not swallowed'
       const clientQuery = jest.fn()
         .mockResolvedValueOnce({}) // UPDATE disputes
         .mockResolvedValueOnce({}) // UPDATE bookings
+        .mockResolvedValueOnce({ rows: [{ id: 'notification-1' }] }) // INSERT notification
         .mockResolvedValueOnce({ rows: [{ id: 'd1', status: 'resolved' }] }); // SELECT *
       return cb({ query: clientQuery });
     });
@@ -76,6 +80,7 @@ describe('§35b — dispute refund failure is enqueued for retry, not swallowed'
       const clientQuery = jest.fn()
         .mockResolvedValueOnce({})
         .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({ rows: [{ id: 'notification-1' }] })
         .mockResolvedValueOnce({ rows: [{ id: 'd1', status: 'resolved' }] });
       return cb({ query: clientQuery });
     });

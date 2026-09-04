@@ -4133,3 +4133,35 @@ This is a local-only Admin presentation/accessibility checkpoint. It changes
 no customer, provider, booking, Support case, payment, permission, audit row,
 database schema, GitHub branch, or production record. E32 and E72 remain in
 force.
+
+## Checkpoint DD: dispute response reaches the customer
+
+The provider dispute-response path changed the durable dispute and booking
+state, but only the contest branch created a customer notification. Provider
+acceptance and partial-refund offers could therefore leave the customer without
+an inbox update, and the existing contest notification did not use the shared
+push-delivery and retry path. The database row was also missing the canonical
+notification type fields used by push preference and routing code.
+
+OPS-468 now writes one customer `dispute_update` inbox row inside the same
+transaction as every provider response branch: full acceptance, contest, and
+partial-refund offer. Each row includes the dispute and booking identifiers,
+canonical type fields, and copy that accurately describes whether a refund is
+being processed, the case is under review, or an offer needs customer review.
+After the transaction commits, the row is handed to the existing stored-push
+delivery path, which applies notification preferences, quiet hours, stale-token
+handling, and retry behavior. Push failure cannot roll back the already durable
+inbox row. Refund amounts, gateway calls, booking state transitions, and
+provider authority checks are unchanged.
+
+The new behavioral regression covers all three response branches and proves the
+customer receives both a durable-row and push handoff. The focused dispute
+inventory passes 7 suites and 9 tests. The complete API inventory passes 925
+suites, with 4 existing skips and 3,296 passing tests; the only failures are
+the 2 existing Docker-only nginx certificate tests, which cannot start because
+Docker Desktop is unavailable. API TypeScript and changed-file ESLint pass.
+
+This is a local-only linkage checkpoint. It changes no historical payment,
+refund, payout, booking, customer, provider, audit, database-schema, GitHub,
+master, or production record. E32 still blocks production synchronization and
+E72 still blocks generic raw audit-PII reveal.
