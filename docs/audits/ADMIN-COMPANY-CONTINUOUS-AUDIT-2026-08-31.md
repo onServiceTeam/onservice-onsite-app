@@ -4559,3 +4559,22 @@ record is changed.
 The navigation shell inventory passes three tests and changed-file ESLint
 passes. This checkpoint is local only. E32 still blocks production
 synchronization and E71/E72/E73 remain in force.
+
+## Checkpoint DY: Command-search runtime data boundary
+
+The admin command search typed its HTTP response as trusted record data and
+indexed the record-kind icon map directly. A malformed row, a forward-compatible
+kind not yet understood by this client, or an unsafe destination could therefore
+crash the header while an operator was searching for a case.
+
+UX-1291 now validates every returned record at the browser boundary. Valid
+records still open their canonical internal workspace. Unsupported rows are
+omitted and surfaced as an explicit warning, so an operator does not mistake a
+partial or unusable search response for a complete "no results" state. External
+and protocol-relative destinations are rejected. The regression is a real
+rendered test and changes no customer, provider, payment, dispute, audit,
+database, GitHub, master, or production record.
+
+The focused command-search runtime test, admin TypeScript check, and changed
+file ESLint pass. This checkpoint is local only. E32 still blocks production
+synchronization and E71/E72/E73 remain in force.

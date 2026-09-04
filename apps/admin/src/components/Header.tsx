@@ -53,6 +53,27 @@ const RECORD_KIND_META = {
   payout: { label: 'Payout', Icon: Banknote },
 } satisfies Record<AdminSearchKind, { label: string; Icon: typeof Users }>;
 
+function isAdminSearchKind(value: unknown): value is AdminSearchKind {
+  return typeof value === 'string'
+    && Object.prototype.hasOwnProperty.call(RECORD_KIND_META, value);
+}
+
+function isAdminRecordResult(value: unknown): value is AdminRecordResult {
+  if (!value || typeof value !== 'object') return false;
+
+  const row = value as Partial<AdminRecordResult>;
+  return isAdminSearchKind(row.kind)
+    && typeof row.id === 'string'
+    && row.id.trim().length > 0
+    && typeof row.title === 'string'
+    && row.title.trim().length > 0
+    && typeof row.subtitle === 'string'
+    && (row.status === null || typeof row.status === 'string')
+    && typeof row.to === 'string'
+    && row.to.startsWith('/')
+    && !row.to.startsWith('//');
+}
+
 export default function Header({ onOpenNavigation }: HeaderProps): React.ReactElement {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
@@ -65,6 +86,7 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
   const [recordResults, setRecordResults] = useState<AdminRecordResult[]>([]);
   const [recordLoading, setRecordLoading] = useState(false);
   const [recordError, setRecordError] = useState(false);
+  const [recordDataWarning, setRecordDataWarning] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const navItems = useMemo(() => visibleAdminNavItems(user?.role), [user?.role]);
   const pageResults = useMemo(() => {
@@ -83,6 +105,7 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
       setRecordResults([]);
       setRecordLoading(false);
       setRecordError(false);
+      setRecordDataWarning(false);
       return;
     }
 
@@ -91,19 +114,28 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
     setRecordResults([]);
     setRecordLoading(true);
     setRecordError(false);
+    setRecordDataWarning(false);
 
     const timer = window.setTimeout(() => {
-      void api.get<{ success: true; data: AdminRecordResult[] }>('/api/v1/admin/search', {
+      void api.get<{ success: true; data: unknown }>('/api/v1/admin/search', {
         params: { q: needle },
         signal: controller.signal,
       }).then((response) => {
         if (cancelled) return;
-        setRecordResults(Array.isArray(response.data.data) ? response.data.data : []);
+        const rawResults = response.data?.data;
+        const safeResults = Array.isArray(rawResults)
+          ? rawResults.filter(isAdminRecordResult)
+          : [];
+        setRecordResults(safeResults);
+        setRecordDataWarning(
+          !Array.isArray(rawResults) || safeResults.length !== rawResults.length,
+        );
         setRecordLoading(false);
       }).catch(() => {
         if (cancelled) return;
         setRecordResults([]);
         setRecordError(true);
+        setRecordDataWarning(false);
         setRecordLoading(false);
       });
     }, 250);
@@ -264,34 +296,47 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
                   <p className="px-4 py-4 text-sm text-[var(--color-danger)]" role="alert">
                     Record search is unavailable. Page shortcuts still work.
                   </p>
-                ) : recordResults.length === 0 ? (
-                  <p className="px-4 py-4 text-sm text-[var(--color-text-secondary)]">No matching operational record.</p>
                 ) : (
-                  <ul>
-                    {recordResults.map((result) => {
-                      const { Icon, label } = RECORD_KIND_META[result.kind];
-                      return (
-                        <li key={`${result.kind}:${result.id}`}>
-                          <button
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => chooseResult(result.to)}
-                            className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left hover:bg-[var(--color-surface-hover)]"
-                            aria-label={`Open ${label} ${result.title}`}
-                          >
-                            <Icon size={18} className="shrink-0 text-[var(--color-primary)]" />
-                            <span className="min-w-0 flex-1">
-                              <span className="flex min-w-0 items-center gap-2">
-                                <span className="truncate text-sm font-semibold text-[var(--color-text)]">{result.title}</span>
-                                <span className="shrink-0 rounded border border-[var(--color-border)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]">{label}</span>
-                              </span>
-                              <span className="block truncate text-xs text-[var(--color-text-secondary)]">{result.subtitle}</span>
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <>
+                    {recordDataWarning && (
+                      <p className="px-4 py-4 text-sm text-[var(--color-danger)]" role="alert">
+                        {recordResults.length > 0
+                          ? 'Some record results could not be displayed. Review the listed records and do not assume the search is complete.'
+                          : 'Record search returned unusable results. Page shortcuts still work.'}
+                      </p>
+                    )}
+                    {recordResults.length === 0 ? (
+                      !recordDataWarning && (
+                        <p className="px-4 py-4 text-sm text-[var(--color-text-secondary)]">No matching operational record.</p>
+                      )
+                    ) : (
+                      <ul>
+                        {recordResults.map((result) => {
+                          const { Icon, label } = RECORD_KIND_META[result.kind];
+                          return (
+                            <li key={`${result.kind}:${result.id}`}>
+                              <button
+                                type="button"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => chooseResult(result.to)}
+                                className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left hover:bg-[var(--color-surface-hover)]"
+                                aria-label={`Open ${label} ${result.title}`}
+                              >
+                                <Icon size={18} className="shrink-0 text-[var(--color-primary)]" />
+                                <span className="min-w-0 flex-1">
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <span className="truncate text-sm font-semibold text-[var(--color-text)]">{result.title}</span>
+                                    <span className="shrink-0 rounded border border-[var(--color-border)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]">{label}</span>
+                                  </span>
+                                  <span className="block truncate text-xs text-[var(--color-text-secondary)]">{result.subtitle}</span>
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </>
                 )}
               </section>
             )}
