@@ -84,3 +84,11 @@ Fresh candidate CI is still required before independent verification is claimed.
 The topic branch, master and live production remain separate. No server access,
 deployment, gate weakening, new dependency or professional signoff occurred in
 this checkpoint.
+
+## Independent CI verification
+
+Candidate `eec230147398f6bbbe128e64016daddd20f1ad8f` passed all four jobs in
+CI `33998508944` and Gates `33998508945`. Mobile job `101393104207` explicitly
+passed UX-1350 through UX-1354 within **593 suites / 877 tests**, retaining
+**84 TODOs**, at `2026-09-05T23:25:36Z`. This resolves the fresh-CI requirement
+for these UI fixes, not deployment or the subsequent server concurrency change.

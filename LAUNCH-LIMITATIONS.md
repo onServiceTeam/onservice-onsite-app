@@ -2418,3 +2418,17 @@ regression-ID gate pass. Fresh CI is required. No production deployment or
 database change occurred. This does not resolve multi-device concurrent saves,
 all accessibility/account-switch cases or the remaining matching/operator gaps.
 See `docs/audits/PROVIDER-WEEKLY-SCHEDULE-2026-09-06.md` for evidence and next work.
+
+Independent UI verification: `eec23014` passed all four jobs in CI
+`33998508944` and Gates `33998508945`. UX-1350 through UX-1354 explicitly
+passed with 593 mobile suites / 877 tests and 84 TODOs. Not deployed.
+
+Follow-up OPS-499 serializes whole-week replacement by provider within the
+existing transaction, addressing possible combinations of concurrent partial
+weeks. The new real-PostgreSQL regression checks empty/existing weeks, concurrent
+writers, other-provider progress, rollback and unchanged booking rows. Local
+focused results are 21 passing tests and three explicit database skips; types,
+lint and the ID gate pass. **Database verification remains pending fresh CI**.
+No live records or schema changed, and multi-device optimistic conflict warnings
+are not implemented. See
+`docs/audits/PROVIDER-WEEKLY-SCHEDULE-CONCURRENCY-2026-09-06.md`.

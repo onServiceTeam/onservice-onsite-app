@@ -250,6 +250,11 @@ export async function setSchedule(
   }>,
 ): Promise<AvailabilityRow[]> {
   return db.transaction(async (client) => {
+    // OPS-499: each request replaces the whole week. Lock its owner before
+    // DELETE so concurrent partial weeks cannot combine, even with no rows yet.
+    // This matches date-override replacement and never changes existing jobs.
+    const owner = await client.query('SELECT id FROM providers WHERE id = $1 FOR UPDATE', [providerId]);
+    if (owner.rows.length === 0) throw createAppError('Provider not found.', 404);
     await client.query(
       `DELETE FROM provider_availability WHERE provider_id = $1`,
       [providerId],

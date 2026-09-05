@@ -42,9 +42,12 @@ export async function withAvailabilityDatabase(run: (database: Pool) => Promise<
       );
       CREATE TABLE provider_services (provider_id uuid REFERENCES providers(id), category_id uuid,
         subcategory_id uuid, is_active boolean NOT NULL DEFAULT TRUE);
-      CREATE TABLE provider_availability (id uuid DEFAULT gen_random_uuid(), provider_id uuid REFERENCES providers(id),
-        day_of_week integer, start_time time, end_time time, is_available boolean DEFAULT TRUE,
-        created_at timestamptz DEFAULT NOW());
+      -- Preserve migration 010's weekly-row constraints in this focused fixture.
+      CREATE TABLE provider_availability (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        provider_id uuid NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
+        day_of_week smallint NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
+        start_time time NOT NULL, end_time time NOT NULL, is_available boolean NOT NULL DEFAULT TRUE,
+        created_at timestamptz NOT NULL DEFAULT NOW(), UNIQUE(provider_id, day_of_week));
       CREATE TABLE booking_offers (provider_id uuid, status text);
       CREATE TABLE bookings (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), provider_id uuid,
         status text, scheduled_at timestamptz, total_amount integer);
@@ -73,5 +76,5 @@ export async function waitForAvailabilityWriters(database: Pool, blockerPid: num
     if ((result.rows[0]?.count ?? 0) >= count && result.rows[0]?.barrier) return;
     await new Promise(resolve => setTimeout(resolve, 20));
   }
-  throw new Error('Availability writers did not wait on the real provider lock.');
+  throw new Error('Availability writers did not reach the observed database lock barrier.');
 }
