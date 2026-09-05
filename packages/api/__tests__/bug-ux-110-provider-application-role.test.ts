@@ -18,6 +18,7 @@ it('BUG-UX-110 — submitting an application keeps the account in its customer r
   const userId = '22222222-2222-4222-8222-222222222222';
   const serviceAreaId = '11111111-1111-4111-8111-111111111111';
   dbQueryMock
+    .mockResolvedValueOnce({ rows: [{ role: 'customer', is_active: true, is_flagged_fraud: false }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })
     .mockResolvedValueOnce({
       rows: [{
@@ -32,6 +33,7 @@ it('BUG-UX-110 — submitting an application keeps the account in its customer r
       }],
       rowCount: 1,
     })
+    .mockResolvedValueOnce({ rows: [{ id: '33333333-3333-4333-8333-333333333333' }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [{ id: 'provider-1' }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 });

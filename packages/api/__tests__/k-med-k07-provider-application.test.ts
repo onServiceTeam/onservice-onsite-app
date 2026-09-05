@@ -1,7 +1,7 @@
 // Phase K MED-K07 — backend providerApplicationSchema + service accept
-// optional nbiExpiryDate + governmentIdNumber. The 42703 fallback in
-// createProviderApplication keeps the route working on deployments
-// where mig 115 hasn't been applied yet.
+// optional nbiExpiryDate + governmentIdNumber. OPS-483 removed the invalid
+// 42703 fallback: real PostgreSQL aborts that transaction, and silently
+// dropping evidence is not compatible submission behavior.
 
 const dbQueryMock = jest.fn();
 
@@ -96,10 +96,12 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
   };
 
   it('K07 — INSERT carries nbi_expiry_date + government_id_number when provided', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ role: 'customer', is_active: true, is_flagged_fraud: false }], rowCount: 1 });
     // existence check returns empty (no prior application)
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     // selected provider market contains the exact operating location
     dbQueryMock.mockResolvedValueOnce({ rows: [APPLICATION_AREA], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ id: BASE_INPUT.categoryIds[0] }], rowCount: 1 });
     // INSERT returns provider row
     dbQueryMock.mockResolvedValueOnce({ rows: [{ id: PROVIDER_ID }], rowCount: 1 });
     // provider_service_areas insert
@@ -113,8 +115,7 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
       governmentIdNumber: 'AB-12345-678',
     });
 
-    // The 3rd call is the providers INSERT (after existence + area checks).
-    const insertCall = dbQueryMock.mock.calls[2]!;
+    const insertCall = dbQueryMock.mock.calls.find(call => /INSERT INTO providers/.test(String(call[0])))!;
     const sql = insertCall[0] as string;
     const params = insertCall[1] as unknown[];
     expect(sql).toMatch(/nbi_expiry_date/);
@@ -124,45 +125,37 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
   });
 
   it('K07 — INSERT passes null for missing optional fields', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ role: 'customer', is_active: true, is_flagged_fraud: false }], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     dbQueryMock.mockResolvedValueOnce({ rows: [APPLICATION_AREA], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ id: BASE_INPUT.categoryIds[0] }], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [{ id: PROVIDER_ID }], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
     await svc.createProviderApplication(USER_ID, BASE_INPUT);
 
-    const insertCall = dbQueryMock.mock.calls[2]!;
+    const insertCall = dbQueryMock.mock.calls.find(call => /INSERT INTO providers/.test(String(call[0])))!;
     const params = insertCall[1] as unknown[];
     // nbi_expiry_date + government_id_number params are at positions 11 + 12.
     expect(params[11]).toBeNull();
     expect(params[12]).toBeNull();
   });
 
-  it('K07 — falls back to legacy 11-column INSERT on 42703 (column missing)', async () => {
+  it('K07 — reports schema unavailability instead of retrying without optional evidence', async () => {
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ role: 'customer', is_active: true, is_flagged_fraud: false }], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     dbQueryMock.mockResolvedValueOnce({ rows: [APPLICATION_AREA], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [{ id: BASE_INPUT.categoryIds[0] }], rowCount: 1 });
     // First INSERT throws 42703
     const err = new Error('column "nbi_expiry_date" does not exist') as Error & { code: string };
     err.code = '42703';
     dbQueryMock.mockRejectedValueOnce(err);
-    // Retry succeeds
-    dbQueryMock.mockResolvedValueOnce({ rows: [{ id: PROVIDER_ID }], rowCount: 1 });
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
-    await svc.createProviderApplication(USER_ID, {
+    await expect(svc.createProviderApplication(USER_ID, {
       ...BASE_INPUT,
       nbiExpiryDate: '2027-01-15',
       governmentIdNumber: 'X',
-    });
-
-    // Verify a retry happened (existence, area, INSERT-fail, INSERT-legacy,
-    // provider-area linkage, provider service).
-    expect(dbQueryMock.mock.calls.length).toBeGreaterThanOrEqual(6);
-    const retryCall = dbQueryMock.mock.calls[3]!;
-    const retrySql = retryCall[0] as string;
-    expect(retrySql).not.toMatch(/nbi_expiry_date/);
-    expect(retrySql).not.toMatch(/government_id_number/);
+    })).rejects.toMatchObject({ statusCode: 503, code: 'provider_application_schema_unavailable' });
+    expect(dbQueryMock.mock.calls.filter(call => /INSERT INTO providers/.test(String(call[0])))).toHaveLength(1);
   });
 });

@@ -2192,3 +2192,26 @@ changed. A later reactivation would deliberately be refused without retained
 admission proof. Governed legacy classification/admission, durable E74 records,
 NBI renewal and production acceptance remain open. Do not fabricate evidence
 or treat the interim event lookup as the final retention architecture.
+
+2026-09-05 CI update: OPS-481 passed the actual PostgreSQL regression in CI
+`33967149207` (947 API suites / 3,311 tests). All CI jobs and Gates
+`33967149209` passed for `cdad4114130677ad49357d16aab7d052e4801e02`.
+This resolves the local-test uncertainty, not legacy admission or deployment.
+
+---
+
+## 69. Provider application submission concurrency and catalog integrity
+
+The initial submission service checked for duplicates outside its transaction,
+did not recheck the account's current eligibility under a lock, accepted
+inactive/nonexistent categories, and could create repeated category-only links.
+Its undefined-column fallback also tried to use an already-aborted PostgreSQL
+transaction while intending to discard optional review evidence.
+
+OPS-482/483/484 correct those paths without changing existing applications or
+financial records. Three real PostgreSQL regressions cover account/catalog
+concurrency, duplicate requests, optional evidence preservation and atomic
+rollback. Status: candidate implementation, local type/lint and focused tests
+passed; new database tests skipped locally and awaiting CI. No live deployment
+or migration has occurred. These corrections do not implement durable drafts,
+review revisions or resubmissions. See the September 5 resumption audit.

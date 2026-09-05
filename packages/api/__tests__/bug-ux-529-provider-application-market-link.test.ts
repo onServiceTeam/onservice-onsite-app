@@ -20,6 +20,7 @@ it('Bug UX-529 — provider application validates its market and atomically crea
   const providerId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
   mockDbQuery
+    .mockResolvedValueOnce({ rows: [{ role: 'customer', is_active: true, is_flagged_fraud: false }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })
     .mockResolvedValueOnce({
       rows: [{
@@ -34,6 +35,7 @@ it('Bug UX-529 — provider application validates its market and atomically crea
       }],
       rowCount: 1,
     })
+    .mockResolvedValueOnce({ rows: [{ id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [{ id: providerId }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 });

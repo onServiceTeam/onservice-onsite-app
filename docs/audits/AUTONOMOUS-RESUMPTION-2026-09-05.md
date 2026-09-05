@@ -921,3 +921,70 @@ seconds. Admin TypeScript and changed-file lint then passed. Final API
 TypeScript/lint and `git diff --check` also passed. The uniqueness gate remained
 green at 1,488 titled regressions. OPS-481's actual database execution remains
 mandatory in the new CI run; its local skip is not converted into a pass.
+
+## Completed CI and canonical submission foundation, OPS-482/483/484
+
+The published `cdad4114130677ad49357d16aab7d052e4801e02` passed CI
+`33967149207` and Gates `33967149209`. API logs explicitly show OPS-481
+passing against PostgreSQL: 947 suites / 3,311 tests passed. Admin passed
+562 files / 646 tests, with one skipped file / three todos. Mobile passed
+553 suites / 837 tests with 84 todos. All four CI jobs, including the actual
+API image build, completed successfully. This does not deploy those changes
+or supply the missing authenticated/full-viewport acceptance evidence.
+
+Read-only legacy inventory verified the exact marketplace origin and live
+revision `7ed367cdca1e277f03fc08ff5bbb03b0dc142bd5`, then ran a read-only
+database transaction. `provider_onboarding_progress` contains zero rows,
+including zero snapshots, and there are zero `provider_application` targets
+or `provider_application_%` action rows. No payloads, identity values or
+credentials were exposed. The legacy table/service has not been dropped or
+migrated. The six approved providers remain a separate legacy-admission issue.
+
+Before adding same-record resubmissions, this slice corrects the initial
+submission transaction:
+
+- OPS-482 locks the applicant account, rechecks active/customer/not-fraud
+  eligibility, and checks for the existing provider inside that transaction.
+  Concurrent submissions serialize to one application and one explicit 409,
+  without granting a role, clearing flags, or replacing an existing record.
+- OPS-483 removes the invalid undefined-column fallback. Real PostgreSQL
+  cannot execute its second INSERT after the first aborts the transaction;
+  making that fallback work with a savepoint would silently discard identity
+  metadata and questionnaire answers. A missing application column now rolls
+  back and returns a stable, non-sensitive 503. The success log runs only
+  after `db.transaction` commits. Linkage failure also rolls back the provider.
+- OPS-484 requires currently active catalog categories under shared row locks
+  and deduplicates category selections. The old category-only rows have no
+  uniqueness guarantee, and `ON CONFLICT DO NOTHING` did not deduplicate them.
+  Disabling a category affects new submissions, not historical application rows.
+
+Three separate regressions use the real service and real PostgreSQL
+transactions in isolated localhost `*_test` schemas. They exercise current
+and concurrently changed roles/flags, missing owners, duplicate submissions,
+owned private references and retained optional fields, actual missing-column
+and downstream-constraint failures, inactive/nonexistent categories, concurrent
+catalog deactivation, deduplication and unchanged historical records. This is
+a focused service fixture, not a full migration or end-to-end browser proof.
+
+Initial local test/compiler attempts were blocked by Windows module/compiler
+permissions, not application assertions. The authorized rerun passed five
+focused files / 13 tests in 14.805 seconds; three new database files/tests
+were explicitly skipped because no safe local PostgreSQL was configured.
+API TypeScript and changed-file lint passed. The unchanged regression-ID gate
+passed at 1,491 titled regressions, and `git diff --check` passed. The first
+broader test selector was rejected by Windows command parsing before tests
+ran; the selector was corrected for the rerun. Fresh CI database execution
+remains mandatory before claiming these three new regressions have passed.
+
+This is submission groundwork, not E35/E74 completion. Durable expiring drafts,
+immutable submitted revisions, expected-revision decisions, correction requests,
+same-provider resubmissions, reviewer notifications, legacy admission and full
+Stitch/browser acceptance remain outstanding. E21's qualified retention matrix
+cannot be supplied by a blanket engineering approval. No schema, production
+data, financial history, dependency, gate or security setting changed here.
+
+The corrected broader provider command passed 102 files / 251 tests in
+16.243 seconds. Six PostgreSQL files/tests were explicitly skipped locally
+(the three preceding admission regressions plus the three new submission
+regressions). The earlier admission tests already have CI evidence above;
+the new submission tests still require their first CI execution.

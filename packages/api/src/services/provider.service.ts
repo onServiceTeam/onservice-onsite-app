@@ -355,14 +355,6 @@ export async function createProviderApplication(
   userId: string,
   input: ProviderApplicationInput,
 ): Promise<ProviderRow> {
-  const existing = await db.query<{ id: string }>(
-    `SELECT id FROM providers WHERE user_id = $1`,
-    [userId],
-  );
-  if (existing.rows.length > 0) {
-    throw createAppError('A provider application already exists for this account.', 409);
-  }
-
   // KYC uploads are private bearer references. Accept the full URL returned by
   // the upload endpoint, but persist only an owned onboarding object key. This
   // prevents an applicant from attaching another user's identity document.
@@ -387,7 +379,33 @@ export async function createProviderApplication(
     'selfieUrl',
   );
 
-  return db.transaction(async (client) => {
+  const categoryIds = [...new Set(input.categoryIds)];
+  if (categoryIds.length === 0 || categoryIds.length > 10) {
+    throw createAppError('Select between 1 and 10 service categories.', 400);
+  }
+
+  const submitted = await db.transaction(async (client) => {
+    // OPS-482: a row that does not yet exist cannot serialize two submissions.
+    // Lock the owning account first, then recheck both live eligibility and
+    // the existing application. Never grant a role or clear a restriction.
+    const owner = await client.query<{
+      role: string; is_active: boolean; is_flagged_fraud: boolean;
+    }>(
+      `SELECT role, is_active, is_flagged_fraud FROM users WHERE id = $1 FOR UPDATE`,
+      [userId],
+    );
+    const account = owner.rows[0];
+    if (!account || account.role !== 'customer' || !account.is_active || account.is_flagged_fraud) {
+      throw createAppError('Only active customer accounts without a fraud restriction can submit a provider application.', 403);
+    }
+    const existing = await client.query<{ id: string }>(
+      `SELECT id FROM providers WHERE user_id = $1`,
+      [userId],
+    );
+    if (existing.rows.length > 0) {
+      throw createAppError('A provider application already exists for this account.', 409);
+    }
+
     const areaCandidates = await client.query<ProviderApplicationAreaRow>(
       `SELECT id, name, city, province, status, center_lat, center_lng, radius_km
          FROM service_areas
@@ -417,11 +435,20 @@ export async function createProviderApplication(
       );
     }
 
-    // Phase K MED-K07: optional nbi_expiry_date + government_id_number.
-    // Both columns nullable so legacy clients (or admins backfilling
-    // later) still work. The 42703 fallback handles deployments where
-    // mig 115 hasn't been applied yet — we drop the new column from
-    // the INSERT and retry with the legacy 11-column shape.
+    // OPS-484: an Admin-disabled category must not become an active applicant
+    // service. Hold catalog rows through commit and insert each selection once.
+    const categories = await client.query<{ id: string }>(
+      `SELECT id FROM service_categories
+        WHERE id = ANY($1::uuid[]) AND is_active = TRUE
+        ORDER BY id FOR SHARE`,
+      [categoryIds],
+    );
+    if (categories.rows.length !== categoryIds.length) {
+      throw createAppError('One or more selected service categories are no longer available. Refresh the categories and select again.', 400);
+    }
+
+    // Optional fields remain nullable for older clients, but the deployed
+    // database must support the complete application contract.
     // Vetting questionnaire blob (mig 136). Stored verbatim as JSONB; null when
     // the applying client sent no answers (older app build).
     const vettingAnswers =
@@ -452,24 +479,16 @@ export async function createProviderApplication(
         ],
       );
     } catch (err: unknown) {
-      // Postgres SQLSTATE 42703 = undefined_column (mig 115 not yet
-      // applied). Retry with the legacy column set; the optional
-      // values are dropped silently in this case.
+      // OPS-483: undefined_column aborts a PostgreSQL transaction. Retrying a
+      // smaller INSERT cannot recover it and would discard review evidence
+      // even with a savepoint. Roll back; do not claim a partial submission.
       if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === '42703') {
-        providerResult = await client.query<ProviderRow>(
-          `INSERT INTO providers (
-            user_id, business_name, service_radius_km, latitude, longitude,
-            city, province, government_id_front_url, government_id_back_url,
-            nbi_clearance_url, selfie_url, ic_agreement_accepted_at, applied_at, status
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW(), 'pending')
-          RETURNING *`,
-          [
-            userId, input.businessName, input.serviceRadiusKm,
-            input.latitude, input.longitude, applicationArea.city, applicationArea.province,
-            governmentIdFrontKey, governmentIdBackKey,
-            nbiClearanceKey, selfieKey,
-          ],
+        const unavailable = createAppError(
+          'Provider applications are temporarily unavailable. Your application was not submitted. Please try again later.',
+          503,
         );
+        unavailable.code = 'provider_application_schema_unavailable';
+        throw unavailable;
       } else {
         throw err;
       }
@@ -484,7 +503,7 @@ export async function createProviderApplication(
       [provider.id, applicationArea.id],
     );
 
-    for (const catId of input.categoryIds) {
+    for (const catId of categoryIds) {
       await client.query(
         `INSERT INTO provider_services (provider_id, category_id, is_active) VALUES ($1, $2, TRUE)
          ON CONFLICT DO NOTHING`,
@@ -492,9 +511,10 @@ export async function createProviderApplication(
       );
     }
 
-    logger.info('Provider application submitted', { userId, providerId: provider.id, categories: input.categoryIds.length });
     return provider;
   });
+  logger.info('Provider application submitted', { userId, providerId: submitted.id, categories: categoryIds.length });
+  return submitted;
 }
 
 export async function getApplicationStatus(userId: string): Promise<{ status: string; rejectionReason: string | null } | null> {
