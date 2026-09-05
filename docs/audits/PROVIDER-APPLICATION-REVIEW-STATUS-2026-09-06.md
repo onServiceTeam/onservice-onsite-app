@@ -141,3 +141,88 @@ No production write, migration, account creation, money adjustment, secret
 publication, master merge, release-candidate label, gate change, branch
 protection change or live rollout occurred here. Topic, master and production
 are not aligned, and the wider provider/customer/admin audit remains active.
+
+## Independent CI and compiled-browser follow-up
+
+Published `b48051dc027187badec5381171eff6831878455b` passed CI
+`33984531847` and Gates `33984531837`. All four CI jobs succeeded. Mobile job
+`101355518558` explicitly passed UX-1328 through UX-1332, finished 572 suites /
+856 tests with 84 TODOs at `2026-09-05T18:38:06Z`, and built the 4,364-module
+browser artifact in 89.920 seconds. This closes that checkpoint's fresh-CI
+requirement, not production deployment or later follow-up changes.
+
+The full lockfile installation outside OneDrive also built the four-runtime-
+file overlay locally in 68.733 seconds. Its source component matched the
+published candidate byte-for-byte. The narrow-workspace resolution failure
+above is therefore a separate portability/dependency-boundary finding, not
+evidence that the supported full-workspace build is broken. No package version,
+lockfile, system Node installation or existing repo dependency was modified.
+
+The first browser sweep passed 84 route/state/viewport combinations. Direct
+inspection of its real screenshots then found two additional defects that those
+checks did not catch:
+
+- UX-1333: horizontal column flex values were also applied to vertically
+  stacked phone cards. At 320 pixels, the decision card reserved 117.09375
+  unnecessary pixels below its content, pushing support down the screen.
+- UX-1334: the support panel described a pending review/completion date after
+  approval, rejection or restriction. Its guidance contradicted the recorded
+  decision shown alongside it.
+
+Both new DOM regressions failed before the fix on their intended assertions
+(2 failed files/tests, 1.886 seconds in the concise repeated reproduction).
+A strengthened compiled-browser check independently failed the unchanged
+candidate on exactly 117.09375 extra pixels, with no page error, console error
+or unmatched request. Phone cards now size to their contents; only wide cards
+share horizontal space. Guidance follows the actual application status.
+
+The two corrected regressions passed in 2.742 seconds. The final full mobile
+suite passed 574 files / 858 tests, with the same 84 TODOs, in 105.575 seconds.
+TypeScript and changed-file ESLint passed; the unchanged unique-ID gate passed
+with 1,522 titled regressions. The local corrected browser export passed with
+4,364 modules in 57.571 seconds. Fresh CI is still required for this follow-up.
+
+### Browser evidence retained
+
+The executable harness, before-fix failure report, before screenshot, final
+84-check report and twelve representative final screenshots are under
+`.ai-coder/checkpoints/logs/provider-review-browser-2026-09-06/`.
+
+- [Final numeric/network results](../../.ai-coder/checkpoints/logs/provider-review-browser-2026-09-06/evidence/results.json)
+- [Pre-fix browser failure](../../.ai-coder/checkpoints/logs/provider-review-browser-2026-09-06/evidence/before-results.json)
+- [Phone before correction](../../.ai-coder/checkpoints/logs/provider-review-browser-2026-09-06/evidence/before-320-pending.png)
+- [Phone after correction](../../.ai-coder/checkpoints/logs/provider-review-browser-2026-09-06/evidence/320-review-pending-pending-top.png)
+- [Tablet status](../../.ai-coder/checkpoints/logs/provider-review-browser-2026-09-06/evidence/768-review-pending-pending-top.png)
+- [Desktop approval/access-recovery state](../../.ai-coder/checkpoints/logs/provider-review-browser-2026-09-06/evidence/1366-review-pending-approved-top.png)
+
+Both URLs were exercised at widths 320, 390, 768, 1024, 1366 and 1920, each
+with pending, rejected, suspended, deactivated, missing, unavailable and
+approved-but-access-unconfirmed states. All 84 strengthened checks passed.
+Phone extra allocation is now zero. Controls remained horizontally contained,
+at least 44 pixels high and reachable by scrolling; expandable guidance was
+exercised. There were no unhandled browser errors or unexpected network
+requests. The intentional 503 case's console entries remain in the report,
+not silently suppressed. Phone top/expanded guidance, tablet pending and
+desktop recovery screenshots were directly inspected.
+
+These checks use the compiled application and synthetic identity/HTTP fixtures.
+They block unexpected external traffic and close their own local server and
+browser. They are not real server login, successful provider activation,
+keyboard/screen-reader, complete native, or all-six-step workflow acceptance.
+They do not establish visual identity with the unavailable latest Stitch ZIP.
+The newly located `onservice-stitch-handoff` folder was read and excluded: it
+describes a separate U.S. computer-support landing page, not this Philippine
+marketplace. Its assets and instructions were not adopted.
+
+Corrected local bundle SHA-256:
+`3025D66138D7B8D1C3FE4A12FD6CA277BB343043D2B4333670909F60B26FCFF4`.
+Runtime component SHA-256, matching the working tree and isolated build:
+`CFA1FE5A6808F88731EE1AB0A29D3E54510CA9AD0C0F176C38053DBC00B4783F`.
+The report identifies the base commit plus the two-fix overlay rather than
+mislabeling uncommitted build input as an exact commit. Its loopback API origin
+is test-only. Do not deploy this local audit bundle.
+
+The next acceptance remains the six-step application, refresh/save/reload/
+conflict/discard and cross-role reviewer lifecycle, followed by paired release.
+The full app audit and the existing legal, payment, privacy and production
+limits remain open. No live server state changed during this follow-up.

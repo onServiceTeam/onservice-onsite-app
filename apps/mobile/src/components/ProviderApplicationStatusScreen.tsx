@@ -20,7 +20,7 @@ const approvedUserEnvelope = z.object({ success: z.literal(true), data: z.object
 }) });
 const statusCopy: Record<ProviderApplicationStatus['status'], { title: string; body: string }> = {
   pending: { title: 'Application submitted', body: 'Your application is waiting for a decision. We cannot yet confirm whether the review has started.' },
-  approved: { title: 'Application approved', body: 'Your application has been approved. We are checking your account access before opening your provider workspace.' },
+  approved: { title: 'Application approved', body: 'Your application has been approved. You can open your provider workspace once your account access is confirmed.' },
   rejected: { title: 'Application not approved', body: 'Your application was declined. Read the reason below, or contact support if you need clarification.' },
   suspended: { title: 'Provider access suspended', body: 'Provider access is suspended. This is not a new application rejection. Contact support to discuss the restriction.' },
   deactivated: { title: 'Provider account deactivated', body: 'This provider account is deactivated. Contact support about its status; submitting another application does not restore access.' },
@@ -115,7 +115,7 @@ export function ProviderApplicationStatusScreen({ routeName }: {
       <View style={styles.width} accessibilityLabel={isPhone ? 'Application review status' : 'Tablet and desktop application review status workspace'}>
         <Text style={styles.heading} accessibilityRole="header">Provider application</Text>
         <View style={[styles.columns, !isPhone && styles.wideColumns]}>
-          <View style={[styles.card, styles.main]}>
+          <View style={[styles.card, !isPhone && styles.main]}>
             <ClipboardList size={40} color={restricted ? colors.error : approved ? colors.success : colors.primary} />
             <Text style={styles.title} accessibilityRole="header">
               {loading ? 'Checking application status…' : copy?.title ?? (query.isError ? 'Status unavailable' : 'No provider application found')}
@@ -143,10 +143,15 @@ export function ProviderApplicationStatusScreen({ routeName }: {
               onPress={() => router.replace(Routes.PROVIDER_ONBOARDING.ROLE_SELECT)} />}
             <Button title="Go to Customer Home" variant={application && !approved ? 'primary' : 'outline'} onPress={() => router.replace(Routes.TABS.HOME)} />
           </View>
-          <View style={[styles.card, styles.help]}>
+          <View style={[styles.card, !isPhone && styles.help]}>
             <Text style={styles.title} accessibilityRole="header">Review and support</Text>
-            <Text style={styles.body}>Our team checks your submitted details and documents. A completion date is not available yet.</Text>
-            <Text style={styles.body}>You can check decisions here and in your notification history. While you wait, you can continue using your customer workspace.</Text>
+            <Text style={styles.body}>{application?.status === 'pending'
+              ? 'Our team checks your submitted details and documents. A completion date is not available yet.'
+              : approved ? 'If your provider workspace does not open, refresh your status or retry access. Contact support if you still need help.'
+                : 'Contact support if you need help understanding your application status or account access.'}</Text>
+            <Text style={styles.body}>{application?.status === 'pending'
+              ? 'You can check decisions here and in your notification history. While you wait, you can continue using your customer workspace.'
+              : 'Check your notification history for messages about your application and account.'}</Text>
             <Button title="Contact support" variant="outline" onPress={() => router.push(Routes.SUPPORT.INBOX)} />
             <Button title="Notification history" variant="ghost" onPress={() => router.push(Routes.CUSTOMER.NOTIFICATIONS)} />
             <Button title={helpOpen ? 'Hide review guidance' : 'What happens after a decision?'} variant="ghost" onPress={() => setHelpOpen(value => !value)} />

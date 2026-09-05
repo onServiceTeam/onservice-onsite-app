@@ -1795,6 +1795,14 @@ acceptance is not complete: the local Expo export failed with a filesystem read
 error before producing a bundle. Draft expiry scheduling, privacy inventory,
 review revisions, correction/resubmission and paired release remain open.
 
+Later 2026-09-06 evidence: the supported full-workspace install produced a
+fresh compiled browser build outside OneDrive. Both review URLs passed 84
+synthetic state/viewport checks; screenshot inspection exposed and led to
+correction of phone card spacing and decision-inappropriate guidance. Before/
+after evidence and full test results are retained in the review-status audit.
+This supersedes the local build impediment for that workflow, not the remaining
+six-step browser/native acceptance or the latest Stitch-reference gap.
+
 ---
 
 ## 53. Provider approval does not enforce the government ID back image
