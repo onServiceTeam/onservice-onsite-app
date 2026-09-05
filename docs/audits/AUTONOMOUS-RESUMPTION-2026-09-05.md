@@ -1047,3 +1047,25 @@ in 22.98 seconds, including the removed-row focus fallback. The Admin build
 passed TypeScript and emitted its production bundle (2,845 modules; 20.57
 seconds), followed by successful changed-file lint. `git diff --check` passed.
 Fresh full CI for this UI continuation is still required after publication.
+
+## Provider draft foundation, after verified operator-dialog CI
+
+CI `33970189538` for published `b18c313b78c4da60b9108663ce9b47ca6ae1e345`
+completed successfully in all four jobs. Gates `33970189650` also passed.
+This resolves the preceding fresh-CI requirement, not browser acceptance or
+deployment. No production checkout, schema, account or service changed.
+
+The next lifecycle slice implements the typed draft foundation described in
+`docs/architecture/provider-application-lifecycle.md`. Migration 172 is
+additive, with no legacy backfill or deletion. The owner-only HTTP API uses
+strict fields, private object keys, expiring rows and revision conflicts. It
+does not write approval state or general-audit payloads. A bounded cleanup
+service exists but is not yet scheduled. Final submission consumption and
+applicant UI resumability are explicitly still pending.
+
+Local focused execution passed OPS-485 and honestly skipped the four actual
+PostgreSQL regressions OPS-486 through OPS-489 (5 files total, 5.268 seconds).
+Those database tests require their first CI execution. API TypeScript passed.
+Initial lint reported one missing return-type annotation; that annotation was
+added rather than suppressing the rule. This is not an E35/E74 closeout or a
+claim that drafts already survive a refresh in the user-facing app.

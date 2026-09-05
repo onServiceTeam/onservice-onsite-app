@@ -13,6 +13,7 @@ import {
   providerServiceAreaChangeSchema,
 } from '../validators/provider.validators';
 import * as providerService from '../services/provider.service';
+import * as applicationDraftService from '../services/provider-application-draft.service';
 import * as uploadService from '../services/upload.service';
 import * as providerCrmService from '../services/provider-crm.service';
 import { addClientNoteSchema, addReminderSchema, createTemplateSchema } from '../validators/provider-crm.validators';
@@ -27,6 +28,30 @@ import * as serviceAreaChangeService from '../services/service-area-change.servi
 import { createAppError } from '../middleware/error.middleware';
 
 const router = Router();
+
+// Self-scoped draft access, deliberately before /:id. No operator override:
+// draft data is not submitted review evidence and must not enter the queue.
+router.route('/application-draft')
+  .all((_req, res, next) => {
+    res.setHeader('Cache-Control', 'private, no-store');
+    next();
+  }, authMiddleware)
+  .get(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      res.json({ success: true, data: await applicationDraftService.getApplicationDraft(req.user!.userId) });
+    } catch (error) { next(error); }
+  })
+  .put(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      res.json({ success: true, data: await applicationDraftService.saveApplicationDraft(req.user!.userId, req.body) });
+    } catch (error) { next(error); }
+  })
+  .delete(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      await applicationDraftService.deleteApplicationDraft(req.user!.userId, req.body);
+      res.status(204).send();
+    } catch (error) { next(error); }
+  });
 
 function requireProvider(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'provider' && req.user!.role !== 'admin') {
