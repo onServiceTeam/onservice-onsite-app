@@ -90,3 +90,12 @@ boundary. Preserve existing accepted work and immutable financial evidence.
 No admin bypass or automatic cancellation/refund is approved by a layout or
 matching test. Until those checks and release rehearsals pass, publication stays
 on the candidate branch; master/live alignment and client readiness remain open.
+
+## Independent candidate verification
+
+Commit `68fbab2ab407ad362cd401a46cb7570e8982911f` passed all four CI jobs in
+`33996053962` and Gates `33996053941`. API job `101386698960` explicitly
+passed OPS-496 at 22:31:49 UTC, OPS-497 at 22:32:01 UTC and OPS-498 at
+22:32:46 UTC on September 5. All **964 API suites / 3,328 tests** passed.
+This resolves the skipped-local-database uncertainty above, not the assignment,
+support visibility, performance or deployment boundaries.

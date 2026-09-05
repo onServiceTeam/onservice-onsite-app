@@ -25,6 +25,8 @@ const server = createServer(async (req, res) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 const records = [];
+// Optional follow-up checks; historical evidence was captured without this mode.
+const verifyGuidance = process.env.AUDIT_GUIDANCE === '1';
 let browser;
 async function flow(width, mode) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
@@ -45,7 +47,7 @@ async function flow(width, mode) {
     record.requests.push(`${method} ${p}`);
     let status = 200, data = {};
     if (p === '/api/v1/config' && method === 'GET') data = {};
-    else if (p === '/api/v1/providers/me/availability/status' && method === 'GET') data = { isAvailable: false };
+    else if (p === '/api/v1/providers/me/availability/status' && method === 'GET') data = { isAvailable: verifyGuidance && mode === 'custom' };
     else if (p === '/api/v1/providers/me/availability/overrides' && method === 'GET') data = overrides;
     else if (p === '/api/v1/providers/me/availability/overrides' && method === 'POST') {
       const payload = request.postDataJSON(); record.writes.push(payload);
@@ -74,9 +76,38 @@ async function flow(width, mode) {
   try {
     await page.goto(`${base}/provider/availability`);
     await expect(page.getByText('No Date Overrides', { exact: true })).toBeVisible();
+    if (verifyGuidance) {
+      await expect(page.getByText(mode === 'custom'
+        ? 'You are open to new job offers that match your services and working hours.'
+        : 'Automatic job matching is paused. Your profile may still appear in search.', { exact: true })).toBeVisible();
+      await expect(page.getByText('Changing availability does not cancel or reschedule existing bookings.', { exact: true })).toBeVisible();
+      await expect(page.getByText(/You are hidden from search/)).toHaveCount(0);
+    }
     await capture('empty');
     await expect(page.getByText(/Your weekly schedule is active/)).toHaveCount(0);
     await page.getByText('+ Add', { exact: true }).click();
+    if (verifyGuidance) {
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+      await expect(page.getByText(`Example: ${today} (today in Manila)`, { exact: true })).toBeVisible();
+      await page.getByLabel('Override date in YYYY-MM-DD format', { exact: true }).fill('2099-02-29');
+      await page.getByRole('button', { name: 'Save', exact: true }).click();
+      const warning = page.getByText('Enter a real calendar date in YYYY-MM-DD format.', { exact: true });
+      await expect(warning).toBeVisible();
+      // RN animates the toast's parent. DOM visibility alone can pass while
+      // its opacity is still zero or it is translated outside the viewport.
+      await expect(warning).toBeInViewport();
+      await expect.poll(() => warning.evaluate(element => {
+        let opacity = 1;
+        for (let current = element; current; current = current.parentElement) opacity *= Number(getComputedStyle(current).opacity);
+        return opacity;
+      })).toBeGreaterThan(0.98);
+      record.warningFeedback = await warning.evaluate(element => {
+        const rect = element.getBoundingClientRect();
+        return { text: element.textContent, top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
+      });
+      assert.equal(record.writes.length, 0, 'Invalid date must not submit');
+      await capture('invalid-date');
+    }
     await page.getByLabel('Override date in YYYY-MM-DD format', { exact: true }).fill('2099-08-31');
     if (mode === 'custom') {
       await page.getByText('Available Hours for This Date', { exact: true }).click();
@@ -109,6 +140,7 @@ try {
   }
 } finally { if (browser) await browser.close(); await new Promise(resolve => server.close(resolve)); }
 const report = { generatedAt: new Date().toISOString(), sourceRevision: process.env.AUDIT_SOURCE_REVISION ?? 'unverified working tree',
+  guidanceChecks: verifyGuidance,
   scope: 'Compiled provider availability layout, block/custom form payload and refreshed list with synthetic HTTP. Not actual persistence, matching, production, native or complete Stitch acceptance.',
   indexSha256: hash(index), entrySha256: hash(await readFile(path.resolve(bundle, `.${entry}`))), expected: 12, passed: records.filter(r => r.passed).length, records };
 await writeFile(path.join(output, 'results.json'), `${JSON.stringify(report, null, 2)}\n`);

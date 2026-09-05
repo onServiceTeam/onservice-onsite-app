@@ -26,6 +26,7 @@ import {
 import { Button, SkeletonCard, EmptyState, ErrorState, SectionHeader } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { getErrorMessage } from '@/utils/errors';
+import { isRealCalendarDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Calendar, ClipboardList, X } from '@/components/icons';
 
@@ -107,6 +108,10 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(overrideDate.trim())) {
       showToast('Please use date format YYYY-MM-DD.', 'warning');
+      return;
+    }
+    if (!isRealCalendarDate(overrideDate.trim())) {
+      showToast('Enter a real calendar date in YYYY-MM-DD format.', 'warning');
       return;
     }
     // BUG-PHASE50-01 fix — pre-fix the form accepted any
@@ -206,7 +211,10 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
           <View style={styles.toggleInfo}>
             <Text style={styles.toggleTitle}>Available Now</Text>
             <Text style={styles.toggleDesc}>
-              {isAvailable ? 'You are visible to customers and can receive job offers.' : 'You are hidden from search and will not receive new job offers.'}
+              {isAvailable ? 'You are open to new job offers that match your services and working hours.' : 'Automatic job matching is paused. Your profile may still appear in search.'}
+            </Text>
+            <Text style={[styles.toggleDesc, { marginTop: spacing.sm }]}>
+              Changing availability does not cancel or reschedule existing bookings.
             </Text>
           </View>
           <Switch
@@ -254,7 +262,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
               maxLength={10}
               accessibilityLabel="Override date in YYYY-MM-DD format"
             />
-            <Text style={styles.fieldHelp}>Example: 2026-08-31</Text>
+            <Text style={styles.fieldHelp}>Example: {todayManila} (today in Manila)</Text>
 
             <View style={styles.typeRow}>
               <TouchableOpacity

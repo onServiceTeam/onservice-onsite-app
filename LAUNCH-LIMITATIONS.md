@@ -2379,3 +2379,20 @@ aligned eligibility checks. Public search also contradicts the provider toggle's
 “hidden from search” claim. See
 `docs/audits/PROVIDER-AVAILABILITY-LINKAGE-2026-09-06.md` for evidence, boundaries
 and the continuation plan. No live data was changed.
+
+Independent verification: `68fbab2a` passed all CI jobs in `33996053962`
+and Gates `33996053941`. OPS-496/497/498 explicitly executed successfully,
+including real PostgreSQL rollback/concurrency checks, within 964 API suites /
+3,328 tests. These three defects are resolved in verified candidate code.
+The separate assignment/release limitations remain open; no deployment occurred.
+
+Follow-up UX-1347/1348/1349 correct the availability toggle's search/booking
+claims, reject impossible dates locally and replace the expired date example.
+Complete mobile tests passed 588 suites / 872 tests, with 84 TODOs. Twelve
+compiled synthetic browser scenarios passed with 48 final captures, including
+an actually visible invalid-date warning and zero invalid-date POSTs. The first
+warning capture was too early in its animation and is retained, not treated as
+complete visual evidence. Support instructions now distinguish candidate/live
+behavior and no longer promise the unsupported KYC renewal upload. Fresh CI is
+required for this newer checkpoint. See
+`docs/audits/PROVIDER-AVAILABILITY-GUIDANCE-2026-09-06.md`.

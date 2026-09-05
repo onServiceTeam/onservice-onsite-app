@@ -6,6 +6,13 @@ Sibling docs you will reach for: `05-provider-onboarding-and-training.md` (activ
 
 All money in this doc is Philippine pesos (₱). Timezone is Asia/Manila (PHT). All amounts in the app are stored in centavos and shown as ₱.
 
+September 6 verification note: the repository's tested development candidate is
+ahead of the live server. Check the deployed release before promising a newly
+corrected behavior to a provider. Candidate availability/matching evidence is in
+`../audits/PROVIDER-AVAILABILITY-LINKAGE-2026-09-06.md`; approval sign-in evidence
+is in `../audits/PROVIDER-APPROVAL-SIGN-IN-2026-09-06.md`. Neither document is a
+live-release certificate. Money and renewal holds below remain in force.
+
 ---
 
 ## 1. Channels and hours
@@ -158,12 +165,13 @@ Change-order playbook:
 
 Useful booking facts:
 - Auto-dispatch sends one offer at a time. The provider has 45 seconds to Accept or Decline. A missed or declined offer cascades to the next provider. Max 10 attempts per booking.
-- Only approved AND available providers get offers. If a provider is offline (`is_available=false`) or suspended, they get nothing.
+- Automatic candidate matching excludes providers who are not approved or have `is_available=false`. This is not proof that an already outstanding offer was revoked; inspect the specific booking and offer when handling a case.
 - Provider job lifecycle on a paid booking: en route, arrived, in progress, completed by provider, (customer confirms) confirmed, payout ready, paid out.
 - A provider cannot move a booking from `provider_arrived` to `in_progress` and beyond on the customer's behalf in odd ways; the status machine enforces order. If a status looks stuck, check Booking 360 timeline.
 
 Playbook:
 1. "I'm not getting any job offers": check provider is approved, `is_available` is on, has the right service categories, and is inside a service area that is active. Few or zero providers can also mean the area is in soft_launch. Check the Service Areas page.
+   Check the scheduled Philippine date/time, saved weekly hours and any date override too. In the tested September 6 candidate, a blocked date prevents matching and a valid custom window replaces that day's weekly hours. Do not promise that this correction is live until release is verified. Turning availability off does not hide the public profile or cancel accepted work. Do not change an existing booking merely to repair a provider's future schedule.
 2. "I accepted but the app says someone else got it": offers are exclusive and time-boxed at 45 seconds. If it expired or a sibling offer was accepted, the job is gone. Normal.
 3. "Booking stuck, I can't mark the next step": open Booking 360 then Timeline. Confirm current status. If genuinely stuck (rare), a super_admin can force-complete (reason 20+ chars) or reassign. Escalate.
 4. "I need to cancel a job I accepted": providers can cancel from `matched`, `paid`, or `provider_en_route`. Warn them about cancellation tracking: a warning fires after 3 cancellations in 30 days, and an auto-suspend signal after 5 in 30 days. See section 13.
@@ -192,7 +200,7 @@ Note the mirror case: if the PROVIDER no-shows, the customer gets a 100% refund 
 ## 10. App, account, and login issues
 
 Provider login is phone number plus OTP. No passwords.
-- OTP is a 6-digit code to a PH mobile number (`+63 9XX XXX XXXX`).
+- OTP is sent to a PH mobile number (`+63 9XX XXX XXXX`). Enter the number of digits shown in the app; six is the default, not an immutable requirement.
 - Resend has a cooldown and an hourly cap (default 5 OTP requests per hour).
 - After repeated failures the app shows a captcha (Cloudflare Turnstile) before more attempts.
 - Dev/staging bypass code `000000` works only on non-production with the bypass flag on. Never tell a real provider to use it.
@@ -202,14 +210,15 @@ Playbook:
 2. "I'm locked out / captcha keeps showing": too many failed attempts. Have them complete the captcha and retry. If still stuck, confirm the phone number on the account matches the SIM they are using.
 3. "I changed my phone number": this is an account-identity change. Verify identity (most recent booking reference plus the registered full name plus an OTP to the number on file when possible) before any change, and escalate, since phone is the login identity. If the old number is lost, escalate to super-admin.
 4. App bug or crash: log ticket type `app_bug` with device, OS, app version, and steps. Route to engineering via the ticket. Do not guess a fix.
+5. "I was approved and then signed out": confirm the actual application decision first. Approval changes the canonical account role, so old customer credentials cannot become provider credentials by refresh. Sign in again with the same verified mobile number and a fresh OTP. Do not create a second account or suggest reapplying. A generic session-expired message alone does not prove approval.
 
 ---
 
 ## 11. Verification, documents, re-upload, and expiry
 
-The application policy requires four evidence files: NBI clearance, government ID front, government ID back, and selfie. The current approve action hard-requires only NBI, ID front, and selfie; E36 records the missing ID-back enforcement, so support and reviewers must not describe the three-field API check as the complete policy.
+The application policy requires four evidence files: NBI clearance, government ID front, government ID back, and selfie. OPS-479 now enforces all four in the tested development candidate, under the approval transaction's locks. Older production code previously checked only three. Confirm the deployed release and inspect all four documents; a successful historical API response is not proof that the complete review occurred.
 
-Current API rule: an authorized admin-tier operator cannot approve a provider unless `nbi_clearance_url`, `government_id_front_url`, and `selfie_url` are all on the row. The Approve action returns a clean error listing those missing fields. The operator must separately verify `government_id_back_url` until E36 is resolved.
+Candidate API rule: an authorized admin-tier operator cannot approve a provider unless `nbi_clearance_url`, `government_id_front_url`, `government_id_back_url`, and `selfie_url` are all on the row. Evidence must actually be reviewed; populated fields do not prove validity. The candidate also checks current account eligibility. Do not clear a fraud restriction, fabricate documents or promote a staff role to make an approval succeed. E36's wider admission and renewal work is not closed by the four-field correction.
 
 NBI expiry:
 - The provider row carries `nbi_expiry_date`. The background job uses one notified flag for both the early warning and actual expiry. Under E62, a warned provider can be skipped when expiry arrives, while a provider first selected after expiry can be auto-suspended.
@@ -222,14 +231,10 @@ Document renewal and correction playbook:
 3. "My document was approved but shows expired": check `expires_at` on the document and the NBI expiry date. If genuinely expired, open a linked support case and use the E62 renewal escalation; the approved-provider upload and verification path does not yet exist.
 4. Certifications (for Elite tier): providers self-add certifications; `is_verified` is set by an admin. Elite needs a verified certification. If a provider expects Elite but their cert is not verified yet, that is the blocker. Route the cert for verification.
 
-Macro: document re-upload
+Macro: document correction when no supported renewal/resubmission path is available
 
 ```
-Hi [name], we need a clearer [NBI clearance / government ID / selfie]. The issue: [reason from rejection]. Please:
-1. Open the app then Account & Verification then re-upload [document].
-2. Make sure the photo is sharp, well lit, and shows the whole document.
-For NBI, it should be issued within the last 6 months.
-Once you've re-uploaded, reply here and we'll review within [SLA]. Your documents are stored privately and only our verification team can see them.
+Hi [name], the document issue recorded on your case is: [customer-safe reason]. Your case is [case reference]. We have referred it to the verification team because a supported secure correction/renewal path is not currently available for this account state. Please do not send identity documents through this chat, email or Messenger. The team will explain the supported next step once it is available. This reply does not confirm document acceptance or account reactivation.
 ```
 
 ---
