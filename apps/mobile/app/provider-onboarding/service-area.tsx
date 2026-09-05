@@ -209,6 +209,7 @@ export default function ServiceAreaScreen(): React.ReactElement {
                         onPress={() => selectArea(area)}
                         activeOpacity={0.7}
                         accessibilityRole="radio"
+                        aria-checked={selected}
                         accessibilityState={{ checked: selected }}
                         accessibilityLabel={`${area.name}, ${marketStatusLabel(area.status)}`}
                       >

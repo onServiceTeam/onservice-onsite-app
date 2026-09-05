@@ -1803,6 +1803,18 @@ after evidence and full test results are retained in the review-status audit.
 This supersedes the local build impediment for that workflow, not the remaining
 six-step browser/native acceptance or the latest Stitch-reference gap.
 
+Further 2026-09-06 browser evidence, **still not deployed**: a complete
+synthetic-HTTP browser run exposed a navigator reset that the earlier mocked
+router test missed, missing browser checked states and a clipped Cancel action.
+UX-1335/1336/1337 correct those defects. All six viewport flows now pass entry,
+save failure/retry, refresh, two-tab conflict, confirmed reload/discard, actual
+Back, four uploads and exact-version submission. Sixty screen captures and
+before-fix failures are retained in
+`docs/audits/PROVIDER-APPLICATION-BROWSER-2026-09-06.md`. The full mobile suite
+passed 577 files / 861 tests, with 84 TODOs; the 84 review checks passed again.
+This is not real database/browser paired acceptance, native evidence, latest
+Stitch signoff or completion of reviewer corrections/resubmission/privacy.
+
 ---
 
 ## 53. Provider approval does not enforce the government ID back image

@@ -77,6 +77,7 @@ export default function CategoriesScreen(): React.ReactElement {
         onPress={() => toggleCategory(item.id)}
         activeOpacity={0.7}
         accessibilityRole="checkbox"
+        aria-checked={isSelected}
         accessibilityState={{ checked: isSelected }}
         accessibilityLabel={`${item.name} service category`}
       >

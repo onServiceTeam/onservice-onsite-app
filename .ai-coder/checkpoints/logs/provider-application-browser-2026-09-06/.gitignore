@@ -1,0 +1,4 @@
+# Intermediate image sets remain locally available. Their reports, all original
+# defect evidence and the final verified 60-screen set are retained in Git.
+/after-ux1336/*.png
+/final-evidence/*.png

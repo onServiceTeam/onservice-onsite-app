@@ -10,6 +10,13 @@ CI for this stage and the subsequent correction of both status URLs. The
 status-screen findings under next item 2 below are historical discovery, not
 the corrected candidate's current behavior. Other acceptance items remain open.
 
+Accuracy correction: `PROVIDER-APPLICATION-BROWSER-2026-09-06.md` subsequently
+reproduced a real navigator reset during draft loading. The earlier statement
+below that the back stack was not destroyed was not established by the mocked
+router test and was incorrect for the compiled browser. UX-1335 now places the
+gate around active screen content while retaining the navigator; actual browser
+entry, refresh, recovery and Back navigation are separately verified there.
+
 ## Outcome and remaining release boundary
 
 The previous checkpoint's loading boundary and draft actions are now rendered

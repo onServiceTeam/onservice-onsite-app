@@ -183,6 +183,7 @@ export default function TermsScreen(): React.ReactElement {
           style={styles.checkboxRow}
           onPress={() => setAgreed((v) => !v)}
           accessibilityRole="checkbox"
+          aria-checked={agreed}
           accessibilityLabel="Accept the Independent Contractor Agreement and Terms of Service"
           accessibilityState={{ checked: agreed, disabled: submitting || session.busy }}
           disabled={submitting || session.busy}

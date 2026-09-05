@@ -226,3 +226,11 @@ The next acceptance remains the six-step application, refresh/save/reload/
 conflict/discard and cross-role reviewer lifecycle, followed by paired release.
 The full app audit and the existing legal, payment, privacy and production
 limits remain open. No live server state changed during this follow-up.
+
+Later independent verification: `0b96afe5e4af75f3b94182ce00e01c03b7c118ae`
+passed CI `33985775588` and Gates `33985775571`, all four CI jobs. Mobile job
+`101358878870` explicitly passed UX-1333/1334, 574 suites / 858 tests plus 84
+TODOs and a 4,364-module web export. The next compiled six-step browser audit
+found and corrected navigator, checked-state and confirmation-layout defects;
+see `PROVIDER-APPLICATION-BROWSER-2026-09-06.md`. The 84 review checks also passed
+again against that subsequent three-fix overlay. Neither result is deployment.

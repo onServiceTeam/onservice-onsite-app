@@ -1,0 +1,1443 @@
+{
+  "evidence": "Compiled browser with synthetic HTTP and identity. Not live/server/native/Stitch signoff.",
+  "sourceRevision": "0b96afe5e4af75f3b94182ce00e01c03b7c118ae plus UX-1335/UX-1336/UX-1337 working-tree overlay",
+  "indexSha256": "c558e64aff50a765c193703b2c54ce16923f7e80c142dc68bd03cb9303c26ccb",
+  "generatedAt": "2026-09-05T19:34:44.450Z",
+  "expectedChecks": 84,
+  "checks": 84,
+  "passed": 84,
+  "results": [
+    {
+      "width": 320,
+      "route": "review-pending",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending",
+      "topScreenshot": "320-review-pending-pending-top.png",
+      "helpScreenshot": "320-review-pending-pending-guidance.png"
+    },
+    {
+      "width": 320,
+      "route": "review-pending",
+      "state": "rejected",
+      "heading": "Application not approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending",
+      "topScreenshot": "320-review-pending-rejected-top.png"
+    },
+    {
+      "width": 320,
+      "route": "review-pending",
+      "state": "suspended",
+      "heading": "Provider access suspended",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 320,
+      "route": "review-pending",
+      "state": "deactivated",
+      "heading": "Provider account deactivated",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 320,
+      "route": "review-pending",
+      "state": "empty",
+      "heading": "No provider application found",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 320,
+      "route": "review-pending",
+      "state": "unavailable",
+      "heading": "Status unavailable",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 320,
+      "route": "review-pending",
+      "state": "approved",
+      "heading": "Application approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "GET /api/v1/auth/me"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending",
+      "topScreenshot": "320-review-pending-approved-top.png"
+    },
+    {
+      "width": 320,
+      "route": "background-check-status",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 320,
+      "route": "background-check-status",
+      "state": "rejected",
+      "heading": "Application not approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 320,
+      "route": "background-check-status",
+      "state": "suspended",
+      "heading": "Provider access suspended",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 320,
+      "route": "background-check-status",
+      "state": "deactivated",
+      "heading": "Provider account deactivated",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 320,
+      "route": "background-check-status",
+      "state": "empty",
+      "heading": "No provider application found",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 320,
+      "route": "background-check-status",
+      "state": "unavailable",
+      "heading": "Status unavailable",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 320,
+      "route": "background-check-status",
+      "state": "approved",
+      "heading": "Application approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "GET /api/v1/auth/me"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 390,
+      "route": "review-pending",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 390,
+      "route": "review-pending",
+      "state": "rejected",
+      "heading": "Application not approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 390,
+      "route": "review-pending",
+      "state": "suspended",
+      "heading": "Provider access suspended",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 390,
+      "route": "review-pending",
+      "state": "deactivated",
+      "heading": "Provider account deactivated",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 390,
+      "route": "review-pending",
+      "state": "empty",
+      "heading": "No provider application found",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 390,
+      "route": "review-pending",
+      "state": "unavailable",
+      "heading": "Status unavailable",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 390,
+      "route": "review-pending",
+      "state": "approved",
+      "heading": "Application approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "GET /api/v1/auth/me"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 390,
+      "route": "background-check-status",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 390,
+      "route": "background-check-status",
+      "state": "rejected",
+      "heading": "Application not approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 390,
+      "route": "background-check-status",
+      "state": "suspended",
+      "heading": "Provider access suspended",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 390,
+      "route": "background-check-status",
+      "state": "deactivated",
+      "heading": "Provider account deactivated",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 390,
+      "route": "background-check-status",
+      "state": "empty",
+      "heading": "No provider application found",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 390,
+      "route": "background-check-status",
+      "state": "unavailable",
+      "heading": "Status unavailable",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 390,
+      "route": "background-check-status",
+      "state": "approved",
+      "heading": "Application approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "GET /api/v1/auth/me"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "extraDecisionSpace": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 768,
+      "route": "review-pending",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending",
+      "topScreenshot": "768-review-pending-pending-top.png",
+      "helpScreenshot": "768-review-pending-pending-guidance.png"
+    },
+    {
+      "width": 768,
+      "route": "review-pending",
+      "state": "rejected",
+      "heading": "Application not approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending",
+      "topScreenshot": "768-review-pending-rejected-top.png"
+    },
+    {
+      "width": 768,
+      "route": "review-pending",
+      "state": "suspended",
+      "heading": "Provider access suspended",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 768,
+      "route": "review-pending",
+      "state": "deactivated",
+      "heading": "Provider account deactivated",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 768,
+      "route": "review-pending",
+      "state": "empty",
+      "heading": "No provider application found",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 768,
+      "route": "review-pending",
+      "state": "unavailable",
+      "heading": "Status unavailable",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 768,
+      "route": "review-pending",
+      "state": "approved",
+      "heading": "Application approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "GET /api/v1/auth/me"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending",
+      "topScreenshot": "768-review-pending-approved-top.png"
+    },
+    {
+      "width": 768,
+      "route": "background-check-status",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 768,
+      "route": "background-check-status",
+      "state": "rejected",
+      "heading": "Application not approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 768,
+      "route": "background-check-status",
+      "state": "suspended",
+      "heading": "Provider access suspended",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 768,
+      "route": "background-check-status",
+      "state": "deactivated",
+      "heading": "Provider account deactivated",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 768,
+      "route": "background-check-status",
+      "state": "empty",
+      "heading": "No provider application found",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 768,
+      "route": "background-check-status",
+      "state": "unavailable",
+      "heading": "Status unavailable",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 768,
+      "route": "background-check-status",
+      "state": "approved",
+      "heading": "Application approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "GET /api/v1/auth/me"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1024,
+      "route": "review-pending",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1024,
+      "route": "review-pending",
+      "state": "rejected",
+      "heading": "Application not approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1024,
+      "route": "review-pending",
+      "state": "suspended",
+      "heading": "Provider access suspended",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1024,
+      "route": "review-pending",
+      "state": "deactivated",
+      "heading": "Provider account deactivated",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1024,
+      "route": "review-pending",
+      "state": "empty",
+      "heading": "No provider application found",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1024,
+      "route": "review-pending",
+      "state": "unavailable",
+      "heading": "Status unavailable",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1024,
+      "route": "review-pending",
+      "state": "approved",
+      "heading": "Application approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "GET /api/v1/auth/me"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1024,
+      "route": "background-check-status",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1024,
+      "route": "background-check-status",
+      "state": "rejected",
+      "heading": "Application not approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1024,
+      "route": "background-check-status",
+      "state": "suspended",
+      "heading": "Provider access suspended",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1024,
+      "route": "background-check-status",
+      "state": "deactivated",
+      "heading": "Provider account deactivated",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1024,
+      "route": "background-check-status",
+      "state": "empty",
+      "heading": "No provider application found",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1024,
+      "route": "background-check-status",
+      "state": "unavailable",
+      "heading": "Status unavailable",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1024,
+      "route": "background-check-status",
+      "state": "approved",
+      "heading": "Application approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "GET /api/v1/auth/me"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1366,
+      "route": "review-pending",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending",
+      "topScreenshot": "1366-review-pending-pending-top.png",
+      "helpScreenshot": "1366-review-pending-pending-guidance.png"
+    },
+    {
+      "width": 1366,
+      "route": "review-pending",
+      "state": "rejected",
+      "heading": "Application not approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending",
+      "topScreenshot": "1366-review-pending-rejected-top.png"
+    },
+    {
+      "width": 1366,
+      "route": "review-pending",
+      "state": "suspended",
+      "heading": "Provider access suspended",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1366,
+      "route": "review-pending",
+      "state": "deactivated",
+      "heading": "Provider account deactivated",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1366,
+      "route": "review-pending",
+      "state": "empty",
+      "heading": "No provider application found",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1366,
+      "route": "review-pending",
+      "state": "unavailable",
+      "heading": "Status unavailable",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1366,
+      "route": "review-pending",
+      "state": "approved",
+      "heading": "Application approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "GET /api/v1/auth/me"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending",
+      "topScreenshot": "1366-review-pending-approved-top.png"
+    },
+    {
+      "width": 1366,
+      "route": "background-check-status",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1366,
+      "route": "background-check-status",
+      "state": "rejected",
+      "heading": "Application not approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1366,
+      "route": "background-check-status",
+      "state": "suspended",
+      "heading": "Provider access suspended",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1366,
+      "route": "background-check-status",
+      "state": "deactivated",
+      "heading": "Provider account deactivated",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1366,
+      "route": "background-check-status",
+      "state": "empty",
+      "heading": "No provider application found",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1366,
+      "route": "background-check-status",
+      "state": "unavailable",
+      "heading": "Status unavailable",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1366,
+      "route": "background-check-status",
+      "state": "approved",
+      "heading": "Application approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "GET /api/v1/auth/me"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1920,
+      "route": "review-pending",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1920,
+      "route": "review-pending",
+      "state": "rejected",
+      "heading": "Application not approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1920,
+      "route": "review-pending",
+      "state": "suspended",
+      "heading": "Provider access suspended",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1920,
+      "route": "review-pending",
+      "state": "deactivated",
+      "heading": "Provider account deactivated",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1920,
+      "route": "review-pending",
+      "state": "empty",
+      "heading": "No provider application found",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1920,
+      "route": "review-pending",
+      "state": "unavailable",
+      "heading": "Status unavailable",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1920,
+      "route": "review-pending",
+      "state": "approved",
+      "heading": "Application approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "GET /api/v1/auth/me"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/review-pending"
+    },
+    {
+      "width": 1920,
+      "route": "background-check-status",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1920,
+      "route": "background-check-status",
+      "state": "rejected",
+      "heading": "Application not approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1920,
+      "route": "background-check-status",
+      "state": "suspended",
+      "heading": "Provider access suspended",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1920,
+      "route": "background-check-status",
+      "state": "deactivated",
+      "heading": "Provider account deactivated",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1920,
+      "route": "background-check-status",
+      "state": "empty",
+      "heading": "No provider application found",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1920,
+      "route": "background-check-status",
+      "state": "unavailable",
+      "heading": "Status unavailable",
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    },
+    {
+      "width": 1920,
+      "route": "background-check-status",
+      "state": "approved",
+      "heading": "Application approved",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "GET /api/v1/auth/me"
+      ],
+      "passed": true,
+      "overflow": 0,
+      "path": "/provider-onboarding/background-check-status"
+    }
+  ]
+}
