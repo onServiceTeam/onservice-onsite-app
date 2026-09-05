@@ -24,7 +24,8 @@ jest.mock('expo-image-picker', () => ({
 jest.mock('@/services/upload.service', () => ({ uploadImages: jest.fn() }));
 jest.mock('@/services/api', () => ({
   __esModule: true,
-  default: { post: (...args: unknown[]) => mockPost(...args) },
+  ApiError: class extends Error {},
+  default: { post: (...args: unknown[]) => mockPost(...args), put: jest.fn() },
   storage: { delete: jest.fn() },
 }));
 jest.mock('@/hooks/useResponsive', () => ({
@@ -34,6 +35,7 @@ jest.mock('@/hooks/useResponsive', () => ({
 import DocumentsScreen from '../app/provider-onboarding/documents';
 import TermsScreen from '../app/provider-onboarding/terms';
 import { useOnboardingStore } from '../src/stores/onboarding.store';
+import { applicantId, completeApplicationFields, readyApplication, mockDraftSaves, revisionTwo } from '../test-support/application-draft-fixture';
 
 function renderTerms(): void {
   const client = new QueryClient({
@@ -47,27 +49,14 @@ function renderTerms(): void {
 }
 
 function seedRequiredApplication(): void {
-  const store = useOnboardingStore.getState();
-  store.setBusinessName('Cebu Home Services');
-  store.setCategories(['cleaning']);
-  store.setServiceArea({
-    areaId: 'cebu-city',
-    radiusKm: 10,
-    lat: 10.3157,
-    lng: 123.8854,
-    city: 'Cebu City',
-    province: 'Cebu',
-  });
-  store.setDocument('governmentIdFrontUri', 'https://private.example/id-front.jpg');
-  store.setDocument('governmentIdBackUri', 'https://private.example/id-back.jpg');
-  store.setDocument('nbiClearanceUri', 'https://private.example/nbi.jpg');
-  store.setDocument('selfieUri', 'https://private.example/selfie.jpg');
+  readyApplication(completeApplicationFields());
+  mockDraftSaves();
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
   useOnboardingStore.getState().reset();
-  mockPost.mockResolvedValue({ data: { success: true, data: { applicationId: 'application-1' } } });
+  mockPost.mockResolvedValue({ status: 201, data: { success: true, data: { id: revisionTwo } } });
 });
 
 describe('Phase K MED-K07 - document metadata survives the provider onboarding flow', () => {
@@ -108,8 +97,8 @@ describe('Phase K MED-K07 - document metadata survives the provider onboarding f
       expect.objectContaining({
         nbiExpiryDate: '2027-01-15',
         governmentIdNumber: 'PH-ID-1234',
-        governmentIdFrontUrl: 'https://private.example/id-front.jpg',
-        nbiClearanceUrl: 'https://private.example/nbi.jpg',
+        governmentIdFrontUrl: `onboarding/${applicantId}/front.jpg`,
+        nbiClearanceUrl: `onboarding/${applicantId}/nbi.jpg`,
       }),
     ));
     expect(mockReplace).toHaveBeenCalled();

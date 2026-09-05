@@ -13,10 +13,12 @@ import { Stack } from 'expo-router';
 import { colors } from '@/config/theme';
 import { RoleRouteGuard } from '@/components/RoleRouteGuard';
 import { ProviderOnboardingDraftGuard } from '@/components/ProviderOnboardingDraftGuard';
+import { ProviderApplicationSessionGate } from '@/components/ProviderApplicationSessionGate';
 
 export default function ProviderOnboardingLayout(): React.ReactElement {
   return (
     <RoleRouteGuard allowedRoles={['customer']}>
+      <ProviderApplicationSessionGate>
       <ProviderOnboardingDraftGuard>
         <Stack
           screenOptions={{
@@ -39,6 +41,7 @@ export default function ProviderOnboardingLayout(): React.ReactElement {
           <Stack.Screen name="background-check-status" />
         </Stack>
       </ProviderOnboardingDraftGuard>
+      </ProviderApplicationSessionGate>
     </RoleRouteGuard>
   );
 }

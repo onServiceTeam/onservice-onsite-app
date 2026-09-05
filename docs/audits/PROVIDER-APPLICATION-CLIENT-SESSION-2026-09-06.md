@@ -1,5 +1,10 @@
 # Provider application client-session checkpoint
 
+Historical foundation checkpoint. The subsequent six-step wiring and submission
+stage is recorded in `PROVIDER-APPLICATION-STEP-INTEGRATION-2026-09-06.md`.
+Statements below about components not yet being wired describe this checkpoint,
+not the later integrated candidate.
+
 Date: 2026-09-06 (Asia/Singapore). Baseline:
 `87b1450749c0516b1cd1a500eb2ed9adddf1a921` on
 `codex/financials-operator-truth`. Scope: staged E35/E74 applicant draft UI

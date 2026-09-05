@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getCategories, type Category } from '@/services/catalog.service';
 import { useOnboardingStore } from '@/stores/onboarding.store';
-import { Input, Button } from '@/components/ui';
+import { Input } from '@/components/ui';
+import { ProviderApplicationDraftActions } from '@/components/ProviderApplicationDraftActions';
+import { applicationFieldsFromStore } from '@/services/provider-application-draft.service';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { useResponsive } from '@/hooks/useResponsive';
 import type { ComponentType } from 'react';
@@ -26,7 +28,8 @@ const CATEGORY_ICONS: Record<string, IconComponent> = {
 export default function CategoriesScreen(): React.ReactElement {
   const router = useRouter();
   const { isPhone, isTablet } = useResponsive();
-  const { businessName, categoryIds, setBusinessName, setCategories } = useOnboardingStore();
+  const store = useOnboardingStore();
+  const { businessName, categoryIds } = store;
   const [selected, setSelected] = useState<Set<string>>(new Set(categoryIds));
   const [name, setName] = useState(businessName);
   const categoryColumns = isPhone ? 2 : isTablet ? 3 : 4;
@@ -47,18 +50,16 @@ export default function CategoriesScreen(): React.ReactElement {
     });
   };
 
-  const handleNext = (): void => {
+  const validateContinue = (): boolean => {
     if (name.trim().length < 2) {
       Alert.alert('Required', 'Enter your business or professional name (at least 2 characters).');
-      return;
+      return false;
     }
     if (selected.size === 0) {
       Alert.alert('Required', 'Select at least one service category.');
-      return;
+      return false;
     }
-    setBusinessName(name.trim());
-    setCategories([...selected]);
-    router.push(Routes.PROVIDER_ONBOARDING.SERVICE_AREA);
+    return true;
   };
 
   const renderCategory = ({ item }: { item: Category }): React.ReactElement => {
@@ -67,6 +68,7 @@ export default function CategoriesScreen(): React.ReactElement {
     const tint = getCategoryTint(item.slug);
     return (
       <TouchableOpacity
+        key={item.id}
         style={[
           styles.catItem,
           isPhone ? styles.catItemPhone : isTablet ? styles.catItemTablet : styles.catItemDesktop,
@@ -104,9 +106,11 @@ export default function CategoriesScreen(): React.ReactElement {
         <Text style={styles.step}>1 / 6</Text>
       </View>
 
-      <View
+      <ScrollView
         accessibilityLabel={!isPhone ? 'Tablet and desktop provider category selection workspace' : undefined}
         style={[styles.contentColumn, !isPhone && styles.wideContentColumn]}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>Your Services</Text>
         <Text style={styles.subtitle}>Enter your business name and select the services you offer.</Text>
@@ -143,24 +147,20 @@ export default function CategoriesScreen(): React.ReactElement {
             accessibilityLabel={`${categoryColumns}-column service category grid`}
             style={styles.categoryGrid}
           >
-            <FlatList
-              key={`category-grid-${categoryColumns}`}
-              data={categories}
-              renderItem={renderCategory}
-              keyExtractor={(item) => item.id}
-              numColumns={categoryColumns}
-              columnWrapperStyle={styles.catRow}
-              contentContainerStyle={styles.catList}
-              showsVerticalScrollIndicator={false}
-            />
+            <View style={styles.catList}>{categories.map(item => renderCategory({ item }))}</View>
           </View>
         )}
 
         <View style={styles.footer}>
           <Text style={styles.selectedCount}>{selected.size} selected</Text>
-          <Button title="Next" onPress={handleNext} disabled={selected.size === 0 || name.trim().length < 2} />
+          <ProviderApplicationDraftActions
+            fields={{ ...applicationFieldsFromStore(store), businessName: name, categoryIds: [...selected] }}
+            validateContinue={validateContinue}
+            continueDisabled={selected.size === 0 || name.trim().length < 2 || isLoading || isError}
+            onContinue={() => router.push(Routes.PROVIDER_ONBOARDING.SERVICE_AREA)}
+          />
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -169,6 +169,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   contentColumn: { flex: 1, width: '100%', alignSelf: 'center' },
   wideContentColumn: { maxWidth: 960 },
+  scrollContent: { flexGrow: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -195,8 +196,8 @@ const styles = StyleSheet.create({
   errorText: { ...typography.bodySmall, color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.base },
   retryButton: { backgroundColor: colors.primary, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: borderRadius.md, minHeight: 44, justifyContent: 'center' },
   retryText: { ...typography.button, color: colors.white },
-  categoryGrid: { flex: 1 },
-  catList: { paddingHorizontal: spacing.base, paddingBottom: spacing.base },
+  categoryGrid: { flexGrow: 1 },
+  catList: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingHorizontal: spacing.base, paddingBottom: spacing.base },
   catRow: { gap: spacing.sm, marginBottom: spacing.sm },
   catItem: {
     flexGrow: 0,

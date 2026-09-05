@@ -5,11 +5,14 @@ import {
   type ApplicationDraft, type ApplicationDraftFields,
 } from '@/services/provider-application-draft.service';
 import { getErrorCode, getErrorMessage } from '@/utils/errors';
+import { submitSavedApplication } from '@/services/provider-application-submit.service';
 
 export interface ApplicationLease { ownerId: string; generation: number }
 interface ApplicationSession {
   ownerId: string | null;
   generation: number;
+  activeRoute: string | null;
+  routeEpoch: number;
   phase: 'idle' | 'loading' | 'ready' | 'submitted' | 'error';
   busy: boolean;
   conflict: boolean;
@@ -21,7 +24,7 @@ interface ApplicationSession {
 // Private applicant information stays in memory only. The typed owner-only API
 // is its durable store, never public storage, generic logs or query caches.
 export const useApplicationSession = create<ApplicationSession>(() => ({
-  ownerId: null, generation: 0, phase: 'idle', busy: false,
+  ownerId: null, generation: 0, activeRoute: null, routeEpoch: 0, phase: 'idle', busy: false,
   conflict: false, error: null, draft: null, savedInput: null,
 }));
 
@@ -71,6 +74,7 @@ export async function loadApplicationSession(ownerId: string): Promise<void> {
   const previous = useApplicationSession.getState();
   // Coalesce StrictMode's repeated initial effect, without an unscoped promise.
   if (previous.ownerId === ownerId && previous.phase === 'loading') return;
+  const wantsProvider = useOnboardingStore.getState().selectedRole === 'provider';
   const lease = { ownerId, generation: previous.generation + 1 };
   if (previous.ownerId !== ownerId) useOnboardingStore.getState().reset();
   useApplicationSession.setState({ ...lease, phase: 'loading', busy: false, conflict: false, error: null, draft: null, savedInput: null });
@@ -79,6 +83,7 @@ export async function loadApplicationSession(ownerId: string): Promise<void> {
     assertLease(lease);
     useOnboardingStore.getState().reset();
     if (draft) useOnboardingStore.setState(applicationStoreFields(draft.fields));
+    else if (wantsProvider) useOnboardingStore.getState().setRole('provider');
     useApplicationSession.setState({ phase: 'ready', draft, savedInput: draft?.fields ?? null });
   } catch (error) { recordFailure(lease, error, true); }
 }
@@ -107,6 +112,37 @@ export async function saveApplicationSession(
     recordFailure(lease, error);
     throw error;
   }
+}
+
+/** A fresh explicit submit saves and consumes exactly one version, never a stale snapshot. */
+export async function saveAndSubmitApplicationSession(
+  lease: ApplicationLease, fields: ApplicationDraftFields, maySubmit: () => boolean,
+): Promise<boolean> {
+  const saved = await saveApplicationSession(lease, fields);
+  // Navigating away or changing account during PUT must not start a submission.
+  if (!maySubmit()) return false;
+  assertLease(lease);
+  const current = useApplicationSession.getState();
+  if (current.busy || current.conflict || current.draft?.revision !== saved.revision) {
+    throw new Error('Your draft changed before submission. Review it and try again.');
+  }
+  useApplicationSession.setState({ busy: true });
+  try {
+    await submitSavedApplication(fields, saved.revision);
+    assertLease(lease);
+    useApplicationSession.setState({ busy: false });
+    return true;
+  } catch (error) {
+    recordFailure(lease, error);
+    throw error;
+  }
+}
+
+export function markApplicationSubmitted(lease: ApplicationLease): void {
+  assertLease(lease);
+  useOnboardingStore.getState().reset();
+  useApplicationSession.setState(state => ({ phase: 'submitted', generation: state.generation + 1,
+    busy: false, conflict: false, error: null, draft: null, savedInput: null }));
 }
 
 /** Call only after an explicit discard confirmation. Does not delete files. */

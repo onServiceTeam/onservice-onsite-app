@@ -95,9 +95,10 @@ not claim that draft expiry erases documents or all personal data.
 
 1. Rehearse the full migration chain and atomic submission on the paired
    candidate. Focused database CI has passed; it is not the full rehearsal.
-2. Connect owner-bound mobile/web hydration, save status, retry, conflict
-   recovery, discard, logout/reset and expiry messaging to every onboarding
-   step. Agreement acceptance must still occur at submission, not in a draft.
+2. Complete actual browser/native acceptance of the now-wired six-step draft
+   flow, including owner-bound hydration, save/recovery/discard, logout/reset,
+   expiry and final revision-aware submission. Candidate DOM behavior evidence
+   is not a substitute for authenticated browser/device acceptance.
 3. Schedule bounded cleanup and integrate draft data with account privacy
    exports/deletion inventory, without claiming complete E21 erasure.
 4. Verify browser refresh, app restart, account switching and multi-tab races
@@ -172,3 +173,20 @@ The preceding transport commit `87b1450749c0516b1cd1a500eb2ed9adddf1a921`
 passed CI `33974769862` and Gates `33974769636`, including the explicitly named
 UX-1314/1315 regressions, 555 mobile suites / 839 tests and all four CI jobs.
 That independent verification does not apply to later unpublished work.
+
+## Six-step client integration, later on 2026-09-06
+
+The layout now hydrates before the incomplete-step guard and all six applicant
+steps render explicit draft actions. Terms normalizes once, saves, and submits
+that exact version with fresh agreement acceptance. The role-choice entry and
+canonical status screens remain independent of draft availability. Delayed
+picker/location/upload/save operations are bound to applicant and screen scope,
+including multipart preparation before HTTP and native back-stack retention.
+This supersedes the earlier foundation-only wiring status, not its history.
+
+UX-1321 through UX-1327 exercise the actual controls/coordinator/helper. Full
+mobile verification passed 567 files / 851 tests with 84 existing TODOs. Detailed
+evidence, test limits, design-source availability and remaining release gates:
+`docs/audits/PROVIDER-APPLICATION-STEP-INTEGRATION-2026-09-06.md`.
+No migration 172 deployment, full-chain rehearsal or authenticated release
+acceptance is implied. E35/E74 and full Stitch/launch acceptance remain open.

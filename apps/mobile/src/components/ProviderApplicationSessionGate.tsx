@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Redirect, useSegments } from 'expo-router';
 import { Button } from '@/components/ui';
@@ -14,15 +14,25 @@ export function ProviderApplicationSessionGate({ children }: { children: React.R
   const segments = useSegments();
   const route = segments[segments.length - 1];
   const statusRoute = route === 'review-pending' || route === 'background-check-status';
+  const entryRoute = route === 'role-select';
   const ownerId = user?.role === 'customer' ? user.id : null;
+  const [returnToCustomer, setReturnToCustomer] = useState(false);
 
   useEffect(() => {
-    if (ownerId && !statusRoute && (session.ownerId !== ownerId || session.phase === 'idle')) {
+    const current = useApplicationSession.getState();
+    if (current.activeRoute !== (route ?? null)) {
+      useApplicationSession.setState({ activeRoute: route ?? null, routeEpoch: current.routeEpoch + 1 });
+    }
+  }, [route]);
+
+  useEffect(() => {
+    if (ownerId && !statusRoute && !entryRoute && (session.ownerId !== ownerId || session.phase === 'idle')) {
       void loadApplicationSession(ownerId);
     }
-  }, [ownerId, statusRoute, session.ownerId, session.phase]);
+  }, [ownerId, statusRoute, entryRoute, session.ownerId, session.phase]);
 
-  if (statusRoute) return <>{children}</>;
+  if (returnToCustomer) return <Redirect href={Routes.TABS.HOME} />;
+  if (statusRoute || entryRoute) return <>{children}</>;
   if (!ownerId) return <Redirect href={Routes.AUTH.LOGIN} />;
   if (session.ownerId === ownerId && session.phase === 'submitted') {
     return <Redirect href={Routes.PROVIDER_ONBOARDING.REVIEW_PENDING} />;
@@ -39,6 +49,7 @@ export function ProviderApplicationSessionGate({ children }: { children: React.R
           <Text style={styles.body}>{session.error ?? 'Your saved application could not be loaded.'}</Text>
           <Text style={styles.body}>We have not replaced your saved work. Retry before editing.</Text>
           <Button title="Retry loading application" onPress={() => { void loadApplicationSession(ownerId); }} />
+          <Button title="Return to customer workspace" variant="outline" onPress={() => setReturnToCustomer(true)} />
         </> : <>
           <ActivityIndicator accessibilityLabel="Loading saved application" color={colors.primary} />
           <Text style={styles.body}>Checking for saved work…</Text>

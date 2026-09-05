@@ -21,6 +21,7 @@ jest.mock('@/hooks/useResponsive', () => ({
 
 jest.mock('@/stores/onboarding.store', () => ({
   useOnboardingStore: () => ({
+    ...jest.requireActual('@/stores/onboarding.store').useOnboardingStore.getInitialState(),
     governmentIdFrontUri: null,
     governmentIdBackUri: null,
     nbiClearanceUri: null,

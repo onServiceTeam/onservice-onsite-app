@@ -14,7 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useOnboardingStore } from '@/stores/onboarding.store';
-import { Button } from '@/components/ui';
+import { ProviderApplicationDraftActions } from '@/components/ProviderApplicationDraftActions';
+import { applicationFieldsFromStore } from '@/services/provider-application-draft.service';
+import { useApplicationOperation } from '@/hooks/useApplicationOperation';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { AlertTriangle, MapPin } from '@/components/icons';
 import { getConfig } from '@/services/config.service';
@@ -61,8 +63,11 @@ export default function ServiceAreaScreen(): React.ReactElement {
   const [notice, setNotice] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | null>(null);
   const selectedArea = areas.find((area) => area.id === selectedAreaId) ?? null;
   const [locating, setLocating] = useState(false);
+  const operation = useApplicationOperation(() => setLocating(false));
 
   const selectArea = (area: ServiceArea): void => {
+    operation.cancel();
+    setLocating(false);
     if (area.id !== selectedAreaId) {
       setLat(null);
       setLng(null);
@@ -75,14 +80,18 @@ export default function ServiceAreaScreen(): React.ReactElement {
   };
 
   const useCurrentLocation = async (): Promise<void> => {
+    if (locating) return;
     if (!selectedArea) {
       setNotice({ tone: 'error', text: 'Select the provider market you want to serve first.' });
       return;
     }
+    const isCurrent = operation.begin();
+    if (!isCurrent) return;
     setLocating(true);
     setNotice(null);
     try {
       const perm = await Location.requestForegroundPermissionsAsync();
+      if (!isCurrent()) return;
       if (perm.status !== 'granted') {
         setNotice({
           tone: 'error',
@@ -93,6 +102,7 @@ export default function ServiceAreaScreen(): React.ReactElement {
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+      if (!isCurrent()) return;
       setLat(loc.coords.latitude);
       setLng(loc.coords.longitude);
       const inside = distanceKm(
@@ -105,41 +115,34 @@ export default function ServiceAreaScreen(): React.ReactElement {
         ? { tone: 'success', text: `Exact operating location captured inside ${selectedArea.name}.` }
         : { tone: 'error', text: `That location is outside ${selectedArea.name}. Select the correct market or recapture from your operating base.` });
     } catch {
+      if (!isCurrent()) return;
       setNotice({
         tone: 'error',
         text: 'Could not capture your location. Check browser or device location settings and try again.',
       });
     } finally {
-      setLocating(false);
+      if (isCurrent()) setLocating(false);
     }
   };
 
-  const handleNext = (): void => {
+  const validateContinue = (): boolean => {
     if (!selectedArea) {
       setNotice({ tone: 'error', text: 'Select an admin-configured provider market to continue.' });
-      return;
+      return false;
     }
     if (lat == null || lng == null) {
       setNotice({ tone: 'error', text: 'Capture your exact operating location before continuing.' });
-      return;
+      return false;
     }
     if (distanceKm(lat, lng, selectedArea.centerLat, selectedArea.centerLng) > selectedArea.radiusKm) {
       setNotice({
         tone: 'error',
         text: `Your captured base is outside ${selectedArea.name}. Select the correct market or recapture your location.`,
       });
-      return;
+      return false;
     }
 
-    store.setServiceArea({
-      areaId: selectedArea.id,
-      radiusKm: radius,
-      lat,
-      lng,
-      city: selectedArea.city,
-      province: selectedArea.province,
-    });
-    router.push(Routes.PROVIDER_ONBOARDING.VETTING);
+    return true;
   };
 
   return (
@@ -286,17 +289,19 @@ export default function ServiceAreaScreen(): React.ReactElement {
             </View>
           </View>
         </View>
-      </ScrollView>
-
       <View style={styles.footer}>
         <View style={styles.footerInner}>
-          <Button
-            title="Next"
-            onPress={handleNext}
-            disabled={!selectedArea || lat == null || lng == null || areasQuery.isError || areasQuery.isLoading}
+          <ProviderApplicationDraftActions
+            fields={{ ...applicationFieldsFromStore(store), serviceAreaId: selectedAreaId,
+              serviceRadiusKm: radius, latitude: lat, longitude: lng,
+              city: selectedArea?.city ?? store.city, province: selectedArea?.province ?? store.province }}
+            validateContinue={validateContinue} disabled={locating}
+            onContinue={() => router.push(Routes.PROVIDER_ONBOARDING.VETTING)}
+            continueDisabled={!selectedArea || lat == null || lng == null || areasQuery.isError || areasQuery.isLoading}
           />
         </View>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -32,6 +32,8 @@ export function ProviderApplicationDraftActions({
   const [changedDuringSave, setChangedDuringSave] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const latestFields = useRef(fields);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   latestFields.current = fields;
   const lease = session.ownerId ? { ownerId: session.ownerId, generation: session.generation } : null;
   const unavailable = disabled || session.busy || session.phase !== 'ready' || !lease;
@@ -44,7 +46,8 @@ export function ProviderApplicationDraftActions({
     setChangedDuringSave(false);
     try {
       await saveApplicationSession(lease, snapshot);
-      if (!isApplicationLeaseCurrent(lease)) return;
+      if (!mounted.current || !isApplicationLeaseCurrent(lease)
+        || useApplicationSession.getState().routeEpoch !== session.routeEpoch) return;
       // Do not leave a step if someone typed more while the save was in flight.
       if (JSON.stringify(latestFields.current) !== JSON.stringify(snapshot)) {
         setChangedDuringSave(true);
