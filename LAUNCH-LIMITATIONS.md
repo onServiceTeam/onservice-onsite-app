@@ -2215,3 +2215,9 @@ rollback. Status: candidate implementation, local type/lint and focused tests
 passed; new database tests skipped locally and awaiting CI. No live deployment
 or migration has occurred. These corrections do not implement durable drafts,
 review revisions or resubmissions. See the September 5 resumption audit.
+
+2026-09-05 verification update: **RESOLVED in candidate code, not deployed.**
+Commit `b288524b3ace5a1493e798f7eb538306ee647961` passed CI `33968968274`
+and Gates `33968968271`. The three new database regressions explicitly passed
+within 950 API suites / 3,314 tests. All CI jobs passed. The full application
+lifecycle and release limitations above remain in force.

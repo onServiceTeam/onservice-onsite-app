@@ -988,3 +988,62 @@ The corrected broader provider command passed 102 files / 251 tests in
 (the three preceding admission regressions plus the three new submission
 regressions). The earlier admission tests already have CI evidence above;
 the new submission tests still require their first CI execution.
+
+## Submission CI verified; operator dialog follow-through
+
+Published submission commit `b288524b3ace5a1493e798f7eb538306ee647961`
+passed CI `33968968274` and Gates `33968968271`. The completed API logs name
+OPS-482, OPS-483 and OPS-484 as passed against the isolated CI PostgreSQL
+service. All 950 API suites / 3,314 tests passed. All four CI jobs completed
+successfully, including Admin, Mobile and the API image build. This supersedes
+the preceding local-skip uncertainty, not the release or lifecycle limitations.
+No API/admin release artifacts were requested for this run.
+
+UX-1312 aligns the shared approval rationale with the existing server's trimmed
+10-to-2,000-character range. Both actual approval surfaces keep their submit
+action disabled for an invalid rationale, including an over-limit value
+injected past the native textarea limit. Required semantics, a stable unique
+field ID, linked guidance/count and blur-triggered error feedback are present.
+Whitespace trimming matches the approval payload. No vetting-policy item or
+server rationale limit changed.
+
+UX-1313 replaces the provider queue's hand-built modal with the existing Radix
+dialog primitive, retaining the bounded scroll container and semantic styles.
+Real rendered interactions exercise focus entry, Tab/Shift-Tab boundary loops,
+attempted outside focus, Escape, original-trigger restoration, explicit draft
+discard, retained entries after choosing to keep reviewing, pending close
+attempts, failed-decision context and a successful retry. A decided provider
+can disappear from a filtered queue: the directory refresh completes before
+close, and focus falls back to the stable search field if its trigger is gone.
+The next provider starts with no previous reason or error. No new UI dependency
+or global primitive change was needed.
+
+Safety interpretation of the design contract's dismissal rule: an unsent
+review can be cancelled/discarded, but Escape or Close cannot cancel an API
+request already sent. During that request, the dialog remains on its target,
+its fields/submit/cancel are disabled and a visible status explains the pending
+decision. Retry clears the preceding error; failure restores editing while
+preserving the target and entries. Discard wording does not falsely promise
+that an earlier failed request never reached the server. This does not block
+browser navigation or claim network failures prove rollback.
+
+Initial focused UI execution passed six files / six tests. TypeScript then
+identified two mocked responses missing the real client's `status` and `ok`
+fields; those fixtures were corrected with actual values, not a suppressed
+type error. The surrounding provider-admin suite passed 67 files / 73 tests,
+and TypeScript, changed-file lint and the unchanged uniqueness gate passed
+(1,493 titled regressions). A subsequent run including frozen pending fields
+also passed 67 files / 73 tests in 20.26 seconds. Final refresh/focus-fallback
+verification and the production build are recorded below when complete.
+
+Full six-viewport authenticated browser/Stitch acceptance remains outstanding.
+These DOM tests neither open real private documents nor approve production
+accounts. Durable drafts, request-changes/resubmission, immutable reviewed
+revisions and governed legacy admission remain the next lifecycle work. The
+candidate has not been merged into master or deployed to the shared server.
+
+Final UX-1312/1313 verification passed all 67 provider-admin files / 73 tests
+in 22.98 seconds, including the removed-row focus fallback. The Admin build
+passed TypeScript and emitted its production bundle (2,845 modules; 20.57
+seconds), followed by successful changed-file lint. `git diff --check` passed.
+Fresh full CI for this UI continuation is still required after publication.
