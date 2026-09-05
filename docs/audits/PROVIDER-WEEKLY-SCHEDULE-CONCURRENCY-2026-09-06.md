@@ -70,3 +70,17 @@ timezones remain separate follow-ups. Direct assignment, outstanding-offer
 acceptance and operator scheduling diagnostics remain in the availability
 linkage audit. Master/live alignment, migration-172 rehearsal and paired release
 checks are not completed by this isolated scheduling change.
+
+## Actual PostgreSQL verification
+
+Candidate `7ebe5dd993021b9acffd2aee7ba551b6aecd3920`, API job `101395007170`
+in CI `33999232619`, explicitly passed OPS-499 at `2026-09-05T23:41:04Z`.
+OPS-496 and OPS-497 also explicitly passed with the strengthened weekly fixture.
+All **965 API suites / 3,329 tests** passed at `23:41:53Z`. Gates `33999232613`
+passed. This resolves the local database-skip uncertainty for the concurrency
+test. The complete CI run still awaited the admin suite when these logs were
+checked; no deployment or whole-app acceptance is implied.
+
+Final run check: all four jobs in `33999232619` completed successfully. Together
+with Gates `33999232613`, this verifies that candidate's full CI result. No
+production deployment occurred.

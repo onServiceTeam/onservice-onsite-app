@@ -2432,3 +2432,28 @@ lint and the ID gate pass. **Database verification remains pending fresh CI**.
 No live records or schema changed, and multi-device optimistic conflict warnings
 are not implemented. See
 `docs/audits/PROVIDER-WEEKLY-SCHEDULE-CONCURRENCY-2026-09-06.md`.
+
+Actual PostgreSQL verification: candidate `7ebe5dd9`, API job `101395007170`
+in CI `33999232619`, explicitly passed OPS-499 along with OPS-496/497.
+All 965 API suites / 3,329 tests passed. The new concurrency behavior is
+database-tested in candidate code; full-run completion and deployment are
+separate checks. Gates `33999232613` passed.
+
+Final concurrency run verification: all four CI jobs in `33999232619` completed
+successfully. The remaining deployment and wider assignment limitations persist.
+
+---
+
+## 75. Provider date overrides could display the previous day abroad
+
+The availability list interpreted a date-only value as device-local midnight
+before converting it to Manila. UX-1355 anchors it to Manila midnight and corrects
+the label without changing stored dates, matching or bookings. A real-render
+regression failed in an Auckland-timezone process before correction and passed
+in three fresh timezone processes afterward. Twelve compiled-browser checks
+passed across four timezones and three widths, with 24 retained captures.
+
+Complete mobile tests pass 594 suites / 878 tests, with 84 TODOs; types, lint
+and the unchanged regression-ID gate pass. **Candidate correction, not deployed;
+fresh CI remains required.** Evidence and remaining accessibility/operator work:
+`docs/audits/PROVIDER-OVERRIDE-TIMEZONE-2026-09-06.md`.

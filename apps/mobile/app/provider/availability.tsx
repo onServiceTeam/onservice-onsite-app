@@ -372,7 +372,8 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
 }
 
 function formatDateLabel(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
+  // UX-1355: this is a Manila calendar date, not midnight on the device.
+  const d = new Date(dateStr + 'T00:00:00+08:00');
   return d.toLocaleDateString('en-PH', {
     timeZone: 'Asia/Manila',
     weekday: 'short',
