@@ -358,6 +358,7 @@ Decision rule:
 7. Confirm service categories and service area look right.
 8. Score the scorecard (Section 3). Write the score and notes in the **Notes** tab (category `general` or `quality`).
 9. If it passes, go back to the **Providers** list (or use the detail action) and click **Approve**.
+   - The UX-1311 candidate checks the current application when either approval screen opens. It lists ID front, ID back, selfie and NBI as **On file** or **Missing**. Loading, a failed check, incomplete evidence or a no-longer-pending record blocks confirmation. Use **Retry document check** or **Recheck application** after resolving the issue. Rechecking resets the checklist. On file is not a verification result; open the full application and inspect the private documents before confirming. This UI is not yet deployed to the older live build.
    - The OPS-479 candidate refuses missing/blank NBI, ID front, ID back or selfie references inside the decision transaction and names what is missing. The older live API still omits ID back. Stop manually for incomplete evidence and record the hold in Notes. No secure correction/resubmission path is implied by this prerequisite fix.
    - OPS-480 also refuses approval when the owner is inactive, fraud-flagged, or has a staff/admin/DPO/other role. Review that account separately; provider approval is not an account recovery or role-override tool. A refusal leaves the provider decision, role, audit and approval notification unchanged.
    - On success the status flips `pending -> approved`, `reviewed_at` is stamped, an audit row `provider_approved` is written, and the provider gets an "Account Approved" notification.
@@ -443,7 +444,7 @@ When to suspend (starting targets, tune after launch):
 
 What the Suspend action does (important, read this before you click it):
 
-- Flips `approved` (or `pending`) -> `suspended`.
+- Flips `approved` -> `suspended` in the OPS-481 candidate. The older live API also accepts `pending`; do not use suspension/reactivation as an application-review shortcut. Pending applicants remain on the admission-review path.
 - In the SAME transaction, it flags every in-flight booking for that provider (statuses `provider_en_route`, `provider_arrived`, `in_progress`, `completed_by_provider`) by stamping `provider_suspended_during_booking_at`. That stamp makes the escrow release path refuse to pay out until an admin resolves the booking. So suspending mid-job freezes that job's money on purpose. Resolve those bookings (force-complete, reassign, or dispute path) deliberately; do not leave a customer's money stuck.
 - Writes an audit row `provider_suspended` with the count of flagged bookings.
 
@@ -457,6 +458,7 @@ How to reactivate:
 
 1. **Providers**, filter to `suspended`, open the provider, click **Reactivate**.
 2. Status flips `suspended -> approved`, audited as `provider_reactivated`. Confirm the reason for suspension is actually resolved first. For NBI cases, do not reactivate from an emailed/chat document or direct database update; E62 requires an approved renewal and verification workflow first. Other examples include a closed incident with recorded evidence.
+3. The OPS-481 candidate requires a retained `provider_approved` event, a review timestamp, and a currently active provider-role owner without a fraud flag. It does not change the owner's role, activation, fraud flag or session generation. Missing historical admission evidence produces a refusal, not a guessed approval. A governed legacy-admission review remains E74 work; do not fabricate an audit event or change database state to bypass this check. These safeguards are not yet deployed. Existing booking holds remain in place after reactivation.
 
 Removal: there is no hard delete in the admin UI and we do not delete provider records (they carry financial and audit history). To take someone off the platform for good, suspend them and leave them suspended. The `deactivated` status exists as a terminal state and is filterable, but no current admin button sets it.
 

@@ -20,6 +20,12 @@ it('Bug UX-437 — provider reactivation requires an audit reason and notifies t
     const client = {
       query: jest.fn(async (sql: string, params: unknown[] = []) => {
         calls.push({ sql, params });
+        if (/SELECT user_id, reviewed_at FROM providers/.test(sql)) {
+          return { rows: [{ user_id: 'user-1', reviewed_at: new Date('2026-09-01') }], rowCount: 1 };
+        }
+        if (/AS was_approved/.test(sql)) {
+          return { rows: [{ was_approved: true }], rowCount: 1 };
+        }
         if (/UPDATE providers/.test(sql)) {
           return { rows: [{ id: 'provider-1', user_id: 'user-1' }], rowCount: 1 };
         }

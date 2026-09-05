@@ -823,3 +823,101 @@ This includes aliases, not 114 independently accepted UX flows. No gate mode,
 allowlist, branch protection or historical phase specification was edited.
 `docs/runbooks/paired-web-api-release.md` now records the bounded publication
 and rollback requirements. It is a plan, not an implemented or tested publisher.
+
+## Verified CI and admin evidence-gate follow-up
+
+The published backend commit `5fb2ab418d51200d83b1a20d0b5673719bc63276`
+passed CI `33964968565` and Gates `33964968623`. Individual API logs explicitly
+show OPS-479 and OPS-480 passing against the CI PostgreSQL service. The API
+passed 946 suites / 3,310 tests. Mobile passed 553 suites / 837 tests, with 84
+explicit todos. Admin passed 561 files / 645 tests, with one skipped file and
+three todos. The API image build and actual liveness boot also passed. No
+release-candidate label was present; this run did not retain a new API/admin
+release bundle. Production still runs the older revision, not this commit.
+
+A further read-only identity-provenance count matched five of the six approved
+providers to the exact phone/email/business-name identities in the public demo
+seed. One remains unclassified. A fixture-identity match is not evidence of
+real KYC verification. No private identity values were published, no missing
+evidence was invented, and no live account was changed.
+
+UX-1311 adds one shared evidence review to both the provider queue and Provider
+360 approval panel. Each opening requests the canonical profile; the UI blocks
+while checking, after a failed request, for a mismatched/non-pending record,
+and when any required reference is missing or blank. It names all four files
+as **On file** or **Missing**, explicitly separates presence from verification,
+and links to the full application/private document review. The checklist now
+names both ID sides. Refetching blocks approval and discards prior checklist
+attestations before a fresh review can be submitted. Retry/recheck is explicit.
+The queue dialog is height-bounded and scrollable for the longer review.
+
+The real rendered regression exercises both actual approval surfaces, each
+missing/blank field, absent document metadata, wrong provider/status, pending
+network request, completed-review refetch/reset, failed request/retry and the
+single permitted approval request. The original UX-433/435 review-body tests
+remain and now provide complete profile fixtures. Three files / three tests
+passed locally; Admin TypeScript and changed-file lint passed. The first
+TypeScript attempt caught three unchecked test-array accesses; those were
+corrected, and the full focused command was rerun successfully. This follow-up
+has not yet passed fresh full CI or authenticated browser acceptance.
+
+This is not immutable reviewed-revision enforcement. The backend row lock
+checks current evidence at the decision; it cannot prove the human inspected
+that exact revision. Full E74 revisions/resubmission, the reactivation bypass,
+legacy evidence classification, full Stitch viewport acceptance and deployment
+remain open. Visual reasoning and explicit limits are retained in
+`docs/audits/provider-approval-2026-09-05/quality-reasoning.md`.
+
+The expanded local provider-admin run passed 65 files / 71 tests in 55.85
+seconds. The actual Admin production build passed (2,845 transformed modules;
+Vite build 17.48 seconds). Neither result is an authenticated browser test.
+
+## Reactivation is not admission, OPS-481
+
+Under the delegated E36/E74 approval, the selected bounded correction follows
+the documented lifecycle: only approved providers can be suspended through the
+admin action; a pending applicant must use admission review. Reactivation locks
+the suspended provider, requires its review timestamp plus a retained explicit
+`provider_approved` event, and locks an active provider-role owner without a
+fraud flag through commit. It never promotes a role, clears account flags,
+revives old sessions, or clears booking holds. The reason, audit and inbox
+remain in the same transaction. Both operator explanations name the safeguards.
+
+The dedicated PostgreSQL regression exercises the former pending/suspend/
+reactivate bypass, a legacy suspended applicant, a rejection timestamp without
+approval, real approval followed by suspension and reactivation, blocked owner
+roles/flags, an actual concurrent fraud-flag update, audit failure rollback,
+one winner under concurrent reactivations, preserved session generation and
+unchanged active/historical booking amounts and held/released states. Local
+absence of safe PostgreSQL is an explicit skip, not a pass. The four existing
+API suites / 16 tests, API TypeScript and changed-file lint passed locally.
+Fresh mandatory PostgreSQL CI remains required before this can be released.
+
+A fresh read-only live count at 12:35 UTC found only six approved providers,
+zero suspended/pending providers, one review timestamp, and **zero retained
+provider-approval events**. All six owners satisfy the current provider-role/
+active/not-fraud predicate. They remain unchanged. If one is later suspended,
+this candidate will refuse to reactivate it without governed admission proof.
+That consequence is deliberate, not a completed legacy-recovery workflow.
+Do not deploy and surprise operations: finish legacy classification/review and
+acceptance first. A durable first-class E74 admission/revision record is still
+needed; the retained event check is a safe interim guard, not a lifetime
+retention architecture. NBI renewal/expiry enforcement remains separate E62
+work, and this change does not claim to implement it.
+
+Production remained on `7ed367cdca1e277f03fc08ff5bbb03b0dc142bd5`. Its own
+API readiness endpoint returned PostgreSQL and Redis `ok`. No live rows,
+services, schema, historical money or neighboring app were changed. The unique
+regression-ID gate passed with 1,488 titled regressions before publication.
+
+The first surrounding Admin rerun after adding reactivation copy failed
+UX-436's existing explicit booking-hold wording assertion (64 files / 70 tests
+passed; one failed). The original precise hold warning was restored verbatim
+after the new eligibility sentence. No assertion was removed or loosened;
+final rerun evidence is required below before publication.
+
+Final surrounding rerun passed all 65 provider-admin files / 71 tests in 50.06
+seconds. Admin TypeScript and changed-file lint then passed. Final API
+TypeScript/lint and `git diff --check` also passed. The uniqueness gate remained
+green at 1,488 titled regressions. OPS-481's actual database execution remains
+mandatory in the new CI run; its local skip is not converted into a pass.

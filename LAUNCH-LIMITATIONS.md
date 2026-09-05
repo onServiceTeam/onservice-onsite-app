@@ -1797,6 +1797,15 @@ live server and need their fresh mandatory PostgreSQL CI tests. The Admin
 checklist/incomplete-state follow-up, legacy evidence review, correction and
 resubmission, and reactivation-path audit remain open. This item is not closed.
 
+Further 2026-09-05 evidence: OPS-479/480 passed the actual PostgreSQL CI tests
+at `5fb2ab41`, and that full CI/Gates run passed. Five approved records match
+exact public demo fixture identities; one remains unclassified. UX-1311 adds
+the explicit four-document incomplete/loading/error state and front/back
+checklist wording to both admin approval surfaces, with rendered regression
+coverage. These fixes are not deployed. Immutable review revisions,
+correction/resubmission, reactivation safeguards and the remaining legacy
+evidence question prevent full closure.
+
 ---
 
 ## 54. The Admin Audit Log is not a complete correlated activity trail
@@ -2163,3 +2172,23 @@ unchanged. This is not an exhaustive comparison of every production table or
 authenticated business acceptance. Production remains on `7ed367cd`, with no
 live migration performed. Paired frontend/API publication, rollback and the
 other launch requirements remain open.
+
+---
+
+## 68. Provider reactivation can bypass initial admission
+
+The older API permits a pending applicant to be suspended and then reactivated
+as approved, without passing canonical admission. OPS-481 restricts suspension
+to approved providers and requires a retained approval event, a review timestamp
+and a currently eligible provider account before reactivation. Row/account
+locks, transactional audit/inbox, and unchanged booking holds are covered by
+a new real PostgreSQL regression. This is a candidate change, not deployed or
+claimed verified by its locally skipped database test.
+
+The read-only 2026-09-05 inventory found six approved providers and no pending
+or suspended rows, but no retained provider-approval events for any of the six.
+Five match public demo identities; one remains unclassified. No record was
+changed. A later reactivation would deliberately be refused without retained
+admission proof. Governed legacy classification/admission, durable E74 records,
+NBI renewal and production acceptance remain open. Do not fabricate evidence
+or treat the interim event lookup as the final retention architecture.

@@ -454,10 +454,10 @@ export async function suspendProvider(providerId: string, adminId: string, reaso
   let flaggedCount = 0;
   await db.transaction(async (client) => {
     const result = await client.query<{ id: string; user_id: string }>(
-      `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1 AND status IN ('approved', 'pending') RETURNING id, user_id`,
+      `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1 AND status = 'approved' RETURNING id, user_id`,
       [providerId],
     );
-    if (result.rowCount === 0) throw createAppError('Provider not found or already suspended.', 404);
+    if (result.rowCount === 0) throw createAppError('Provider not found or not approved. Pending applications require application review.', 404);
 
     const ownerUserId = result.rows[0]!.user_id;
     await client.query(
@@ -518,6 +518,35 @@ export async function reactivateProvider(providerId: string, adminId: string, re
     throw createAppError('Reactivation reason must be between 10 and 1000 characters.', 400);
   }
   await db.transaction(async (client) => {
+    // OPS-481: suspension/reactivation must never become an alternate initial
+    // approval path. Historical rows without proof need explicit review, not
+    // an inferred approval from a mutable status or account role alone.
+    const suspended = await client.query<{ user_id: string; reviewed_at: Date | null }>(
+      `SELECT user_id, reviewed_at FROM providers WHERE id = $1 AND status = 'suspended' FOR UPDATE`,
+      [providerId],
+    );
+    const provider = suspended.rows[0];
+    if (!provider) throw createAppError('Provider not found or not suspended.', 404);
+    const admission = await client.query<{ was_approved: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM admin_actions
+         WHERE target_type = 'provider' AND target_id = $1 AND action_type = 'provider_approved'
+       ) AS was_approved`,
+      [providerId],
+    );
+    if (!provider.reviewed_at || admission.rows[0]?.was_approved !== true) {
+      throw createAppError('Reactivation requires a recorded prior provider approval. This application needs a separate admission review; reactivation cannot approve it.', 409);
+    }
+    // Lock the current account through commit without changing its role,
+    // fraud flag, activation or session generation.
+    const owner = await client.query<{ id: string }>(
+      `SELECT id FROM users WHERE id = $1 AND role = 'provider'
+         AND is_active = TRUE AND is_flagged_fraud = FALSE FOR SHARE`,
+      [provider.user_id],
+    );
+    if (owner.rowCount !== 1) {
+      throw createAppError('Reactivation requires an active provider account without a fraud flag. Review the account separately; reactivation cannot override its access controls.', 409);
+    }
     const result = await client.query<{ id: string; user_id: string }>(
       `UPDATE providers SET status = 'approved', updated_at = NOW() WHERE id = $1 AND status = 'suspended' RETURNING id, user_id`,
       [providerId],

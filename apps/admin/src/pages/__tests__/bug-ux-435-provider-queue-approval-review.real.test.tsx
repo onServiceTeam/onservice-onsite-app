@@ -34,6 +34,12 @@ it('Bug UX-435 — the provider queue uses the same atomic approval-review contr
       pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
     },
   } as never);
+  vi.mocked(api.get).mockResolvedValueOnce({ data: { success: true, data: {
+    id: 'provider-1', status: 'pending', documents: {
+      governmentIdUrl: '/private/front', governmentIdBackUrl: '/private/back',
+      selfieUrl: '/private/selfie', nbiClearanceUrl: '/private/nbi',
+    },
+  } } } as never);
   vi.mocked(api.put).mockResolvedValueOnce({ data: { success: true } } as never);
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -46,6 +52,7 @@ it('Bug UX-435 — the provider queue uses the same atomic approval-review contr
   );
 
   fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+  await screen.findByRole('checkbox', { name: 'Government ID front and back reviewed and legible' });
   for (const item of VETTING_ITEMS) {
     fireEvent.click(screen.getByRole('checkbox', { name: item.label }));
   }

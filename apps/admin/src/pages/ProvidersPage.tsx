@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
 import { Badge, Button, DataTable, ErrorState, Pagination, type Column } from '@/components/ui';
-import { VettingChecklist, buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
+import { buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
+import { ProviderApprovalReview } from '@/components/ProviderApprovalReview';
 import { Star } from '@/components/icons';
 
 interface Provider {
@@ -320,7 +321,7 @@ export default function ProvidersPage(): React.ReactElement {
             role="dialog"
             aria-modal="true"
             aria-labelledby="provider-action-title"
-            className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6"
+            className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto p-6"
           >
             <h3 id="provider-action-title" className="text-lg font-semibold text-[var(--color-text)] mb-1 capitalize">
               {actionModal.type} Provider
@@ -333,7 +334,7 @@ export default function ProvidersPage(): React.ReactElement {
 
             {actionModal.type === 'reactivate' && (
               <p className="mb-4 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-sm text-[var(--color-text-secondary)]">
-                Reactivation restores future discovery, matching, and job acceptance. It does not clear review holds on bookings that were active when the provider was suspended.
+                Reactivation requires a recorded prior approval and an active provider account without a fraud flag. It restores future discovery, matching, and job acceptance. It does not clear review holds on bookings that were active when the provider was suspended.
               </p>
             )}
 
@@ -368,7 +369,7 @@ export default function ProvidersPage(): React.ReactElement {
 
             {actionModal.type === 'approve' && (
               <div className="mb-4">
-                <VettingChecklist onChange={setVetting} />
+                <ProviderApprovalReview key={actionModal.provider.id} providerId={actionModal.provider.id} onChange={setVetting} />
               </div>
             )}
 

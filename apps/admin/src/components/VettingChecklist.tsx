@@ -19,7 +19,7 @@ export interface VettingItem {
 // optional application data say "or noted as none" so an admin can still confirm
 // they reviewed it for a legit solo worker who has no website/registration.
 export const VETTING_ITEMS: VettingItem[] = [
-  { key: 'gov_id', label: 'Government ID reviewed and legible' },
+  { key: 'gov_id', label: 'Government ID front and back reviewed and legible' },
   { key: 'selfie_match', label: 'Selfie matches the ID' },
   { key: 'nbi', label: 'NBI clearance present and not expired' },
   { key: 'address', label: 'Business / home address looks real and local' },

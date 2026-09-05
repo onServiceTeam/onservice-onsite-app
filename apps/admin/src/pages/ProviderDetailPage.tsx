@@ -36,7 +36,8 @@ import Pagination from '@/components/ui/Pagination';
 import { Textarea } from '@/components/ui/Textarea';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { useReasonDialog } from '@/components/ui/ReasonDialog';
-import { VettingChecklist, buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
+import { buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
+import { ProviderApprovalReview } from '@/components/ProviderApprovalReview';
 import { useAuthStore } from '@/stores/auth.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -509,6 +510,8 @@ export function ProviderHeader({ profile }: { profile: ProviderProfile }): React
     },
     onSuccess: (action) => {
       void queryClient.invalidateQueries({ queryKey: ['admin-provider-profile', profile.id] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-approval-evidence', profile.id] });
+      void queryClient.invalidateQueries({ queryKey: ['adminProviders'] });
       void queryClient.invalidateQueries({ queryKey: ['admin-provider-activity', profile.id] });
       setActionSuccess(
         action === 'suspend'
@@ -534,7 +537,7 @@ export function ProviderHeader({ profile }: { profile: ProviderProfile }): React
         action === 'suspend'
           ? 'Suspension immediately invalidates every provider access and refresh credential. In-flight jobs are held for admin review; this action does not cancel a job, refund a customer, resolve a dispute, or release escrow. The provider receives the reason.'
           : action === 'reactivate'
-            ? 'Reactivation restores provider workspace access but does not clear held jobs, change payments, or resolve disputes. The provider must sign in again and receives the reason.'
+            ? 'Reactivation requires a recorded prior approval and an active provider account without a fraud flag. It restores provider workspace access but does not clear held jobs, change payments, or resolve disputes. The provider must sign in again and receives the reason.'
             : 'Rejection closes this pending application and keeps the person’s customer account. It does not delete submitted records. The applicant receives the reason.',
       confirmLabel:
         action === 'suspend' ? 'Suspend provider' : action === 'reactivate' ? 'Reactivate provider' : 'Reject application',
@@ -781,6 +784,9 @@ export function ApprovalPanel({ profile }: { profile: ProviderProfile }): React.
       setOpen(false);
       setVetting({ isComplete: false, rationale: '' });
       void queryClient.invalidateQueries({ queryKey: ['admin-provider-profile', profile.id] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-approval-evidence', profile.id] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-provider-activity', profile.id] });
+      void queryClient.invalidateQueries({ queryKey: ['adminProviders'] });
     },
     onError: (err) => setError(getErrorMessage(err)),
   });
@@ -799,7 +805,7 @@ export function ApprovalPanel({ profile }: { profile: ProviderProfile }): React.
   return (
     <div className="border-t border-slate-100 pt-4 space-y-3">
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <VettingChecklist onChange={setVetting} />
+      <ProviderApprovalReview key={profile.id} providerId={profile.id} onChange={setVetting} />
       <div className="flex gap-2 justify-end">
         <Button
           variant="outline"
