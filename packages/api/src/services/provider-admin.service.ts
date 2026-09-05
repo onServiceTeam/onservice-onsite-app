@@ -96,6 +96,8 @@ export interface ProviderProfile {
   };
   /** @deprecated Use services. Retained for older admin clients. */
   categories: { id: string; name: string; basePrice: number | null }[];
+  /** Current category-only declarations, not priced services or an immutable application snapshot. */
+  declaredCategories: { id: string; name: string; isActive: boolean }[];
   services: Array<{
     id: string;
     name: string;
@@ -315,10 +317,21 @@ export async function getProviderProfile(
     unassigned_support_cases: string;
     support_owner_names: string[] | null;
     pending_service_area_changes: string;
+    declared_categories: ProviderProfile['declaredCategories'];
     last_login_at: Date | null;
   }>(
     `SELECT p.*, u.id AS u_id, u.first_name, u.last_name, u.phone, u.email,
             u.avatar_url, u.is_verified, u.is_active, u.last_login_at,
+            COALESCE((
+              SELECT jsonb_agg(declaration ORDER BY declaration.name, declaration.id)
+                FROM (
+                  SELECT DISTINCT sc.id, sc.name, sc.is_active AS "isActive"
+                    FROM provider_services ps
+                    JOIN service_categories sc ON sc.id = ps.category_id
+                   WHERE ps.provider_id = p.id AND ps.is_active = TRUE
+                     AND ps.subcategory_id IS NULL
+                ) declaration
+            ), '[]'::jsonb) AS declared_categories,
             (SELECT COUNT(*)::text FROM refresh_tokens rt WHERE rt.user_id = u.id) AS active_refresh_sessions,
             (SELECT COUNT(*)::text
                FROM support_tickets st
@@ -507,6 +520,9 @@ export async function getProviderProfile(
     // Provider 360 must show the same catalog prices booking creation uses.
     // Keep the old categories key temporarily so older admin builds do not
     // break while the current UI reads the complete services projection.
+    // OPS-493: application declarations have no subcategory and therefore no
+    // price. Keep them separate; inactive catalog entries remain reviewable.
+    declaredCategories: p.declared_categories ?? [],
     categories: categoriesResult.rows.map((r) => ({
       id: r.category_id,
       name: r.category_name,

@@ -150,3 +150,13 @@ No server connection/write, production migration, real account creation,
 historical transaction adjustment, master merge, release label, branch-protection
 or gate amendment occurred in this checkpoint. Topic, master and production
 remain different revisions.
+
+## Subsequent exact-commit verification
+
+Commit `d6a0a143a999016117c54c5855c228b0542d8dcb` passed CI `33987938987`
+and Gates `33987938986`, all four CI jobs. Completed mobile job
+`101364845875` explicitly passed UX-1335/1336/1337 and reported 577 suites /
+861 passing tests with 84 TODOs at `2026-09-05T19:45:21Z`. Its web export
+completed 4,364 modules in 84.019 seconds. This supersedes the pending-CI
+statement for that exact checkpoint only. It does not verify subsequent
+admin-handoff changes or indicate any live deployment.

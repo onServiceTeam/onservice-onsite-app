@@ -190,3 +190,22 @@ evidence, test limits, design-source availability and remaining release gates:
 `docs/audits/PROVIDER-APPLICATION-STEP-INTEGRATION-2026-09-06.md`.
 No migration 172 deployment, full-chain rehearsal or authenticated release
 acceptance is implied. E35/E74 and full Stitch/launch acceptance remain open.
+
+## Admin declaration projection, 2026-09-06
+
+The candidate Provider 360 profile adds `declaredCategories`, separate from
+`services` and its deprecated priced `categories` projection. Application
+submission writes category-only `provider_services` rows with no subcategory;
+the service-price join previously omitted those declarations entirely.
+The new read includes this provider's active category-only associations,
+deduplicates identical category rows and exposes the current catalog name and
+active flag. A subsequently disabled catalog category remains visible for
+review. It does not create a priced service, change an approval, or infer
+bookability. Existing priced-service fields and stored prices are unchanged.
+
+These are current retained declarations, not immutable application revisions.
+The admin explicitly labels that distinction and treats an older API omitting
+the new field differently from an empty selection. It does not substitute the
+legacy priced-category projection. OPS-493 adds focused real-PostgreSQL HTTP
+handoff coverage; UX-1338 renders the actual profile tab. Execution evidence and
+remaining boundaries: `docs/audits/PROVIDER-ADMIN-HANDOFF-2026-09-06.md`.

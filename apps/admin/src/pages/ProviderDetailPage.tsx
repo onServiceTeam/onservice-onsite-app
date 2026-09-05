@@ -103,6 +103,8 @@ export interface ProviderProfile {
     selfieUrl: string | null;
   };
   categories: { id: string; name: string; basePrice: number | null }[];
+  /** Omitted by older API builds; do not confuse that with an empty selection. */
+  declaredCategories?: { id: string; name: string; isActive: boolean }[];
   services?: Array<{
     id: string;
     name: string;
@@ -896,6 +898,27 @@ export function ProfileTab({ profile }: { profile: ProviderProfile }): React.Rea
 
       <Card className="p-4">
         <div className="mb-3">
+          <section aria-label="Declared service categories" className="mb-4 border-b border-[var(--color-border)] pb-4">
+            <h3 className="text-sm font-semibold text-[var(--color-text)]">Declared service categories</h3>
+            <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+              Category-only selections on this provider record, not approval or configured bookable services.
+              Names and availability reflect the current catalog, not a historical application snapshot.
+            </p>
+            {profile.declaredCategories == null ? (
+              <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Category selections are unavailable from this server.</p>
+            ) : profile.declaredCategories.length === 0 ? (
+              <p className="mt-2 text-sm text-[var(--color-text-secondary)]">No category-only selections on file.</p>
+            ) : (
+              <ul className="mt-2 space-y-2">
+                {profile.declaredCategories.map((category) => (
+                  <li key={category.id} className="flex flex-wrap items-center gap-2 text-sm text-[var(--color-text)]">
+                    <span className="min-w-0 break-words">{category.name}</span>
+                    {!category.isActive && <Badge label="Currently inactive in catalog" variant="warning" />}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
           <h3 className="text-sm font-semibold text-[var(--color-text)]">Provider services</h3>
           <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
             Customer prices below come from the admin catalog, which is also used at booking.
