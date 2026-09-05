@@ -154,3 +154,21 @@ do not turn restored private keys into public image requests. Also, the shared
 transport must bind delayed responses and token refresh/replay to their initiating
 account/session (UX-1314/1315), independently of owner-bound draft memory. Neither
 transport protection nor backend storage alone constitutes UI resumability.
+
+## Client-session foundation, 2026-09-06
+
+The typed client, owner/generation-bound memory coordinator, loading boundary
+and explicit save/reload/discard component now have real behavior/render
+coverage (UX-1316 through UX-1319). Auth transitions clear applicant memory;
+UX-1320 additionally reproduces and fixes a delayed logout erasing a newer
+same-owner login. The action/loading components are deliberately **not yet
+wired into the applicant layout or steps**. Final payload normalization and
+revision-aware submission must be connected in the same next stage before
+offering the feature. No UI-resumability, browser-acceptance or deployment
+claim is made. Detailed evidence and continuation checklist:
+`docs/audits/PROVIDER-APPLICATION-CLIENT-SESSION-2026-09-06.md`.
+
+The preceding transport commit `87b1450749c0516b1cd1a500eb2ed9adddf1a921`
+passed CI `33974769862` and Gates `33974769636`, including the explicitly named
+UX-1314/1315 regressions, 555 mobile suites / 839 tests and all four CI jobs.
+That independent verification does not apply to later unpublished work.

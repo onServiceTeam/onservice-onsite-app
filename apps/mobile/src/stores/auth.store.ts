@@ -22,6 +22,15 @@ import {
 // refresh attempt from a different fingerprint can be detected.
 import { getDeviceFingerprint } from '@/services/device-fingerprint.service';
 import { unregisterStoredPushToken } from '@/services/push-token.service';
+import { resetApplicationSession } from './provider-application-session.store';
+
+// Separate from token rotation and from draft reloads. An old logout may finish
+// after a fresh sign-in, including another sign-in by this same account.
+let authIdentityGeneration = 0;
+function invalidateApplicantIdentity(): void {
+  authIdentityGeneration += 1;
+  resetApplicationSession();
+}
 
 // Phase D CRIT-88 fix — User.role no longer omits 'super_admin' (and
 // 'dpo' from E01). Pre-fix: a super_admin signing into the mobile
@@ -140,6 +149,8 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     const refreshToken = data.refreshToken;
     const user = data.user as User;
     const isNewUser = data.isNewUser === true;
+    // A fresh login for the same owner also invalidates old screen work.
+    invalidateApplicantIdentity();
     storeTokens(accessToken, refreshToken);
     storeUser(JSON.stringify(user));
     if (isNewUser) {
@@ -170,12 +181,14 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
   // delay on a poor connection. If either server call fails, we still clear
   // locally; logout must always succeed from the user's perspective.
   logout: async () => {
+    const generation = authIdentityGeneration;
     const logoutRequests: Promise<unknown>[] = [unregisterStoredPushToken()];
     const refreshToken = getRefreshToken();
     if (refreshToken) {
       logoutRequests.push(api.post('/api/v1/auth/logout', { refreshToken }));
     }
     await Promise.allSettled(logoutRequests);
+    if (authIdentityGeneration !== generation) return;
     clearTokens();
     clearStoredUser();
     set({ user: null, isAuthenticated: false, otpRequestId: null });
@@ -206,4 +219,11 @@ setAuthSessionExpiredHandler(() => {
     isLoading: false,
     otpRequestId: null,
   });
+});
+
+// One boundary covers logout, terminal expiry, restored identity, approval,
+// staff conversion and explicit account changes. Profile-only edits keep work.
+useAuthStore.subscribe((state, previous) => {
+  if (state.user?.id !== previous.user?.id || state.user?.role !== previous.user?.role
+    || state.isAuthenticated !== previous.isAuthenticated) invalidateApplicantIdentity();
 });
