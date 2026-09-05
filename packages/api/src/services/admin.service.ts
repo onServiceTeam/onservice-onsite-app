@@ -284,6 +284,7 @@ export async function listProviders(
 const REQUIRED_KYC_FIELDS = [
   'nbi_clearance_url',
   'government_id_front_url',
+  'government_id_back_url',
   'selfie_url',
 ] as const;
 
@@ -315,33 +316,34 @@ export async function approveProvider(
     throw createAppError('A valid provider vetting checklist summary is required.', 400);
   }
 
-  // MED-N75: pre-approval KYC check. SELECT outside the transaction
-  // so we can give a clean 400 error without rolling back any work.
-  interface KycRow {
-    nbi_clearance_url: string | null;
-    government_id_front_url: string | null;
-    selfie_url: string | null;
-  }
-  const kyc = await db.query<KycRow>(
-    `SELECT nbi_clearance_url, government_id_front_url, selfie_url FROM providers WHERE id = $1`,
-    [providerId],
-  );
-  if (kyc.rows.length === 0) {
-    throw createAppError('Provider not found.', 404);
-  }
-  const missing: string[] = [];
-  for (const field of REQUIRED_KYC_FIELDS) {
-    const v = kyc.rows[0]![field];
-    if (!v) missing.push(field);
-  }
-  if (missing.length > 0) {
-    throw createAppError(
-      `Cannot approve: missing KYC documents (${missing.join(', ')}). Provider must upload before admin can approve.`,
-      400,
-    );
-  }
-
   await db.transaction(async (client) => {
+    // OPS-479 / E36: validate the current complete evidence under the same
+    // row lock as the decision. An unlocked read can approve after a concurrent
+    // document removal. Existing approved records are not silently re-decided.
+    const kyc = await client.query<{
+      status: string;
+      nbi_clearance_url: string | null;
+      government_id_front_url: string | null;
+      government_id_back_url: string | null;
+      selfie_url: string | null;
+    }>(
+      `SELECT status, nbi_clearance_url, government_id_front_url,
+              government_id_back_url, selfie_url
+         FROM providers WHERE id = $1 FOR UPDATE`,
+      [providerId],
+    );
+    const application = kyc.rows[0];
+    if (!application || application.status !== 'pending') {
+      throw createAppError('Provider not found or not in pending status.', 404);
+    }
+    const missing = REQUIRED_KYC_FIELDS.filter((field) => !application[field]?.trim());
+    if (missing.length > 0) {
+      throw createAppError(
+        `Cannot approve: missing KYC documents (${missing.join(', ')}). Provider must upload before admin can approve.`,
+        400,
+      );
+    }
+
     const result = await client.query<{ id: string; user_id: string }>(
       `UPDATE providers SET status = 'approved', reviewed_at = NOW(), updated_at = NOW()
         WHERE id = $1 AND status = 'pending'
@@ -351,10 +353,23 @@ export async function approveProvider(
     if (result.rowCount === 0) throw createAppError('Provider not found or not in pending status.', 404);
 
     const userId = result.rows[0]!.user_id;
-    await client.query(
-      `UPDATE users SET role = 'provider', updated_at = NOW() WHERE id = $1`,
+    // OPS-480: approval is not an account-recovery or staff-role override.
+    // The conditional UPDATE rechecks eligibility after any concurrent user
+    // update and rolls back the provider decision if the owner is ineligible.
+    // Older applicants prematurely assigned provider retain compatibility.
+    const promoted = await client.query(
+      `UPDATE users SET role = 'provider', updated_at = NOW()
+        WHERE id = $1 AND role IN ('customer', 'provider')
+          AND is_active = TRUE AND is_flagged_fraud = FALSE
+        RETURNING id`,
       [userId],
     );
+    if (promoted.rowCount !== 1) {
+      throw createAppError(
+        'Cannot approve: the application owner must be an active customer or legacy provider account with no fraud flag. Review the account separately.',
+        409,
+      );
+    }
 
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)

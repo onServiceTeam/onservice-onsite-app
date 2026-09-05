@@ -50,19 +50,16 @@ beforeEach(() => {
 
 describe('MED-N71 — approveProvider notification type is provider_approved', () => {
   it('MED-N71 — approval writes a provider_approved notification in the approval transaction', async () => {
-    dbQueryMock.mockResolvedValueOnce({
-      rows: [{
-        nbi_clearance_url: 'onboarding/user-1/nbi.jpg',
-        government_id_front_url: 'onboarding/user-1/front.jpg',
-        selfie_url: 'onboarding/user-1/selfie.jpg',
-      }],
-      rowCount: 1,
-    });
     const transactionCalls: Array<{ sql: string; params: unknown[] }> = [];
     dbTransactionMock.mockImplementationOnce(async (callback: unknown) => {
       const client = {
         query: jest.fn(async (sql: string, params: unknown[] = []) => {
           transactionCalls.push({ sql, params });
+          if (/SELECT status, nbi_clearance_url/.test(sql)) {
+            return { rows: [{ status: 'pending', nbi_clearance_url: 'onboarding/user-1/nbi.jpg',
+              government_id_front_url: 'onboarding/user-1/front.jpg', government_id_back_url: 'onboarding/user-1/back.jpg',
+              selfie_url: 'onboarding/user-1/selfie.jpg' }], rowCount: 1 };
+          }
           if (/UPDATE providers/.test(sql)) {
             return { rows: [{ id: 'provider-1', user_id: 'user-1' }], rowCount: 1 };
           }

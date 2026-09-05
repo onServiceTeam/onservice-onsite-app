@@ -1785,6 +1785,18 @@ requires the E32-blocked aggregate production audit so existing pending and
 approved records are not stranded without a deliberate legacy path. See
 `.ai-coder/escalations/E36-provider-approval-does-not-enforce-government-id-back-2026-08-30.md`.
 
+2026-09-05 continuation under Ken's delegated approval: the read-only live
+inventory and complete-backup verification are now available. No pending rows
+were present. Existing approved records lacked all four references; their
+test/legacy classification and real vetting evidence are not established.
+They were not demoted, backfilled, or represented as verified. OPS-479 adds
+all-four-document validation under the approval transaction's row lock.
+OPS-480 makes owner-role promotion conditional on an active customer or legacy
+provider account with no fraud flag. Both changes remain unpublished to the
+live server and need their fresh mandatory PostgreSQL CI tests. The Admin
+checklist/incomplete-state follow-up, legacy evidence review, correction and
+resubmission, and reactivation-path audit remain open. This item is not closed.
+
 ---
 
 ## 54. The Admin Audit Log is not a complete correlated activity trail
@@ -2137,3 +2149,17 @@ no safe test PostgreSQL service is available. No production migration, live
 application deployment or historical transaction rewrite was performed for
 this finding. Do not infer launch readiness from the previous candidate's
 green CI. See `docs/runbooks/exact-api-release.md`.
+
+2026-09-05 verification update: **RESOLVED in the verified candidate, not yet
+deployed.** The public-entry fix-forward and UX-1310 candidate passed complete
+CI `33962050423` and Gates `33962050420`. The exact packaged API image for CI
+source `09051d72b57dd3a5d33666ee18900c0997f3cd0f` was rehearsed, without a
+substituted runner, on a fresh isolated restoration of the selected complete
+backup. Dry-run checks preserved public columns/constraints and sampled
+historical records; all 15 pending migrations applied, all 160 migration names
+matched the image, and repeat application added no history entries. Original
+fields in 218 business records and 145 prior migration-history rows were
+unchanged. This is not an exhaustive comparison of every production table or
+authenticated business acceptance. Production remains on `7ed367cd`, with no
+live migration performed. Paired frontend/API publication, rollback and the
+other launch requirements remain open.

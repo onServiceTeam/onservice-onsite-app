@@ -2,6 +2,7 @@
 //
 // MED-N75: approveProvider now refuses approval if any of nbi_clearance_url,
 // government_id_front_url, selfie_url is null on the providers row.
+// OPS-479 extends this to ID back and checks inside the decision transaction.
 // MED-N74: changeProviderTier now whitelists the 5 valid tiers
 // (founding | new | verified | pro | elite) matching the migration 073
 // CHECK constraint.
@@ -12,6 +13,7 @@
 
 const dbQueryMock = jest.fn();
 const dbTransactionMock = jest.fn();
+const approvalClientQueryMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({
   db: {
@@ -39,13 +41,19 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
   beforeEach(() => {
     dbQueryMock.mockReset();
     dbTransactionMock.mockReset();
+    approvalClientQueryMock.mockReset();
+    approvalClientQueryMock.mockResolvedValue({ rows: [], rowCount: 1 });
+    dbTransactionMock.mockImplementation(async (callback: (client: { query: typeof approvalClientQueryMock }) => Promise<unknown>) =>
+      callback({ query: approvalClientQueryMock }));
   });
 
   it('refuses approval when nbi_clearance_url is null', async () => {
-    dbQueryMock.mockResolvedValueOnce({
+    approvalClientQueryMock.mockResolvedValueOnce({
       rows: [{
+        status: 'pending',
         nbi_clearance_url: null,
         government_id_front_url: 'https://s3/id-front.png',
+        government_id_back_url: 'https://s3/id-back.png',
         selfie_url: 'https://s3/selfie.png',
       }],
     });
@@ -54,49 +62,47 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
         statusCode: 400,
         message: expect.stringMatching(/missing KYC documents.*nbi_clearance_url/),
       });
-    // Transaction must NOT have run.
-    expect(dbTransactionMock).not.toHaveBeenCalled();
+    // Locked validation runs in the transaction, but no writes may follow it.
+    expect(approvalClientQueryMock).toHaveBeenCalledTimes(1);
+    expect(dbQueryMock).not.toHaveBeenCalled();
   });
 
   it('refuses approval when multiple KYC fields are null and lists all of them', async () => {
-    dbQueryMock.mockResolvedValueOnce({
+    approvalClientQueryMock.mockResolvedValueOnce({
       rows: [{
+        status: 'pending',
         nbi_clearance_url: null,
         government_id_front_url: null,
+        government_id_back_url: null,
         selfie_url: null,
       }],
     });
     await expect(adminService.approveProvider('p-1', 'admin-1', APPROVAL_REVIEW))
       .rejects.toMatchObject({
         statusCode: 400,
-        message: expect.stringContaining('nbi_clearance_url, government_id_front_url, selfie_url'),
+        message: expect.stringContaining('nbi_clearance_url, government_id_front_url, government_id_back_url, selfie_url'),
       });
   });
 
-  it('proceeds with approval when all 3 KYC fields are present', async () => {
+  it('proceeds with approval when all 4 KYC fields are present', async () => {
     // KYC SELECT returns all-present.
-    dbQueryMock.mockResolvedValueOnce({
+    approvalClientQueryMock.mockResolvedValueOnce({
       rows: [{
+        status: 'pending',
         nbi_clearance_url: 'https://s3/nbi.pdf',
         government_id_front_url: 'https://s3/id-front.png',
+        government_id_back_url: 'https://s3/id-back.png',
         selfie_url: 'https://s3/selfie.png',
       }],
     });
-    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
-      const clientQuery = jest.fn(async (sql: string) => {
-        if (/UPDATE providers/.test(sql)) return { rows: [{ id: 'p-1', user_id: 'u-1' }], rowCount: 1 };
-        return { rows: [{ user_id: 'u-1' }], rowCount: 1 };
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (cb as any)({ query: clientQuery });
-    });
+    approvalClientQueryMock.mockResolvedValueOnce({ rows: [{ id: 'p-1', user_id: 'u-1' }], rowCount: 1 });
 
     await expect(adminService.approveProvider('p-1', 'admin-1', APPROVAL_REVIEW)).resolves.toBeUndefined();
     expect(dbTransactionMock).toHaveBeenCalled();
   });
 
   it('throws 404 when provider does not exist', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [] });
+    approvalClientQueryMock.mockResolvedValueOnce({ rows: [] });
     await expect(adminService.approveProvider('does-not-exist', 'admin-1', APPROVAL_REVIEW))
       .rejects.toMatchObject({ statusCode: 404 });
   });

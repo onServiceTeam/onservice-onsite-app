@@ -25,19 +25,16 @@ it('Bug UX-434 — provider approval requires and transactionally preserves the 
   expect(queryMock).not.toHaveBeenCalled();
   expect(transactionMock).not.toHaveBeenCalled();
 
-  queryMock.mockResolvedValueOnce({
-    rows: [{
-      nbi_clearance_url: 'private/nbi.pdf',
-      government_id_front_url: 'private/id.jpg',
-      selfie_url: 'private/selfie.jpg',
-    }],
-    rowCount: 1,
-  });
   const transactionCalls: Array<{ sql: string; params: unknown[] }> = [];
   transactionMock.mockImplementationOnce(async (callback: unknown) => {
     const client = {
       query: jest.fn(async (sql: string, params: unknown[] = []) => {
         transactionCalls.push({ sql, params });
+        if (/SELECT status, nbi_clearance_url/.test(sql)) {
+          return { rows: [{ status: 'pending', nbi_clearance_url: 'private/nbi.pdf',
+            government_id_front_url: 'private/id.jpg', government_id_back_url: 'private/id-back.jpg',
+            selfie_url: 'private/selfie.jpg' }], rowCount: 1 };
+        }
         if (/UPDATE providers/.test(sql)) {
           return { rows: [{ id: 'provider-1', user_id: 'user-1' }], rowCount: 1 };
         }
@@ -60,4 +57,5 @@ it('Bug UX-434 — provider approval requires and transactionally preserves the 
   expect(audit?.params[3]).toBe(reason);
   expect(audit?.params[4]).toContain(reason);
   expect(audit?.params[4]).toContain(checklistSummary);
+  expect(queryMock).not.toHaveBeenCalled();
 });

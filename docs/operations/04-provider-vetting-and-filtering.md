@@ -81,7 +81,7 @@ wave someone through to hit a recruiting number.
 
 ## 1. The eligibility bar (must-haves)
 
-A provider does not get approved unless every line below is true. The first three are enforced in the admin app itself: the Approve button refuses to fire unless `nbi_clearance_url`, `government_id_front_url`, and `selfie_url` are all on file. The rest are policy we enforce by eye in the review queue.
+A provider does not get approved unless every line below is true. The OPS-479 development candidate checks all four document references (NBI, government ID front and back, selfie) under the server's approval-transaction lock. This correction is not yet live. Document authenticity, identity match and the remaining policy checks still require human review; an enabled button is not proof that they passed.
 
 Hard requirements:
 
@@ -93,10 +93,12 @@ Hard requirements:
 - [ ] Independent Contractor agreement accepted (`icAgreementAccepted: true` at submission, timestamped server-side).
 - [ ] Service radius between 1 km and the live **Max Service Radius** in Admin Settings (50 km at the time of this audit, hard-bounded to 5-100 km). The application, provider change request, approval, and direct admin override all enforce the same saved maximum.
 
-**Current enforcement warning:** Provider 360 shows both ID sides, but the API
-approval prerequisite checks only NBI, government ID front, and selfie. Until
-E36 is resolved, the reviewer must manually stop approval when the ID back is
-missing; the enabled approval action is not proof that all four files exist.
+**Current enforcement warning:** the older live API still checks only NBI,
+government ID front, and selfie. OPS-479 adds the back-image prerequisite, but
+its deployment and the Admin incomplete-state follow-up remain open under E36.
+Stop approval whenever any of the four files is absent. Existing approved
+records without references need a separate evidence review; do not invent
+documents, silently demote historical accounts, or call them fully vetted.
 
 Policy requirements from DECISION-003 (not all enforced in code, enforce them here):
 
@@ -115,11 +117,11 @@ Optional at application (nice to have, not blocking):
 
 ### Documents and checks required before you click Approve (the full list in one place)
 
-Use this as the pre-approval checklist. The first three are enforced by the app (the Approve button refuses without them). The rest you enforce by eye and by note.
+Use this as the pre-approval checklist. The candidate server requires all four document references; the older live gate still omits ID back. Review all four files by eye, and record the remaining checks in the rationale and notes.
 
 | Item | Required? | What good looks like | What disqualifies |
 |---|---|---|---|
-| Government ID, front and back | Yes (app-enforced front) | National ID, Passport, Driver's License, or UMID. Readable, not expired, name matches the application | Unreadable, expired, name mismatch, only one side |
+| Government ID, front and back | Yes (both references enforced in OPS-479 candidate; front only on older live API) | National ID, Passport, Driver's License, or UMID. Readable, not expired, name matches the application | Unreadable, expired, name mismatch, only one side |
 | Selfie / face check | Yes (app-enforced) | Clear face that matches the ID by eye. A live video selfie in the interview if the upload was poor | Different person from the ID, hidden face, refusal to do a live check when the upload was unclear |
 | NBI clearance | Yes (app-enforced) | Issued within the last 6 months, name matches, no disqualifying hit | Older than 6 months, name mismatch, theft/violence/sexual-offense hit, forged |
 | Proof of skill / certification | Where the trade needs it | Photos or short video of past work for all trades; a TESDA or PRC certificate for electrical work and for Elite tier | No evidence of any past work; a claimed cert that cannot be verified |
@@ -341,7 +343,7 @@ Lifecycle: application -> `pending` -> Approve to `approved` OR Reject to `rejec
 
 Decision rule:
 
-- **APPROVE** when the scorecard is 80+, all four KYC evidence files are on file and reviewed, and no auto-fail triggered. E36 means the ID back is temporarily a manual gate even when the button is enabled.
+- **APPROVE** when the scorecard is 80+, all four KYC evidence files are on file and reviewed, and no auto-fail triggered. Until OPS-479 is deployed and the E36 interface follow-up is verified, the ID back still needs a manual stop even when the button is enabled.
 - **HOLD** when the scorecard is 60 to 79 or a document is unclear. Holding is not a status in the app. In practice you leave the provider at `pending` and message them for the missing item. Log the hold reason in Notes so the next admin knows where it stands.
 - **REJECT** when the scorecard is below 60 or any auto-fail triggered.
 
@@ -356,7 +358,8 @@ Decision rule:
 7. Confirm service categories and service area look right.
 8. Score the scorecard (Section 3). Write the score and notes in the **Notes** tab (category `general` or `quality`).
 9. If it passes, go back to the **Providers** list (or use the detail action) and click **Approve**.
-   - The system refuses approval if any of `nbi_clearance_url`, `government_id_front_url`, or `selfie_url` is missing, and returns a clean message listing what is missing. It does not yet include `government_id_back_url` in that check. Stop manually if the back image is absent, record the hold in Notes, and follow E36 rather than treating the enabled button as clearance.
+   - The OPS-479 candidate refuses missing/blank NBI, ID front, ID back or selfie references inside the decision transaction and names what is missing. The older live API still omits ID back. Stop manually for incomplete evidence and record the hold in Notes. No secure correction/resubmission path is implied by this prerequisite fix.
+   - OPS-480 also refuses approval when the owner is inactive, fraud-flagged, or has a staff/admin/DPO/other role. Review that account separately; provider approval is not an account recovery or role-override tool. A refusal leaves the provider decision, role, audit and approval notification unchanged.
    - On success the status flips `pending -> approved`, `reviewed_at` is stamped, an audit row `provider_approved` is written, and the provider gets an "Account Approved" notification.
 10. Set the tier if needed. New approvals default to **New** (15%). If this is one of the founding batch, use **Change Tier** to set Founding (reason required, 10+ chars).
 

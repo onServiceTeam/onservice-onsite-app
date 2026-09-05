@@ -699,3 +699,127 @@ The initial draft used UX-1120, which the blocking uniqueness check correctly
 found was already assigned to an admin notification-template test. The existing
 test was left untouched. A repository-wide title inventory identified UX-1310
 as the next free ID, and this new regression was renamed before publication.
+
+## Exact rebuilt-image rehearsal and public-link browser acceptance
+
+UX-1310 commit `dc7a908916c349a0d2c7e4ecceb924e1fdcfda73` passed complete
+CI `33962050423` (all four jobs) and Gates `33962050420`. Mobile job
+`101295511347` explicitly passed the new regression: **553 suites, 837 passing
+tests and 84 honest todos** overall. Todos are not completed behavior. The
+mandatory OPS-478 real-PostgreSQL regression passed in the preceding complete
+CI `33961265891`; the latest complete API job also succeeded. Gate report modes
+and the existing launch requirements have not been promoted or waived.
+
+The matching API/admin/customer-provider source is the CI merge checkout
+`09051d72b57dd3a5d33666ee18900c0997f3cd0f`, not the topic commit or master.
+Artifact IDs: API `9968303464`, admin `9968368942`, web `9968292458`.
+Both frontend metadata records were read after download. Their origins are
+`https://admin.onservice.ph` and `https://app.onservice.ph`, demo mode is false,
+and deployment eligibility is explicitly false. The API package's three hashes
+matched again on the server. Its exact loaded image is
+`sha256:9d5d99bb69715235a96b41b698aa06759a7f3b81e0e7e186877e302584ca88d2`.
+The temporary PR candidate label was removed and verified absent.
+
+The **built-in runner in that exact image**, with no replacement script mount,
+passed a fresh isolated PG17 restore of complete backup `20260905-041108`.
+The backup manifest and Git bundle/source/image identities were verified first.
+The dry run retained 145 migration entries, public column/constraint fingerprint
+and the recorded historical fields. Applying the reviewed boundary ran all 15
+pending migrations and produced exactly the image's 160 migration names.
+Original fields in **218 business records plus 145 old migration-history rows**
+were compared by row identity and unchanged. A second actual application kept
+160 entries and passed the same historical-field checks. These checks cover
+the explicit baseline tables, not every row/table in the database, and are not
+an authenticated booking/payment/support acceptance test.
+
+The rehearsal exited 0. Evidence remains in the private candidate's
+`runner-evidence-7um43rd8` directory; the exact temporary database container and
+internal network were removed and verified absent. The complete backup, loaded
+candidate image and logs were retained. No live checkout, environment, schema,
+transaction, frontend bundle or service was modified. Subsequent checks showed
+clean production HEAD `7ed367cd`, the original running API image, and healthy
+API/PostgreSQL/Redis/nginx. The API's own `/health/ready` returned `ready`, with
+PostgreSQL and Redis `ok`. A request to the public app's `/health` had returned
+the SPA HTML, not API readiness; that HTTP 200 is explicitly not health proof.
+
+The actual new exported customer/provider artifact was then served locally,
+with real production API configuration but no login/OTP/signup submission.
+Ordinary keyboard Tab focused the login Terms **link** and Return opened
+`/legal?tab=terms` with Acceptance & Eligibility. Pointer activation of login
+Privacy opened `/legal?tab=privacy` with the Data Controller section. Both
+registration links independently opened their correct public documents.
+Direct signed-out navigation to `/customer/terms` still settled at `/auth/login`,
+so the customer guard was not weakened. Screenshots/accessibility output are
+in the task history; no new baseline PNG set was committed. The new-build
+checks were at the 1024x600 audit viewport. This is a focused navigation fix,
+not whole-screen Stitch parity or authenticated desktop/tablet acceptance.
+
+Production configuration was inspected privately for presence/aggregate state,
+without printing credentials or customer records. It currently says `staging`,
+has privileged 2FA bypass disabled, and has test OTP enabled for eight allowed
+numbers. CAPTCHA/Turnstile server secrets were absent. Existing roles include
+customer, provider, provider_staff, admin, super_admin and DPO. This is not proof
+of valid client demo credentials or launch-ready configuration. Do not share
+test access until the account/role and intended non-production use are verified.
+
+Next: prepare bounded paired web/API publication and rollback without replacing
+the live bind-mounted directories or recreating the shared nginx service.
+Review broad PR scope and paired authenticated acceptance before deploying.
+E74 lifecycle, E72 reveal governance, E73 durable notifications, full Stitch
+coverage, operator business feasibility and unresolved launch items remain open.
+
+## E36/E74 initial-approval transaction correction
+
+The delegated approval is applied conservatively: keep the existing four-file
+application contract, enforce it for pending decisions, preserve previously
+approved history, and do not invent a legacy exemption or missing evidence.
+Read-only server counts found no pending providers and six approved records,
+each missing all four KYC references. Their creation dates ranged from June 3
+to August 25. These may be test/legacy records, but this has not been proved.
+No document keys, personal records or credentials were printed; no provider
+was approved, suspended, demoted or backfilled. The selected complete backup
+had already passed checksum and isolated restore verification.
+
+OPS-479 moves the KYC read into the existing approval transaction with a
+provider-row lock, requires both ID sides/NBI/selfie to be nonblank, and keeps
+the pending-only decision predicate. OPS-480 conditionally promotes only an
+active customer or legacy early-promoted provider with no fraud flag. A stale
+account role, inactive account or fraud flag produces 409 and rolls back the
+provider decision before its audit/notification can be committed. Staff,
+admin, super-admin, DPO and unknown future roles are not overwritten.
+
+The two new regressions use the actual service and actual `db.transaction`,
+pointing only its configured pool at unique schemas in a safe localhost
+`*_test` PostgreSQL database. They cover missing/blank fields, actual concurrent
+document removal and user-role changes, one winner in concurrent approvals,
+historical approved-record preservation, and audit-failure rollback. PostgreSQL
+lock dependencies are observed, not inferred from a timed sleep. The fixtures
+model the exercised tables and constraints, not the entire production schema.
+CI requires this database; local absence is an explicit skip.
+
+Local verification passed five existing suites / 28 tests in 19.099 seconds;
+the two new database suites/tests were skipped, not claimed passed. Changed-file
+lint and API TypeScript passed. Existing unit fixtures were updated to return
+the locked pending record and fourth document. Their old no-transaction KYC
+assertion became a no-write-after-locked-validation assertion; approval-role,
+rationale and inbox assertions remain. Full fresh CI is still pending.
+
+This is not full E36/E74 closure. The Admin panel still needs a visible missing
+evidence state and explicit front/back checklist wording. Durable application
+revisions, request-changes/resubmission and legacy evidence classification are
+not implemented. The separate reactivation function currently turns suspended
+records into approved records, while suspension accepts pending applications;
+that route also needs eligibility/lifecycle review before claiming one complete
+safe admission boundary. No migration, dependency, legal text, production
+policy value or historical financial term was changed.
+
+The temporary local browser audit tab was closed after restoring its original
+1440x900 dimensions, and the exact preview-server terminal was stopped. No user
+browser tabs or other local/server applications were closed.
+
+The existing uniqueness gate passed with 1,486 titled regressions. The route-file
+inventory found 114 non-layout TSX files; CLAUDE.md's stale 108 count was corrected.
+This includes aliases, not 114 independently accepted UX flows. No gate mode,
+allowlist, branch protection or historical phase specification was edited.
+`docs/runbooks/paired-web-api-release.md` now records the bounded publication
+and rollback requirements. It is a plan, not an implemented or tested publisher.

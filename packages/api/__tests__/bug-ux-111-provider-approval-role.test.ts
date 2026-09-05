@@ -15,19 +15,16 @@ jest.mock('../src/utils/logger', () => ({
 import { approveProvider } from '../src/services/admin.service';
 
 it('BUG-UX-111 — admin approval grants provider role in the approval transaction', async () => {
-  dbQueryMock.mockResolvedValueOnce({
-    rows: [{
-      nbi_clearance_url: 'onboarding/user-1/nbi.jpg',
-      government_id_front_url: 'onboarding/user-1/front.jpg',
-      selfie_url: 'onboarding/user-1/selfie.jpg',
-    }],
-  });
-
   const transactionSql: string[] = [];
   dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
     const client = {
       query: jest.fn(async (sql: string) => {
         transactionSql.push(sql);
+        if (/SELECT status, nbi_clearance_url/.test(sql)) {
+          return { rows: [{ status: 'pending', nbi_clearance_url: 'onboarding/user-1/nbi.jpg',
+            government_id_front_url: 'onboarding/user-1/front.jpg', government_id_back_url: 'onboarding/user-1/back.jpg',
+            selfie_url: 'onboarding/user-1/selfie.jpg' }], rowCount: 1 };
+        }
         if (/UPDATE providers/i.test(sql)) {
           return { rows: [{ id: 'provider-1', user_id: 'user-1' }], rowCount: 1 };
         }
@@ -47,4 +44,5 @@ it('BUG-UX-111 — admin approval grants provider role in the approval transacti
   const roleUpdateIndex = transactionSql.findIndex((sql) => /UPDATE users SET role = 'provider'/i.test(sql));
   expect(providerUpdateIndex).toBeGreaterThanOrEqual(0);
   expect(roleUpdateIndex).toBeGreaterThan(providerUpdateIndex);
+  expect(dbQueryMock).not.toHaveBeenCalled();
 });
