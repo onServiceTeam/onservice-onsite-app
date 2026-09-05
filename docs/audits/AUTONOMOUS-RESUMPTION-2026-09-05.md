@@ -558,3 +558,48 @@ the exact migration runner on an isolated restoration, and prepare the bounded
 web/API publication and rollback. E74 lifecycle, the full Stitch acceptance
 inventory, business/support/payment linkage and all unresolved launch requirements
 remain in scope; candidate packaging is not a substitute for them.
+
+## Candidate verification and OPS-478 prerequisite defect
+
+OPS-477 at `614f89fb` passed complete CI `33958914787` and Gates `33958914609`.
+All four jobs succeeded, including real image packaging. The matching candidate
+source revision is the CI merge checkout
+`814bf7a8369e2d8a8d7c2f46b4dd786f83e25503`, not master or the topic HEAD.
+Retained artifacts are API `9967345316`, admin `9967396819` and customer/provider
+web `9967338450`. Both frontend metadata records match the API revision, use
+their production origins, disable demo mode and explicitly deny deployment
+eligibility. The three API package checksums matched after private download.
+Its recorded image ID is
+`sha256:c5e8e48f6a52dc90bdbbf4f323ffd673087042e411730304f95964cb12f10e4f`.
+The one-run `release-candidate` PR label was removed after completion.
+
+Production identity checks still found the same clean `7ed367cd` checkout and
+healthy marketplace API/PostgreSQL/Redis/nginx. A database-owner probe initially
+lost shell quoting and attempted a nonexistent root role; the corrected
+read-only probe succeeded without printing a password or user records. Only a
+new private marketplace rehearsal directory and candidate/script transfer have
+been initiated. No live checkout/config/database/service was changed. The large
+candidate transfer is still in progress at this checkpoint; staging is not a
+successful image load or restore rehearsal.
+
+Reading the installed node-pg-migrate 8.0.4 CLI and runner revealed that its
+basename argument filters to **one exact file**. The existing helper therefore
+could apply 171 while silently skipping pending 157-170. Previous OPS-001/476
+tests used substituted container calls; they proved command/identity plumbing,
+not prerequisite execution. This invalidates using their green status as proof
+of the requested final migration boundary. Production rollout remains held.
+
+OPS-478 introduces a real bounded runner and a mandatory CI PostgreSQL test that
+first reproduces the old CLI failure. It preserves out-of-order legacy history,
+selects every pending prerequisite, excludes later files, rejects unknown or
+duplicate history, verifies results and shares the existing advisory lock.
+The shell helper and deployment wording now use this upper-bound meaning.
+No SQL migration or historical record is rewritten to hide the mismatch.
+
+Local syntax, changed-file ESLint and API TypeScript passed. OPS-001/476 passed
+two suites/two tests in 15.068 seconds. OPS-478 was explicitly **skipped**, not
+passed: the local Docker engine is unavailable and no safe test database was
+configured. Fresh Linux CI must execute it. Transactional fixture rollback
+will not establish whole-release atomicity for historical SQL containing its
+own BEGIN/COMMIT. An exact-image rehearsal and paired web/API release plan are
+still required before any production upgrade.

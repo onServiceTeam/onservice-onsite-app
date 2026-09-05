@@ -159,8 +159,8 @@ it('Bug OPS-476 — releases migrate and activate only the exact verified image,
         const onlyDry = scenario === 'migration_dry_only' || scenario === 'migration_dry_failed';
         expect(runs).toHaveLength(invalidTarget ? 0 : onlyDry ? 1 : 2);
         if (runs.length) {
-          expect(runs[0]).toContain(`run --rm --no-deps api sh -lc DATABASE_URL="$DATABASE_DIRECT_URL" npm run migrate:up -- ${target}`);
-          expect(runs[0]).toContain('--migrations-dir migrations --no-check-order --dry-run');
+          expect(runs[0]).toContain(`run --rm --no-deps api sh -lc DATABASE_URL="$DATABASE_DIRECT_URL" node scripts/run-reviewed-migrations.mjs --target ${target}`);
+          expect(runs[0]).toContain('--migrations-dir migrations --dry-run');
         }
         if (runs.length === 2) expect(runs[1]).not.toContain('--dry-run');
         expect(composeCalls.some(call => call.includes(' up '))).toBe(false);

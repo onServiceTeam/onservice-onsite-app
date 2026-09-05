@@ -9,7 +9,7 @@ on:
         default: 'false'
         type: boolean
       migration_target:
-        description: 'Exact reviewed migration basename, required when migrations run (for example 148_provider_portfolio_consent)'
+        description: 'Reviewed upper-bound migration basename; every pending prerequisite through it runs (required when migrations run)'
         required: false
         default: ''
         type: string
@@ -96,8 +96,8 @@ jobs:
             sudo -n env ONSERVICE_RELEASE_SHA="$RELEASE_SHA" \
               bash -c 'source scripts/server/release-api-common.sh'
 
-            # Run only the explicitly named, reviewed migration. The helper
-            # backs this with a dry run and uses the direct Postgres connection.
+            # Run every pending prerequisite through the reviewed boundary.
+            # The helper dry-runs and verifies history on the direct connection.
             if [ "$RUN_MIGRATIONS" = "true" ]; then
               migration_target="$MIGRATION_TARGET"
               if ! [[ "$migration_target" =~ ^[0-9]{3}_[a-z0-9_]+$ ]]; then

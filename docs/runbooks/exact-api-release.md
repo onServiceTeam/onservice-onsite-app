@@ -8,6 +8,12 @@ could therefore be reported as a successful new deployment. The workflow also
 previously checked out moving `master` while naming artifacts with the original
 dispatch SHA.
 
+OPS-478 is a separate release blocker discovered during runner review: the
+previous `node-pg-migrate up <basename>` command selected only that file, not
+all pending prerequisites through it. OPS-476's image-identity tests did not
+establish this library behavior. Do not deploy an older helper merely because
+its dry run and final-file application both report success.
+
 The corrected workflow checks out the exact dispatch revision, labels the image
 with that revision, bundles that detached HEAD, and uses the release override for
 both migrations and API activation. It does **not** deploy either web bundle.
@@ -54,11 +60,28 @@ sudo -n env ONSERVICE_RELEASE_SHA=<same-40-character-reviewed-commit> \
   bash scripts/server/activate-api-release.sh
 ```
 
-The first helper always dry-runs before applying and retains the documented
-historical `--no-check-order` compatibility setting. Dry-run failure prevents
-application. `MIGRATIONS_DRY_RUN_ONLY=1` does not apply SQL. Release mode requires
-an exact migration target; the older no-SHA bootstrap mode remains for the
-existing initial-install caller, not ordinary release deployment.
+The first helper always dry-runs before applying. The image's
+`scripts/run-reviewed-migrations.mjs` treats the exact target as an **inclusive
+upper bound** and loads every SQL migration through it. The real runner applies
+all unapplied files in that set, not only the final one. Historical out-of-order
+entries retain the documented `checkOrder: false` compatibility setting.
+
+The bounded runner rejects a missing target, duplicate sequence prefixes,
+duplicate applied history, and recorded migrations absent from the image or
+beyond the requested boundary. Validation and execution share the existing
+runner's advisory lock. It verifies the complete resulting history and refuses
+to call a partial set successful. Later files are excluded from loading.
+
+Dry-run failure prevents application. `MIGRATIONS_DRY_RUN_ONLY=1` does not apply
+pending migration SQL or mark it applied. On an initial empty database the
+underlying library can create its metadata table even during a dry run; do not
+describe bootstrap dry runs as entirely read-only. Release mode requires an
+exact upper bound; the no-SHA/no-target initial-install caller selects the last
+file in its image. That bootstrap path is not an ordinary release deployment.
+
+This does not make all historical SQL atomically reversible. Some repository
+migrations include explicit transaction boundaries. Real restore rehearsal,
+partial-failure inspection and compatible rollback planning are still required.
 
 Activation uses `--no-deps --no-build --pull never`, checks the running container's
 actual image ID, checks `/health/ready`, and confirms the same service container
@@ -98,6 +121,16 @@ Local verification on 2026-09-05 passed this regression and OPS-001: two suites,
 two tests, 13.803 seconds. Full Linux CI subsequently passed at `db202185`
 (run `33956701581`), including the actual Compose configuration merge. An
 isolated runtime rehearsal is still required before production use.
+
+OPS-478 adds a real PostgreSQL integration regression. It first executes the
+old installed CLI to reproduce the skipped-prerequisite error, then exercises
+the corrected boundary, unchanged historical records, out-of-order legacy
+history, dry run, no-op repeat, later-file exclusion, unsafe history, concurrent
+lock ownership and a failing transactional fixture. It is mandatory in CI's
+isolated localhost `*_test` database; without that database the local test is
+honestly skipped. Fixture rollback is not proof that every production migration
+is one atomic transaction. Fresh CI and the actual restored-database runner
+rehearsal remain required for this correction.
 
 ## Requesting matching rehearsal artifacts
 

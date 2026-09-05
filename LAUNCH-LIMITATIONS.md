@@ -2111,3 +2111,29 @@ performer evidence, provider-team status, or cross-provider history. E21 also
 holds the retention matrix. E69 records the recommended role-aware workspace
 and fail-closed erasure design. No staff route guard, account, assignment, or
 production row was changed during discovery.
+
+---
+
+## 67. Release migration targeting can silently skip prerequisites
+
+Discovered 2026-09-05 while preparing the exact-image restore rehearsal. The
+old production helper passed a final basename to `node-pg-migrate up`, but that
+argument selects exactly one file. When several migrations are pending, a
+successful final-file execution does not prove that earlier required schema
+changes ran. The image-identity and shell-invocation regressions did not test
+this library behavior.
+
+OPS-478 replaces that invocation with a bounded runner that selects all files
+through the reviewed target, rejects unknown/duplicate/out-of-bound history,
+keeps history validation and execution under the existing advisory lock, and
+verifies the final applied set. The real PostgreSQL regression reproduces the
+old failure and exercises prerequisites, dry runs, historical preservation,
+repeat application, later-file exclusion, failure and concurrency boundaries.
+
+Status: implemented locally, release-held pending fresh CI and an exact-image
+rehearsal on the isolated restored database. Local helper tests, lint and API
+TypeScript passed; the new database integration test is skipped locally because
+no safe test PostgreSQL service is available. No production migration, live
+application deployment or historical transaction rewrite was performed for
+this finding. Do not infer launch readiness from the previous candidate's
+green CI. See `docs/runbooks/exact-api-release.md`.

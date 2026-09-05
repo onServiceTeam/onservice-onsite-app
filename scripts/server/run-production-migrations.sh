@@ -19,14 +19,16 @@ fi
 # Production migrations 135-145 were recorded in a nonnumeric order during one
 # historical deployment, so the runner's check-order mode rejects every later
 # migration even though the migration set is complete. We therefore disable
-# that check, use an exact target for ordinary releases, and prove the pending
-# SQL with a dry run before applying it.
+# that check and use a reviewed upper bound. Passing a basename to the raw
+# node-pg-migrate CLI selects ONLY that file, silently skipping prerequisites.
+# The image's bounded runner selects all pending files through the target and
+# verifies the resulting history, under the same advisory lock.
 target_arg=""
 if [ -n "$MIGRATION_TARGET" ]; then
-  target_arg=" $MIGRATION_TARGET"
+  target_arg=" --target $MIGRATION_TARGET"
 fi
 
-migration_command='DATABASE_URL="$DATABASE_DIRECT_URL" npm run migrate:up --'"$target_arg"' --migrations-dir migrations --no-check-order'
+migration_command='DATABASE_URL="$DATABASE_DIRECT_URL" node scripts/run-reviewed-migrations.mjs'"$target_arg"' --migrations-dir migrations'
 
 compose() {
   "$DOCKER_BIN" compose -f docker-compose.prod.yml "$@"
