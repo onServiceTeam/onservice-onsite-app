@@ -192,3 +192,172 @@ claim that all five gates passed.
    (a process crash between commit and push is not solved by OPS-471), E72
    governed case evidence, E74 revision/resubmission, E68/E67 recovery and E75
    authoritative cancellation timing. Earlier approval remains in force.
+
+## Release-safety continuation, 2026-09-05
+
+### Published checkpoint and actual CI scope
+
+The previous resumption slice was committed and published as `87a3e02d` on
+`codex/financials-operator-truth`. PR #81 targets master:
+<https://github.com/onServiceTeam/onservice-onsite-app/pull/81>.
+The accumulated topic branch was published, not merged or deployed.
+
+CI run `33952588379` completed successfully at that checkpoint:
+
+- API: 939 suites, 3,305 tests passed on the Linux runner, including the two
+  Docker-backed tests that failed locally because the engine was unavailable.
+- Mobile: 552 suites passed; 836 tests passed and **84 TODOs** remained.
+- Admin: 561 test files passed, one skipped; 645 tests passed and **3 TODOs**
+  remained. Type checking and the production admin build passed.
+- Docker: the API image built, booted and served its liveness route.
+
+Gates run `33952588360` also reported success. Important limits: visual Gate D
+and mutation Gate E remain **REPORT**, not blocking execution of their full
+workloads. Gate B is dispatch-branch conditional. None of those green labels
+proves a complete visual acceptance pass, a mutation score or launch readiness.
+No gate mode, workflow/protection requirement or dependency was changed here.
+
+### OPS-475: complete recovery sets before backup success
+
+Full source review and a read-only server comparison confirmed that the live
+backup script is the same defective version: uploads/config errors were
+ignored, Git/off-site errors were warnings, retention still ran and the script
+always printed `backup OK`. This is a real release-recovery risk, not proof
+that every existing backup is corrupt.
+
+The replacement script requires all four artifacts to succeed, checks gzip/tar
+readability and Git bundle validity, and writes a SHA-256 completion manifest
+last. It inspects the uploads volume before mounting it so a missing volume
+cannot silently become a newly created empty backup source. A configured but
+missing/failing off-site tool fails the run. Failed runs preserve older backups
+and private incomplete files. A lock rejects overlapping runs. Existing
+14-day retention stays limited to matching top-level regular files and can be
+skipped for release preflights. Success explicitly says whether off-site
+copying was configured and that a restore test was not run by this script.
+
+The executable OPS-475 regression runs the real script, gzip, tar, Git bundles,
+checksums, file publication and retention against private temporary fixtures.
+Docker and off-site storage are substituted; explicit fault injection covers
+missing/empty/failed/corrupt sources, unavailable off-site tooling, failed
+off-site data/manifest copies, an occupied lock and successful empty uploads.
+This is not a source-text/file-existence test. The associated production-seed
+guard is included in the focused check. Final results are recorded below.
+
+`docs/runbooks/postgres-restore.md` now requires isolated restoration before
+live cutover. It removes unsafe advice to load onto live data and recreate it
+after errors, rejects a user-count-only definition of success, and reconciles
+PITR with the launch runbook rather than calling it optional after launch.
+Historical claims of provider-level off-host backups are not current evidence.
+E32 now records successful SSH authentication without publishing private key
+locations; its original failed-access record remains as history.
+
+### Exact production schema and recovery rehearsal
+
+Read-only comparison found **145 applied migration names**, all present in the
+local set of 160. Exactly 157-171 are pending; there are no server-only names.
+The historical 081/082 differences against the server revision are comments
+only, not changed executable SQL. The live PostgreSQL 17 instance has the
+required `uuidv7()` function. The refund-key duplicate aggregate returned zero,
+and no incompatible existing retry-action values were returned. Audit CHECK
+definitions were inspected before replaying their append operations.
+
+All four selected `20260905-020001` legacy artifacts passed archive/bundle
+format checks on the server. No production data or private archives were
+downloaded into the local workspace. The database archive was then restored
+with `pipefail` and `psql ON_ERROR_STOP` into a temporary PostgreSQL/PostGIS
+17-3.5 container with no external network, no published ports, no live volume
+mount, 512 MiB memory and 0.5 CPU limits; database storage used bounded tmpfs.
+
+The first rehearsal connected to the image's temporary initialization server
+before its planned shutdown, so restore failed explicitly. That test container
+was identity-checked and removed. A fresh rehearsal waited for PostgreSQL to
+be PID 1 and ready before restoration, which succeeded. A preliminary snapshot
+probe also used an incorrect `payments` table name; the real table is
+`payment_intents`. A later comparison query's ambiguous variable name was
+corrected. These were failed rehearsal probes, not production mutations, and
+are not counted as successful evidence.
+
+The successful restored database contained 30 users, six providers, 126
+bookings and the expected 145 migration-history records. Before migration,
+an isolated snapshot retained all original columns of 13 selected tables.
+All 15 exact local SQL files then executed successfully with stop-on-error.
+Afterward, row counts and every original JSON field were compared by row ID:
+
+| Checked table | Historical rows preserved |
+| --- | ---: |
+| Bookings | 126 |
+| Business accounts | 1 |
+| Admin actions | 23 |
+| Providers | 6 |
+| Users | 30 |
+| Wallets | 20 |
+| Payment intents | 12 |
+| Business contracts/invoices/items, support tickets, wallet transactions, pricing rules | 0 in each |
+
+All **218** existing rows retained their original field values. There were no
+guessed historical booking financial snapshots; all 126 existing bookings
+retained unclassified legacy billing mode. Five prospective commission
+versions were seeded. Business-contract booking remained disabled. The real
+post-migration audit constraints accepted six new action/target pairs and
+eight existing pairs. Attempted commission-version updates correctly raised
+SQLSTATE `55000` and left the versions unchanged.
+
+Limits: this replay exercised SQL on a restored PG17 database, not the complete
+containerized migration-runner bookkeeping or a Postgres major-version upgrade.
+The empty commercial/support/pricing tables mean populated legacy cases and
+live-scale locking still need dedicated fixtures. No new application image,
+frontend bundle, production migration, production setting or live financial
+record was changed. Restore rehearsal alone does not close those release gaps.
+
+### Next release work
+
+1. Publish OPS-475 and this evidence, then require fresh CI for that commit.
+2. Finish populated legacy commercial/pricing fixtures and the exact production
+   runner rehearsal. The existing OPS-331 migration test still asserts SQL
+   source contents; replace it with behavioral database evidence, not a new
+   success claim based on its current green result.
+3. Prepare a reversible deployment for API **and both web experiences**. The
+   existing deployment workflow only handles the API image, so invoking it
+   alone cannot establish customer/provider/admin alignment. Preserve the
+   shared nginx configuration and all other applications.
+4. Continue the approved E73/E72/E74/E68/E67/E75 workflow slices and the full
+   Stitch screen/interaction inventory. Neither approval nor green unit tests
+   makes those incomplete flows finished.
+
+### Recovery-set creation and cleanup
+
+Both test-owned rehearsal containers were removed after verifying their exact
+names, audit label and isolated network. Their temporary database copies were
+discarded; the original backups remain recoverable. The marketplace API,
+PostgreSQL, Redis and nginx remained healthy. A plain-user Git check encountered
+the checkout's ownership guard; the follow-up used its existing root owner.
+No global `safe.directory` exception or ownership change was installed.
+
+The revised backup script was exercised remotely without installing it into
+the production checkout, with retention skipped and off-site copying explicitly
+disabled for this local recovery-set check. The first streamed invocation
+exposed Docker Compose forwarding stdin and consuming the remainder of the
+script. It exited without a manifest; this was **not** counted as a completed
+backup. The private `.incomplete-20260905-040827-zSVcQc` directory remains for
+inspection, and no old backup was removed. The dump subprocess now receives
+`/dev/null`, the exit trap rejects premature successful exit, and a streamed
+execution regression covers this behavior.
+
+The corrected invocation produced `backup-20260905-041108.complete`. An
+independent checksum verification passed for all four referenced artifacts;
+each artifact and the manifest had permission mode `600`. This verifies a new
+local recovery set, **not** off-site durability or restoration of that newer
+set. The successful database restore/migration rehearsal above used the
+earlier `20260905-020001` set. Do not conflate those two pieces of evidence.
+
+The server's tracked checkout remained clean at `7ed367cd`. No rehearsal
+containers remained. The backup files are the only retained server artifacts
+created by this continuation; the new script still needs installation through
+the reviewed code rollout so the scheduled job benefits from the fix.
+
+Final local verification: the OPS-475 test exercised **19** success/failure
+scenarios and passed; together with the production-seed guard, **2 suites and
+2 tests passed** in 20.232 seconds. Changed-test ESLint, API TypeScript, shell
+syntax and `git diff --check` passed. The unique-regression-ID gate fragment
+passed with 1,481 titled regressions. Fresh full CI for this new commit is
+still required; the full-suite totals above belong to `87a3e02d`.

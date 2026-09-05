@@ -1,8 +1,23 @@
 # E32 - Production SSH authorization rejects the supplied identities
 
 **Date:** 2026-08-30
-**Status:** OPEN
-**Hard stop:** production synchronization and post-deploy verification
+**Status:** RESOLVED for SSH authentication, 2026-09-05. Deployment verification remains separate.
+**Former hard stop:** production synchronization and post-deploy verification
+
+## Resolution, 2026-09-05
+
+The already-authorized dedicated identity documented in private local SSH
+notes succeeds. Read-only checks verified the marketplace origin, both path
+aliases resolving to `/opt/onservice`, and the live checkout at `7ed367cd`.
+Do not publish credential contents or private key locations. No new key
+installation or server authorization change was needed.
+
+The current release and recovery evidence is in
+`docs/audits/AUTONOMOUS-RESUMPTION-2026-09-05.md`. Authentication is no longer
+a reason to pause synchronization work. Successful backup/migration rehearsal,
+release checks and bounded rollout still must precede a live update.
+
+The original failed-probe record below is retained as history, not current state.
 
 ## Finding
 

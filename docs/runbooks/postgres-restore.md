@@ -1,94 +1,122 @@
-# Runbook — restore from backup (Postgres + uploads)
+# Runbook: onService backup validation and recovery
 
-**What gets backed up:** the nightly cron (`scripts/server/backup-db.sh`, 02:00
-server time) writes two files per night to `/opt/onservice/backups/`:
+Scope is the onService PH marketplace at `/opt/onservice`, its `onservice`
+database in the marketplace PostgreSQL container, and `onservice_uploads_data`.
+This server hosts other businesses. Do not use their databases, backup jobs,
+volumes or shared nginx as restore-test targets. Never run `docker compose down`.
 
-- `onservice-<TS>.sql.gz` — full database dump
-- `uploads-<TS>.tgz` — all uploaded files (booking photos + KYC docs)
+## What a completed backup means
 
-14 days of each are kept. This is **daily** backup: worst-case data loss is the
-hours since the last 02:00 run. (Continuous point-in-time recovery is a later
-upgrade — see "Upgrade to PITR" below.)
+`scripts/server/backup-db.sh` produces one matching timestamp set:
 
-> **Disaster recovery is covered by Hetzner.** The server has Hetzner Automatic
-> Backups + snapshot capability enabled, which back up the WHOLE volume (DB +
-> uploads) off the box — so a total disk/box loss is already recoverable from
-> Hetzner's side. This app-level nightly dump is a *supplement*: a portable,
-> logical copy you can inspect, partially restore, or move to another Postgres
-> (a volume snapshot can't do that). It is NOT the only line of defense.
->
-> Optional later: set `BACKUP_RCLONE_REMOTE` + install `rclone` to also push the
-> logical dumps to a dedicated off-box target. Not required given the Hetzner
-> volume backups.
+| Artifact | Contents |
+| --- | --- |
+| `onservice-<TS>.sql.gz` | Logical PostgreSQL dump |
+| `uploads-<TS>.tgz` | Booking photos, KYC documents and other uploaded files |
+| `config-<TS>.tgz` | Private environment, compose/nginx configuration and TLS files |
+| `git-<TS>.bundle` | Committed repository branches and tags |
+| `backup-<TS>.complete` | SHA-256 checksums of all four artifacts |
 
----
+The script checks dump non-emptiness, gzip/tar readability, Git bundle validity
+and checksums. It publishes the completion manifest last. A configured off-site
+copy must also succeed before local success and retention. No configured target
+means local-only backups; the success message says so explicitly.
 
-## Restore the database
+These checks do **not** prove database restoration, cross-file transactional
+consistency, provider snapshots, WAL/PITR or external storage durability. A
+database dump and files copied afterward are not a single atomic application
+snapshot. For a release recovery point, arrange a reviewed write-quiescence
+window or verify how concurrent uploads/deletions are reconciled.
 
-1. Pick the dump to restore (latest unless doing point-in-time recovery to an
-   earlier night):
-   ```bash
-   ls -lt /opt/onservice/backups/onservice-*.sql.gz | head
-   ```
-2. **Stop the API** so nothing writes during the restore:
-   ```bash
-   cd /opt/onservice
-   docker compose -f docker-compose.prod.yml stop api
-   ```
-3. Drop + recreate the schema and load the dump (this REPLACES current data):
-   ```bash
-   F=/opt/onservice/backups/onservice-<TS>.sql.gz
-   gunzip -c "$F" | docker compose -f docker-compose.prod.yml exec -T postgres \
-     psql -U onservice_user -d onservice
-   ```
-   If the dump fails to apply cleanly onto the live DB, recreate it first:
-   ```bash
-   # NOTE: separate -c flags — DROP/CREATE DATABASE cannot run inside one
-   # transaction block (a single multi-statement -c would error).
-   docker compose -f docker-compose.prod.yml exec -T postgres \
-     psql -U onservice_user -d postgres \
-     -c "DROP DATABASE onservice WITH (FORCE);" \
-     -c "CREATE DATABASE onservice OWNER onservice_user;"
-   gunzip -c "$F" | docker compose -f docker-compose.prod.yml exec -T postgres \
-     psql -U onservice_user -d onservice
-   ```
-4. **Start the API** and check health:
-   ```bash
-   docker compose -f docker-compose.prod.yml start api
-   sleep 6 && curl -s -o /dev/null -w "%{http_code}\n" https://api.onservice.ph/health
-   ```
+The script's existing retention policy is 14 days, applied only after success
+to matching regular files directly inside the backup directory. Set
+`BACKUP_SKIP_RETENTION=1` for pre-release validation to preserve every old copy.
+The effective schedule and any independent retention job must be inspected on
+the actual host; do not assume a stale runbook proves they are installed.
 
-## Restore the uploaded files
+All artifacts are sensitive. Do not download production data to the repository,
+attach it to a public issue, print it in task output, or publish config bundles.
+New artifacts are owner-only inside a private staging directory. Failed runs
+retain `.incomplete-*` directories for diagnosis and leave old copies intact.
+Review disk usage and those failed runs privately; do not blindly purge them.
+
+Concurrent runs are rejected by `.backup-lock`. After a crash or forced kill,
+verify no backup process is active before an operator removes that exact stale
+lock. Never remove an active run's lock just to make deployment proceed.
+
+## Validate an existing set
+
+Select one explicit timestamp from a read-only inventory. For sets produced by
+the verified script, run from `/opt/onservice/backups`:
 
 ```bash
-F=/opt/onservice/backups/uploads-<TS>.tgz
-# Wipe + repopulate the uploads volume from the tarball.
-docker run --rm -v onservice_uploads_data:/data -v /opt/onservice/backups:/backup alpine \
-  sh -c 'rm -rf /data/* && tar xzf /backup/uploads-<TS>.tgz -C /data'
+sha256sum -c backup-<TS>.complete
+gzip -t onservice-<TS>.sql.gz
+tar tzf uploads-<TS>.tgz >/dev/null
+tar tzf config-<TS>.tgz >/dev/null
+git -C /opt/onservice bundle verify /opt/onservice/backups/git-<TS>.bundle
 ```
-(The API and nginx read this volume live; no restart needed, but a
-`docker compose ... restart nginx` doesn't hurt if files don't appear.)
 
-## Verify a backup WITHOUT a full restore (do this monthly)
+Substitute the reviewed timestamp, not a wildcard or a shell-selected newest
+file. Old sets have no manifest and were generated by a script that could
+report success despite archive failures. Their existence and `backup OK` log
+lines are insufficient evidence. Validate each artifact and perform a restore
+test before relying on an old set. A new manifest cannot retroactively certify
+what was captured by an older run.
 
-```bash
-# DB dump loads into a scratch database (verified working 2026-06-04):
-docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U onservice_user -d postgres -c "DROP DATABASE IF EXISTS restore_test;" -c "CREATE DATABASE restore_test;"
-gunzip -c /opt/onservice/backups/onservice-<TS>.sql.gz | \
-  docker compose -f docker-compose.prod.yml exec -T postgres psql -U onservice_user -d restore_test -q
-docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U onservice_user -d restore_test -tA -c "SELECT count(*) FROM users;"
-docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U onservice_user -d postgres -c "DROP DATABASE restore_test;"
-```
-A non-zero `users` count means the dump is good.
+## Restore rehearsal before a release
 
----
+1. Record the application revision, exact applied migration set, PostgreSQL
+   version, named volume and chosen backup timestamp. Resolve the marketplace
+   checkout identity first.
+2. Use a **new, isolated** PostgreSQL instance with a unique onService rehearsal
+   name, no published ports or external network, bounded resources and no live
+   data-volume mount. Match the live PostgreSQL/PostGIS version. Create only
+   the disposable target database and required fixture owner there.
+3. Stream the selected SQL into that isolated database. Use shell `pipefail`
+   and `psql -v ON_ERROR_STOP=1`. A successful `users` count alone is not proof:
+   check restoration exit status, expected schema/migrations, aggregate row
+   counts, constraints and representative business relationships. Do not print
+   customer records or credentials as evidence.
+4. Extract the matching uploads archive into a new private scratch directory,
+   never over the live upload volume. Verify archive integrity and reference
+   coverage without exposing documents or photo contents.
+5. Rehearse the exact pending migrations on the isolated restored database.
+   Compare historical financial records before and after; test prospective
+   booking/settings behavior, audit inserts and required constraints. Record
+   timings/locking implications and the rollback boundary.
+6. Record actual results and limitations. Remove only the exact test-owned
+   container/directory after checking its resolved identity. Never reuse or
+   automatically drop a generic `restore_test` database that another task may
+   own. Preserve the real recovery set.
 
-## Upgrade to PITR (point-in-time recovery) — optional, post-launch
+No SQL load should be attempted against live data as a diagnostic. A plain
+`pg_dump` is not an instruction to erase or merge into an existing database.
+The former advice to load onto live data and recreate it if errors appeared
+was unsafe and is superseded by the isolated rehearsal above.
 
-Daily dumps cap data loss at ~24h. For tighter recovery, move to continuous WAL
-archiving with `pgbackrest` or `wal-g` shipping WAL to an off-box target every
-few minutes. That requires the off-site destination above to exist first. Until
-then, the nightly dump + off-site copy is the launch baseline.
+## Actual incident recovery
+
+Production restore is destructive and requires an incident-specific reviewed
+plan. Determine what data was written after the selected backup, retain the
+current damaged state where feasible, and choose reconciliation or restore
+explicitly. Stop marketplace writes, not unrelated applications. Confirm the
+exact target database/volume and recovery timestamp before replacing anything.
+
+Prefer restoring into a new isolated database/volume and validating it before
+switching the marketplace's connection/mount. Keep the old target available
+for investigation. Check API readiness and customer/provider/admin workflows
+before restoring writes. Shared nginx is not a disposable test service.
+
+## Launch recovery requirements remain open
+
+Daily logical dumps can lose changes since the last successful backup. PITR
+with continuous WAL archiving and an off-host destination remains a launch
+requirement in `docs/runbooks/launch-cutover.md`, not an optional post-launch
+upgrade. Verify storage retention, access controls, monitoring and actual
+restore evidence before signing it off.
+
+An earlier version claimed Hetzner backups already covered disaster recovery.
+That is historical documentation, not current verified provider evidence.
+Confirm the actual provider backup configuration and rehearse recovery. Do not
+infer off-box durability from this local script or from blanket approval.
