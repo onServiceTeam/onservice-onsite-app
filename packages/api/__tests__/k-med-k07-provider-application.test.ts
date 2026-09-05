@@ -99,6 +99,7 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
     dbQueryMock.mockResolvedValueOnce({ rows: [{ role: 'customer', is_active: true, is_flagged_fraud: false }], rowCount: 1 });
     // existence check returns empty (no prior application)
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // No active draft.
     // selected provider market contains the exact operating location
     dbQueryMock.mockResolvedValueOnce({ rows: [APPLICATION_AREA], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [{ id: BASE_INPUT.categoryIds[0] }], rowCount: 1 });
@@ -127,6 +128,7 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
   it('K07 — INSERT passes null for missing optional fields', async () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [{ role: 'customer', is_active: true, is_flagged_fraud: false }], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // No active draft.
     dbQueryMock.mockResolvedValueOnce({ rows: [APPLICATION_AREA], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [{ id: BASE_INPUT.categoryIds[0] }], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [{ id: PROVIDER_ID }], rowCount: 1 });
@@ -145,6 +147,7 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
   it('K07 — reports schema unavailability instead of retrying without optional evidence', async () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [{ role: 'customer', is_active: true, is_flagged_fraud: false }], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // No active draft.
     dbQueryMock.mockResolvedValueOnce({ rows: [APPLICATION_AREA], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [{ id: BASE_INPUT.categoryIds[0] }], rowCount: 1 });
     // First INSERT throws 42703

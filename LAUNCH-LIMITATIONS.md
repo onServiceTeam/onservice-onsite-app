@@ -1770,6 +1770,17 @@ audited request-changes/resubmission lifecycle. E32 blocks the required live
 row inspection. See
 `.ai-coder/escalations/E35-provider-onboarding-source-of-truth-and-resubmission-2026-08-30.md`.
 
+2026-09-05 candidate update, **still open**: the read-only production inventory
+is now completed (zero legacy progress rows and associated application audit
+rows), superseding the old E32 inspection block above. The typed private draft
+foundation in `f80d41ff` passed CI `33972140158`, including actual PostgreSQL
+OPS-486 through OPS-489. A follow-up adds exact-revision submission and atomic
+draft consumption, with first CI still pending at publication. Neither is live.
+The mobile/web screens remain memory-only until their owner-bound hydration
+and save/retry/conflict flow is connected and verified. Worker expiry, privacy
+inventory, immutable review revisions and same-record correction/resubmission
+also remain open. See `docs/architecture/provider-application-lifecycle.md`.
+
 ---
 
 ## 53. Provider approval does not enforce the government ID back image

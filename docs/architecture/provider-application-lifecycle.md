@@ -1,6 +1,6 @@
 # Provider application lifecycle: staged implementation
 
-Date: 2026-09-05. Status: candidate backend foundation, not a deployed or
+Date: 2026-09-05. Status: candidate draft/submission backend, not a deployed or
 complete lifecycle. Ken approved the recommended escalation choices in the
 current task. This record implements part of E35/E74; it does not close them.
 
@@ -35,8 +35,31 @@ invent evidence for the six already-approved legacy providers.
   the service then locks the owner and rechecks active customer eligibility,
   fraud restriction and absence of an existing canonical provider.
 - The lock order is owner, then draft. Initial submission already locks that
-  same owner. Final conversion must join this transaction boundary, not race
-  it with a separate post-submit draft deletion.
+  same owner. Conversion joins this transaction boundary, not a separate
+  post-submit draft deletion.
+
+`POST /api/v1/providers/apply` additionally accepts `draftRevision`. With an
+active draft, that revision and the complete submitted fields must match the
+saved draft, after normalizing upload URLs to owned private keys. A matching
+revision alone is not permission to submit different or unsaved details. The
+client must save its final normalized submission fields before sending this
+request; it must not trim/filter fields differently between that save and apply.
+Resumed object keys are accepted by the application parser, with the existing
+service ownership check still mandatory. Agreement acceptance is required on
+the apply request itself and is never restored from the draft.
+
+The provider, market/category links and draft removal commit together. An error,
+including failure of the final draft removal, rolls them all back. Current
+market/category eligibility is still checked; saving a draft does not reserve
+an inactive category or authorize an out-of-market pin. Older clients without
+a revision work only if no active draft exists. An absent/expired supplied
+revision returns a conflict. A successful older-client submission also removes
+any expired draft row, never uploaded objects or historical applications.
+
+Migration 172 is now required for submission on this candidate, including
+older clients. A missing draft table/column returns the existing safe schema
+unavailable 503; it must not fall back to ignoring saved work. Rehearse and
+apply the additive schema before rolling out this API.
 
 Fields are limited to the existing application: business name, category IDs,
 market and exact operating pin, radius, city/province, four owned private
@@ -70,8 +93,8 @@ not claim that draft expiry erases documents or all personal data.
 
 ## Remaining work before this can be offered to applicants
 
-1. Atomically validate/consume the exact draft revision when creating the
-   canonical submitted application. Retain the draft when submission fails.
+1. Verify the newly implemented atomic submission boundary in CI and then the
+   full migration rehearsal. The new regressions are not local database passes.
 2. Connect owner-bound mobile/web hydration, save status, retry, conflict
    recovery, discard, logout/reset and expiry messaging to every onboarding
    step. Agreement acceptance must still occur at submission, not in a draft.
@@ -101,3 +124,18 @@ database exists and must execute in CI. Their harness permits only a localhost
 `*_test` database, creates a unique owned schema, applies the actual additive
 migration and removes only that schema. This is not proof of the full migration
 chain, uploaded-object existence, browser acceptance or production readiness.
+
+Foundation commit `f80d41ffc8e4edcf4f1f2c2dc8913d905a293f18` passed CI
+`33972140158` and Gates `33972140143`. The API job's completed logs show
+OPS-485 through OPS-489 passed (955 suites / 3,319 tests overall). All four
+CI jobs succeeded. This verifies the foundation, not the later submission
+integration or its UI.
+
+OPS-490 adds actual database stale/unsaved-field checks, atomic final-consume
+failure and concurrent submission. OPS-491 exercises apply through the real
+router/auth/database with restored keys, current revision and fresh agreement.
+OPS-492 covers absent/expired drafts, older clients and missing migration.
+The final local provider selection passed 103 files / 252 tests in 10.724
+seconds with 13 explicitly skipped PostgreSQL files/tests. API TypeScript,
+changed-file lint and the unchanged regression-ID gate passed (1,501 titled
+regressions). Fresh CI for OPS-490 through OPS-492 is required after publication.

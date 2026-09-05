@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { extractObjectKey } from './upload.service';
@@ -49,6 +50,37 @@ async function lockedDraft(client: Transaction, userId: string): Promise<DraftRo
 function formatDraft(row: DraftRow): ProviderApplicationDraft {
   return { revision: row.revision, fields: providerApplicationDraftFieldsSchema.parse(row.application_fields),
     createdAt: row.created_at.toISOString(), savedAt: row.saved_at.toISOString(), expiresAt: row.expires_at.toISOString() };
+}
+
+/** Caller MUST hold the same owner lock used by initial submission. */
+export async function validateDraftForSubmission(
+  client: Transaction, userId: string, expectedRevision: string | undefined, submittedFields: unknown,
+): Promise<string | null> {
+  let draft: DraftRow | undefined;
+  try { draft = await lockedDraft(client, userId); }
+  catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error
+      && ['42P01', '42703'].includes(String(error.code))) {
+      const unavailable = createAppError('Provider applications are temporarily unavailable. Your application was not submitted. Please try again later.', 503);
+      unavailable.code = 'provider_application_schema_unavailable';
+      throw unavailable;
+    }
+    throw error;
+  }
+  if (!draft || draft.expired) {
+    if (expectedRevision !== undefined) {
+      throw conflict('The draft expired or was removed. Reload and save your application before submitting.', 'provider_application_draft_conflict');
+    }
+    // Older clients remain compatible only when no active draft exists.
+    return draft?.revision ?? null;
+  }
+  const submitted = providerApplicationDraftFieldsSchema.safeParse(submittedFields);
+  const saved = providerApplicationDraftFieldsSchema.safeParse(draft.application_fields);
+  if (expectedRevision !== draft.revision || !submitted.success || !saved.success
+    || !isDeepStrictEqual(submitted.data, saved.data)) {
+    throw conflict('The saved application changed. Reload and save the details you want to submit before trying again.', 'provider_application_draft_conflict');
+  }
+  return draft.revision;
 }
 
 export async function getApplicationDraft(userId: string): Promise<ProviderApplicationDraft | null> {

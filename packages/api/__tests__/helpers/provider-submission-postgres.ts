@@ -1,6 +1,6 @@
 import type { Pool } from 'pg';
 import type { ProviderApplicationInput } from '../../src/services/provider.service';
-import { withApprovalDatabase } from './provider-approval-postgres';
+import { withDraftDatabase } from './provider-draft-postgres';
 
 export const applicantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 export const applicationAreaId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -19,17 +19,21 @@ export const submissionInput: ProviderApplicationInput = {
   ] },
 };
 
-// This is a focused service/transaction fixture, not a full migration proof.
-// The reused harness permits only localhost *_test, creates a unique schema,
-// runs real db.transaction/pg, and removes only that test-owned schema.
+// Focused service/transaction fixture plus the actual draft migration, not a
+// full migration-chain proof. The reused harness permits only localhost
+// *_test, creates a unique schema, and removes only that test-owned schema.
 export async function withSubmissionDatabase(run: (database: Pool) => Promise<void>): Promise<void> {
-  await withApprovalDatabase(async database => {
+  await withDraftDatabase(async database => {
     await database.query(`
       DELETE FROM providers;
       DELETE FROM users;
       ALTER TABLE providers
-        ALTER COLUMN id SET DEFAULT gen_random_uuid()::text,
-        ADD CONSTRAINT submission_owner_unique UNIQUE (user_id),
+        ADD COLUMN nbi_clearance_url text,
+        ADD COLUMN government_id_front_url text,
+        ADD COLUMN government_id_back_url text,
+        ADD COLUMN selfie_url text,
+        ADD COLUMN reviewed_at timestamptz,
+        ADD COLUMN updated_at timestamptz NOT NULL DEFAULT NOW(),
         ADD COLUMN business_name text NOT NULL,
         ADD COLUMN service_radius_km integer NOT NULL,
         ADD COLUMN latitude numeric,
@@ -48,14 +52,16 @@ export async function withSubmissionDatabase(run: (database: Pool) => Promise<vo
       );
       CREATE TABLE service_categories (id uuid PRIMARY KEY, is_active boolean NOT NULL DEFAULT TRUE);
       CREATE TABLE provider_service_areas (
-        provider_id text REFERENCES providers(id), service_area_id uuid REFERENCES service_areas(id),
+        provider_id uuid REFERENCES providers(id), service_area_id uuid REFERENCES service_areas(id),
         is_primary boolean, UNIQUE (provider_id, service_area_id)
       );
       -- Production permits multiple category-only rows (the unique key uses
       -- nullable subcategory_id). Deliberately do not invent category uniqueness.
       CREATE TABLE provider_services (
-        id serial PRIMARY KEY, provider_id text REFERENCES providers(id), category_id uuid, is_active boolean
+        id serial PRIMARY KEY, provider_id uuid REFERENCES providers(id), category_id uuid, is_active boolean
       );
+      CREATE TABLE admin_actions (id serial PRIMARY KEY);
+      CREATE TABLE notifications (id serial PRIMARY KEY);
     `);
     await database.query("INSERT INTO users (id,role) VALUES ($1,'customer')", [applicantId]);
     await database.query(`INSERT INTO service_areas

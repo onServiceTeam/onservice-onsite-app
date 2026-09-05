@@ -1069,3 +1069,39 @@ Those database tests require their first CI execution. API TypeScript passed.
 Initial lint reported one missing return-type annotation; that annotation was
 added rather than suppressing the rule. This is not an E35/E74 closeout or a
 claim that drafts already survive a refresh in the user-facing app.
+
+## Draft foundation CI passed; atomic submission continuation
+
+Published `f80d41ffc8e4edcf4f1f2c2dc8913d905a293f18` passed CI
+`33972140158` and Gates `33972140143`. API job `101322413721` logs each
+OPS-485 through OPS-489 as passed between 14:35:14 and 14:35:26 UTC; the
+overall API result was 955 suites / 3,319 tests passed. All four CI jobs
+succeeded. The earlier local database skips are superseded by this actual
+execution. Local Docker was checked read-only and its engine was unavailable;
+no daemon/container was started as a workaround.
+
+OPS-490 now joins draft validation and consumption to the existing canonical
+submission transaction. Owner and draft locks protect the expected UUID and
+typed fields. An older client cannot bypass an active draft. Unsaved changes,
+stale revisions, expired/absent supplied revisions and concurrent duplicate
+submissions cannot overwrite or replace the saved/current application. Catalog
+and market checks still apply at final submission. Failure at the final draft
+DELETE rolls back provider and linkage writes. No approval, account promotion,
+fraud-flag clearing or uploaded-object deletion is added.
+
+OPS-491 forwards `draftRevision` through the real apply route and accepts
+restored private onboarding keys under the same service ownership boundary.
+Agreement acceptance remains required on the final request. OPS-492 covers
+expiry, older-client compatibility without an active draft and a missing draft
+schema. Missing migration 172 is a safe 503, not permission to ignore drafts.
+The existing submission fixture now uses UUID accounts plus actual migration
+172 in its isolated schema; it still does not claim a full migration-chain test.
+
+The final surrounding local provider selection passed 103 files / 252 tests
+in 10.724 seconds, with 13 explicit database skips. The targeted draft selection
+passed its one local input test and skipped seven PostgreSQL tests. API
+TypeScript, changed-file lint, regression-ID gate (1,501 titles) and diff checks
+passed. Fresh CI is mandatory for the new OPS-490 through OPS-492 regressions.
+No production state changed. The next work remains applicant UI hydration and
+save/conflict/retry, bounded worker expiry, privacy inventory and full lifecycle
+review/revision/resubmission, followed by paired authenticated acceptance.

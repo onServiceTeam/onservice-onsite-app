@@ -22,6 +22,7 @@ it('Bug UX-529 — provider application validates its market and atomically crea
   mockDbQuery
     .mockResolvedValueOnce({ rows: [{ role: 'customer', is_active: true, is_flagged_fraud: false }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+    .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // No active draft in this older-client fixture.
     .mockResolvedValueOnce({
       rows: [{
         id: areaId,

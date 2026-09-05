@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import * as uploadService from './upload.service';
 import * as settingsService from './settings.service';
 import { getProviderTierCommissionOverview } from './booking-financial-terms.service';
+import { validateDraftForSubmission } from './provider-application-draft.service';
 
 interface ProviderRow {
   id: string;
@@ -270,6 +271,7 @@ export async function setSchedule(
 }
 
 export interface ProviderApplicationInput {
+  draftRevision?: string;
   businessName: string;
   categoryIds: string[];
   serviceAreaId?: string;
@@ -406,6 +408,16 @@ export async function createProviderApplication(
       throw createAppError('A provider application already exists for this account.', 409);
     }
 
+    // OPS-490: an older tab/client must not submit over newer saved work.
+    // Compare the exact typed fields, normalizing upload URLs to the private
+    // keys saved in drafts. Keep this lock through linkage and draft removal.
+    const submissionFields: Record<string, unknown> = { ...input,
+      governmentIdFrontUrl: governmentIdFrontKey, governmentIdBackUrl: governmentIdBackKey,
+      nbiClearanceUrl: nbiClearanceKey, selfieUrl: selfieKey,
+    };
+    delete submissionFields.draftRevision;
+    const consumedDraftRevision = await validateDraftForSubmission(client, userId, input.draftRevision, submissionFields);
+
     const areaCandidates = await client.query<ProviderApplicationAreaRow>(
       `SELECT id, name, city, province, status, center_lat, center_lng, radius_km
          FROM service_areas
@@ -511,6 +523,9 @@ export async function createProviderApplication(
       );
     }
 
+    if (consumedDraftRevision) {
+      await client.query('DELETE FROM provider_application_drafts WHERE user_id=$1 AND revision=$2', [userId, consumedDraftRevision]);
+    }
     return provider;
   });
   logger.info('Provider application submitted', { userId, providerId: submitted.id, categories: categoryIds.length });

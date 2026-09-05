@@ -76,6 +76,7 @@ router.post(
         );
       }
       const provider = await providerService.createProviderApplication(req.user!.userId, {
+        draftRevision: req.body.draftRevision,
         businessName: req.body.businessName,
         categoryIds: req.body.categoryIds,
         serviceAreaId: req.body.serviceAreaId,

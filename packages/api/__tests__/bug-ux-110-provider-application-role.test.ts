@@ -20,6 +20,7 @@ it('BUG-UX-110 — submitting an application keeps the account in its customer r
   dbQueryMock
     .mockResolvedValueOnce({ rows: [{ role: 'customer', is_active: true, is_flagged_fraud: false }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+    .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // No active draft in this older-client fixture.
     .mockResolvedValueOnce({
       rows: [{
         id: serviceAreaId,
