@@ -32,6 +32,18 @@ compose() {
   "$DOCKER_BIN" compose -f docker-compose.prod.yml "$@"
 }
 
+# A release must dry-run and migrate with the SAME verified image that will
+# serve traffic. Initial-install callers without a release SHA keep their
+# explicitly built local image path; ordinary releases may not use that path.
+if [[ -n "${ONSERVICE_RELEASE_SHA:-}" ]]; then
+  if [[ -z "$MIGRATION_TARGET" ]]; then
+    echo "ERROR: an exact MIGRATION_TARGET is required for a release." >&2
+    exit 2
+  fi
+  source scripts/server/release-api-common.sh
+  compose() { release_compose "$@"; }
+fi
+
 echo "==> Production migration dry run${MIGRATION_TARGET:+: $MIGRATION_TARGET}"
 compose run --rm --no-deps api sh -lc "$migration_command --dry-run"
 

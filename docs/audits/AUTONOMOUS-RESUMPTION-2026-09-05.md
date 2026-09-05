@@ -383,5 +383,56 @@ are fixtures; this is not an end-to-end provider funding/checkout test.
 The test refuses non-local/non-test database targets and fails CI setup if the
 safe PostgreSQL service is missing. Local execution loaded the test but
 **skipped its database case** because no safe local test database is configured;
-lint and whitespace checks passed. PostgreSQL execution in fresh CI is pending
-for this replacement and must be inspected before claiming it passed.
+lint and whitespace checks passed. At commit `11e910e8`, API job
+`101277834953` in CI run `33955444644` explicitly reported this migration test
+PASS and **940 suites / 3,306 tests passed**. The entire CI run subsequently
+completed successfully, including mobile, admin and the API image boot check;
+Gates run `33955444647` also passed with the report-mode limitations above.
+These results are database-backed fixture evidence, not a production migration
+or business-billing launch approval.
+
+The full 2,067-line launch-limitations register was reread. Dated corrections
+retain old findings while identifying obsolete no-admin-test-suite claims,
+contradictory deferral of required native baselines, provider send-back UI that
+does not yet exist, and old compliance-bar assertions that are not professional
+sign-off. The E55 section distinguishes its controlled foundation from the
+still-disabled company checkout and E56 funding requirements. No blocker was
+deleted or marked resolved merely because implementation was authorized.
+
+## OPS-476: exact API release identity
+
+Inspection found that the manual deployment workflow loaded a SHA-tagged image
+but its Compose command selected no such image. It could restart or keep an old
+API and report success based on health alone. The workflow also checked out
+moving master instead of the dispatch revision used to name its artifacts.
+
+The workflow now checks out and bundles exact HEAD, labels its image, and passes
+the same SHA to image preflight, migrations and API activation. A small Compose
+override selects only that API image with no pull. Shared helper checks reject
+wrong/dirty source and absent/mislabeled images. Activation disables build/pull
+and dependency restarts, compares the actual container image ID, checks readiness
+and rejects replacement during the check. Migration dry-run and apply both use
+that exact-image override; the initial-install no-SHA behavior remains compatible.
+No PostgreSQL/Redis/nginx configuration, dependency or CI gate mode was changed.
+
+The real-script OPS-476 regression passed **17 scenarios**. It uses real Git and
+the real Compose configuration merge, with container effects substituted. Together
+with OPS-001, **2 suites / 2 tests passed in 13.803 seconds**. Changed-test lint,
+shell syntax and whitespace checks passed. Full CI for these edits remains
+pending; older commit results do not cover them. The runbook
+`docs/runbooks/exact-api-release.md` states prerequisites, rollback boundaries,
+and that neither web experience is published by this API-only workflow.
+
+Final local checks also passed API TypeScript, YAML parsing for the workflow
+and Compose override, and the unique-ID gate fragment (1,481 titled regressions).
+The main deployment guide now puts backup before checkout changes, schema
+review/application before API activation, and staged assets before atomic entry
+file publication. Its coordinated frontend publisher is still a requirement,
+not newly implemented automation. README no longer calls every registered
+launch blocker an intentional v1 caveat.
+
+No live application rollout, production migration, credential publication or
+new production write occurred during this slice. The production runner rehearsal,
+paired web artifact publication, release rollback rehearsal and business/visual
+acceptance remain open. The API-only workflow must not be invoked as a substitute
+for that coordinated rollout.

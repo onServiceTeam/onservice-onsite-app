@@ -29,21 +29,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: master
+          # A moving master checkout can differ from the dispatch's SHA.
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Build API Docker image
         run: |
           docker build \
             -f packages/api/Dockerfile \
+            --label org.opencontainers.image.revision=${{ github.sha }} \
             -t onservice-api:${{ github.sha }} \
-            -t onservice-api:latest \
             .
 
       - name: Save Docker image
         run: |
           docker save onservice-api:${{ github.sha }} | gzip > api-image.tar.gz
-          git bundle create onservice-release.bundle master
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          git bundle create onservice-release.bundle HEAD
           git bundle verify onservice-release.bundle
 
       - name: Copy image and verified source bundle to server
@@ -82,12 +84,17 @@ jobs:
               bundle verify /tmp/onservice-release.bundle
             sudo -n git -c safe.directory=/opt/onservice \
               fetch /tmp/onservice-release.bundle \
-              master:refs/remotes/deploy/$RELEASE_SHA
+              HEAD:refs/remotes/deploy/$RELEASE_SHA
             test "$(sudo -n git -c safe.directory=/opt/onservice rev-parse refs/remotes/deploy/$RELEASE_SHA)" = "$RELEASE_SHA"
             sudo -n git -c safe.directory=/opt/onservice \
               merge --ff-only refs/remotes/deploy/$RELEASE_SHA
             test "$(sudo -n git -c safe.directory=/opt/onservice rev-parse HEAD)" = "$RELEASE_SHA"
             rm -f /tmp/onservice-release.bundle
+
+            # Verify that the loaded image and checkout have the same revision
+            # before the backup/migration stage. This performs no activation.
+            sudo -n env ONSERVICE_RELEASE_SHA="$RELEASE_SHA" \
+              bash -c 'source scripts/server/release-api-common.sh'
 
             # Run only the explicitly named, reviewed migration. The helper
             # backs this with a dry run and uses the direct Postgres connection.
@@ -99,28 +106,11 @@ jobs:
               fi
               echo "Backing up production before migration $migration_target..."
               sudo -n bash scripts/server/backup-db.sh
-              sudo -n env MIGRATION_TARGET="$migration_target" \
+              sudo -n env MIGRATION_TARGET="$migration_target" ONSERVICE_RELEASE_SHA="$RELEASE_SHA" \
                 bash scripts/server/run-production-migrations.sh
             fi
 
-            # Rolling restart: build and recreate only the API service
-            sudo -n docker compose -f docker-compose.prod.yml up -d --no-deps api
+            sudo -n env ONSERVICE_RELEASE_SHA="$RELEASE_SHA" \
+              bash scripts/server/activate-api-release.sh
 
-            # Wait for health check
-            echo "Waiting for API health check..."
-            for i in $(seq 1 30); do
-              if sudo -n docker compose -f docker-compose.prod.yml exec -T api \
-                curl -sf http://localhost:7381/health/ready > /dev/null 2>&1; then
-                echo "API is healthy!"
-                break
-              fi
-              if [ $i -eq 30 ]; then
-                echo "ERROR: Health check failed after 30 attempts."
-                echo "Manual intervention required. Inspect logs below:"
-                sudo -n docker compose -f docker-compose.prod.yml logs --tail=50 api
-                exit 1
-              fi
-              sleep 2
-            done
-
-            echo "Deployment complete: $RELEASE_SHA"
+            echo "API-only deployment complete: $RELEASE_SHA; web bundles are not deployed by this workflow."

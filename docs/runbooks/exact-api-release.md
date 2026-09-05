@@ -1,0 +1,99 @@
+# Exact-revision API release
+
+## Scope and current limitation
+
+OPS-476 corrects an API deployment defect: loading `onservice-api:<SHA>` did not
+make the old Compose activation command select that image. A healthy old API
+could therefore be reported as a successful new deployment. The workflow also
+previously checked out moving `master` while naming artifacts with the original
+dispatch SHA.
+
+The corrected workflow checks out the exact dispatch revision, labels the image
+with that revision, bundles that detached HEAD, and uses the release override for
+both migrations and API activation. It does **not** deploy either web bundle.
+Do not use an API-only success message as proof of customer/provider/admin
+alignment, a full rollout, or business acceptance. The shared nginx, PostgreSQL,
+Redis, uploads and other businesses are not restarted by the activation helper.
+
+## Preconditions before an operator invokes the workflow
+
+1. Confirm the exact reviewed revision is on master and its CI/gates have the
+   required evidence. Report-mode visual/mutation gates are not acceptance.
+2. Record the existing checkout, running API image ID and previous web artifacts
+   privately. Keep the old API image loaded. Do not prune images during rollout.
+3. Confirm recoverable database/uploads/configuration/source backups and an
+   isolated restore rehearsal. Back up **before changing the checkout**, not
+   only before schema migration: the workflow's automatic pre-migration backup
+   runs after fast-forwarding and does not substitute for that earlier source
+   checkpoint. See `postgres-restore.md`.
+4. Review migration compatibility and test the exact image's migration runner
+   against an isolated restoration. Supply the exact final reviewed migration
+   basename. Do not use a raw SQL replay as proof of runner bookkeeping.
+5. Prepare both web artifacts and their separate bounded publication/rollback
+   plan. Determine whether the old web clients can safely use the new API. Do not
+   invoke the API-only workflow when a coordinated interface change is required
+   and the matching frontend release is not ready.
+6. Verify the actual production connection/identity privately. The workflow
+   requires configured deployment secrets; do not publish credentials or upload
+   a shared-server SSH key to another service merely to make this workflow run.
+
+## Helper behavior
+
+`docker-compose.release.yml` overlays only the API image and forbids pulling.
+`scripts/server/release-api-common.sh` rejects an absent/invalid full SHA, a
+different HEAD, tracked edits, missing Compose files, an unloaded image, or an
+image whose revision label differs. Both following commands must run from the
+reviewed marketplace checkout with the same full SHA:
+
+```bash
+sudo -n env ONSERVICE_RELEASE_SHA=<40-character-reviewed-commit> \
+  MIGRATION_TARGET=<exact-reviewed-migration-basename> \
+  bash scripts/server/run-production-migrations.sh
+
+sudo -n env ONSERVICE_RELEASE_SHA=<same-40-character-reviewed-commit> \
+  bash scripts/server/activate-api-release.sh
+```
+
+The first helper always dry-runs before applying and retains the documented
+historical `--no-check-order` compatibility setting. Dry-run failure prevents
+application. `MIGRATIONS_DRY_RUN_ONLY=1` does not apply SQL. Release mode requires
+an exact migration target; the older no-SHA bootstrap mode remains for the
+existing initial-install caller, not ordinary release deployment.
+
+Activation uses `--no-deps --no-build --pull never`, checks the running container's
+actual image ID, checks `/health/ready`, and confirms the same service container
+still exists afterward. A wrong image, failed startup, changed container or
+readiness timeout is failure, not deployment success. It does not echo the
+container environment or automatically print application logs.
+
+These revision/health checks do not prove business behavior, safe data changes,
+immutable artifact signing, every possible concurrent operator interaction, or
+frontend compatibility. An operator must still perform release acceptance.
+
+## Failure and rollback
+
+An error may occur after source fast-forwarding or after the API has changed.
+The helper deliberately does not pretend to make the whole deployment atomic.
+Record which stage succeeded and the actual running revision before proceeding.
+
+Do not automatically restore a live database or execute down migrations. That
+can destroy transactions received after a backup. Apply the reviewed compatible
+application rollback with the retained previous image and matching web files,
+or fix forward when the schema/API compatibility review requires it. Recheck
+API identity, readiness, protected web access and critical workflows afterward.
+Never use `docker compose down` on the shared marketplace stack.
+
+## Verification evidence
+
+`packages/api/__tests__/bug-ops-476-exact-api-release.test.ts` executes the real
+helpers and Git checks against unique temporary fixtures. Seventeen scenarios
+cover wrong/dirty source, invalid SHA, missing/mislabeled images, activation
+failure, missing/replaced container, wrong running image, readiness exhaustion,
+exact-target migrations, dry-run-only behavior, and dry-run/application errors.
+The real Docker Compose parser verifies the production/override merge without
+starting the daemon. Container side effects are substituted in these tests;
+this is not a live deployment or exact production runner rehearsal.
+
+Local verification on 2026-09-05 passed this regression and OPS-001: two suites,
+two tests, 13.803 seconds. Fresh Linux CI and an isolated runtime rehearsal are
+still required for the new release change before it is used on production.

@@ -1,10 +1,20 @@
 # LAUNCH-LIMITATIONS — onService Onsite App
 
-This file enumerates **known product / behavioural limitations** present
-at v1 launch. Each item is intentional (not a bug) but operators and
-support staff need to be aware so they can route around it. Each entry
-links to the originating decision (phase / dispatch) and a follow-up
-ticket where applicable.
+This file records known limitations, unresolved defects, launch blockers and
+their resolution history. An entry here is not automatically an accepted v1
+trade-off or permission for operators to work around a safety hold. Keep each
+original finding and its later evidence; do not delete a limitation to make
+the product appear ready.
+
+**Current-state note, 2026-09-05:** Ken approved engineering work on the existing
+escalations. E32 SSH authentication is resolved, so older references below to
+access preventing all server inspection are historical. The correct production
+checkout has been verified, recovery tested, and its pending SQL migrations
+rehearsed in isolation. That is not a live rollout or closure of the underlying
+feature, money, privacy, legal or operational requirements. Use
+[the resumption evidence ledger](docs/audits/AUTONOMOUS-RESUMPTION-2026-09-05.md)
+for later checkpoints. Historical screen/test counts and phase-era launch
+claims below require current evidence, not automatic acceptance.
 
 ---
 
@@ -364,6 +374,12 @@ DB cost from the cron path. Not blocking launch.
 
 ## 18. axe-core wired in dev console; automated assertion deferred (Phase 13 Dispatch F)
 
+**2026-09-05 correction:** the "no test runner" rationale below is obsolete.
+Admin now has Vitest, jsdom and Testing Library configuration, and the complete
+Admin CI job executes those tests. That does not establish a complete automated
+accessibility pass. Keep accessibility acceptance open until its actual checks
+and screen coverage are inspected. The original rationale follows as history.
+
 `@axe-core/react` is registered in `apps/admin/src/main.tsx` behind an
 `import.meta.env.DEV` guard, so a11y violations stream to the browser
 console during local development but are tree-shaken from production
@@ -711,6 +727,13 @@ chat scoped out of D07's provider-job-execution-trust focus per spec
 
 ## 26. NPC RA 10173 compliance posture (Phase 14 Dispatch 08)
 
+**Historical phase claim, not a current compliance sign-off.** The broad launch
+statement and post-launch classification below are superseded by the current
+launch-cutover requirements and the unresolved privacy/retention/document
+work in sections 45, 46 and 57. Engineering approval is not qualified legal
+review, registration evidence or proof of production operation. Do not use
+this old checklist to tell customers that compliance has been certified.
+
 The platform meets the operational compliance bar for v1.0 launch:
 
 - **Consent records:** all consent actions write rows to `consent_records`
@@ -765,6 +788,13 @@ The platform meets the operational compliance bar for v1.0 launch:
 
 ## 27. Provider onboarding manual review (Phase 14 Dispatch 09)
 
+**2026-09-05 implementation boundary:** manual review remains the direction,
+but the historical steps below overstate corrections/resubmission. The new
+compatibility queue projects real pending provider applications and delegates
+approval/rejection to Provider 360. A send-back request is still explicitly
+rejected until the durable revision workflow exists; do not promise that step
+8 works. Section 52 and the E74 resumption ledger track the remaining lifecycle.
+
 v1.0 launch ships with **manual admin review** of every provider
 application. No automated liveness vendor (Onfido / Persona / similar)
 is contracted at launch.
@@ -812,6 +842,12 @@ is contracted at launch.
 ---
 
 ## 28. Mobile customer per-screen polish + visual baselines (Phase 14 Dispatch 11)
+
+**Historical deferral, superseded by the audit-remediation bar.** F#3 native
+visual baseline evidence remains required before the launch-ready tag, not an
+optional v1.1 task. The original bridge tests and claims that every screen was
+working are not current acceptance evidence. The full customer/provider/admin
+Stitch audit still requires screen-specific rendered and behavioral evidence.
 
 D11 ships the **cross-cutting infrastructure** for the 15 polish patterns
 (i18n, toast, ConfirmModal, FilterChips/Modal, PhoneInput, StatusBadge,
@@ -1904,6 +1940,16 @@ uploads remain unaffected. Follow
 ---
 
 ## 61. Business-account billing and contract operations are not launch-safe
+
+**2026-09-05 checkpoint:** the findings below describe the original unsafe
+workflow, not a complete inventory of current code. E55 Option A introduced
+controlled commercial terms and statement/payment evidence; the former
+SQL-string-only migration test has been replaced by populated PostgreSQL
+verification. The release-safety ledger records restored production-data
+preservation separately from synthetic fixture coverage. Business-credit
+booking remains held until the distinct E56 provider funding/payable path is
+implemented and verified. No old invoice, booking ownership or payment history
+may be rewritten to conceal these findings.
 
 The Business Account 360 read model now links explicitly stamped bookings to
 customers, providers, invoices, support cases, and disputes. The commercial
