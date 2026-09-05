@@ -6,7 +6,9 @@ import {
   ALL_BOOKING_STATUSES,
   COMPLETED_BOOKING_STATUSES,
 } from '../types/booking.types';
-import { maskEmail, maskPhilippinePhone, type ActorRole } from '../utils/pii-mask';
+import {
+  maskEmail, maskPhilippinePhone, maskPiiForRole, maskPiiInString, type ActorRole,
+} from '../utils/pii-mask';
 
 interface KpiRow {
   today_revenue: string;
@@ -141,7 +143,7 @@ interface AdminActionRow {
   action_type: string;
   target_type: string;
   target_id: string;
-  details: Record<string, unknown>;
+  details: Record<string, unknown> | null;
   reason: string | null;
   created_at: Date;
 }
@@ -912,7 +914,7 @@ export async function getRevenueReport(
 
 export async function getAdminActions(
   filters: { adminId?: string; actionType?: string; page: number; pageSize: number },
-  viewerRole?: string,
+  _viewerRole?: string,
 ): Promise<{ actions: AdminActionRow[]; total: number }> {
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -936,17 +938,28 @@ export async function getAdminActions(
 
   const offset = (filters.page - 1) * filters.pageSize;
   const dataResult = await db.query<AdminActionRow>(
-    `SELECT * FROM admin_actions a ${whereClause} ORDER BY a.created_at DESC
+    `SELECT a.id, a.admin_id, a.action_type, a.target_type, a.target_id,
+            a.details, a.reason, a.created_at
+       FROM admin_actions a ${whereClause} ORDER BY a.created_at DESC
      LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
     [...params, filters.pageSize, offset],
   );
 
-  // Phase 14 Dispatch 08 — Bug 66 + 75 + 76 + 81 + 311 + 331.
-  // Apply role-aware PII masking before returning. super_admin sees raw;
-  // dpo sees masked UA + raw IP; everyone else sees fully masked.
-  const { maskPiiForRole } = await import('../utils/pii-mask');
-  const role = viewerRole ?? 'admin';
-  const masked = dataResult.rows.map((row) => maskPiiForRole(row as unknown as { details?: Record<string, unknown> }, role)) as unknown as AdminActionRow[];
+  // SEC-071 / E72: this legacy list is an audit index, not a bulk reveal.
+  // Match the general Audit Log's masking for EVERY role, including super
+  // admin. D25's record-scoped operational contact policy is unchanged.
+  // Explicitly project fields so historical/full_notes or future DB columns
+  // cannot leak through a SELECT * / object-spread compatibility path.
+  const masked = dataResult.rows.map((row): AdminActionRow => ({
+    id: row.id,
+    admin_id: row.admin_id,
+    action_type: row.action_type,
+    target_type: row.target_type,
+    target_id: row.target_id,
+    details: maskPiiForRole({ details: row.details }, 'admin').details,
+    reason: row.reason === null ? null : maskPiiInString(row.reason),
+    created_at: row.created_at,
+  }));
 
   return { actions: masked, total: Number(countResult.rows[0]?.count ?? 0) };
 }

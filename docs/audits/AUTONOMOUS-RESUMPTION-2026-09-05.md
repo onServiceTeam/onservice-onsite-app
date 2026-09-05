@@ -461,3 +461,61 @@ artifact metadata records the exact CI source revision and marks
 acceptance are not included. A build failure fails the job; no gate was weakened
 and no test failure is converted to a warning. Workflow YAML parsing passed.
 Actual clean export and artifact upload remain pending the new CI run.
+
+### Verified clean browser artifact
+
+The entire preceding OPS-476 CI run `33956701581` completed successfully; the
+Admin job took 11 minutes 25 seconds. The clean-web change is published as
+`46c6ae22`. In its run `33957299765`, mobile job `101282837211` passed 552 suites
+(836 tests passed, 84 TODO), exported **4,280 modules** for web in 85.141 seconds,
+and successfully uploaded artifact `9966825638` (1,652,958 bytes). The artifact
+name is `onservice-web-audit-87f2980bb3d4c394442c31cba757c441fd38b29d`.
+
+That revision is the CI pull-request merge checkout, not a claim that branch
+HEAD or production has that SHA. Its metadata was inspected after downloading
+to a unique local temporary directory: production app origin, demo mode false,
+deployment eligibility false. This workflow supplies no private credentials.
+This is fresh export evidence, not a full artifact-secrets audit, browser-render
+or authenticated screen acceptance pass. The entire CI run `33957299765` then
+completed successfully, including API, mobile/web, Admin and Docker. Gates
+`33957299762` passed with unchanged report-mode limits.
+
+## SEC-071: the legacy audit-list bypass
+
+While rereading the complete admin service for E74, tracing its consumers found
+that `GET /admin/actions` still returned unmasked `admin_actions.details` to a
+super admin and left free-text reasons untouched. The main Audit Log masks
+those values for every role. This legacy URL therefore bypassed the approved
+E72 default, even though SEC-070 contained the distinct one-row raw reveal URL.
+
+The legacy list now applies the existing audit masking policy for every role,
+explicitly selects/projects its public columns, and masks reasons. Unrelated
+historical `full_notes` or future columns cannot be released through SELECT */
+object-spread behavior. Action/actor/target IDs, dates and non-PII operation
+context remain visible. No retained row is rewritten. D25 operational contact
+reveal and D34 route privileges are unchanged. This is consistent default-list
+masking, not the completed field-allowlisted, step-up, case-linked investigation
+workflow or a guarantee that heuristic masking detects every arbitrary secret.
+
+The SEC-071 regression executes the actual HTTP router and service. It checks
+super-admin masking, nested contact/IP/UA/free-text values, null historical
+values, exclusion of extra columns, preserved original objects, denied ordinary
+roles before database access, and read-only persistence calls. The expanded
+focused run passed **5 suites / 26 tests in 1.77 seconds**. Changed-file lint and
+API TypeScript passed. No production read of raw audit payloads was needed.
+
+Two obsolete source-string assertions in `d08-encompassed-bugs.test.ts` were
+removed, not counted as behavioral proof. They claimed Bugs 66 and 331 merely
+from names/comments in this same legacy service. SEC-071's real request checks
+both nested contact masking (66) and IP/user-agent masking (331) on the real
+returned record, so these two claims now share actual path-specific evidence.
+Other historical structural assertions in that file remain and are **not**
+behavioral acceptance evidence; they need separate replacement, not padding of
+the claimed coverage. The initial 3-suite/23-test run included that historical
+file; the subsequent 5-suite run above excludes it.
+
+SEC-071 is locally tested but not yet covered by fresh full CI or deployed.
+The provider-approval KYC read/role transition and governed revision/resubmission
+work remain open; inspecting the service did not fix them. No launch-ready tag,
+server application change, money movement, privacy-data rewrite or credential
+publication occurred in this continuation.
