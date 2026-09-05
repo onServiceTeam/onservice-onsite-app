@@ -107,3 +107,22 @@ priced services or availability have been configured. Immutable review revisions
 request-changes/resubmission, cleanup/privacy integration, migration-172 rehearsal
 and paired authenticated release acceptance remain open. Topic, master and live
 server are not aligned. No live account or production record was changed here.
+
+## Independent verification and follow-up
+
+Commit `9ec0078185c3e8761c9b405ad46cac4267d1f5e1` subsequently passed every CI job
+in `33992639416` and Gates `33992639405`. API job `101377471165` explicitly
+passed OPS-494 within 960 suites / 3,324 tests. Mobile job `101377471226` explicitly
+passed UX-1339/1340 within 579 suites / 863 tests and 84 TODOs, then built 4,364
+web modules. The real-database local skip is therefore independently resolved
+for this exact candidate. It is still not deployed.
+
+All 291 tracked mobile application/source and shared-source files were additionally
+compared against the tested temporary build after normalizing Windows line endings;
+there were no content differences. Direct image inspection covered the narrow OTP,
+login and dashboard plus tablet OTP/login and wide approved-review views, not every
+captured screen or all Stitch specifications.
+
+The follow-up `PROVIDER-DECISION-NOTIFICATIONS-2026-09-06.md` records the new-notice
+guidance correction and the incorrect/clipped admission-notification destinations.
+Its newer tests require their own fresh CI evidence.

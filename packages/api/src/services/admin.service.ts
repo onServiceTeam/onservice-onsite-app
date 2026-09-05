@@ -392,7 +392,7 @@ export async function approveProvider(
     // to the dedicated approval screen.
     await client.query(
       `INSERT INTO notifications (user_id, type, title, body, data)
-       VALUES ($1, 'provider_approved', 'Account Approved', 'Congratulations! Your provider account has been approved. You can now start accepting jobs.', $2)`,
+       VALUES ($1, 'provider_approved', 'Account Approved', 'Your provider account has been approved. Sign in again with your verified mobile number, then review your services, pricing and availability in your provider workspace before accepting work.', $2)`,
       [userId, JSON.stringify({ providerId })],
     );
   });

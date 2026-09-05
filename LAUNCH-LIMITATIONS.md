@@ -2315,3 +2315,18 @@ candidate CI must execute it before this is treated as independently verified.
 This does not close provider lifecycle, external SMS, native baseline, paired
 release or launch requirements. See
 `docs/audits/PROVIDER-APPROVAL-SIGN-IN-2026-09-06.md` for evidence and limitations.
+
+Independent verification update: candidate `9ec00781` passed CI `33992639416`
+and Gates `33992639405`. OPS-494 explicitly passed with all 960 API suites /
+3,324 tests; mobile passed 579 suites / 863 tests with 84 TODOs. This resolves
+the database-test uncertainty for that candidate, not deployment or launch.
+
+Follow-up candidate corrections OPS-495 and UX-1341/1342 align future approval
+notices with fresh sign-in/setup, route admission messages to owned review or the
+approved workspace, and make their full text readable in both inboxes. Eighteen
+synthetic compiled-browser journeys passed at six widths, and complete mobile
+tests passed 581 files / 865 tests with 84 TODOs. The local API run had 3,301
+passing tests, 22 database skips and two Docker-unavailable Nginx failures; it is
+not a green full API result. New OPS-495 remains locally skipped pending fresh CI.
+No historical notices or live records changed. Evidence and remaining work:
+`docs/audits/PROVIDER-DECISION-NOTIFICATIONS-2026-09-06.md`.

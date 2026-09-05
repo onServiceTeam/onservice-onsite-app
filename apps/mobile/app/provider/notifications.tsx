@@ -156,7 +156,7 @@ export default function ProviderNotificationsScreen(): React.ReactElement {
       <View style={styles.iconWrap}><Icon size={22} color={colors.primary} /></View>
       <View style={styles.cardContent}>
         <Text style={[styles.cardTitle, !item.isRead && styles.cardTitleUnread]}>{item.title}</Text>
-        <Text style={styles.cardBody} numberOfLines={2}>{item.body}</Text>
+        <Text style={styles.cardBody} numberOfLines={item.type === 'provider_approved' || item.type === 'provider_rejected' ? undefined : 2}>{item.body}</Text>
         <Text style={styles.cardTime}>{formatRelative(item.createdAt)}</Text>
       </View>
       {!item.isRead && <View style={styles.unreadDot} />}
