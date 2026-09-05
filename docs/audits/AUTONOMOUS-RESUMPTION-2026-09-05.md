@@ -1105,3 +1105,43 @@ passed. Fresh CI is mandatory for the new OPS-490 through OPS-492 regressions.
 No production state changed. The next work remains applicant UI hydration and
 save/conflict/retry, bounded worker expiry, privacy inventory and full lifecycle
 review/revision/resubmission, followed by paired authenticated acceptance.
+
+## Atomic submission CI verified; account-switch transport correction
+
+Published `2d657b3b615e198385610a03d1e7f48cb169e752` passed CI
+`33973157203` and Gates `33973157202`. API job `101325134774` logs OPS-490,
+OPS-491 and OPS-492 passed at 14:55:50, 14:55:57 and 14:56:13 UTC. All 958
+API suites / 3,322 tests passed, as did all four CI jobs. Draft submission
+integrity is verified in the isolated test database, not yet on production.
+
+Reading the actual onboarding screens and shared transport before UI wiring
+exposed two reproducible session bugs. UX-1314's controlled old-account draft
+write received a 401 after switching to another account; the unmodified client
+refreshed/replayed and incorrectly resolved 200 instead of refusing the replay.
+UX-1315 showed that a no-token refresh left a resolved-null global promise, so
+a later signed-in session could not refresh. Both real transport regressions
+failed before the fix (2 files / 2 failures, 17.886 seconds); no real accounts,
+identity records or network services participated in those reproductions.
+
+The shared client now checks the initiating stored account before/after HTTP,
+before refresh and after rotation, refusing stale responses/replays with a safe
+session-changed error. Refresh work is keyed by account and refresh session,
+not just one global promise. A late old rotation cannot overwrite a newer login
+or clear its refresh gate; a changed token pair also prevents an old failure
+from signing out a newer same-account login. No-token refresh exits without
+creating a stuck gate. Normal same-session concurrent refresh still coalesces,
+retains the device fingerprint and updates the active token pair.
+
+The focused new and existing transport checks passed five files / five tests
+in 1.423 seconds. The full mobile suite passed 555 files / 839 tests, with 84
+existing TODOs explicitly not counted as passes (97.991 seconds). Mobile
+TypeScript, changed-file lint, unchanged regression-ID gate (1,503 titles) and
+diff checks passed. Expanded same-account concurrent-login assertions also
+passed in the final five-file/five-test rerun (1.371 seconds), followed by
+successful final type/lint/diff checks. Fresh CI is required after publication.
+
+This does not undo requests already processed by the server, replace server
+authorization/session revocation, or clear every UI cache/draft on account
+switch. Owner-bound onboarding state and actual screen save/hydration remain
+required. No UI layout, legal policy, production account, live schema, server
+checkout or runtime service was changed in this continuation.

@@ -93,8 +93,8 @@ not claim that draft expiry erases documents or all personal data.
 
 ## Remaining work before this can be offered to applicants
 
-1. Verify the newly implemented atomic submission boundary in CI and then the
-   full migration rehearsal. The new regressions are not local database passes.
+1. Rehearse the full migration chain and atomic submission on the paired
+   candidate. Focused database CI has passed; it is not the full rehearsal.
 2. Connect owner-bound mobile/web hydration, save status, retry, conflict
    recovery, discard, logout/reset and expiry messaging to every onboarding
    step. Agreement acceptance must still occur at submission, not in a draft.
@@ -139,3 +139,18 @@ The final local provider selection passed 103 files / 252 tests in 10.724
 seconds with 13 explicitly skipped PostgreSQL files/tests. API TypeScript,
 changed-file lint and the unchanged regression-ID gate passed (1,501 titled
 regressions). Fresh CI for OPS-490 through OPS-492 is required after publication.
+
+Submission commit `2d657b3b615e198385610a03d1e7f48cb169e752` passed CI
+`33973157203` and Gates `33973157202`. The completed API logs explicitly name
+OPS-490, OPS-491 and OPS-492 as passed (958 suites / 3,322 tests overall), and
+all four CI jobs succeeded. This supersedes the preceding CI uncertainty.
+
+UI preparation found two additional requirements. Categories keep local name/
+selection state until Next, so restoring the global store after the screen has
+already mounted would not hydrate those controls. Hydration must precede screen
+mounting or explicitly synchronize all local controls. Documents correctly keep
+only transient local image previews and otherwise show an on-file placeholder;
+do not turn restored private keys into public image requests. Also, the shared
+transport must bind delayed responses and token refresh/replay to their initiating
+account/session (UX-1314/1315), independently of owner-bound draft memory. Neither
+transport protection nor backend storage alone constitutes UI resumability.

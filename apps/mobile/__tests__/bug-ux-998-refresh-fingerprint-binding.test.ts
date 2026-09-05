@@ -8,6 +8,7 @@ jest.mock('@/config/platform.config', () => ({
 jest.mock('@/services/secure-storage', () => ({
   getAccessToken: jest.fn().mockReturnValue('expired-access'),
   getRefreshToken: jest.fn().mockReturnValue('expired-refresh'),
+  getStoredUser: jest.fn().mockReturnValue(undefined),
   storeTokens: (...args: unknown[]) => mockStoreTokens(...args),
   clearTokens: jest.fn(),
   removeSecureItem: jest.fn(),

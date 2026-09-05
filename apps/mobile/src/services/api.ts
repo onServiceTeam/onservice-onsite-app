@@ -19,6 +19,7 @@ import { platformConfig } from '@/config/platform.config';
 import {
   getAccessToken,
   getRefreshToken,
+  getStoredUser,
   storeTokens,
   clearTokens,
   removeSecureItem,
@@ -194,8 +195,30 @@ async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosL
 // concurrent 401s await the SAME in-flight promise instead of
 // kicking off their own refresh. After the refresh resolves, the
 // gate is cleared and subsequent 401s start fresh.
-let inFlightRefresh: Promise<string | null> | null = null;
+interface RefreshFlight { ownerId: string | null; refreshToken: string; promise: Promise<string | null> }
+let inFlightRefresh: RefreshFlight | null = null;
 let authSessionExpiredHandler: (() => void) | null = null;
+
+function currentAccountId(): string | null {
+  const stored = getStoredUser();
+  if (!stored) return null;
+  try {
+    const user = JSON.parse(stored) as { id?: unknown } | null;
+    return typeof user?.id === 'string' && user.id.length > 0 ? user.id : null;
+  } catch { return null; }
+}
+
+function assertSameAccount(ownerId: string | null): void {
+  if (currentAccountId() === ownerId) return;
+  throw accountChangedError();
+}
+
+function accountChangedError(): ApiError {
+  return new ApiError(409, { success: false, error: {
+    code: 'account_changed', statusCode: 409,
+    message: 'Your sign-in session changed. Reload this screen before trying again.',
+  } }, 'Your sign-in session changed.');
+}
 
 /**
  * Keep the transport independent from the Zustand store while still allowing
@@ -206,40 +229,44 @@ export function setAuthSessionExpiredHandler(handler: () => void): void {
 }
 
 async function refreshOnce(): Promise<string | null> {
-  // Coalesce concurrent callers onto the same in-flight refresh.
-  if (inFlightRefresh) return inFlightRefresh;
+  const ownerId = currentAccountId();
+  const refreshToken = getRefreshToken();
+  // UX-1315: do not leave a permanently resolved-null flight after this exit.
+  if (!refreshToken) return null;
+  // UX-1314: another account or a newer login for the same account must never
+  // join the previous session's rotation. Normal rotation updates this key.
+  if (inFlightRefresh?.ownerId === ownerId && inFlightRefresh.refreshToken === refreshToken) return inFlightRefresh.promise;
 
-  inFlightRefresh = (async () => {
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) return null;
-    let deviceFingerprint: string | undefined;
+  const flight: RefreshFlight = { ownerId, refreshToken, promise: Promise.resolve(null) };
+  inFlightRefresh = flight;
+  flight.promise = (async () => {
     try {
-      deviceFingerprint = await getDeviceFingerprint();
-    } catch {
-      // Fingerprinting is best-effort so existing sessions can still refresh
-      // in test/dev environments where native device APIs are unavailable.
-      deviceFingerprint = undefined;
-    }
-    try {
+      let deviceFingerprint: string | undefined;
+      try { deviceFingerprint = await getDeviceFingerprint(); }
+      catch { deviceFingerprint = undefined; } // Best-effort on supported clients.
+      if (currentAccountId() !== ownerId || getRefreshToken() !== refreshToken) return null;
       const res = await rawFetch<{ success: boolean; data: { accessToken: string; refreshToken?: string } }>(
         '/api/v1/auth/refresh-token',
         { method: 'POST', body: { refreshToken, deviceFingerprint }, _bearerOverride: '' },
       );
+      // Logging out or signing in while the request is in flight must not
+      // resurrect old credentials or replace the newer token pair.
+      if (currentAccountId() !== ownerId || getRefreshToken() !== refreshToken) return null;
       const data = res.data?.data;
-      if (!data?.accessToken) return null;
+      if (typeof data?.accessToken !== 'string' || !data.accessToken
+        || (data.refreshToken !== undefined && (typeof data.refreshToken !== 'string' || !data.refreshToken))) return null;
       storeTokens(data.accessToken, data.refreshToken ?? refreshToken);
+      flight.refreshToken = data.refreshToken ?? refreshToken;
       return data.accessToken;
     } catch {
       return null;
     } finally {
-      // Clear the gate AFTER the promise settles so the next 401
-      // (which arrives after the rotation) starts a fresh refresh.
-      // We microtask-defer the clear so other awaiters resolve
-      // against the SAME promise reference before it's nulled.
-      setTimeout(() => { inFlightRefresh = null; }, 0);
+      // Let same-account awaiters share this result for this tick. A late
+      // previous-account completion must not erase a newer flight's gate.
+      setTimeout(() => { if (inFlightRefresh === flight) inFlightRefresh = null; }, 0);
     }
   })();
-  return inFlightRefresh;
+  return flight.promise;
 }
 
 /**
@@ -251,20 +278,29 @@ export async function refreshAuthSession(): Promise<boolean> {
   return (await refreshOnce()) !== null;
 }
 
-async function request<T>(url: string, init: ApiRequestInit, isRetry = false): Promise<ApiAxiosLikeResponse<T>> {
+async function request<T>(
+  url: string, init: ApiRequestInit, isRetry = false, ownerId = currentAccountId(),
+): Promise<ApiAxiosLikeResponse<T>> {
   try {
-    return await rawFetch<T>(url, init);
+    assertSameAccount(ownerId);
+    const result = await rawFetch<T>(url, init);
+    assertSameAccount(ownerId); // Do not deliver old-account data to a new UI.
+    return result;
   } catch (err) {
+    assertSameAccount(ownerId); // Do not replay or sign out a different account.
     if (
       err instanceof ApiError &&
       err.status === 401 &&
       !isRetry &&
       !url.endsWith('/api/v1/auth/refresh-token')
     ) {
+      const refreshTokenBefore = getRefreshToken();
       const newToken = await refreshOnce();
+      assertSameAccount(ownerId);
       if (newToken) {
-        return await request<T>(url, { ...init, _bearerOverride: newToken }, true);
+        return await request<T>(url, { ...init, _bearerOverride: newToken }, true, ownerId);
       }
+      if (getRefreshToken() !== refreshTokenBefore) throw accountChangedError();
       // Refresh failed → tokens are dead. Clear secure store + legacy cache.
       clearTokens();
       removeSecureItem('user');

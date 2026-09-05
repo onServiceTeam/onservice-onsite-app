@@ -2232,3 +2232,20 @@ Commit `b288524b3ace5a1493e798f7eb538306ee647961` passed CI `33968968274`
 and Gates `33968968271`. The three new database regressions explicitly passed
 within 950 API suites / 3,314 tests. All CI jobs passed. The full application
 lifecycle and release limitations above remain in force.
+
+---
+
+## 70. Customer/provider delayed requests could cross a sign-in change
+
+The shared mobile/web network wrapper could refresh and replay an old-account
+request using a newer account's session, deliver an old response to a new
+screen, or let an old rotation interfere with a newer login. A separate early
+exit with no refresh token could leave the refresh gate permanently stuck.
+
+UX-1314/1315 reproduce both bugs with controlled HTTP promises and account
+changes, then verify refusal of stale delivery/replay, separate account/session
+refresh work, no resurrection after logout, protection of newer same-account
+logins and recovery after a no-token attempt. Status: **candidate fix, not
+deployed**. Full local mobile tests passed (555 files / 839 tests; 84 TODOs
+remain), with type/lint checks passing. Fresh CI remains required. This does
+not cancel server-processed operations or prove complete UI-cache isolation.
