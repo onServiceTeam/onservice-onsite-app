@@ -519,3 +519,42 @@ The provider-approval KYC read/role transition and governed revision/resubmissio
 work remain open; inspecting the service did not fix them. No launch-ready tag,
 server application change, money movement, privacy-data rewrite or credential
 publication occurred in this continuation.
+
+## Paired release-candidate preparation
+
+The previous goal turn was progress: it published SEC-071 and real browser
+export evidence. Revalidation found a clean tracked tree at `07aa4db2`; the eight
+private untracked files remain protected. SEC-071's full CI `33958015741` passed.
+API job `101284752670` explicitly passed the new regression and reported **942
+suites / 3,306 tests**. The count reflects removal of two structural checks and
+addition of the real endpoint check, not a claim that every older test is behavioral.
+
+Read-only production reinspection confirmed the same repository and clean
+`7ed367cd` checkout, x86_64 host, and running API image
+`sha256:d1389471b726c00d17700fd52ad3075ca9f8a3ef9902db94b0f6e7f4be737359`.
+Available memory was about 2.6 GiB with 38 GiB disk free. A capacity command's
+trailing carriage return failed harmlessly; the direct retry succeeded. No
+server file, container, config, financial row or application release changed.
+
+OPS-477 adds explicit candidate packaging to avoid sharing production keys with
+GitHub or building on the resource-limited shared server. Same-repository PRs
+can request API/source and admin artifacts through a `release-candidate` label;
+manual CI has an opt-in input for use after the workflow reaches the default
+branch. Routine API image retention remains off. Customer/provider, admin and
+API metadata all identify the same CI source revision; this may be a PR merge
+checkout, not master. Artifacts are not marked deployment-eligible.
+
+The actual package helper checks source cleanliness, exact image/platform and
+saved config identity, Git bundle identity and final hashes. It rejects existing
+destinations and failed/inconsistent saves without overwriting old sets. Its
+**13-scenario** behavioral regression and OPS-476 passed **2 suites / 2 tests in
+19.988 seconds**. ESLint, API TypeScript, shell syntax, YAML parsing and whitespace
+checks passed. Docker inspection/save are substituted locally; actual Docker
+packaging and paired artifacts still need the requested fresh CI run. No gate
+mode, required check, branch protection, package dependency or live policy changed.
+
+Next: produce/download the requested candidate, verify all identities, rehearse
+the exact migration runner on an isolated restoration, and prepare the bounded
+web/API publication and rollback. E74 lifecycle, the full Stitch acceptance
+inventory, business/support/payment linkage and all unresolved launch requirements
+remain in scope; candidate packaging is not a substitute for them.

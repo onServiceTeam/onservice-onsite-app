@@ -5,6 +5,12 @@ on:
     branches: [master, main, develop]
   pull_request:
     branches: [master, main, develop]
+  workflow_dispatch:
+    inputs:
+      retain_release_candidate:
+        description: 'Retain the tested API image/source and admin web build for an isolated release rehearsal (no deployment)'
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -87,10 +93,32 @@ jobs:
 
       - name: Build Admin
         run: npm run build --workspace=apps/admin
+        env:
+          VITE_API_URL: https://admin.onservice.ph
+          VITE_DEMO_MODE: '0'
+          VITE_DEMO_ADMIN_EMAIL: ''
+          VITE_DEMO_ADMIN_PASSWORD: ''
 
       - name: Admin vitest — per-page tests
         # Phase 14 R7-real: real DOM-render tests for 29 admin pages.
         run: npm run test --workspace=apps/admin
+
+      - name: Identify admin candidate build
+        if: (github.event_name == 'workflow_dispatch' && inputs.retain_release_candidate) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'release-candidate'))
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+        run: |
+          test -s apps/admin/dist/index.html
+          node -e 'require("node:fs").writeFileSync("apps/admin/dist/build-audit.json", JSON.stringify({sourceRevision: process.env.SOURCE_REVISION, apiOrigin: "https://admin.onservice.ph", demoMode: false, deploymentEligible: false, limitation: "Release rehearsal input; authenticated acceptance is not included."}, null, 2) + "\n")'
+
+      - name: Retain requested admin candidate build
+        if: (github.event_name == 'workflow_dispatch' && inputs.retain_release_candidate) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'release-candidate'))
+        uses: actions/upload-artifact@v7
+        with:
+          name: onservice-admin-candidate-${{ github.sha }}
+          path: apps/admin/dist/
+          if-no-files-found: error
+          retention-days: 3
 
   mobile-check:
     name: Mobile — TypeScript
@@ -187,9 +215,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          # A requested source bundle must be usable on the older live checkout,
+          # not a shallow object set that omits its required ancestry.
+          fetch-depth: 0
 
       - name: Build API Docker image
-        run: docker build -f packages/api/Dockerfile -t onservice-api:ci-${{ github.sha }} .
+        run: docker build -f packages/api/Dockerfile --label org.opencontainers.image.revision=${{ github.sha }} -t onservice-api:ci-${{ github.sha }} -t onservice-api:${{ github.sha }} .
 
       - name: Verify the API image boots and serves liveness
         run: |
@@ -219,3 +251,20 @@ jobs:
             fi
             sleep 2
           done
+
+      - name: Package requested exact API candidate
+        if: (github.event_name == 'workflow_dispatch' && inputs.retain_release_candidate) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'release-candidate'))
+        env:
+          ONSERVICE_RELEASE_SHA: ${{ github.sha }}
+          ONSERVICE_ARTIFACT_DIR: ${{ runner.temp }}/onservice-api-candidate
+        run: bash scripts/server/package-api-candidate.sh
+
+      - name: Retain requested exact API candidate
+        if: (github.event_name == 'workflow_dispatch' && inputs.retain_release_candidate) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'release-candidate'))
+        uses: actions/upload-artifact@v7
+        with:
+          name: onservice-api-candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/onservice-api-candidate/
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0

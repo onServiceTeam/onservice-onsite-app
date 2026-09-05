@@ -95,5 +95,52 @@ starting the daemon. Container side effects are substituted in these tests;
 this is not a live deployment or exact production runner rehearsal.
 
 Local verification on 2026-09-05 passed this regression and OPS-001: two suites,
-two tests, 13.803 seconds. Fresh Linux CI and an isolated runtime rehearsal are
-still required for the new release change before it is used on production.
+two tests, 13.803 seconds. Full Linux CI subsequently passed at `db202185`
+(run `33956701581`), including the actual Compose configuration merge. An
+isolated runtime rehearsal is still required before production use.
+
+## Requesting matching rehearsal artifacts
+
+CI can retain the API image/source and admin web build when explicitly requested:
+
+- For a same-repository PR, add the `release-candidate` label **before** its next
+  push/synchronization event. Label changes alone deliberately do not rerun CI.
+  Remove the label after the requested candidate run so routine changes do not
+  retain large API archives.
+- Once this workflow is available on the default branch, manual CI dispatch
+  with `retain_release_candidate=true` requests the same artifacts. The input
+  defaults to false. Fork PRs cannot request image retention via this label.
+
+After the requested run succeeds, download these exact names from that one run:
+
+1. `onservice-api-candidate-<CI-source-SHA>`: `api-image.tar.gz`,
+   `onservice-source.bundle`, `api-candidate.json`, `SHA256SUMS`.
+2. `onservice-admin-candidate-<same-CI-source-SHA>`: Vite files and
+   `build-audit.json`.
+3. `onservice-web-audit-<same-CI-source-SHA>`: customer/provider Expo files and
+   `build-audit.json` (also retained by ordinary web CI).
+
+API/admin candidate retention is three days; the smaller browser audit artifact
+retention is seven days. Archive the selected release evidence privately before
+expiry if it is still needed. No server SSH key, environment file or production
+database is supplied to this workflow. Image packaging runs only after image
+boot succeeds; admin retention runs after its tests. All three jobs and the
+required gates still need to succeed before the candidate is accepted for review.
+
+The package helper checks the clean source revision, image revision/platform,
+saved config digest and labels (not only a mutable tag), full-history Git bundle,
+and final artifact checksums. It refuses an existing output directory and never
+deletes prior sets. The regression uses real archive/Git/hash operations with
+Docker save/inspect substituted; the requested CI run exercises real Docker.
+
+On receipt, check `SHA256SUMS`, inspect both frontend metadata files, and require
+all source revisions to match `api-candidate.json`. On an isolated runner,
+inspect/load the archive and compare the resulting image ID and revision label
+to the metadata before starting it. The source bundle's HEAD must also match.
+A PR artifact describes its CI **merge checkout**, which is not automatically
+the topic HEAD or a later master commit. Do not relabel it as another revision.
+
+These are rehearsal inputs and deliberately say `deploymentEligible: false`.
+No real CAPTCHA/demo credentials, authenticated acceptance, database migration,
+full rollback or business launch approval is implied. Candidate packaging does
+not publish either web app or activate the API on any server.
