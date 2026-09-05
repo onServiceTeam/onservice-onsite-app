@@ -1781,6 +1781,20 @@ and save/retry/conflict flow is connected and verified. Worker expiry, privacy
 inventory, immutable review revisions and same-record correction/resubmission
 also remain open. See `docs/architecture/provider-application-lifecycle.md`.
 
+2026-09-06 applicant candidate update, **still open**: owner-bound hydration,
+save/retry/conflict/reload/discard controls now run in the real six-step
+application. Terms saves and submits the same normalized revision. Commit
+`6a138e46` passed CI `33981649089` and Gates `33981649071`, including all four
+CI jobs and 567 mobile suites / 851 passing tests with 84 explicit TODOs.
+This supersedes the preceding statement that the candidate screens remain
+memory-only, not the live deployment limitation. A further status-screen
+correction distinguishes the canonical pending/approved/rejected/suspended/
+deactivated values and guards delayed account activation. Detailed evidence is
+in `docs/audits/PROVIDER-APPLICATION-REVIEW-STATUS-2026-09-06.md`. Fresh browser
+acceptance is not complete: the local Expo export failed with a filesystem read
+error before producing a bundle. Draft expiry scheduling, privacy inventory,
+review revisions, correction/resubmission and paired release remain open.
+
 ---
 
 ## 53. Provider approval does not enforce the government ID back image
@@ -2249,3 +2263,9 @@ logins and recovery after a no-token attempt. Status: **candidate fix, not
 deployed**. Full local mobile tests passed (555 files / 839 tests; 84 TODOs
 remain), with type/lint checks passing. Fresh CI remains required. This does
 not cancel server-processed operations or prove complete UI-cache isolation.
+
+2026-09-06 independent verification: commit `87b1450749c0516b1cd1a500eb2ed9adddf1a921`
+passed CI `33974769862` and Gates `33974769636`. All four CI jobs succeeded;
+mobile job `101329422601` explicitly passed UX-1314/1315 and the full 555 suites /
+839 passing tests, with 84 TODOs. This resolves the fresh-CI requirement for
+that transport correction, not deployment or every screen's cache ownership.

@@ -5,6 +5,11 @@ Date: 2026-09-06, Asia/Singapore. Baseline:
 `codex/financials-operator-truth`. Scope: E35/E74 applicant workflow candidate.
 This is not a deployment, final visual signoff, or closure of either escalation.
 
+Follow-up: `PROVIDER-APPLICATION-REVIEW-STATUS-2026-09-06.md` records independent
+CI for this stage and the subsequent correction of both status URLs. The
+status-screen findings under next item 2 below are historical discovery, not
+the corrected candidate's current behavior. Other acceptance items remain open.
+
 ## Outcome and remaining release boundary
 
 The previous checkpoint's loading boundary and draft actions are now rendered

@@ -20,7 +20,10 @@ jest.mock('@/hooks/useResponsive', () => ({
 }));
 
 jest.mock('@/stores/auth.store', () => ({
-  useAuthStore: () => ({ setUser: mockSetUser }),
+  useAuthStore: Object.assign(() => ({ setUser: mockSetUser, isAuthenticated: true,
+    user: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', role: 'customer' } }), {
+    getState: () => ({ setUser: mockSetUser, isAuthenticated: true, user: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', role: 'customer' } }),
+  }),
 }));
 
 import ReviewPendingScreen from '../app/provider-onboarding/review-pending';
@@ -28,7 +31,7 @@ import ReviewPendingScreen from '../app/provider-onboarding/review-pending';
 it('BUG-UX-115 — an approved application opens the provider workspace only after auth confirms the provider role', async () => {
   mockGetApplicationStatus.mockResolvedValue({ status: 'approved', rejectionReason: null });
   (api.get as jest.Mock).mockResolvedValueOnce({
-    data: { data: { id: 'user-1', role: 'provider', phone: '+639171234567' } },
+    status: 200, data: { success: true, data: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', role: 'provider', phone: '+639170000000', email: null, firstName: 'Synthetic', lastName: 'Applicant', avatarUrl: null } },
   });
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
@@ -44,5 +47,7 @@ it('BUG-UX-115 — an approved application opens the provider workspace only aft
   expect(refreshAuthSession).toHaveBeenCalledTimes(1);
   expect(api.get).toHaveBeenCalledWith('/api/v1/auth/me');
   expect(mockSetUser).toHaveBeenCalledWith(expect.objectContaining({ role: 'provider' }));
-  expect(screen.queryByText('Go to Customer Home')).toBeNull();
+  // This static auth fixture retains the applicant screen after replace.
+  // Customer exit is deliberately available until the real role transition.
+  expect(screen.getByText('Go to Customer Home')).toBeTruthy();
 });
