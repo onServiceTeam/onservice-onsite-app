@@ -2356,3 +2356,26 @@ available for independent review, including the misleadingly named intermediate
 Matching, actual persistence, existing bookings and availability rules are
 unchanged and require separate end-to-end review. See
 `docs/audits/PROVIDER-AVAILABILITY-FIT-2026-09-06.md` for scope and remaining work.
+
+Independent verification: `39f5c78b` passed all four jobs in CI `33995233818`
+and Gates `33995233856`. UX-1343 through UX-1346 explicitly passed within
+585 mobile suites / 869 tests, with 84 TODOs. Not deployed.
+
+---
+
+## 73. Saved provider date overrides were disconnected from matching
+
+Both provider-matching queries ignored saved date overrides. Replacing a saved
+override used separate delete/insert statements that could lose the old block on
+failure or interleave concurrent custom-hours saves. The date parser also accepted
+impossible calendar dates. OPS-496 through OPS-498 implement candidate corrections
+for these three defects, without changing existing bookings, pricing or schema.
+
+Local focused tests passed 45 tests / six suites with two explicit database skips.
+The new real-PostgreSQL regressions and fresh CI remain required. Do not infer
+end-to-end eligibility or release readiness: direct assignment, operator
+reassignment, outstanding offer acceptance and support diagnostics still need
+aligned eligibility checks. Public search also contradicts the provider toggle's
+“hidden from search” claim. See
+`docs/audits/PROVIDER-AVAILABILITY-LINKAGE-2026-09-06.md` for evidence, boundaries
+and the continuation plan. No live data was changed.

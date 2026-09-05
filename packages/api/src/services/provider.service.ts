@@ -978,18 +978,27 @@ export async function addAvailabilityOverride(
   providerId: string,
   data: { overrideDate: string; isAvailable: boolean; startTime?: string; endTime?: string; reason?: string },
 ): Promise<OverrideRow> {
-  await db.query(
-    `DELETE FROM provider_availability_overrides WHERE provider_id = $1 AND override_date = $2`,
-    [providerId, data.overrideDate],
-  );
-  const result = await db.query<OverrideRow>(
-    `INSERT INTO provider_availability_overrides (provider_id, override_date, is_available, start_time, end_time, reason)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING *`,
-    [providerId, data.overrideDate, data.isAvailable, data.startTime ?? null, data.endTime ?? null, data.reason ?? null],
-  );
+  const override = await db.transaction(async (client) => {
+    // OPS-497: serialize replacement even when this date has no existing row.
+    // Migration 043 only makes all-day rows unique, so ON CONFLICT on the date
+    // alone is not valid. Keep the existing replace-date semantics atomic,
+    // preserving the prior override if insertion fails. Never touch bookings.
+    const owner = await client.query('SELECT id FROM providers WHERE id = $1 FOR UPDATE', [providerId]);
+    if (owner.rows.length === 0) throw createAppError('Provider not found.', 404);
+    await client.query(
+      `DELETE FROM provider_availability_overrides WHERE provider_id = $1 AND override_date = $2`,
+      [providerId, data.overrideDate],
+    );
+    const result = await client.query<OverrideRow>(
+      `INSERT INTO provider_availability_overrides (provider_id, override_date, is_available, start_time, end_time, reason)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [providerId, data.overrideDate, data.isAvailable, data.startTime ?? null, data.endTime ?? null, data.reason ?? null],
+    );
+    return result.rows[0]!;
+  });
   logger.info('Availability override set', { providerId, date: data.overrideDate, available: data.isAvailable });
-  return result.rows[0]!;
+  return override;
 }
 
 export async function removeAvailabilityOverride(providerId: string, overrideId: string): Promise<void> {

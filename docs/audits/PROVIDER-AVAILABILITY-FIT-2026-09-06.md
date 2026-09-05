@@ -83,3 +83,12 @@ The current Available Now copy, a fixed past example date, accessible labels and
 small controls still need separate review. These were not silently included in
 this layout correction. Full application-lifecycle and release limitations remain
 open. Local candidate, GitHub master and the live server are not aligned.
+
+## Independent verification
+
+Candidate `39f5c78ba683c537c38842700978da11123420d0` passed all four CI jobs
+in `33995233818` and Gates `33995233856`. Mobile job `101384506768`
+explicitly passed UX-1343, UX-1344, UX-1345 and UX-1346, with 585 suites /
+869 passing tests and 84 TODOs. API, Admin and Docker jobs all succeeded.
+This closes the fresh-CI requirement for the layout checkpoint, not the later
+availability-linkage corrections or deployment.

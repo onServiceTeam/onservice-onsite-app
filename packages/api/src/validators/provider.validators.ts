@@ -283,7 +283,8 @@ export const availabilityOverrideSchema = z.object({
   // ISO-8601 date (YYYY-MM-DD) — HTML <input type="date"> uses this
   // and the column is `availability_overrides.override_date DATE`.
   overrideDate: z.string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'overrideDate must be in YYYY-MM-DD format'),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'overrideDate must be in YYYY-MM-DD format')
+    .refine(isRealCalendarDate, 'Enter a real calendar date'),
   isAvailable: z.boolean(),
   // Optional time window (only meaningful when isAvailable=true).
   startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'startTime must be a valid 24h HH:MM').optional(),
