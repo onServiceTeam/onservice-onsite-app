@@ -84,3 +84,14 @@ The earlier sign-in checkpoint independently passed all four CI jobs in
 passed OPS-494 within 960 suites / 3,324 tests. Mobile job `101377471226` explicitly
 passed UX-1339/1340 within 579 suites / 863 tests, with 84 TODOs, and built 4,364
 web modules. That evidence applies to `9ec00781`, not these newer changes.
+
+## Independent candidate verification
+
+Commit `12c59bbb8fcfe3a1b8a4709a1d3f4c6e79048fae` passed all four CI jobs
+in `33993696967` and all Gates in `33993696999`. API job `101380300476`
+explicitly passed OPS-495 at 21:42:39 UTC on September 5, within **961 suites /
+3,325 tests**. Mobile job `101380300624` explicitly passed UX-1341 and UX-1342,
+with **581 suites / 865 tests** passing and **84 TODOs** remaining. The admin
+and Docker-image jobs also succeeded. This resolves the fresh-CI/database-test
+uncertainty above. It does not establish live deployment, external delivery,
+complete lifecycle acceptance or launch readiness.

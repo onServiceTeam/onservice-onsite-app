@@ -201,7 +201,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
           style={[styles.workspace, !isPhone && styles.workspaceWide]}
           accessibilityLabel={isPhone ? 'Availability settings' : 'Tablet and desktop availability workspace'}
         >
-        <View style={styles.controlColumn}>
+        <View style={[styles.controlColumn, !isPhone && styles.controlColumnWide]}>
         <View style={styles.toggleCard}>
           <View style={styles.toggleInfo}>
             <Text style={styles.toggleTitle}>Available Now</Text>
@@ -232,7 +232,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
         </TouchableOpacity>
         </View>
 
-        <View style={styles.overrideColumn}>
+        <View style={[styles.overrideColumn, !isPhone && styles.overrideColumnWide]}>
         <SectionHeader
           title="Date Overrides"
           actionLabel="+ Add"
@@ -317,12 +317,13 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
             />
 
             <View style={styles.formActions}>
-              <Button title="Cancel" onPress={resetForm} variant="ghost" />
+              <Button title="Cancel" onPress={resetForm} variant="ghost" fullWidth={false} />
               <Button
                 title={isPending ? 'Saving...' : 'Save'}
                 onPress={handleAddOverride}
                 loading={isPending}
                 disabled={isPending}
+                fullWidth={false}
               />
             </View>
           </View>
@@ -332,7 +333,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
           <EmptyState
             icon={<Calendar size={48} color={colors.textTertiary} />}
             title="No Date Overrides"
-            description="Your weekly schedule is active. Add overrides to block specific dates or set custom hours when you need time off."
+            description="No upcoming date overrides are saved. Check Weekly schedule to review your normal working hours. Add overrides to block dates or set custom hours."
           />
         ) : (
           futureOverrides.map((o) => (
@@ -391,10 +392,12 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 100 },
   scrollContentWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl },
-  workspace: { width: '100%' },
+  workspace: { width: '100%', gap: spacing.lg },
   workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
-  controlColumn: { flex: 0.85, minWidth: 250 },
-  overrideColumn: { flex: 1.5, minWidth: 360 },
+  controlColumn: { minWidth: 0 },
+  controlColumnWide: { flex: 0.85, minWidth: 250 },
+  overrideColumn: { minWidth: 0 },
+  overrideColumnWide: { flex: 1.5, minWidth: 360 },
 
   toggleCard: {
     backgroundColor: colors.surface,
@@ -463,7 +466,7 @@ const styles = StyleSheet.create({
   typeBtnText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' },
   typeBtnTextActive: { color: colors.white },
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  timeInput: { flex: 1 },
+  timeInput: { flex: 1, minWidth: 0 },
   timeSep: { ...typography.body, color: colors.textTertiary },
   formActions: {
     flexDirection: 'row',

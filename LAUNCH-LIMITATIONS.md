@@ -2330,3 +2330,29 @@ passing tests, 22 database skips and two Docker-unavailable Nginx failures; it i
 not a green full API result. New OPS-495 remains locally skipped pending fresh CI.
 No historical notices or live records changed. Evidence and remaining work:
 `docs/audits/PROVIDER-DECISION-NOTIFICATIONS-2026-09-06.md`.
+
+Independent notification verification: `12c59bbb` passed CI `33993696967`
+and Gates `33993696999`, including actual OPS-495 PostgreSQL execution
+(961 API suites / 3,325 tests). UX-1341/1342 explicitly passed with all
+581 mobile suites / 865 tests and 84 TODOs. No deployment has occurred.
+
+---
+
+## 72. Provider date-override forms clipped on narrow browsers
+
+Phone columns inherited wide minimum widths, both action buttons requested the
+full row width, and custom-hours inputs could not shrink below browser defaults.
+The empty list also claimed an active weekly schedule without fetching it.
+UX-1343 through UX-1346 correct these independent issues with rendered regressions.
+
+Status: **resolved in local candidate code, not deployed or yet verified by fresh
+CI**. Complete mobile tests pass 585 suites / 869 tests, with 84 TODOs; TypeScript,
+changed-file lint and the regression-ID gate pass. Twelve compiled synthetic
+browser scenarios pass across six phone/tablet/desktop widths, with exact form
+payload checks and 36 final captures. Three failed browser iterations remain
+available for independent review, including the misleadingly named intermediate
+`verified-evidence` and `accepted-evidence` folders, which are not green results.
+
+Matching, actual persistence, existing bookings and availability rules are
+unchanged and require separate end-to-end review. See
+`docs/audits/PROVIDER-AVAILABILITY-FIT-2026-09-06.md` for scope and remaining work.
