@@ -7,7 +7,7 @@ jest.mock('../src/services/notification.service', () => ({}));
 
 import { listPublishedConsentVersions } from '../src/services/compliance-admin.service';
 
-it('Bug UX-1301 - published consent history returns the responsible admin identity with the audit ID', async () => {
+it('Bug OPS-474 - published consent history returns the responsible admin identity with the audit ID', async () => {
   dbQuery.mockResolvedValueOnce({
     rows: [{
       id: 'publication-event-1',

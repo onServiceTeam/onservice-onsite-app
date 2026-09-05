@@ -6,7 +6,7 @@
  * admin_actions CHECK constraint until migration 120 added them. With
  * the verbs allowed AND these routes wired, admins can finally:
  *
- *   - Decide pending provider applications (approve / reject / sent_back)
+ *   - Review real provider applications using the Provider 360 authority
  *   - Decide pending service-area-change requests (approve / reject)
  *   - Contain admin TOTP backup-code regeneration pending governed recovery
  *
@@ -21,7 +21,7 @@
 import { Router, type Response, type NextFunction } from 'express';
 import { authMiddleware, type AuthenticatedRequest } from '../middleware/auth.middleware';
 import { createAppError } from '../middleware/error.middleware';
-import * as providerOnboarding from '../services/provider-onboarding.service';
+import * as providerApplicationReview from '../services/provider-application-review.service';
 import * as areaChange from '../services/service-area-change.service';
 import { maskEmail, maskPhilippinePhone } from '../utils/pii-mask';
 
@@ -72,8 +72,8 @@ router.get(
     try {
       requireSuperAdmin(req);
       const limit = parseQueueLimit(req.query.limit);
-      const data = await providerOnboarding.listPendingReview(limit);
-      res.json({ success: true, data });
+      const data = await providerApplicationReview.listPendingReview(limit);
+      res.json({ success: true, data, schemaVersion: 2, source: 'provider_applications' });
     } catch (error) { next(error); }
   },
 );
@@ -85,8 +85,8 @@ router.post(
     try {
       requireSuperAdmin(req);
       const userId = req.params.userId;
-      if (typeof userId !== 'string' || !userId) {
-        throw createAppError('userId required.', 400);
+      if (typeof userId !== 'string' || !UUID_REGEX.test(userId)) {
+        throw createAppError('userId must be a valid UUID.', 400);
       }
       const body = (req.body ?? {}) as Record<string, unknown>;
       const decision = body.decision;
@@ -95,11 +95,13 @@ router.post(
       if (decision !== 'approved' && decision !== 'rejected' && decision !== 'sent_back') {
         throw createAppError('decision must be approved | rejected | sent_back.', 400);
       }
-      const data = await providerOnboarding.adminDecide({
+      const data = await providerApplicationReview.decideApplication({
         userId,
         adminUserId: req.user!.userId,
         decision,
         reason,
+        checklistConfirmed: body.checklistConfirmed,
+        checklistSummary: body.checklistSummary,
       });
       res.json({ success: true, data });
     } catch (error) { next(error); }
@@ -192,18 +194,11 @@ router.post(
   },
 );
 
-// ─── PII reveal (super-admin only, audit-logged) ───────────────────────────
-//
-// Phase 14 D08 / Bug 81 design intent (per pii-mask.ts:11-13): super_admin
-// can request a one-row reveal of raw PII (IP, user-agent, embedded phone/
-// email in old/new_values) for a specific audit_log row. The reveal is
-// itself audit-logged with action_type='pii_reveal' so an attacker who
-// elevated to super_admin can't quietly extract PII without leaving
-// forensic evidence.
-//
-// Wired here in Phase 30b — pii_reveal verb in admin_actions CHECK since
-// migration 121 (Phase 25d) but no route ever invoked it. NPC RA 10173
-// §22 compliance: every reveal is traceable to an admin_id + timestamp.
+// ─── Legacy raw audit reveal (held pending governed evidence access) ──────
+// E72: a role and free-text reason cannot authorize releasing an arbitrary
+// historical payload. Keep the URL and validation for older clients, but
+// never fetch raw values until case scope, allowed fields and step-up are
+// enforced by the replacement investigation workflow.
 
 router.post(
   '/audit-log/:auditLogId/reveal-pii',
@@ -227,44 +222,12 @@ router.post(
         );
       }
 
-      const { db } = await import('../models/db');
-
-      // Look up the audit_log row — return raw, unmasked.
-      const row = await db.query(
-        `SELECT id, user_id, action, entity_type, entity_id,
-                old_values, new_values,
-                ip_address::text AS ip_address,
-                user_agent, created_at
-           FROM audit_log
-          WHERE id = $1`,
-        [auditLogId],
+      const held = createAppError(
+        'Raw audit evidence is unavailable until case-scoped investigation access is enabled. The masked audit log remains available.',
+        409,
       );
-      if (row.rows.length === 0) {
-        throw createAppError('Audit log entry not found.', 404);
-      }
-      const raw = row.rows[0]!;
-
-      // Audit the reveal itself.
-      await db.query(
-        `INSERT INTO admin_actions
-           (admin_id, action_type, target_type, target_id, details, reason, full_notes)
-         VALUES ($1, 'pii_reveal', 'system', $2, $3::jsonb, $4, $5)`,
-        [
-          req.user!.userId,
-          auditLogId,
-          JSON.stringify({
-            audit_log_id: auditLogId,
-            audit_log_action: raw.action,
-            audit_log_entity_type: raw.entity_type,
-            ip: req.ip,
-            user_agent: req.headers['user-agent'] ?? null,
-          }),
-          normalizedReason,
-          normalizedReason,
-        ],
-      );
-
-      res.json({ success: true, data: raw });
+      held.code = 'governed_audit_evidence_required';
+      throw held;
     } catch (error) { next(error); }
   },
 );

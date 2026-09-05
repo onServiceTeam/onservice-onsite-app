@@ -4,6 +4,14 @@
 **Purpose:** current product, implementation, test, deployment, and client-testing status.  
 **Honesty boundary:** this is a status snapshot, not a launch certificate. A route, screen, test file, or reachable hostname is not by itself proof that the full business workflow works in production.
 
+> Later resumption update, 2026-09-05: Ken approved the existing escalations
+> and implementation resumed. Production SSH access now succeeds; the correct
+> marketplace checkout was verified, clean, at `7ed367cd` on server master.
+> This is not the newer local release, and no deployment is claimed. The
+> initial snapshot below is retained as history. Use the
+> [resumption evidence ledger](audits/AUTONOMOUS-RESUMPTION-2026-09-05.md)
+> for subsequent fixes, tests, current blockers and the next checkpoint.
+
 ## Executive answer
 
 The app has a large working foundation, but it is not complete or ready to hand to an external client as a final product. The three user-facing areas exist, the shared API/database exists, and the admin console has broad operational coverage. The remaining work is concentrated in end-to-end workflow truth, production controls, legal/financial approvals, native-device evidence, and production synchronization.

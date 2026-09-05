@@ -22,6 +22,9 @@ jest.mock('../src/services/settings.service', () => ({
   getSettingInteger: jest.fn(async () => 30),
 }));
 jest.mock('../src/services/gateway-retry.service', () => ({ enqueueRetry: jest.fn() }));
+jest.mock('../src/services/notification.service', () => ({
+  deliverStoredNotificationPush: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
@@ -125,6 +128,12 @@ it('MED-N19 - a failed automatic no-show refund rolls back the dispute and booki
         }
         if (sql.includes('SELECT * FROM disputes')) {
           return { rows: [disputeRow()], rowCount: 1 };
+        }
+        if (sql.includes('INSERT INTO notifications')) {
+          return { rows: [{ id: 'notification-med-n19' }], rowCount: 1 };
+        }
+        if (sql.includes('SELECT user_id FROM providers')) {
+          return { rows: [{ user_id: 'provider-user-med-n19' }], rowCount: 1 };
         }
         throw new Error(`Unexpected transaction query: ${sql}`);
       }),

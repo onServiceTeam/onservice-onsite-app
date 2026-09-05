@@ -201,7 +201,8 @@ export async function fileDispute(
     });
   }
 
-  const dispute = await db.transaction(async (client) => {
+  const result = await db.transaction(async (client) => {
+    const pushRequests: DisputeParticipantPushRequest[] = [];
     const result = await client.query<DisputeRow>(
       `INSERT INTO disputes (booking_id, filed_by, type, description)
        VALUES ($1, $2, $3, $4) RETURNING *`,
@@ -232,7 +233,27 @@ export async function fileDispute(
         `SELECT * FROM disputes WHERE id = $1`,
         [d.id],
       );
-      return resolved.rows[0]!;
+      pushRequests.push(await insertDisputeParticipantNotification(client, {
+        userId: bk.customer_id,
+        title: 'Dispute Decision Recorded',
+        body: 'A full refund decision was recorded for your dispute. Open the case and booking payment history for processing status.',
+        data: { disputeId: d.id, bookingId, disputeStatus: 'resolved', resolution: 'full_refund' },
+      }));
+      if (bk.provider_id) {
+        const provider = await client.query<ProviderLookupRow>(
+          `SELECT user_id FROM providers WHERE id = $1`,
+          [bk.provider_id],
+        );
+        if (provider.rows[0]) {
+          pushRequests.push(await insertDisputeParticipantNotification(client, {
+            userId: provider.rows[0].user_id,
+            title: 'Dispute Decision Recorded',
+            body: 'A full refund decision was recorded for a dispute on your booking. Open the case and booking payment history for processing status.',
+            data: { disputeId: d.id, bookingId, disputeStatus: 'resolved', resolution: 'full_refund' },
+          }));
+        }
+      }
+      return { dispute: resolved.rows[0]!, pushRequests };
     }
 
     if (bk.provider_id) {
@@ -241,20 +262,18 @@ export async function fileDispute(
         [bk.provider_id],
       );
       if (provider.rows[0]) {
-        await client.query(
-          `INSERT INTO notifications (user_id, type, title, body, data)
-           VALUES ($1, 'dispute_update', 'Dispute Filed', $2, $3)`,
-          [
-            provider.rows[0].user_id,
-            'A customer has filed a dispute for one of your completed jobs. You have 48 hours to respond.',
-            JSON.stringify({ disputeId: d.id, bookingId, disputeType: data.type }),
-          ],
-        );
+        pushRequests.push(await insertDisputeParticipantNotification(client, {
+          userId: provider.rows[0].user_id,
+          title: 'Dispute Filed',
+          body: 'A customer has filed a dispute for one of your completed jobs. You have 48 hours to respond.',
+          data: { disputeId: d.id, bookingId, disputeType: data.type, disputeStatus: d.status },
+        }));
       }
     }
 
-    return d;
+    return { dispute: d, pushRequests };
   });
+  const dispute = result.dispute;
 
   // MED-N19 fix: post-commit refund block REMOVED.
   // refundFromEscrowInTransaction is now called inside attemptAutoResolution
@@ -275,6 +294,8 @@ export async function fileDispute(
       error: e instanceof Error ? e.message : String(e),
     });
   }
+
+  await deliverDisputeParticipantPushes(result.pushRequests, dispute.id);
 
   return dispute;
 }
