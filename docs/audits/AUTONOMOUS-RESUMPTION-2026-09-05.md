@@ -638,3 +638,64 @@ GitHub artifact was then downloaded directly to the new server directory with
 a temporary artifact-delivery URL kept out of output. No GitHub account token
 or server SSH key was transferred. Extraction accepted exactly four expected
 filenames in a new directory; all three package hashes matched again.
+
+## Corrected runner evidence and the first browser-navigation finding
+
+Fix-forward `3656839a` passed complete CI `33961265891` and Gates `33961265921`.
+API job `101293443168` explicitly passed OPS-478 with **944 suites / 3,308 tests**.
+Admin, Mobile and real Docker boot/package jobs also passed. Its matching
+candidate revision is `033d456098019812e6ebab098b0e3de0b2dbc565`; artifact IDs are
+API `9968076017`, admin `9968142053`, web `9968057413`. These remain rehearsal
+inputs, not an approved production deployment. The candidate label is being
+kept only for the immediately following explicitly requested public-link fix
+wave, then must be removed after that run.
+
+Before that CI finished, the corrected public-entry runner was tested as a
+read-only, separately hashed script inside the already verified `814bf7a8` base
+image. Its SHA-256 was
+`a19940708ca40841101f1198e7c42054a4baba79822900163a190b77f4ebd9be`.
+A fresh isolated restoration of the same complete `20260905-041108` backup
+passed the dry-run schema/row comparison, applied **all 15** pending migrations,
+matched **all 160** resulting migration names to the image, and passed a second
+application with no additional migration entries. Every original field in
+**363 records** was preserved: 218 business records plus 145 prior migration
+history records. All test-owned containers and internal networks were verified
+absent afterward; live services remained healthy and the clean production
+checkout stayed `7ed367cd`. Logs and the unactivated candidate image remain
+private. This proves the proposed runner against restored PG17 data, but the
+separate script mount means it is **not** the final rebuilt-image rehearsal.
+
+The browser audit used the actual exported `814bf7a8` web/admin artifacts, not
+mock screenshots. Customer onboarding and sign-in rendered; sign-in was
+inspected at confirmed 1440x900 and 768x1024 viewports. Admin sign-in rendered
+at 768x1024. No credential, OTP request, registration or live mutation was made.
+One initial resize applied only to the selected admin tab; the customer tab's
+DOM still measured 1440 pixels, so it was not falsely counted as a tablet pass.
+Closing the temporary admin tab and reapplying the override produced a verified
+768-pixel customer viewport with no horizontal document overflow.
+
+UX-1310 was reproduced in that real browser: both sign-in legal controls were
+SPANs with no link role/href and tabIndex -1. Both accessibility and DOM clicks
+returned to sign-in. Tracing the route confirmed that `/customer/terms` is inside
+the customer-only guard. The registration form used the same broken path.
+
+The correction adds a public `/legal` route that renders the existing policy
+screen, registers it in the root stack/navigation contract, and uses actual
+Expo Links with the correct terms/privacy tab from both auth forms. It does not
+relax CustomerLayout, modify legal wording, change consent acceptance, or expose
+private account data. The public route is an alias of the existing document
+screen, not a second independently maintained policy copy.
+
+The focused local screen/access run passed **five suites / nine tests in 47.216
+seconds**. The new DOM-render test verifies configured link destinations,
+selected documents without a session, no OTP request, and the still-protected
+customer stack. It substitutes Expo navigation, so actual exported-browser
+routing and keyboard acceptance remain to be checked on the new CI artifact.
+Changed-file lint and Mobile TypeScript passed after removing an unnecessary
+test-only DOM type assertion flagged by lint. Full UI CI and post-fix browser
+verification are still pending; no production web artifact was overwritten.
+
+The initial draft used UX-1120, which the blocking uniqueness check correctly
+found was already assigned to an admin notification-template test. The existing
+test was left untouched. A repository-wide title inventory identified UX-1310
+as the next free ID, and this new regression was renamed before publication.

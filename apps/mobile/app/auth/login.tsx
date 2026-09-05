@@ -151,27 +151,25 @@ export default function LoginScreen(): React.ReactElement {
           </Link>
         </View>
 
-      {/* BUG-PHASE63-01 fix — pre-fix this was a single plain-text Text,
-          so the user agreed to Terms/Privacy without any way to read
-          them. Now the two legal docs are tappable links pushing to
-          /customer/terms with the right tab pre-selected. */}
+        {/* Public, keyboard-accessible links. The customer document route is
+            protected and redirects signed-out readers back to this screen. */}
         <Text style={styles.legal}>
           By continuing, you agree to our{' '}
-          <Text
+          <Link
             style={styles.legalLink}
-            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'terms' } })}
+            href={{ pathname: Routes.LEGAL, params: { tab: 'terms' } }}
             testID="login-terms-link"
           >
             Terms of Service
-          </Text>
+          </Link>
           {' '}and{' '}
-          <Text
+          <Link
             style={styles.legalLink}
-            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'privacy' } })}
+            href={{ pathname: Routes.LEGAL, params: { tab: 'privacy' } }}
             testID="login-privacy-link"
           >
             Privacy Policy
-          </Text>
+          </Link>
           .
         </Text>
         </View>

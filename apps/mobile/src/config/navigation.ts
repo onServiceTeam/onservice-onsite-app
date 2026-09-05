@@ -15,6 +15,7 @@
 
 export const Routes = {
   ROOT: '/',
+  LEGAL: '/legal',
 
   TABS: {
     HOME: '/(tabs)/home',
