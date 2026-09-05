@@ -603,3 +603,38 @@ configured. Fresh Linux CI must execute it. Transactional fixture rollback
 will not establish whole-release atomicity for historical SQL containing its
 own BEGIN/COMMIT. An exact-image rehearsal and paired web/API release plan are
 still required before any production upgrade.
+
+The first OPS-478 CI at `54abce93` correctly failed (run `33960502840`, API job
+`101291447105`). It reproduced the original exact-file prerequisite error, but
+the corrected runner then imported an unusable legacy subpath: the installed
+package lacked `dist/legacy/operations/casts.js`. The fix-forward imports the
+same runner and lock constant through the package's public bundled entry point,
+which the existing CLI also uses. No dependency, gate or test expectation was
+weakened. This failed CI is not counted as completed database verification.
+
+Local execution of the first legacy-subpath version also hit an `UNKNOWN`
+filesystem read error in the OneDrive dependency tree; syntax checks alone had
+not loaded its dependency graph. That failed preflight is not a passing check.
+
+The complete `54abce93` CI then finished as failed: API failed, Admin and
+Mobile passed, Docker was skipped. The public-entry import also encountered the
+local dependency-tree `UNKNOWN` read failure, so local runtime execution is
+still unverified, not silently passed. The fix-forward needs clean CI.
+
+The exact original candidate was independently checksum-verified and loaded
+privately on the shared server without activating the API. A fresh isolated,
+internal-network PG17 restoration of the **new complete `20260905-041108` set**
+succeeded. Original-row and schema checks passed after its dry run. Applying the
+original final-file CLI increased `pgmigrations` from **145 to only 146**, not
+the required 160. The rehearsal correctly exited 1. Its exact labeled database
+container and private network were removed; original backups, live data and
+other applications were untouched. This is a reproduced release failure and
+successful database restoration, not a successful release rehearsal. Candidate
+files, the unactivated image and private diagnostic logs are retained.
+
+The initial laptop-to-server SCP was too slow and was stopped after verifying
+its exact process identity; its partial artifact remains private. The same
+GitHub artifact was then downloaded directly to the new server directory with
+a temporary artifact-delivery URL kept out of output. No GitHub account token
+or server SSH key was transferred. Extraction accepted exactly four expected
+filenames in a new directory; all three package hashes matched again.

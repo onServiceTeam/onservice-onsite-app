@@ -5,7 +5,7 @@ import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Client } from 'pg';
-import { runner, PG_MIGRATE_LOCK_ID } from 'node-pg-migrate/runner';
+import { runner, PG_MIGRATE_LOCK_ID } from 'node-pg-migrate';
 
 export async function runReviewedMigrations({
   databaseUrl, dir = 'migrations', target, dryRun = false, schema = 'public', logger = console,
