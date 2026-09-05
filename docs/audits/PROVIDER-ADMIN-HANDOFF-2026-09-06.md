@@ -88,3 +88,70 @@ authenticated acceptance. No server write, master merge, gate/protection change,
 real account creation or monetary action occurred here. Topic, master and
 production remain unaligned. Engineering authorization does not substitute for
 attorney, DPO, accountant or payment-provider signoff.
+
+## Published-candidate verification and browser follow-up
+
+Candidate `3ab3db17d9b29d098af20490399be812ee71b8ee` is published on the
+existing topic branch. Gates `33989367956` passed. CI `33989367903`, completed
+API job `101368715211`, explicitly passed OPS-493 at
+`2026-09-05T20:13:33Z`. All 959 API suites / 3,323 tests passed, with no skips.
+Both Docker-dependent Nginx regressions that could not run locally also passed
+there. This closes the new handoff test's pending execution, not full release
+acceptance. At this observation the mobile and Docker jobs also passed; the
+admin job remained in progress. Later observation confirmed the entire run
+completed successfully, all four CI jobs. Admin job `101368715048` explicitly
+passed UX-1338 and finished 565 passing files / 649 passing tests, with one
+skipped file and three TODOs, in 589.79 seconds. Those TODOs are not passes.
+
+The compiled admin browser audit passed 24 combinations: submitted declarations,
+declarations alongside a priced service, an empty list and an older response
+without the field, each at 320, 390, 768, 1024, 1366 and 1920 pixels. It opens
+the actual Provider 360 page with synthetic account/HTTP responses, blocks
+unexpected requests and performs no production login or writes. All cases
+have zero document/region overflow, no page errors and no unexpected requests.
+The category region has no price; the configured fixture retains the separate
+catalog price. These are bounded display checks, not all controls or the
+actual document-review/approval experience.
+
+The runnable `audit.mjs`, result JSON and 24 **region** screenshots are retained
+under `.ai-coder/checkpoints/logs/provider-admin-handoff-2026-09-06/`.
+Direct image inspection covered phone submitted categories, tablet configured
+categories and desktop older-response messaging. These are not 24 fully audited
+screens or evidence of matching every Stitch pixel.
+
+The isolated build initially failed because its partial source export lacked
+the existing root `tsconfig.json`. Copying that unchanged configuration resolved
+it; no package or configuration content was changed. Vite built 2,845 modules
+in 14.51 seconds. The copied runtime page matched the published source:
+`F744BB98898AD2FD8550FEE7BC227C68A23A9E88ECC2CAC819633A1BBD4E6305`.
+Compiled ProviderDetailPage SHA-256:
+`4df4b8c5056ca11d4f2e86adb472acd6447be52192ab95ff74bb6f01fbd049a8`.
+The JSON also records the index hash. This local-only audit build is not a
+deployment artifact.
+
+The suspected support-link role issue above was traced further and is **not
+a confirmed broken case-creation path**. SupportTicketsPage does not use the
+legacy `userRole` query parameter as authority: it loads account context,
+displays that canonical role and posts the confirmed user ID. Related-provider
+history includes tickets owned by `providers.user_id`, without requiring that
+owner already have provider role. The stale link parameter is redundant;
+do not change authorization based only on its misleading spelling. Actual
+cross-role support-case behavior remains part of the larger acceptance work.
+
+### Newly traced access-transition gap, still open
+
+`auth.service.refreshAccessToken` rejects a refresh when its role differs from
+the current account role. `authMiddleware` likewise rejects an old customer
+access token after approval changes the owner to provider. However,
+`ProviderApplicationStatusScreen` currently attempts automatic refresh followed
+by `/auth/me` to enter the provider workspace. A normal pre-approval customer
+credential cannot complete that assumed refresh transition. Earlier mocked
+activation success is not proof of compatibility with this backend contract.
+
+Keep the canonical-role security rejection. The next correction must provide
+an explicit, understandable fresh-sign-in handoff and verify the actual client
+transport behavior after admin approval, including a different-account login
+and delayed responses. Do not relax role-revocation checks merely to make a
+screen's mocked happy path pass. OPS-493 deliberately models fresh authentication
+and does not close this newly traced client transition gap. This observation
+does not modify login/session authority in the current candidate.
