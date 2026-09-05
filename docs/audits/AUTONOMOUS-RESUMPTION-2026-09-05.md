@@ -361,3 +361,27 @@ scenarios and passed; together with the production-seed guard, **2 suites and
 syntax and `git diff --check` passed. The unique-regression-ID gate fragment
 passed with 1,481 titled regressions. Fresh full CI for this new commit is
 still required; the full-suite totals above belong to `87a3e02d`.
+
+## Populated commercial-history verification continuation
+
+Backup fix `95b1d54f` is published in PR #81. Its full CI run `33954758414`
+and Gates run `33954758325` completed successfully. This includes Linux
+execution of OPS-475, with its owner-only permission assertions. Production
+remains on the earlier revision; no full application rollout is implied.
+
+OPS-331 previously inspected SQL strings and could pass without running the
+migration. Its replacement builds the real commercial tables using migrations
+021/129 in a random, isolated test schema, populates legacy paid/unpaid
+statements, personal/partial/mismatched booking links, old contracts (including
+an invalid historical rate/date), and invoice lines, then executes migration
+166. Assertions compare all original fields, test prospective billing-mode
+defaults, cross-company rejection, amounts beyond INTEGER capacity, preserved
+terms-version links, partial-payment/reversal evidence, duplicate references,
+and immutable rows. Minimal unrelated entities and a schema-local UUID helper
+are fixtures; this is not an end-to-end provider funding/checkout test.
+
+The test refuses non-local/non-test database targets and fails CI setup if the
+safe PostgreSQL service is missing. Local execution loaded the test but
+**skipped its database case** because no safe local test database is configured;
+lint and whitespace checks passed. PostgreSQL execution in fresh CI is pending
+for this replacement and must be inspected before claiming it passed.
