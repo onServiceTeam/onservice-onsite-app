@@ -436,3 +436,28 @@ new production write occurred during this slice. The production runner rehearsal
 paired web artifact publication, release rollback rehearsal and business/visual
 acceptance remain open. The API-only workflow must not be invoked as a substitute
 for that coordinated rollout.
+
+## Clean browser-export verification continuation
+
+OPS-476 is published as `db202185`. Its API job `101281218295` in CI run
+`33956701581` explicitly passed the release regression and **941 suites /
+3,307 tests**. Mobile and Docker jobs passed; Admin was still running at this
+checkpoint. Gates run `33956701592` passed with the same report-mode caveats.
+
+A fresh local Expo web export, with private dotenv loading disabled and all
+demo inputs blank/off, failed before Metro startup. A second diagnostic attempt
+identified the exact unreadable installed dependency:
+`node_modules/@expo/cli/node_modules/zod/v3/locales/en.cjs` (installed Zod
+3.25.76). Node 24.13.0 raised `UNKNOWN`, errno -4094, while reading that file.
+No dependency was substituted, package version changed, private environment
+printed, or successful browser build claimed. The output directory was a
+unique local temporary audit directory, not an existing web release.
+
+The mobile CI job now also performs a clean Linux Expo web export, disables
+dotenv loading and demo credentials explicitly, and retains a seven-day audit
+artifact using the repository's existing upload-artifact action version. The
+artifact metadata records the exact CI source revision and marks
+`deploymentEligible: false`: CAPTCHA public configuration and authenticated
+acceptance are not included. A build failure fails the job; no gate was weakened
+and no test failure is converted to a warning. Workflow YAML parsing passed.
+Actual clean export and artifact upload remain pending the new CI run.

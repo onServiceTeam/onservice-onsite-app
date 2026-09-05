@@ -119,6 +119,41 @@ jobs:
         working-directory: apps/mobile
         run: npx jest --config jest.config.js
 
+      - name: Build customer and provider web audit bundle
+        # Type checks/native renders cannot prove that Metro exports for web.
+        # This is a no-demo audit artifact, not a deployable client-pilot build:
+        # public CAPTCHA configuration and authenticated acceptance are absent.
+        working-directory: apps/mobile
+        run: npx expo export --platform web --output-dir dist-web-ci --clear
+        env:
+          NODE_ENV: production
+          EXPO_OS: web
+          EXPO_NO_DOTENV: '1'
+          EXPO_PUBLIC_API_URL: https://app.onservice.ph
+          EXPO_PUBLIC_DEMO_MODE: '0'
+          EXPO_PUBLIC_DEMO_CUSTOMER_PHONE: ''
+          EXPO_PUBLIC_DEMO_PROVIDER_PHONE: ''
+          EXPO_PUBLIC_DEMO_OTP: ''
+          EXPO_PUBLIC_TURNSTILE_SITE_KEY: ''
+          EAS_PROJECT_ID: ''
+          SENTRY_DSN_MOBILE: ''
+
+      - name: Identify browser audit artifact
+        working-directory: apps/mobile
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+        run: |
+          test -s dist-web-ci/index.html
+          node -e 'require("node:fs").writeFileSync("dist-web-ci/build-audit.json", JSON.stringify({sourceRevision: process.env.SOURCE_REVISION, apiOrigin: "https://app.onservice.ph", demoMode: false, deploymentEligible: false, limitation: "Browser build evidence only; public CAPTCHA configuration and authenticated acceptance are not included."}, null, 2) + "\n")'
+
+      - name: Retain customer and provider browser audit bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: onservice-web-audit-${{ github.sha }}
+          path: apps/mobile/dist-web-ci/
+          if-no-files-found: error
+          retention-days: 7
+
   docker-build:
     name: Docker — API Image Build
     runs-on: ubuntu-latest
