@@ -2396,3 +2396,25 @@ complete visual evidence. Support instructions now distinguish candidate/live
 behavior and no longer promise the unsupported KYC renewal upload. Fresh CI is
 required for this newer checkpoint. See
 `docs/audits/PROVIDER-AVAILABILITY-GUIDANCE-2026-09-06.md`.
+
+Independent guidance verification: `21e7f93d` passed all four CI jobs in
+`33997197201` and Gates `33997197220`. UX-1347/1348/1349 explicitly passed
+with 588 mobile suites / 872 tests and 84 TODOs. Not deployed.
+
+---
+
+## 74. Weekly schedule defaults and refreshes could misrepresent saved hours
+
+Missing stored weekdays appeared available; new suggested hours could not be
+saved unchanged; refreshes overwrote drafts; completing an earlier save discarded
+newer typing. The screen also overstated how weekly hours affect search visibility.
+UX-1350 through UX-1354 correct these separate defects in candidate code, with
+real-render failures recorded before correction and passing regressions afterward.
+
+Complete mobile tests pass 593 suites / 877 tests, with 84 TODOs. Twelve compiled
+synthetic browser journeys pass at six widths with 48 captures, exact PUT values,
+delayed-save editing and reload checks. Types, changed-file lint and the unchanged
+regression-ID gate pass. Fresh CI is required. No production deployment or
+database change occurred. This does not resolve multi-device concurrent saves,
+all accessibility/account-switch cases or the remaining matching/operator gaps.
+See `docs/audits/PROVIDER-WEEKLY-SCHEDULE-2026-09-06.md` for evidence and next work.

@@ -76,3 +76,11 @@ claim it is absent or assume it protects local form state without testing.
 Also inspect date-only labels under non-Philippine browser timezones. Continue
 the direct-assignment, offer-acceptance and operator-visibility work documented
 in the linkage audit. Those release gaps were not solved by changing this copy.
+
+## Independent CI verification
+
+Candidate `21e7f93d9b2ce29347b822ab00ed69919733a9ae` passed all four jobs in
+CI `33997197201` and Gates `33997197220`. Mobile job `101389685601` explicitly
+passed UX-1347/1348/1349 and **588 suites / 872 tests**, with **84 TODOs**, at
+`2026-09-05T22:56:50Z`. This resolves the fresh-CI requirement for that
+checkpoint, not deployment or the remaining linkage/accessibility work.
