@@ -2289,3 +2289,29 @@ passed CI `33974769862` and Gates `33974769636`. All four CI jobs succeeded;
 mobile job `101329422601` explicitly passed UX-1314/1315 and the full 555 suites /
 839 passing tests, with 84 TODOs. This resolves the fresh-CI requirement for
 that transport correction, not deployment or every screen's cache ownership.
+
+---
+
+## 71. Approved applicants need fresh sign-in; verification boxes clipped on phones
+
+The earlier review screen assumed old customer refresh credentials could acquire
+provider authority after approval. Canonical role checks intentionally reject
+both old access and refresh credentials. UX-1339 retains this security boundary
+and explains fresh sign-in, without claiming that a generic session failure proves
+approval. Retained approved screens offer an explicit guarded sign-out rather than
+attempting automatic role promotion. Successful sign-in clears the generic notice.
+
+Actual compiled-browser navigation then exposed verification boxes clipped beyond
+the narrow form. UX-1340 lets the preferred-width boxes shrink without hiding
+overflow or changing verification requirements. Sixty synthetic browser journeys
+passed across six phone/tablet/desktop widths and all five configured code lengths.
+The failed screenshot evidence is retained. Complete local mobile tests pass
+579 files / 863 tests with 84 TODOs; TypeScript and changed-file lint pass.
+
+Status: **candidate corrections, not deployed**. OPS-494 adds real PostgreSQL and
+HTTP coverage of OTP sign-in, approval, revoked old authority and fresh provider
+authority, but is skipped locally until an isolated database is available. Fresh
+candidate CI must execute it before this is treated as independently verified.
+This does not close provider lifecycle, external SMS, native baseline, paired
+release or launch requirements. See
+`docs/audits/PROVIDER-APPROVAL-SIGN-IN-2026-09-06.md` for evidence and limitations.

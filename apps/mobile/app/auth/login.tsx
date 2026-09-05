@@ -17,11 +17,13 @@ import { Routes } from '@/config/navigation';
 import { DEMO_MODE, demoLogin, type DemoRole } from '@/config/demo';
 import { useResponsive } from '@/hooks/useResponsive';
 import AuthBrandPanel from '@/components/AuthBrandPanel';
+import { useAuthStore } from '@/stores/auth.store';
 
 export default function LoginScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
+  const sessionExpired = useAuthStore(state => state.sessionExpired);
   // requestOtpWithCaptcha transparently handles the server's 428 captcha
   // challenge (Cloudflare Turnstile) that appears after the lockout threshold.
   const { requestOtpWithCaptcha, captchaModal } = useCaptchaOtp();
@@ -99,6 +101,9 @@ export default function LoginScreen(): React.ReactElement {
         </View>
 
         <Card style={styles.form}>
+          {sessionExpired && <Text style={styles.sessionNotice} accessibilityRole="alert">
+            Sign in again to confirm your current account access. Use your verified mobile number. If you were applying to become a provider, signing in does not submit another application.
+          </Text>}
           {/* Phase 14 R5-complete — PhoneInput component */}
           <PhoneInput
             value={phone}
@@ -206,6 +211,7 @@ const styles = StyleSheet.create({
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary },
   form: { gap: spacing.base, borderRadius: borderRadius.lg },
+  sessionNotice: { ...typography.bodySmall, color: colors.textSecondary },
   demo: {
     gap: spacing.sm,
     marginTop: spacing.base,

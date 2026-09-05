@@ -16,27 +16,32 @@ import Review from '../app/provider-onboarding/review-pending';
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn(), replace: mockReplace }), Redirect: () => null }));
 
-it('Bug UX-1331 — provider activation rejects a different account and retries only on explicit action until the current provider identity is confirmed', async () => {
-  useAuthStore.setState({ user: applicant, isAuthenticated: true });
-  jest.mocked(refreshAuthSession).mockResolvedValue(true);
-  let correctOwner = false;
+it('Bug UX-1331 — approval cannot promote from account data or retry sign-out without explicit action', async () => {
+  const originalLogout = useAuthStore.getState().logout;
+  const logout = jest.fn().mockRejectedValueOnce(new Error('Unavailable')).mockResolvedValue(undefined);
+  useAuthStore.setState({ user: applicant, isAuthenticated: true, logout });
   jest.mocked(api.get).mockImplementation(async path => ({ status: 200, ok: true, data: { success: true,
     data: path === '/api/v1/providers/application-status' ? { status: 'approved', rejectionReason: null }
-      : { ...applicant, role: 'provider', id: correctOwner ? applicant.id : 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+      : { ...applicant, role: 'provider', id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
   } }) as never);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const view = render(<QueryClientProvider client={client}><Review /></QueryClientProvider>);
-  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('could not be confirmed for this account'));
-  expect(useAuthStore.getState().user).toEqual(applicant);
-  expect(mockReplace).not.toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: 'Go to Customer Home' })).toBeTruthy();
-  view.rerender(<QueryClientProvider client={client}><Review /></QueryClientProvider>);
-  expect(refreshAuthSession).toHaveBeenCalledTimes(1);
-  correctOwner = true;
-  fireEvent.click(screen.getByRole('button', { name: 'Retry provider access' }));
-  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/(provider-tabs)/dashboard'));
-  expect(refreshAuthSession).toHaveBeenCalledTimes(2);
-  expect(useAuthStore.getState().user).toEqual({ ...applicant, role: 'provider' });
-  view.unmount();
-  client.clear();
+  try {
+    const signIn = await screen.findByRole('button', { name: 'Sign in again' });
+    expect(logout).not.toHaveBeenCalled();
+    fireEvent.click(signIn);
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('could not finish signing out'));
+    view.rerender(<QueryClientProvider client={client}><Review /></QueryClientProvider>);
+    expect(logout).toHaveBeenCalledTimes(1);
+    fireEvent.click(signIn);
+    await waitFor(() => expect(logout).toHaveBeenCalledTimes(2));
+    expect(logout).toHaveBeenLastCalledWith('sign-in-required');
+    expect(refreshAuthSession).not.toHaveBeenCalled();
+    expect(api.get).not.toHaveBeenCalledWith('/api/v1/auth/me');
+    expect(useAuthStore.getState().user).toEqual(applicant);
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Go to Customer Home' })).toBeNull();
+  } finally {
+    view.unmount(); client.clear(); useAuthStore.setState({ logout: originalLogout });
+  }
 });

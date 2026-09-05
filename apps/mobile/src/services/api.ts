@@ -270,9 +270,9 @@ async function refreshOnce(): Promise<string | null> {
 }
 
 /**
- * Rotate the current mobile token pair on demand. Approval and staff-role
- * transitions use this before entering a workspace whose API authorization is
- * carried in the access-token role claim.
+ * Rotate the current mobile token pair on demand without changing authority.
+ * A canonical role change rejects the old pair and requires fresh sign-in.
+ * Staff-invite acceptance has its own server-issued replacement credentials.
  */
 export async function refreshAuthSession(): Promise<boolean> {
   return (await refreshOnce()) !== null;

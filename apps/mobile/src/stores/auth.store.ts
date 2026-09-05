@@ -53,12 +53,14 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   otpRequestId: string | null;
+  // In-memory explanation only, never evidence of an approval or account role.
+  sessionExpired: boolean;
 
   hydrate: () => void;
   requestOtp: (phone: string, captchaToken?: string) => Promise<void>;
   verifyOtp: (phone: string, code: string) => Promise<void>;
   register: (phone: string, firstName: string, lastName: string) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (reason?: 'sign-in-required') => Promise<void>;
   setUser: (user: User) => void;
   // D23 — after accepting a team invite the API returns a fresh token pair
   // carrying the provider_staff role; swap in the new session so routing
@@ -79,6 +81,7 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
   isAuthenticated: false,
   isLoading: true,
   otpRequestId: null,
+  sessionExpired: false,
 
   hydrate: () => {
     const token = getAccessToken();
@@ -156,7 +159,7 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     if (isNewUser) {
       storage.set('isNewUser', 'true');
     }
-    set({ user, isAuthenticated: true, otpRequestId: null });
+    set({ user, isAuthenticated: true, otpRequestId: null, sessionExpired: false });
   },
 
   register: async (_phone: string, firstName: string, lastName: string) => {
@@ -180,7 +183,7 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
   // local state. Running both requests together avoids doubling the logout
   // delay on a poor connection. If either server call fails, we still clear
   // locally; logout must always succeed from the user's perspective.
-  logout: async () => {
+  logout: async (reason) => {
     const generation = authIdentityGeneration;
     const logoutRequests: Promise<unknown>[] = [unregisterStoredPushToken()];
     const refreshToken = getRefreshToken();
@@ -191,7 +194,7 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     if (authIdentityGeneration !== generation) return;
     clearTokens();
     clearStoredUser();
-    set({ user: null, isAuthenticated: false, otpRequestId: null });
+    set({ user: null, isAuthenticated: false, otpRequestId: null, sessionExpired: reason === 'sign-in-required' });
   },
 
   setUser: (user: User) => {
@@ -204,7 +207,7 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     set((state) => {
       const user = state.user ? { ...state.user, role: 'provider_staff' as const } : state.user;
       if (user) storeUser(JSON.stringify(user));
-      return { user, isAuthenticated: true };
+      return { user, isAuthenticated: true, sessionExpired: false };
     });
   },
 }));
@@ -218,6 +221,7 @@ setAuthSessionExpiredHandler(() => {
     isAuthenticated: false,
     isLoading: false,
     otpRequestId: null,
+    sessionExpired: true,
   });
 });
 

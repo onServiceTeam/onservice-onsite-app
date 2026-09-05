@@ -209,3 +209,16 @@ the new field differently from an empty selection. It does not substitute the
 legacy priced-category projection. OPS-493 adds focused real-PostgreSQL HTTP
 handoff coverage; UX-1338 renders the actual profile tab. Execution evidence and
 remaining boundaries: `docs/audits/PROVIDER-ADMIN-HANDOFF-2026-09-06.md`.
+
+## Approval session handoff, later on 2026-09-06
+
+Canonical role checks reject pre-approval customer access and refresh credentials
+after the owner becomes a provider. Approval is not a token-refresh promotion.
+The review UI now offers explicit fresh sign-in, while terminal session expiry
+explains that step on the login screen without inferring approval from an error.
+The ordinary verified-mobile-number login returns the current account role.
+An application status label alone never grants provider authority. Signing in
+again does not create or resubmit an application. Approval also does not establish
+priced services, availability or job eligibility. The former mocked automatic
+activation tests have been corrected to this contract; exact execution scope and
+remaining evidence are in `docs/audits/PROVIDER-APPROVAL-SIGN-IN-2026-09-06.md`.
