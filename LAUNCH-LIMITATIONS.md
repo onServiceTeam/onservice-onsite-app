@@ -2528,3 +2528,29 @@ HTTP, page exceptions or document overflow. Only synthetic auth writes occurred.
 that transport retries, async authentication, cross-tab sessions or realtime
 connections are isolated. Evidence and remaining work:
 `docs/audits/ADMIN-ACTOR-QUERY-CACHE-2026-09-06.md`.
+
+Published cache candidate `4fd13138` passed all four jobs in CI `34004877588`
+and Gates `34004877495`. Admin logs explicitly pass UX-1365, its four supporting
+tests and all 663 tests, with 3 TODOs. Its fresh-CI requirement is resolved;
+production deployment and broader authentication boundaries remain open.
+
+## 79. Delayed admin startup checks could restore obsolete session identity
+
+UX-1366 through UX-1368 reproduce startup reads overwriting a new login,
+restoring a signed-out operator and replacing a newer role/rotation requirement.
+The real auth store now admits only the current startup ticket and invalidates
+old tickets at login/logout boundaries. Successful login finishes loading.
+E78 records the recommended narrow correction and current engineering approval.
+
+Focused tests pass 6 files / 9 tests; types, lint and the unchanged ID gate pass.
+Eighteen compiled synthetic browser scenarios pass at six widths, with 54
+captures, no unexpected HTTP, page exceptions or document overflow. The first
+full local run failed four timing checks alongside a build; all four focused
+repeats pass unchanged. **A clean full rerun and fresh CI remain required.**
+No production, server-cookie, financial, permission or revocation policy changed.
+Transport retry, competing auth writes, cross-tab and realtime boundaries are
+not certified. Evidence: `docs/audits/ADMIN-STARTUP-AUTH-OWNERSHIP-2026-09-06.md`.
+
+The complete four-worker local rerun passed 580 files / 670 tests, with 1 skipped
+file / 3 TODOs, in 302.23 seconds. No tests, timeouts or gate settings changed.
+The local rerun requirement is resolved; fresh CI and deployment are not implied.

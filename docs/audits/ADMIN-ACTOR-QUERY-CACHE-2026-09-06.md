@@ -85,6 +85,14 @@ or detect another tab changing cookies. A same-ID credential replacement that
 never passes through signed-out state is not certified by the ID/role key.
 Global toasts and downloaded document completion need separate review.
 
+Independent verification: published candidate
+`4fd131383cb62a05b360782bce1ecdf7e7e8d413` passed all four jobs in CI
+`34004877588` and Gates `34004877495`. Admin job `101410135518` explicitly
+passes the four cache-support tests at `2026-09-06T01:51:15Z` and UX-1365 at
+`01:51:20Z`. Its final totals at `02:01:07Z` are **576 passing files, 1 skipped;
+663 tests, 3 TODOs**. The job completed at `02:01:09Z`. This resolves the
+fresh-CI requirement for this cache checkpoint, not deployment or wider auth.
+
 Provider phone-title truncation, customer generic fraud-dialog identity context,
 action accessibility, assignment eligibility and broader Stitch/spec coverage
 remain open. Full migration-172 rehearsal, paired publishing, authenticated live

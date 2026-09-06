@@ -34,6 +34,11 @@ interface AuthState {
 
 const ADMIN_TIER_ROLES: ReadonlySet<string> = new Set(['admin', 'super_admin', 'dpo']);
 
+// Startup reads may finish after another read, login or logout. Only their
+// current ticket may settle identity/role/rotation state. This is not a cookie
+// or transport lock: requests already processed by the server remain separate.
+let hydrationRevision = 0;
+
 export function hasAdminSessionHint(): boolean {
   if (typeof document === 'undefined') return false;
   return /(?:^|;\s*)admin_csrf=/.test(document.cookie);
@@ -49,6 +54,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   mustRotatePassword: false,
 
   hydrate: async () => {
+    const revision = ++hydrationRevision;
     // One-time migration for users still carrying tokens from before this fix:
     // wipe legacy localStorage keys so they never get used again.
     try {
@@ -72,6 +78,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         success: true;
         data: AdminUser & { id: string; role: string; mustRotatePassword?: boolean };
       }>('/api/v1/auth/me');
+      if (revision !== hydrationRevision) return;
       const u = res.data.data;
       if (u && ADMIN_TIER_ROLES.has(u.role)) {
         set({
@@ -85,13 +92,16 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       // Not authenticated — fall through.
     }
+    if (revision !== hydrationRevision) return;
     set({ user: null, isAuthenticated: false, isLoading: false, mustRotatePassword: false });
   },
 
   login: (user, opts) => {
+    hydrationRevision += 1;
     set({
       user,
       isAuthenticated: true,
+      isLoading: false,
       mustRotatePassword: opts?.mustRotatePassword === true,
     });
   },
@@ -101,9 +111,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    hydrationRevision += 1;
     try {
       await api.post('/api/v1/auth/admin/logout');
     } catch { /* best effort — clear local state regardless */ }
-    set({ user: null, isAuthenticated: false, mustRotatePassword: false });
+    // Also retire a startup check that began while logout was awaiting HTTP.
+    hydrationRevision += 1;
+    set({ user: null, isAuthenticated: false, isLoading: false, mustRotatePassword: false });
   },
 }));
