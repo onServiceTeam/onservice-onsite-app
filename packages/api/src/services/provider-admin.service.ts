@@ -1544,9 +1544,8 @@ export async function deleteProviderNote(
 ): Promise<void> {
   // Phase 14 Dispatch 06 — Bug 80. Pre-D06 this was a hard DELETE with
   // NO audit. Now: soft delete (UPDATE deleted_at/deleted_by/deleted_reason
-  // from migration 076) + admin_actions audit in ONE transaction. The
-  // FK from admin_actions.target_id back to the note row remains valid
-  // since the row still exists, just with deleted_at set.
+  // from migration 076) + admin_actions audit in ONE transaction. Keep
+  // the original note row so the polymorphic audit target remains resolvable.
   await db.transaction(async (client) => {
     const existing = await client.query<{
       author_id: string;
@@ -1555,7 +1554,8 @@ export async function deleteProviderNote(
     }>(
       `SELECT author_id, provider_id, deleted_at
          FROM provider_admin_notes
-        WHERE id = $1 AND provider_id = $2`,
+        WHERE id = $1 AND provider_id = $2
+        FOR UPDATE`,
       [noteId, providerId],
     );
     const row = existing.rows[0];
@@ -1575,14 +1575,19 @@ export async function deleteProviderNote(
     if (trimmedReason.length > 1000) {
       throw createAppError('reason must be ≤ 1000 characters.', 400);
     }
-    await client.query(
+    // OPS-509: serialize with note editors/deleters on this row. A losing
+    // deletion must not report success or write a second deletion audit.
+    const deletion = await client.query(
       `UPDATE provider_admin_notes
           SET deleted_at = NOW(),
               deleted_by = $2,
               deleted_reason = $3
-        WHERE id = $1 AND deleted_at IS NULL`,
-      [noteId, authorId, trimmedReason || null],
+        WHERE id = $1 AND provider_id = $4 AND deleted_at IS NULL`,
+      [noteId, authorId, trimmedReason, providerId],
     );
+    if (deletion.rowCount !== 1) {
+      throw createAppError('Note could not be deleted. Refresh and try again.', 409);
+    }
 
     const auditResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)

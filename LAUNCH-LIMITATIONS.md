@@ -2784,3 +2784,35 @@ TODOs and 2 unchanged nginx tests failing solely because the local Docker engine
 was unavailable (294.835 seconds). All three new PostgreSQL regressions executed.
 Types, changed-file lint and the unchanged 1,582-ID gate passed. Fresh candidate
 CI and deployment remain separate requirements; this is not a green local suite.
+
+Independent verification: `30bc13be` passed all four jobs in CI `34037600893`
+and Gates `34037600892`. Actual API logs explicitly pass SEC-074 and
+OPS-506/507/508, including all 983 suites / 3,428 tests with two existing TODOs.
+The nginx tests also passed in CI. These corrections are verified candidate
+code, not deployed or a completion of the broader team/release audit.
+
+## 87. Concurrent support-note deletion could invent a second successful action
+
+Two simultaneous Provider 360 deletion requests both reported success for the
+same note. The service's initial read was unlocked and its soft-delete UPDATE
+did not verify that it changed a row before recording a deletion audit.
+OPS-509 locks the scoped note, checks the affected row, and preserves the
+existing transactional soft-delete and reasoned author/super-admin contract.
+No note is hard-deleted and no historical audit or live record is rewritten.
+
+The real PostgreSQL/HTTP baseline failed. After correction, six focused suites
+passed 67 tests, including competing deletes, both edit/delete orders, denied
+access, scoped IDs, audit failure rollback and a suppressed UPDATE. The old
+PHASE164-01 source/comment test is replaced by actual HTTP/database checks of
+reason boundaries and durable full rationale. A final added unrelated-note
+progress check, full local suite and fresh CI remain to be verified.
+**Candidate only, not deployed.** This is not a global audit/retention solution,
+browser acceptance, optimistic edit-version contract or completion of E37.
+
+Final verification supersedes the local-test uncertainty above: all six focused
+suites / 67 tests passed, including unrelated-note progress (2.472 seconds).
+The full final API run passed 982 suites / 3,426 tests, with two existing TODOs
+and only UX-860/UX-201 failing because the local Docker engine was stopped
+(336.759 seconds). The actual database tests executed. This is not a green
+full local suite; fresh CI and deployment remain required. Detailed evidence:
+`docs/audits/PROVIDER-SUPPORT-NOTE-CONCURRENCY-2026-09-06.md`.

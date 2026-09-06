@@ -107,3 +107,18 @@ record alone proves current end-to-end correctness. The prior record is retained
 Release remains separate: matching API/admin/customer-provider artifacts, exact
 migration 173 rehearsal and authenticated acceptance are still required before
 master/production alignment. No hold or external sign-off is waived by these fixes.
+
+## Independent CI receipt
+
+Candidate `30bc13bee7be78d5da4f0baeec4e0bf7db8a48f5` passed all four jobs in
+[CI 34037600893](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/34037600893)
+and [Gates 34037600892](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/34037600892).
+Actual API job `101498412672` logs explicitly pass SEC-074 and OPS-506/507/508,
+plus the Docker-dependent UX-860/UX-201 tests unavailable in the local run.
+All **983 API suites / 3,428 tests passed**, with two existing TODOs. Admin,
+Mobile and Docker build/liveness jobs also succeeded. Packaging/retention of
+an exact API/admin release candidate was not requested in this run and those
+steps were skipped; the green run is not a deployable matched-release receipt.
+This resolves fresh CI for the four corrections, not the remaining acceptance,
+master merge or production deployment requirements. The later support-note
+concurrency correction needs its own verification.
