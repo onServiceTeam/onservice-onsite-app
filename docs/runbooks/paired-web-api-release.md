@@ -1,7 +1,8 @@
 # Paired web/API release plan
 
-Status: file-publication core implemented and Windows/Linux fixture-tested; production
-host integration and an actual rollout remain incomplete. Read alongside
+Status: file-publication core implemented and Windows/Linux fixture-tested;
+read-only host/HTTPS observers implemented and exercised on the live marketplace.
+Production activation/acceptance integration and an actual rollout remain incomplete. Read alongside
 `exact-api-release.md` and `postgres-restore.md`. The existing workflow deploys
 only the API. No single success message proves all three surfaces are aligned.
 
@@ -10,6 +11,15 @@ and inspection operations. It has no default production adapters or deployment
 CLI. [The core audit](../audits/PAIRED-RELEASE-CORE-2026-09-06.md) records its exact
 tests and unimplemented integration boundaries. Do not supply permissive
 production callbacks or edit candidate flags to manufacture release acceptance.
+
+`scripts/server/marketplace-release-observers.mjs` exports the fixed-target,
+read-only nginx/served-file/API observers. Production callers use
+`createMarketplaceReleaseObservers()` with no overrides. Its returned object
+does not contain activation or acceptance callbacks and cannot publish a release
+by itself. [The observer audit](../audits/MARKETPLACE-RELEASE-OBSERVERS-2026-09-06.md)
+records real TLS fixtures, the first live-inspection failure and its regression,
+and the corrected live observation. A successful current-file observation does
+not establish a complete dependency graph or authorize candidate deployment.
 
 ## Identity and rollback checkpoint
 
@@ -72,7 +82,7 @@ Redis or uploads volume is part of frontend publication.
 
 The core's filesystem fixtures cover mutable-file ordering, selected interruption
 boundaries, root/asset preservation and rollback. Actual cross-version business
-compatibility, host/API/nginx adapters, abrupt-process failure and full dependency
+compatibility, API activation/acceptance integration, abrupt-process failure and full dependency
 reference validation remain required. Those requirements are not established by
 a passed file-publication fixture or a returned acceptance callback.
 

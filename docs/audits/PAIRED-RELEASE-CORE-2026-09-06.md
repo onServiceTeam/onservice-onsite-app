@@ -38,7 +38,10 @@ files added by this release can be removed, with their new copies retained in
 the journal. Old and new hashed assets are not pruned. There are no database
 restore/down-migration, shared-service restart or source-checkout commands here.
 
-The production adapters **do not exist yet**. They must independently enforce
+At this original core checkpoint, production adapters **did not exist yet**.
+The subsequent [read-only observer slice](MARKETPLACE-RELEASE-OBSERVERS-2026-09-06.md)
+implements actual nginx/HTTPS/API observation, not activation or acceptance.
+The remaining production integration must independently enforce
 the fixed marketplace paths/mounts, Git/master and artifact provenance, actual
 CI and backup evidence, approved artifact promotion, and both directions of
 client/API/schema compatibility. A literal `true` supplied by a fixture is not
@@ -124,8 +127,9 @@ are not upgraded to end-to-end acceptance by these results.
 
 ## Remaining work and separately discovered UI issue
 
-- Implement the real, fixed-target host adapters and acceptance/provenance
-  contract; do not substitute no-op production callbacks for those checks.
+- Complete activation and the acceptance/provenance contract, building on the
+  subsequent read-only host observers; do not substitute no-op production
+  callbacks for those checks.
 - Exercise real Linux/nginx bind mounts, actual image activation boundaries,
   interrupted-process/lock recovery, durability and disk/error fault injection.
 - Validate complete HTML/JS/CSS resource references and execute old/new-client
@@ -144,6 +148,8 @@ are not upgraded to end-to-end acceptance by these results.
 
 Read-only server checks confirmed the expected two marketplace web bind mounts
 and host Node 20.20.2. The isolated filesystem run above used only private test
-files. No script was installed or executed against live web files.
+files. At this original checkpoint no script was installed or executed against
+live web files. The subsequent observer audit separately records read-only
+observation of the existing live files, not a publication or deployment.
 No production source, frontend, account, database, API or shared service changed.
 This is an implementation checkpoint, not release readiness or goal completion.

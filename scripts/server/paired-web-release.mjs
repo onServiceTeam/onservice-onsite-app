@@ -533,3 +533,6 @@ export async function rollbackPairedRelease(controlDirectory, releaseId, adapter
 export async function inspectPairedRelease(controlDirectory, releaseId) {
   return withLock(controlDirectory, async control => structuredClone((await load(control, releaseId)).journal));
 }
+
+// Shared with the read-only host observers; one path/inventory contract.
+export { safeDirectory as inspectReleaseDirectory, validateManifest as validateReleaseFileList };
