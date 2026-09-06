@@ -96,3 +96,13 @@ accessibility and the assignment/acceptance eligibility gaps remain open in the
 prior availability audits. Master/live remain behind the reviewed topic branch;
 no deployment, migration-172 rehearsal, authenticated live acceptance, complete
 Stitch comparison or launch-ready assertion is made here.
+
+## Published candidate verification
+
+Candidate `306ca0ed5e5dd7afdcd58ea81e2190dc98952a9e` passed CI
+`34001766960` (all four jobs) and Gates `34001766965`. Admin job
+`101401781563` explicitly passed UX-1356 at `2026-09-06T00:40:58Z`,
+UX-1357 at `00:41:49Z`, UX-1359 at `00:44:59Z`, and UX-1358 at
+`00:45:31Z`. Final admin result at `00:48:27Z`: **569 passing files,
+1 skipped file; 653 passing tests, 3 TODOs**, in **576.68 seconds**.
+This resolves fresh CI for this provider candidate, not production rollout.

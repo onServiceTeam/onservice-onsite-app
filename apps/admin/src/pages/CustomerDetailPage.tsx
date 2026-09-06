@@ -310,7 +310,9 @@ export default function CustomerDetailPage(): React.ReactElement {
   const profile = profileQuery.data;
 
   return (
-    <div className="space-y-6">
+    // Private reveals, wallet drafts, and pending decisions are record-owned.
+    // Keep same-customer refreshes stable, but remount on a different customer.
+    <div key={profile.id} className="space-y-6">
       <div>
         <Link
           to="/customers"

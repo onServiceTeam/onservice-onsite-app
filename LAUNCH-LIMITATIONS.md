@@ -2479,3 +2479,29 @@ at six widths with 60 captures and no unexpected HTTP, page exceptions or
 document overflow. **Candidate correction, not deployed; fresh CI required.**
 Full evidence and remaining customer-record, operator and release work:
 `docs/audits/PROVIDER-RECORD-OWNERSHIP-2026-09-06.md`.
+
+Published provider candidate `306ca0ed` passed CI `34001766960` (all four
+jobs) and Gates `34001766965`. Admin logs explicitly pass UX-1356 through
+UX-1359 and all 653 tests, with 3 TODOs. Fresh CI for that provider correction
+is resolved, not the deployment boundary.
+
+## 77. Customer 360 operator drafts could follow a different customer
+
+UX-1360 through UX-1364 reproduce retained private contact, suspension and
+forced-sign-out dialogs, wallet drafts and dispute-tab fraud confirmations
+after warm-cache customer navigation. The loaded page now follows canonical
+customer ID, preserving a same-customer draft on refresh while discarding
+record-specific state on another customer. No money/status action is submitted.
+
+Five regressions failed before correction. The first full corrected admin
+run passed 574 files / 658 tests, with 1 skipped file / 3 TODOs. Types and
+lint passed after correcting test-only typing mistakes. Thirty-six compiled
+browser scenarios passed at six widths, with 72 captures and zero unexpected
+HTTP, page exceptions or document overflow. **Candidate correction, not
+deployed; final local rerun and fresh GitHub CI remain required.** Evidence:
+`docs/audits/CUSTOMER-RECORD-OWNERSHIP-2026-09-06.md`.
+
+Final local rerun after both test-only typing corrections also passed:
+574 files / 658 tests, with 1 skipped file / 3 TODOs, in 174.89 seconds.
+Types and lint passed. The local rerun requirement is resolved; fresh CI
+and deployment are not implied.
