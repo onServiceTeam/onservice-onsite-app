@@ -87,28 +87,66 @@ This number is **not attorney/DPO approval of a legal retention schedule**.
 
 Expired rows are hidden immediately. The cleanup service removes only expired
 rows, defaults to 100 per invocation, permits 1 through 500, and skips locked
-rows. Worker scheduling has not yet been connected. Object storage cleanup,
+rows. The candidate worker now schedules one 100-row attempt every five minutes,
+with three attempts and exponential one-minute retry backoff. It never takes a
+cutoff or limit from queued payloads. Job failures propagate rather than report
+successful cleanup. This schedule is not yet deployed. Object storage cleanup,
 backup expiry and submitted-evidence retention remain separate E21 work. Do
 not claim that draft expiry erases documents or all personal data.
 
+The private account archive now includes `providerApplicationDraft` when a row
+is retained. An absent row is null in JSON and omitted as an empty CSV section,
+following the existing serializer. It contains the stored fields, revision and
+timestamps, plus `expired` evaluated by the database at export time. Unlike
+resume, this owner-scoped read includes an expired row awaiting cleanup and
+does not depend on current applicant eligibility. It does not extend expiry,
+grant access to another owner's draft or mint uploaded-document URLs. A failed
+draft read fails the archive, not an apparently complete export missing data.
+Migration 172 is required for this archive projection as well as submission.
+
 ## Remaining work before this can be offered to applicants
 
-1. Rehearse the full migration chain and atomic submission on the paired
-   candidate. Focused database CI has passed; it is not the full rehearsal.
+1. Complete atomic submission and authenticated paired-candidate acceptance.
+   The isolated exact-image full-chain migration rehearsal is now recorded in
+   `docs/audits/EXACT-IMAGE-MIGRATION-172-2026-09-06.md`; it is not authenticated
+   application acceptance or a production migration.
 2. Complete actual browser/native acceptance of the now-wired six-step draft
    flow, including owner-bound hydration, save/recovery/discard, logout/reset,
    expiry and final revision-aware submission. Candidate DOM behavior evidence
    is not a substitute for authenticated browser/device acceptance.
-3. Schedule bounded cleanup and integrate draft data with account privacy
-   exports/deletion inventory, without claiming complete E21 erasure.
+3. Verify scheduled cleanup and private draft exports on the paired candidate,
+   including queue/backlog operation. The current draft-specific inventory is
+   recorded below, but the approved E21 deletion manifest is not implemented.
 4. Verify browser refresh, app restart, account switching and multi-tab races
    through actual UI flows and all required Stitch viewports.
 5. Add reviewed immutable revisions, request-changes/resubmission, reviewer
    assignment/notifications and a governed legacy-admission path on the same
    provider identity. Preserve previous evidence; never manufacture KYC or
    retrospectively grant an approval.
-6. Rehearse migration 172 in the full candidate migration chain and perform
-   paired authenticated acceptance before any live rollout.
+6. Revalidate the selected release's schema, API and both web artifacts together
+   before any live rollout; earlier retained artifacts are not automatically
+   eligible because newer tests pass.
+
+## Draft-specific privacy inventory, 2026-09-06
+
+This describes implemented candidate behavior, not an approved legal retention
+matrix, a complete app-wide inventory, or evidence of production erasure.
+
+| Data location | Current behavior | Remaining requirement |
+| --- | --- | --- |
+| `provider_application_drafts` | One typed row per owner. Active drafts can resume; retained active or expired drafts enter the owner's private archive. Saved expiry controls bounded row cleanup. | Verify deployed scheduling, backlog and actual owner archive/download acceptance. |
+| Account anonymization | Updates/deactivates the owner but does not remove the draft row. A foreign-key delete cascade does not run when the user is only updated. Expiry remains independent. | Approved E21 action and canonical DSR/execution linkage; do not claim complete erasure. |
+| Private onboarding uploads | Draft fields store owner-scoped opaque keys. Removing or expiring a draft does not remove the referenced files. | Shared/submitted-evidence reference inventory and approved physical deletion/exception workflow. |
+| Generated account archives | A private JSON/CSV artifact can contain a copy of the draft after its source row expires. The existing archive lifetime is seven days and download links last five minutes. | Verify physical artifact expiry and retained backup treatment; source-row cleanup alone is insufficient. |
+| Submitted provider evidence and backups | Separate from unfinished drafts and untouched by this job. | Approved class-specific retention/access controls, immutable review revisions and governed legacy admission. |
+
+Operators can inspect completed job counts and failures in the existing scheduler
+logs/queue. This change adds no admin purge button, applicant-data log or claimed
+backlog dashboard. A full 100-row batch indicates possible backlog, not an exact
+remaining count; repeated failures or full batches require scoped investigation.
+Do not clear failed jobs or increase deletion scope merely to make monitoring
+green. Evidence and bounded-capacity limits:
+`docs/audits/PROVIDER-DRAFT-EXPIRY-EXPORT-2026-09-06.md`.
 
 ## Evidence at initial publication
 

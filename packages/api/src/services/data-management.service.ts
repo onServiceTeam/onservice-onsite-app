@@ -247,6 +247,7 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
     consentResult,
     supportResult,
     dsrResult,
+    applicationDraftResult,
   ] =
     await Promise.all([
       db.query(
@@ -416,6 +417,15 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
          FROM data_subject_requests WHERE user_id = $1 ORDER BY received_at`,
         [userId],
       ),
+      // Export data still held for this owner, including expired rows awaiting
+      // bounded cleanup. Do not reuse the active-applicant/resume eligibility
+      // gate, renew expiry, mint document URLs, or silently omit a failed read.
+      db.query(
+        `SELECT revision, application_fields, created_at, saved_at, expires_at,
+                expires_at <= NOW() AS expired
+         FROM provider_application_drafts WHERE user_id = $1`,
+        [userId],
+      ),
     ]);
 
   return {
@@ -440,6 +450,7 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
     consentHistory: consentResult.rows,
     supportTickets: supportResult.rows,
     dataSubjectRequests: dsrResult.rows,
+    providerApplicationDraft: applicationDraftResult.rows[0] ?? null,
   };
 }
 

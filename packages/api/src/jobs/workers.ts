@@ -16,6 +16,7 @@ import * as bookingService from '../services/booking.service';
 import * as bookingOfferService from '../services/booking-offer.service';
 import * as providerCrmService from '../services/provider-crm.service';
 import * as settingsService from '../services/settings.service';
+import * as providerApplicationDraftService from '../services/provider-application-draft.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -464,6 +465,12 @@ const schedulerWorker = new Worker(
         results.exportsExpired = await dataManagementService.expireOldExports();
         break;
       }
+      case 'provider-application-draft-expiry':
+        // One bounded attempt, using each row's saved expiry. Never accept a
+        // queued cutoff/limit or drain indefinitely beside money-related jobs.
+        // This removes draft rows only, not submitted evidence or upload files.
+        results.applicationDraftsPurged = await providerApplicationDraftService.purgeExpiredApplicationDrafts(100);
+        break;
       case 'account-deletion-process':
         results.deletionsProcessed = await dataManagementService.processExpiredCoolingOff();
         break;
@@ -585,6 +592,14 @@ export async function initScheduledJobs(): Promise<void> {
     removeOnFail: 30,
   });
 
+  await schedulerQueue.add('provider-application-draft-expiry', {}, {
+    repeat: { pattern: '*/5 * * * *' },
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 60_000 },
+    removeOnComplete: 30,
+    removeOnFail: 100,
+  });
+
   await schedulerQueue.add('account-deletion-process', {}, {
     repeat: { pattern: '0 18 * * *' },
     removeOnComplete: 10,
@@ -637,6 +652,7 @@ export async function initScheduledJobs(): Promise<void> {
   });
 
   logger.info('Scheduled jobs initialized: auto-confirm/expire-quotes/no-show/dispute-escalate every 5 min (all), booking offer sweep every 5 seconds, NBI check daily midnight PHT, bypass detection weekly Sunday midnight PHT, recurring bookings daily 6AM PHT, invoice generation 1st of month midnight PHT, overdue check daily midnight PHT, slot waitlist expiry daily 1AM PHT, data export processing every 10 min, account deletion processing daily 2AM PHT, suspicious IP detection every 5 min, security cleanup monthly 3AM PHT, quality score compute weekly 4AM PHT Monday, dispute escalation every 6 hours');
+  logger.info('Provider application draft expiry scheduled every 5 minutes, at most 100 expired rows per attempt; uploaded objects and submitted evidence are not removed');
 }
 
 export { schedulerWorker };

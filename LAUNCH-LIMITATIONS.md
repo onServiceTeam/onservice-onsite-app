@@ -1815,6 +1815,18 @@ passed 577 files / 861 tests, with 84 TODOs; the 84 review checks passed again.
 This is not real database/browser paired acceptance, native evidence, latest
 Stitch signoff or completion of reviewer corrections/resubmission/privacy.
 
+Further 2026-09-06 candidate correction, **still open**: OPS-500 connects the
+existing bounded expiry service to a separate five-minute scheduler job;
+OPS-501 includes retained owner draft fields in private JSON/CSV account
+archives, with read failures failing the export. The lifecycle document now
+records the draft-specific privacy inventory, including the gap between
+account anonymization, draft-row expiry, uploaded files and archived copies.
+Local focused behavior tests pass; the guarded PostgreSQL tests require fresh
+CI at publication. No production cleanup or complete erasure is claimed.
+Reviewer revisions, correction/resubmission, approved E21 retention, full
+browser/native/Stitch acceptance and paired deployment remain open. See
+`docs/audits/PROVIDER-DRAFT-EXPIRY-EXPORT-2026-09-06.md`.
+
 ---
 
 ## 53. Provider approval does not enforce the government ID back image

@@ -144,7 +144,7 @@ export async function deleteApplicationDraft(userId: string, input: unknown): Pr
   });
 }
 
-/** Bounded row expiry, not object/backup erasure. Wire to the worker with the UI rollout. */
+/** Bounded row expiry, not object/backup erasure. The scheduler uses one 100-row attempt. */
 export async function purgeExpiredApplicationDrafts(limit = 100): Promise<number> {
   if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw createAppError('Draft cleanup limit must be between 1 and 500.', 400);
   const result = await db.query(
