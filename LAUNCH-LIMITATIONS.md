@@ -2707,3 +2707,15 @@ baseline. API types, changed-file lint and the unchanged 1,569-regression ID
 gate pass. No migration, dependency, security hold or historical record changed.
 This does not resolve E79 cookie ordering, cross-tab authority or the wider
 session lifecycle. Details: `docs/audits/ADMIN-PASSWORD-REHASH-2026-09-06.md`.
+
+Independent database verification: `806892aa` API job `101438972334` in
+CI `34015709677` explicitly passed SEC-072 and all five supporting PostgreSQL
+tests. All 967 API suites / 3,335 tests passed. Gates `34015709675` also passed.
+The narrow correction is database-verified in candidate code; full-run
+completion, broader session work and production deployment remain separate.
+
+Final verification: all four jobs in CI `34015709677` succeeded. Admin passed
+590 files / 697 tests with three TODOs; Mobile passed 594 suites / 878 tests
+with 84 TODOs. Same-run matching artifacts were received and the API package's
+three checksums and source bundle verified. They remain rehearsal-only inputs,
+not a live rollout or completion of E79 and the broader release requirements.

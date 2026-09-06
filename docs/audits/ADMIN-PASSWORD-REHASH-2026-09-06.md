@@ -103,3 +103,78 @@ privacy, remaining matching/assignment checks, all-role Stitch and usability
 acceptance, migration-172 rehearsal, safe paired publishing, fresh live client
 accounts, native baselines and external sign-offs remain separate unfinished
 work. Local review candidate, master and production are not aligned.
+
+## Independent database execution
+
+Published candidate `806892aad5a2dd5407cd6836b3d7b6ff92602912` triggered
+CI `34015709677` and Gates `34015709675`. Gates passed. Actual API job
+`101438972334` logs record the five supporting PostgreSQL tests passing at
+`06:10:10.7663268Z` (7.193 seconds) and SEC-072 passing at
+`06:10:30.8710292Z` (12.194 seconds). All **967 API suites / 3,335 tests**
+passed at `06:11:47.5438206Z`, **115.3 seconds** total. The six database
+tests executed, not skipped. This resolves their initial database-execution
+uncertainty; no executed failing old-runtime baseline is claimed.
+
+The final local cookie/CSRF-strengthened focused rerun also passed **8 suites /
+26 tests**, with **2 suites / 6 database skips**, in **9.797 seconds**. Lint
+and diff checks passed afterward. Earlier local timings above are retained.
+
+Mobile and Docker jobs have succeeded; Admin and full-run completion were
+still pending when this update was written. Same-run API/source and browser
+rehearsal artifacts identify CI merge source
+`7f97b4a9c9f2fc038705162268cad75ef0274657`, not topic HEAD or master.
+They must not be relabeled as either. Artifact receipt, exact-image migration
+rehearsal, paired publishing and authenticated live acceptance remain separate.
+
+## Final CI and artifact receipt
+
+All four jobs in CI `34015709677` completed successfully. Admin job
+`101438972297` passed **590 files / 697 tests**, with one skipped file /
+three TODOs, at `06:20:14.3360134Z`. It explicitly repeated UX-1373 and the
+five logout-ownership tests. Mobile job `101438972266` passed **594 suites /
+878 tests**, with **84 TODOs**, at `06:10:47.1833059Z` (94.734 seconds).
+Docker job `101439392915` built, boot-checked and retained the requested image.
+This resolves the preceding full-run uncertainty, not launch or deployment.
+
+Matching API/source, Admin and customer/provider artifacts were downloaded to
+a new private temporary directory, preserving previous builds. Their metadata
+all identify merge source `7f97b4a9c9f2fc038705162268cad75ef0274657`; both
+frontend origins are the appropriate onservice.ph hosts, demo mode is false,
+and all three metadata files retain `deploymentEligible: false`.
+
+The API package's three SHA-256 manifest entries were independently checked
+after download: `api-image.tar.gz`, `onservice-source.bundle` and
+`api-candidate.json`. `git bundle verify` succeeded, reporting complete history;
+its HEAD matches the recorded merge source. This is receipt/integrity evidence,
+not a local Docker load, a database rehearsal or an authenticated browser test.
+The temporary `release-candidate` PR label was removed after the successful
+run so ordinary later changes do not retain large image archives.
+
+No source or artifact was relabeled as master. Migration 172, exact running
+image, shared-server resource isolation, frontend/API overlap and recovery
+still require their separate release checks. No SSH or live mutation occurred.
+
+## Later read-only release preflight
+
+After artifact receipt, a read-only SSH preflight confirmed the correct
+marketplace origin and clean tracked server checkout at
+`7ed367cdca1e277f03fc08ff5bbb03b0dc142bd5`. GitHub master remains
+`738641095d3ae1dcbba14c5803b96cf63ae93ee8`; PR 81 still identified the
+verified `806892aa` candidate. These are not aligned. The exact marketplace
+API container returned `ready` with PostgreSQL and Redis `ok` at
+`2026-09-06T06:35:03.206Z`. This does not identify the bytes of either live
+frontend or prove authenticated customer/provider/admin journeys.
+
+The first Git read stopped at the root-owned checkout's ownership guard.
+After verifying ownership and the resolved directory, a command-scoped
+exception for that exact checkout allowed the read. No global Git setting,
+service, account, live record, checkout, migration or neighboring app changed.
+Connection details, image identity and resource inventory remain private.
+
+Received frontend metadata, demo flags and deployment-ineligible flags were
+independently checked; no extracted reparse points were found and both actual
+entrypoints were nonempty. Receipt inventory: Admin **61 files**, entry SHA-256
+`3ef6043983cf0a879ba715bb9b7dba51655604dcbfda90aa398a79a249bfb97b`;
+customer/provider **23 files**, entry SHA-256
+`baac0b8c981ee38ebb8eb256e717d4e9361f925de7747229e997f0b429afd8d0`.
+These are local receipt hashes, not live-server or fresh browser acceptance.

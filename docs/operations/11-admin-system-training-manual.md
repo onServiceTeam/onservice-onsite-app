@@ -2,6 +2,14 @@
 
 Purpose: teach a new office staff member how to log in to the onService admin app, understand what their role can and cannot do, run the day-to-day tasks on each admin page, and pass a competency check before getting full access.
 
+**Release boundary, 2026-09-06:** this is a working guide, not evidence that the
+review branch has been deployed. The latest candidate, master and production
+are not aligned. Verify the actual release and its role behavior before staff
+training or account changes. The access instructions below follow the D34
+candidate contract; older feature instructions elsewhere still require
+reconciliation with `LAUNCH-LIMITATIONS.md` and the current screen audits.
+This document does not certify every screen, field or operating procedure.
+
 This doc is the page-by-page guide. For the deeper SOPs behind the work (recruiting, vetting, support, dispatch, disputes, money), see the sibling docs:
 
 - `04-provider-vetting-and-filtering.md` - the vetting scorecard and tiering rules behind the Approve/Reject buttons.
@@ -24,7 +32,7 @@ Support hours for the team using this manual are Monday to Saturday, 8:00 AM to 
 1. Open https://admin.onservice.ph.
 2. Enter your admin email and password.
 3. Enter your 6-digit code from your authenticator app. If the authenticator is unavailable, choose **Use a recovery code** and enter one unused 10-character code. 2FA is mandatory for every admin-tier account, including the DPO. If you have never set it up, the app shows a QR code and a manual secret on first login. Scan it with a private authenticator, enter the code, then save all eight one-time recovery codes in a private password manager before proceeding. Never put a recovery code in Support, chat, a screenshot, or a shared document. If enrollment is interrupted, stop and contact the security owner instead of improvising a reset.
-4. You land on the Dashboard.
+4. Admin and super-admin accounts open the Command Center. A DPO opens the Privacy Workspace (`/privacy`). A required password change takes priority over either workspace.
 
 Only three account roles can enter the admin app at all: `super_admin`, `admin`, and `dpo`. Any other account gets "Access denied. Admin privileges required."
 
@@ -38,13 +46,15 @@ If both the authenticator and all recovery codes are unavailable, stop and conta
 
 There are two role systems in the codebase and they do not line up. Here is the honest version.
 
-What actually controls what you can click is your single account role on the `users` row. In practice that means two real tiers:
+The server uses the current account role, active state and session generation,
+plus each operation's own checks. The client mirrors that role boundary in
+navigation and direct URLs. There are three distinct account roles:
 
 | Your account role | What you can do |
 |---|---|
-| `super_admin` | All currently enabled money and destructive actions: escrow release/refund, booking force-complete/cancel/reassign, enabled dispute resolve/escalate actions, payout internal-review decisions and approve/reject/complete, provider wallet adjust, reconciliation run, settings edit/reset, staff and roles management, cancellation-policy edit, Catalog publishing, Service Areas create/edit/activate/pause/default/waitlist-notify decisions, and the complete Notification Templates lifecycle. Dispute Reopen, free redo, and refund-with-warning remain held under E51. BIR issuance/finalization remains disabled for every role under E22. |
-| `admin` | Read and operational access. You can view every page and do non-money operational work such as provider vetting and support case handling. Catalog publishing and Service Areas market mutation are read-only because the API reserves them for `super_admin`. On money, destructive, and configuration-publishing surfaces you see a read-only banner. |
-| `dpo` | Admin-tier, plus the compliance powers: search consent records and handle Data Subject Requests under the Data Privacy Act. This is a real, separate role required by NPC rules, not a nickname for super_admin. |
+| `super_admin` | Operations, privacy fallback and Staff & Roles. May perform enabled privileged money, lifecycle and configuration actions only after their own checks. This role cannot bypass a launch hold. In particular, Cancellation Policy editing, held dispute outcomes, BIR issuance and external payment authorization remain held. |
+| `admin` | Marketplace operations and permitted non-money work such as provider vetting and support handling. Money/configuration publishing controls are read-only where reserved for super-admin. No access to the Privacy Workspace, Data Protection Log, Consent Versions or Staff & Roles. An admin login is not a read-only training account. |
+| `dpo` | Dedicated Privacy Workspace, Data Protection Log, Consent Versions and own account/password/logout controls. No marketplace Dashboard, customer/provider operations, support queue, money, general Audit Log, Staff & Roles or System Settings access. Super-admin remains the privacy fallback. |
 
 There is also a second, finer permission system in the database (`admin_roles` / `admin_staff`) that seeds named roles: `super_admin`, `admin`, `support_agent`, `finance`, `moderator`, plus a permission vocabulary like `bookings.view`, `payouts.manage`, `disputes.manage`. Useful to know:
 
@@ -66,13 +76,21 @@ Use the real identifier or reference you received. Search accepts customer/provi
 
 Search results never show complete customer/provider phone or email, even to a super-admin. Open Customer 360 or Provider 360 and use the audited contact reveal only when the support task genuinely requires it. The result status is a locator, not proof that a booking is paid, a dispute is settled, or a payout moved.
 
-Every result opens its canonical workspace. A payout result opens the Payouts page with an **Exact payout** banner; use **Clear** before switching to a broader provider search. DPO accounts see page destinations only while E34's privacy-role access contradiction remains unresolved.
+Every result opens its canonical workspace. A payout result opens the Payouts page with an **Exact payout** banner; use **Clear** before switching to a broader provider search. DPO accounts see only their permitted page destinations, not the marketplace record search. This is the D34 privacy boundary, not a temporary invitation to wider access.
 
 ---
 
-## 2. Page-by-page guide (35 routed page components)
+## 2. Page-by-page guide
 
-The left sidebar lists the pages in this order. The version label at the bottom is build-derived; do not use a version hardcoded in this manual to identify a live deployment. For each page below: what it is for, the common tasks, and a short how-to.
+The sidebar groups permitted pages by Command, Operations, People, Support &
+Trust, Money, Growth & Content, and Governance. Its order is not the section
+order below, and a role does not see every group. Use each heading's route to
+identify the workspace. The build-derived version label is useful evidence,
+but verify the actual release rather than a version hardcoded in this manual.
+For each page below: purpose, common tasks and a short how-to. Standalone
+Privacy Workspace and Security Operations guidance still need dedicated
+page-by-page reconciliation; their presence in navigation is not a completed
+training section.
 
 ### 2.1 Dashboard (`/`)
 
@@ -114,10 +132,10 @@ How to start a shift:
 4. Use the charts and city grid for context only after the action queues are
    owned.
 
-E34 records an unresolved DPO access contradiction. Until that dedicated access
-wave is complete, treat the Dashboard command center as an `admin`/
-`super_admin` workspace; do not infer broader DPO access from the sidebar or
-privacy role name.
+D34 restricts the Dashboard command center to `admin`/`super_admin`. DPO
+accounts open `/privacy` instead. A privacy title or a copied operations URL
+does not grant marketplace access. Verify this on the deployed release before
+onboarding staff; the candidate route guards are not proof of a live rollout.
 
 ### 2.2 Providers (`/providers`)
 
@@ -400,7 +418,7 @@ review; do not delete, relink, regenerate, or overwrite historical records.
 
 ### 2.19 Service Areas (`/service-areas`)
 
-The "cities are data, not code" control surface. This is how we inspect markets, provider capacity, demand leads, and provider change requests. Stats distinguish total areas, customer-bookable areas, approved assigned providers, all waitlist leads, leads awaiting notice, and leads notified. Ordinary `admin` accounts are read-only; market and waitlist mutations require `super_admin`. DPO sessions are not authorized for this marketplace-operations API while E34 remains open.
+The "cities are data, not code" control surface. This is how we inspect markets, provider capacity, demand leads, and provider change requests. Stats distinguish total areas, customer-bookable areas, approved assigned providers, all waitlist leads, leads awaiting notice, and leads notified. Ordinary `admin` accounts are read-only; market and waitlist mutations require `super_admin`. DPO sessions are not authorized for this marketplace-operations API under D34.
 
 How to add a service area (a new city):
 1. Click Add Area.
@@ -505,7 +523,20 @@ Super_admin only. Plain admins get an "access required" notice. There are three 
 - **Role Profiles:** create, edit, or archive organizational role metadata. Every change requires a reason and records before/after values. The `super_admin` profile cannot be edited or archived, and a profile with active staff cannot be archived. Permission labels here remain metadata; `users.role` and server route checks are the live access source.
 - **DPO Management:** inspect the actual Data Protection Officer seat, assign one active admin account when vacant, or complete a reasoned handover. This is a real account-role change. The server serializes assignment and refuses a second active DPO.
 
-This page has no governed create/deactivate/recovery/session-revoke lifecycle or locked last-active-super-admin account invariant. E39 holds that privileged-account design. DPO promotion/removal also does not revoke old tokens or sessions; E38 requires a controlled sign-out and access review. Use the Audit Log after any profile or DPO change, but remember the E37 coverage limit.
+This page still has no governed account-create/deactivate/recovery/session-revoke
+lifecycle or locked last-active-super-admin account invariant. E39 holds that
+separate privileged-account design. A directory-profile change does not change
+login authority.
+
+D34's actual DPO promotion/removal is different: it changes the dedicated
+account role and session generation, deletes refresh sessions, revokes CSRF
+tokens and records the transition in one transaction. After commit it asks
+the local realtime service to disconnect that account. The affected operator
+must sign in again with the new role. Removal returns the DPO to `admin`,
+not to a customer or provider identity. Do not tell staff that old credentials
+remain valid, or that a profile edit performs the same revocation. These are
+candidate-code semantics; fresh live and multi-instance evidence is separate.
+Use the Audit Log after any profile or DPO change, with its E37 coverage limit.
 
 ### 2.27 Settings / Platform Settings (`/settings`)
 
@@ -561,6 +592,14 @@ Inspect the plan status, advisory estimate, milestones, choices/materials, docum
 
 The goal of week 1 is read-only confidence: you can find anything, you understand what each button does, and you know when to escalate instead of clicking. You do not get write/super_admin access until you pass the competency check in Section 4.
 
+**Training access is not implemented as a read-only account role.** An `admin`
+login already permits some writes, and a `support_agent` or `finance` directory
+profile does not reduce them. Keep a person who must be technically read-only
+in supervised observation or an isolated synthetic training environment until
+a real access arrangement is approved. Do not share passwords or give out an
+operational login while describing it as enforced read-only. The privacy work
+in the shadowing plan requires the authorized DPO/super-admin, not a plain admin.
+
 | Day | Focus | What you do |
 |---|---|---|
 | Day 1 | Login, roles, Dashboard | Set up 2FA. Log in. Read this whole manual. Sit with a senior admin and read the Dashboard for the day. Learn what each alert means. |
@@ -575,13 +614,16 @@ Throughout the week: for each supported privileged action you would have taken, 
 
 ## 4. Competency checklist (pass before full access)
 
-A super_admin signs off each item. Until all are checked, the new admin stays read-only.
+A super_admin signs off each item. Until all are checked, the new staff member
+stays in the observation/training arrangement above. Checking this list does
+not create an account, change its role or enforce a new permission mode.
 
 Navigation and roles
 - [ ] Can log in with TOTP or one recovery code, explain that a recovery code is single-use, securely store all eight enrollment codes before proceeding, and change their own password.
 - [ ] Can explain why forced password rotation blocks the API and live chat as well as page navigation, and why a successful change signs out other sessions.
 - [ ] Knows that factor removal and ad hoc lost-factor reset are launch-held and must not be improvised.
 - [ ] Can explain the difference between the account role and the named DB role, and why "super_admin only" buttons are greyed out for them.
+- [ ] Knows the DPO's privacy-only landing page, the plain-admin privacy exclusion, and that directory profiles cannot make an operational login read-only.
 - [ ] Can find every current sidebar page and the detail/change-password routes without help.
 
 Providers
