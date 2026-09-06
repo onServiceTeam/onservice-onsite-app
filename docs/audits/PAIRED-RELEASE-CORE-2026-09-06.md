@@ -113,6 +113,15 @@ The preceding documentation checkpoint's CI `34021720277` and Gates
 local verification checkpoint. Passing Windows and Linux filesystem fixtures
 does not establish complete deployment or business acceptance.
 
+Subsequent independent CI completed successfully at published checkpoint
+`28faad9e1f77ff8c6bd68c98c941c8d69de0b03c`: CI `34024503185` and Gates
+`34024503189`. The API job executed the bridge with 31 child tests / 31 passes;
+the complete API run was 971 suites, 3,406 passes and two explicit TODOs in
+121.247 seconds. Admin passed 590 files with one skipped file, 697 passing
+tests and three TODOs in 467.21 seconds. Mobile and the Docker build/boot job
+also passed. Existing report-only visual/mutation gates and skipped/TODO work
+are not upgraded to end-to-end acceptance by these results.
+
 ## Remaining work and separately discovered UI issue
 
 - Implement the real, fixed-target host adapters and acceptance/provenance
@@ -127,6 +136,8 @@ does not establish complete deployment or business acceptance.
   icon/template-branding defect was found by reading the real exported HTML,
   not caught by this core. It is **not fixed in this slice**. Reuse a reviewed
   onService brand asset and prove the built/served result in a separate UI fix.
+  The subsequent [UX-1374 record](ADMIN-BROWSER-IDENTITY-2026-09-06.md) documents
+  that separate source fix and real build/HTTP regression, not a live rollout.
 - Continue the full provider/customer/admin Stitch and business/support/payment
   linkage audit, provider application lifecycle, privileged-session/evidence
   workflows and the registered operational/professional signoffs.
