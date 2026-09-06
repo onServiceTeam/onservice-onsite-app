@@ -260,3 +260,34 @@ again does not create or resubmit an application. Approval also does not establi
 priced services, availability or job eligibility. The former mocked automatic
 activation tests have been corrected to this contract; exact execution scope and
 remaining evidence are in `docs/audits/PROVIDER-APPROVAL-SIGN-IN-2026-09-06.md`.
+
+## Initial submitted evidence, later on 2026-09-06
+
+Migration 173 and initial submission now capture a typed private revision of
+the accepted persisted fields, market/category IDs and labels, original owned
+document keys and existing submission/agreement timestamps. A snapshot failure
+rolls back provider creation, links and draft consumption. Routine UPDATE,
+DELETE and TRUNCATE are blocked. No historical records are backfilled and
+omitted optional answers are not invented. Owner private exports include these
+retained rows without generating document URLs. Both apply and export require
+migration 173; this stage is not deployed.
+
+This extends the approved E35/E74 same-identity approach: a submitted record is
+evidence attached to `providers`, not a competing approval status. Reusing
+generic audit payloads or introducing a second application identity would lose
+that boundary. Provider 360 remains the decision authority. Current decisions
+are not yet bound to a displayed revision; correction/resubmission, revision
+history screens, reviewer assignment and notifications remain unfinished.
+
+Before wiring resubmission, standardize the review/correction lock order.
+Draft/initial submission currently lock owner first; existing approval/rejection
+reach provider before owner. Initial capture creates no second transaction or
+new existing-provider lock path, but future correction must not introduce
+opposite lock order. Require real concurrent review/resubmission tests.
+
+The record protects metadata/object references, not uploaded file bytes.
+Historical private access, upload retention and governed erasure need separate
+implementation under E21/E43. Routine mutation protection is not legal approval
+for indefinite retention. Exact selected-image migration 173, paired release
+acceptance, legacy admission and full browser/native/Stitch verification remain
+open. Evidence and explicit scope: `docs/audits/PROVIDER-SUBMITTED-EVIDENCE-2026-09-06.md`.

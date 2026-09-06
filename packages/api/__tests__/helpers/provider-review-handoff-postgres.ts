@@ -4,7 +4,7 @@ import { withSubmissionDatabase } from './provider-submission-postgres';
 export const reviewerId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 export const secondApplicantId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 
-// Real submission/profile/decision queries and migration 172, within the same
+// Real submission/profile/decision queries and migrations 172/173, within the same
 // localhost *_test, unique-schema harness. This is a focused schema fixture,
 // NOT a replacement for production-schema migration/release rehearsal.
 export async function withReviewHandoffDatabase(run: (database: Pool) => Promise<void>): Promise<void> {
@@ -20,7 +20,6 @@ export async function withReviewHandoffDatabase(run: (database: Pool) => Promise
         ADD COLUMN rating numeric DEFAULT 0, ADD COLUMN total_reviews integer DEFAULT 0,
         ADD COLUMN total_jobs integer DEFAULT 0, ADD COLUMN created_at timestamptz DEFAULT NOW(),
         ADD COLUMN rejection_reason text, ADD COLUMN nbi_expiry_notified boolean DEFAULT FALSE;
-      ALTER TABLE service_categories ADD COLUMN name text DEFAULT 'Cleaning';
       ALTER TABLE provider_services ADD COLUMN subcategory_id uuid, ADD COLUMN base_price integer;
       CREATE TABLE service_subcategories (id uuid PRIMARY KEY, category_id uuid REFERENCES service_categories(id),
         name text, pricing_type text, base_price integer, hourly_rate integer, unit_label text,

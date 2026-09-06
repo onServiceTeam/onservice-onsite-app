@@ -109,6 +109,7 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     // provider_services insert
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 }); // Submitted-evidence capture.
 
     await svc.createProviderApplication(USER_ID, {
       ...BASE_INPUT,
@@ -134,6 +135,7 @@ describe('Phase K MED-K07 — createProviderApplication persists optional fields
     dbQueryMock.mockResolvedValueOnce({ rows: [{ id: PROVIDER_ID }], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 }); // Submitted-evidence capture.
 
     await svc.createProviderApplication(USER_ID, BASE_INPUT);
 

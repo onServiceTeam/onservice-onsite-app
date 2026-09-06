@@ -53,3 +53,13 @@ canonical DSR/execution linkage remain open. Provider-staff account/privacy
 coverage is separate E69 work. The preceding draft backend correction and its
 test boundaries are recorded in
 `docs/audits/PROVIDER-DRAFT-EXPIRY-EXPORT-2026-09-06.md`.
+
+## Independent CI verification
+
+UI commit `1bea0623a207cfeb8c5a65abde33e6147582c1b5` passed CI `34032389601`
+and Gates `34032389546`. The completed mobile job explicitly reports UX-1375
+passed, with 595 suites / 879 tests passed and 84 TODOs in 91.011 seconds.
+The API job reports 975 suites / 3,415 tests passed and 2 TODOs in 123.606
+seconds. All four CI jobs succeeded. This closes the preceding fresh-CI
+uncertainty for that exact UI commit, not browser/native/Stitch acceptance,
+live deployment or later provider-lifecycle changes.

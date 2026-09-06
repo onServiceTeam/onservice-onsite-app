@@ -39,7 +39,8 @@ it('Bug UX-529 — provider application validates its market and atomically crea
     .mockResolvedValueOnce({ rows: [{ id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [{ id: providerId }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-    .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+    .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // Atomic submitted-evidence capture.
 
   await createProviderApplication(userId, {
     businessName: 'Cebu Home Care',

@@ -5,6 +5,7 @@ import * as uploadService from './upload.service';
 import * as settingsService from './settings.service';
 import { getProviderTierCommissionOverview } from './booking-financial-terms.service';
 import { validateDraftForSubmission } from './provider-application-draft.service';
+import { captureInitialApplicationRevision } from './provider-application-revision.service';
 
 interface ProviderRow {
   id: string;
@@ -527,6 +528,10 @@ export async function createProviderApplication(
         [provider.id, catId],
       );
     }
+
+    // Initial submitted evidence belongs to this same commit boundary. A
+    // later mutable profile/catalog edit must not erase what was submitted.
+    await captureInitialApplicationRevision(client, provider.id, userId);
 
     if (consumedDraftRevision) {
       await client.query('DELETE FROM provider_application_drafts WHERE user_id=$1 AND revision=$2', [userId, consumedDraftRevision]);

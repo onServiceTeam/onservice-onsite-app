@@ -37,7 +37,8 @@ it('BUG-UX-110 — submitting an application keeps the account in its customer r
     .mockResolvedValueOnce({ rows: [{ id: '33333333-3333-4333-8333-333333333333' }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [{ id: 'provider-1' }], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-    .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+    .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // Atomic submitted-evidence capture.
 
   await createProviderApplication(userId, {
     businessName: 'Cebu Home Care',

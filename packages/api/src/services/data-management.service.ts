@@ -248,6 +248,7 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
     supportResult,
     dsrResult,
     applicationDraftResult,
+    applicationRevisionsResult,
   ] =
     await Promise.all([
       db.query(
@@ -426,6 +427,20 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
          FROM provider_application_drafts WHERE user_id = $1`,
         [userId],
       ),
+      // Retained submitted evidence is personal data too. Read the recorded
+      // owner, not current role/approval eligibility. Never mint KYC URLs or
+      // substitute today's profile for absent historical records.
+      db.query(
+        `SELECT id, provider_id, submitted_by, revision_number, previous_revision_number,
+                schema_version, business_name, service_radius_km, latitude, longitude, city, province,
+                service_area_id, service_area_name, category_ids, category_names,
+                government_id_front_key, government_id_back_key, nbi_clearance_key, selfie_key,
+                nbi_expiry_date::text AS nbi_expiry_date, government_id_number, years_experience, vetting_answers,
+                agreement_accepted_at, submitted_at, recorded_at
+         FROM provider_application_revisions WHERE submitted_by = $1
+         ORDER BY submitted_at, id`,
+        [userId],
+      ),
     ]);
 
   return {
@@ -451,6 +466,7 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
     supportTickets: supportResult.rows,
     dataSubjectRequests: dsrResult.rows,
     providerApplicationDraft: applicationDraftResult.rows[0] ?? null,
+    providerApplicationRevisions: applicationRevisionsResult.rows,
   };
 }
 

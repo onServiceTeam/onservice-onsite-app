@@ -1827,6 +1827,18 @@ Reviewer revisions, correction/resubmission, approved E21 retention, full
 browser/native/Stitch acceptance and paired deployment remain open. See
 `docs/audits/PROVIDER-DRAFT-EXPIRY-EXPORT-2026-09-06.md`.
 
+Further 2026-09-06 submitted-record stage, **still open**: migration 173 and
+atomic submission capture original accepted fields, catalog labels and owned
+document references on the same provider identity. Private account archives
+include retained owner revisions. No legacy evidence is manufactured. Final
+focused verification passed 15 suites / 27 tests on real isolated PostgreSQL;
+the full local run still failed two Docker-dependent nginx tests. Fresh CI,
+full-chain rehearsal through 173 and paired release remain required. Approval
+is not yet revision-bound; changes-requested/resubmission and reviewer history
+screens are not implemented. Object bytes/retention are not made immutable by
+these rows. E21/E43 and full browser/native/Stitch acceptance remain open. See
+`docs/audits/PROVIDER-SUBMITTED-EVIDENCE-2026-09-06.md`.
+
 ---
 
 ## 53. Provider approval does not enforce the government ID back image

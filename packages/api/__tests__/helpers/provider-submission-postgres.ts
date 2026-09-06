@@ -1,4 +1,6 @@
 import type { Pool } from 'pg';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import type { ProviderApplicationInput } from '../../src/services/provider.service';
 import { withDraftDatabase } from './provider-draft-postgres';
 
@@ -19,7 +21,7 @@ export const submissionInput: ProviderApplicationInput = {
   ] },
 };
 
-// Focused service/transaction fixture plus the actual draft migration, not a
+// Focused service/transaction fixture plus actual migrations 172/173, not a
 // full migration-chain proof. The reused harness permits only localhost
 // *_test, creates a unique schema, and removes only that test-owned schema.
 export async function withSubmissionDatabase(run: (database: Pool) => Promise<void>): Promise<void> {
@@ -50,7 +52,7 @@ export async function withSubmissionDatabase(run: (database: Pool) => Promise<vo
         id uuid PRIMARY KEY, name text, city text, province text, status text,
         center_lat numeric, center_lng numeric, radius_km integer, is_default boolean DEFAULT FALSE
       );
-      CREATE TABLE service_categories (id uuid PRIMARY KEY, is_active boolean NOT NULL DEFAULT TRUE);
+      CREATE TABLE service_categories (id uuid PRIMARY KEY, name text NOT NULL DEFAULT 'Cleaning', is_active boolean NOT NULL DEFAULT TRUE);
       CREATE TABLE provider_service_areas (
         provider_id uuid REFERENCES providers(id), service_area_id uuid REFERENCES service_areas(id),
         is_primary boolean, UNIQUE (provider_id, service_area_id)
@@ -63,6 +65,7 @@ export async function withSubmissionDatabase(run: (database: Pool) => Promise<vo
       CREATE TABLE admin_actions (id serial PRIMARY KEY);
       CREATE TABLE notifications (id serial PRIMARY KEY);
     `);
+    await database.query(await readFile(path.resolve(__dirname, '../../migrations/173_provider_application_revisions.sql'), 'utf8'));
     await database.query("INSERT INTO users (id,role) VALUES ($1,'customer')", [applicantId]);
     await database.query(`INSERT INTO service_areas
       (id,name,city,province,status,center_lat,center_lng,radius_km,is_default)
@@ -73,7 +76,7 @@ export async function withSubmissionDatabase(run: (database: Pool) => Promise<vo
 }
 
 export async function assertNoSubmission(database: Pool): Promise<void> {
-  for (const table of ['providers', 'provider_service_areas', 'provider_services', 'admin_actions', 'notifications']) {
+  for (const table of ['providers', 'provider_service_areas', 'provider_services', 'provider_application_revisions', 'admin_actions', 'notifications']) {
     expect((await database.query(`SELECT count(*)::int AS count FROM ${table}`)).rows).toEqual([{ count: 0 }]);
   }
 }
