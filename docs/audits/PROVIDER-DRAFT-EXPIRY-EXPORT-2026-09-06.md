@@ -95,3 +95,16 @@ TODOs. API-image build/liveness also passed. These results cover the earlier
 release-observer and TOTP diagnostic corrections, not this subsequent draft
 change. They do not establish full screen, business-flow or live-release
 acceptance.
+
+## Subsequent exact-commit verification
+
+Commit `2adf7af1849646797a0da7d169a1443ef85aa5a8` passed CI `34031608522`
+and Gates `34031608493`. Completed API job `101482033527` explicitly passed
+OPS-500 and OPS-501 at `2026-09-06T11:57:43Z` and `11:57:44Z` respectively.
+The full API result was **975 suites / 3,415 passes / 2 TODOs**, with no skipped
+tests, in 119.584 seconds. The guarded PostgreSQL cases therefore executed;
+this supersedes the local database uncertainty for that exact commit only.
+Admin, mobile/web-build and API-image build/liveness jobs also succeeded.
+The run was not restarted and its gates/timeouts were not relaxed. Optional
+API/admin candidate retention remained skipped as intended. No deployment,
+full browser/native acceptance or legal-retention approval is implied.
