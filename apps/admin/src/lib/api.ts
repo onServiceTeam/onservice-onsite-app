@@ -12,6 +12,8 @@
 // and replays the original request. If refresh also fails, redirects to
 // /login.
 
+import { assertAdminRequestSession, captureAdminRequestSession, retireAdminRequestSession } from './admin-request-session';
+
 interface ApiSuccess<T> {
   success: true;
   data: T;
@@ -133,10 +135,29 @@ async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosL
   return { data: parsed as T, status: res.status, ok: true };
 }
 
-async function request<T>(url: string, init: ApiRequestInit, isRetry = false): Promise<ApiAxiosLikeResponse<T>> {
+async function request<T>(
+  url: string,
+  init: ApiRequestInit,
+  isRetry = false,
+  session?: object,
+): Promise<ApiAxiosLikeResponse<T>> {
+  if (!session) {
+    // An explicit sign-in is newer intent than an outstanding startup check
+    // or request. Retire those before sending, not only after login completes.
+    if (!isRetry && init.method === 'POST' && url.split('?')[0] === '/api/v1/auth/admin/login') {
+      retireAdminRequestSession();
+    }
+    session = captureAdminRequestSession();
+  }
   try {
-    return await rawFetch<T>(url, init);
+    assertAdminRequestSession(session, init.signal);
+    const response = await rawFetch<T>(url, init);
+    assertAdminRequestSession(session, init.signal);
+    return response;
   } catch (err) {
+    // An obsolete result must not refresh/replay a write or redirect another
+    // operator. Check again after response parsing, not only before fetch.
+    assertAdminRequestSession(session, init.signal);
     if (
       err instanceof ApiError
       && err.body?.error?.code === 'password_rotation_required'
@@ -159,8 +180,10 @@ async function request<T>(url: string, init: ApiRequestInit, isRetry = false): P
     ) {
       try {
         await rawFetch('/api/v1/auth/admin/refresh', { method: 'POST', body: {} });
-        return await request<T>(url, init, true);
+        assertAdminRequestSession(session, init.signal);
+        return await request<T>(url, init, true, session);
       } catch {
+        assertAdminRequestSession(session, init.signal);
         // Redirect to the login screen when a session genuinely expired — but
         // NOT if we are already on /login. Pre-fix, the auth bootstrap's
         // /auth/me probe on the login page 401'd, the refresh below 401'd too,

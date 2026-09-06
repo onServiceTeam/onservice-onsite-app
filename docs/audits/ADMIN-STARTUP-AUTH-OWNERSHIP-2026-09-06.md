@@ -107,3 +107,17 @@ The four-worker full rerun completed successfully: **580 passing files,
 configuration were unchanged. No build or browser audit overlapped this rerun.
 This resolves the complete-local-rerun requirement above. The failed first
 run remains recorded; fresh candidate CI and deployment are still separate.
+
+## Independent candidate CI
+
+Published candidate `aa6535623d84dcb09dfa83b36b3f02759c2c67f1` passed all four
+jobs in CI `34006066256` and Gates `34006066263`. Admin job `101413351076`
+explicitly passed the four startup-settlement tests at `2026-09-06T02:18:57Z`,
+UX-1366 at `02:19:35Z`, UX-1368 at `02:21:23Z` and UX-1367 at `02:22:13Z`.
+Its final totals at `02:28:54Z` are **580 passing files, 1 skipped file;
+670 tests, 3 TODOs**. This resolves fresh CI for this startup checkpoint.
+It does not imply deployment or complete authentication acceptance.
+
+E79 subsequently reproduces an old HTTP 401 replaying a provider-note write
+under a newer operator. The bounded follow-up and remaining cookie races are
+tracked in `docs/audits/ADMIN-REQUEST-SESSION-OWNERSHIP-2026-09-06.md`.

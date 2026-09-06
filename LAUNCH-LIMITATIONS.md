@@ -2554,3 +2554,35 @@ not certified. Evidence: `docs/audits/ADMIN-STARTUP-AUTH-OWNERSHIP-2026-09-06.md
 The complete four-worker local rerun passed 580 files / 670 tests, with 1 skipped
 file / 3 TODOs, in 302.23 seconds. No tests, timeouts or gate settings changed.
 The local rerun requirement is resolved; fresh CI and deployment are not implied.
+
+Independent verification: published startup candidate `aa653562` passed all
+four jobs in CI `34006066256` and Gates `34006066263`. Admin logs explicitly
+pass UX-1366/1367/1368 and the four supporting startup tests, with 580 passing
+files / 670 tests, 1 skipped file / 3 TODOs. Fresh CI for that checkpoint is
+resolved. Deployment and the broader authentication limitations remain open.
+
+## 80. An old admin request could replay under a newly signed-in operator
+
+UX-1369 reproduces an old provider-note HTTP 401 triggering refresh and replay
+after a different operator signs in. The real compiled Provider 360 note form
+also reproduces the old note being stored with the new synthetic operator as
+author. No production records or real credentials were involved.
+
+Candidate containment gives requests in-memory session ownership and checks it
+before fetch, after response parsing, and before refresh/replay/redirect.
+Login intent, completed login, logout and observed identity/role changes retire
+old ownership. Same-owner refresh still rotates CSRF and retries normally.
+This is **not** arbitration of server cookie-writing responses or cross-tab
+sessions, and cannot undo a server-processed mutation.
+
+Focused tests pass 3 files / 8 tests; types, changed-file lint and the unchanged
+ID gate pass. Compiled synthetic browser checks pass 18 new note/auth/refresh
+scenarios, 18 startup repeats and 24 customer/provider cache repeats across six
+widths. Their 180 captures have zero recorded page exceptions, unexpected HTTP
+or document overflow. **Final complete local rerun and fresh CI remain required;
+not deployed.** Evidence, honest failed checks and remaining auth boundaries:
+`docs/audits/ADMIN-REQUEST-SESSION-OWNERSHIP-2026-09-06.md`.
+
+The final complete four-worker local run passed **583 files / 678 tests**, with
+1 skipped file / 3 TODOs, in 332.45 seconds. The final local rerun requirement
+is resolved. Fresh CI, cookie/cross-tab containment and deployment remain open.

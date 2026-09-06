@@ -1,0 +1,490 @@
+{
+  "sourceRevision": "aa6535623d84dcb09dfa83b36b3f02759c2c67f1 plus local UX-1369 request ownership",
+  "createdAt": "2026-09-06T03:06:41.761Z",
+  "evidenceType": "compiled delayed startup/login ownership; synthetic HTTP; not live auth or realtime acceptance",
+  "indexSha256": "31130913afa65a3ca3b4bac492a3239e4e7b1aebc18f10e38970e35fc4d5b48d",
+  "entrySha256": "c87f1f6f8fb000e6edb39ff60ed3a4d8ffd49586c00509bc3626d63b58e047d3",
+  "checks": [
+    {
+      "width": 320,
+      "outcome": "old-success",
+      "captures": [
+        "320-old-success-pending-startup.png",
+        "320-old-success-new-login-before-startup.png",
+        "320-old-success-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "outcome": "old-failure",
+      "captures": [
+        "320-old-failure-pending-startup.png",
+        "320-old-failure-new-login-before-startup.png",
+        "320-old-failure-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "outcome": "new-rotation",
+      "captures": [
+        "320-new-rotation-pending-startup.png",
+        "320-new-rotation-new-login-before-startup.png",
+        "320-new-rotation-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "outcome": "old-success",
+      "captures": [
+        "390-old-success-pending-startup.png",
+        "390-old-success-new-login-before-startup.png",
+        "390-old-success-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "outcome": "old-failure",
+      "captures": [
+        "390-old-failure-pending-startup.png",
+        "390-old-failure-new-login-before-startup.png",
+        "390-old-failure-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "outcome": "new-rotation",
+      "captures": [
+        "390-new-rotation-pending-startup.png",
+        "390-new-rotation-new-login-before-startup.png",
+        "390-new-rotation-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "outcome": "old-success",
+      "captures": [
+        "768-old-success-pending-startup.png",
+        "768-old-success-new-login-before-startup.png",
+        "768-old-success-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "outcome": "old-failure",
+      "captures": [
+        "768-old-failure-pending-startup.png",
+        "768-old-failure-new-login-before-startup.png",
+        "768-old-failure-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "outcome": "new-rotation",
+      "captures": [
+        "768-new-rotation-pending-startup.png",
+        "768-new-rotation-new-login-before-startup.png",
+        "768-new-rotation-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "outcome": "old-success",
+      "captures": [
+        "1024-old-success-pending-startup.png",
+        "1024-old-success-new-login-before-startup.png",
+        "1024-old-success-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "outcome": "old-failure",
+      "captures": [
+        "1024-old-failure-pending-startup.png",
+        "1024-old-failure-new-login-before-startup.png",
+        "1024-old-failure-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "outcome": "new-rotation",
+      "captures": [
+        "1024-new-rotation-pending-startup.png",
+        "1024-new-rotation-new-login-before-startup.png",
+        "1024-new-rotation-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "outcome": "old-success",
+      "captures": [
+        "1366-old-success-pending-startup.png",
+        "1366-old-success-new-login-before-startup.png",
+        "1366-old-success-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "outcome": "old-failure",
+      "captures": [
+        "1366-old-failure-pending-startup.png",
+        "1366-old-failure-new-login-before-startup.png",
+        "1366-old-failure-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "outcome": "new-rotation",
+      "captures": [
+        "1366-new-rotation-pending-startup.png",
+        "1366-new-rotation-new-login-before-startup.png",
+        "1366-new-rotation-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "outcome": "old-success",
+      "captures": [
+        "1920-old-success-pending-startup.png",
+        "1920-old-success-new-login-before-startup.png",
+        "1920-old-success-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "outcome": "old-failure",
+      "captures": [
+        "1920-old-failure-pending-startup.png",
+        "1920-old-failure-new-login-before-startup.png",
+        "1920-old-failure-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "outcome": "new-rotation",
+      "captures": [
+        "1920-new-rotation-pending-startup.png",
+        "1920-new-rotation-new-login-before-startup.png",
+        "1920-new-rotation-current-session.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login"
+        }
+      ],
+      "currentChromeBeforeOldResponse": 1,
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    }
+  ],
+  "failure": null
+}
