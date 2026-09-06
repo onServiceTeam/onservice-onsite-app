@@ -147,6 +147,13 @@ regex-redacted because the pattern would over-match arbitrary hex strings
 and bigint columns. Code paths must avoid logging the `password_hash`
 column directly.
 
+The SEC-073 candidate also removes supplied key material from invalid TOTP
+encryption-configuration errors at their source, without relying on generic
+PII patterns to recognize a key fragment. Format/length diagnostics and strict
+validation remain. Real helper and encryption regressions pass; this does not
+prove production exposure, rotate a key, change recovery authority or complete
+deployment. See [the diagnostic audit](audits/ADMIN-TOTP-DIAGNOSTICS-2026-09-06.md).
+
 ### CSP rationale (per directive)
 
 | Directive | Sources allowed | Why |

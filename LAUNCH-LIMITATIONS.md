@@ -2719,3 +2719,19 @@ Final verification: all four jobs in CI `34015709677` succeeded. Admin passed
 with 84 TODOs. Same-run matching artifacts were received and the API package's
 three checksums and source bundle verified. They remain rehearsal-only inputs,
 not a live rollout or completion of E79 and the broader release requirements.
+
+## 85. Invalid TOTP encryption configuration could disclose a value prefix
+
+The encryption helper's invalid-format error included the first eight supplied
+characters. If that error reached a diagnostic log, part of the configured value
+could be retained. This is a source finding, not evidence of a production leak.
+The existing production startup guard already rejects malformed keys separately.
+
+SEC-073 removes only the value prefix from the helper error. Format and length
+diagnostics remain, invalid keys still throw, and the encryption algorithm,
+stored format, existing records, key configuration and recovery policy are
+unchanged. The real regression failed before correction; afterward all three
+focused suites / 18 tests passed, including real AES-GCM round-trip and tamper
+rejection, with lint and API types passing. **Resolved in local candidate code;
+fresh CI and deployment remain pending.** No live key was inspected or rotated.
+Evidence: `docs/audits/ADMIN-TOTP-DIAGNOSTICS-2026-09-06.md`.
