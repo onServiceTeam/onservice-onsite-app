@@ -105,3 +105,12 @@ were not changed. Each harness removes only its unique test-owned schema.
 
 No production migration/deployment, master merge, gate/protection change,
 latest-Stitch comparison, complete admin audit or launch readiness is claimed.
+
+## Independent verification after publication
+
+Commit `646c0602462b0e14b8455c4b87d49e453570fb57` passed Gates `34034973223`
+and all four jobs in CI `34034973228`. Completed API job `101491264936`
+explicitly passed OPS-502 through OPS-505, plus both Docker-dependent nginx
+regressions UX-860 and UX-201. The full API result was **979 suites / 3,421
+passed tests / 2 existing TODOs**, in 123.209 seconds. This resolves the fresh-CI
+uncertainty for this commit, not its production rollout or remaining lifecycle.

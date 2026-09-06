@@ -18,8 +18,11 @@ import * as kycDocumentService from '../services/kyc-document.service';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { providerCertificationReviewSchema } from '../validators/provider.validators';
 import { ALL_BOOKING_STATUSES } from '../types/booking.types';
+import { privateResponse } from '../middleware/private-response.middleware';
 
 const router = Router();
+// Provider 360 includes identity documents, support notes and operational data.
+router.use(privateResponse);
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function validateUuidParam(name: string, label: string) {

@@ -26,16 +26,17 @@ import * as settingsService from '../services/settings.service';
 import * as financialTermsService from '../services/booking-financial-terms.service';
 import * as serviceAreaChangeService from '../services/service-area-change.service';
 import { createAppError } from '../middleware/error.middleware';
+import { privateResponse } from '../middleware/private-response.middleware';
 
 const router = Router();
+// Every provider route currently requires an account, including profile reads.
+// Set policy before auth so signed-link, metadata and error responses agree.
+router.use(privateResponse);
 
 // Self-scoped draft access, deliberately before /:id. No operator override:
 // draft data is not submitted review evidence and must not enter the queue.
 router.route('/application-draft')
-  .all((_req, res, next) => {
-    res.setHeader('Cache-Control', 'private, no-store');
-    next();
-  }, authMiddleware)
+  .all(authMiddleware)
   .get(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       res.json({ success: true, data: await applicationDraftService.getApplicationDraft(req.user!.userId) });
@@ -225,6 +226,23 @@ router.get(
       const provider = await providerService.getProviderByUserId(req.user!.userId);
       const preview = await financialTermsService.getBookingCommissionPreview(provider.id, bookingId);
       res.json({ success: true, data: { ...preview, tier: preview.providerTier } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// D23 team management uses a literal single-segment URL. Keep this before
+// /:id so the provider profile reader cannot consume "staff" as a UUID.
+router.get(
+  '/staff',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const data = await providerStaffService.listStaffWithPerformance(provider.id);
+      res.json({ success: true, data });
     } catch (error) {
       next(error);
     }
@@ -1196,21 +1214,6 @@ router.get(
 // ─── Team / staff (D23) ───────────────────────────────────────────────────────
 // The provider owner manages their own team. Members go to back-office review
 // (admin Staff tab) before they can be assigned jobs.
-
-router.get(
-  '/staff',
-  authMiddleware,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    try {
-      requireProvider(req);
-      const provider = await providerService.getProviderByUserId(req.user!.userId);
-      const data = await providerStaffService.listStaffWithPerformance(provider.id);
-      res.json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
 
 router.post(
   '/staff',

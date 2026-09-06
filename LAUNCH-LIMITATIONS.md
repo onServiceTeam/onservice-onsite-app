@@ -2759,3 +2759,28 @@ focused suites / 18 tests passed, including real AES-GCM round-trip and tamper
 rejection, with lint and API types passing. **Resolved in local candidate code;
 fresh CI and deployment remain pending.** No live key was inspected or rotated.
 Evidence: `docs/audits/ADMIN-TOTP-DIAGNOSTICS-2026-09-06.md`.
+
+## 86. Provider team routing, performance and private-response gaps
+
+Re-audit reproduced a team-list server error after a successful invitation:
+the literal `staff` URL was consumed as a provider UUID. It also found zero
+completed-job totals from an invalid status predicate and inflated review counts
+from a jobs-by-reviews join. OPS-506/507/508 correct the route order and shared
+read projections, with real PostgreSQL failing baselines and passing focused
+tests. No approval, payout, historical row or assignment policy changes.
+
+SEC-074 adds private/no-store response policy before authentication for provider
+and Provider 360 routes, including signed KYC links and early errors. The real
+HTTP baseline failed; focused tests pass. This is not erasure of previously
+cached data or verified browser/storage retention behavior.
+
+**Candidate only; complete final-suite checks and fresh CI still required.**
+Broader staff lifecycle, provider revision-bound review, browser/native/Stitch
+acceptance and safe release alignment remain open. Evidence and exact limits:
+`docs/audits/PROVIDER-TEAM-ROUTING-PRIVACY-2026-09-06.md`.
+
+Final local verification: 981 API suites / 3,426 tests passed, with 2 existing
+TODOs and 2 unchanged nginx tests failing solely because the local Docker engine
+was unavailable (294.835 seconds). All three new PostgreSQL regressions executed.
+Types, changed-file lint and the unchanged 1,582-ID gate passed. Fresh candidate
+CI and deployment remain separate requirements; this is not a green local suite.
