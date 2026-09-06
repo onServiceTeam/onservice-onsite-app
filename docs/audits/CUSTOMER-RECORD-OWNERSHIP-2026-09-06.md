@@ -97,3 +97,12 @@ the local rerun requirement above. Fresh GitHub CI is still required for the
 customer candidate. The complete 420-line Header and 669-line LoginPage have
 also now been read for the separate upcoming actor/session-cache reproduction;
 neither is changed by this customer-record correction.
+
+## Independent candidate CI
+
+Published candidate `b1b05b71775a8863a5937628c214b19ef8f0b1b0` passed CI
+`34003132465` (admin, mobile, API and Docker jobs) and Gates `34003132466`.
+Admin job `101405450418` explicitly passes UX-1360 through UX-1364, with
+**574 passing files, 1 skipped file; 658 tests, 3 TODOs** at
+`2026-09-06T01:20:20Z`. The job completed at `01:20:22Z`. This resolves the
+fresh-CI requirement for the customer-record correction, not deployment.

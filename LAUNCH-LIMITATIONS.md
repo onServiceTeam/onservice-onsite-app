@@ -2505,3 +2505,26 @@ Final local rerun after both test-only typing corrections also passed:
 574 files / 658 tests, with 1 skipped file / 3 TODOs, in 174.89 seconds.
 Types and lint passed. The local rerun requirement is resolved; fresh CI
 and deployment are not implied.
+
+Published customer candidate `b1b05b71` passed all four jobs in CI
+`34003132465` and Gates `34003132466`. Admin logs explicitly pass UX-1360
+through UX-1364 and all 658 tests, with 3 TODOs. Its fresh-CI requirement
+is resolved; production deployment remains separate.
+
+## 78. A new admin operator could inherit a previous operator's record cache
+
+UX-1365 reproduces actual logout/login retaining a supervisor's private customer
+contact for an ordinary operator. The route subtree now owns separate query
+clients by authenticated ID/role and signed-out boundary. Same-owner refresh
+retains caching; another owner gets empty route state and a fresh cache. E77
+records the recommended containment and current engineering approval.
+
+The regression failed before correction. Complete admin tests pass 576 files /
+663 tests, with 1 skipped file / 3 TODOs; types, lint and the unchanged ID gate
+pass. Twenty-four compiled browser scenarios pass across customer/provider,
+completed/delayed responses and six widths, with 72 captures and no unexpected
+HTTP, page exceptions or document overflow. Only synthetic auth writes occurred.
+**Candidate correction, not deployed; fresh CI required.** This is not a claim
+that transport retries, async authentication, cross-tab sessions or realtime
+connections are isolated. Evidence and remaining work:
+`docs/audits/ADMIN-ACTOR-QUERY-CACHE-2026-09-06.md`.

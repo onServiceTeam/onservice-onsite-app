@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/react';
 import { useAuthStore } from '@/stores/auth.store';
 import type { AdminUser } from '@/stores/auth.store';
 import AdminLayout from '@/components/AdminLayout';
+import AdminSessionQueries from '@/components/AdminSessionQueries';
 import LoginPage from '@/pages/LoginPage';
 // LAUNCH-LIMITATIONS #12 — must-rotate-password redirect target.
 const ChangePasswordPage = lazy(() => import('@/pages/ChangePasswordPage'));
@@ -93,6 +94,7 @@ export default function App(): React.ReactElement {
         </div>
       }
     >
+      <AdminSessionQueries>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<AdminLayout />}>
@@ -151,6 +153,7 @@ export default function App(): React.ReactElement {
           </Route>
         </Route>
       </Routes>
+      </AdminSessionQueries>
     </Sentry.ErrorBoundary>
   );
 }

@@ -1,0 +1,9 @@
+{
+  "sourceRevision": "b1b05b71775a8863a5937628c214b19ef8f0b1b0",
+  "createdAt": "2026-09-06T01:31:13.406Z",
+  "evidenceType": "compiled login/logout and record pages; synthetic HTTP; realtime blocked; not live acceptance",
+  "indexSha256": "26c66db2b40a9b633792f12936f4415a2c12cde620497d41ef683b95f8e6123b",
+  "entrySha256": "64f95f0db8ce7767d7326468538e476d2d64b6a4e0dc41561fba7d8d36cd5192",
+  "checks": [],
+  "failure": "Error: expect(locator).toBeVisible() failed\n\nLocator: getByText('+63919****888', { exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"to.be.visible\" with timeout 5000ms\n  - waiting for getByText('+63919****888', { exact: true })\n\n    at captureRawStack (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright-core\\lib\\coreBundle.js:3130:17)\n    at callMatcherAsStep (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright\\lib\\matchers\\expect.js:12873:57)\n    at Object.toBeVisible (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright\\lib\\matchers\\expect.js:12863:23)\n    at C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\.ai-coder\\checkpoints\\logs\\admin-actor-cache-2026-09-06\\audit.mjs:141:72"
+}
