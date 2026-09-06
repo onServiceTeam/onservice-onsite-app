@@ -3,8 +3,10 @@
 Date: 2026-09-06. Status: bounded same-tab candidate correction locally verified
 by focused tests, compiled browser scenarios and a final complete admin run
 (583 passing files / 678 tests, 1 skipped file / 3 TODOs, 332.45 seconds).
-Fresh CI is pending. Broader cookie-writing and cross-tab boundaries remain open.
-This is not deployed and is not part of previously published candidate
+Published containment `4840b276` passed all CI jobs (`34008807832`) and Gates
+(`34008807831`), including UX-1369 and 678 admin tests. Broader cookie-writing
+and cross-tab boundaries remain open. This is not deployed and was not part of
+the previously published candidate
 `aa6535623d84dcb09dfa83b36b3f02759c2c67f1` or that candidate's CI.
 
 ## Actual evidence
@@ -66,7 +68,7 @@ an external compliance sign-off or permission to experiment on production money.
 5. Keep candidate/master/production identity and paired deployment boundaries
    explicit. No production release has occurred in this continuation.
 
-Latest published candidate: `aa653562`. Gates `34006066263` passed; CI
+Previous published startup candidate: `aa653562`. Gates `34006066263` passed; CI
 `34006066256` subsequently passed all four jobs. Its verified local result was
 580 passing admin files / 670 tests, 1 skipped file / 3 TODOs, after an honestly
 recorded failed resource-contended run and clean full repeat. Actual admin CI

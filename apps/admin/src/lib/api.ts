@@ -174,14 +174,23 @@ async function request<T>(
     if (
       err instanceof ApiError
       && err.status === 401
+      && isRetry
+      && typeof window !== 'undefined'
+      && window.location.pathname !== '/login'
+    ) {
+      // A freshly retried request can still reject the session. Preserve that
+      // sign-in boundary without treating non-authentication errors as expiry.
+      window.location.href = '/login';
+    }
+    if (
+      err instanceof ApiError
+      && err.status === 401
       && !isRetry
       && !url.endsWith('/api/v1/auth/admin/refresh')
       && canRefreshAfter401(url)
     ) {
       try {
         await rawFetch('/api/v1/auth/admin/refresh', { method: 'POST', body: {} });
-        assertAdminRequestSession(session, init.signal);
-        return await request<T>(url, init, true, session);
       } catch {
         assertAdminRequestSession(session, init.signal);
         // Redirect to the login screen when a session genuinely expired — but
@@ -199,6 +208,11 @@ async function request<T>(
         }
         throw err;
       }
+      assertAdminRequestSession(session, init.signal);
+      // Refresh succeeded. A subsequent permission/conflict/network failure
+      // belongs to the business request, not to the refresh catch above.
+      // In particular, preserve its real error and any rotation redirect.
+      return request<T>(url, init, true, session);
     }
     throw err;
   }

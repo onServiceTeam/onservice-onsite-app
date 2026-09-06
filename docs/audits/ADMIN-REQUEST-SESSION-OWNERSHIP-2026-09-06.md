@@ -141,3 +141,17 @@ The final four-worker admin suite passed **583 files / 678 tests**, with
 No build or browser matrix overlapped this run. It includes the final type
 references and canonical note fixture. This resolves the complete-local-rerun
 requirement above; fresh candidate CI and deployment remain separate.
+
+## Independent candidate CI and next correction
+
+Published candidate `4840b276da8a1604712883310c371d89f78479fb` passed all four
+jobs in CI `34008807832` and Gates `34008807831`. Admin job `101420829036`
+explicitly passed the six request-session tests at `2026-09-06T03:23:38Z`,
+UX-1369 at `03:23:55Z` and the login-intent test at `03:24:05Z`. Final totals
+at `03:33:57Z`: **583 passing files / 678 tests**, 1 skipped file / 3 TODOs.
+Fresh CI for this containment checkpoint is resolved, not production release.
+
+The separate post-refresh business-error defect in the next-boundaries list
+is now reproduced by UX-1370. Its bounded correction is tracked separately in
+`docs/audits/ADMIN-REFRESH-RESULT-2026-09-06.md`. It does not resolve the cookie,
+cross-tab, old-logout or realtime limitations above.

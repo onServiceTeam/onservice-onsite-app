@@ -2586,3 +2586,35 @@ not deployed.** Evidence, honest failed checks and remaining auth boundaries:
 The final complete four-worker local run passed **583 files / 678 tests**, with
 1 skipped file / 3 TODOs, in 332.45 seconds. The final local rerun requirement
 is resolved. Fresh CI, cookie/cross-tab containment and deployment remain open.
+
+Independent verification: request-ownership candidate `4840b276` passed all
+four jobs in CI `34008807832` and Gates `34008807831`. Actual admin logs pass
+UX-1369, its seven supporting tests and all 678 tests, with 3 TODOs. Fresh CI
+for the narrow correction is resolved; cookie/cross-tab and release limits persist.
+
+## 81. Post-refresh save failures could be misreported as authentication expiry
+
+UX-1370 reproduces the actual provider Notes form showing the original expired
+access error instead of a later save rejection. The compiled baseline also
+navigates away, losing the unfinished workspace. The API wrapper now keeps the
+retried business request outside the refresh-failure catch. It preserves the
+actual save error and keeps drafts in place for non-authentication failures.
+A second HTTP 401 still requires sign-in; password rotation still routes to the
+password screen. Server authorization and mutation semantics are unchanged.
+
+Focused tests pass 6 files / 13 tests; types, lint and the unchanged ID gate pass.
+Forty-two compiled synthetic browser scenarios pass at six widths for conflict,
+permission, server, network, rotation, second-401 and failed-refresh outcomes.
+The previous 18 request-ownership scenarios also pass. All 162 final captures
+have zero recorded page exceptions, unexpected HTTP or document overflow.
+**Complete local suite and fresh CI pending; candidate-only, not deployed.**
+See `docs/audits/ADMIN-REFRESH-RESULT-2026-09-06.md` for evidence and the retained
+baseline harness error. This does not resolve cookie ordering, cross-tab sessions,
+old logout completion, broad Stitch parity or deployment readiness.
+
+The final complete four-worker UX-1370 run passed **585 files / 682 tests**, with
+1 skipped file / 3 TODOs, in 299.75 seconds. The complete-local-suite requirement
+is resolved; fresh CI/deployment remain separate. Subsequently, local UX-1371
+reproduced the runtime rotation redirect not marking the password screen as
+mandatory. That new failing investigation is not part of the 682-test result or
+this verified candidate publication; see the audit's follow-up section.
