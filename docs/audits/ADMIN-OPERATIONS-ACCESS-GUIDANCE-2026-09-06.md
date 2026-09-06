@@ -56,6 +56,12 @@ not count as runtime acceptance; behavioral replacement or explicit TODO
 classification remains an identified follow-up. No green CI total is a claim
 that every older assertion meets the current audit bar.
 
+Subsequent test-only continuation: see
+[Behavioral smoke repair](BEHAVIORAL-SMOKE-REPAIR-2026-09-06.md). The four
+identified nonbehavioral checks have replacements and explicit broad-scope
+TODOs. This does not retroactively turn the earlier documentation checkpoint
+into an implementation change or certify all of the older test suite.
+
 ## Manual reconciliation still required
 
 The rest of the manual is not certified current. Specific follow-up areas

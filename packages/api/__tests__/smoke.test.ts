@@ -1,23 +1,21 @@
 /**
- * Phase 12 — Smoke test suite.
+ * Behavioral service smoke tests, replacing the Phase 12 structural checks.
  *
  * Hermetic. Mocks all DB / Redis / external IO. The contract:
  *   "if any of these break, do not deploy."
  *
  * Tests cover:
- *   - /health route presence in server.ts
  *   - auth login validator shape
- *   - money-conservation invariant (synthetic 100-row sample)
+ *   - commission allocation across centavo rounding and fee boundaries
  *   - booking state-machine happy + invalid transitions
  *   - commission calculator (fixed input -> fixed output)
- *   - TOTP utility (known seed + fixed time -> known 6-digit code)
+ *   - TOTP utility (independently specified 6-digit code + round-trip)
  *   - audit-log CSV escaping (comma + double-quote)
- *   - admin role middleware coverage spot-check
- *   - JWT expiry config sanity
+ * Real mounted health handlers: server-health-smoke.test.ts.
+ * Selected HTTP role boundaries: admin-access-smoke.test.ts.
+ * Issued token lifetimes: auth-token-expiry-smoke.test.ts.
+ * These bounded checks do not prove the full ledger or every admin endpoint.
  */
-
-import fs from 'node:fs';
-import path from 'node:path';
 
 const dbQueryMock = jest.fn();
 
@@ -62,19 +60,6 @@ beforeEach(() => {
 });
 
 // ───────────────────────────────────────────────────────────────────
-// 1. /health endpoint registered in server.ts
-// ───────────────────────────────────────────────────────────────────
-describe('smoke: server has /health endpoint', () => {
-  it('server.ts registers GET /health that returns status ok', () => {
-    const serverPath = path.resolve(__dirname, '../src/server.ts');
-    const src = fs.readFileSync(serverPath, 'utf8');
-    expect(src).toMatch(/app\.get\(['"]\/health['"]/);
-    // and the handler responds with status: 'ok'
-    expect(src).toMatch(/status:\s*['"]ok['"]/);
-  });
-});
-
-// ───────────────────────────────────────────────────────────────────
 // 2. Auth login validator accepts well-formed payload
 // ───────────────────────────────────────────────────────────────────
 describe('smoke: auth validators', () => {
@@ -90,37 +75,32 @@ describe('smoke: auth validators', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────
-// 3. Money-conservation invariant (100 synthetic rows)
+// 3. Actual calculator allocation, NOT persisted escrow/payment conservation
 // ───────────────────────────────────────────────────────────────────
-describe('smoke: money conservation', () => {
-  it('sum(escrow + payout + commission + refund) === sum(captured) for 100 rows', () => {
-    // Each booking:
-    //   captured = serviceFee + commission + payout + refund + escrow
-    //   We synthesize 100 rows of varying integer centavo amounts and assert
-    //   that the inverse decomposition reconstructs the captured total exactly.
-    let totalCaptured = 0n;
-    let totalEscrow = 0n;
-    let totalPayout = 0n;
-    let totalCommission = 0n;
-    let totalRefund = 0n;
-
-    for (let i = 0; i < 100; i++) {
-      const captured = BigInt(50000 + (i * 137) % 95000); // 500.00 .. 1450.00 PHP
-      const commission = (captured * 18n) / 100n; // 18%
-      const refund = i % 17 === 0 ? captured / 10n : 0n; // 10% refund every 17th
-      const escrow = i % 13 === 0 ? captured / 5n : 0n; // 20% held every 13th
-      const payout = captured - commission - refund - escrow;
-
-      totalCaptured += captured;
-      totalCommission += commission;
-      totalRefund += refund;
-      totalEscrow += escrow;
-      totalPayout += payout;
-    }
-
-    const reconstructed = totalCommission + totalRefund + totalEscrow + totalPayout;
-    expect(reconstructed.toString()).toBe(totalCaptured.toString());
+describe('smoke: commission allocation with synthetic settings', () => {
+  it.each([
+    // Fixed expected results are independent of the calculator implementation.
+    // The 18% tier and customer fee here are fixtures, not current live policy.
+    { price: 10001, commission: 1800, fee: 2000, provider: 8201, platform: 3800, fund: 200 },
+    { price: 33333, commission: 6000, fee: 2000, provider: 27333, platform: 8000, fund: 200 },
+    { price: 100003, commission: 18001, fee: 5000, provider: 82002, platform: 23001, fund: 500 },
+    { price: 2000001, commission: 360000, fee: 50000, provider: 1640001, platform: 410000, fund: 5000 },
+  ])('allocates $price centavos using the service, including fee floor/cap', async (fixture) => {
+    const actual = await calculateCommission(fixture.price, 'standard');
+    expect(actual).toEqual({
+      servicePrice: fixture.price,
+      commissionRate: 0.18,
+      commissionAmount: fixture.commission,
+      serviceFeeRate: 0.05,
+      serviceFeeAmount: fixture.fee,
+      guaranteeFundContribution: fixture.fund,
+      providerReceives: fixture.provider,
+      platformRetains: fixture.platform,
+    });
+    expect(actual.providerReceives + actual.platformRetains).toBe(fixture.price + fixture.fee);
   });
+
+  it.todo('Persisted capture/refund/escrow/payout conservation needs an isolated real-PostgreSQL lifecycle fixture; calculator checks do not prove it');
 });
 
 // ───────────────────────────────────────────────────────────────────
@@ -172,7 +152,7 @@ describe('smoke: commission calculator', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────
-// 6. TOTP utility — known seed + fixed time -> known code
+// 6. TOTP utility — independent expected code as well as self-verification
 // ───────────────────────────────────────────────────────────────────
 describe('smoke: TOTP utility', () => {
   it('generateTotpSecret returns a 32-char base32 string', () => {
@@ -188,6 +168,10 @@ describe('smoke: TOTP utility', () => {
       Date.now = () => 59_000; // RFC vector T=59s
       const code = generateTotp(seed);
       expect(code).toMatch(/^\d{6}$/);
+      // RFC 6238 Appendix B gives SHA1 94287082 at T=59. The app uses
+      // six digits, so the same truncation modulo 10^6 gives 287082.
+      // https://www.rfc-editor.org/rfc/rfc6238#appendix-B
+      expect(code).toBe('287082');
       // Should self-verify at the same instant
       expect(verifyTotp(seed, code)).toBe(true);
     } finally {
@@ -221,34 +205,5 @@ describe('smoke: audit-log CSV escaping', () => {
     const csv = await exportAuditLogCsv({ limit: 1 });
     // Field with comma is wrapped in quotes
     expect(csv).toContain('"updated, changed ""field"""');
-  });
-});
-
-// ───────────────────────────────────────────────────────────────────
-// 8. Admin route middleware coverage spot-check
-// ───────────────────────────────────────────────────────────────────
-describe('smoke: admin routes are guarded', () => {
-  it('every src/routes/*admin*.ts file imports authMiddleware', () => {
-    const routesDir = path.resolve(__dirname, '../src/routes');
-    const adminFiles = fs
-      .readdirSync(routesDir)
-      .filter((f) => f.includes('admin') && f.endsWith('.ts'));
-    expect(adminFiles.length).toBeGreaterThan(0);
-    for (const f of adminFiles) {
-      const src = fs.readFileSync(path.join(routesDir, f), 'utf8');
-      expect(src).toMatch(/authMiddleware|requireAdmin|requireSuperAdmin/);
-    }
-  });
-});
-
-// ───────────────────────────────────────────────────────────────────
-// 9. JWT expiry config sanity
-// ───────────────────────────────────────────────────────────────────
-describe('smoke: JWT expiry config', () => {
-  it('platform.config has 15m access + 30d refresh defaults', () => {
-    const cfgPath = path.resolve(__dirname, '../src/config/platform.config.ts');
-    const src = fs.readFileSync(cfgPath, 'utf8');
-    expect(src).toMatch(/jwtExpiresIn:\s*['"]15m['"]/);
-    expect(src).toMatch(/jwtRefreshExpiresIn:\s*['"]30d['"]/);
   });
 });

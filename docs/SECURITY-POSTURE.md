@@ -16,7 +16,7 @@ proof that a control works.
 | SEC-005 | PII masking in logs | DONE (Phase 13 Dispatch D) | `packages/api/src/utils/logger.ts` exports `piiMaskFormat` (winston format factory) inserted into both root and console transport pipelines. Redacts PH phone (+63 / 09xx), email, TIN, SSS, PhilHealth, PayMongo IDs (`cus_/src_/pay_/link_`), JWT, and bcrypt hashes. Idempotent (skips strings that already contain `[REDACTED:`). Tests: `__tests__/logger-pii-masking.test.ts`. |
 | SEC-006 | Canonical, revocable JWT sessions | VERIFIED IN CODE | Access tokens are limited to 15 minutes. Customer/provider refresh tokens use the configured 30-day mobile duration. Admin, super-admin, and DPO refresh tokens and cookies use the single 8-hour `platformConfig.adminSessionTimeoutHours` contract. Every protected HTTP request and Socket.IO handshake reloads the user's current role, active state, and session generation. Forced admin password rotation is a server precondition on HTTP, special 2FA routes, and sockets, not only a page redirect. Password replacement increments the generation, removes refresh sessions, revokes CSRF tokens, disconnects live sockets, and issues one replacement session to the verified browser. DPO transitions also increment the generation and invalidate earlier credentials; an inactive account is rejected while inactive. General admin lifecycle/reactivation revocation remains E39. Focused coverage adds SEC-036/041/042 and the `launch-limit-12-admin-password-rotation.test.ts` transaction/route tests to Bugs UX-558/559/562. Environment overrides remain only for access and mobile refresh duration: `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`. |
 | SEC-007 | Canonical account and IP login abuse controls | VERIFIED | `packages/api/src/services/security.service.ts` records `(phone, ip_address)` per OTP attempt in `login_attempts`, ramps lockouts via `OTP_LOCKOUT_THRESHOLDS`, and exposes `cleanupOldLoginAttempts` for housekeeping. The auto-block helper at line ~430 ("`Auto-blocked: ${row.fail_count} failed login attempts`") flips offending IPs into the `blocked_ips` table. Admin email login now canonicalizes the account identity once and uses that same lower-case, trimmed value for the lockout count, account lookup, attempt rows, and security-event metadata, so changing email case or surrounding whitespace cannot split the account-scoped failure history. Behavioral coverage: SEC-045. |
-| SEC-008 | Role authorization across privileged endpoints | SCOPED BEHAVIORAL COVERAGE; FULL INVENTORY OPEN | The old all-endpoints claim relied on source-string counts and is withdrawn. Authentication and endpoint permission are separate; DPO privacy routes must not be described as requiring operations-admin authority. UX-560 executes selected DSR/consent route permissions with synthetic authentication; UX-572 checks two residual DPO operations exclusions; UX-573 checks KYC denial at the service boundary. They are useful scoped regressions, not proof for every handler, method, alias, mixed-role route, object owner, cookie/Bearer source or live deployment. The file-name/source-occurrence check in `smoke.test.ts` is not accepted as authorization evidence. |
+| SEC-008 | Role authorization across privileged endpoints | SCOPED BEHAVIORAL COVERAGE; FULL INVENTORY OPEN | The old all-endpoints claim relied on source-string counts and is withdrawn. Authentication and endpoint permission are separate; DPO privacy routes must not be described as requiring operations-admin authority. UX-560 executes selected DSR/consent route permissions with synthetic authentication; UX-572 checks two residual DPO operations exclusions; UX-573 checks KYC denial at the service boundary. The former file-name/source-occurrence smoke assertion is replaced by `admin-access-smoke.test.ts`: real JWT, canonical-auth and permission middleware on three GET routes, six roles and cookie/Bearer credentials, with mocked account/list data. This is useful scoped coverage, not proof for every handler, method, alias, object owner, write-CSRF boundary or live deployment; the full inventory is an explicit TODO. |
 | SEC-009 | CSP headers on admin web | DONE (Phase 13 Dispatch D) | `apps/admin/vercel.json` declares `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`. Admin `index.html` contains no inline scripts (Vite emits external bundles only). |
 
 ## Verification commands
@@ -50,7 +50,8 @@ npm --workspace @onservice/api test -- --runInBand \
   launch-limit-12-admin-password-rotation.test.ts \
   bug-ux-558-canonical-session-state.test.ts \
   bug-ux-559-dpo-transition-revocation.test.ts \
-  bug-ux-562-admin-session-timeout.test.ts
+  bug-ux-562-admin-session-timeout.test.ts \
+  auth-token-expiry-smoke.test.ts
 
 # SEC-007 — execute canonical Admin lockout identity and inspect the IP block helper
 npm --workspace @onservice/api test -- --runInBand \
@@ -61,7 +62,8 @@ grep -n "blocked_ips\|Auto-blocked" packages/api/src/services/security.service.t
 npm --workspace @onservice/api test -- --runInBand \
   bug-ux-560-dpo-api-route-matrix.test.ts \
   bug-ux-572-dpo-residual-operations-boundary.test.ts \
-  bug-ux-573-dpo-kyc-document-boundary.test.ts
+  bug-ux-573-dpo-kyc-document-boundary.test.ts \
+  admin-access-smoke.test.ts
 
 # SEC-009 — inspect the deployed response, not only repository config
 curl -fsSI https://admin.onservice.ph | grep -i "content-security-policy"
@@ -74,14 +76,16 @@ evidence for the active storage backend, Turnstile production keys, CSP response
 headers, Sentry, backups/PITR, and the current items in
 `docs/runbooks/launch-cutover.md`. A green unit test is not that evidence.
 
-SEC-008's 2026-09-06 reporting correction does not remove a guard or repair the
-old structural smoke tests. Inventory the actual server mounts and methods,
+SEC-008's 2026-09-06 reporting correction did not remove a guard. Its subsequent
+[smoke-test repair](audits/BEHAVIORAL-SMOKE-REPAIR-2026-09-06.md) replaces the
+four nonbehavioral assertions without changing application runtime. Inventory the actual server mounts and methods,
 including mixed customer/provider/admin families and aliases, then prove
 allowed and denied roles, credentials and record ownership with real requests
-before restoring an all-endpoints claim. The older smoke file also contains
-health/config source checks and self-constructed money arithmetic; those must
-not be cited as runtime liveness, token-expiry or ledger-conservation proof.
-Their behavioral replacement or explicit TODO classification remains open.
+before restoring an all-endpoints claim. Health now exercises the mounted
+server handlers with mocked dependencies; expiry checks inspect real issued
+JWTs and storage arguments. Commission arithmetic invokes the actual calculator
+with synthetic settings. Persisted capture/refund/escrow/payout conservation
+is an explicit TODO, not a claim inferred from those calculator assertions.
 
 ### Live authentication remediation (2026-08-24)
 
