@@ -73,6 +73,10 @@ what was captured by an older run.
    name, no published ports or external network, bounded resources and no live
    data-volume mount. Match the live PostgreSQL/PostGIS version. Create only
    the disposable target database and required fixture owner there.
+   Wait for the final server's TCP readiness, not just a Unix-socket probe:
+   the container image starts and stops a temporary initialization server.
+   Preserve startup logs privately so a failed restore can be distinguished
+   from connecting during that planned initialization shutdown.
 3. Stream the selected SQL into that isolated database. Use shell `pipefail`
    and `psql -v ON_ERROR_STOP=1`. A successful `users` count alone is not proof:
    check restoration exit status, expected schema/migrations, aggregate row
@@ -94,6 +98,12 @@ No SQL load should be attempted against live data as a diagnostic. A plain
 `pg_dump` is not an instruction to erase or merge into an existing database.
 The former advice to load onto live data and recreate it if errors appeared
 was unsafe and is superseded by the isolated rehearsal above.
+
+The [2026-09-06 exact-image rehearsal](../audits/EXACT-IMAGE-MIGRATION-172-2026-09-06.md)
+records a successful selected-set restoration, migrations through 172, original
+record comparison and SQL draft constraints, plus a failed initialization-race
+attempt. It does not sign off uploads coverage, cross-file consistency,
+off-host recovery, production-scale locking or live deployment.
 
 ## Actual incident recovery
 

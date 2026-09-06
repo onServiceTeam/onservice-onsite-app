@@ -177,3 +177,11 @@ These are rehearsal inputs and deliberately say `deploymentEligible: false`.
 No real CAPTCHA/demo credentials, authenticated acceptance, database migration,
 full rollback or business launch approval is implied. Candidate packaging does
 not publish either web app or activate the API on any server.
+
+The [2026-09-06 exact-image rehearsal](../audits/EXACT-IMAGE-MIGRATION-172-2026-09-06.md)
+verified the built-in runner through 172 on an isolated restored PG17 database,
+including all 16 pending files, complete resulting history, repeat invocation
+and original-record preservation with exact reviewed settings transformations.
+That named candidate still denies deployment eligibility. The separate paired
+publisher, authenticated compatibility and production-release prerequisites
+above remain required; the rehearsal is not a production rollout.

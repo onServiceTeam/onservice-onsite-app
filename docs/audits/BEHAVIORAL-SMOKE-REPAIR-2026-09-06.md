@@ -57,3 +57,16 @@ blanket certification of the other legacy tests, UI/Stitch parity, authenticated
 live journeys, legal readiness or release readiness. In particular, another
 discovered older graceful-shutdown test uses source assertions and still needs
 its own behavioral review; it was not changed in this slice.
+
+## Published checkpoint and independent CI verification
+
+Commit `428f9e37c87c8653d96d05ea5ff2de507e6d995c` is published on the existing
+review branch. [CI 34018485518](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/34018485518)
+and [Gates 34018485516](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/34018485516)
+completed successfully. All four CI jobs passed: API, Admin, Mobile/web and
+actual Docker image boot. API job `101446584230` explicitly passed all four
+smoke files and reported **970 suites, 3,405 passed tests, 2 TODO, 93.811 seconds**.
+The TODOs remain unimplemented; neither green CI nor its report-mode gates
+certifies whole-app acceptance. This supersedes the earlier local-checkpoint
+CI-pending statement, not its scope limits. No master merge or live deployment
+occurred. Candidate retention was not requested for this test/docs-only push.
