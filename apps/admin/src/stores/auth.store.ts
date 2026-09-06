@@ -144,9 +144,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     hydrationRevision += 1;
     retireAdminRequestSession();
+    const requestSession = captureAdminRequestSession();
     try {
       await api.post('/api/v1/auth/admin/logout');
-    } catch { /* best effort — clear local state regardless */ }
+    } catch { /* best effort — clear the initiating local session below */ }
+    // A later sign-in, password replacement, role change or logout owns its
+    // own state. Even an obsolete failed logout must not clear that state.
+    if (!isAdminRequestSessionCurrent(requestSession)) return;
     // Also retire a startup check that began while logout was awaiting HTTP.
     hydrationRevision += 1;
     retireAdminRequestSession();

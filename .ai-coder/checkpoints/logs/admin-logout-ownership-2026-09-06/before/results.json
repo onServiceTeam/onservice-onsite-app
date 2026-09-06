@@ -1,0 +1,139 @@
+{
+  "sourceRevision": "9382ac7e912ce073d1bb8296e2ed857311c1b580",
+  "createdAt": "2026-09-06T04:57:54.515Z",
+  "evidenceType": "compiled logout completion, current login and fresh provider note; synthetic HTTP; excludes delayed Set-Cookie",
+  "indexSha256": "bc3b7e2d73e97d2f3bbb72f5566866aeb2e87c5d59b3aedffffef4d66ff09967",
+  "entrySha256": "4988fef5a39afd0391df82ca2d389fa628b776a0b0942fc122886adc2191125e",
+  "checks": [],
+  "failure": "Error: expect(page).toHaveURL(expected) failed\n\nExpected: \"http://127.0.0.1:51225/\"\nReceived: \"http://127.0.0.1:51225/login\"\nTimeout:  5000ms\n\nCall log:\n  - Expect \"to.have.url\" with timeout 5000ms\n    14 × unexpected value \"http://127.0.0.1:51225/login\"\n\n    at captureRawStack (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright-core\\lib\\coreBundle.js:3130:17)\n    at callMatcherAsStep (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright\\lib\\matchers\\expect.js:12873:57)\n    at Object.toHaveURL (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright\\lib\\matchers\\expect.js:12863:23)\n    at C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\.ai-coder\\checkpoints\\logs\\admin-logout-ownership-2026-09-06\\audit.mjs:145:26",
+  "failedScenario": {
+    "width": 320,
+    "scenario": "different-login",
+    "requests": [
+      {
+        "method": "GET",
+        "path": "/api/v1/auth/me",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/kpis",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/revenue-trend",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/booking-volume",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/acquisition-funnel",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/alerts",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/compliance/dsr-alerts",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/cities",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/analytics/quality-watch",
+        "csrf": null
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/admin/logout",
+        "csrf": "synthetic-old-csrf"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/admin/logout",
+        "csrf": "synthetic-old-csrf"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/admin/login",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/kpis",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/revenue-trend",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/booking-volume",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/acquisition-funnel",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/alerts",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/compliance/dsr-alerts",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/cities",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/analytics/quality-watch",
+        "csrf": null
+      }
+    ],
+    "unexpected": [],
+    "errors": [],
+    "captures": [
+      "320-different-login-signed-out.png"
+    ],
+    "navigations": [
+      "/",
+      "/",
+      "/login",
+      "/login",
+      "/",
+      "/",
+      "/login",
+      "/login"
+    ],
+    "documents": [
+      "/"
+    ],
+    "overflows": [
+      {
+        "stage": "signed-out",
+        "pixels": 0
+      }
+    ]
+  }
+}

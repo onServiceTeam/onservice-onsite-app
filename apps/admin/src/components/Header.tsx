@@ -176,11 +176,6 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
     return () => window.clearInterval(timer);
   }, []);
 
-  const handleLogout = async (): Promise<void> => {
-    await logout();
-    navigate('/login');
-  };
-
   const chooseResult = (to: string): void => {
     navigate(to);
     setQuery('');
@@ -409,7 +404,9 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
             <button type="button" onClick={() => chooseResult('/change-password')} className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]">
               <Key size={17} /> Change password
             </button>
-            <button type="button" onClick={() => void handleLogout()} className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-[var(--color-danger)] hover:bg-[var(--color-danger-bg)]">
+            {/* AdminLayout routes from current auth state. An old Header
+                callback must not navigate after another operator signs in. */}
+            <button type="button" onClick={() => void logout()} className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-[var(--color-danger)] hover:bg-[var(--color-danger-bg)]">
               <ArrowRight size={17} aria-hidden="true" /> Log out
             </button>
           </div>

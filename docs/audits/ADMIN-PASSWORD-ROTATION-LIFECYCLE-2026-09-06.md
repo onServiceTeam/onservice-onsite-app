@@ -157,3 +157,14 @@ No build or browser matrix overlapped the run. Existing marketing-dialog
 description warnings remain. No timeout, assertion, lint rule, test configuration
 or gate was weakened. This resolves the complete-local-suite requirement above;
 fresh candidate GitHub CI and safe deployment are still separate requirements.
+
+## Independent CI and later logout correction
+
+Published `9382ac7e912ce073d1bb8296e2ed857311c1b580` passed all four jobs in
+CI `34011734961` and Gates `34011734968`. Admin job `101428639849` explicitly
+passed the seven supporting lifecycle tests at `04:33:40Z`, UX-1372 at
+`04:34:01Z`, UX-1371 at `04:35:44Z`, and **588 files / 691 tests**, one skipped
+file / three TODOs, at `04:43:54Z`. This resolves fresh CI for this checkpoint,
+not deployment. A subsequent logout investigation reproduced the old completion
+clearing a new login. Its separate correction and evidence are recorded in
+`ADMIN-LOGOUT-OWNERSHIP-2026-09-06.md`; cookie ordering and E79 remain open.

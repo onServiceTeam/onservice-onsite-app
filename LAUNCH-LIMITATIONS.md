@@ -2649,3 +2649,34 @@ Final complete local verification passed **588 files / 691 tests**, with
 pass on the same build: 42 refresh-result and 18 request-ownership scenarios.
 Together there are 84 passing synthetic browser scenarios / 234 final captures.
 This resolves the local suite/repeat requirements, not fresh CI or deployment.
+
+Independent verification: `9382ac7e` passed all four CI jobs in `34011734961`
+and Gates `34011734968`. Actual admin logs pass UX-1371/1372, seven supporting
+lifecycle tests and all 691 tests, with three TODOs. Fresh CI for this password
+checkpoint is resolved; deployment and broader authentication remain open.
+
+## 83. An obsolete admin logout completion could discard a new login
+
+UX-1373 reproduces two pending Header logout requests, the newer request
+finishing, a real new login, then the older completion clearing that operator.
+The store now limits completion cleanup to the current request lifetime. Header
+uses the existing authentication route guard instead of an unconditional delayed
+redirect. Current logout still clears local protected state on success or failure.
+
+Focused tests pass 6 files / 16 tests; types, changed-file lint and the unchanged
+ID gate pass. Eighteen new compiled synthetic browser scenarios pass across six
+widths, including current-operator verification and one correctly attributed
+provider-support note. Prior request/password matrices also pass: **60 scenarios /
+180 final captures** combined, with no page exceptions, unexpected HTTP or
+document overflow. The failed old-build evidence is retained.
+
+**Complete local suite and fresh CI pending; candidate only, not deployed.**
+This is not delayed Set-Cookie arbitration, cross-tab isolation, server revocation,
+realtime acceptance or full Stitch review. No server, live credentials, financial
+or historical record changed. Evidence and wider E79/release limitations:
+`docs/audits/ADMIN-LOGOUT-OWNERSHIP-2026-09-06.md`.
+
+Final complete four-worker local verification passed **590 files / 697 tests**,
+with 1 skipped file / 3 TODOs, in 346.56 seconds. The complete-local-suite
+requirement is resolved; fresh candidate CI and production deployment are not
+implied. The wider E79 limitations remain open.

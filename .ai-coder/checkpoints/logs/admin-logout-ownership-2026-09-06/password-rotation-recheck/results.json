@@ -1,0 +1,2537 @@
+{
+  "sourceRevision": "9382ac7e912ce073d1bb8296e2ed857311c1b580 plus local UX-1373 logout ownership",
+  "createdAt": "2026-09-06T05:02:40.967Z",
+  "evidenceType": "compiled mandatory rotation/draft/completion lifecycle; synthetic HTTP; not live authentication",
+  "indexSha256": "503fe42ca5ae7588bb4f80ca7b93362b6dc2c23dc2d4d5ce9437f67b27e4452d",
+  "entrySha256": "1426de87dda59a9dac586619f3059aa1d63ba3f8c5f556bb0a3d00efca2333f2",
+  "checks": [
+    {
+      "width": 320,
+      "scenario": "runtime-required",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-runtime-required-mandatory.png",
+        "320-runtime-required-updated.png",
+        "320-runtime-required-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "mandatory",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 320,
+      "scenario": "draft-required",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-draft-required-retained-draft.png",
+        "320-draft-required-updated.png",
+        "320-draft-required-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "retained-draft",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 320,
+      "scenario": "late-after-success",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-late-after-success-updated.png",
+        "320-late-after-success-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 320,
+      "scenario": "required-submit-failure",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-required-submit-failure-mandatory.png",
+        "320-required-submit-failure-rejected.png",
+        "320-required-submit-failure-updated.png",
+        "320-required-submit-failure-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "mandatory",
+          "pixels": 0
+        },
+        {
+          "stage": "rejected",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 2,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 390,
+      "scenario": "runtime-required",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-runtime-required-mandatory.png",
+        "390-runtime-required-updated.png",
+        "390-runtime-required-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "mandatory",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 390,
+      "scenario": "draft-required",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-draft-required-retained-draft.png",
+        "390-draft-required-updated.png",
+        "390-draft-required-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "retained-draft",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 390,
+      "scenario": "late-after-success",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-late-after-success-updated.png",
+        "390-late-after-success-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 390,
+      "scenario": "required-submit-failure",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-required-submit-failure-mandatory.png",
+        "390-required-submit-failure-rejected.png",
+        "390-required-submit-failure-updated.png",
+        "390-required-submit-failure-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "mandatory",
+          "pixels": 0
+        },
+        {
+          "stage": "rejected",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 2,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 768,
+      "scenario": "runtime-required",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-runtime-required-mandatory.png",
+        "768-runtime-required-updated.png",
+        "768-runtime-required-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "mandatory",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 768,
+      "scenario": "draft-required",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-draft-required-retained-draft.png",
+        "768-draft-required-updated.png",
+        "768-draft-required-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "retained-draft",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 768,
+      "scenario": "late-after-success",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-late-after-success-updated.png",
+        "768-late-after-success-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 768,
+      "scenario": "required-submit-failure",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-required-submit-failure-mandatory.png",
+        "768-required-submit-failure-rejected.png",
+        "768-required-submit-failure-updated.png",
+        "768-required-submit-failure-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "mandatory",
+          "pixels": 0
+        },
+        {
+          "stage": "rejected",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 2,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1024,
+      "scenario": "runtime-required",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-runtime-required-mandatory.png",
+        "1024-runtime-required-updated.png",
+        "1024-runtime-required-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "mandatory",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1024,
+      "scenario": "draft-required",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-draft-required-retained-draft.png",
+        "1024-draft-required-updated.png",
+        "1024-draft-required-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "retained-draft",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1024,
+      "scenario": "late-after-success",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-late-after-success-updated.png",
+        "1024-late-after-success-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1024,
+      "scenario": "required-submit-failure",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-required-submit-failure-mandatory.png",
+        "1024-required-submit-failure-rejected.png",
+        "1024-required-submit-failure-updated.png",
+        "1024-required-submit-failure-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "mandatory",
+          "pixels": 0
+        },
+        {
+          "stage": "rejected",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 2,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1366,
+      "scenario": "runtime-required",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-runtime-required-mandatory.png",
+        "1366-runtime-required-updated.png",
+        "1366-runtime-required-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "mandatory",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1366,
+      "scenario": "draft-required",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-draft-required-retained-draft.png",
+        "1366-draft-required-updated.png",
+        "1366-draft-required-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "retained-draft",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1366,
+      "scenario": "late-after-success",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-late-after-success-updated.png",
+        "1366-late-after-success-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1366,
+      "scenario": "required-submit-failure",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-required-submit-failure-mandatory.png",
+        "1366-required-submit-failure-rejected.png",
+        "1366-required-submit-failure-updated.png",
+        "1366-required-submit-failure-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "mandatory",
+          "pixels": 0
+        },
+        {
+          "stage": "rejected",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 2,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1920,
+      "scenario": "runtime-required",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-runtime-required-mandatory.png",
+        "1920-runtime-required-updated.png",
+        "1920-runtime-required-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "mandatory",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1920,
+      "scenario": "draft-required",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-draft-required-retained-draft.png",
+        "1920-draft-required-updated.png",
+        "1920-draft-required-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "retained-draft",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1920,
+      "scenario": "late-after-success",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-late-after-success-updated.png",
+        "1920-late-after-success-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 1,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1920,
+      "scenario": "required-submit-failure",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic pending support note",
+            "category": "general",
+            "pinned": false
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/security/admin/me/change-password",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-required-submit-failure-mandatory.png",
+        "1920-required-submit-failure-rejected.png",
+        "1920-required-submit-failure-updated.png",
+        "1920-required-submit-failure-operations.png"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "overflow": [
+        {
+          "stage": "mandatory",
+          "pixels": 0
+        },
+        {
+          "stage": "rejected",
+          "pixels": 0
+        },
+        {
+          "stage": "updated",
+          "pixels": 0
+        },
+        {
+          "stage": "operations",
+          "pixels": 0
+        }
+      ],
+      "passwordAttempts": 2,
+      "passwordCommitted": true,
+      "noteSettled": true,
+      "blockedRealtimeConnections": 1
+    }
+  ],
+  "failure": null,
+  "failedScenario": null
+}
