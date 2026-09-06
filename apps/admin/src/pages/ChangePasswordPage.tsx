@@ -19,6 +19,7 @@ import React, { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import api, { getErrorMessage } from '@/lib/api';
+import { captureAdminRequestSession } from '@/lib/admin-request-session';
 import {
   Button,
   Card,
@@ -81,12 +82,13 @@ export default function ChangePasswordPage(): React.ReactElement {
     if (!formValid || submitting) return;
     setSubmitting(true);
     setError(null);
+    const requestSession = captureAdminRequestSession();
     try {
       await api.post('/api/v1/security/admin/me/change-password', {
         oldPassword,
         newPassword,
       });
-      clearMustRotate();
+      clearMustRotate(requestSession);
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -136,7 +138,7 @@ export default function ChangePasswordPage(): React.ReactElement {
       )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
-        {done ? (
+        {done && !mustRotatePassword ? (
           <Card className="border-[var(--color-success)]" role="status" aria-live="polite">
             <CardContent className="flex min-h-80 flex-col items-start justify-center p-6 sm:p-8">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--color-success-bg)] text-[var(--color-success)]">

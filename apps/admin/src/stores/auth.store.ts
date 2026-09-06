@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import api from '@/lib/api';
 import {
+  assertAdminRequestSession,
   captureAdminRequestSession,
   isAdminRequestSessionCurrent,
   retireAdminRequestSession,
+  subscribeAdminPasswordRotationRequired,
 } from '@/lib/admin-request-session';
 
 export interface AdminUser {
@@ -33,7 +35,7 @@ interface AuthState {
 
   hydrate: () => Promise<void>;
   login: (user: AdminUser, opts?: { mustRotatePassword?: boolean }) => void;
-  clearMustRotate: () => void;
+  clearMustRotate: (completedSession: object) => void;
   logout: () => Promise<void>;
 }
 
@@ -129,8 +131,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
-  clearMustRotate: () => {
-    set({ mustRotatePassword: false });
+  clearMustRotate: (completedSession) => {
+    // The successful password change replaces this browser's server session.
+    // Old reads/requirements cannot overwrite its completed state, nor can an
+    // obsolete password callback clear another operator's requirement.
+    assertAdminRequestSession(completedSession);
+    hydrationRevision += 1;
+    retireAdminRequestSession();
+    set({ mustRotatePassword: false, isLoading: false });
   },
 
   logout: async () => {
@@ -145,3 +153,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user: null, isAuthenticated: false, isLoading: false, mustRotatePassword: false });
   },
 }));
+
+const unsubscribePasswordRotation = subscribeAdminPasswordRotationRequired(() => {
+  const state = useAuthStore.getState();
+  if (!state.isAuthenticated || !state.user) return;
+  // An earlier /auth/me response may still contain false. This explicit
+  // requirement is newer evidence, but must not cancel an in-flight change.
+  hydrationRevision += 1;
+  useAuthStore.setState({ mustRotatePassword: true, isLoading: false });
+});
+
+if (import.meta.hot) import.meta.hot.dispose(unsubscribePasswordRotation);

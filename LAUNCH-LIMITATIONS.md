@@ -2618,3 +2618,34 @@ is resolved; fresh CI/deployment remain separate. Subsequently, local UX-1371
 reproduced the runtime rotation redirect not marking the password screen as
 mandatory. That new failing investigation is not part of the 682-test result or
 this verified candidate publication; see the audit's follow-up section.
+
+Independent verification: `a67b211c` passed all four jobs in CI `34009903130`
+and Gates `34009903135`. Actual admin logs pass UX-1370, three refresh-result
+tests and all 682 tests, with three TODOs. Fresh CI for that checkpoint is
+resolved. The rotation investigation below is newer; no deployment occurred.
+
+## 82. Admin runtime password requirements could look optional or reappear after completion
+
+UX-1371 reproduces a current requirement navigating to Change Password without
+marking the form and route guard mandatory. UX-1372 independently reproduces an
+older response sending the operator back after a successful password change.
+The candidate now reports current requirements to owned auth state, invalidates
+older startup evidence, and retires old request ownership after successful
+password replacement. Already-open drafts survive a new requirement; rejected
+passwords remain required; a fresh later requirement still takes effect.
+
+Focused real-render checks pass 6 files / 27 tests; TypeScript, lint and the
+unchanged ID gate pass. Twenty-four compiled synthetic browser scenarios pass
+at six widths with 72 captures, no unexpected HTTP, page exceptions or captured
+document overflow. The failed old-build screenshot and trace are retained.
+**Complete local suite and fresh CI remain required; candidate-only, not deployed.**
+Evidence and explicit scope: `docs/audits/ADMIN-PASSWORD-ROTATION-LIFECYCLE-2026-09-06.md`.
+Cookie-response ordering, cross-tab identity, old logout completion, broad
+screen/design acceptance and safe release integration remain open. No server
+enforcement, security hold, live credential, financial or historical row changed.
+
+Final complete local verification passed **588 files / 691 tests**, with
+1 skipped file / 3 TODOs, in 353.87 seconds. The prior browser matrices also
+pass on the same build: 42 refresh-result and 18 request-ownership scenarios.
+Together there are 84 passing synthetic browser scenarios / 234 final captures.
+This resolves the local suite/repeat requirements, not fresh CI or deployment.

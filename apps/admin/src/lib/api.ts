@@ -12,7 +12,7 @@
 // and replays the original request. If refresh also fails, redirects to
 // /login.
 
-import { assertAdminRequestSession, captureAdminRequestSession, retireAdminRequestSession } from './admin-request-session';
+import { assertAdminRequestSession, captureAdminRequestSession, reportAdminPasswordRotationRequired, retireAdminRequestSession } from './admin-request-session';
 
 interface ApiSuccess<T> {
   success: true;
@@ -161,14 +161,15 @@ async function request<T>(
     if (
       err instanceof ApiError
       && err.body?.error?.code === 'password_rotation_required'
-      && typeof window !== 'undefined'
-      && window.location.pathname !== '/change-password'
     ) {
-      window.history.replaceState(null, '', '/change-password');
-      // Use the base event constructor so the shared ESLint environment does
-      // not require a browser-only PopStateEvent global. React Router only
-      // needs the event type after replaceState has updated the URL.
-      window.dispatchEvent(new Event('popstate'));
+      // Mark the route guard and form even if the operator is already editing
+      // their password. Navigation alone leaves this looking voluntary.
+      reportAdminPasswordRotationRequired(session);
+      if (typeof window !== 'undefined' && window.location.pathname !== '/change-password') {
+        window.history.replaceState(null, '', '/change-password');
+        // React Router only needs the event type after the URL has changed.
+        window.dispatchEvent(new Event('popstate'));
+      }
       throw err;
     }
     if (

@@ -1,0 +1,3347 @@
+{
+  "sourceRevision": "a67b211c plus local UX-1371/1372 lifecycle correction",
+  "createdAt": "2026-09-06T04:18:45.897Z",
+  "evidenceType": "compiled note errors, refresh and auth destinations; synthetic HTTP; not live acceptance",
+  "indexSha256": "bc3b7e2d73e97d2f3bbb72f5566866aeb2e87c5d59b3aedffffef4d66ff09967",
+  "entrySha256": "4988fef5a39afd0391df82ca2d389fa628b776a0b0942fc122886adc2191125e",
+  "checks": [
+    {
+      "width": 320,
+      "outcome": "conflict",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-conflict-draft.png",
+        "320-conflict-actual-error.png",
+        "320-conflict-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "outcome": "forbidden",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-forbidden-draft.png",
+        "320-forbidden-actual-error.png",
+        "320-forbidden-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "outcome": "server-error",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-server-error-draft.png",
+        "320-server-error-actual-error.png",
+        "320-server-error-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "outcome": "transport-error",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-transport-error-draft.png",
+        "320-transport-error-actual-error.png",
+        "320-transport-error-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "outcome": "rotation",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-rotation-draft.png",
+        "320-rotation-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/change-password",
+        "/change-password"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "outcome": "unauthorized",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-refreshed-csrf"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-unauthorized-draft.png",
+        "320-unauthorized-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login",
+        "/login"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "outcome": "refresh-rejected",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-refresh-rejected-draft.png",
+        "320-refresh-rejected-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login",
+        "/login"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "outcome": "conflict",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-conflict-draft.png",
+        "390-conflict-actual-error.png",
+        "390-conflict-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "outcome": "forbidden",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-forbidden-draft.png",
+        "390-forbidden-actual-error.png",
+        "390-forbidden-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "outcome": "server-error",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-server-error-draft.png",
+        "390-server-error-actual-error.png",
+        "390-server-error-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "outcome": "transport-error",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-transport-error-draft.png",
+        "390-transport-error-actual-error.png",
+        "390-transport-error-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "outcome": "rotation",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-rotation-draft.png",
+        "390-rotation-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/change-password",
+        "/change-password"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "outcome": "unauthorized",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-refreshed-csrf"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-unauthorized-draft.png",
+        "390-unauthorized-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login",
+        "/login"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "outcome": "refresh-rejected",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-refresh-rejected-draft.png",
+        "390-refresh-rejected-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login",
+        "/login"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "outcome": "conflict",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-conflict-draft.png",
+        "768-conflict-actual-error.png",
+        "768-conflict-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "outcome": "forbidden",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-forbidden-draft.png",
+        "768-forbidden-actual-error.png",
+        "768-forbidden-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "outcome": "server-error",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-server-error-draft.png",
+        "768-server-error-actual-error.png",
+        "768-server-error-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "outcome": "transport-error",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-transport-error-draft.png",
+        "768-transport-error-actual-error.png",
+        "768-transport-error-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "outcome": "rotation",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-rotation-draft.png",
+        "768-rotation-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/change-password",
+        "/change-password"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "outcome": "unauthorized",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-refreshed-csrf"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-unauthorized-draft.png",
+        "768-unauthorized-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login",
+        "/login"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "outcome": "refresh-rejected",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-refresh-rejected-draft.png",
+        "768-refresh-rejected-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login",
+        "/login"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "outcome": "conflict",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-conflict-draft.png",
+        "1024-conflict-actual-error.png",
+        "1024-conflict-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "outcome": "forbidden",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-forbidden-draft.png",
+        "1024-forbidden-actual-error.png",
+        "1024-forbidden-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "outcome": "server-error",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-server-error-draft.png",
+        "1024-server-error-actual-error.png",
+        "1024-server-error-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "outcome": "transport-error",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-transport-error-draft.png",
+        "1024-transport-error-actual-error.png",
+        "1024-transport-error-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "outcome": "rotation",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-rotation-draft.png",
+        "1024-rotation-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/change-password",
+        "/change-password"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "outcome": "unauthorized",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-refreshed-csrf"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-unauthorized-draft.png",
+        "1024-unauthorized-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login",
+        "/login"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "outcome": "refresh-rejected",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-refresh-rejected-draft.png",
+        "1024-refresh-rejected-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login",
+        "/login"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "outcome": "conflict",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-conflict-draft.png",
+        "1366-conflict-actual-error.png",
+        "1366-conflict-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "outcome": "forbidden",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-forbidden-draft.png",
+        "1366-forbidden-actual-error.png",
+        "1366-forbidden-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "outcome": "server-error",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-server-error-draft.png",
+        "1366-server-error-actual-error.png",
+        "1366-server-error-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "outcome": "transport-error",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-transport-error-draft.png",
+        "1366-transport-error-actual-error.png",
+        "1366-transport-error-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "outcome": "rotation",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-rotation-draft.png",
+        "1366-rotation-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/change-password",
+        "/change-password"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "outcome": "unauthorized",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-refreshed-csrf"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-unauthorized-draft.png",
+        "1366-unauthorized-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login",
+        "/login"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "outcome": "refresh-rejected",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-refresh-rejected-draft.png",
+        "1366-refresh-rejected-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login",
+        "/login"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "outcome": "conflict",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-conflict-draft.png",
+        "1920-conflict-actual-error.png",
+        "1920-conflict-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "outcome": "forbidden",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-forbidden-draft.png",
+        "1920-forbidden-actual-error.png",
+        "1920-forbidden-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "outcome": "server-error",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-server-error-draft.png",
+        "1920-server-error-actual-error.png",
+        "1920-server-error-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "outcome": "transport-error",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-transport-error-draft.png",
+        "1920-transport-error-actual-error.png",
+        "1920-transport-error-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Synthetic Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "outcome": "rotation",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-rotation-draft.png",
+        "1920-rotation-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/change-password",
+        "/change-password"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "outcome": "unauthorized",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-refreshed-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-refreshed-csrf"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-unauthorized-draft.png",
+        "1920-unauthorized-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login",
+        "/login"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "outcome": "refresh-rejected",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-original-csrf",
+          "body": {
+            "body": "Synthetic support note draft",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "csrf": "synthetic-original-csrf"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-refresh-rejected-draft.png",
+        "1920-refresh-rejected-settled.png"
+      ],
+      "navigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login",
+        "/login"
+      ],
+      "documentNavigations": [
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "/login"
+      ],
+      "storedNotes": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    }
+  ],
+  "failure": null,
+  "failedScenario": null
+}

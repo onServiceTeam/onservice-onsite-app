@@ -131,3 +131,17 @@ bypass: existing API rotation enforcement remains unchanged. Continue with owned
 mandatory-state propagation, current/already-open/obsolete rotation responses,
 password-change completion, and the other E79 session boundaries. Do not remove
 the required rotation or security controls to make the UI appear successful.
+
+## Independent verification and rotation follow-up
+
+Published `a67b211c8e9c12e4df42ea302781c032663730d6` passed all four jobs in CI
+`34009903130` and Gates `34009903135`. Admin job `101423783315` explicitly
+passed UX-1370 at `2026-09-06T03:51:34Z`, the three refresh-result tests at
+`03:51:40Z`, and 585 files / 682 tests, with 1 skipped file / 3 TODOs, at
+`04:01:15Z`. Fresh CI for this checkpoint is resolved, not production release.
+
+The later UX-1371 investigation and the separately reproduced UX-1372 obsolete
+rotation-after-password-change defect are now being corrected and verified in
+`docs/audits/ADMIN-PASSWORD-ROTATION-LIFECYCLE-2026-09-06.md`. This supersedes the
+earlier statement that no local runtime correction exists, not the historical
+682-test scope or the broader E79/release boundaries.
