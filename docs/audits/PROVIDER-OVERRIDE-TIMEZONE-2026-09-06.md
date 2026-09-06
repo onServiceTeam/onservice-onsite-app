@@ -73,3 +73,14 @@ before claiming either a leak or safety. This ownership check takes priority
 over adding a new diagnostics tab. Only the first 530 lines of the 2,661-line
 page and the first 245 lines of its 1,825-line service were read in this
 timezone checkpoint; a full-page/service audit is not claimed.
+
+## Published candidate CI verified
+
+Candidate `1cf7e309020f115e2cffad18d8728d031a7b8922` passed CI
+`33999991201` (all four jobs) and Gates `33999991204`. Mobile job
+`101397010069` explicitly logs UX-1355 passed at `2026-09-05T23:58:53Z`;
+the complete **594 suites / 878 tests** passed, with **84 TODOs**, at
+`23:59:48Z`. This resolves the preceding fresh-CI requirement, not the
+remaining native, whole-product design, production or release requirements.
+The subsequent Provider 360 full-page read and record-ownership reproduction
+are documented separately in `PROVIDER-RECORD-OWNERSHIP-2026-09-06.md`.

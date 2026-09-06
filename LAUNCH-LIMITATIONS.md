@@ -2457,3 +2457,25 @@ Complete mobile tests pass 594 suites / 878 tests, with 84 TODOs; types, lint
 and the unchanged regression-ID gate pass. **Candidate correction, not deployed;
 fresh CI remains required.** Evidence and remaining accessibility/operator work:
 `docs/audits/PROVIDER-OVERRIDE-TIMEZONE-2026-09-06.md`.
+
+Published candidate `1cf7e309` subsequently passed CI `33999991201` (all
+four jobs) and Gates `33999991204`. UX-1355 explicitly passed in the mobile
+job; 594 suites / 878 tests passed, with 84 TODOs. The fresh-CI requirement
+above is resolved for that candidate, not production deployment.
+
+## 76. Provider 360 drafts and contact reveals could follow another record
+
+UX-1356 through UX-1359 reproduce cached-record navigation retaining another
+provider's private contact reveal, note draft, suspension confirmation and
+wallet-adjustment draft. The page's loaded subtree now follows the canonical
+provider ID, resetting those states on a different record while retaining an
+unsaved note during same-provider refresh. E76 records the narrow approved
+engineering containment; no financial policy or live transaction is changed.
+
+Four regressions failed before correction. Full admin tests afterward passed
+569 files / 653 tests, with 1 skipped file / 3 TODOs. Types, lint and the
+unchanged regression-ID gate passed. Thirty compiled-browser scenarios passed
+at six widths with 60 captures and no unexpected HTTP, page exceptions or
+document overflow. **Candidate correction, not deployed; fresh CI required.**
+Full evidence and remaining customer-record, operator and release work:
+`docs/audits/PROVIDER-RECORD-OWNERSHIP-2026-09-06.md`.

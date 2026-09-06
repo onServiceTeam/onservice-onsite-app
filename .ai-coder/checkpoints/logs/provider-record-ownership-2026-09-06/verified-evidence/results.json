@@ -1,0 +1,1012 @@
+{
+  "sourceRevision": "1cf7e309020f115e2cffad18d8728d031a7b8922 plus provider-root identity isolation",
+  "evidenceType": "compiled browser with synthetic HTTP; not live acceptance",
+  "createdAt": "2026-09-06T00:26:04.774Z",
+  "indexSha256": "bab59749b4134d1c2822c0c466a772a87e9e828a1349b55c9f936e4efe2a6d26",
+  "providerPageSha256": "9d63e57ef33f1afb6ed1d20f1f60d1a911a12b9b3b4c97efa96a060ad44ba84a",
+  "checks": [
+    {
+      "width": 320,
+      "scenario": "reveal",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "320-reveal-alpha.png",
+        "320-reveal-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "scenario": "delayed-reveal",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "320-delayed-reveal-alpha.png",
+        "320-delayed-reveal-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "scenario": "note",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "320-note-alpha.png",
+        "320-note-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/notes"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/notes"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "scenario": "decision",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "320-decision-alpha.png",
+        "320-decision-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "scenario": "wallet",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "320-wallet-alpha.png",
+        "320-wallet-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/financials"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/financials"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "scenario": "reveal",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "390-reveal-alpha.png",
+        "390-reveal-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "scenario": "delayed-reveal",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "390-delayed-reveal-alpha.png",
+        "390-delayed-reveal-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "scenario": "note",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "390-note-alpha.png",
+        "390-note-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/notes"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/notes"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "scenario": "decision",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "390-decision-alpha.png",
+        "390-decision-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "scenario": "wallet",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "390-wallet-alpha.png",
+        "390-wallet-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/financials"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/financials"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "scenario": "reveal",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "768-reveal-alpha.png",
+        "768-reveal-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "scenario": "delayed-reveal",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "768-delayed-reveal-alpha.png",
+        "768-delayed-reveal-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "scenario": "note",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "768-note-alpha.png",
+        "768-note-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/notes"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/notes"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "scenario": "decision",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "768-decision-alpha.png",
+        "768-decision-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "scenario": "wallet",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "768-wallet-alpha.png",
+        "768-wallet-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/financials"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/financials"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "reveal",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1024-reveal-alpha.png",
+        "1024-reveal-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "delayed-reveal",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1024-delayed-reveal-alpha.png",
+        "1024-delayed-reveal-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "note",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1024-note-alpha.png",
+        "1024-note-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/notes"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/notes"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "decision",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1024-decision-alpha.png",
+        "1024-decision-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "wallet",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1024-wallet-alpha.png",
+        "1024-wallet-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/financials"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/financials"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "reveal",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1366-reveal-alpha.png",
+        "1366-reveal-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "delayed-reveal",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1366-delayed-reveal-alpha.png",
+        "1366-delayed-reveal-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "note",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1366-note-alpha.png",
+        "1366-note-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/notes"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/notes"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "decision",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1366-decision-alpha.png",
+        "1366-decision-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "wallet",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1366-wallet-alpha.png",
+        "1366-wallet-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/financials"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/financials"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "reveal",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1920-reveal-alpha.png",
+        "1920-reveal-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "delayed-reveal",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1920-delayed-reveal-alpha.png",
+        "1920-delayed-reveal-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "note",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1920-note-alpha.png",
+        "1920-note-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/notes"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/notes"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "decision",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1920-decision-alpha.png",
+        "1920-decision-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "wallet",
+      "betaReadsBefore": 1,
+      "betaReadsAfter": 1,
+      "captures": [
+        "1920-wallet-alpha.png",
+        "1920-wallet-beta.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/financials"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/financials"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    }
+  ],
+  "failure": null
+}

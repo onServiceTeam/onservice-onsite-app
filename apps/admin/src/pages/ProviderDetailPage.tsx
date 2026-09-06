@@ -396,7 +396,9 @@ export default function ProviderDetailPage(): React.ReactElement {
   const p = profile.data;
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
+    // Reveals, drafts, and pending confirmations belong to this provider.
+    // A warm-cache route change must remount them; same-record refreshes must not.
+    <div key={p.id} className="space-y-6 p-4 sm:p-6">
       <Link
         to="/providers"
         className="inline-flex items-center gap-1 text-sm text-[var(--color-secondary)] hover:underline"
