@@ -1,8 +1,15 @@
 # Paired web/API release plan
 
-Status: planned, not an executed rollout or a publication helper. Read alongside
+Status: file-publication core implemented and Windows/Linux fixture-tested; production
+host integration and an actual rollout remain incomplete. Read alongside
 `exact-api-release.md` and `postgres-restore.md`. The existing workflow deploys
 only the API. No single success message proves all three surfaces are aligned.
+
+`scripts/server/paired-web-release.mjs` exports prepare, stage, publish, rollback
+and inspection operations. It has no default production adapters or deployment
+CLI. [The core audit](../audits/PAIRED-RELEASE-CORE-2026-09-06.md) records its exact
+tests and unimplemented integration boundaries. Do not supply permissive
+production callbacks or edit candidate flags to manufacture release acceptance.
 
 ## Identity and rollback checkpoint
 
@@ -63,9 +70,11 @@ Redis or uploads volume is part of frontend publication.
    linkage, booking history and the intended test-mode/payment limitations.
    Record each surface's actual revision before declaring alignment.
 
-Mutable-file ordering, deployment interruption and cross-surface version overlap
-need executable fixture tests before a publisher is used. The steps above are
-requirements, not evidence that those failure cases have already passed.
+The core's filesystem fixtures cover mutable-file ordering, selected interruption
+boundaries, root/asset preservation and rollback. Actual cross-version business
+compatibility, host/API/nginx adapters, abrupt-process failure and full dependency
+reference validation remain required. Those requirements are not established by
+a passed file-publication fixture or a returned acceptance callback.
 
 ## Failure handling
 
