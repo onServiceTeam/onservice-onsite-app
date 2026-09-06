@@ -2680,3 +2680,30 @@ Final complete four-worker local verification passed **590 files / 697 tests**,
 with 1 skipped file / 3 TODOs, in 346.56 seconds. The complete-local-suite
 requirement is resolved; fresh candidate CI and production deployment are not
 implied. The wider E79 limitations remain open.
+
+Independent logout verification: `860c8341` passed all four jobs in CI
+`34013764726` and Gates `34013764718`. Admin job `101433928259` explicitly
+passed UX-1373, the five supporting logout tests and 590 files / 697 tests,
+with one skipped file / three TODOs. Not deployed; broader E79 remains open.
+
+## 84. An older admin login's hash upgrade could overwrite a newer password
+
+Source review found that opportunistic legacy/weaker-password rehash writes
+were conditional on user ID only. A password replacement transaction's row
+lock does not prevent a waiting unconditional upgrade from subsequently
+restoring a hash of the old password. This is not a production incident claim.
+
+SEC-072 adds comparison with the exact originally verified hash, preserving a
+concurrent replacement or completed upgrade. Six new real-PostgreSQL tests
+exercise the HTTP password/login interleaving for all three admin-tier roles
+and both old hash formats, plus normal upgrades, competing logins, rejected
+passwords, upgrade failure and password-transaction rollback. They use only a
+guarded, test-owned schema, not live credentials or records.
+
+**Candidate only; database execution and fresh CI pending, not deployed.**
+Local focused results are eight passing suites / 26 tests and two skipped
+database suites / six tests. The skips are not passes or an executed failing
+baseline. API types, changed-file lint and the unchanged 1,569-regression ID
+gate pass. No migration, dependency, security hold or historical record changed.
+This does not resolve E79 cookie ordering, cross-tab authority or the wider
+session lifecycle. Details: `docs/audits/ADMIN-PASSWORD-REHASH-2026-09-06.md`.

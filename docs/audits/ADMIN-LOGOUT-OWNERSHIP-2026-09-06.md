@@ -121,3 +121,14 @@ browser matrix overlapped it. Existing marketing-dialog description warnings
 remain. No assertion, timeout, configuration, gate or lint rule was weakened.
 This resolves the full-local-suite requirement above; fresh candidate GitHub CI
 and safe paired deployment remain separate requirements.
+
+## Independent candidate CI
+
+Published candidate `860c834145ecb5b933e5521a96f7110d925b0015` passed all
+four jobs in CI `34013764726` and Gates `34013764718`. Actual Admin job
+`101433928259` logs record five supporting logout tests at `05:22:30.098Z`,
+UX-1373 at `05:22:43.431Z` (534ms), and the complete 590 files / 697 tests,
+one skipped file / three TODOs, at `05:28:36.782Z` (371.32 seconds total).
+API `101433928137`, Mobile `101433928266` and Docker `101434314335` also
+succeeded. This resolves the fresh-CI requirement for this checkpoint, not
+the server-cookie, cross-tab, wider product or paired-deployment requirements.

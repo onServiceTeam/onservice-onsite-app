@@ -605,7 +605,13 @@ router.post(
       if (verifyOutcome.needsRehash) {
         try {
           const newHash = authService.hashPassword(password);
-          await db.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [newHash, user.id]);
+          // SEC-072: this is an upgrade of the hash we verified, not a new
+          // password choice. A concurrent password replacement (or another
+          // completed upgrade) owns its newer hash and must not be overwritten.
+          await db.query(
+            `UPDATE users SET password_hash = $1 WHERE id = $2 AND password_hash = $3`,
+            [newHash, user.id, user.password_hash],
+          );
         } catch (err) {
           logger.warn('opportunistic password rehash failed', { err: String(err) });
         }
