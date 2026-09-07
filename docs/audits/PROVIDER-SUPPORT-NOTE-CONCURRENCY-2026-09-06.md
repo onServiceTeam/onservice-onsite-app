@@ -80,3 +80,13 @@ provider decisions, same-identity correction/resubmission or historical private
 evidence. The existing review branch still needs exact matching release
 artifacts, migration 173 rehearsal, authenticated acceptance and safe alignment
 with master/production.
+
+## Independent verification after publication
+
+Commit `8e755bdcdd820423d9207b7db081bc78078e2d7e` passed Gates `34040199589`
+and all four jobs in CI `34040199586`. Completed API job `101505439412`
+explicitly passed OPS-509, PHASE164-01, UX-860 and UX-201. All **984 suites /
+3,428 tests passed**, with two existing TODOs. This resolves the exact-commit
+CI uncertainty above, not deployment or the remaining operator/release work.
+API/admin release artifact packaging was not requested for this run; green
+tests are not a matched-artifact rollout receipt.

@@ -291,3 +291,27 @@ implementation under E21/E43. Routine mutation protection is not legal approval
 for indefinite retention. Exact selected-image migration 173, paired release
 acceptance, legacy admission and full browser/native/Stitch verification remain
 open. Evidence and explicit scope: `docs/audits/PROVIDER-SUBMITTED-EVIDENCE-2026-09-06.md`.
+
+## Exact submitted-evidence reader, 2026-09-07
+
+Provider 360 now has private admin/super-admin API reads for a bounded revision
+history, an exact revision's recorded fields and its original KYC documents.
+The collection uses exclusive revision-number pagination and distinguishes an
+empty older page from absent historical evidence. Details retain original
+market/category labels and optional nulls. Current provider status is separately
+labelled context, not the decision on a particular revision. Neither a mutable
+profile nor legacy progress data is used to reconstruct missing evidence.
+
+Historical document retrieval is scoped by provider and revision, validates the
+owned stored key and streams behind current-session authorization. It never
+substitutes a newer KYC reference or creates a shareable historical document
+link. Schema failures return 503, not empty history. API responses remain
+private/no-store, including denied requests. No decision, role or historical
+row is changed by these reads.
+
+This is API groundwork only: the admin revision panel and revision-bound
+decisions are not yet wired. Same-identity correction/resubmission, assignment,
+notices, governed legacy admission, retained object-byte verification and
+E21/E43 remain required. Full local tests retain the two Docker-unavailable
+nginx failures; fresh CI and selected-release acceptance remain open. Exact
+evidence: `docs/audits/PROVIDER-SUBMISSION-REVIEW-READER-2026-09-07.md`.

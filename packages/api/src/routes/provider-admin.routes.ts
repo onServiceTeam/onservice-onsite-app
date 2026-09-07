@@ -15,6 +15,7 @@ import { createAppError } from '../middleware/error.middleware';
 import * as providerAdminService from '../services/provider-admin.service';
 import * as providerStaffService from '../services/provider-staff.service';
 import * as kycDocumentService from '../services/kyc-document.service';
+import * as applicationEvidenceService from '../services/provider-application-evidence.service';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { providerCertificationReviewSchema } from '../validators/provider.validators';
 import { ALL_BOOKING_STATUSES } from '../types/booking.types';
@@ -41,6 +42,7 @@ const validateReviewId = validateUuidParam('reviewId', 'Review ID');
 const validateNoteId = validateUuidParam('noteId', 'Note ID');
 const validateStaffId = validateUuidParam('staffId', 'Staff ID');
 const validateCertificationId = validateUuidParam('certId', 'Certification ID');
+const validateRevisionId = validateUuidParam('revisionId', 'Application revision ID');
 
 function positiveIntegerQuery(
   value: unknown,
@@ -89,6 +91,63 @@ router.get(
     } catch (error) {
       next(error);
     }
+  },
+);
+
+// E35/E74: private submitted evidence, separate from the mutable profile.
+// These reads neither approve an application nor infer historical admission.
+router.get(
+  '/:id/application-revisions', authMiddleware, validateProviderId,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      if (Object.keys(req.query).some(key => key !== 'limit' && key !== 'beforeRevision')) {
+        throw createAppError('Only limit and beforeRevision are supported for application history.', 400);
+      }
+      const data = await applicationEvidenceService.listApplicationRevisions({
+        providerId: req.params.id as string, requesterRole: req.user!.role,
+        limit: positiveIntegerQuery(req.query.limit, 'limit', 20, 100),
+        beforeRevision: req.query.beforeRevision === undefined ? undefined
+          : positiveIntegerQuery(req.query.beforeRevision, 'beforeRevision', 1, 2_147_483_647),
+      });
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
+  '/:id/application-revisions/:revisionId', authMiddleware, validateProviderId, validateRevisionId,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const data = await applicationEvidenceService.getApplicationRevision({
+        providerId: req.params.id as string, revisionId: req.params.revisionId as string,
+        requesterRole: req.user!.role,
+      });
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
+  '/:id/application-revisions/:revisionId/kyc/:docType', authMiddleware, validateProviderId, validateRevisionId,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const docType = req.params.docType;
+      if (!kycDocumentService.isKycDocType(docType)) throw createAppError('Invalid document type.', 400);
+      // No mode=link alternative: historical identity files stay behind the
+      // current-session authenticated proxy, not a new shareable bearer URL.
+      const stream = await applicationEvidenceService.getApplicationRevisionDocument({
+        providerId: req.params.id as string, revisionId: req.params.revisionId as string,
+        docType, requesterRole: req.user!.role,
+      });
+      res.setHeader('Content-Type', stream.contentType);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      if (stream.contentLength != null) res.setHeader('Content-Length', String(stream.contentLength));
+      stream.body.on('error', (error: Error) => next(error));
+      stream.body.pipe(res);
+    } catch (error) { next(error); }
   },
 );
 

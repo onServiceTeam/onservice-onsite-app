@@ -1839,6 +1839,17 @@ screens are not implemented. Object bytes/retention are not made immutable by
 these rows. E21/E43 and full browser/native/Stitch acceptance remain open. See
 `docs/audits/PROVIDER-SUBMITTED-EVIDENCE-2026-09-06.md`.
 
+2026-09-07 private-review reader, **still open**: OPS-510/511 add bounded
+historical summaries, exact submitted fields and provider/revision-scoped
+original document streaming for operations admins. Missing legacy evidence is
+not reconstructed; current profile/status and original evidence stay distinct.
+Eight focused suites / 13 tests passed on real isolated PostgreSQL. The full
+local run passed 984 suites / 3,428 tests, with two existing TODOs and only the
+two Docker-unavailable nginx tests failing (239.303 seconds). Fresh CI remains
+required. Admin revision screens, revision-bound decisions, correction and
+resubmission, retained file bytes and paired release are not completed by this
+API stage. See `docs/audits/PROVIDER-SUBMISSION-REVIEW-READER-2026-09-07.md`.
+
 ---
 
 ## 53. Provider approval does not enforce the government ID back image
@@ -2816,3 +2827,9 @@ and only UX-860/UX-201 failing because the local Docker engine was stopped
 (336.759 seconds). The actual database tests executed. This is not a green
 full local suite; fresh CI and deployment remain required. Detailed evidence:
 `docs/audits/PROVIDER-SUPPORT-NOTE-CONCURRENCY-2026-09-06.md`.
+
+Independent verification: `8e755bdc` passed all four CI jobs in `34040199586`
+and Gates `34040199589`. API job `101505439412` explicitly passed OPS-509,
+the real PHASE164-01 boundary test and both nginx regressions: 984 suites /
+3,428 tests passed with two existing TODOs. This resolves fresh-CI uncertainty
+for that note fix, not deployment or the broader audit/retention requirements.
