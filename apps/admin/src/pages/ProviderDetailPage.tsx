@@ -38,6 +38,7 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { useReasonDialog } from '@/components/ui/ReasonDialog';
 import { buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
 import { ProviderApprovalReview } from '@/components/ProviderApprovalReview';
+import { ProviderSubmissionHistory } from '@/components/ProviderSubmissionHistory';
 import { useAuthStore } from '@/stores/auth.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -846,6 +847,11 @@ export function ProfileTab({ profile }: { profile: ProviderProfile }): React.Rea
   };
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+      <ProviderSubmissionHistory providerId={profile.id} />
+      <div className="md:col-span-2">
+        <h2 className="text-lg font-semibold text-[var(--color-text)]">Current provider profile</h2>
+        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">The information below reflects the current account and catalog. It may differ from the preserved submission records above.</p>
+      </div>
       <Card className="p-4">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Verification Documents</h3>
         <DocLine label="NBI Clearance" url={docs.nbiClearanceUrl}

@@ -1850,6 +1850,20 @@ required. Admin revision screens, revision-bound decisions, correction and
 resubmission, retained file bytes and paired release are not completed by this
 API stage. See `docs/audits/PROVIDER-SUBMISSION-REVIEW-READER-2026-09-07.md`.
 
+2026-09-30 operator-screen stage, **still open**: the reader commit `ee16e2e3`
+passed CI `34082814032` and Gates `34082814039`, including OPS-510/511 and both
+nginx tests (986 suites / 3,430 passing API tests, two TODOs). Provider 360 now
+renders preserved submissions separately from current profile/catalog data,
+with exact fields, bounded paging, honest missing/error states and owner-bound
+private previews. Four focused rendered tests and four compiled browser widths
+pass, including a narrow-header layout regression found during screenshot review.
+The full two-worker admin run passed 702 tests with three existing TODOs; its
+earlier failing default-worker run is retained in
+`docs/audits/PROVIDER-SUBMISSION-REVIEW-UI-2026-09-30.md`.
+Revision-bound decisions, correction/resubmission, governed legacy admission,
+object-byte retention and matched API/web/schema deployment remain unfinished.
+No production rollout or latest-Stitch/every-screen acceptance is claimed.
+
 ---
 
 ## 53. Provider approval does not enforce the government ID back image

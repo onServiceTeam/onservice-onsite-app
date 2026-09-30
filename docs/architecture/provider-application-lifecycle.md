@@ -315,3 +315,21 @@ notices, governed legacy admission, retained object-byte verification and
 E21/E43 remain required. Full local tests retain the two Docker-unavailable
 nginx failures; fresh CI and selected-release acceptance remain open. Exact
 evidence: `docs/audits/PROVIDER-SUBMISSION-REVIEW-READER-2026-09-07.md`.
+
+## Preserved-submission operator panel, 2026-09-30
+
+The profile tab now renders a read-only submission-history panel separate from
+current account/catalog information. It shows the captured fields and original
+private documents, preserves absent optional values, distinguishes legacy
+absence from failures and pages by exclusive revision cursor. Private previews
+and pending reads retire with their provider/operator context. Applicant URLs
+remain untrusted plain text. Original account-name and agreement-wording gaps
+are explicit; current status does not identify a reviewed/approved revision.
+
+This supersedes the preceding API-only screen status. It does not change the
+approval/rejection contract or enable changes-requested/resubmission. Exact
+render/browser evidence, the interrupted-run recovery and validation limits:
+`docs/audits/PROVIDER-SUBMISSION-REVIEW-UI-2026-09-30.md`. The reader's existing
+CI is independently green; new UI publication requires its own CI. E35/E74,
+E21/E43, latest-Stitch/native acceptance and governed paired deployment remain
+open.
