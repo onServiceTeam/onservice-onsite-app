@@ -107,3 +107,14 @@ merge or deployment occurred. The separate production recovery hold remains.
 Exact-image/full-migration restoration, matched frontend/API artifacts,
 authenticated acceptance, backup/rollback and all launch requirements still gate
 release. Engineering approval is not production, payment or legal sign-off.
+
+## Independent CI verification
+
+Exact candidate `be6fea61dd4d457648161eb47aa5f2dff3873553` passed all four jobs
+in CI `37804191578` and Gates `37804191579`. API job `113404032661` explicitly
+passed OPS-529/530, `admin-enable-transaction-postgres.test.ts`, CRIT-N11 and
+both previously Docker-unavailable Nginx tests, UX-860 and UX-201. The API result
+was 1,012 suites / 3,474 passing tests, with two existing TODOs, in 48.614 seconds.
+Admin, mobile and API Docker build/liveness jobs also succeeded. Optional exact
+release packaging was skipped. This resolves the candidate CI uncertainty,
+not durable recovery acknowledgement, deployment or the remaining release gates.

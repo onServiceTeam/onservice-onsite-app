@@ -111,6 +111,7 @@ export default function LoginPage(): React.ReactElement {
   const [issuedBackupCodes, setIssuedBackupCodes] = useState<string[]>([]);
   const [backupCodesSaved, setBackupCodesSaved] = useState(false);
   const [backupCodesCopied, setBackupCodesCopied] = useState(false);
+  const [backupCodesCopying, setBackupCodesCopying] = useState(false);
   const [enrolledUser, setEnrolledUser] = useState<Record<string, unknown> | null>(null);
   const [enrolledMustRotate, setEnrolledMustRotate] = useState(false);
 
@@ -302,12 +303,17 @@ export default function LoginPage(): React.ReactElement {
   };
 
   const copyBackupCodes = async (): Promise<void> => {
+    if (backupCodesCopying) return;
+    setError('');
+    setBackupCodesCopied(false);
+    setBackupCodesCopying(true);
     try {
       await navigator.clipboard.writeText(issuedBackupCodes.join('\n'));
       setBackupCodesCopied(true);
     } catch {
-      setBackupCodesCopied(false);
       setError('Copy was blocked by this browser. Select the codes and save them manually.');
+    } finally {
+      setBackupCodesCopying(false);
     }
   };
 
@@ -364,10 +370,24 @@ export default function LoginPage(): React.ReactElement {
           <button
             type="button"
             onClick={() => void copyBackupCodes()}
-            className="mt-4 min-h-11 w-full rounded-md border border-[var(--color-border-strong)] px-4 text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]"
+            disabled={backupCodesCopying}
+            aria-busy={backupCodesCopying}
+            aria-describedby={error ? 'recovery-copy-error' : backupCodesCopied ? 'recovery-copy-status' : undefined}
+            className="mt-4 min-h-11 w-full rounded-md border border-[var(--color-border-strong)] px-4 text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)] disabled:cursor-wait disabled:opacity-60"
           >
-            {backupCodesCopied ? 'Codes copied' : 'Copy all recovery codes'}
+            {backupCodesCopying ? 'Copying recovery codes…' : backupCodesCopied ? 'Codes copied' : 'Copy all recovery codes'}
           </button>
+
+          {error && (
+            <p id="recovery-copy-error" role="alert" className="mt-3 rounded-md border border-[var(--color-danger)] bg-[var(--color-danger-bg)] p-3 text-sm text-[var(--color-danger)]">
+              {error}
+            </p>
+          )}
+          {backupCodesCopied && (
+            <p id="recovery-copy-status" role="status" className="mt-3 text-sm text-[var(--color-success)]">
+              Recovery codes copied. Save them in your secure location before continuing.
+            </p>
+          )}
 
           <label className="mt-5 flex items-start gap-3 rounded-md border border-[var(--color-border)] p-4 text-sm text-[var(--color-text)]">
             <input

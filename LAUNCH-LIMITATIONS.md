@@ -3058,3 +3058,28 @@ delivery failure. The tests expose that boundary rather than claiming it fixed.
 Durable generation/acknowledgement, interrupted-response recovery and existing
 account rollout remain open. Earlier sessions, the wider lock/cookie/issuer
 review, production recovery and matched-artifact release requirements remain.
+
+Independent verification: exact `be6fea61` passed all four jobs in CI
+`37804191578` and Gates `37804191579`. API job `113404032661` explicitly passed
+OPS-529/530, supporting enrollment transactions, CRIT-N11 and both Nginx checks:
+1,012 suites / 3,474 tests, two TODOs (48.614 seconds). This resolves that
+candidate's fresh-CI uncertainty, not deployment or durable recovery completion.
+Optional exact release packaging was skipped.
+
+## 94. Administrator recovery code copy failures were invisible
+
+UX-1382 reproduces the real recovery screen failing to display clipboard errors.
+The candidate now shows manual-save guidance, clears stale feedback on retry,
+blocks duplicate pending copies and announces success without automatically
+acknowledging secure storage. The codes and manual-save path remain available.
+No API, schema or authentication policy changed.
+
+Four focused rendered regressions, TypeScript, production build, lint and the
+unchanged 1,612-ID gate pass. Six compiled synthetic browser widths pass copy
+failure/retry and acknowledgement-state checks. The first full local admin run
+failed eight tests plus one file-load error. The complete two-worker rerun passed
+706 tests with three existing TODOs; all originally failing checks passed
+unchanged. Fresh CI remains required. **Candidate only, not deployed.** Evidence:
+`docs/audits/ADMIN-RECOVERY-COPY-FEEDBACK-2026-10-08.md`.
+This does not resolve the browser-local acknowledgement, interrupted delivery,
+governed recovery or full Stitch/native/release limitations.
