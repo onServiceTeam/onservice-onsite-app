@@ -13,6 +13,8 @@ import { db } from '../src/models/db';
 import { refundFromEscrowInTransaction } from '../src/services/escrow.service';
 import { debitWalletInTransaction, holdEscrowInTransaction } from '../src/services/wallet.service';
 import bookingAdminRouter from '../src/routes/booking-admin.routes';
+import bookingRouter from '../src/routes/booking.routes';
+import { appendAuthorizationTermsInTransaction, appendProviderAssignmentTermsInTransaction } from '../src/services/booking-financial-terms.service';
 import { errorMiddleware } from '../src/middleware/error.middleware';
 import { processRetries } from '../src/services/gateway-retry.service';
 import { processRefund } from '../src/services/payment.service';
@@ -50,6 +52,10 @@ const otherTicketId = '50000000-0000-4000-8000-000000000002';
 const requestKey = '60000000-0000-4000-8000-000000000001';
 const secondKey = '60000000-0000-4000-8000-000000000002';
 const syntheticSecret = 'refund-http-synthetic-test-signing-secret-only';
+const providerUserA = '70000000-0000-4000-8000-000000000001';
+const providerUserB = '70000000-0000-4000-8000-000000000002';
+const providerA = '71000000-0000-4000-8000-000000000001';
+const providerB = '71000000-0000-4000-8000-000000000002';
 const refundBody = {
   amount: 25000, reason: 'Synthetic support-approved partial refund',
   supportTicketId: ticketId, idempotencyKey: requestKey,
@@ -253,6 +259,168 @@ async function operatorSnapshot(database: Pool) {
     retry: (await database.query('SELECT * FROM gateway_retry_queue ORDER BY id')).rows,
   };
 }
+
+// Paid, wallet-funded participant bookings with real immutable authorization
+// terms (migration 162). Device push is disabled by stored preferences; inbox
+// notifications, authentication, booking guards and cancellation SQL are real.
+async function withParticipantRefundDatabase(run: (database: Pool) => Promise<void>): Promise<void> {
+  await withOperatorRefundDatabase(async database => {
+    await database.query(`
+      ALTER TABLE users ADD COLUMN preferred_locale text NOT NULL DEFAULT 'en';
+      CREATE TABLE providers (id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES users(id),
+        tier text NOT NULL DEFAULT 'founding', status text NOT NULL DEFAULT 'approved',
+        total_cancellations integer NOT NULL DEFAULT 0, cancellations_last_30d integer NOT NULL DEFAULT 0,
+        last_cancellation_at timestamptz, updated_at timestamptz NOT NULL DEFAULT NOW());
+      CREATE TABLE service_categories (id uuid PRIMARY KEY);
+      CREATE TABLE service_subcategories (id uuid PRIMARY KEY);
+      CREATE TABLE platform_settings (key text PRIMARY KEY, value text NOT NULL,
+        is_active boolean NOT NULL DEFAULT TRUE, updated_at timestamptz NOT NULL DEFAULT NOW());
+      ALTER TABLE bookings ADD COLUMN status text NOT NULL DEFAULT 'paid',
+        ADD COLUMN provider_id uuid REFERENCES providers(id), ADD COLUMN category_id uuid,
+        ADD COLUMN subcategory_id uuid, ADD COLUMN service_price bigint, ADD COLUMN service_fee bigint,
+        ADD COLUMN total_amount bigint, ADD COLUMN payment_intent_id uuid REFERENCES payment_intents(id),
+        ADD COLUMN scheduled_at timestamptz NOT NULL DEFAULT NOW() + INTERVAL '5 minutes',
+        ADD COLUMN created_at timestamptz NOT NULL DEFAULT NOW(), ADD COLUMN cancelled_at timestamptz,
+        ADD COLUMN cancellation_reason text, ADD COLUMN city text NOT NULL DEFAULT 'Cebu City',
+        ADD COLUMN latitude numeric, ADD COLUMN longitude numeric,
+        ADD COLUMN is_hourly boolean NOT NULL DEFAULT FALSE, ADD COLUMN work_started_at timestamptz;
+      CREATE TABLE notifications (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id uuid NOT NULL REFERENCES users(id), type varchar(50) NOT NULL,
+        title text NOT NULL, body text NOT NULL, data jsonb, is_read boolean NOT NULL DEFAULT FALSE,
+        created_at timestamptz NOT NULL DEFAULT NOW());
+      CREATE TABLE notification_preferences (user_id uuid PRIMARY KEY REFERENCES users(id),
+        booking_updates boolean NOT NULL DEFAULT FALSE, provider_activity boolean NOT NULL DEFAULT FALSE,
+        payment_alerts boolean NOT NULL DEFAULT FALSE, messages boolean NOT NULL DEFAULT FALSE,
+        promotions boolean NOT NULL DEFAULT FALSE, suki_rewards boolean NOT NULL DEFAULT FALSE,
+        reminders boolean NOT NULL DEFAULT FALSE, system boolean NOT NULL DEFAULT FALSE,
+        marketing_push_enabled boolean NOT NULL DEFAULT FALSE, marketing_sms_enabled boolean NOT NULL DEFAULT FALSE,
+        marketing_email_enabled boolean NOT NULL DEFAULT FALSE, marketing_consent_acknowledged_at timestamptz,
+        marketing_consent_version integer, quiet_hours_enabled boolean NOT NULL DEFAULT FALSE,
+        quiet_hours_start text NOT NULL DEFAULT '22:00', quiet_hours_end text NOT NULL DEFAULT '07:00',
+        quiet_hours_timezone text NOT NULL DEFAULT 'Asia/Manila');
+      CREATE TABLE booking_slot_waitlist (id uuid PRIMARY KEY, category_id uuid, city text,
+        preferred_date date, status text, expires_at timestamptz, created_at timestamptz DEFAULT NOW());
+    `);
+    await database.query("INSERT INTO users(id,role) VALUES ($1,'provider'),($2,'provider')",
+      [providerUserA, providerUserB]);
+    await database.query('INSERT INTO providers(id,user_id) VALUES ($1,$2),($3,$4)',
+      [providerA, providerUserA, providerB, providerUserB]);
+    await database.query(`INSERT INTO notification_preferences(user_id) VALUES ($1),($2)`, [customerA, customerB]);
+    await database.query(`INSERT INTO platform_settings(key,value) VALUES
+      ('service_fee_rate','25'),('service_fee_min','0'),('service_fee_max','1000000'),
+      ('guarantee_fund_rate','10'),('cancel_refund_over_24h','100'),('cancel_refund_2_to_24h','75'),
+      ('cancel_refund_1_to_2h','50'),('cancel_refund_30min_to_1h','25'),
+      ('cancel_refund_under_30min','0'),('cancel_refund_provider_arrived','0'),
+      ('cancel_refund_customer_noshow','0'),('commission_rate_founding','15');
+      UPDATE bookings SET service_price = CASE WHEN id='${bookingA}' THEN 80000 ELSE 800000 END,
+        service_fee = CASE WHEN id='${bookingA}' THEN 20000 ELSE 200000 END,
+        total_amount = CASE WHEN id='${bookingA}' THEN 100000 ELSE 1000000 END,
+        payment_intent_id=(SELECT id FROM payment_intents WHERE booking_id=bookings.id);
+      INSERT INTO wallets(type) VALUES ('platform_revenue'),('guarantee_fund');
+    `);
+    await database.query(fs.readFileSync(path.join(__dirname, '../migrations/162_immutable_booking_financial_terms.sql'), 'utf8'));
+    for (const bookingId of [bookingA, bookingB]) {
+      await db.transaction(client => appendAuthorizationTermsInTransaction(client, {
+        bookingId, event: 'wallet_payment_authorized', sourceEventId: bookingId,
+      }));
+    }
+    await run(database);
+  });
+}
+
+function participantHttp(userId: string, role: string, claims: Record<string, unknown> = {}) {
+  const app = express();
+  app.use(express.json(), cookieParser());
+  app.use('/api/v1/bookings', bookingRouter);
+  app.use(errorMiddleware);
+  const token = jwt.sign({ userId, role, sessionVersion: 1, type: 'access', ...claims },
+    syntheticSecret, { expiresIn: '5m' });
+  return (bookingId: string, status: string) => request(app)
+    .patch(`/api/v1/bookings/${bookingId}/status`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ status, cancellationReason: 'Synthetic participant cancellation' });
+}
+
+async function participantSnapshot(database: Pool) {
+  return {
+    ...await operatorSnapshot(database),
+    providers: (await database.query('SELECT * FROM providers ORDER BY id')).rows,
+    terms: (await database.query('SELECT * FROM booking_financial_terms ORDER BY id')).rows,
+    notifications: (await database.query('SELECT * FROM notifications ORDER BY id')).rows,
+    waitlist: (await database.query('SELECT * FROM booking_slot_waitlist ORDER BY id')).rows,
+  };
+}
+
+refundIt('Bug SEC-076 - unassigned providers cannot cancel or start paid bookings through HTTP', async () => {
+  await withParticipantRefundDatabase(async database => {
+    const before = await participantSnapshot(database);
+    const patch = participantHttp(providerUserA, 'provider');
+    const cancelled = await patch(bookingA, 'cancelled_by_provider');
+    const started = await patch(bookingB, 'provider_en_route');
+    expect({ responses: [cancelled.status, started.status], state: await participantSnapshot(database) })
+      .toEqual({ responses: [403, 403], state: before });
+    expect(cancelled.body.error.message).toBe('You are not assigned to this booking.');
+    expect(started.body.error.message).toBe('You are not assigned to this booking.');
+  });
+}, 30000);
+
+refundIt('assigned-provider ownership remains enforced and the actual owner can start their job', async () => {
+  await withParticipantRefundDatabase(async database => {
+    await db.transaction(async client => {
+      await client.query('UPDATE bookings SET provider_id=$2 WHERE id=$1', [bookingB, providerB]);
+      await appendProviderAssignmentTermsInTransaction(client, {
+        bookingId: bookingB, providerId: providerB, event: 'provider_assigned', sourceEventId: bookingB,
+      });
+    });
+    const before = await participantSnapshot(database);
+    const other = await participantHttp(providerUserA, 'provider')(bookingB, 'cancelled_by_provider');
+    expect(other.status).toBe(403);
+    expect(await participantSnapshot(database)).toEqual(before);
+    const own = await participantHttp(providerUserB, 'provider')(bookingB, 'provider_en_route');
+    expect(own.status).toBe(200);
+    expect(own.body.data).toMatchObject({ id: bookingB, providerId: providerB, status: 'provider_en_route' });
+    expect((await database.query('SELECT status,escrow_status FROM bookings WHERE id=$1', [bookingB])).rows)
+      .toEqual([{ status: 'provider_en_route', escrow_status: 'held' }]);
+    expect(await snapshot(database)).toEqual({ wallets: before.wallets, ledger: before.ledger });
+    expect((await database.query('SELECT user_id,type,data FROM notifications')).rows).toEqual([
+      { user_id: customerB, type: 'provider_en_route', data: expect.objectContaining({ bookingId: bookingB }) },
+    ]);
+  });
+}, 30000);
+
+refundIt('participant HTTP rejects non-access or revoked provider credentials before changing funded bookings', async () => {
+  await withParticipantRefundDatabase(async database => {
+    const before = await participantSnapshot(database);
+    for (const type of ['refresh', '2fa_pending', '2fa_setup']) {
+      const response = await participantHttp(providerUserA, 'provider', { type })(bookingA, 'cancelled_by_provider');
+      expect(response.status).toBe(401);
+      expect(await participantSnapshot(database)).toEqual(before);
+    }
+    await database.query('UPDATE users SET is_active=FALSE WHERE id=$1', [providerUserA]);
+    const response = await participantHttp(providerUserA, 'provider')(bookingA, 'cancelled_by_provider');
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('session_revoked');
+    expect(await participantSnapshot(database)).toEqual(before);
+  });
+}, 30000);
+
+refundIt('owning customer cancellation returns a late unassigned wallet booking including its full fee', async () => {
+  await withParticipantRefundDatabase(async database => {
+    const before = await participantSnapshot(database);
+    const response = await participantHttp(customerA, 'customer')(bookingA, 'cancelled_by_customer');
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ id: bookingA, status: 'cancelled_by_customer' });
+    expect((await database.query('SELECT status,escrow_status FROM bookings WHERE id=$1', [bookingA])).rows)
+      .toEqual([{ status: 'cancelled_by_customer', escrow_status: 'refunded' }]);
+    expect((await database.query('SELECT available_balance::text FROM wallets WHERE id=$1', [customerWalletA])).rows)
+      .toEqual([{ available_balance: '250000' }]);
+    expect((await database.query('SELECT status,refunded_amount::text FROM payment_intents WHERE booking_id=$1', [bookingA])).rows)
+      .toEqual([{ status: 'refunded', refunded_amount: '100000' }]);
+    expect((await snapshot(database)).ledger.filter(row => row.booking_id === bookingB))
+      .toEqual(before.ledger.filter(row => row.booking_id === bookingB));
+    expect((await database.query('SELECT * FROM notifications')).rows).toEqual([]);
+  });
+}, 30000);
 
 it('refund fixture requires the actual loopback peer and exact requested test database', () => {
   for (const peer of ['127.0.0.1', '::1', '::ffff:127.0.0.1']) {

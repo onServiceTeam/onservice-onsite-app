@@ -919,15 +919,19 @@ async function validateRoleForTransition(
       throw createAppError('Providers cannot perform this action.', 403);
     }
 
-    if (booking.provider_id) {
-      interface ProviderRow { user_id: string }
-      const providerResult = await db.query<ProviderRow>(
-        `SELECT user_id FROM providers WHERE id = $1`,
-        [booking.provider_id],
-      );
-      if (providerResult.rows[0]?.user_id !== userId) {
-        throw createAppError('You are not assigned to this booking.', 403);
-      }
+    // SEC-076: an unassigned booking is not an invitation for any provider
+    // to change its status. Reject before any state, money or notification
+    // work; assignment remains the dedicated offer/quote/admin workflow.
+    if (!booking.provider_id) {
+      throw createAppError('You are not assigned to this booking.', 403);
+    }
+    interface ProviderRow { user_id: string }
+    const providerResult = await db.query<ProviderRow>(
+      `SELECT user_id FROM providers WHERE id = $1`,
+      [booking.provider_id],
+    );
+    if (providerResult.rows[0]?.user_id !== userId) {
+      throw createAppError('You are not assigned to this booking.', 403);
     }
   }
 

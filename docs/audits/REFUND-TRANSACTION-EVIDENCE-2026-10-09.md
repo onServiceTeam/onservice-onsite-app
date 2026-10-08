@@ -396,3 +396,27 @@ backup/rollback and authenticated multi-role acceptance still gate deployment.
 Relevant live entries remain [customer/provider](https://app.onservice.ph/auth/login)
 and [admin](https://admin.onservice.ph/login); this source correction is not live
 and no verified production test credentials are provided by these fixtures.
+
+### October 9 completed wallet CI and participant caller continuation
+
+The preceding pending-CI checkpoint is superseded for exact OPS-533 candidate
+`0e96abee1dc274253d33e3955b4174aaca179db3`: CI `37842510229` and Gates
+`37842510347` completed successfully. Actual API logs execute all 16 refund
+checks and both Nginx checks, with 1016 suites / 3499 tests, two TODOs and no
+skips. Admin passes 706 tests with one skipped file / three TODOs; mobile
+passes 879 tests / 84 TODOs and compiled web export. API Docker build and boot
+liveness pass. CI merge `1bb330d49821a65738a0d0923e80e2caa22ed629` and topic
+share source tree `dbdef984a0775194cfe11aa669df664e61312033`. Optional exact
+API/admin release packaging was skipped; the web audit artifact is not
+deployment eligible. This resolves source verification for that wallet-only
+correction, not release or live acceptance.
+
+The next participant caller audit reproduces historical R-ACC-02 with real
+funded-booking SQL and the mounted status router. SEC-076 blocks unassigned
+provider actions before cancellation/refund and false customer notices.
+Customer late-unassigned full-refund and assigned-owner navigation checks
+are added without changing refund policy. The suite now contains 20 checks;
+this newer correction requires its own final local and exact CI evidence.
+See `docs/audits/BOOKING-PROVIDER-ASSIGNMENT-2026-10-09.md`. The historical
+118/six/zero inventory count above remains a point-in-time receipt, not a
+claim that all finding states were reconciled by this continuation.

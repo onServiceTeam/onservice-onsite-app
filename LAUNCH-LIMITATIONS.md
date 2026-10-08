@@ -3127,3 +3127,35 @@ or closure of money/release holds. Its exact scope, verification receipts and
 remaining customer/dispute, external-source/crash and live acceptance are in
 `docs/audits/REFUND-TRANSACTION-EVIDENCE-2026-10-09.md`. Newer coverage still needs
 its own CI and is not deployed.
+
+October 9 completed wallet verification: OPS-533 candidate
+`0e96abee1dc274253d33e3955b4174aaca179db3` passed CI `37842510229` and Gates
+`37842510347`. Actual logs execute all 16 guarded refund checks and both Nginx
+checks: API 1016 suites / 3499 tests, two TODOs and no skips; admin 706 tests,
+one skipped file / three TODOs; mobile 879 tests / 84 TODOs and compiled web
+export; API Docker build and boot liveness pass. CI merge and topic source
+trees match. Optional exact API/admin release packaging was skipped and the
+retained web audit artifact is not deployment eligible. This resolves that
+wallet correction's source-verification uncertainty, not external-rail safety,
+complete caller acceptance, deployment or launch readiness.
+
+## 96. An unassigned provider could change a paid booking and trigger its refund
+
+SEC-076 reproduces the actual PostgreSQL/HTTP cancellation and en-route paths:
+both returned 200 for an unassigned provider. The cancellation credited the
+customer wallet and updated payment/ledger state; both customer notices were
+stored without an assigned provider. This uses synthetic records only, not
+evidence of production exploitation.
+
+The candidate refuses absent assignments before provider status, money or
+notification writes and retains the existing assigned-owner check. Four new
+database/HTTP cases cover unchanged denied requests, actual assigned-owner
+navigation, canonical credential rejection and the owning customer's full
+late-unassigned wallet refund. The final four-suite / 27-test repeat executes
+all 20 guarded checks without skips; three mobile rendered suites pass five
+tests. Full local API passes 1014 suites / 3501 tests with two TODOs and only
+two unchanged Docker-unavailable Nginx failures, not a green full local run.
+Types, lint, Gate A/C and seven smoke scripts pass unchanged. Fresh exact CI
+remains required. **Candidate only, not deployed.** Evidence and remaining staff,
+role, transition, timing, funding and release work:
+`docs/audits/BOOKING-PROVIDER-ASSIGNMENT-2026-10-09.md`.
