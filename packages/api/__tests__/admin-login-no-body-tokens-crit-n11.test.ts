@@ -177,8 +177,8 @@ it('CRIT-N11 - every completed admin authentication flow keeps bearer tokens out
       if (sql.includes('SELECT role, is_active, session_version')) {
         return { rows: [{ role: 'admin', is_active: true, session_version: 3 }], rowCount: 1 };
       }
-      if (sql.includes('SELECT totp_secret, totp_enabled')) {
-        return { rows: [{ totp_secret: 'encrypted-secret', totp_enabled: false }], rowCount: 1 };
+      if (sql.includes('FOR NO KEY UPDATE')) {
+        return { rows: [{ ...userFixture, totp_secret: 'encrypted-secret', totp_enabled: false }], rowCount: 1 };
       }
       if (sql.includes('SET totp_enabled = TRUE')) return { rows: [], rowCount: 1 };
       if (sql.includes('COALESCE(must_rotate_password')) return { rows: [userFixture], rowCount: 1 };

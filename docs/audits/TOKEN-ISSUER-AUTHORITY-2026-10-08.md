@@ -88,6 +88,11 @@ that caller needs its own interleaving regression and transaction review. A
 matching current value supplied by that caller is not proof that its earlier
 authorization remains valid.
 
+The subsequent enable-route proof-binding correction is recorded separately in
+`ADMIN-ENABLE-TRANSACTION-2026-10-08.md`. It removes that caller's later authority
+upgrade but does not make activation, session storage and response delivery one
+atomic operation or complete recovery acknowledgement.
+
 Earlier committed caller effects, including login metadata, password changes,
 staff invitation acceptance or factor activation, are outside this transaction.
 Credential-storage failure does not roll those effects back. Factor changes,

@@ -81,6 +81,16 @@ The preceding issuer candidate passed CI 37797176521 and Gates 37797176560,
 including both Nginx checks. That receipt is in
 `TOKEN-ISSUER-AUTHORITY-2026-10-08.md`; it does not verify this newer setup change.
 
+Independent verification subsequently completed for exact setup candidate
+`05c6ebf89f7d5b6c89fe62fa9d44dc8c1e0d4fae`: all four jobs in
+[CI 37800735318](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37800735318)
+and [Gates 37800735101](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37800735101)
+passed. API job `113391930373` explicitly passed OPS-527/528, the supporting
+setup transactions, MED-N82 and both Nginx checks: **1,009 suites / 3,467 tests**,
+two TODOs, in 60.626 seconds. Admin, mobile/web export and Docker checks passed.
+Optional exact release packaging was not requested. This resolves that setup
+candidate's fresh-CI uncertainty, not deployment or release acceptance.
+
 ## Remaining work and release boundary
 
 The enable route is unchanged. Its later account read can supply newer
@@ -89,6 +99,10 @@ it verifies the pending secret before its activation transaction. The reverse
 setup-first/enable-later stale-code interleaving needs its own real regression
 and correction. Do not interpret this setup fix or the shared issuer's current
 account check as solving that caller-level proof binding.
+
+Subsequent enable-route correction and its remaining delivery boundary are
+recorded in `ADMIN-ENABLE-TRANSACTION-2026-10-08.md`. The paragraph above describes
+this setup-only checkpoint, not a claim that the later work is deployed.
 
 Enrollment acknowledgement durability, concurrent setup response ordering,
 restart/recovery generations, already-committed caller effects, backup-code

@@ -1030,33 +1030,43 @@ router.post(
         throw createAppError('Verification code is required.', 400);
       }
 
-      const userResult = await db.query<{ totp_secret: string | null; totp_enabled: boolean }>(
-        `SELECT totp_secret, totp_enabled FROM users WHERE id = $1`,
-        [userId],
-      );
+      // OPS-529/530: the earlier authorized account and the key whose code
+      // is verified must remain the same through activation. Lock account
+      // before recovery rows, just as setup locks it before replacing a key.
+      const { backupBundle, canonicalUser } = await db.transaction(async (client) => {
+        const userResult = await client.query<UserProfileRow & {
+          totp_secret: string | null; totp_enabled: boolean; must_rotate_password: boolean;
+        }>(
+          `SELECT id, phone, email, first_name, last_name, role, avatar_url,
+                  is_verified, is_active, created_at, session_version,
+                  totp_secret, totp_enabled,
+                  COALESCE(must_rotate_password, FALSE) AS must_rotate_password
+             FROM users WHERE id = $1 FOR NO KEY UPDATE`,
+          [userId],
+        );
+        const user = userResult.rows[0];
+        const currentVersion = Number(user?.session_version);
+        if (!user?.is_active || user.role !== role
+            || !Number.isSafeInteger(currentVersion) || currentVersion < 1
+            || currentVersion !== req.user!.sessionVersion) {
+          throw createAppError('This authentication session has been revoked. Please login again.', 401);
+        }
+        if (!req.isSetupToken && user.must_rotate_password) {
+          const rotationRequired = createAppError('Password rotation is required before continuing.', 428);
+          rotationRequired.code = 'password_rotation_required';
+          throw rotationRequired;
+        }
+        if (user.totp_enabled) throw createAppError('2FA is already enabled.', 409);
+        if (!user.totp_secret) throw createAppError('Please call /auth/admin/2fa/setup first.', 400);
 
-      if (userResult.rows.length === 0) throw createAppError('User not found.', 404);
-      const user = userResult.rows[0]!;
+        const decryptedEnableSecret = decryptSecret(user.totp_secret);
+        // Preserve the existing ±60s enrollment clock-drift window.
+        if (!verifyTotp(decryptedEnableSecret, totpCode, 2)) {
+          throw createAppError('Invalid verification code. Please try again with a new code from your authenticator app.', 400);
+        }
 
-      if (user.totp_enabled) {
-        throw createAppError('2FA is already enabled.', 409);
-      }
-
-      if (!user.totp_secret) {
-        throw createAppError('Please call /auth/admin/2fa/setup first.', 400);
-      }
-
-      const decryptedEnableSecret = decryptSecret(user.totp_secret);
-      // window=2 (±60s) — tolerate emulator/device clock drift during enrollment.
-      const valid = verifyTotp(decryptedEnableSecret, totpCode, 2);
-      if (!valid) {
-        throw createAppError('Invalid verification code. Please try again with a new code from your authenticator app.', 400);
-      }
-
-      // SEC-038 — activation and the first eight recovery codes are one
-      // transaction. A code-generation failure cannot leave TOTP enabled with
-      // no recovery path, and any old active recovery set is soft-deleted.
-      const backupBundle = await db.transaction(async (client) => {
+        // SEC-038: activation and the eight recovery codes still commit
+        // together. A failed recovery write cannot leave an enabled factor.
         const enabled = await client.query(
           `UPDATE users
               SET totp_enabled = TRUE,
@@ -1068,7 +1078,14 @@ router.post(
         if ((enabled.rowCount ?? 0) !== 1) {
           throw createAppError('2FA is already enabled.', 409);
         }
-        return adminTwoFactorService.generateBackupCodesInTransaction(client, userId);
+        const bundle = await adminTwoFactorService.generateBackupCodesInTransaction(client, userId);
+        if (req.isSetupToken) {
+          await client.query(
+            `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
+            [userId],
+          );
+        }
+        return { backupBundle: bundle, canonicalUser: user };
       });
 
       logger.info('Admin 2FA enabled', { userId });
@@ -1078,23 +1095,10 @@ router.post(
       // tokens so the admin completes login in one round-trip instead of being
       // forced to log in again and supply a code.
       if (req.isSetupToken) {
-        // Pull must_rotate_password so a forced-rotation admin is still routed
-        // to /change-password after completing 2FA enrollment in one shot
-        // (matches the /admin/login and /admin/2fa/verify responses; without it
-        // the mandatory rotation was silently skipped on the enroll-then-login
-        // path).
-        const fullUser = await db.query<UserProfileRow & { must_rotate_password: boolean | null }>(
-          `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at,
-                  session_version,
-                  COALESCE(must_rotate_password, FALSE) AS must_rotate_password
-             FROM users WHERE id = $1`,
-          [userId],
-        );
-        await db.query(
-          `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
-          [userId],
-        );
-        const canonicalUser = fullUser.rows[0]!;
+        // Bind issuance to the account authorized above, not a later read
+        // that could upgrade an old proof to a new role/session generation.
+        // Issuance still independently rejects revocation after activation.
+        // Interrupted delivery/acknowledgement remains the E68 workflow.
         const tokens = await authService.createTokenPair(
           userId,
           canonicalUser.role,
@@ -1114,8 +1118,8 @@ router.post(
           success: true,
           data: {
             message: 'Two-factor authentication is now enabled.',
-            user: formatUserResponse(fullUser.rows[0]!),
-            mustRotatePassword: fullUser.rows[0]?.must_rotate_password === true,
+            user: formatUserResponse(canonicalUser),
+            mustRotatePassword: canonicalUser.must_rotate_password === true,
             sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
             backupCodes: backupBundle.codes,
             backupCodesGeneratedAt: backupBundle.generatedAt,

@@ -34,6 +34,11 @@ export function requestSetup(role = 'admin', type = 'pre_auth_2fa_setup', owner 
     .set('Authorization', `Bearer ${enrollmentToken(role, type, owner)}`).send({});
 }
 
+export function requestEnable(totpCode: string, role = 'admin', type = 'pre_auth_2fa_setup', owner = passwordOwner) {
+  return request(enrollmentApp).post('/auth/admin/2fa/enable')
+    .set('Authorization', `Bearer ${enrollmentToken(role, type, owner)}`).send({ totpCode });
+}
+
 export async function withEnrollmentDatabase(
   run: (database: Pool, totpSecret: string) => Promise<void>, role = 'admin',
 ): Promise<void> {

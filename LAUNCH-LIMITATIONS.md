@@ -3021,3 +3021,40 @@ by this slice. Durable enrollment acknowledgement, response ordering, governed
 recovery and the wider account-writer graph remain open. The existing production
 recovery hold, earlier privileged sessions, matched-artifact release and all
 remaining launch requirements are unchanged.
+
+Independent verification: exact `05c6ebf8` passed all four jobs in CI
+`37800735318` and Gates `37800735101`. API job `113391930373` explicitly passed
+OPS-527/528, supporting setup transactions, MED-N82 and both Nginx checks:
+1,009 suites / 3,467 tests, two TODOs (60.626 seconds). This resolves that
+setup candidate's fresh-CI uncertainty, not deployment. Optional exact release
+packaging was not requested. Subsequent enable correction is tracked below.
+
+## 93. Administrator enrollment completion could accept revoked or stale proof
+
+OPS-529 reproduced completion accepting a request after its account session
+generation was revoked. A later authority read supplied the new generation to
+the issuer. OPS-530 reproduced the actual setup route replacing a pending key
+while completion waited, followed by completion accepting the earlier key's code.
+
+The candidate locks the account before activation and recovery-code writes,
+checks the earlier authorized role/generation and current account preconditions,
+and verifies the current key under that same lock. Login metadata now commits
+with forced-enrollment activation. Subsequent issuance uses that original proof,
+not newer authority. Existing response/cookie and recovery-policy contracts remain.
+
+Actual HTTP/PostgreSQL checks cover 27 denied-authority combinations, six
+stale-key interleavings, eligible cookie-only enrollment, usable recovery codes,
+both lock orders, competing setup/enable, unrelated-account progress, six
+post-commit revocations, and recovery/audit write rollback with retry. The full
+API run passed 1,010 suites / 3,472 tests, two TODOs, with only the unchanged
+Docker-unavailable Nginx failures (318.530 seconds). After test-only type cleanup,
+the final 13-suite / 23-test selection, types and changed-file lint passed.
+The unchanged 1,611-ID gate passed. **Candidate only; fresh exact-candidate CI
+required, not deployed.** Evidence:
+`docs/audits/ADMIN-ENABLE-TRANSACTION-2026-10-08.md`.
+
+Already committed activation/recovery codes still survive later issuance or
+delivery failure. The tests expose that boundary rather than claiming it fixed.
+Durable generation/acknowledgement, interrupted-response recovery and existing
+account rollout remain open. Earlier sessions, the wider lock/cookie/issuer
+review, production recovery and matched-artifact release requirements remain.
