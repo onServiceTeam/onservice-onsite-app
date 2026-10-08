@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { applicationDecisionTransaction, assertCurrentApplicationRevision, recordApplicationDecision, requireExpectedApplicationRevision } from './provider-application-decision.service';
 import {
   ACTIVE_BOOKING_STATUSES,
   ALL_BOOKING_STATUSES,
@@ -289,6 +290,7 @@ const REQUIRED_KYC_FIELDS = [
 ] as const;
 
 export interface ProviderApprovalReview {
+  expectedRevisionId?: unknown;
   reason?: unknown;
   checklistConfirmed?: unknown;
   checklistSummary?: unknown;
@@ -316,7 +318,8 @@ export async function approveProvider(
     throw createAppError('A valid provider vetting checklist summary is required.', 400);
   }
 
-  await db.transaction(async (client) => {
+  const expectedRevisionId = requireExpectedApplicationRevision(review.expectedRevisionId);
+  await applicationDecisionTransaction(async (client) => {
     // OPS-479 / E36: validate the current complete evidence under the same
     // row lock as the decision. An unlocked read can approve after a concurrent
     // document removal. Existing approved records are not silently re-decided.
@@ -336,6 +339,7 @@ export async function approveProvider(
     if (!application || application.status !== 'pending') {
       throw createAppError('Provider not found or not in pending status.', 404);
     }
+    await assertCurrentApplicationRevision(client, providerId, expectedRevisionId, application);
     const missing = REQUIRED_KYC_FIELDS.filter((field) => !application[field]?.trim());
     if (missing.length > 0) {
       throw createAppError(
@@ -371,13 +375,15 @@ export async function approveProvider(
       );
     }
 
+    await recordApplicationDecision(client, { providerId, revisionId: expectedRevisionId, adminId,
+      decision: 'approved', reason, checklistSummary });
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
        VALUES ($1, 'provider_approved', 'provider', $2, $3::jsonb, $4, $5)`,
       [
         adminId,
         providerId,
-        JSON.stringify({ action: 'approved', checklistConfirmed: true, checklistSummary }),
+        JSON.stringify({ action: 'approved', revisionId: expectedRevisionId, checklistConfirmed: true, checklistSummary }),
         reason.slice(0, 500),
         `Approval rationale: ${reason}\n\n${checklistSummary}`,
       ],
@@ -393,15 +399,21 @@ export async function approveProvider(
     await client.query(
       `INSERT INTO notifications (user_id, type, title, body, data)
        VALUES ($1, 'provider_approved', 'Account Approved', 'Your provider account has been approved. Sign in again with your verified mobile number, then review your services, pricing and availability in your provider workspace before accepting work.', $2)`,
-      [userId, JSON.stringify({ providerId })],
+      [userId, JSON.stringify({ providerId, revisionId: expectedRevisionId })],
     );
   });
 
   logger.info('Provider approved', { providerId, adminId });
 }
 
-export async function rejectProvider(providerId: string, adminId: string, reason: string): Promise<void> {
-  await db.transaction(async (client) => {
+export async function rejectProvider(providerId: string, adminId: string, reason: string, revisionId?: unknown): Promise<void> {
+  reason = reason.trim();
+  if (reason.length < 10 || reason.length > 1000) throw createAppError('Rejection reason must be between 10 and 1000 characters.', 400);
+  const expectedRevisionId = requireExpectedApplicationRevision(revisionId);
+  await applicationDecisionTransaction(async (client) => {
+    const locked = await client.query<{ status: string }>('SELECT status FROM providers WHERE id=$1 FOR UPDATE', [providerId]);
+    if (locked.rows[0]?.status !== 'pending') throw createAppError('Provider not found or not in pending status.', 404);
+    await assertCurrentApplicationRevision(client, providerId, expectedRevisionId);
     const result = await client.query<{ id: string; user_id: string }>(
       `UPDATE providers SET status = 'rejected', rejection_reason = $2, reviewed_at = NOW(), updated_at = NOW()
         WHERE id = $1 AND status = 'pending'
@@ -419,10 +431,11 @@ export async function rejectProvider(providerId: string, adminId: string, reason
       [userId],
     );
 
+    await recordApplicationDecision(client, { providerId, revisionId: expectedRevisionId, adminId, decision: 'rejected', reason });
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-       VALUES ($1, 'provider_rejected', 'provider', $2, '{"action":"rejected"}'::jsonb, $3)`,
-      [adminId, providerId, reason],
+       VALUES ($1, 'provider_rejected', 'provider', $2, $4::jsonb, $3)`,
+      [adminId, providerId, reason, JSON.stringify({ action: 'rejected', revisionId: expectedRevisionId })],
     );
 
     await client.query(
@@ -430,11 +443,11 @@ export async function rejectProvider(providerId: string, adminId: string, reason
        VALUES ($1, 'provider_rejected', 'Application Declined', $2, $3)`,
       [userId,
        `Your provider application has been declined. Reason: ${reason}. Please contact support for more information.`,
-       JSON.stringify({ providerId, reason })],
+       JSON.stringify({ providerId, reason, revisionId: expectedRevisionId })],
     );
   });
 
-  logger.info('Provider rejected', { providerId, adminId, reason });
+  logger.info('Provider rejected', { providerId, adminId });
 }
 
 export async function suspendProvider(providerId: string, adminId: string, reason: string): Promise<void> {

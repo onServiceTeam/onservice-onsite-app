@@ -96,6 +96,7 @@ router.post(
         throw createAppError('decision must be approved | rejected | sent_back.', 400);
       }
       const data = await providerApplicationReview.decideApplication({
+        expectedRevisionId: body.expectedRevisionId,
         userId,
         adminUserId: req.user!.userId,
         decision,

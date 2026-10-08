@@ -14,21 +14,17 @@ put.mockResolvedValue({ data: { success: true } });
 
 import { ApprovalPanel, type ProviderProfile } from '../ProviderDetailPage';
 import { VETTING_ITEMS, buildChecklistSummary } from '@/components/VettingChecklist';
+import { providerId, revisionId, decisionResponse } from './helpers/provider-decision-fixture';
 
 it('Bug UX-433 — provider approval sends the completed checklist and rationale in the approval request', async () => {
-  get.mockResolvedValue({ data: { success: true, data: {
-    id: 'provider-1', status: 'pending', documents: {
-      governmentIdUrl: '/private/front', governmentIdBackUrl: '/private/back',
-      selfieUrl: '/private/selfie', nbiClearanceUrl: '/private/nbi',
-    },
-  } } });
+  get.mockImplementation(async (path: string) => decisionResponse(path));
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
 
   render(
     <QueryClientProvider client={client}>
-      <ApprovalPanel profile={{ id: 'provider-1' } as ProviderProfile} />
+      <ApprovalPanel profile={{ id: providerId } as ProviderProfile} />
     </QueryClientProvider>,
   );
 
@@ -43,7 +39,8 @@ it('Bug UX-433 — provider approval sends the completed checklist and rationale
   fireEvent.click(screen.getByRole('button', { name: 'Approve provider' }));
 
   await waitFor(() =>
-    expect(put).toHaveBeenCalledWith('/api/v1/admin/providers/provider-1/approve', {
+    expect(put).toHaveBeenCalledWith(`/api/v1/admin/providers/${providerId}/approve`, {
+      expectedRevisionId: revisionId,
       reason: 'Identity, qualifications, service scope, and references were verified.',
       checklistConfirmed: true,
       checklistSummary: buildChecklistSummary(),

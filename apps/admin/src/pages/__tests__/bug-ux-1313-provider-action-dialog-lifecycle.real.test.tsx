@@ -5,13 +5,18 @@ import { MemoryRouter } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
 import api from '@/lib/api';
 import ProvidersPage from '../ProvidersPage';
+import { providerId, revisionId, decisionResponse } from './helpers/provider-decision-fixture';
 
 it('Bug UX-1313 — provider actions trap and restore focus, confirm draft discard, and retain their target during a pending or failed decision', async () => {
-  vi.mocked(api.get).mockResolvedValue({ status: 200, ok: true, data: { success: true,
-    data: ['first', 'second'].map(id => ({ id, fullName: `${id} applicant`, phone: 'Masked contact',
+  const secondId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const secondRevisionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  const queue = { status: 200, ok: true, data: { success: true,
+    data: [providerId, secondId].map((id, index) => ({ id, fullName: `${index === 0 ? 'first' : 'second'} applicant`, phone: 'Masked contact',
       status: 'pending', tier: 'new', rating: 0, createdAt: '2026-09-05' })),
     pagination: { page: 1, pageSize: 20, total: 2, totalPages: 1 },
-  } });
+  } };
+  vi.mocked(api.get).mockImplementation(async path => (path === '/api/v1/admin/providers' ? queue
+    : path.includes(secondId) ? decisionResponse(path, secondId, secondRevisionId) : decisionResponse(path)) as never);
   let failRequest!: (error: Error) => void;
   vi.mocked(api.put).mockImplementationOnce(() => new Promise((_resolve, reject) => { failRequest = reject; }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -20,11 +25,12 @@ it('Bug UX-1313 — provider actions trap and restore focus, confirm draft disca
   const open = async () => {
     trigger!.focus(); fireEvent.click(trigger!);
     const dialog = await screen.findByRole('dialog', { name: 'reject Provider' });
-    await waitFor(() => expect(within(dialog).getByRole('textbox', { name: 'Reason' })).toHaveFocus());
+    await within(dialog).findByRole('textbox', { name: 'Rejection reason' });
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
     return dialog;
   };
   let dialog = await open();
-  const firstField = within(dialog).getByRole('textbox', { name: 'Reason' });
+  const firstField = within(dialog).getByRole('button', { name: 'Reload latest submission and clear review' });
   const close = within(dialog).getByRole('button', { name: 'Close' });
   // Real Radix focus-scope handlers, not a stubbed dialog or source regex.
   act(() => { close.focus(); });
@@ -35,11 +41,12 @@ it('Bug UX-1313 — provider actions trap and restore focus, confirm draft disca
   act(() => { otherTrigger!.focus(); });
   expect(dialog.contains(document.activeElement)).toBe(true);
   fireEvent.keyDown(document, { key: 'Escape' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Discard review' }));
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   await waitFor(() => expect(trigger).toHaveFocus());
 
   dialog = await open();
-  const reason = within(dialog).getByRole('textbox', { name: 'Reason' });
+  const reason = within(dialog).getByRole('textbox', { name: 'Rejection reason' });
   fireEvent.change(reason, { target: { value: 'This draft review must not be silently lost.' } });
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(within(dialog).getByRole('region', { name: 'Discard unsaved provider review' })).toBeVisible();
@@ -53,7 +60,7 @@ it('Bug UX-1313 — provider actions trap and restore focus, confirm draft disca
   expect(api.put).not.toHaveBeenCalled();
 
   dialog = await open();
-  const retryReason = within(dialog).getByRole('textbox', { name: 'Reason' });
+  const retryReason = within(dialog).getByRole('textbox', { name: 'Rejection reason' });
   expect(retryReason).toHaveValue('');
   fireEvent.change(retryReason, { target: { value: 'Identity evidence needs further review before admission.' } });
   fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
@@ -70,12 +77,12 @@ it('Bug UX-1313 — provider actions trap and restore focus, confirm draft disca
   expect(retryReason).toHaveValue('Identity evidence needs further review before admission.');
   expect(retryReason).toBeEnabled();
   expect(within(dialog).getByText(/first applicant/)).toBeVisible();
-  expect(api.put).toHaveBeenCalledWith('/api/v1/admin/providers/first/reject', { reason: 'Identity evidence needs further review before admission.' });
+  expect(api.put).toHaveBeenCalledWith(`/api/v1/admin/providers/${providerId}/reject`, { reason: 'Identity evidence needs further review before admission.', expectedRevisionId: revisionId });
 
   vi.mocked(api.put).mockResolvedValueOnce({ status: 200, ok: true, data: { success: true } });
   // A successful decision can remove the selected row from a pending queue.
   vi.mocked(api.get).mockResolvedValueOnce({ status: 200, ok: true, data: { success: true,
-    data: [{ id: 'second', fullName: 'second applicant', phone: 'Masked contact', status: 'pending', tier: 'new', rating: 0, createdAt: '2026-09-05' }],
+    data: [{ id: secondId, fullName: 'second applicant', phone: 'Masked contact', status: 'pending', tier: 'new', rating: 0, createdAt: '2026-09-05' }],
     pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
   } });
   fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
@@ -84,7 +91,7 @@ it('Bug UX-1313 — provider actions trap and restore focus, confirm draft disca
   expect(trigger).not.toBeInTheDocument();
   expect(api.put).toHaveBeenCalledTimes(2);
   fireEvent.click(otherTrigger!);
-  expect(screen.getByRole('textbox', { name: 'Reason' })).toHaveValue('');
+  expect(await screen.findByRole('textbox', { name: 'Rejection reason' })).toHaveValue('');
   expect(screen.queryByText('Decision could not be saved.')).not.toBeInTheDocument();
   expect(screen.getByText(/second applicant/, { selector: 'p' })).toBeVisible();
 });

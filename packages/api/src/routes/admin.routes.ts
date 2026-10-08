@@ -1,4 +1,5 @@
 import { Router, Response, NextFunction } from 'express';
+import { rejectProviderApplicationSchema } from '../validators/admin.validators';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import {
@@ -294,6 +295,7 @@ router.put(
       if (typeof id !== 'string' || !id) throw createAppError('Provider ID is required.', 400);
 
       await adminService.approveProvider(id, req.user!.userId, {
+        expectedRevisionId: req.body?.expectedRevisionId,
         reason: req.body?.reason,
         checklistConfirmed: req.body?.checklistConfirmed,
         checklistSummary: req.body?.checklistSummary,
@@ -309,14 +311,14 @@ router.put(
   '/providers/:id/reject',
   authMiddleware,
   validateProviderId,
-  validationMiddleware(suspendProviderSchema),
+  validationMiddleware(rejectProviderApplicationSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Provider ID is required.', 400);
 
-      await adminService.rejectProvider(id, req.user!.userId, req.body.reason);
+      await adminService.rejectProvider(id, req.user!.userId, req.body.reason, req.body.expectedRevisionId);
       res.json({ success: true, data: { message: 'Provider application rejected.' } });
     } catch (error) {
       next(error);

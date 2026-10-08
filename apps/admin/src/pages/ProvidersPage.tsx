@@ -129,14 +129,18 @@ export default function ProvidersPage(): React.ReactElement {
     mutationFn: async () => {
       if (!actionModal) return;
       const { type, provider } = actionModal;
+      if ((type === 'approve' || type === 'reject') && (!vetting.isComplete || !vetting.expectedRevisionId)) {
+        throw new Error('Complete the review of the displayed submission first.');
+      }
       if (type === 'approve') {
         await api.put(`/api/v1/admin/providers/${provider.id}/approve`, {
+          expectedRevisionId: vetting.expectedRevisionId,
           reason: vetting.rationale,
           checklistConfirmed: true,
           checklistSummary: buildChecklistSummary(),
         });
       } else if (type === 'reject') {
-        await api.put(`/api/v1/admin/providers/${provider.id}/reject`, { reason: actionReason });
+        await api.put(`/api/v1/admin/providers/${provider.id}/reject`, { reason: vetting.rationale, expectedRevisionId: vetting.expectedRevisionId });
       } else if (type === 'suspend') {
         await api.put(`/api/v1/admin/providers/${provider.id}/suspend`, { reason: actionReason });
       } else if (type === 'reactivate') {
@@ -161,7 +165,7 @@ export default function ProvidersPage(): React.ReactElement {
     // view until the request settles so a late callback cannot dismiss a
     // different provider's action. An unfinished review needs explicit discard.
     if (actionMutation.isPending) return;
-    if (actionReason.length > 0 || actionModal?.type === 'approve'
+    if (actionReason.length > 0 || actionModal?.type === 'approve' || actionModal?.type === 'reject'
       || (actionModal?.type === 'tier' && actionTier !== actionModal.provider.tier)) {
       setDiscardPrompt(true);
     } else closeAction();
@@ -396,7 +400,7 @@ export default function ProvidersPage(): React.ReactElement {
             )}
 
             <fieldset disabled={actionMutation.isPending || discardPrompt} aria-label="Provider action details" className="m-0 min-w-0 border-0 p-0">
-            {(actionModal.type === 'reject' || actionModal.type === 'suspend' || actionModal.type === 'reactivate' || actionModal.type === 'tier') && (
+            {(actionModal.type === 'suspend' || actionModal.type === 'reactivate' || actionModal.type === 'tier') && (
               <div className="mb-4">
                 <label htmlFor="provider-action-reason" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Reason</label>
                 <textarea
@@ -413,9 +417,9 @@ export default function ProvidersPage(): React.ReactElement {
               </div>
             )}
 
-            {actionModal.type === 'approve' && (
+            {(actionModal.type === 'approve' || actionModal.type === 'reject') && (
               <div className="mb-4">
-                <ProviderApprovalReview key={actionModal.provider.id} providerId={actionModal.provider.id} onChange={setVetting} />
+                <ProviderApprovalReview key={`${actionModal.provider.id}:${actionModal.type}`} providerId={actionModal.provider.id} decision={actionModal.type} onChange={setVetting} />
               </div>
             )}
 
@@ -452,8 +456,8 @@ export default function ProvidersPage(): React.ReactElement {
                 onClick={() => actionMutation.mutate()}
                 disabled={
                   actionMutation.isPending || discardPrompt ||
-                  ((actionModal.type === 'suspend' || actionModal.type === 'reactivate' || actionModal.type === 'reject' || actionModal.type === 'tier') && actionReason.trim().length < 10) ||
-                  (actionModal.type === 'approve' && !vetting.isComplete)
+                  ((actionModal.type === 'suspend' || actionModal.type === 'reactivate' || actionModal.type === 'tier') && actionReason.trim().length < 10) ||
+                  ((actionModal.type === 'approve' || actionModal.type === 'reject') && (!vetting.isComplete || !vetting.expectedRevisionId))
                 }
               >
                 {actionMutation.isPending ? 'Processing...' : 'Confirm'}

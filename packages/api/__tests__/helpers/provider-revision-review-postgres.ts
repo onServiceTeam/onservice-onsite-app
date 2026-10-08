@@ -47,7 +47,7 @@ export async function withRevisionReviewDatabase(run: (fixture: {
 
 // Synthetic later revisions exercise the actual migration's chain and reader.
 // This is NOT a resubmission implementation, approval, or legacy backfill.
-export async function appendSyntheticRevision(database: Pool, providerId: string, number: number): Promise<string> {
+export async function appendSyntheticRevision(database: Pick<Pool, 'query'>, providerId: string, number: number): Promise<string> {
   const id = randomUUID();
   await database.query(`INSERT INTO provider_application_revisions (
     id,provider_id,submitted_by,revision_number,previous_revision_number,business_name,

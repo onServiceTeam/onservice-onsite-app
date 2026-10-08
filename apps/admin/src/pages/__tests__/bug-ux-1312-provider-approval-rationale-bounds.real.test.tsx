@@ -7,9 +7,10 @@ import api from '@/lib/api';
 import { VETTING_ITEMS } from '@/components/VettingChecklist';
 import { ApprovalPanel, type ProviderProfile } from '../ProviderDetailPage';
 import ProvidersPage from '../ProvidersPage';
+import { providerId, revisionId, decisionResponse } from './helpers/provider-decision-fixture';
 
 it('Bug UX-1312 — both provider approval surfaces bound the rationale to the API contract and associate validation guidance with the field', async () => {
-  const profile = { id: 'provider-1', status: 'pending', documents: {
+  const profile = { id: providerId, status: 'pending', documents: {
     governmentIdUrl: '/private/front', governmentIdBackUrl: '/private/back',
     selfieUrl: '/private/selfie', nbiClearanceUrl: '/private/nbi',
   } };
@@ -18,7 +19,7 @@ it('Bug UX-1312 — both provider approval surfaces bound the rationale to the A
     vi.mocked(api.get).mockImplementation(path => Promise.resolve({ data: path === '/api/v1/admin/providers'
       ? { success: true, data: [{ ...profile, fullName: 'Test Applicant', phone: 'Masked contact', tier: 'new', rating: 0, createdAt: '2026-09-05' }],
         pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 } }
-      : { success: true, data: profile },
+      : decisionResponse(path).data,
     }) as never);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     render(<QueryClientProvider client={client}><MemoryRouter>
@@ -51,7 +52,7 @@ it('Bug UX-1312 — both provider approval surfaces bound the rationale to the A
     }
     fireEvent.click(confirm);
     await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1));
-    expect(api.put).toHaveBeenCalledWith('/api/v1/admin/providers/provider-1/approve', expect.objectContaining({ reason: '1234567890', checklistConfirmed: true }));
+    expect(api.put).toHaveBeenCalledWith(`/api/v1/admin/providers/${providerId}/approve`, expect.objectContaining({ reason: '1234567890', checklistConfirmed: true, expectedRevisionId: revisionId }));
     cleanup(); client.clear();
   }
 });

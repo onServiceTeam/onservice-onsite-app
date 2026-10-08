@@ -6,6 +6,7 @@ import { expect, it, vi } from 'vitest';
 import api from '@/lib/api';
 import { VETTING_ITEMS, buildChecklistSummary } from '@/components/VettingChecklist';
 import ProvidersPage from '../ProvidersPage';
+import { providerId, revisionId, decisionIndex, decisionDetail } from './helpers/provider-decision-fixture';
 
 it('Bug UX-435 — the provider queue uses the same atomic approval-review contract as Provider 360', async () => {
   vi.mocked(api.get).mockResolvedValueOnce({
@@ -13,7 +14,7 @@ it('Bug UX-435 — the provider queue uses the same atomic approval-review contr
       success: true,
       data: [
         {
-          id: 'provider-1',
+          id: providerId,
           userId: 'user-1',
           businessName: 'Cebu Aircon Care',
           fullName: 'Ramil Santos',
@@ -34,12 +35,8 @@ it('Bug UX-435 — the provider queue uses the same atomic approval-review contr
       pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
     },
   } as never);
-  vi.mocked(api.get).mockResolvedValueOnce({ data: { success: true, data: {
-    id: 'provider-1', status: 'pending', documents: {
-      governmentIdUrl: '/private/front', governmentIdBackUrl: '/private/back',
-      selfieUrl: '/private/selfie', nbiClearanceUrl: '/private/nbi',
-    },
-  } } } as never);
+  vi.mocked(api.get).mockResolvedValueOnce({ data: { success: true, data: decisionIndex } } as never);
+  vi.mocked(api.get).mockResolvedValueOnce({ data: { success: true, data: decisionDetail } } as never);
   vi.mocked(api.put).mockResolvedValueOnce({ data: { success: true } } as never);
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -62,7 +59,8 @@ it('Bug UX-435 — the provider queue uses the same atomic approval-review contr
   fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
 
   await waitFor(() =>
-    expect(api.put).toHaveBeenCalledWith('/api/v1/admin/providers/provider-1/approve', {
+    expect(api.put).toHaveBeenCalledWith(`/api/v1/admin/providers/${providerId}/approve`, {
+      expectedRevisionId: revisionId,
       reason: 'Identity, qualifications, service scope, and references were verified.',
       checklistConfirmed: true,
       checklistSummary: buildChecklistSummary(),

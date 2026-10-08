@@ -39,6 +39,7 @@ import { useReasonDialog } from '@/components/ui/ReasonDialog';
 import { buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
 import { ProviderApprovalReview } from '@/components/ProviderApprovalReview';
 import { ProviderSubmissionHistory } from '@/components/ProviderSubmissionHistory';
+import { ProviderRejectionDialog } from '@/components/ProviderRejectionDialog';
 import { useAuthStore } from '@/stores/auth.store';
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -507,7 +508,7 @@ export function ProviderHeader({ profile }: { profile: ProviderProfile }): React
 
   const statusMutation = useMutation({
     mutationFn: async ({ action, reason }: {
-      action: 'reject' | 'suspend' | 'reactivate';
+      action: 'suspend' | 'reactivate';
       reason: string;
     }) => {
       await api.put(`/api/v1/admin/providers/${profile.id}/${action}`, { reason });
@@ -521,32 +522,26 @@ export function ProviderHeader({ profile }: { profile: ProviderProfile }): React
       setActionSuccess(
         action === 'suspend'
           ? 'Provider suspended. Every existing access and refresh credential is now invalid.'
-          : action === 'reactivate'
-            ? 'Provider reactivated. They must sign in again.'
-            : 'Provider application rejected and the decision was sent to the applicant.',
+          : 'Provider reactivated. They must sign in again.',
       );
     },
   });
 
-  async function requestStatusAction(action: 'reject' | 'suspend' | 'reactivate'): Promise<void> {
+  async function requestStatusAction(action: 'suspend' | 'reactivate'): Promise<void> {
     setActionSuccess('');
     const providerLabel = profile.businessName || user.fullName || 'this provider';
     const reason = await requestReason({
       title:
         action === 'suspend'
           ? `Suspend ${providerLabel}?`
-          : action === 'reactivate'
-            ? `Reactivate ${providerLabel}?`
-            : `Reject ${providerLabel}?`,
+          : `Reactivate ${providerLabel}?`,
       description:
         action === 'suspend'
           ? 'Suspension immediately invalidates every provider access and refresh credential. In-flight jobs are held for admin review; this action does not cancel a job, refund a customer, resolve a dispute, or release escrow. The provider receives the reason.'
-          : action === 'reactivate'
-            ? 'Reactivation requires a recorded prior approval and an active provider account without a fraud flag. It restores provider workspace access but does not clear held jobs, change payments, or resolve disputes. The provider must sign in again and receives the reason.'
-            : 'Rejection closes this pending application and keeps the person’s customer account. It does not delete submitted records. The applicant receives the reason.',
+          : 'Reactivation requires a recorded prior approval and an active provider account without a fraud flag. It restores provider workspace access but does not clear held jobs, change payments, or resolve disputes. The provider must sign in again and receives the reason.',
       confirmLabel:
-        action === 'suspend' ? 'Suspend provider' : action === 'reactivate' ? 'Reactivate provider' : 'Reject application',
-      reasonLabel: action === 'reactivate' ? 'Reactivation reason' : action === 'suspend' ? 'Suspension reason' : 'Rejection reason',
+        action === 'suspend' ? 'Suspend provider' : 'Reactivate provider',
+      reasonLabel: action === 'reactivate' ? 'Reactivation reason' : 'Suspension reason',
       placeholder: 'Record the support case, evidence, checks completed, and decision basis.',
       minLength: 10,
       maxLength: 1000,
@@ -684,16 +679,7 @@ export function ProviderHeader({ profile }: { profile: ProviderProfile }): React
             Reactivate provider
           </Button>
         )}
-        {profile.status === 'pending' && (
-          <Button
-            variant="destructive"
-            size="sm"
-            disabled={statusMutation.isPending}
-            onClick={() => void requestStatusAction('reject')}
-          >
-            Reject application
-          </Button>
-        )}
+        {profile.status === 'pending' && <ProviderRejectionDialog key={profile.id} providerId={profile.id} />}
       </div>
 
       <div className="grid gap-3 border-t border-[var(--color-border)] pt-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -778,7 +764,9 @@ export function ApprovalPanel({ profile }: { profile: ProviderProfile }): React.
 
   const approve = useMutation({
     mutationFn: async () => {
+      if (!vetting.isComplete || !vetting.expectedRevisionId) throw new Error('Complete the review of the displayed submission first.');
       await api.put(`/api/v1/admin/providers/${profile.id}/approve`, {
+        expectedRevisionId: vetting.expectedRevisionId,
         reason: vetting.rationale,
         checklistConfirmed: true,
         checklistSummary: buildChecklistSummary(),
@@ -810,11 +798,14 @@ export function ApprovalPanel({ profile }: { profile: ProviderProfile }): React.
   return (
     <div className="border-t border-slate-100 pt-4 space-y-3">
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <ProviderApprovalReview key={profile.id} providerId={profile.id} onChange={setVetting} />
+      <fieldset disabled={approve.isPending} className="min-w-0 border-0 p-0">
+        <ProviderApprovalReview key={profile.id} providerId={profile.id} onChange={setVetting} />
+      </fieldset>
       <div className="flex gap-2 justify-end">
         <Button
           variant="outline"
           size="sm"
+          disabled={approve.isPending}
           onClick={() => { setOpen(false); setError(''); setVetting({ isComplete: false, rationale: '' }); }}
         >
           Cancel
@@ -822,7 +813,7 @@ export function ApprovalPanel({ profile }: { profile: ProviderProfile }): React.
         <Button
           size="sm"
           onClick={() => approve.mutate()}
-          disabled={approve.isPending || !vetting.isComplete}
+          disabled={approve.isPending || !vetting.isComplete || !vetting.expectedRevisionId}
         >
           {approve.isPending ? 'Approving…' : 'Approve provider'}
         </Button>

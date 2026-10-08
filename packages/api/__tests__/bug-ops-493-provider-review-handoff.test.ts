@@ -8,7 +8,7 @@ import { errorMiddleware } from '../src/middleware/error.middleware';
 import { getProviderByUserId } from '../src/services/provider.service';
 import { draftIntegrationIt as it } from './helpers/provider-draft-postgres';
 import { applicantId, applicationCategoryId, applicationAreaId, submissionInput } from './helpers/provider-submission-postgres';
-import { approvalReview } from './helpers/provider-approval-postgres';
+import { approvalReview as baseApprovalReview } from './helpers/provider-approval-postgres';
 import { reviewerId, secondApplicantId, withReviewHandoffDatabase } from './helpers/provider-review-handoff-postgres';
 
 jest.mock('../src/services/settings.service', () => ({ getMaxProviderServiceRadiusKm: jest.fn().mockResolvedValue(50) }));
@@ -38,6 +38,9 @@ it('Bug OPS-493 — submitted category-only evidence survives the applicant to a
         .send({ ...draft.body.data.fields, draftRevision: draft.body.data.revision, icAgreementAccepted: true });
       expect(submitted.status).toBe(201);
       const providerId = submitted.body.data.id as string;
+      const captured = await request(app).get(`/admin/providers/${providerId}/application-revisions`).auth(adminToken, { type: 'bearer' });
+      expect(captured.status).toBe(200);
+      const approvalReview = { ...baseApprovalReview, expectedRevisionId: captured.body.data.revisions[0].id };
       const queue = await readQueue();
       expect(queue.status).toBe(200);
       expect(queue.body.data).toEqual([expect.objectContaining({ providerId, userId: applicantId,
@@ -101,7 +104,7 @@ it('Bug OPS-493 — submitted category-only evidence survives the applicant to a
       expect((await database.query('SELECT action_type,target_id,admin_id,reason FROM admin_actions')).rows)
         .toEqual([{ action_type: 'provider_approved', target_id: providerId, admin_id: reviewerId, reason: approvalReview.reason }]);
       expect((await database.query('SELECT user_id,type,data FROM notifications')).rows)
-        .toEqual([{ user_id: applicantId, type: 'provider_approved', data: { providerId } }]);
+        .toEqual([{ user_id: applicantId, type: 'provider_approved', data: { providerId, revisionId: approvalReview.expectedRevisionId } }]);
     });
   } finally {
     if (previousSecret === undefined) delete process.env.JWT_SECRET;

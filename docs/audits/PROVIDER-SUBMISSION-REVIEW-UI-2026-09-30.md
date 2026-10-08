@@ -137,3 +137,18 @@ were reused; latest-Stitch parity and every-screen completion are not claimed.
 
 No new production inspection, live login, master merge, deployment, whole-app
 status percentage or launch-ready claim is made for this stage.
+
+## Independent verification of the published reader screen
+
+Candidate `4b73c29d909c94dc072a87ad01fa0176c87d19fd` passed all four jobs in
+CI `36668721549` and Gates `36668721547`. API job `109738912086` passed
+986 suites / 3,430 tests with two TODOs, including OPS-510/511 and both nginx
+checks. Admin job `109738912049` passed 594 files / 702 tests with one skipped
+file and three TODOs (571.21 seconds). Mobile tests/web build and API image
+build/liveness succeeded. API/admin release-package retention was skipped;
+this is not a matched deployment package. Visual/mutation advisory boundaries
+are not native or latest-Stitch signoff. No production rollout occurred.
+
+The subsequent decision stage is documented separately in
+`PROVIDER-SUBMISSION-DECISIONS-2026-09-30.md`; this earlier CI result does not
+certify that newer code.

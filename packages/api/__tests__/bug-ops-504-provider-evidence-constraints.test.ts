@@ -11,7 +11,10 @@ it('Bug OPS-504 — the actual evidence migration rejects routine mutation, wron
     expect((await database.query('SELECT * FROM provider_application_revisions')).rows).toEqual([]);
     await createProviderApplication(applicantId, submissionInput);
     const original = (await database.query('SELECT * FROM provider_application_revisions')).rows;
-    for (const sql of ["UPDATE provider_application_revisions SET business_name='Overwrite'", 'DELETE FROM provider_application_revisions', 'TRUNCATE provider_application_revisions']) {
+    // The new decision FK refuses plain TRUNCATE before the immutable trigger.
+    await expect(database.query('TRUNCATE provider_application_revisions')).rejects.toMatchObject({ code: '0A000' });
+    expect((await database.query('SELECT * FROM provider_application_revisions')).rows).toEqual(original);
+    for (const sql of ["UPDATE provider_application_revisions SET business_name='Overwrite'", 'DELETE FROM provider_application_revisions', 'TRUNCATE provider_application_revisions CASCADE']) {
       await expect(database.query(sql)).rejects.toMatchObject({ code: '55000' });
       expect((await database.query('SELECT * FROM provider_application_revisions')).rows).toEqual(original);
     }

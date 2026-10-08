@@ -61,7 +61,7 @@ it('Bug OPS-510 — admin review reads the exact submitted revision rather than 
 
     const legacy = await get(`/api/v1/admin/providers/${legacyProviderId}/application-revisions`);
     expect(legacy.status).toBe(200);
-    expect(legacy.body.data).toEqual({ providerId: legacyProviderId, currentStatus: 'pending', historyState: 'not_recorded', revisions: [], nextBeforeRevision: null });
+    expect(legacy.body.data).toEqual({ providerId: legacyProviderId, currentStatus: 'pending', historyState: 'not_recorded', revisions: [], nextBeforeRevision: null, decisionContractVersion: 1 });
     for (const path of [`/api/v1/admin/providers/${randomUUID()}/application-revisions`, `${base}/${randomUUID()}`,
       `/api/v1/admin/providers/${legacyProviderId}/application-revisions/${revisionId}`]) {
       const absent = await get(path);

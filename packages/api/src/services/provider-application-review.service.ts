@@ -57,6 +57,7 @@ export async function listPendingReview(limit = 50): Promise<ProviderApplication
 }
 
 export async function decideApplication(input: {
+  expectedRevisionId?: unknown;
   userId: string;
   adminUserId: string;
   decision: 'approved' | 'rejected' | 'sent_back';
@@ -94,12 +95,13 @@ export async function decideApplication(input: {
   // is authoritative even if another operator decides after the lookup above.
   if (input.decision === 'approved') {
     await adminService.approveProvider(provider.id, input.adminUserId, {
+      expectedRevisionId: input.expectedRevisionId,
       reason,
       checklistConfirmed: input.checklistConfirmed,
       checklistSummary: input.checklistSummary,
     });
   } else {
-    await adminService.rejectProvider(provider.id, input.adminUserId, reason);
+    await adminService.rejectProvider(provider.id, input.adminUserId, reason, input.expectedRevisionId);
   }
   return { providerId: provider.id, userId: input.userId, status: input.decision };
 }

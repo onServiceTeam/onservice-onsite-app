@@ -1864,6 +1864,21 @@ Revision-bound decisions, correction/resubmission, governed legacy admission,
 object-byte retention and matched API/web/schema deployment remain unfinished.
 No production rollout or latest-Stitch/every-screen acceptance is claimed.
 
+Further 2026-09-30 decision stage, **still open**: both admin decision entry
+points now review the preserved submission and send its exact revision ID.
+The canonical service refuses stale/foreign/absent or already-decided evidence
+and commits status/role, immutable decision, audit and applicant inbox notice
+together. Migration 174 is additive, with no legacy backfill. Six actual
+PostgreSQL regressions and rendered/browser checks cover the new contract;
+16 compiled synthetic decision journeys and four reader repeats pass at four
+widths. The full local API run still failed only the two Docker-unavailable
+nginx checks; admin passed 704 tests with three TODOs, with the later history
+test passing separately. Fresh CI, full selected-image migration through 174,
+paired acceptance and deployment remain required. Correction/resubmission,
+lock-order standardization, governed legacy admission, decision export/retention,
+original object bytes and full Stitch/native evidence remain open. See
+`docs/audits/PROVIDER-SUBMISSION-DECISIONS-2026-09-30.md`.
+
 ---
 
 ## 53. Provider approval does not enforce the government ID back image

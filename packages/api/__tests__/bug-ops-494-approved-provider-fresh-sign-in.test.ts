@@ -65,9 +65,10 @@ it('Bug OPS-494 — approval rejects both old customer credentials and only a fr
         .send({ ...draft.body.data.fields, draftRevision: draft.body.data.revision, icAgreementAccepted: true });
       expect(submission.status).toBe(201);
       const providerId = submission.body.data.id;
+      const revisionId = (await database.query('SELECT id FROM provider_application_revisions WHERE provider_id=$1', [providerId])).rows[0].id;
       const admin = jwt.sign({ userId: reviewerId, role: 'super_admin', sessionVersion: 1 }, process.env.JWT_SECRET!, { expiresIn: '5m' });
       const approved = await request(app).post(`/api/v1/admin/provider-applications/${applicantId}/decide`)
-        .auth(admin, { type: 'bearer' }).send({ decision: 'approved', ...approvalReview });
+        .auth(admin, { type: 'bearer' }).send({ decision: 'approved', ...approvalReview, expectedRevisionId: revisionId });
       expect(approved.status).toBe(200);
       const staleAccess = await request(app).get('/api/v1/providers/application-status').auth(access, { type: 'bearer' });
       expect(staleAccess.status).toBe(401);

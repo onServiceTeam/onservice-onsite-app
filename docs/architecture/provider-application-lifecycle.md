@@ -333,3 +333,33 @@ render/browser evidence, the interrupted-run recovery and validation limits:
 CI is independently green; new UI publication requires its own CI. E35/E74,
 E21/E43, latest-Stitch/native acceptance and governed paired deployment remain
 open.
+
+## Exact submission decisions September 30
+
+The next candidate stage now binds approval and rejection to the displayed
+latest revision. Migration 174 stores one immutable decision per provider/revision
+with actor, outcome, bounded reason, checklist and database time. Both API entry
+points delegate to the same locked service; status/role, decision, audit and
+applicant inbox notification commit together. A stale, foreign, absent-history
+or already-decided revision cannot be used. Approval also refuses replacement
+current KYC references that differ from the reviewed originals. No legacy
+decision is manufactured and `sent_back` remains held.
+
+Both admin decision entry points display the preserved evidence and require the
+versioned decision contract before mounting controls. Reload/error/session
+retirement clears the prior review. The read-only history displays the decision
+separately from current provider status. This supersedes the earlier unversioned
+decision limitation for candidate code, not production. Migration 174 is required
+for detail reads and decisions. The index still reads migration 173; its capability
+marker identifies API semantics, not an independent schema-health guarantee.
+
+The existing provider-before-owner decision lock order is retained. Standardize
+the relevant paths before adding correction/resubmission; there is no global
+lock-order resolution here. Decisions are private operations evidence, with
+rejection reasons also delivered to applicants. New decision rows are not yet
+included in owner archives or a governed E21 erasure manifest. Internal approval
+rationale must not be automatically disclosed merely because it is stored on an
+application. Routine SQL mutation guards are not a legal retention schedule.
+
+Evidence and remaining contract, privacy, checklist, legacy and release work:
+`docs/audits/PROVIDER-SUBMISSION-DECISIONS-2026-09-30.md`. E35/E74 remain open.

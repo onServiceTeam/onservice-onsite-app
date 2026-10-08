@@ -21,7 +21,7 @@ export const submissionInput: ProviderApplicationInput = {
   ] },
 };
 
-// Focused service/transaction fixture plus actual migrations 172/173, not a
+// Focused service/transaction fixture plus actual migrations 172/173/174, not a
 // full migration-chain proof. The reused harness permits only localhost
 // *_test, creates a unique schema, and removes only that test-owned schema.
 export async function withSubmissionDatabase(run: (database: Pool) => Promise<void>): Promise<void> {
@@ -66,6 +66,7 @@ export async function withSubmissionDatabase(run: (database: Pool) => Promise<vo
       CREATE TABLE notifications (id serial PRIMARY KEY);
     `);
     await database.query(await readFile(path.resolve(__dirname, '../../migrations/173_provider_application_revisions.sql'), 'utf8'));
+    await database.query(await readFile(path.resolve(__dirname, '../../migrations/174_provider_application_decisions.sql'), 'utf8'));
     await database.query("INSERT INTO users (id,role) VALUES ($1,'customer')", [applicantId]);
     await database.query(`INSERT INTO service_areas
       (id,name,city,province,status,center_lat,center_lng,radius_km,is_default)

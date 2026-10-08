@@ -29,9 +29,11 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import * as adminService from '../src/services/admin.service';
+import { mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
 import * as escrowService from '../src/services/escrow.service';
 
 const APPROVAL_REVIEW = {
+  expectedRevisionId: mockRevisionId,
   reason: 'All provider identity and qualification checks passed.',
   checklistConfirmed: true,
   checklistSummary: 'Vetting checklist confirmed (10/10): all required review items passed.',
@@ -42,7 +44,8 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
     dbQueryMock.mockReset();
     dbTransactionMock.mockReset();
     approvalClientQueryMock.mockReset();
-    approvalClientQueryMock.mockResolvedValue({ rows: [], rowCount: 1 });
+    approvalClientQueryMock.mockImplementation(async (sql: string) => sql.includes('FROM provider_application_revisions r')
+      ? mockRevision('id-front.png', 'id-back.png', 'nbi.pdf', 'selfie.png') : { rows: [], rowCount: 1 });
     dbTransactionMock.mockImplementation(async (callback: (client: { query: typeof approvalClientQueryMock }) => Promise<unknown>) =>
       callback({ query: approvalClientQueryMock }));
   });
@@ -63,7 +66,7 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
         message: expect.stringMatching(/missing KYC documents.*nbi_clearance_url/),
       });
     // Locked validation runs in the transaction, but no writes may follow it.
-    expect(approvalClientQueryMock).toHaveBeenCalledTimes(1);
+    expect(approvalClientQueryMock).toHaveBeenCalledTimes(2);
     expect(dbQueryMock).not.toHaveBeenCalled();
   });
 
@@ -95,6 +98,7 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
         selfie_url: 'https://s3/selfie.png',
       }],
     });
+    approvalClientQueryMock.mockResolvedValueOnce(mockRevision('id-front.png', 'id-back.png', 'nbi.pdf', 'selfie.png'));
     approvalClientQueryMock.mockResolvedValueOnce({ rows: [{ id: 'p-1', user_id: 'u-1' }], rowCount: 1 });
 
     await expect(adminService.approveProvider('p-1', 'admin-1', APPROVAL_REVIEW)).resolves.toBeUndefined();

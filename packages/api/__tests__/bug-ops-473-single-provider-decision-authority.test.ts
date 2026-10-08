@@ -42,17 +42,18 @@ it('Bug OPS-473 — the compatibility decision route uses Provider 360 validatio
   const endpoint = `/admin/provider-applications/${userId}/decide`;
   const reason = 'Documents and identity were reviewed against the supplied evidence.';
   const checklistSummary = 'Identity, background clearance and service qualifications reviewed.';
+  const expectedRevisionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
   dbQueryMock.mockResolvedValue({ rows: [{ id: providerId }] });
   approveMock.mockResolvedValue(undefined);
   rejectMock.mockResolvedValue(undefined);
 
   const approved = await request(app).post(endpoint).send({
-    decision: 'approved', reason, checklistConfirmed: true, checklistSummary,
+    decision: 'approved', reason, checklistConfirmed: true, checklistSummary, expectedRevisionId,
   });
   expect(approved.status).toBe(200);
   expect(approved.body.data).toEqual({ providerId, userId, status: 'approved' });
   expect(approveMock).toHaveBeenLastCalledWith(providerId, adminId, {
-    reason, checklistConfirmed: true, checklistSummary,
+    reason, checklistConfirmed: true, checklistSummary, expectedRevisionId,
   });
 
   // Canonical failures propagate; the adapter must not write an independent
@@ -61,14 +62,14 @@ it('Bug OPS-473 — the compatibility decision route uses Provider 360 validatio
   const missingChecklist = await request(app).post(endpoint).send({ decision: 'approved', reason });
   expect(missingChecklist.status).toBe(400);
   expect(approveMock).toHaveBeenLastCalledWith(providerId, adminId, {
-    reason, checklistConfirmed: undefined, checklistSummary: undefined,
+    reason, checklistConfirmed: undefined, checklistSummary: undefined, expectedRevisionId: undefined,
   });
   approveMock.mockRejectedValueOnce(Object.assign(new Error('Already decided'), { statusCode: 404 }));
   expect((await request(app).post(endpoint).send({ decision: 'approved', reason })).status).toBe(404);
 
-  const rejected = await request(app).post(endpoint).send({ decision: 'rejected', reason });
+  const rejected = await request(app).post(endpoint).send({ decision: 'rejected', reason, expectedRevisionId });
   expect(rejected.status).toBe(200);
-  expect(rejectMock).toHaveBeenLastCalledWith(providerId, adminId, reason);
+  expect(rejectMock).toHaveBeenLastCalledWith(providerId, adminId, reason, expectedRevisionId);
   expect(rejected.body.data.status).toBe('rejected');
 
   const readsBeforeInvalid = dbQueryMock.mock.calls.length;

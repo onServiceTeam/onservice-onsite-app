@@ -13,6 +13,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import { approveProvider } from '../src/services/admin.service';
+import { mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
 
 it('Bug UX-434 — provider approval requires and transactionally preserves the review rationale and checklist', async () => {
   await expect(
@@ -30,6 +31,8 @@ it('Bug UX-434 — provider approval requires and transactionally preserves the 
     const client = {
       query: jest.fn(async (sql: string, params: unknown[] = []) => {
         transactionCalls.push({ sql, params });
+        if (sql.includes('FROM provider_application_revisions r')) return mockRevision(
+          'private/id.jpg', 'private/id-back.jpg', 'private/nbi.pdf', 'private/selfie.jpg');
         if (/SELECT status, nbi_clearance_url/.test(sql)) {
           return { rows: [{ status: 'pending', nbi_clearance_url: 'private/nbi.pdf',
             government_id_front_url: 'private/id.jpg', government_id_back_url: 'private/id-back.jpg',
@@ -47,6 +50,7 @@ it('Bug UX-434 — provider approval requires and transactionally preserves the 
   const reason = 'Identity, qualifications, service scope, and references were verified.';
   const checklistSummary = 'Vetting checklist confirmed (10/10): all required review items passed.';
   await approveProvider('provider-1', 'admin-1', {
+    expectedRevisionId: mockRevisionId,
     reason,
     checklistConfirmed: true,
     checklistSummary,

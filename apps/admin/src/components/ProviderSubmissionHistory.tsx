@@ -12,6 +12,7 @@ const revisionNumber = z.number().int().positive().max(2_147_483_647);
 const timestamp = z.string().datetime();
 const summarySchema = z.object({ id: uuid, revisionNumber, submittedAt: timestamp });
 const indexSchema = z.object({
+  decisionContractVersion: z.literal(1).optional(),
   providerId: uuid, currentStatus: z.string(), historyState: z.enum(['recorded', 'not_recorded']),
   revisions: z.array(summarySchema).max(20), nextBeforeRevision: revisionNumber.nullable(),
 });
@@ -24,6 +25,9 @@ const questionnaireSchema = z.object({
   references: z.array(z.object({ name: z.string(), contact: z.string(), relation: z.string().optional() })).optional(),
 }).strict();
 const detailSchema = z.object({
+  decisionContractVersion: z.literal(1).optional(),
+  decision: z.object({ id: uuid, decision: z.enum(['approved', 'rejected']), decidedBy: uuid,
+    reason: z.string(), checklistSummary: z.string().nullable(), decidedAt: timestamp }).nullable().optional(),
   providerId: uuid, currentStatus: z.string(), revision: z.object({
     id: uuid, revisionNumber, previousRevisionNumber: revisionNumber.nullable(), schemaVersion: z.literal(1),
     businessName: z.string(), serviceRadiusKm: z.number(), latitude: z.number(), longitude: z.number(),
@@ -160,7 +164,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   </div>;
 }
 
-function SubmissionDetail({ providerId, summary }: { providerId: string; summary: SubmissionSummary }): React.ReactElement {
+function SubmissionDetail({ providerId, summary, review }: {
+  providerId: string; summary: SubmissionSummary; review?: (revisionId: string) => React.ReactNode;
+}): React.ReactElement {
   const [attempt, setAttempt] = useState(0);
   const base = `/api/v1/admin/providers/${providerId}/application-revisions/${summary.id}`;
   const query = usePrivateRead(base, detailSchema, attempt);
@@ -175,6 +181,17 @@ function SubmissionDetail({ providerId, summary }: { providerId: string; summary
     <div><h3 className="text-lg font-semibold">Submission {row.revisionNumber} as submitted</h3>
       <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Names, selections, answers and document references below come from this preserved submission, not today’s profile or catalog.</p></div>
     <p className="rounded-lg border border-[var(--color-border)] p-3 text-sm">Current provider status at load: <strong>{currentStatus}</strong>. This does not identify which submission was approved.</p>
+    <section aria-label="Decision recorded for this submission" className="space-y-2 rounded-lg border border-[var(--color-border)] p-3 text-sm [overflow-wrap:anywhere]">
+      <h4 className="font-semibold">Decision recorded for this submission</h4>
+      {query.data.decision === undefined ? <p>Decision history was not provided by this server. No decision is inferred from current status.</p>
+        : query.data.decision === null ? <p>No decision is recorded for this submission. Historical approvals are not reconstructed.</p>
+          : <><p>Decision: <strong>{query.data.decision.decision}</strong></p>
+            <p>Recorded at: <RecordedTime value={query.data.decision.decidedAt} /></p>
+            <p>Reviewer ID: <span className="font-mono text-xs">{query.data.decision.decidedBy}</span></p>
+            <p className="whitespace-pre-wrap">Reason: {query.data.decision.reason}</p>
+            {query.data.decision.checklistSummary && <p className="whitespace-pre-wrap">{query.data.decision.checklistSummary}</p>}
+            <p>Decision ID: <span className="font-mono text-xs">{query.data.decision.id}</span></p></>}
+    </section>
     <dl className="grid min-w-0 gap-x-6 sm:grid-cols-2 xl:grid-cols-3">
       <Field label="Business name">{row.businessName}</Field>
       <Field label="City">{row.city}</Field><Field label="Province">{row.province}</Field>
@@ -205,7 +222,54 @@ function SubmissionDetail({ providerId, summary }: { providerId: string; summary
       <p>Previous submission: {row.previousRevisionNumber === null ? 'None (first submission)' : row.previousRevisionNumber}. Record format: {row.schemaVersion}.</p>
       <p>Original account name and agreement wording were not captured in this record. The agreement time alone does not prove which wording was accepted.</p>
     </div>
+    {review && (query.data.decisionContractVersion !== 1 || query.data.decision === undefined
+      ? <p role="alert">This server does not support submission-bound decisions. Approval and rejection are blocked.</p>
+      : query.data.decision !== null ? <p role="alert">This submission already has a recorded decision. Reload the provider record.</p>
+        : currentStatus === 'pending' ? review(row.id)
+      : <p role="alert">This application is no longer pending. Reload the provider record before deciding.</p>)}
   </section>;
+}
+
+/** Decision controls mount only underneath the actual validated latest evidence.
+ * A refresh, failed read, identity change or session change unmounts the form.
+ * The API rechecks that exact revision under the provider lock on submission.
+ */
+export function ProviderSubmissionForDecision({ providerId, review }: {
+  providerId: string; review: (revisionId: string) => React.ReactNode;
+}): React.ReactElement {
+  const auth = useAuthStore(state => state);
+  const session = captureAdminRequestSession();
+  const [scope] = useState(() => ({ providerId, session }));
+  if (scope.providerId !== providerId || scope.session !== session || !auth.isAuthenticated
+    || auth.mustRotatePassword || !['admin', 'super_admin'].includes(auth.user?.role ?? '')) {
+    return <p role="alert">Review session changed. Close and reopen this review before deciding.</p>;
+  }
+  return <LatestSubmission providerId={providerId} review={review} />;
+}
+
+function LatestSubmission({ providerId, review }: {
+  providerId: string; review: (revisionId: string) => React.ReactNode;
+}): React.ReactElement {
+  const [attempt, setAttempt] = useState(0);
+  const query = usePrivateRead(`/api/v1/admin/providers/${providerId}/application-revisions?limit=20`, indexSchema, attempt);
+  const reload = (): void => setAttempt(value => value + 1);
+  if (query.status === 'loading') return <Reading label="Loading latest submitted application..." />;
+  if (query.status === 'error') return <ReadFailure onRetry={reload} />;
+  const page = query.data;
+  if (page.providerId !== providerId || !uuid.safeParse(providerId).success
+    || (page.historyState === 'not_recorded' && page.revisions.length > 0)
+    || page.revisions.some((row, index) => index > 0 && row.revisionNumber >= page.revisions[index - 1]!.revisionNumber)) {
+    return <ReadFailure onRetry={reload} />;
+  }
+  const latest = page.revisions[0];
+  return <div className="min-w-0 space-y-4">
+    <Button variant="outline" className="min-h-11" onClick={reload}>Reload latest submission and clear review</Button>
+    {page.decisionContractVersion !== 1 ? <p role="alert">This server does not support submission-bound decisions. Approval and rejection are blocked.</p>
+      : page.historyState === 'not_recorded' ? <p role="alert">No preserved submission is available. Approval and rejection are blocked. This legacy application needs a separate admission review; the current profile is not a substitute.</p>
+      : !latest ? <ReadFailure onRetry={reload} />
+        : page.currentStatus !== 'pending' ? <p role="alert">This application is no longer pending. Reload the provider record before deciding.</p>
+          : <SubmissionDetail key={`${latest.id}:${attempt}`} providerId={providerId} summary={latest} review={review} />}
+  </div>;
 }
 
 function Questionnaire({ row }: { row: Submission }): React.ReactElement {

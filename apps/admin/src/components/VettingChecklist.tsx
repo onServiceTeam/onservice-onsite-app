@@ -40,6 +40,8 @@ export function buildChecklistSummary(): string {
 }
 
 export interface VettingState {
+  /** Added only by the preserved-submission review, never by the checklist. */
+  expectedRevisionId?: string;
   /** True only when every item is ticked AND the rationale meets the API bounds. */
   isComplete: boolean;
   rationale: string;

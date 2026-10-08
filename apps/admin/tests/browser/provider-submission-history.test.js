@@ -1,7 +1,8 @@
-/** UX-1377 isolated compiled-app acceptance. Run after building and starting a loopback
+/** UX-1377/1381 isolated compiled-app acceptance. Run after building and starting a loopback
  * Vite preview. Every API response is synthetic; this is not server acceptance,
  * live authentication, a Stitch baseline, or permission to deploy.
  * ADMIN_PREVIEW_URL defaults to http://127.0.0.1:17482.
+ * ADMIN_REVIEW_OUTPUT_DIR can preserve captures in a separate per-run directory.
  */
 import { chromium, expect } from '@playwright/test';
 import assert from 'node:assert/strict';
@@ -13,7 +14,9 @@ const origin = new URL(process.env.ADMIN_PREVIEW_URL ?? 'http://127.0.0.1:17482'
 assert.equal(origin.protocol, 'http:');
 assert.equal(origin.hostname, '127.0.0.1');
 assert.equal(origin.pathname, '/');
-const out = path.resolve(import.meta.dirname, '../../../../qa-frameworks/session-audit-2026-09-06/provider-submission-browser');
+const out = process.env.ADMIN_REVIEW_OUTPUT_DIR
+  ? path.resolve(process.env.ADMIN_REVIEW_OUTPUT_DIR)
+  : path.resolve(import.meta.dirname, '../../../../qa-frameworks/session-audit-2026-09-06/provider-submission-browser');
 await mkdir(out, { recursive: true });
 const providerId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const revisionId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -120,4 +123,90 @@ try {
     await context.close();
   }
 } finally { await browser.close(); }
+});
+
+it('Bug UX-1381 — submission-bound approvals and rejections work in both admin entrypoints at desktop, tablet and narrow widths', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const width of [1440, 1024, 768, 390]) for (const surface of ['queue', 'detail']) for (const action of ['approve', 'reject']) {
+      const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' });
+      const page = await context.newPage();
+      const errors = []; const unexpected = []; const writes = [];
+      let status = 'pending'; let decision = null;
+      page.on('pageerror', error => errors.push(error.message));
+      await context.addCookies([{ name: 'admin_csrf', value: 'synthetic-not-a-live-credential', url: origin.origin }]);
+      await page.route('**/api/**', async route => {
+        const request = route.request(); const url = new URL(request.url()); let data;
+        if (request.method() === 'PUT' && url.pathname === `/api/v1/admin/providers/${providerId}/${action}`) {
+          const payload = request.postDataJSON();
+          writes.push(payload); status = action === 'approve' ? 'approved' : 'rejected';
+          decision = { id: '33333333-3333-4333-8333-333333333333', decidedBy: user.id, decision: status,
+            reason: payload.reason, checklistSummary: payload.checklistSummary ?? null, decidedAt: at };
+          data = { message: 'Synthetic decision saved' };
+        } else if (request.method() !== 'GET') unexpected.push(`${request.method()} ${url.pathname}`);
+        else if (url.pathname === '/api/v1/auth/me') data = user;
+        else if (url.pathname === '/api/v1/admin/providers') {
+          await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true,
+            data: [{ ...profile, status, fullName: 'Synthetic Provider', phone: 'Masked contact', rating: 0, totalJobs: 0 }],
+            pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 } }) }); return;
+        } else if (url.pathname === `/api/v1/admin/providers/${providerId}/profile`) data = { ...profile, status,
+          documents: { ...profile.documents,
+            governmentIdUrl: `/api/v1/admin/providers/${providerId}/kyc/government_id_front`,
+            governmentIdBackUrl: `/api/v1/admin/providers/${providerId}/kyc/government_id_back`,
+            nbiClearanceUrl: `/api/v1/admin/providers/${providerId}/kyc/nbi_clearance`,
+            selfieUrl: `/api/v1/admin/providers/${providerId}/kyc/selfie` } };
+        else if (url.pathname === base) data = { providerId, currentStatus: status, historyState: 'recorded', decisionContractVersion: 1,
+          revisions: [{ id: revisionId, revisionNumber: 1, submittedAt: at }], nextBeforeRevision: null };
+        else if (url.pathname === `${base}/${revisionId}`) data = { providerId, currentStatus: status, revision, decisionContractVersion: 1, decision };
+        else if (Object.values(revision.documents).includes(url.pathname)) {
+          await route.fulfill({ contentType: 'image/png', headers: { 'Cache-Control': 'private, no-store' },
+            body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aVscAAAAASUVORK5CYII=', 'base64') });
+          return;
+        }
+        else unexpected.push(`${request.method()} ${url.pathname}`);
+        await route.fulfill({ status: data === undefined ? 503 : 200, contentType: 'application/json',
+          body: JSON.stringify(data === undefined ? { success: false, error: { message: 'Unexpected synthetic request' } } : { success: true, data }) });
+      });
+      await page.goto(`${origin.origin}/providers${surface === 'detail' ? `/${providerId}` : ''}`);
+      await page.getByRole('button', { name: surface === 'queue' ? action === 'approve' ? 'Approve' : 'Reject'
+        : action === 'approve' ? 'Review & approve' : 'Reject application', exact: true }).click();
+      const evidence = page.getByRole('region', { name: 'Submission 1 as submitted' });
+      await expect(evidence.getByText('Original Cebu Services', { exact: true })).toBeVisible();
+      await page.screenshot({ path: path.join(out, `decision-${surface}-${action}-${width}-top.png`) });
+      const confirm = page.getByRole('button', { name: surface === 'queue' ? 'Confirm'
+        : action === 'approve' ? 'Approve provider' : 'Reject reviewed submission', exact: true });
+      await expect(confirm).toBeDisabled();
+      for (const label of ['Government ID (front)', 'Government ID (back)', 'NBI Clearance', 'Selfie']) {
+        await evidence.getByRole('button', { name: `Load submitted ${label}`, exact: true }).click();
+        const preview = evidence.getByRole('img', { name: `Submitted ${label}`, exact: true });
+        await expect(preview).toBeVisible();
+        await expect.poll(() => preview.evaluate(element => element.naturalWidth)).toBe(1);
+        await evidence.getByRole('button', { name: `Close ${label} preview`, exact: true }).click();
+        await expect(preview).toHaveCount(0);
+      }
+      if (action === 'approve') {
+        const boxes = page.getByRole('checkbox');
+        assert.equal(await boxes.count(), 10);
+        for (const box of await boxes.all()) await box.check();
+      }
+      const reason = 'Original evidence and qualifications reviewed for this submission.';
+      await page.getByRole('textbox', { name: action === 'approve' ? 'Approval rationale' : 'Rejection reason' }).fill(reason);
+      await expect(confirm).toBeEnabled();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `page overflow ${width}/${surface}/${action}`);
+      const dialog = page.getByRole('dialog');
+      if (await dialog.count()) assert.equal(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth), true, `dialog overflow ${width}/${surface}/${action}`);
+      await page.screenshot({ path: path.join(out, `decision-${surface}-${action}-${width}-controls.png`) });
+      await page.screenshot({ path: path.join(out, `decision-${surface}-${action}-${width}.png`), fullPage: true });
+      await confirm.click();
+      await expect.poll(() => writes.length).toBe(1);
+      assert.equal(writes[0].expectedRevisionId, revisionId);
+      assert.equal(writes[0].reason, reason);
+      if (action === 'approve') assert.equal(writes[0].checklistConfirmed, true);
+      if (surface === 'queue' || action === 'reject') await expect(dialog).toHaveCount(0);
+      else await expect(page.getByRole('button', { name: 'Review & approve', exact: true })).toHaveCount(0);
+      assert.deepEqual(errors, []); assert.deepEqual(unexpected, []);
+      console.log(JSON.stringify({ width, surface, action, passed: true, revisionId }));
+      await context.close();
+    }
+  } finally { await browser.close(); }
 });

@@ -3,15 +3,15 @@ import { approvalIntegrationIt as it, approvalReview, assertNoApproval, waitForB
 
 it('Bug OPS-479 — provider approval requires all four current documents under the decision lock and preserves historical approvals', async () => {
   await withApprovalDatabase(async (database) => {
-    const fields = ['nbi_clearance_url', 'government_id_front_url', 'government_id_back_url', 'selfie_url'];
-    for (const field of fields) {
+    const fields = { nbi_clearance_url: 'nbi', government_id_front_url: 'front', government_id_back_url: 'back', selfie_url: 'selfie' };
+    for (const [field, originalKey] of Object.entries(fields)) {
       for (const missing of [null, '  ']) {
         await database.query(`UPDATE providers SET ${field}=$1 WHERE id='application'`, [missing]);
         await expect(approveProvider('application', 'operator', approvalReview))
           .rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining(field) });
         await assertNoApproval(database);
       }
-      await database.query(`UPDATE providers SET ${field}=$1 WHERE id='application'`, [`onboarding/owner/${field}`]);
+      await database.query(`UPDATE providers SET ${field}=$1 WHERE id='application'`, [`onboarding/owner/${originalKey}`]);
     }
 
     // Reproduce the real race: another transaction removes evidence while
@@ -55,6 +55,6 @@ it('Bug OPS-479 — provider approval requires all four current documents under 
       .toEqual([{ action_type: 'provider_approved', reason: approvalReview.reason,
         full_notes: `Approval rationale: ${approvalReview.reason}\n\n${approvalReview.checklistSummary}` }]);
     expect((await database.query('SELECT user_id,type,data FROM notifications')).rows)
-      .toEqual([{ user_id: 'owner', type: 'provider_approved', data: { providerId: 'application' } }]);
+      .toEqual([{ user_id: 'owner', type: 'provider_approved', data: { providerId: 'application', revisionId: approvalReview.expectedRevisionId } }]);
   });
 }, 30000);

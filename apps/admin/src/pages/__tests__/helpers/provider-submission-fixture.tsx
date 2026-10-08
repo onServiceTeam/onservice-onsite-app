@@ -27,6 +27,7 @@ export const revision = {
   recordedAt: '2026-09-06T02:02:01.000Z', documents,
 };
 export const index = {
+  decisionContractVersion: 1,
   providerId, currentStatus: 'approved', historyState: 'recorded',
   revisions: [{ id: revisionId, revisionNumber: 1, submittedAt: revision.submittedAt }], nextBeforeRevision: null,
 };

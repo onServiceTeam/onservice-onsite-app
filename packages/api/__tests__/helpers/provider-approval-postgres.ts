@@ -15,7 +15,9 @@ if (process.env.CI && !safeDatabase) {
   throw new Error('Provider approval integration tests require the isolated localhost *_test PostgreSQL service in CI.');
 }
 export const approvalIntegrationIt = safeDatabase ? it : it.skip;
+export const approvalRevisionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 export const approvalReview = {
+  expectedRevisionId: approvalRevisionId,
   reason: 'Identity and qualifications were reviewed against the application.',
   checklistConfirmed: true,
   checklistSummary: 'Both ID sides, NBI, selfie, references and service qualifications reviewed.',
@@ -58,10 +60,25 @@ export async function withApprovalDatabase(
         id serial PRIMARY KEY, user_id text NOT NULL REFERENCES users(id), type text,
         title text, body text, data jsonb
       );
+      -- Focused legacy text-ID transaction fixture, not migration acceptance.
+      -- OPS-512 through OPS-515 apply actual UUID migrations 172/173/174.
+      CREATE TABLE provider_application_revisions (
+        id uuid PRIMARY KEY, provider_id text NOT NULL REFERENCES providers(id), revision_number integer,
+        government_id_front_key text, government_id_back_key text, nbi_clearance_key text, selfie_key text
+      );
+      CREATE TABLE provider_application_decisions (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(), provider_id text NOT NULL REFERENCES providers(id),
+        revision_id uuid UNIQUE NOT NULL REFERENCES provider_application_revisions(id),
+        decided_by text NOT NULL REFERENCES users(id), decision text, reason text, checklist_summary text,
+        decided_at timestamptz NOT NULL DEFAULT NOW()
+      );
       INSERT INTO users (id,role) VALUES ('owner','customer'), ('operator','admin');
       INSERT INTO providers (id,user_id,status,nbi_clearance_url,government_id_front_url,government_id_back_url,selfie_url)
       VALUES ('application','owner','pending','onboarding/owner/nbi','onboarding/owner/front','onboarding/owner/back','onboarding/owner/selfie');
     `);
+    await database.query(`INSERT INTO provider_application_revisions
+      (id,provider_id,revision_number,government_id_front_key,government_id_back_key,nbi_clearance_key,selfie_key)
+      VALUES ($1,'application',1,'onboarding/owner/front','onboarding/owner/back','onboarding/owner/nbi','onboarding/owner/selfie')`, [approvalRevisionId]);
     Object.assign(pool, {
       query: database.query.bind(database),
       connect: database.connect.bind(database),
@@ -76,6 +93,7 @@ export async function withApprovalDatabase(
 }
 
 export async function assertNoApproval(database: Pool): Promise<void> {
+  expect((await database.query('SELECT count(*)::int AS count FROM provider_application_decisions')).rows).toEqual([{ count: 0 }]);
   expect((await database.query('SELECT count(*)::int AS count FROM admin_actions')).rows).toEqual([{ count: 0 }]);
   expect((await database.query('SELECT count(*)::int AS count FROM notifications')).rows).toEqual([{ count: 0 }]);
   expect((await database.query("SELECT status, reviewed_at FROM providers WHERE id='application'")).rows)

@@ -41,6 +41,7 @@ export async function listApplicationRevisions(input: {
   historyState: 'recorded' | 'not_recorded';
   revisions: Array<{ id: string; revisionNumber: number; submittedAt: string }>;
   nextBeforeRevision: number | null;
+  decisionContractVersion: 1;
 }> {
   requireReviewer(input.requesterRole);
   const limit = input.limit ?? 20;
@@ -75,6 +76,7 @@ export async function listApplicationRevisions(input: {
     }));
     return {
       providerId: input.providerId,
+      decisionContractVersion: 1,
       currentStatus: context.current_status,
       historyState: context.has_evidence ? 'recorded' as const : 'not_recorded' as const,
       revisions,
@@ -84,6 +86,12 @@ export async function listApplicationRevisions(input: {
 }
 
 interface RevisionDetailRow {
+  decision_id: string | null;
+  decision: 'approved' | 'rejected' | null;
+  decided_by: string | null;
+  decision_reason: string | null;
+  checklist_summary: string | null;
+  decided_at: Date | null;
   current_status: string;
   id: string;
   revision_number: number;
@@ -131,9 +139,15 @@ export interface ApplicationRevisionEvidence {
   documents: Record<KycDocType, string>;
 }
 
+export interface ApplicationRevisionDecision {
+  id: string; decision: 'approved' | 'rejected'; decidedBy: string;
+  reason: string; checklistSummary: string | null; decidedAt: string;
+}
+
 export async function getApplicationRevision(input: {
   providerId: string; revisionId: string; requesterRole: string;
-}): Promise<{ providerId: string; currentStatus: string; revision: ApplicationRevisionEvidence }> {
+}): Promise<{ providerId: string; currentStatus: string; revision: ApplicationRevisionEvidence;
+  decisionContractVersion: 1; decision: ApplicationRevisionDecision | null }> {
   requireReviewer(input.requesterRole);
   return readEvidence(async () => {
     // Explicit historical columns: future columns and current contacts cannot
@@ -143,8 +157,10 @@ export async function getApplicationRevision(input: {
               r.schema_version, r.business_name, r.service_radius_km, r.latitude, r.longitude,
               r.city, r.province, r.service_area_id, r.service_area_name, r.category_ids, r.category_names,
               r.nbi_expiry_date::text AS nbi_expiry_date, r.government_id_number, r.years_experience,
-              r.vetting_answers, r.agreement_accepted_at, r.submitted_at, r.recorded_at
+              r.vetting_answers, r.agreement_accepted_at, r.submitted_at, r.recorded_at,
+              d.id AS decision_id, d.decision, d.decided_by, d.reason AS decision_reason, d.checklist_summary, d.decided_at
          FROM provider_application_revisions r JOIN providers p ON p.id=r.provider_id
+         LEFT JOIN provider_application_decisions d ON d.provider_id=r.provider_id AND d.revision_id=r.id
         WHERE r.provider_id=$1 AND r.id=$2`,
       [input.providerId, input.revisionId],
     );
@@ -154,6 +170,11 @@ export async function getApplicationRevision(input: {
     return {
       providerId: input.providerId,
       currentStatus: row.current_status,
+      decisionContractVersion: 1,
+      decision: row.decision_id === null ? null : {
+        id: row.decision_id, decision: row.decision!, decidedBy: row.decided_by!,
+        reason: row.decision_reason!, checklistSummary: row.checklist_summary, decidedAt: row.decided_at!.toISOString(),
+      },
       revision: {
         id: row.id, revisionNumber: row.revision_number, previousRevisionNumber: row.previous_revision_number,
         schemaVersion: row.schema_version, businessName: row.business_name, serviceRadiusKm: row.service_radius_km,
