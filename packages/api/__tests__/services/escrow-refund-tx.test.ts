@@ -48,6 +48,7 @@ import {
   getTopCalls,
   getTransactionInvocations,
   setTxQueryImpl,
+  setTopQueryImpl,
   makeRouter,
 } from '../helpers/d06-tx-mock';
 
@@ -152,6 +153,12 @@ describe('Bug 71 — refundBookingEscrow transactional', () => {
       customerWalletCredited: false,
     });
     (paymentService.processRefund as jest.Mock).mockRejectedValue(new Error('gateway timeout'));
+    // The transaction below creates the pending outbox row. Model its
+    // post-commit error UPDATE as affecting that existing row, not a missing
+    // operation requiring manual reconciliation.
+    setTopQueryImpl(makeRouter([
+      { match: /UPDATE gateway_retry_queue/, rows: [], rowCount: 1 },
+    ]));
     setTxQueryImpl(makeRouter([
       { match: /FROM support_tickets/, rows: [{ id: SUPPORT_TICKET_ID, ticket_number: 'SUP-1001' }], rowCount: 1 },
       { match: /INSERT INTO gateway_retry_queue/, rows: [{ id: 'retry-ref' }], rowCount: 1 },

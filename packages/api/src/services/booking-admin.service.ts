@@ -1201,38 +1201,47 @@ export async function refundBookingEscrow(
   // ordering. Failure here is logged but does not roll back the money/audit
   // pair, which are already durable — the gateway dispute resolution lives
   // outside our transaction boundary.
+  // Wallet payment accounting acknowledges the same outbox transactionally;
+  // external processor acceptance still requires separate reconciliation.
   let paymentProcessingQueued = result.paymentProcessingQueued;
   let paymentProcessingStatus = result.paymentProcessingStatus;
   if (!result.idempotentReplay) {
     try {
-      await paymentService.processRefund(bookingId, refundAmount, trimmedReason);
-      try {
-        const marked = await db.query(
-          `UPDATE gateway_retry_queue
-              SET status = 'succeeded', attempts = 1, last_attempted_at = NOW(),
-                  succeeded_at = NOW(), updated_at = NOW(), last_error = NULL
-            WHERE id = $1 AND status = 'pending'`,
-          [result.paymentRetryId],
-        );
-        if ((marked.rowCount ?? 0) === 1) {
-          paymentProcessingQueued = false;
-          paymentProcessingStatus = 'processed';
-        } else {
+      const receipt = await paymentService.processRefund(bookingId, refundAmount, trimmedReason, {
+        retryId: result.paymentRetryId, expectedStatus: 'pending',
+      });
+      if (receipt?.retryAcknowledged) {
+        paymentProcessingQueued = false;
+        paymentProcessingStatus = 'processed';
+      } else {
+        try {
+          const marked = await db.query(
+            `UPDATE gateway_retry_queue
+                SET status = 'succeeded', attempts = 1, last_attempted_at = NOW(),
+                    succeeded_at = NOW(), updated_at = NOW(), last_error = NULL
+              WHERE id = $1 AND status = 'pending'`,
+            [result.paymentRetryId],
+          );
+          if ((marked.rowCount ?? 0) === 1) {
+            paymentProcessingQueued = false;
+            paymentProcessingStatus = 'processed';
+          } else {
+            paymentProcessingQueued = false;
+            paymentProcessingStatus = 'manual_attention';
+            logger.error('Payment refund succeeded but its durable operation was not pending', {
+              bookingId,
+              paymentRetryId: result.paymentRetryId,
+            });
+          }
+        } catch (markErr) {
           paymentProcessingQueued = false;
           paymentProcessingStatus = 'manual_attention';
-          logger.error('Payment refund succeeded but its durable operation was not pending', {
+          logger.error('Payment refund succeeded but its durable operation could not be marked succeeded', {
             bookingId,
             paymentRetryId: result.paymentRetryId,
+            error: markErr instanceof Error ? markErr.message : String(markErr),
           });
         }
-      } catch (markErr) {
-        paymentProcessingQueued = false;
-        paymentProcessingStatus = 'manual_attention';
-        logger.error('Payment refund succeeded but its durable operation could not be marked succeeded', {
-          bookingId,
-          paymentRetryId: result.paymentRetryId,
-          error: markErr instanceof Error ? markErr.message : String(markErr),
-        });
       }
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
@@ -1270,20 +1279,35 @@ export async function refundBookingEscrow(
           });
         }
       } else {
-        logger.error('Payment refund processing failed after escrow + audit committed; durable retry remains pending', {
+        logger.error('Payment refund caller failed after escrow + audit committed; checking durable retry state', {
           bookingId,
           refundAmount,
           paymentRetryId: result.paymentRetryId,
           error,
         });
+        paymentProcessingQueued = true;
+        paymentProcessingStatus = 'queued';
         try {
-          await db.query(
+          const marked = await db.query(
             `UPDATE gateway_retry_queue
                 SET attempts = 1, last_attempted_at = NOW(), last_error = $2,
                     next_retry_at = NOW() + INTERVAL '2 minutes', updated_at = NOW()
               WHERE id = $1 AND status = 'pending'`,
             [result.paymentRetryId, error.slice(0, 2000)],
           );
+          if (marked.rowCount === 0) {
+            const current = await db.query<{ status: string }>(
+              'SELECT status FROM gateway_retry_queue WHERE id = $1', [result.paymentRetryId],
+            );
+            const status = current.rows[0]?.status;
+            if (status === 'succeeded') {
+              paymentProcessingQueued = false;
+              paymentProcessingStatus = 'processed';
+            } else if (status !== 'pending' && status !== 'in_progress') {
+              paymentProcessingQueued = false;
+              paymentProcessingStatus = 'manual_attention';
+            }
+          }
         } catch (markErr) {
           logger.error('Durable payment refund retry exists but its initial error could not be recorded', {
             bookingId,
@@ -1291,8 +1315,6 @@ export async function refundBookingEscrow(
             error: markErr instanceof Error ? markErr.message : String(markErr),
           });
         }
-        paymentProcessingQueued = true;
-        paymentProcessingStatus = 'queued';
       }
     }
   }

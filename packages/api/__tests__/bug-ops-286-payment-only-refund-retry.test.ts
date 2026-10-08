@@ -32,7 +32,9 @@ it('Bug OPS-286 — a post-commit refund retry processes payment without debitin
 
   await processRetries(1);
 
-  expect(processRefundMock).toHaveBeenCalledWith('booking-286', 12500, 'Support-approved refund');
+  expect(processRefundMock).toHaveBeenCalledWith('booking-286', 12500, 'Support-approved refund', {
+    retryId: 'retry-286', expectedStatus: 'in_progress',
+  });
   expect(refundFromEscrowMock).not.toHaveBeenCalled();
   expect(String(queryMock.mock.calls[1]?.[0])).toContain("status = 'succeeded'");
 });

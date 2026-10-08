@@ -273,6 +273,15 @@ export async function updatePaymentStatusInTransaction(
   return result.rows[0]!;
 }
 
+export interface RefundRetryContext {
+  retryId: string;
+  expectedStatus: 'pending' | 'in_progress';
+}
+
+export interface RefundRetryReceipt {
+  retryAcknowledged: true;
+}
+
 /**
  * Phase B CRIT-01 + CRIT-02 fix.
  *
@@ -299,7 +308,8 @@ export async function processRefund(
   bookingId: string,
   refundAmount: number,
   reason: string,
-): Promise<void> {
+  durableRetry?: RefundRetryContext,
+): Promise<RefundRetryReceipt | undefined> {
   if (!Number.isInteger(refundAmount) || refundAmount <= 0) {
     throw createAppError('refundAmount must be a positive integer (centavos).', 400);
   }
@@ -309,12 +319,10 @@ export async function processRefund(
   // refunded_amount, called PayMongo, then UPDATEd with no transaction or
   // lock, so two concurrent refunds for the same booking could both pass
   // the cap check and both call PayMongo / double-record. Now we lock the
-  // booking's payment_intent row FOR UPDATE, validate, call PayMongo while
-  // holding the lock, then UPDATE+commit; if PayMongo fails (prod) the trx
-  // rolls back so no partial state is recorded. Refunds are admin-driven
-  // and low-volume, so holding the row lock across the PayMongo call is
-  // acceptable and avoids orphaned-claim states on crash.
-  await db.transaction(async (client) => {
+  // booking's payment_intent row FOR UPDATE and validate local accounting.
+  // This lock does NOT resolve an external refund accepted before a crash or
+  // a failed local commit. External replay/reconciliation remains separate.
+  return db.transaction(async (client) => {
     // Lock the same row getBookingPaymentIntent would have returned.
     const intentResult = await client.query<PaymentIntentRow>(
       `SELECT * FROM payment_intents
@@ -326,6 +334,40 @@ export async function processRefund(
     );
     const intent = intentResult.rows[0];
     if (!intent) throw createAppError('No payment found for this booking.', 404);
+
+    const paymongoPaymentId: string | null =
+      intent.paymongo_payment_id ??
+      (typeof intent.metadata?.reference_id === 'string' ? intent.metadata.reference_id : null);
+    const shouldCallPayMongo = paymongoPaymentId !== null
+      && paymongoPaymentId.startsWith('pay_') && !paymongoPaymentId.includes('sandbox');
+
+    // Wallet accounting and acknowledgement are both local. Bind to the
+    // existing durable operation and lock intent -> retry in both callers.
+    // Do not extend this transaction guarantee to an external processor.
+    const walletRetry = intent.payment_method === 'wallet' && !shouldCallPayMongo ? durableRetry : undefined;
+    if (walletRetry) {
+      const queued = await client.query<{
+        booking_id: string; action_type: string; amount_centavos: string | number | null;
+        description: string | null; status: string;
+      }>(
+        `SELECT booking_id, action_type, amount_centavos, description, status
+           FROM gateway_retry_queue WHERE id = $1 FOR UPDATE`,
+        [walletRetry.retryId],
+      );
+      const operation = queued.rows[0];
+      if (!operation || operation.booking_id.toLowerCase() !== bookingId.toLowerCase()
+          || operation.action_type !== 'process_payment_refund'
+          || Number(operation.amount_centavos) !== refundAmount
+          || (operation.description !== null && operation.description !== reason)) {
+        throw createAppError('Refund retry does not match this payment operation.', 409);
+      }
+      // A delayed duplicate delivery must not change a completed operation,
+      // including after the last partial refund made the intent fully refunded.
+      if (operation.status === 'succeeded') return { retryAcknowledged: true };
+      if (operation.status !== walletRetry.expectedStatus) {
+        throw createAppError('Refund retry is not in the expected processing state.', 409);
+      }
+    }
 
     // CRIT-01 — accept either succeeded or partially_refunded.
     if (intent.status !== 'succeeded' && intent.status !== 'partially_refunded') {
@@ -352,20 +394,6 @@ export async function processRefund(
     // refund call. paymongo_payment_id column populated from the
     // payment.paid webhook (post-mig-114 + webhook fix). Fall back to
     // metadata.reference_id for in-flight rows before the column lands.
-    const paymongoPaymentId: string | null =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (intent as any).paymongo_payment_id ??
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (intent.metadata as any)?.reference_id ??
-      null;
-
-    // Skip PayMongo call for sandbox intents and intents with no captured
-    // payment id (sandbox / test fixtures / pre-mig rows).
-    const shouldCallPayMongo =
-      paymongoPaymentId !== null &&
-      paymongoPaymentId.startsWith('pay_') &&
-      !paymongoPaymentId.includes('sandbox');
-
     if (shouldCallPayMongo) {
       try {
         const response = await globalThis.fetch(`${PAYMONGO_BASE}/refunds`, {
@@ -435,6 +463,19 @@ export async function processRefund(
       ],
     );
 
+    if (walletRetry) {
+      const acknowledged = await client.query(
+        `UPDATE gateway_retry_queue
+            SET status = 'succeeded', succeeded_at = NOW(), updated_at = NOW(),
+                last_attempted_at = NOW(), attempts = attempts + 1, last_error = NULL
+          WHERE id = $1 AND status = $2`,
+        [walletRetry.retryId, walletRetry.expectedStatus],
+      );
+      if (acknowledged.rowCount !== 1) {
+        throw createAppError('Refund retry could not be acknowledged.', 409);
+      }
+    }
+
     logger.info('Refund processed', {
       bookingId,
       refundAmount,
@@ -442,6 +483,7 @@ export async function processRefund(
       intentAmount,
       finalStatus,
     });
+    return walletRetry ? { retryAcknowledged: true } : undefined;
   });
 }
 

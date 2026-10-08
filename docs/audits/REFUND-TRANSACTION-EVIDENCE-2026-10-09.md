@@ -266,3 +266,133 @@ remain.
 Relevant entry points are [customer/provider sign-in](https://app.onservice.ph/auth/login)
 and [admin sign-in](https://admin.onservice.ph/login). These are not verified
 live test logins or evidence that this candidate is deployed.
+
+## Completed operator-caller CI receipt
+
+Candidate `642fca928eb02833a65a997874b21573fcc4ce6f` completed
+[CI 37835727840](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37835727840)
+and [Gates 37835727865](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37835727865).
+API logs explicitly pass the eleven-check PostgreSQL refund suite and both
+Nginx checks: **1,016 suites / 3,494 tests passed**, two TODOs, no skips,
+**82.161 seconds**. Admin passed 598 files / 706 tests, one skipped file and
+three TODOs, in 291.69 seconds. Mobile passed 595 suites / 879 tests, 84 TODOs,
+in 31.949 seconds, and exported web. Docker built and booted the API with actual
+`/health` liveness. Optional exact release packaging was skipped.
+
+CI's merge `1be80fb92dde7dbc682802c0d643e513ef6a2022` and the topic candidate
+share source tree `9fd98b3d2c9ea90d0d5995b4c24b7771f5019b38`. This verifies the
+preceding caller coverage, not the later runtime correction below, full release
+acceptance or live deployment. Browser audit output is not deployment eligible.
+
+## OPS-533: wallet accounting and retry acknowledgement
+
+The next actual-database acceptance test found a real failure on that published
+base. After a single **25,000-centavo (PHP250) wallet refund**, a real SQL trigger
+refused the retry queue's success update. Payment accounting had already
+committed. The next worker delivery incremented accounting again to **50,000
+centavos (PHP500)**. Customer wallet, refund ledger, operator audit and internal
+support note were unchanged across those worker attempts. This demonstrates
+duplicate reported accounting, not an external double refund.
+
+The first run passed eleven checks and failed the new twelfth in 36.642 seconds.
+An additional immediate-operator acknowledgement test also failed: eleven
+passed, two failed in 5.987 seconds. The immediate path committed accounting
+while leaving the same operation pending. No test or gate was skipped to hide
+these failures.
+
+### Correction and scope
+
+`payment.service.ts` now accepts an internal durable retry context. For a
+wallet-funded payment without an external processor call, it locks the payment
+intent and then the existing retry operation. It verifies booking, action,
+amount, stored reason and processing state. Accounting and acknowledgement then
+commit in the **same transaction**. An acknowledgement failure rolls back
+accounting; the earlier local wallet refund, audit and linked support note stay
+durable and are not repeated. A matching already-completed operation returns its
+completion receipt without another update, including after cumulative refunds
+made the intent fully refunded.
+
+The immediate operator handler and payment-only worker consume that receipt
+instead of acknowledging a second time. No new migration, financial source of
+truth or external dependency was introduced. The internal context is not a new
+client-controlled HTTP field. Existing route role, token-purpose, current-user,
+CSRF, linked-case and input guards still execute in the database/HTTP tests.
+
+The first corrected thirteen-check run passed in 7.212 seconds. Further testing
+injected a **synthetic caller error after a real PostgreSQL transaction and
+COMMIT**, revealing two holes in that intermediate repair: the worker could
+reopen completed work, and the immediate operator response said queued although
+the operation had succeeded. That run passed fourteen checks and failed two in
+5.604 seconds. The real transaction and SQL results were not fabricated; the
+injected post-commit caller error is not actual OS process termination or a
+processor network fault.
+
+Failure updates now require the retry claim still be `in_progress`. If it has
+already completed, the worker reads that durable result and does not reopen or
+mark it permanently failed. Both a normal and final-attempt delivery are tested.
+The immediate operator similarly reads the canonical operation when its pending
+failure update affects zero rows, returning processed when completion is proven.
+
+### Verification
+
+The guarded PostgreSQL suite now contains **sixteen checks: fifteen actual
+database cases and one connection-guard unit case**. Supporting acceptance
+checks cover immediate and worker acknowledgement-trigger failures, caller
+failure after committed acknowledgement, mismatched booking/amount/reason/action/
+state/missing operation, concurrent duplicate deliveries, and completed replay
+after a subsequent cumulative full refund. Wallet, ledger, audit and support-note
+snapshots must remain unchanged across payment-only delivery and replay. The
+fixture rejects external fetch and asserts zero calls.
+
+A connected local run passed **fourteen suites / 56 tests in 9.615 seconds**,
+including all sixteen database-suite checks without skips. Three existing admin
+real-render tests passed in **48.99 seconds**; they still use mocked API
+responses, not a database-connected browser or live journey. API types and
+changed-file lint passed. Local Gate A's ten fragments, all seven smoke scripts
+and Gate C's seven articles passed without changing gates, modes or allowlists.
+
+The first broader local run had **1,013 passed suites / 3,496 passed tests**,
+three failures and two TODOs, in 303.970 seconds. Two failures were unchanged
+Docker-unavailable Nginx checks. The third was an incomplete existing Bug71
+unit fixture: its transaction mock created a pending operation, but its
+post-commit update mock reported no matching row. That setup now represents
+the existing pending row; all original assertions remain. The connected run
+above includes the corrected regression. Final full-run evidence and fresh
+exact-candidate CI must be checked before accepting publication or advancing.
+
+The reviewed final full local run passed **1,014 suites / 3,497 tests**, with
+two TODOs and only the **two unchanged Docker-unavailable Nginx failures**, in
+**338.051 seconds**. All sixteen refund-suite checks executed and passed, and
+the seven Bug71 transactional regressions passed. This is not a green full
+local run. Final API types, all six changed TypeScript files' lint and whitespace
+checks passed after source review. Fresh runtime-candidate Linux CI must execute
+the sixteen-check suite and both Nginx tests; the older `642fca92` success cannot
+verify this correction. No master merge or deployment follows this publication.
+
+After final readback and test-only indentation cleanup, the reviewed caller/
+worker repeat passed **four suites / 34 tests in 9.768 seconds**, including all
+sixteen SQL-suite checks. Types and lint passed again. Local runtime was Node
+24.13.0 and the isolated PostgreSQL fixture was 17.9, not a rehearsal of the
+production PostgreSQL 18 migration chain. No generated refund schema or other
+client backend remained; only the reverified owned test server was stopped,
+with its listener/process absence checked and its data preserved.
+
+### Remaining acceptance
+
+This wallet-only correction does **not** implement the attachment's full K01/K08
+money-operation and response-cache contracts. It does not resolve original
+funding-source identity when multiple intents exist, external acceptance before
+local commit, gateway refund IDs/reconciliation, actual process death, stale
+claims, legacy escrow/release actions, cancellation and dispute caller acceptance,
+refund/release races or the wider wallet lock graph. The external processor path
+retains its separate acknowledgement/ambiguous-outcome risk. No historical
+accounting records were backfilled or reconciled.
+
+All 124 historical findings remain **118 not reconciled / six partial / zero
+closed**. Stage 1, E68, production recovery and release remain incomplete. No
+production account, money record, server configuration or running artifact was
+changed by this correction. Full source, migration/image restoration rehearsal,
+backup/rollback and authenticated multi-role acceptance still gate deployment.
+Relevant live entries remain [customer/provider](https://app.onservice.ph/auth/login)
+and [admin](https://admin.onservice.ph/login); this source correction is not live
+and no verified production test credentials are provided by these fixtures.

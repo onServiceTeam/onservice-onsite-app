@@ -15,6 +15,7 @@ import { debitWalletInTransaction, holdEscrowInTransaction } from '../src/servic
 import bookingAdminRouter from '../src/routes/booking-admin.routes';
 import { errorMiddleware } from '../src/middleware/error.middleware';
 import { processRetries } from '../src/services/gateway-retry.service';
+import { processRefund } from '../src/services/payment.service';
 
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
@@ -564,6 +565,200 @@ refundIt('actual payment-only worker repairs failed wallet accounting without re
     expect(repaired.retry[0]).toMatchObject({ status: 'succeeded', attempts: 2 });
     expect(await processRetries()).toEqual({ attempted: 0, succeeded: 0, failedAndRetrying: 0, failedPermanent: 0 });
     expect(await operatorSnapshot(database)).toEqual(repaired);
+    expect((await http.post()).body.data).toMatchObject({ idempotentReplay: true, paymentProcessingStatus: 'processed' });
+    expect(await operatorSnapshot(database)).toEqual(repaired);
+  });
+}, 30000);
+
+refundIt('Bug OPS-533 — wallet refund retry acknowledgement failure cannot count a partial refund twice', async () => {
+  await withOperatorRefundDatabase(async database => {
+    // First leave the real operator outbox pending by refusing payment accounting.
+    await database.query(`CREATE FUNCTION reject_refund_accounting() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'Synthetic refund accounting failure'; END $$;
+      CREATE TRIGGER reject_refund_accounting BEFORE UPDATE ON payment_intents
+        FOR EACH ROW EXECUTE FUNCTION reject_refund_accounting();`);
+    const http = refundHttp();
+    expect((await http.post()).body.data).toMatchObject({
+      customerWalletCredited: true, paymentProcessingStatus: 'queued',
+    });
+    const committed = await operatorSnapshot(database);
+    expect(committed.intents.find(row => row.booking_id === bookingA))
+      .toMatchObject({ refunded_amount: 0 });
+    await database.query('DROP TRIGGER reject_refund_accounting ON payment_intents');
+
+    // Refuse only the queue acknowledgement. Before repair it ran after the
+    // payment helper committed; now both writes must roll back together.
+    // No query result, gateway response or COMMIT is fabricated.
+    await database.query(`CREATE FUNCTION reject_refund_acknowledgement() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.status='succeeded' THEN
+        RAISE EXCEPTION 'Synthetic refund acknowledgement failure'; END IF; RETURN NEW; END $$;
+      CREATE TRIGGER reject_refund_acknowledgement BEFORE UPDATE ON gateway_retry_queue
+        FOR EACH ROW EXECUTE FUNCTION reject_refund_acknowledgement();`);
+    await database.query("UPDATE gateway_retry_queue SET next_retry_at=NOW()-INTERVAL '1 second'");
+    expect(await processRetries()).toEqual({ attempted: 1, succeeded: 0, failedAndRetrying: 1, failedPermanent: 0 });
+    const unacknowledged = await operatorSnapshot(database);
+    expect(unacknowledged.retry[0]).toMatchObject({ status: 'pending', attempts: 2 });
+    expect(unacknowledged.wallets).toEqual(committed.wallets);
+    expect(unacknowledged.ledger).toEqual(committed.ledger);
+    expect(unacknowledged.audits).toEqual(committed.audits);
+    expect(unacknowledged.messages).toEqual(committed.messages);
+    expect(unacknowledged.intents.find(row => row.booking_id === bookingA))
+      .toMatchObject({ refunded_amount: 0, status: 'succeeded' });
+    await database.query('DROP TRIGGER reject_refund_acknowledgement ON gateway_retry_queue');
+    await database.query("UPDATE gateway_retry_queue SET next_retry_at=NOW()-INTERVAL '1 second'");
+    expect(await processRetries()).toEqual({ attempted: 1, succeeded: 1, failedAndRetrying: 0, failedPermanent: 0 });
+    const repaired = await operatorSnapshot(database);
+    expect(repaired.wallets).toEqual(committed.wallets);
+    expect(repaired.ledger).toEqual(committed.ledger);
+    expect(repaired.audits).toEqual(committed.audits);
+    expect(repaired.messages).toEqual(committed.messages);
+    expect(repaired.intents.find(row => row.booking_id === bookingA))
+      .toMatchObject({ refunded_amount: 25000, status: 'partially_refunded' });
+    expect(repaired.retry[0]).toMatchObject({ status: 'succeeded', attempts: 3 });
+    expect((await http.post()).body.data).toMatchObject({ idempotentReplay: true, paymentProcessingStatus: 'processed' });
+    expect(await operatorSnapshot(database)).toEqual(repaired);
+  });
+}, 30000);
+
+refundIt('lost caller reply after a real wallet retry commit cannot reopen the completed outbox', async () => {
+  for (const initialAttempts of [1, 4]) {
+    await withOperatorRefundDatabase(async database => {
+      await database.query(`CREATE FUNCTION reject_accounting_for_commit_test() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'Synthetic initial accounting failure'; END $$;
+        CREATE TRIGGER reject_accounting_for_commit_test BEFORE UPDATE ON payment_intents
+          FOR EACH ROW EXECUTE FUNCTION reject_accounting_for_commit_test();`);
+      const http = refundHttp();
+      expect((await http.post()).body.data).toMatchObject({ paymentProcessingStatus: 'queued' });
+      const committed = await operatorSnapshot(database);
+      await database.query('DROP TRIGGER reject_accounting_for_commit_test ON payment_intents');
+      await database.query("UPDATE gateway_retry_queue SET attempts=$1,next_retry_at=NOW()-INTERVAL '1 second'", [initialAttempts]);
+      const realTransaction = db.transaction;
+      const delivery = jest.spyOn(db, 'transaction').mockImplementationOnce(async callback => {
+        await realTransaction(callback); // The real BEGIN, writes and COMMIT execute.
+        throw new Error('Synthetic lost reply after the real PostgreSQL commit');
+      });
+      try {
+        expect(await processRetries()).toEqual({ attempted: 1, succeeded: 1, failedAndRetrying: 0, failedPermanent: 0 });
+      } finally { delivery.mockRestore(); }
+      const completed = await operatorSnapshot(database);
+      expect(completed.retry[0]).toMatchObject({ status: 'succeeded', attempts: initialAttempts + 1 });
+      expect(completed.intents.find(row => row.booking_id === bookingA))
+        .toMatchObject({ refunded_amount: 25000, status: 'partially_refunded' });
+      expect(completed.wallets).toEqual(committed.wallets);
+      expect(completed.ledger).toEqual(committed.ledger);
+      expect(completed.audits).toEqual(committed.audits);
+      expect(completed.messages).toEqual(committed.messages);
+      expect(await processRetries()).toEqual({ attempted: 0, succeeded: 0, failedAndRetrying: 0, failedPermanent: 0 });
+      expect(await operatorSnapshot(database)).toEqual(completed);
+      expect((await http.post()).body.data).toMatchObject({ idempotentReplay: true, paymentProcessingStatus: 'processed' });
+    });
+  }
+}, 30000);
+
+refundIt('operator response reconciles an acknowledgement committed before a lost caller reply', async () => {
+  await withOperatorRefundDatabase(async database => {
+    const realTransaction = db.transaction;
+    const delivery = jest.spyOn(db, 'transaction')
+      .mockImplementationOnce(realTransaction)
+      .mockImplementationOnce(async callback => {
+        await realTransaction(callback);
+        throw new Error('Synthetic lost reply after the real PostgreSQL commit');
+      });
+    let first;
+    try { first = await refundHttp().post(); }
+    finally { delivery.mockRestore(); }
+    expect(first.status).toBe(200);
+    const completed = await operatorSnapshot(database);
+    expect(completed.retry[0]).toMatchObject({ status: 'succeeded', attempts: 1, last_error: null });
+    expect(completed.intents.find(row => row.booking_id === bookingA))
+      .toMatchObject({ refunded_amount: 25000, status: 'partially_refunded' });
+    expect(first.body.data).toMatchObject({ paymentProcessingQueued: false, paymentProcessingStatus: 'processed' });
+    expect(await processRetries()).toEqual({ attempted: 0, succeeded: 0, failedAndRetrying: 0, failedPermanent: 0 });
+    expect(await operatorSnapshot(database)).toEqual(completed);
+  });
+}, 30000);
+
+refundIt('wallet retry binds its operation and concurrent or completed deliveries preserve one accounting movement', async () => {
+  await withOperatorRefundDatabase(async database => {
+    await database.query(`CREATE FUNCTION reject_accounting_for_binding_test() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'Synthetic initial accounting failure'; END $$;
+      CREATE TRIGGER reject_accounting_for_binding_test BEFORE UPDATE ON payment_intents
+        FOR EACH ROW EXECUTE FUNCTION reject_accounting_for_binding_test();`);
+    const http = refundHttp();
+    expect((await http.post()).body.data).toMatchObject({ paymentProcessingStatus: 'queued' });
+    await database.query('DROP TRIGGER reject_accounting_for_binding_test ON payment_intents');
+    const pending = await operatorSnapshot(database);
+    const retryId = pending.retry[0].id as string;
+    for (const [booking, amount, reason, context] of [
+      [bookingB, 25000, refundBody.reason, { retryId, expectedStatus: 'pending' }],
+      [bookingA, 26000, refundBody.reason, { retryId, expectedStatus: 'pending' }],
+      [bookingA, 25000, 'A different reason', { retryId, expectedStatus: 'pending' }],
+      [bookingA, 25000, refundBody.reason, { retryId, expectedStatus: 'in_progress' }],
+      [bookingA, 25000, refundBody.reason, { retryId: crypto.randomUUID(), expectedStatus: 'pending' }],
+    ] as const) {
+      await expect(processRefund(booking, amount, reason, context)).rejects.toMatchObject({ statusCode: 409 });
+      expect(await operatorSnapshot(database)).toEqual(pending);
+    }
+    const context = { retryId, expectedStatus: 'pending' as const };
+    for (const action of ['release_escrow', 'release_partial_escrow', 'refund_from_escrow']) {
+      await database.query('UPDATE gateway_retry_queue SET action_type=$1 WHERE id=$2', [action, retryId]);
+      const differentAction = await operatorSnapshot(database);
+      await expect(processRefund(bookingA, 25000, refundBody.reason, context)).rejects.toMatchObject({ statusCode: 409 });
+      expect(await operatorSnapshot(database)).toEqual(differentAction);
+    }
+    await database.query("UPDATE gateway_retry_queue SET action_type='process_payment_refund' WHERE id=$1", [retryId]);
+    expect(await operatorSnapshot(database)).toEqual(pending);
+    expect(await Promise.all([
+      processRefund(bookingA, 25000, refundBody.reason, context),
+      processRefund(bookingA, 25000, refundBody.reason, context),
+    ])).toEqual([{ retryAcknowledged: true }, { retryAcknowledged: true }]);
+    const completed = await operatorSnapshot(database);
+    expect(completed.intents.find(row => row.booking_id === bookingA))
+      .toMatchObject({ refunded_amount: 25000, status: 'partially_refunded' });
+    expect(completed.retry[0]).toMatchObject({ status: 'succeeded', attempts: 2 });
+    expect(completed.wallets).toEqual(pending.wallets);
+    expect(completed.ledger).toEqual(pending.ledger);
+    expect(completed.audits).toEqual(pending.audits);
+    expect(completed.messages).toEqual(pending.messages);
+    expect((await http.post({ ...refundBody, amount: 75000, idempotencyKey: secondKey })).status).toBe(200);
+    const fullyRefunded = await operatorSnapshot(database);
+    expect(fullyRefunded.intents.find(row => row.booking_id === bookingA))
+      .toMatchObject({ refunded_amount: 100000, status: 'refunded' });
+    await expect(processRefund(bookingA, 25000, refundBody.reason, context)).resolves.toEqual({ retryAcknowledged: true });
+    expect(await operatorSnapshot(database)).toEqual(fullyRefunded);
+  });
+}, 30000);
+
+refundIt('operator immediate wallet acknowledgement failure rolls back accounting before the same outbox retries', async () => {
+  await withOperatorRefundDatabase(async database => {
+    await database.query(`CREATE FUNCTION reject_immediate_refund_ack() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.status='succeeded' THEN RAISE EXCEPTION 'Synthetic immediate refund acknowledgement failure';
+      END IF; RETURN NEW; END $$;
+      CREATE TRIGGER reject_immediate_refund_ack BEFORE UPDATE ON gateway_retry_queue
+        FOR EACH ROW EXECUTE FUNCTION reject_immediate_refund_ack();`);
+    const http = refundHttp();
+    const first = await http.post();
+    expect(first.status).toBe(200);
+    const committed = await operatorSnapshot(database);
+    expect(committed.wallets.find(row => row.id === customerWalletA)).toMatchObject({ available_balance: '175000' });
+    expect(committed.ledger.filter(row => row.booking_id === bookingA && row.type === 'refund')).toHaveLength(2);
+    expect(committed.audits).toHaveLength(1);
+    expect(committed.messages).toHaveLength(1);
+    expect(committed.retry).toHaveLength(1);
+    expect(committed.retry[0]).toMatchObject({ status: 'pending' });
+    expect(committed.intents.find(row => row.booking_id === bookingA)).toMatchObject({ refunded_amount: 0, status: 'succeeded' });
+    expect(first.body.data).toMatchObject({ paymentProcessingQueued: true, paymentProcessingStatus: 'queued' });
+    await database.query('DROP TRIGGER reject_immediate_refund_ack ON gateway_retry_queue');
+    await database.query("UPDATE gateway_retry_queue SET next_retry_at=NOW()-INTERVAL '1 second'");
+    expect(await processRetries()).toEqual({ attempted: 1, succeeded: 1, failedAndRetrying: 0, failedPermanent: 0 });
+    const repaired = await operatorSnapshot(database);
+    expect(repaired.wallets).toEqual(committed.wallets);
+    expect(repaired.ledger).toEqual(committed.ledger);
+    expect(repaired.audits).toEqual(committed.audits);
+    expect(repaired.messages).toEqual(committed.messages);
+    expect(repaired.intents.find(row => row.booking_id === bookingA))
+      .toMatchObject({ refunded_amount: 25000, status: 'partially_refunded' });
+    expect(repaired.retry[0]).toMatchObject({ status: 'succeeded', attempts: 2 });
     expect((await http.post()).body.data).toMatchObject({ idempotentReplay: true, paymentProcessingStatus: 'processed' });
     expect(await operatorSnapshot(database)).toEqual(repaired);
   });
