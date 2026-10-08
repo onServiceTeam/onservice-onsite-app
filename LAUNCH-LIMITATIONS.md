@@ -3083,3 +3083,28 @@ unchanged. Fresh CI remains required. **Candidate only, not deployed.** Evidence
 `docs/audits/ADMIN-RECOVERY-COPY-FEEDBACK-2026-10-08.md`.
 This does not resolve the browser-local acknowledgement, interrupted delivery,
 governed recovery or full Stitch/native/release limitations.
+
+## 95. Administrator verification could change state after revocation or spend a code on a failed write
+
+OPS-531 reproduced HTTP 401 after concurrent session revocation while login
+metadata still changed. OPS-532 reproduced HTTP 500 from a failed metadata
+update after recovery-code use had committed. These are synthetic database/HTTP
+findings, not evidence of production exploitation or a protected-route bypass.
+
+Verification now locks current account authority before factor/recovery rows
+and commits recovery consumption, its audit and login metadata together.
+Two fresh baseline regressions failed before correction. The corrected focused
+selection passes 5 suites / 11 tests, including 18 revoked-authority combinations,
+concurrent code use, current-factor replacement, audit/metadata rollback and retry.
+Types, changed-file lint, the unchanged 1,614-ID gate and four admin real-render
+tests pass. The full API run passes 1,013 suites / 3,481 tests with two TODOs;
+only the two unchanged Docker-unavailable Nginx tests fail. This is not a green
+full local suite. **Candidate only; fresh CI required, not deployed.** Evidence:
+`docs/audits/ADMIN-VERIFICATION-TRANSACTION-2026-10-09.md`.
+
+Session issuance still follows in a separate transaction. Actual post-commit
+revocation tests deny issuance but preserve the already committed code use,
+audit and login metadata. Durable acknowledgement, interrupted delivery,
+earlier privileged sessions and the wider lock/cookie/issuer review remain open.
+The production recovery hold, complete migration/image rehearsal, matched
+artifacts, live multi-role acceptance and remaining launch gates are unchanged.

@@ -192,6 +192,15 @@ is not yet deployed and does not revoke previously issued sessions. See
 `docs/audits/PRIVILEGED-PHONE-SIGN-IN-2026-10-08.md` for the real database/HTTP
 reproduction, verification scope and remaining release/session requirements.
 
+OPS-531/532 bind second-factor verification to current account authority and
+factor state under an account lock. Recovery consumption, its audit and login
+metadata share one transaction, so a failure within that transaction leaves the
+code available for retry. Subsequent session issuance and response delivery are
+still separate: a later revocation denies credentials without rolling back
+already committed verification effects. This candidate correction is not live
+and does not complete governed recovery or durable acknowledgement. See
+[the verification audit](audits/ADMIN-VERIFICATION-TRANSACTION-2026-10-09.md).
+
 ```
 POST /api/v1/auth/admin/login (email, password)
    |

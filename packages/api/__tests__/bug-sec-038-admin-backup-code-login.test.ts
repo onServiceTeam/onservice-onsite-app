@@ -27,13 +27,16 @@ jest.mock('../src/middleware/ip-block.middleware', () => ({
   getClientIp: jest.fn(() => '203.0.113.38'),
 }));
 jest.mock('../src/models/db', () => ({
-  db: { query: (...args: unknown[]) => dbQueryMock(...args), transaction: jest.fn() },
+  db: {
+    query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (run: (client: { query: typeof dbQueryMock }) => Promise<unknown>) => run({ query: dbQueryMock }),
+  },
 }));
 jest.mock('../src/services/auth.service', () => ({
   createTokenPair: (...args: unknown[]) => createTokenPairMock(...args),
 }));
 jest.mock('../src/services/admin-2fa.service', () => ({
-  consumeBackupCode: (...args: unknown[]) => consumeBackupCodeMock(...args),
+  consumeBackupCodeInTransaction: (...args: unknown[]) => consumeBackupCodeMock(...args),
   generateBackupCodesInTransaction: jest.fn(),
 }));
 jest.mock('../src/services/security.service', () => ({
@@ -124,6 +127,7 @@ it('Bug SEC-038 — admin login consumes one recovery code and reports the remai
     });
     expect(response.status).toBe(200);
     expect(consumeBackupCodeMock).toHaveBeenCalledWith(
+      { query: dbQueryMock },
       userId,
       'ABCD234567',
       '203.0.113.38',

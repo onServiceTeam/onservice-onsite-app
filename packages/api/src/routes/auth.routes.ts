@@ -806,63 +806,77 @@ router.post(
       // crashed with "value too long for type character varying(15)" —
       // 2FA verify always 500'd on success, blocking admin tier login
       // entirely. Now we pass the user's actual phone (PH format = 13 chars).
-      const userResult = await db.query<{
-        id: string;
-        phone: string | null;
-        totp_secret: string | null;
-        totp_enabled: boolean;
-        role: string;
-        session_version: number | string;
-      }>(
-        `SELECT id, phone, totp_secret, totp_enabled, role, session_version
-           FROM users
-          WHERE id = $1
-            AND role IN ('admin', 'super_admin', 'dpo')
-            AND is_active = TRUE`,
-        [payload.userId],
-      );
-
-      if (userResult.rows.length === 0 || !userResult.rows[0]!.totp_secret || !userResult.rows[0]!.totp_enabled) {
-        throw createAppError('2FA not configured for this account.', 400);
-      }
-
-      const user = userResult.rows[0]!;
-      if (user.role !== payload.role
-          || Number(user.session_version) !== Number(payload.sessionVersion ?? 1)) {
-        throw createAppError('This authentication session has been revoked. Please login again.', 401);
-      }
-      let verificationMethod: 'totp' | 'backup_code' = 'totp';
-      let backupCodesRemaining: number | undefined;
-      if (backupCode) {
-        verificationMethod = 'backup_code';
-        const consumed = await adminTwoFactorService.consumeBackupCode(
-          user.id,
-          backupCode as string,
-          clientIp,
+      // OPS-531/532: serialize with account revocation before verifying the
+      // current factor. Recovery use, its audit and login metadata must commit
+      // together; otherwise a refused/failed login can spend a recovery code.
+      const { user, verificationMethod, backupCodesRemaining } = await db.transaction(async client => {
+        const userResult = await client.query<{
+          id: string;
+          phone: string | null;
+          totp_secret: string | null;
+          totp_enabled: boolean;
+          role: string;
+          is_active: boolean;
+          session_version: number | string;
+        }>(
+          `SELECT id, phone, totp_secret, totp_enabled, role, is_active, session_version
+             FROM users
+            WHERE id = $1
+            FOR NO KEY UPDATE`,
+          [payload.userId],
         );
-        backupCodesRemaining = consumed.remainingCodes;
-      } else {
-        const decryptedSecret = decryptSecret(user.totp_secret!);
-        // window=2 (±60s) tolerates moderate device clock drift (common on
-        // emulators) without meaningfully weakening 2FA (lockout + rate limit
-        // still bound brute force).
-        const valid = verifyTotp(decryptedSecret, totpCode as string, 2);
-        if (!valid) {
-          await securityService.logSecurityEvent({
-            userId: user.id,
-            eventType: 'admin_2fa_failed',
-            ipAddress: clientIp,
-            metadata: { reason: 'invalid_totp' },
-          });
-          throw createAppError('Invalid verification code. Please try again.', 401);
+
+        const user = userResult.rows[0];
+        const currentVersion = Number(user?.session_version);
+        const proofVersion = Number(payload.sessionVersion ?? 1);
+        if (!user?.is_active || !['admin', 'super_admin', 'dpo'].includes(user.role)
+            || user.role !== payload.role
+            || !Number.isSafeInteger(currentVersion) || currentVersion < 1
+            || !Number.isSafeInteger(proofVersion) || proofVersion < 1
+            || currentVersion !== proofVersion) {
+          throw createAppError('This authentication session has been revoked. Please login again.', 401);
         }
-      }
+        if (!user.totp_secret || !user.totp_enabled) {
+          throw createAppError('2FA not configured for this account.', 400);
+        }
+        let verificationMethod: 'totp' | 'backup_code' = 'totp';
+        let backupCodesRemaining: number | undefined;
+        if (backupCode) {
+          verificationMethod = 'backup_code';
+          const consumed = await adminTwoFactorService.consumeBackupCodeInTransaction(
+            client,
+            user.id,
+            backupCode as string,
+            clientIp,
+          );
+          backupCodesRemaining = consumed.remainingCodes;
+        } else {
+          const decryptedSecret = decryptSecret(user.totp_secret!);
+          // window=2 (±60s) tolerates moderate device clock drift (common on
+          // emulators) without meaningfully weakening 2FA (lockout + rate limit
+          // still bound brute force).
+          const valid = verifyTotp(decryptedSecret, totpCode as string, 2);
+          if (!valid) {
+            await securityService.logSecurityEvent({
+              userId: user.id,
+              eventType: 'admin_2fa_failed',
+              ipAddress: clientIp,
+              metadata: { reason: 'invalid_totp' },
+            });
+            throw createAppError('Invalid verification code. Please try again.', 401);
+          }
+        }
 
-      await db.query(
-        `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
-        [user.id],
-      );
+        await client.query(
+          `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
+          [user.id],
+        );
+        return { user, verificationMethod, backupCodesRemaining };
+      });
 
+      // Issuance retains its separate current-account/generation check. This
+      // boundary is not durable E68 acknowledgement or atomic cookie delivery;
+      // a later revocation/issuer failure can still follow factor consumption.
       const tokens = await authService.createTokenPair(
         user.id,
         user.role,

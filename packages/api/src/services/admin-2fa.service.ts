@@ -170,10 +170,12 @@ export async function generateBackupCodes(
 }
 
 /**
- * Verify a backup code at login (when admin can't access authenticator).
- * Single-use: on success, marks the row used_at + used_ip and writes audit.
+ * Transaction-aware verifier. The login caller must first lock and authorize
+ * the account, then keep this consumption and its login metadata in that same
+ * transaction. Never open a nested transaction while retaining the account.
  */
-export async function consumeBackupCode(
+export async function consumeBackupCodeInTransaction(
+  client: AdminBackupCodeQueryClient,
   adminUserId: string,
   code: string,
   ipAddress?: string,
@@ -183,57 +185,69 @@ export async function consumeBackupCode(
     throw createAppError('Invalid backup code format.', 400);
   }
 
-  const result = await db.transaction(async (client) => {
-    const candidates = await client.query<{ id: string; code_hash: string }>(
-      `SELECT id, code_hash FROM admin_backup_codes
-        WHERE admin_user_id = $1
-          AND used_at IS NULL
-          AND deleted_at IS NULL
-        FOR UPDATE`,
-      [adminUserId],
-    );
+  const candidates = await client.query<{ id: string; code_hash: string }>(
+    `SELECT id, code_hash FROM admin_backup_codes
+      WHERE admin_user_id = $1
+        AND used_at IS NULL
+        AND deleted_at IS NULL
+      FOR UPDATE`,
+    [adminUserId],
+  );
 
-    let matchedId: string | null = null;
-    for (const candidate of candidates.rows) {
-      if (verifyCode(cleanCode, candidate.code_hash)) {
-        matchedId = candidate.id;
-        break;
-      }
+  let matchedId: string | null = null;
+  for (const candidate of candidates.rows) {
+    if (verifyCode(cleanCode, candidate.code_hash)) {
+      matchedId = candidate.id;
+      break;
     }
+  }
 
-    if (!matchedId) {
-      throw createAppError('Invalid or already-used backup code.', 401);
-    }
+  if (!matchedId) {
+    throw createAppError('Invalid or already-used backup code.', 401);
+  }
 
-    await client.query(
-      `UPDATE admin_backup_codes
-          SET used_at = NOW(),
-              used_ip = $2
-        WHERE id = $1`,
-      [matchedId, ipAddress ?? null],
-    );
+  await client.query(
+    `UPDATE admin_backup_codes
+        SET used_at = NOW(),
+            used_ip = $2
+      WHERE id = $1`,
+    [matchedId, ipAddress ?? null],
+  );
 
-    await client.query(
-      `INSERT INTO admin_actions
-         (admin_id, action_type, target_type, target_id, details, reason)
-       VALUES ($1, 'admin_backup_code_used', 'user', $1, $2::jsonb, $3)`,
-      [
-        adminUserId,
-        JSON.stringify({ ipAddress: ipAddress ?? null }),
-        'Backup code consumed at login',
-      ],
-    );
+  await client.query(
+    `INSERT INTO admin_actions
+       (admin_id, action_type, target_type, target_id, details, reason)
+     VALUES ($1, 'admin_backup_code_used', 'user', $1, $2::jsonb, $3)`,
+    [
+      adminUserId,
+      JSON.stringify({ ipAddress: ipAddress ?? null }),
+      'Backup code consumed at login',
+    ],
+  );
 
-    const remaining = await client.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM admin_backup_codes
-        WHERE admin_user_id = $1
-          AND used_at IS NULL
-          AND deleted_at IS NULL`,
-      [adminUserId],
-    );
+  const remaining = await client.query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM admin_backup_codes
+      WHERE admin_user_id = $1
+        AND used_at IS NULL
+        AND deleted_at IS NULL`,
+    [adminUserId],
+  );
 
-    return { remainingCodes: Number(remaining.rows[0]?.count ?? 0) };
-  });
+  return { remainingCodes: Number(remaining.rows[0]?.count ?? 0) };
+}
+
+/** Standalone single-use consumption for existing service callers. The login
+ * route uses the transaction-aware variant so later metadata failure rolls
+ * back the recovery row and its audit as well. Neither variant issues tokens.
+ */
+export async function consumeBackupCode(
+  adminUserId: string,
+  code: string,
+  ipAddress?: string,
+): Promise<{ remainingCodes: number }> {
+  const result = await db.transaction(client => (
+    consumeBackupCodeInTransaction(client, adminUserId, code, ipAddress)
+  ));
   logger.info('Admin backup code consumed', {
     adminUserId,
     remaining: result.remainingCodes,

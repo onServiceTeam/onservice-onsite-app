@@ -48,7 +48,7 @@ jest.mock('../src/services/security.service', () => ({
   logSecurityEvent: jest.fn(async () => undefined),
 }));
 jest.mock('../src/services/admin-2fa.service', () => ({
-  consumeBackupCode: (...args: unknown[]) => consumeBackupCodeMock(...args),
+  consumeBackupCodeInTransaction: (...args: unknown[]) => consumeBackupCodeMock(...args),
   generateBackupCodesInTransaction: (...args: unknown[]) => (
     generateBackupCodesInTransactionMock(...args)
   ),
@@ -165,6 +165,7 @@ it('CRIT-N11 - every completed admin authentication flow keeps bearer tokens out
             totp_secret: 'encrypted-secret',
             totp_enabled: true,
             role: 'admin',
+            is_active: true,
             session_version: 3,
           }],
           rowCount: 1,
