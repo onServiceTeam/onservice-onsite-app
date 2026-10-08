@@ -2900,3 +2900,25 @@ session review, a bounded containment release, verified operator recovery and
 scoped audited invalidation remain necessary before declaring this resolved
 in production. Do not bypass the accumulated release/migration gates, perform
 an ad hoc blanket reset or treat this finding as completed incident/legal review.
+
+Independent verification: `d1641c4d` passed all four jobs in CI `37784763822`
+and Gates `37784763909`. The API passed 1,000 suites / 3,450 tests with two
+TODOs, including SEC-075 and both previously unavailable Nginx checks. This
+resolves the fresh-CI requirement for that candidate, not deployment or
+previously issued privileged sessions. Optional exact release packaging was
+skipped; the live containment/release requirements remain open.
+
+## 89. Rejected phone sign-in changed deactivated account history
+
+A valid phone code for an inactive customer, provider or provider-staff account
+was denied, but first marked the account verified and changed its last-login
+and update times. OPS-523 rejects the existing inactive account before those
+writes while retaining valid-code consumption and the existing error. Existing
+sessions and historical records are not rewritten.
+
+The actual PostgreSQL/HTTP regression failed before correction and passes all
+six role/code combinations afterward. Seven selected auth suites / 19 tests,
+API types, changed-file lint and the unchanged ID gate pass. **Candidate only;
+fresh CI and deployment remain pending.** Separate account/credential issuance
+atomicity and concurrency are not resolved by this narrow pre-write check.
+Evidence: `docs/audits/INACTIVE-PHONE-SIGN-IN-2026-10-08.md`.

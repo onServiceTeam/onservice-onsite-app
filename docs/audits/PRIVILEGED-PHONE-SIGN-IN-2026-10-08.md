@@ -101,3 +101,18 @@ Docker uncertainty, not release acceptance or the new finding.
 
 No production connection, deployment, live session revocation, master merge,
 branch-protection change or launch approval occurred in this slice.
+
+## Independent CI verification
+
+Published candidate `d1641c4daec3fce4b12818994b673eb82f34c3ef` subsequently
+passed all four jobs in
+[CI 37784763822](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37784763822)
+and [Gates 37784763909](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37784763909).
+The actual API log passes SEC-075, the supporting OTP PostgreSQL tests and both
+Nginx checks: 1,000 suites / 3,450 tests, with two TODOs. Admin passes 705 tests
+and mobile passes 879 tests. Optional exact release packaging was skipped.
+The fresh-CI requirement is resolved for that candidate, not deployment,
+existing privileged-session treatment or the broader issuer review.
+
+The subsequent inactive-account metadata correction is tracked separately in
+`INACTIVE-PHONE-SIGN-IN-2026-10-08.md`. It does not complete issuer concurrency.

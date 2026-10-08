@@ -442,6 +442,12 @@ export async function verifyOtp(
     throw denied;
   }
 
+  // OPS-523: a refused sign-in must not mark a deactivated account verified
+  // or overwrite its last successful login. The valid OTP stays consumed.
+  if (existingUser && !existingUser.is_active) {
+    throw createAppError('Your account has been deactivated. Contact support.', 403);
+  }
+
   if (userResult.rows.length === 0) {
     isNewUser = true;
     userResult = await db.query<UserRow>(
