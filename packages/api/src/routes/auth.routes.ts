@@ -943,31 +943,40 @@ router.post(
         throw createAppError('2FA setup is only available for admin accounts.', 403);
       }
 
-      const userResult = await db.query<{ email: string | null; totp_enabled: boolean }>(
-        `SELECT email, totp_enabled FROM users WHERE id = $1`,
-        [userId],
-      );
+      const { secret, uri } = await db.transaction(async (client) => {
+        // OPS-527/528: authorize the exact earlier proof under the account
+        // lock, then check enrollment state before replacing the pending key.
+        // A delayed request cannot upgrade its authority or undo activation.
+        const userResult = await client.query<{
+          email: string | null; totp_enabled: boolean; role: string;
+          is_active: boolean; session_version: number | string;
+          must_rotate_password: boolean;
+        }>(
+          `SELECT email, totp_enabled, role, is_active, session_version,
+                  COALESCE(must_rotate_password, FALSE) AS must_rotate_password
+             FROM users WHERE id = $1 FOR NO KEY UPDATE`,
+          [userId],
+        );
+        const user = userResult.rows[0];
+        const currentVersion = Number(user?.session_version);
+        if (!user?.is_active || user.role !== role
+            || !Number.isSafeInteger(currentVersion) || currentVersion < 1
+            || currentVersion !== req.user!.sessionVersion) {
+          throw createAppError('This authentication session has been revoked. Please login again.', 401);
+        }
+        if (!req.isSetupToken && user.must_rotate_password) {
+          const rotationRequired = createAppError('Password rotation is required before continuing.', 428);
+          rotationRequired.code = 'password_rotation_required';
+          throw rotationRequired;
+        }
+        if (user.totp_enabled) {
+          throw createAppError('2FA is already enabled. Sign in or contact support for recovery.', 409);
+        }
 
-      if (userResult.rows.length === 0) throw createAppError('User not found.', 404);
-      const user = userResult.rows[0]!;
-
-      if (user.totp_enabled) {
-        throw createAppError('2FA is already enabled. Disable it first to reconfigure.', 409);
-      }
-
-      const secret = generateTotpSecret();
-      const uri = generateTotpUri(secret, user.email ?? userId);
-
-      // MED-N82 fix — pre-fix: encryptedSecret was written via a bare
-      // db.query with no audit trail. 2FA enrollment is a security-
-      // sensitive event (the secret stored is what the admin's
-      // authenticator app will use forever after). Post-fix: UPDATE +
-      // admin_actions audit run in a single transaction. The admin_2fa
-      // CHECK constraint already accepts 'admin_2fa_enrolled' (mig
-      // 087); we re-use it here for the setup-initiated event since
-      // setup is the de-facto enrollment step (verify just confirms).
-      const encryptedSecret = encryptSecret(secret);
-      await db.transaction(async (client) => {
+        const secret = generateTotpSecret();
+        const uri = generateTotpUri(secret, user.email ?? userId);
+        const encryptedSecret = encryptSecret(secret);
+        // MED-N82: pending key and enrollment audit still commit together.
         await client.query(
           `UPDATE users SET totp_secret = $1, totp_enabled = FALSE, updated_at = NOW() WHERE id = $2`,
           [encryptedSecret, userId],
@@ -982,6 +991,7 @@ router.post(
             JSON.stringify({ phase: 'setup', enabled: false }),
           ],
         );
+        return { secret, uri };
       });
 
       logger.info('Admin 2FA setup initiated', { userId });

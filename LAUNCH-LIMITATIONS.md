@@ -2985,3 +2985,39 @@ already committed caller effects. Setup completion, factor state, invitation
 acceptance, password-change/session delivery, cookie ordering and the wider lock
 graph still need caller-level review. Existing privileged sessions, production
 recovery, matched-artifact release and launch requirements remain unresolved.
+
+Independent verification: exact `c09a6f5d` passed all four jobs in CI
+`37797176521` and Gates `37797176560`. API job `113379554198` explicitly passed
+OPS-526, its supporting transaction tests and both Nginx checks: 1,006 suites /
+3,462 tests, two TODOs (69.209 seconds). This resolves the issuer candidate's
+fresh-CI uncertainty, not deployment or the caller-level limits. Optional exact
+release packaging was not requested.
+
+## 92. Initial administrator setup could outlive revocation or undo enrollment
+
+OPS-527 reproduced setup accepting a request after account deactivation between
+authorization and its transaction. OPS-528 reproduced delayed setup accepting a
+request after the real enable route completed enrollment. Setup previously read
+authority and enabled state outside the key-writing transaction.
+
+The candidate rechecks exact earlier role/session authority, active state,
+applicable password rotation and enabled state under the account lock. Revoked
+requests are refused and completed enrollment is preserved. Pending-key and
+audit writes remain atomic; setup returns no full session. No schema, factor
+requirement or recovery-policy change is included.
+
+Actual HTTP/PostgreSQL tests cover 27 revoked-authority combinations, all three
+privileged roles completing enrollment before delayed setup, both account-writer
+lock orders, writer rollback, unrelated-account progress and audit-failure
+rollback/retry. MED-N82's former source-text check is replaced by that behavioral
+test. Ten focused suites / 16 tests, types, changed-file lint and the unchanged
+1,609-ID gate pass. The full local API run passes 1,007 suites / 3,465 tests, two
+TODOs, with only the unchanged Docker-unavailable Nginx failures (257.124 seconds).
+**Candidate only, not deployed; fresh exact-candidate CI remains required.**
+Evidence: `docs/audits/ADMIN-SETUP-TRANSACTION-2026-10-08.md`.
+
+Enable-route proof binding and the reverse stale-code interleaving are not fixed
+by this slice. Durable enrollment acknowledgement, response ordering, governed
+recovery and the wider account-writer graph remain open. The existing production
+recovery hold, earlier privileged sessions, matched-artifact release and all
+remaining launch requirements are unchanged.

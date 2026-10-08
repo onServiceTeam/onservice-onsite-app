@@ -55,6 +55,18 @@ Database evidence uses isolated, test-owned PostgreSQL 17 schemas on loopback.
 It is not a complete production-schema restoration or browser/native acceptance.
 Fresh exact-candidate CI remains required.
 
+Independent verification subsequently completed for exact issuer candidate
+`c09a6f5d00bb7fa48373a5816ebb50c13f003af0`: all four jobs in
+[CI 37797176521](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37797176521)
+and [Gates 37797176560](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37797176560)
+passed. API job `113379554198` explicitly passed OPS-526, its supporting
+transaction tests and both Nginx regressions: **1,006 suites / 3,462 tests**, two
+TODOs, in 69.209 seconds. Admin, mobile including web export, and Docker checks
+also passed. Optional exact release packaging was not requested. This resolves
+the candidate's fresh-CI uncertainty, not deployment or the caller-level limits
+below. Initial setup follow-up is recorded separately in
+`ADMIN-SETUP-TRANSACTION-2026-10-08.md`; setup completion remains open.
+
 ## Preceding candidate verification
 
 The exact base passed all four jobs in
