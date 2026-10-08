@@ -422,6 +422,42 @@ refundIt('assigned approved staff retain on-site authority without gaining cance
   });
 }, 30000);
 
+refundIt('Bug SEC-078 - approved staff cannot start bookings without their own parent-provider assignment', async () => {
+  await withParticipantRefundDatabase(async database => {
+    const staffUserId = crypto.randomUUID();
+    const staffId = crypto.randomUUID();
+    // Deliberately inconsistent historical-style relationships. Individual
+    // D23 foreign keys accept these rows; the normal assignment service does
+    // not create them. Approval alone must not authorize another provider's job.
+    await database.query(`CREATE TABLE provider_staff (
+      id uuid PRIMARY KEY, provider_id uuid NOT NULL REFERENCES providers(id),
+      user_id uuid REFERENCES users(id), status text NOT NULL CHECK (status IN
+        ('invited','pending_review','approved','rejected','suspended','deactivated')));
+      ALTER TABLE bookings ADD COLUMN performer_staff_id uuid REFERENCES provider_staff(id);`);
+    await database.query("INSERT INTO users(id,role) VALUES ($1,'provider_staff')", [staffUserId]);
+    await database.query("INSERT INTO provider_staff(id,provider_id,user_id,status) VALUES ($1,$2,$3,'approved')",
+      [staffId, providerB, staffUserId]);
+    await database.query('UPDATE bookings SET performer_staff_id=$1 WHERE id IN ($2,$3)',
+      [staffId, bookingA, bookingB]);
+    await db.transaction(async client => {
+      await client.query('UPDATE bookings SET provider_id=$2 WHERE id=$1', [bookingB, providerA]);
+      await appendProviderAssignmentTermsInTransaction(client, {
+        bookingId: bookingB, providerId: providerA, event: 'provider_assigned', sourceEventId: bookingB,
+      });
+    });
+    const before = await participantSnapshot(database);
+    const staffBefore = (await database.query('SELECT * FROM provider_staff ORDER BY id')).rows;
+    const patch = participantHttp(staffUserId, 'provider_staff');
+    const absentParent = await patch(bookingA, 'provider_en_route');
+    const otherParent = await patch(bookingB, 'provider_en_route');
+    expect({ responses: [absentParent.status, otherParent.status], state: await participantSnapshot(database) })
+      .toEqual({ responses: [403, 403], state: before });
+    expect(absentParent.body.error.message).toBe('This job is not assigned to you.');
+    expect(otherParent.body.error.message).toBe('This job is not assigned to you.');
+    expect((await database.query('SELECT * FROM provider_staff ORDER BY id')).rows).toEqual(staffBefore);
+  });
+}, 30000);
+
 refundIt('canonical admin and super-admin roles retain the existing explicit booking-operation exemption', async () => {
   for (const role of ['admin', 'super_admin']) {
     await withParticipantRefundDatabase(async database => {

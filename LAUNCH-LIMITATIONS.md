@@ -3196,3 +3196,40 @@ Fresh exact CI remains required before acceptance or another function change.
 **Candidate only, not deployed.** Staff parent consistency, dedicated
 flow boundaries, wider locks, funding/crash acceptance and all release holds
 remain open. See `docs/audits/BOOKING-STATUS-ROLE-2026-10-09.md`.
+
+Completed independent source verification: `c04726e0` passed CI `37855305809`
+and Gates `37855305788`. Actual logs execute all 23 guarded checks, the unchanged
+issuer SQL suite and both Nginx checks: API 1016 suites / 3506 tests, two TODOs,
+no skips or failures; admin 706 tests with one skipped file / three TODOs;
+mobile 879 tests / 84 TODOs with compiled web; actual API Docker build/boot.
+CI merge and topic source trees match. Optional exact release packaging was
+skipped. This resolves the preceding SEC-077 fresh-CI requirement, not the
+failed full-local receipt, broader role acceptance or deployment.
+
+## 98. Staff performer attribution could authorize another provider's booking
+
+SEC-078 reproduces two HTTP 200 responses for approved staff whose retained
+performer assignment has no booking provider or a different parent provider.
+Both synthetic paid bookings moved en route and stored false customer notices;
+money remained unchanged. Individual D23 foreign keys permit these deliberately
+inconsistent historical-style rows, but the normal assignment service does not
+create them. This is not a production inventory or exploitation claim.
+
+The candidate status guard requires the booking provider to match the approved
+staff member's parent provider. Corrected requests return 403 with unchanged
+booking, money, notification and staff snapshots. Connected four suites / 31
+tests pass, all 24 guarded checks executing, alongside the existing legitimate
+staff, customer, provider and admin boundaries. Three unchanged staff rendered
+suites pass four tests with mocked APIs/native primitives, not connected-browser
+or live acceptance. Types/lint, Gate A/C and seven smoke scripts pass unchanged.
+Full local API passes 1014 suites / 3505 tests, two TODOs, with only the two
+unchanged Docker-unavailable Nginx failures in 594.512 seconds. All 24 guarded
+checks and the unchanged issuer SQL suite execute and pass, but this is not a
+green full local run. Final review and scope evidence are recorded in
+`docs/audits/BOOKING-STAFF-PARENT-2026-10-09.md`.
+
+**Candidate only, not deployed.** Fresh exact CI, separate staff readers and
+photo/checklist/support authorization, current authority under booking locks,
+concurrent assignment/suspension, dedicated-flow targets, timing, funding/crash
+acceptance and all release holds remain open. No data repair, migration or
+refund-policy change is included; full K01/K07/K08 are not complete.

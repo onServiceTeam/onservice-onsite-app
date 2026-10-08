@@ -951,12 +951,16 @@ async function validateRoleForTransition(
       throw createAppError('Team members can update on-site status (en route, arrived, started) and mark the job complete. Other actions are provider-owner only.', 403);
     }
     const performerStaffId = (booking as { performer_staff_id?: string | null }).performer_staff_id;
-    if (!performerStaffId) {
+    if (!performerStaffId || !booking.provider_id) {
       throw createAppError('This job is not assigned to you.', 403);
     }
     const staffResult = await db.query<{ id: string }>(
-      `SELECT id FROM provider_staff WHERE id = $1 AND user_id = $2 AND status = 'approved'`,
-      [performerStaffId, userId],
+      // SEC-078: retained performer attribution is not authority when the
+      // booking belongs to a different provider account. D23 approval and
+      // the staff user's identity must match this booking's current parent.
+      `SELECT id FROM provider_staff
+       WHERE id = $1 AND user_id = $2 AND provider_id = $3 AND status = 'approved'`,
+      [performerStaffId, userId, booking.provider_id],
     );
     if (staffResult.rows.length === 0) {
       throw createAppError('This job is not assigned to you.', 403);

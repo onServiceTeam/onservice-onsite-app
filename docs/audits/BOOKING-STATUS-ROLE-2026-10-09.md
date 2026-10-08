@@ -96,6 +96,29 @@ identity and zero generated schemas/other-client checks passed. Only the
 owned isolated PostgreSQL was stopped; controller, process and listener
 absence were verified and the test data directory retained.
 
+## Completed independent source verification
+
+Candidate `c04726e0d15b060a3f6cf7d5b345ee089da15023` subsequently passed
+[CI 37855305809](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37855305809)
+and [Gates 37855305788](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37855305788).
+Actual API logs pass 1016 suites / 3506 tests, two TODOs and no skips or failures,
+including all 23 guarded checks, the unchanged token-issuer SQL suite and both
+Nginx checks. Admin passes 598 files / 706 tests with one skipped file / three
+TODOs and build/types; mobile passes 595 suites / 879 tests with 84 TODOs,
+types and compiled web export. Actual API Docker build and boot liveness pass.
+
+CI checkout `cf9477f37db2530377b56607d5925d5a0096b001` and the topic share
+source tree `5e2b836387a03863d8f99f667d9be6244cccabad`. Optional exact API/admin
+release packaging was skipped. The retained web audit artifact is not deployment
+eligible and was not exercised as a browser journey in that verification turn.
+Existing Gate B conditional dispatch and D/E report-workload limits remain.
+
+This supersedes the pending-CI checkpoint, not the failed local full-run receipt,
+broader actor/funding acceptance or deployment. The staff-parent follow-up is
+recorded separately in `BOOKING-STAFF-PARENT-2026-10-09.md`; this earlier green
+candidate does not verify that newer correction. The completed receipt is
+published with the related runtime slice, not in a documentation-only CI loop.
+
 ## Remaining work and release boundary
 
 This closes the reproduced DPO fall-through in candidate source, not complete
