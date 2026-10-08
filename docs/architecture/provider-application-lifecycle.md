@@ -363,3 +363,23 @@ application. Routine SQL mutation guards are not a legal retention schedule.
 
 Evidence and remaining contract, privacy, checklist, legacy and release work:
 `docs/audits/PROVIDER-SUBMISSION-DECISIONS-2026-09-30.md`. E35/E74 remain open.
+
+## Owner first review and moderation October 8
+
+Approval, rejection, suspension and reactivation now acquire the owner account
+before the provider in their existing transaction. A shared helper locks only
+the owner with `FOR NO KEY UPDATE`, then the provider with `FOR UPDATE`, and
+rechecks ownership after the wait. Account IDs are never changed; foreign-key
+key-share checks remain compatible. Each operation still enforces its original
+status, evidence, account eligibility, admission, audit, notification and hold
+requirements. Ownership drift conflicts instead of operating on an unlocked
+replacement owner. This supersedes the September provider-first statement for
+these four candidate operations, not for the live deployment or every service.
+
+Real PostgreSQL OPS-518/519/520 tests cover owner waits, committed status changes,
+legacy ownership drift and moderation effects. Existing revision races and
+atomic rollback tests remain green. Account erasure, token rotation/revocation
+and other recovery/profile writers still need concurrency verification before
+global ordering or correction/resubmission acceptance. The latter is not yet
+enabled. Exact evidence, preceding-commit CI and remaining release requirements:
+`docs/audits/PROVIDER-ACCOUNT-LOCK-ORDER-2026-10-08.md`.

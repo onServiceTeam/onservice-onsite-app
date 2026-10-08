@@ -12,11 +12,14 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import { suspendProvider } from '../src/services/admin.service';
+import { mockDecisionLocks } from './helpers/provider-decision-mock';
 
 it('Bug UX-745 — provider suspension revokes every credential in the same transaction as provider and in-flight-job holds', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   queryMock.mockImplementation(async (sql: string, params: unknown[] = []) => {
     calls.push({ sql, params });
+    const lock = mockDecisionLocks(sql, 'provider-user-1');
+    if (lock) return lock;
     if (/UPDATE providers/.test(sql)) {
       return { rows: [{ id: 'provider-1', user_id: 'provider-user-1' }], rowCount: 1 };
     }

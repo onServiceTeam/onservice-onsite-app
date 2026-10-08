@@ -2,6 +2,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { applicationDecisionTransaction, assertCurrentApplicationRevision, recordApplicationDecision, requireExpectedApplicationRevision } from './provider-application-decision.service';
+import { lockProviderAccount } from './provider-account-lock.service';
 import {
   ACTIVE_BOOKING_STATUSES,
   ALL_BOOKING_STATUSES,
@@ -319,7 +320,7 @@ export async function approveProvider(
   }
 
   const expectedRevisionId = requireExpectedApplicationRevision(review.expectedRevisionId);
-  await applicationDecisionTransaction(async (client) => {
+  await applicationDecisionTransaction(providerId, async (client) => {
     // OPS-479 / E36: validate the current complete evidence under the same
     // row lock as the decision. An unlocked read can approve after a concurrent
     // document removal. Existing approved records are not silently re-decided.
@@ -410,7 +411,7 @@ export async function rejectProvider(providerId: string, adminId: string, reason
   reason = reason.trim();
   if (reason.length < 10 || reason.length > 1000) throw createAppError('Rejection reason must be between 10 and 1000 characters.', 400);
   const expectedRevisionId = requireExpectedApplicationRevision(revisionId);
-  await applicationDecisionTransaction(async (client) => {
+  await applicationDecisionTransaction(providerId, async (client) => {
     const locked = await client.query<{ status: string }>('SELECT status FROM providers WHERE id=$1 FOR UPDATE', [providerId]);
     if (locked.rows[0]?.status !== 'pending') throw createAppError('Provider not found or not in pending status.', 404);
     await assertCurrentApplicationRevision(client, providerId, expectedRevisionId);
@@ -466,6 +467,7 @@ export async function suspendProvider(providerId: string, adminId: string, reaso
   // flag and the status flip are atomic.
   let flaggedCount = 0;
   await db.transaction(async (client) => {
+    await lockProviderAccount(client, providerId);
     const result = await client.query<{ id: string; user_id: string }>(
       `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1 AND status = 'approved' RETURNING id, user_id`,
       [providerId],
@@ -531,6 +533,7 @@ export async function reactivateProvider(providerId: string, adminId: string, re
     throw createAppError('Reactivation reason must be between 10 and 1000 characters.', 400);
   }
   await db.transaction(async (client) => {
+    await lockProviderAccount(client, providerId);
     // OPS-481: suspension/reactivation must never become an alternate initial
     // approval path. Historical rows without proof need explicit review, not
     // an inferred approval from a mutable status or account role alone.

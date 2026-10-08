@@ -13,7 +13,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import { approveProvider } from '../src/services/admin.service';
-import { mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
+import { mockDecisionLocks, mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
 
 it('BUG-UX-111 — admin approval grants provider role in the approval transaction', async () => {
   const transactionSql: string[] = [];
@@ -21,6 +21,8 @@ it('BUG-UX-111 — admin approval grants provider role in the approval transacti
     const client = {
       query: jest.fn(async (sql: string) => {
         transactionSql.push(sql);
+        const lock = mockDecisionLocks(sql, 'user-1');
+        if (lock) return lock;
         if (sql.includes('FROM provider_application_revisions r')) return mockRevision(
           'onboarding/user-1/front.jpg', 'onboarding/user-1/back.jpg', 'onboarding/user-1/nbi.jpg', 'onboarding/user-1/selfie.jpg');
         if (/SELECT status, nbi_clearance_url/.test(sql)) {

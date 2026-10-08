@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { extractObjectKey } from './upload.service';
+import { lockProviderAccount } from './provider-account-lock.service';
 
 type TransactionClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -11,8 +12,15 @@ export function requireExpectedApplicationRevision(value: unknown): string {
   return parsed.data.toLowerCase();
 }
 
-export async function applicationDecisionTransaction(run: (client: TransactionClient) => Promise<void>): Promise<void> {
-  try { await db.transaction(run); }
+export async function applicationDecisionTransaction(providerId: string, run: (client: TransactionClient) => Promise<void>): Promise<void> {
+  try {
+    await db.transaction(async client => {
+      await lockProviderAccount(client, providerId);
+      // The caller still rechecks pending status, revision, evidence and account
+      // eligibility under both locks; pre-lock reads are not decision evidence.
+      await run(client);
+    });
+  }
   catch (error) {
     if (typeof error === 'object' && error !== null && 'code' in error
       && ['42P01', '42703'].includes(String(error.code))) {
@@ -31,8 +39,8 @@ function revisionConflict(): never {
 }
 
 // The caller MUST already hold the canonical provider row lock through commit.
-// Future resubmission writers must hold the same lock before inserting. This
-// retains the existing review lock order; it is not a global lock-order fix.
+// Future resubmission writers must hold owner then provider before inserting.
+// The wrapper enforces that order for decisions, not every lifecycle service.
 export async function assertCurrentApplicationRevision(
   client: TransactionClient, providerId: string, expectedRevisionId: string,
   currentDocuments?: {

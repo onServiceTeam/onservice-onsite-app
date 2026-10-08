@@ -32,7 +32,7 @@ jest.mock('../src/services/settings.service', () => ({
 
 import { pricingPreviewSchema } from '../src/validators/booking.validators';
 import { approveProvider } from '../src/services/admin.service';
-import { mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
+import { mockDecisionLocks, mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
 import { updateRecurringPrice } from '../src/services/recurring.service';
 import { checkOverdueInvoices } from '../src/services/invoice.service';
 
@@ -56,6 +56,8 @@ describe('MED-N71 — approveProvider notification type is provider_approved', (
       const client = {
         query: jest.fn(async (sql: string, params: unknown[] = []) => {
           transactionCalls.push({ sql, params });
+          const lock = mockDecisionLocks(sql, 'user-1');
+          if (lock) return lock;
           if (sql.includes('FROM provider_application_revisions r')) return mockRevision(
             'onboarding/user-1/front.jpg', 'onboarding/user-1/back.jpg', 'onboarding/user-1/nbi.jpg', 'onboarding/user-1/selfie.jpg');
           if (/SELECT status, nbi_clearance_url/.test(sql)) {

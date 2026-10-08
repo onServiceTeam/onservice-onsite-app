@@ -29,7 +29,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import * as adminService from '../src/services/admin.service';
-import { mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
+import { mockDecisionLocks, mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
 import * as escrowService from '../src/services/escrow.service';
 
 const APPROVAL_REVIEW = {
@@ -46,8 +46,8 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
     approvalClientQueryMock.mockReset();
     approvalClientQueryMock.mockImplementation(async (sql: string) => sql.includes('FROM provider_application_revisions r')
       ? mockRevision('id-front.png', 'id-back.png', 'nbi.pdf', 'selfie.png') : { rows: [], rowCount: 1 });
-    dbTransactionMock.mockImplementation(async (callback: (client: { query: typeof approvalClientQueryMock }) => Promise<unknown>) =>
-      callback({ query: approvalClientQueryMock }));
+    dbTransactionMock.mockImplementation(async (callback: (client: { query: (sql: string, params?: unknown[]) => unknown }) => Promise<unknown>) =>
+      callback({ query: (sql, params) => mockDecisionLocks(sql, 'u-1') ?? approvalClientQueryMock(sql, params) }));
   });
 
   it('refuses approval when nbi_clearance_url is null', async () => {
@@ -65,7 +65,8 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
         statusCode: 400,
         message: expect.stringMatching(/missing KYC documents.*nbi_clearance_url/),
       });
-    // Locked validation runs in the transaction, but no writes may follow it.
+    // After the two lock-fixture reads, only KYC/revision validation runs;
+    // no writes may follow it. Real lock behavior is covered by OPS-518/519.
     expect(approvalClientQueryMock).toHaveBeenCalledTimes(2);
     expect(dbQueryMock).not.toHaveBeenCalled();
   });
@@ -165,6 +166,8 @@ describe('MED-N73 — suspendProvider flags in-flight bookings', () => {
     dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
       const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
         txCalls.push({ sql, params });
+        const lock = mockDecisionLocks(sql, 'u-1');
+        if (lock) return lock;
         if (/UPDATE providers/.test(sql)) return { rows: [{ id: 'p-1', user_id: 'u-1' }], rowCount: 1 };
         if (/UPDATE bookings/.test(sql)) return { rows: [{ id: 'b-1' }, { id: 'b-2' }], rowCount: 2 };
         return { rows: [], rowCount: 1 };

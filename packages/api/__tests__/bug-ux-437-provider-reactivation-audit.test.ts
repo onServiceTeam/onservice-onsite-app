@@ -10,6 +10,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import { reactivateProvider } from '../src/services/admin.service';
+import { mockDecisionLocks } from './helpers/provider-decision-mock';
 
 it('Bug UX-437 — provider reactivation requires an audit reason and notifies the provider in the same transaction', async () => {
   await expect(reactivateProvider('provider-1', 'admin-1', '')).rejects.toMatchObject({ statusCode: 400 });
@@ -20,6 +21,8 @@ it('Bug UX-437 — provider reactivation requires an audit reason and notifies t
     const client = {
       query: jest.fn(async (sql: string, params: unknown[] = []) => {
         calls.push({ sql, params });
+        const lock = mockDecisionLocks(sql, 'user-1');
+        if (lock) return lock;
         if (/SELECT user_id, reviewed_at FROM providers/.test(sql)) {
           return { rows: [{ user_id: 'user-1', reviewed_at: new Date('2026-09-01') }], rowCount: 1 };
         }

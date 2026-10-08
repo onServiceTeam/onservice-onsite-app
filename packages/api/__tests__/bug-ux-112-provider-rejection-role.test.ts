@@ -12,7 +12,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import { rejectProvider } from '../src/services/admin.service';
-import { mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
+import { mockDecisionLocks, mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
 
 it('BUG-UX-112 — rejection repairs legacy applicants that were promoted before approval', async () => {
   const transactionCalls: Array<{ sql: string; params: unknown[] }> = [];
@@ -20,6 +20,8 @@ it('BUG-UX-112 — rejection repairs legacy applicants that were promoted before
     const client = {
       query: jest.fn(async (sql: string, params: unknown[] = []) => {
         transactionCalls.push({ sql, params });
+        const lock = mockDecisionLocks(sql, 'user-1');
+        if (lock) return lock;
         if (sql.includes('SELECT status FROM providers')) return { rows: [{ status: 'pending' }], rowCount: 1 };
         if (sql.includes('FROM provider_application_revisions r')) return mockRevision('front', 'back', 'nbi', 'selfie');
         if (/UPDATE providers/i.test(sql)) {

@@ -13,7 +13,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import { approveProvider } from '../src/services/admin.service';
-import { mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
+import { mockDecisionLocks, mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
 
 it('Bug UX-434 — provider approval requires and transactionally preserves the review rationale and checklist', async () => {
   await expect(
@@ -31,6 +31,8 @@ it('Bug UX-434 — provider approval requires and transactionally preserves the 
     const client = {
       query: jest.fn(async (sql: string, params: unknown[] = []) => {
         transactionCalls.push({ sql, params });
+        const lock = mockDecisionLocks(sql, 'user-1');
+        if (lock) return lock;
         if (sql.includes('FROM provider_application_revisions r')) return mockRevision(
           'private/id.jpg', 'private/id-back.jpg', 'private/nbi.pdf', 'private/selfie.jpg');
         if (/SELECT status, nbi_clearance_url/.test(sql)) {
