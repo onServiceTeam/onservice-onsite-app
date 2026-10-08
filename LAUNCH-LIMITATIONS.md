@@ -2955,3 +2955,33 @@ and only unchanged UX-860/UX-201 failed because the Docker Linux engine is
 unavailable (520.089 seconds). All new database regressions executed. The
 unchanged 1,606-ID gate and whitespace checks pass. This is not a green full
 local suite; fresh exact-candidate CI and deployment remain required.
+
+Independent verification: `58477af3` passed all four jobs in CI `37792827931`
+and Gates `37792828059`. Actual API logs pass OPS-524/525, their supporting
+transaction tests and both Nginx checks: 1,004 suites / 3,456 tests, two TODOs.
+This resolves that candidate's fresh-CI uncertainty, not deployment or the
+remaining account workflows. Optional exact release packaging was skipped.
+
+## 91. Shared credential issuance trusted stale account authority
+
+OPS-526 reproduced credentials returned for an inactive synthetic account by
+`createTokenPair`. The helper now locks and checks the current account, refusing
+missing/inactive accounts or a different role/session generation before storing
+credentials. It preserves the supplied authority rather than upgrading an older
+proof to newer permissions. Credential storage and the check share a transaction.
+Canonical request authorization remains a separate boundary; this finding is not
+evidence of unauthorized protected access or production exploitation.
+
+Real PostgreSQL tests cover all six roles, 24 rejection combinations, writer
+commit/rollback, issuer-first revocation, independent-account progress and insert
+failure/retry. The full local API run passes 1,004 suites / 3,460 tests, with two
+TODOs and only the unchanged Docker-unavailable Nginx failures (386.123 seconds).
+Types, changed-file lint and the unchanged 1,607-ID gate pass. **Candidate only;
+fresh CI required, not deployed.** Evidence and limits:
+`docs/audits/TOKEN-ISSUER-AUTHORITY-2026-10-08.md`.
+
+The helper cannot validate a caller's earlier authentication proof or roll back
+already committed caller effects. Setup completion, factor state, invitation
+acceptance, password-change/session delivery, cookie ordering and the wider lock
+graph still need caller-level review. Existing privileged sessions, production
+recovery, matched-artifact release and launch requirements remain unresolved.

@@ -3,7 +3,11 @@ import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 
 const mockQuery = jest.fn();
-jest.mock('../src/models/db', () => ({ db: { query: (...args: unknown[]) => mockQuery(...args) } }));
+jest.mock('../src/models/db', () => ({ db: {
+  query: (...args: unknown[]) => mockQuery(...args),
+  transaction: async (work: Parameters<typeof import('../src/models/db').db.transaction>[0]) =>
+    work({ query: mockQuery }),
+} }));
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
@@ -33,6 +37,7 @@ afterEach(() => {
 
 async function assertIssuedLifetimes(role: string, accessSeconds: number, refreshSeconds: number): Promise<void> {
   const userId = '11111111-1111-4111-8111-111111111111';
+  mockQuery.mockResolvedValueOnce({ rows: [{ role, is_active: true, session_version: 7 }] });
   const pair = await createTokenPair(userId, role, 7);
   for (const [token, seconds, refresh] of [
     [pair.accessToken, accessSeconds, false],
@@ -50,9 +55,9 @@ async function assertIssuedLifetimes(role: string, accessSeconds: number, refres
       algorithms: ['HS256'], clockTimestamp: nowSeconds + seconds,
     })).toThrow(jwt.TokenExpiredError);
   }
-  expect(mockQuery).toHaveBeenCalledTimes(1);
+  expect(mockQuery).toHaveBeenCalledTimes(2);
   // Assert values actually sent by the service, not a source-text match.
-  expect(mockQuery.mock.calls[0]![1]).toEqual([
+  expect(mockQuery.mock.calls[1]![1]).toEqual([
     userId,
     crypto.createHash('sha256').update(pair.refreshToken).digest('hex'),
     new Date((nowSeconds + refreshSeconds) * 1000),

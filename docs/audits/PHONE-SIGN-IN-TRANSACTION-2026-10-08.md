@@ -78,6 +78,17 @@ They do not represent the complete restored production schema, an external SMS
 delivery test, or authenticated browser/native acceptance. Fresh exact-candidate
 CI remains required; earlier CI is not proof for these edits.
 
+Independent verification: exact candidate `58477af3eb09a7d54096ae248c521483c5895d2d`
+passed all four jobs in
+[CI 37792827931](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37792827931)
+and [Gates 37792828059](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37792828059).
+API job `113364452922` explicitly passed OPS-524/525, their supporting transaction
+tests and both Nginx checks: **1,004 suites / 3,456 tests**, two TODOs, in
+70.198 seconds. This resolves the fresh-CI requirement for that candidate, not
+deployment. Optional exact release packaging was skipped. The newer shared
+issuer correction is tracked in `TOKEN-ISSUER-AUTHORITY-2026-10-08.md` and is not
+covered by these preceding results.
+
 ## Preceding candidate verification
 
 The exact base passed all four jobs in

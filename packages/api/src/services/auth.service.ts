@@ -683,20 +683,35 @@ export async function createTokenPair(
   if (!Number.isSafeInteger(sessionVersion) || sessionVersion < 1) {
     throw new Error('Invalid session version');
   }
-  const accessToken = signAccessToken(userId, role, sessionVersion);
-  const refreshToken = signRefreshToken(userId, role, sessionVersion);
+  return db.transaction(async (client) => {
+    // OPS-526: retain the caller's authenticated authority, never upgrade it
+    // to a newer role/generation. Account -> session locking matches refresh
+    // and account-first revocation, including while a competing writer waits.
+    const result = await client.query<Pick<UserRow, 'role' | 'is_active' | 'session_version'>>(
+      `SELECT role, is_active, session_version FROM users WHERE id = $1 FOR NO KEY UPDATE`,
+      [userId],
+    );
+    const account = result.rows[0];
+    const currentVersion = Number(account?.session_version);
+    if (!account?.is_active || account.role !== role
+        || !Number.isSafeInteger(currentVersion) || currentVersion < 1
+        || currentVersion !== sessionVersion) {
+      throw createAppError('This authentication session has been revoked. Please login again.', 401);
+    }
 
-  const tokenHash = hashToken(refreshToken);
-  const refreshDuration = refreshDurationForRole(role);
-  const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
+    const accessToken = signAccessToken(userId, role, sessionVersion);
+    const refreshToken = signRefreshToken(userId, role, sessionVersion);
+    const tokenHash = hashToken(refreshToken);
+    const refreshDuration = refreshDurationForRole(role);
+    const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
 
-  await db.query(
-    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3)`,
-    [userId, tokenHash, refreshExpiresAt],
-  );
-
-  return { accessToken, refreshToken };
+    await client.query(
+      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, $3)`,
+      [userId, tokenHash, refreshExpiresAt],
+    );
+    return { accessToken, refreshToken };
+  });
 }
 
 export async function logout(userId: string, refreshToken?: string): Promise<void> {
