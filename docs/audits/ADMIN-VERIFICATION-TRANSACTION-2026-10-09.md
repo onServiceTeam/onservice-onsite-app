@@ -80,9 +80,10 @@ API TypeScript, ESLint of all eight changed/new TypeScript files, the unchanged
 real-render tests passed in **13.94 seconds**: UX-1023, UX-1024, UX-026 and UX-1382.
 They exercise recovery login, the save step, login layout and copy feedback with
 mocked API responses, not a live server or newly compiled browser acceptance.
-Fresh exact-candidate CI remains required; earlier candidate CI does not verify
-this change. Machine-readable red, focused and full-run reports remain in the
-ignored repair-intake directory, not published with synthetic credential values.
+Fresh candidate CI was required at publication; the subsequent receipt is below.
+Earlier candidate CI did not verify this change. Machine-readable red, focused
+and full-run reports remain in the ignored repair-intake directory, not published
+with synthetic credential values.
 
 Local Gate A passed all ten fragments. Initial gate smoke runs failed because
 Git Bash selected the Windows Store `python3` launcher, then an exported-function
@@ -120,3 +121,26 @@ acceptance, native evidence, legal review and live payment proof remain open.
 
 Relevant live entry: [admin sign-in](https://admin.onservice.ph/login).
 Loading that page is not proof of a working API or authenticated access.
+
+## Completed GitHub verification
+
+Candidate `6799d65701321ad02e13b4d451f6f056be00fdd2` passed
+[CI 37822769366](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37822769366)
+and [Gates 37822768456](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37822768456).
+The actual API log passes both named regressions, the verification PostgreSQL
+suite and the two locally unavailable Nginx checks: **1,015 suites / 3,483 tests**,
+two TODOs, **52.969 seconds**. Admin passes **598 files / 706 tests**, one skipped
+file and three TODOs, **275.11 seconds**. Mobile passes **595 suites / 879 tests**,
+84 TODOs, **53.148 seconds**. Admin build, customer/provider web export and API
+Docker build/liveness also passed. These are the recorded test scopes, not full
+live or native acceptance.
+
+The PR workflow checked out merge revision
+`3168502779599766357f6f5c29e458dc84abe3d7`, not the topic SHA directly.
+GitHub's commit records show parents `738641095d3ae1dcbba14c5803b96cf63ae93ee8`
+and `6799d65701321ad02e13b4d451f6f056be00fdd2`; both the merge and topic revision
+have tree `8e719d2966f6d621600026d4b0e2c6287e465ad6`. Their source trees therefore
+match. The retained web audit bundle identifies the merge revision and is not
+deployment eligible. Optional exact API release packaging and admin artifact
+retention were skipped. No matched release-image rehearsal or deployment follows
+from this CI success. Newer commits need their own verification.
