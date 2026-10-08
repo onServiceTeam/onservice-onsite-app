@@ -134,8 +134,117 @@ After the runs, the isolated database had zero owned refund schemas and zero
 other client connections. Its owned server was stopped, with listener and
 process absence verified and its data directory preserved.
 
-Fresh full Linux CI must still execute the corrected SQL tests against the
-actual container service; the local relay is not a substitute for that.
+Fresh full Linux CI was still required at that publication checkpoint. The
+subsequent receipt follows; the local relay was not treated as a substitute.
+
+## Completed connection-guard CI verification
+
+Exact candidate `882ff8d5484f2a6a5fec7e598b2ee48bf6dcbf2e` passed all four jobs in
+[CI 37830757089](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37830757089)
+and [Gates 37830756882](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37830756882).
+The actual API log explicitly passes the refund SQL suite and both Nginx tests:
+**1,016 suites / 3,488 tests**, two TODOs, no skips, **73.976 seconds**. All four
+SQL checks and the guard unit check executed against the Linux CI service.
+Admin passed **598 files / 706 tests**, one skipped file and three TODOs,
+**286.57 seconds**. Mobile passed **595 suites / 879 tests**, 84 TODOs,
+**53.016 seconds**, and its web export succeeded. API Docker build and actual
+boot liveness passed. Optional exact release packaging was skipped.
+
+The workflow checkout and browser artifact identify PR merge
+`d5445424c324a68a9040621efd1a137b2e44b22c`; GitHub commit records verify that its
+tree equals the topic candidate at `1bef549052dacb1e8a25a5905b70f5ef2ceaa4c6`.
+The browser artifact is not deployment eligible or authenticated acceptance.
+Existing Gate D/E report and conditional Gate B limits remain. This resolves
+that fixture's fresh-CI uncertainty, not release or the newer coverage below.
+
+## Operator HTTP, support-case and payment-only retry verification
+
+Continuation base: `882ff8d5484f2a6a5fec7e598b2ee48bf6dcbf2e`. This adds six
+behavioral checks of existing code to the same guarded database suite. No runtime
+money implementation, schema history, dependency, workflow or gate changes.
+The first expanded standalone run passed **11 tests in 27.532 seconds**:
+**ten actual database checks and one connection-guard unit check**, with no skips.
+There is no failing-before-passing runtime correction claimed in this slice.
+
+The new checks mount the real booking-admin Express router, canonical account
+authentication, cookie/CSRF guard and error handler. They execute real wallet,
+escrow, payment-intent, support-note, admin-audit and retry-worker SQL:
+
+1. A 25,000-centavo partial refund credits the customer, leaves 75,000 held for
+   that booking, updates its wallet-funded intent, and links one support note,
+   audit and payment-only outbox record. The actual money read route exposes
+   the matching ledger and accounting. The same logical key replays without a
+   second write even after its case closes; changed amount, reason, case or
+   booking rejects with 409. A distinct key can refund the remaining 75,000.
+2. Customer, provider, provider-staff, ordinary admin and DPO tokens are refused.
+   Setup-purpose, stale-generation, inactive and forced-rotation requests fail
+   without money writes. Missing, mismatched and unrecognized cookie CSRF proofs
+   fail; a persisted valid proof permits the refund. Invalid amounts, reason,
+   IDs, another booking's case and a resolved case preserve the money records.
+3. Actual database triggers reject each of the outbox, audit and internal-note
+   inserts. HTTP 500 preserves wallet, ledger, booking, intent, case, timestamps
+   and operation records. Removing each trigger permits the same-key retry with
+   one operation, not a partial commit or duplicate movement.
+4. Concurrent same-key partial-refund HTTP requests return one original result
+   and one replay, sharing the audit identity and one balance/accounting change.
+5. Concurrent distinct keys requesting 70,000 each yield one success and one
+   409. The larger second booking's ledger and intent remain unchanged; it cannot
+   subsidize the first booking's cap.
+6. A real payment-intent update trigger fails after the local refund commits.
+   The route reports credited wallet funds and queued accounting. Same-key replay
+   preserves that state. After removing the trigger, the actual retry worker
+   updates only payment accounting and succeeds; it does not repeat the wallet,
+   ledger, audit or support note. A later worker pass attempts zero jobs.
+
+The fixture reproduces focused wallet constraints and executes existing
+migrations **045, 092 and 163** in its own generated schema. Other relevant
+tables are minimal fixtures; its schema-local `uuidv7` delegates to random UUID
+generation and does not test production UUID ordering. This is not the complete
+migration chain, restored production data or the complete server middleware
+stack. The standard test configuration isolates Redis, and diagnostic logging
+is mocked. A fetch spy refuses external delivery and asserts zero calls. Signed
+tokens, database results and HTTP responses are real, with synthetic identities.
+
+Three existing admin real-render tests also passed in **35.10 seconds**:
+OPS-287 checks centavos, support-case linkage and the logical key; OPS-288 checks
+queued-outcome wording; OPS-294 checks manual-attention replay wording. Their API
+responses remain mocked. They are not a database-connected browser journey,
+complete Booking 360 screen audit or latest-Stitch acceptance. An initial wrong
+relative Vitest path failed before runner startup; the corrected invocation
+passed without changing those tests.
+
+This proves one wallet-funded operator caller's scoped replay and rollback
+behavior, not all historical findings or Stage 1 completion. Customer cancellation
+and dispute callers still need actual database/HTTP acceptance. The worker failure
+here occurs before payment accounting commits, not after an external processor
+accepts or between accounting commit and queue acknowledgement. Original-source
+refunds, ambiguous outcomes, process death, stale worker claims, refund/release
+races and the wider wallet lock graph remain open. The attachment's full K08
+header/response-cache contract is not implemented or accepted by these checks.
+
+The final connected rerun passed **15 suites / 43 tests in 17.424 seconds**,
+including all eleven checks in the expanded SQL suite without skips. Other
+selected suites retain their mocked boundaries. The complete local API run
+passed **1,014 suites / 3,492 tests**, with two existing TODOs and **two failed
+suites/tests**, in **574.405 seconds**. Only unchanged UX-860 and UX-201 failed
+because the local Docker Linux engine was unavailable. All ten database checks
+and the guard check explicitly passed. This is not a green full local run.
+
+API TypeScript, changed-file ESLint and whitespace checks passed again after
+review. Local Gate A passed ten fragments, seven smoke scripts passed and Gate C
+passed seven articles, with zero blocking/report failures. The private process-
+local Python shim was reused; no gate assertion, mode or allowlist changed.
+Full CLAUDE, README and LAUNCH-LIMITATIONS alignment reads are complete. The
+completed administrator CI receipt is now recorded alongside limitation 95;
+separate issuance, durable acknowledgement and the production boundary remain.
+
+Machine-readable first, full and connected reports remain private in the ignored
+repair-intake directory. Fresh exact-candidate Linux CI is still required for
+this newer coverage. It is not deployed and does not establish live credentials.
+After all runs, the isolated database had zero owned refund schemas and zero
+other client backends. Its exact owned server was stopped; listener and process
+absence were verified and the data directory was preserved. Foreign services
+were not stopped.
 
 ## Boundaries before further repair
 

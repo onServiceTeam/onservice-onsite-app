@@ -3108,3 +3108,22 @@ audit and login metadata. Durable acknowledgement, interrupted delivery,
 earlier privileged sessions and the wider lock/cookie/issuer review remain open.
 The production recovery hold, complete migration/image rehearsal, matched
 artifacts, live multi-role acceptance and remaining launch gates are unchanged.
+
+Independent verification of the administrator correction: exact
+`6799d65701321ad02e13b4d451f6f056be00fdd2` passed all four jobs in CI
+`37822769366` and Gates `37822768456`. Actual API logs pass OPS-531/532 and both
+Nginx checks: 1,015 suites / 3,483 tests, two TODOs. The CI merge and topic source
+trees match. Optional exact release packaging was skipped. This resolves the
+historical fresh-CI-pending checkpoint above, not separate session issuance,
+durable recovery acknowledgement, E68, deployment or production readiness.
+
+October 9 refund evidence continuation: the corrected guarded fixture at
+`882ff8d5` passed CI `37830757089` and Gates `37830756882`, including its four
+actual SQL checks, the connection-guard check and both Nginx regressions. New
+local coverage then exercised the mounted operator refund route, partial-key
+replay, support-note/audit/outbox rollback, canonical permissions and payment-only
+worker accounting. This is evidence of existing code, not a new runtime repair
+or closure of money/release holds. Its exact scope, verification receipts and
+remaining customer/dispute, external-source/crash and live acceptance are in
+`docs/audits/REFUND-TRANSACTION-EVIDENCE-2026-10-09.md`. Newer coverage still needs
+its own CI and is not deployed.
