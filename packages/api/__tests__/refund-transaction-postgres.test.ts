@@ -364,6 +364,81 @@ refundIt('Bug SEC-076 - unassigned providers cannot cancel or start paid booking
   });
 }, 30000);
 
+refundIt('Bug SEC-077 - privacy officers cannot fall through booking actor guards to cancel or start funded jobs', async () => {
+  await withParticipantRefundDatabase(async database => {
+    await database.query("UPDATE users SET role='dpo' WHERE id=$1", [operatorId]);
+    const before = await participantSnapshot(database);
+    const patch = participantHttp(operatorId, 'dpo');
+    const cancelled = await patch(bookingA, 'cancelled_by_provider');
+    const started = await patch(bookingB, 'provider_en_route');
+    expect({ responses: [cancelled.status, started.status], state: await participantSnapshot(database) })
+      .toEqual({ responses: [403, 403], state: before });
+    expect(cancelled.body.error.message).toBe('Your role cannot change booking status.');
+    expect(started.body.error.message).toBe('Your role cannot change booking status.');
+  });
+}, 30000);
+
+refundIt('assigned approved staff retain on-site authority without gaining cancellation or unrelated-job authority', async () => {
+  await withParticipantRefundDatabase(async database => {
+    const staffUserId = crypto.randomUUID();
+    const staffId = crypto.randomUUID();
+    // Focused D23 relationships/approval fixture, not a full migration rehearsal.
+    await database.query(`CREATE TABLE provider_staff (
+      id uuid PRIMARY KEY, provider_id uuid NOT NULL REFERENCES providers(id),
+      user_id uuid REFERENCES users(id), status text NOT NULL CHECK (status IN
+        ('invited','pending_review','approved','rejected','suspended','deactivated')));
+      ALTER TABLE bookings ADD COLUMN performer_staff_id uuid REFERENCES provider_staff(id);`);
+    await database.query("INSERT INTO users(id,role) VALUES ($1,'provider_staff')", [staffUserId]);
+    await database.query("INSERT INTO provider_staff(id,provider_id,user_id,status) VALUES ($1,$2,$3,'approved')",
+      [staffId, providerB, staffUserId]);
+    await db.transaction(async client => {
+      await client.query('UPDATE bookings SET provider_id=$2,performer_staff_id=$3 WHERE id=$1',
+        [bookingB, providerB, staffId]);
+      await appendProviderAssignmentTermsInTransaction(client, {
+        bookingId: bookingB, providerId: providerB, event: 'provider_assigned', sourceEventId: bookingB,
+      });
+    });
+    const patch = participantHttp(staffUserId, 'provider_staff');
+    const before = await participantSnapshot(database);
+    for (const [bookingId, status] of [
+      [bookingA, 'provider_en_route'], [bookingB, 'cancelled_by_provider'],
+    ] as const) {
+      expect((await patch(bookingId, status)).status).toBe(403);
+      expect(await participantSnapshot(database)).toEqual(before);
+    }
+    await database.query("UPDATE provider_staff SET status='suspended' WHERE id=$1", [staffId]);
+    expect((await patch(bookingB, 'provider_en_route')).status).toBe(403);
+    expect(await participantSnapshot(database)).toEqual(before);
+    await database.query("UPDATE provider_staff SET status='approved' WHERE id=$1", [staffId]);
+    const accepted = await patch(bookingB, 'provider_en_route');
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.data).toMatchObject({ id: bookingB, providerId: providerB, status: 'provider_en_route' });
+    expect((await database.query('SELECT status,performer_staff_id FROM bookings WHERE id=$1', [bookingB])).rows)
+      .toEqual([{ status: 'provider_en_route', performer_staff_id: staffId }]);
+    expect(await snapshot(database)).toEqual({ wallets: before.wallets, ledger: before.ledger });
+    expect((await database.query('SELECT user_id,type,data FROM notifications')).rows).toEqual([
+      { user_id: customerB, type: 'provider_en_route', data: expect.objectContaining({ bookingId: bookingB }) },
+    ]);
+  });
+}, 30000);
+
+refundIt('canonical admin and super-admin roles retain the existing explicit booking-operation exemption', async () => {
+  for (const role of ['admin', 'super_admin']) {
+    await withParticipantRefundDatabase(async database => {
+      await database.query('UPDATE users SET role=$1 WHERE id=$2', [role, operatorId]);
+      const before = await participantSnapshot(database);
+      const response = await participantHttp(operatorId, role)(bookingB, 'provider_en_route');
+      expect(response.status).toBe(200);
+      expect((await database.query('SELECT status FROM bookings WHERE id=$1', [bookingB])).rows)
+        .toEqual([{ status: 'provider_en_route' }]);
+      expect(await snapshot(database)).toEqual({ wallets: before.wallets, ledger: before.ledger });
+      expect((await database.query('SELECT user_id,type,data FROM notifications')).rows).toEqual([
+        { user_id: customerB, type: 'provider_en_route', data: expect.objectContaining({ bookingId: bookingB }) },
+      ]);
+    });
+  }
+}, 30000);
+
 refundIt('assigned-provider ownership remains enforced and the actual owner can start their job', async () => {
   await withParticipantRefundDatabase(async database => {
     await db.transaction(async client => {

@@ -86,6 +86,19 @@ The local Nginx tests require a Docker Linux engine unavailable in this session.
 An older green CI run is not verification of this new correction. No gate,
 workflow, enforcement mode or assertion has been weakened.
 
+Completed independent source verification: exact topic `82e5558c` passed
+CI `37851008447` and Gates `37851008382`. Actual API logs pass all 20 guarded
+checks and both Nginx checks: 1016 suites / 3503 tests, two TODOs, no skips or
+failures. Admin passes 706 tests with one skipped file / three TODOs and its
+production build/types; mobile passes 879 tests / 84 TODOs, types and the
+compiled web export; actual API Docker build and `/health` boot liveness pass.
+CI merge `4d5fdf0990c30b70e6b6c186fe7c56c9555445e7` and topic share tree
+`571747e740f7966bab36aba71c4ee7aa7bc6292d`. This supersedes the pending-CI
+checkpoint above, not deployment. Optional exact API/admin packaging was
+skipped; web artifact `11581748673` is not deployment eligible and was not
+exercised as a browser journey. Gate B conditional dispatch and D/E report
+workload limits remain unchanged.
+
 The isolated fixture runs PostgreSQL 17.9 and Node 24.13.0. Its scoped schema
 plus migration 162 are not the complete production migration-chain/image
 rehearsal through 174. After all local SQL checks finished, fresh database,
@@ -103,6 +116,11 @@ cancellation compensation, customer timing tiers, original funding identity,
 dispute callers, partial-refund replay, ambiguous external outcomes, actual
 process death, stale claims and refund/release races remain separate work.
 Do not claim complete K01/K08/K07, deadlock-free behavior or full refund safety.
+
+The subsequent DPO-role fall-through reproduction and narrow candidate
+correction are recorded separately in
+`docs/audits/BOOKING-STATUS-ROLE-2026-10-09.md`. That newer source needs its own
+verification; the SEC-076 result does not verify a later change.
 
 The correction is not deployed. Current live customer/provider entry is
 [the shared sign-in page](https://app.onservice.ph/auth/login); admin entry is

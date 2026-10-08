@@ -908,6 +908,7 @@ async function validateRoleForTransition(
     if (!customerAllowed.includes(newStatus)) {
       throw createAppError('Customers cannot perform this action.', 403);
     }
+    return;
   }
 
   if (role === 'provider') {
@@ -933,6 +934,7 @@ async function validateRoleForTransition(
     if (providerResult.rows[0]?.user_id !== userId) {
       throw createAppError('You are not assigned to this booking.', 403);
     }
+    return;
   }
 
   // D23 + D15 — the assigned, approved team member drives the on-site steps of
@@ -959,7 +961,13 @@ async function validateRoleForTransition(
     if (staffResult.rows.length === 0) {
       throw createAppError('This job is not assigned to you.', 403);
     }
+    return;
   }
+
+  // SEC-077: authentication does not grant booking-operation authority.
+  // DPO and any other unsupported role must not fall through to state,
+  // cancellation money movement or counterpart notifications.
+  throw createAppError('Your role cannot change booking status.', 403);
 }
 
 interface QuoteRow {

@@ -1757,6 +1757,13 @@ deployment, and live role evidence remain blocked by E32 until the server
 identity is established. See
 `.ai-coder/escalations/E34-dpo-admin-route-segregation-is-incomplete-2026-08-30.md`.
 
+October 9 correction to the historical scope claim: the shared participant
+booking status route still admitted a DPO through an unsupported-role
+fall-through. This was reproduced with actual SQL and HTTP, including a
+wallet refund and false customer notices. Limitation 97 records the narrow
+candidate correction; the earlier admin-route matrix did not prove this
+shared endpoint or live segregation safe.
+
 ---
 
 ## 52. Provider onboarding drafts and rejected resubmission are not durable
@@ -3159,3 +3166,33 @@ Types, lint, Gate A/C and seven smoke scripts pass unchanged. Fresh exact CI
 remains required. **Candidate only, not deployed.** Evidence and remaining staff,
 role, transition, timing, funding and release work:
 `docs/audits/BOOKING-PROVIDER-ASSIGNMENT-2026-10-09.md`.
+
+Completed independent source verification: `82e5558c` passed CI `37851008447`
+and Gates `37851008382`. All 20 guarded SQL/HTTP checks, both Nginx checks,
+full API/admin/mobile checks, compiled artifacts and actual API Docker
+build/boot passed. CI merge and topic trees match. Optional exact release
+packaging was skipped. This resolves the preceding fresh-CI requirement for
+SEC-076, not deployment or the remaining actor/funding/release work.
+
+## 97. Privacy officers could cancel funded bookings through an unsupported-role fall-through
+
+SEC-077 reproduces two actual HTTP 200 responses on `82e5558c`: a DPO cancelled
+a paid booking and triggered wallet/payment/ledger refund, then marked another
+paid booking en route. Both customer inbox notices persisted. Only synthetic
+accounts/funds were used, not a claimed production incident.
+
+The candidate status guard now returns only after each permitted role's checks
+and rejects the remaining roles. The first corrected run passes all 23 guarded
+checks, including unchanged denied DPO snapshots, approved staff on-site access,
+staff suspension/cancellation denial and retained admin/super-admin authority.
+Three unchanged staff rendered suites pass four tests; API types/lint pass.
+Final connected four suites / 30 tests and Gate A/C plus seven smoke scripts
+pass unchanged. Full local API is not green: 1013 suites / 3502 tests pass,
+with two Docker-unavailable Nginx failures and two unchanged token-issuer
+failures (a 5000ms timeout followed by missing signing secret), plus two TODOs.
+The unchanged token-issuer suite rerun alone passes five tests; neither tests
+nor auth code were changed, and the failed full-run receipt remains retained.
+Fresh exact CI remains required before acceptance or another function change.
+**Candidate only, not deployed.** Staff parent consistency, dedicated
+flow boundaries, wider locks, funding/crash acceptance and all release holds
+remain open. See `docs/audits/BOOKING-STATUS-ROLE-2026-10-09.md`.
