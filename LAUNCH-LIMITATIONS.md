@@ -2922,3 +2922,36 @@ API types, changed-file lint and the unchanged ID gate pass. **Candidate only;
 fresh CI and deployment remain pending.** Separate account/credential issuance
 atomicity and concurrency are not resolved by this narrow pre-write check.
 Evidence: `docs/audits/INACTIVE-PHONE-SIGN-IN-2026-10-08.md`.
+
+Independent verification: exact candidate `65d53d60` passed all four jobs in
+CI `37788789344` and Gates `37788789503`. Its API job explicitly passed OPS-523
+and both Nginx checks: 1,001 suites / 3,451 tests, two TODOs. This resolves that
+candidate's fresh-CI uncertainty, not deployment. Optional release packaging
+was skipped. Subsequent account/session transaction work is tracked below.
+
+## 90. Phone sign-in could partially commit or issue from stale account state
+
+OPS-524 reproduced account metadata surviving a failed refresh-session insert.
+OPS-525 reproduced credentials returned after a concurrent account-first writer
+deactivated the account or changed it to a privileged role. This is not evidence
+of unauthorized protected access; canonical request checks remain separate.
+
+The candidate now locks the existing account and persists account/session changes
+in one transaction after independently committed OTP consumption. Failure rolls
+back the account/session work without making the used code reusable. Real SQL
+regressions cover all three marketplace roles, new-account rollback, both lock
+orders, writer rollback, unrelated-account progress and duplicate-code use.
+Focused database and existing OTP-policy tests, API types and changed-file lint
+pass. **Candidate only, not deployed; full-suite/fresh-CI verification remains
+separate.** Evidence: `docs/audits/PHONE-SIGN-IN-TRANSACTION-2026-10-08.md`.
+
+First-time registration races involving distinct accepted requests, other token
+issuers/callers and the full account-writer lock graph remain open. These fixes
+do not repair historical metadata, revoke earlier privileged sessions, complete
+production recovery or satisfy the matched-artifact release/launch requirements.
+
+Final local verification: 1,002 suites / 3,454 tests passed, two existing TODOs,
+and only unchanged UX-860/UX-201 failed because the Docker Linux engine is
+unavailable (520.089 seconds). All new database regressions executed. The
+unchanged 1,606-ID gate and whitespace checks pass. This is not a green full
+local suite; fresh exact-candidate CI and deployment remain required.

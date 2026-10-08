@@ -66,3 +66,16 @@ No server connection, live data change, migration, deployment, master merge,
 branch-protection change or launch approval occurred in this slice. The
 separate production recovery hold and full migration/image, paired-artifact,
 authenticated acceptance and rollback requirements remain in force.
+
+## Subsequent verification and transaction follow-through
+
+Exact OPS-523 candidate `65d53d60a9e6ab0b9318cea3ed37957628b77d5a` passed
+all four jobs in CI `37788789344` and Gates `37788789503`. The API job explicitly
+passed this regression, SEC-075 and both Nginx checks: 1,001 suites / 3,451
+tests, two TODOs, in 45.672 seconds. This supersedes the fresh-CI uncertainty
+above, not the deployment boundary. Optional exact release packaging was skipped.
+
+The subsequent account/session atomicity and concurrent account-writer fixes
+are recorded separately in `PHONE-SIGN-IN-TRANSACTION-2026-10-08.md` as
+OPS-524/525. They do not resolve every issuer or the whole account lifecycle;
+their new edits require their own exact-candidate CI.

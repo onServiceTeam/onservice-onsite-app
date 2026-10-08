@@ -421,78 +421,85 @@ export async function verifyOtp(
     }
   }
 
-  let isNewUser = false;
-  let userResult = await db.query<UserRow>(
-    `SELECT * FROM users WHERE phone = $1`,
-    [phone],
-  );
-
-  // SEC-075: phone possession is sufficient only for marketplace accounts.
-  // Privileged users must pass the separate password + 2FA/enrollment flow;
-  // neither a real SMS code nor an allowlisted development code substitutes.
-  // Check after OTP verification to avoid disclosing roles to an invalid code,
-  // but before account metadata changes or any session credential is minted.
-  const existingUser = userResult.rows[0];
-  if (existingUser && !['customer', 'provider', 'provider_staff'].includes(existingUser.role)) {
-    const denied = createAppError(
-      'Phone-code sign-in is unavailable for this account. Use the administrator sign-in or contact support.',
-      403,
-    );
-    denied.code = 'phone_sign_in_not_allowed';
-    throw denied;
-  }
-
-  // OPS-523: a refused sign-in must not mark a deactivated account verified
-  // or overwrite its last successful login. The valid OTP stays consumed.
-  if (existingUser && !existingUser.is_active) {
-    throw createAppError('Your account has been deactivated. Contact support.', 403);
-  }
-
-  if (userResult.rows.length === 0) {
-    isNewUser = true;
-    userResult = await db.query<UserRow>(
-      `INSERT INTO users (phone, first_name, last_name, is_verified)
-       VALUES ($1, '', '', TRUE)
-       RETURNING *`,
+  // OPS-524/525: preserve the already committed OTP consumption above, then
+  // lock account -> persist session as one separate transaction. A refused or
+  // failed issuance cannot leave a new account or successful-login metadata,
+  // and a waiting issuer must inspect the account writer's committed state.
+  const signedIn = await db.transaction(async (client) => {
+    let isNewUser = false;
+    let userResult = await client.query<UserRow>(
+      `SELECT * FROM users WHERE phone = $1 FOR NO KEY UPDATE`,
       [phone],
     );
-  } else {
-    await db.query(
-      `UPDATE users SET is_verified = TRUE, last_login_at = NOW(), updated_at = NOW()
-       WHERE id = $1`,
-      [userResult.rows[0]!.id],
+
+    // SEC-075: phone possession is sufficient only for marketplace accounts.
+    // Privileged users must pass the separate password + 2FA/enrollment flow;
+    // neither a real SMS code nor an allowlisted development code substitutes.
+    // Check after OTP verification to avoid disclosing roles to an invalid code,
+    // but before account metadata changes or any session credential is minted.
+    const existingUser = userResult.rows[0];
+    if (existingUser && !['customer', 'provider', 'provider_staff'].includes(existingUser.role)) {
+      const denied = createAppError(
+        'Phone-code sign-in is unavailable for this account. Use the administrator sign-in or contact support.',
+        403,
+      );
+      denied.code = 'phone_sign_in_not_allowed';
+      throw denied;
+    }
+
+    // OPS-523: a refused sign-in must not mark a deactivated account verified
+    // or overwrite its last successful login. The valid OTP stays consumed.
+    if (existingUser && !existingUser.is_active) {
+      throw createAppError('Your account has been deactivated. Contact support.', 403);
+    }
+
+    if (userResult.rows.length === 0) {
+      isNewUser = true;
+      userResult = await client.query<UserRow>(
+        `INSERT INTO users (phone, first_name, last_name, is_verified)
+         VALUES ($1, '', '', TRUE)
+         RETURNING *`,
+        [phone],
+      );
+    } else {
+      await client.query(
+        `UPDATE users SET is_verified = TRUE, last_login_at = NOW(), updated_at = NOW()
+         WHERE id = $1`,
+        [userResult.rows[0]!.id],
+      );
+    }
+
+    const user = userResult.rows[0]!;
+
+    if (!user.is_active) {
+      throw createAppError('Your account has been deactivated. Contact support.', 403);
+    }
+
+    const sessionVersion = Number(user.session_version ?? 1);
+    const accessToken = signAccessToken(user.id, user.role, sessionVersion);
+    const refreshToken = signRefreshToken(user.id, user.role, sessionVersion);
+
+    const tokenHash = hashToken(refreshToken);
+    const refreshDuration = refreshDurationForRole(user.role);
+    const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
+
+    await client.query(
+      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, device_fingerprint, created_ip)
+       VALUES ($1, $2, $3, $4, $5::inet)`,
+      [
+        user.id,
+        tokenHash,
+        refreshExpiresAt,
+        context.deviceFingerprint ?? null,
+        context.ipAddress ?? null,
+      ],
     );
-  }
 
-  const user = userResult.rows[0]!;
+    return { accessToken, refreshToken, user, isNewUser };
+  });
 
-  if (!user.is_active) {
-    throw createAppError('Your account has been deactivated. Contact support.', 403);
-  }
-
-  const sessionVersion = Number(user.session_version ?? 1);
-  const accessToken = signAccessToken(user.id, user.role, sessionVersion);
-  const refreshToken = signRefreshToken(user.id, user.role, sessionVersion);
-
-  const tokenHash = hashToken(refreshToken);
-  const refreshDuration = refreshDurationForRole(user.role);
-  const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
-
-  await db.query(
-    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, device_fingerprint, created_ip)
-     VALUES ($1, $2, $3, $4, $5::inet)`,
-    [
-      user.id,
-      tokenHash,
-      refreshExpiresAt,
-      context.deviceFingerprint ?? null,
-      context.ipAddress ?? null,
-    ],
-  );
-
-  logger.info('User authenticated', { userId: user.id, isNewUser });
-
-  return { accessToken, refreshToken, user, isNewUser };
+  logger.info('User authenticated', { userId: signedIn.user.id, isNewUser: signedIn.isNewUser });
+  return signedIn;
 }
 
 export async function refreshAccessToken(

@@ -36,7 +36,10 @@ const PHONE = '+639171234567';
 
 function mockUserLookupAndTokenIssue(): void {
   // After a successful (or bypassed) OTP check, verifyOtp does:
-  //   SELECT users → UPDATE users (last_login) → INSERT refresh_tokens
+  //   locked SELECT users → UPDATE users (last_login) → INSERT refresh_tokens
+  // on the same transactional client, even without an otp_codes row.
+  dbTransactionMock.mockImplementationOnce(async (cb: Parameters<typeof import('../src/models/db').db.transaction>[0]) =>
+    cb({ query: dbQueryMock }));
   dbQueryMock.mockResolvedValueOnce({
     rows: [{
       id: 'user-1', phone: PHONE, email: null, first_name: 'Test', last_name: 'User',
