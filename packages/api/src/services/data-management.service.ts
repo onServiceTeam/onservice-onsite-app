@@ -720,7 +720,7 @@ export async function processExpiredCoolingOff(): Promise<number> {
 
   let processed = 0;
 
-  // SAFE-N+1: anonymizeUser is an essential GDPR-grade multi-table cascade
+  // SAFE-N+1: anonymizeUser is the existing partial multi-table cascade
   // (UPDATE users + DELETE addresses/push_tokens/refresh_tokens + UPDATE
   // reviews/messages + provider rollback). A true bulk rewrite would (a)
   // trade per-row resilience for batch-abort on a single phone/email UNIQUE
@@ -733,8 +733,8 @@ export async function processExpiredCoolingOff(): Promise<number> {
     try {
       // Re-check at execution time. A user can legitimately make a new booking
       // or receive funds during the 30-day cooling-off period; deleting at that
-      // point would strand a live job, dispute, or balance. One query keeps the
-      // worker retry-safe without opening a large race between separate checks.
+      // point would strand a live job, dispute, or balance. This check remains
+      // outside the cascade transaction; it does not prove race-free eligibility.
       const eligibility = await db.query<{
         has_active_bookings: boolean;
         has_active_disputes: boolean;
@@ -811,7 +811,8 @@ export async function processExpiredCoolingOff(): Promise<number> {
 }
 
 async function anonymizeUser(userId: string): Promise<void> {
-  // CRIT-N08 fix: NPC RA 10173 anonymization is now atomic.
+  // CRIT-N08: the existing partial anonymization cascade is atomic. This is
+  // not a complete retention/erasure policy or legal-compliance assertion.
   //
   // Pre-fix: 7 separate top-level db.query calls. If any one failed (DB
   // blip, statement timeout, FK constraint), the user was left in a
@@ -820,17 +821,23 @@ async function anonymizeUser(userId: string): Promise<void> {
   // refresh_tokens delete might not have run, meaning the "deleted"
   // user's old session remained valid for up to the JWT refresh window.
   //
-  // Post-fix: single db.transaction. ORDER MATTERS — delete refresh
-  // tokens FIRST so any in-flight session is invalidated before we
-  // touch user data. If anything later in the cascade fails, the
+  // Post-fix: single db.transaction. OPS-522 locks the account BEFORE
+  // tokens, matching refresh rotation and owner-first account writers.
+  // Revocation and partial anonymization become visible together at COMMIT,
+  // not at the first uncommitted DELETE. If anything later fails, the
   // transaction rolls back and the cron picks up the same row again
   // next run. The phone/email anonymization uses crypto.randomUUID()
   // for collision-resistance instead of Date.now() (was unsafe under
   // concurrent retries).
   await db.transaction(async (client) => {
-    // Delete refresh tokens FIRST. If anything later in the cascade
-    // fails and the trx rolls back, the user's session is still
-    // present — the cron retries naturally next run.
+    const owner = await client.query<{ id: string }>(
+      'SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE',
+      [userId],
+    );
+    if (!owner.rows[0]) throw createAppError('User account not found.', 404);
+
+    // Account-first locking prevents an opposite-order cycle with revocation.
+    // A later cascade failure also rolls this deletion back for a safe retry.
     await client.query(
       `DELETE FROM refresh_tokens WHERE user_id = $1`,
       [userId],

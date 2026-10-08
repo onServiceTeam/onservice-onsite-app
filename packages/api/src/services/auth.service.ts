@@ -522,6 +522,18 @@ export async function refreshAccessToken(
   const tokenHash = hashToken(refreshToken);
 
   return await db.transaction(async (client) => {
+    // OPS-521: account -> refresh token, matching account revocation and
+    // partial anonymization. A token-first reader can retain the old token
+    // while its replacement's FK waits on an account writer that needs it.
+    // NO KEY UPDATE still permits the separate security-event FK insert below.
+    const owner = await client.query<{ id: string }>(
+      'SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE',
+      [payload.userId],
+    );
+    if (!owner.rows[0]) {
+      throw createAppError('User account not found or deactivated.', 401);
+    }
+
     const tokenResult = await client.query<RefreshTokenRow>(
       `SELECT * FROM refresh_tokens
        WHERE token_hash = $1 AND expires_at > NOW()

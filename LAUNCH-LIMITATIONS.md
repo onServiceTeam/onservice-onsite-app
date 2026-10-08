@@ -372,6 +372,17 @@ job per expired request to a dedicated `account-anonymization` worker,
 preserving per-row resilience while removing the synchronous per-row
 DB cost from the cron path. Not blocking launch.
 
+2026-10-08 concurrency correction, candidate only: OPS-521/522 make session
+renewal and the existing partial anonymization transaction lock the account
+before refresh tokens. Real PostgreSQL tests reproduce the old inversions and
+verify both operation orderings and rollback. This does not close the separate
+eligibility/claim gap: booking/dispute/balance checks still occur outside the
+cascade transaction, and request claiming/completion are separate writes.
+The historical "not blocking launch" classification above applies to per-row
+throughput, not acceptance of those races or the unresolved E21/E43 retention
+and DSR requirements. No retention scope or live records changed. Evidence:
+`docs/audits/ACCOUNT-SESSION-LOCK-ORDER-2026-10-08.md`.
+
 ## 18. axe-core wired in dev console; automated assertion deferred (Phase 13 Dispatch F)
 
 **2026-09-05 correction:** the "no test runner" rationale below is obsolete.

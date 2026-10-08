@@ -383,3 +383,37 @@ and other recovery/profile writers still need concurrency verification before
 global ordering or correction/resubmission acceptance. The latter is not yet
 enabled. Exact evidence, preceding-commit CI and remaining release requirements:
 `docs/audits/PROVIDER-ACCOUNT-LOCK-ORDER-2026-10-08.md`.
+
+## Account session lock continuation October 8
+
+Refresh rotation and the existing partial account-anonymization transaction
+now lock the owner before refresh tokens. Actual PostgreSQL OPS-521/522 tests
+reproduce the old inversions and verify the account-first correction; supporting
+tests cover both operation orderings, one-winner rotation, rollback and the
+separate device-mismatch audit insert. The latter remains compatible because
+the account lock is `FOR NO KEY UPDATE`, not `FOR UPDATE`.
+
+This supersedes the preceding token-first description for those two candidate
+paths only. Deletion eligibility and request completion remain outside the
+cascade transaction, and retention/DSR governance is still incomplete. Other
+credential issuance, profile/staff/recovery writers and the entire account
+lifecycle are not certified. No correction/resubmission control is enabled.
+Exact evidence and remaining release requirements:
+`docs/audits/ACCOUNT-SESSION-LOCK-ORDER-2026-10-08.md`.
+
+## Account session lock continuation October 8
+
+Refresh rotation and the existing partial account-anonymization transaction
+now lock the owner before refresh tokens. Actual PostgreSQL OPS-521/522 tests
+reproduce the old inversions and verify the account-first correction; supporting
+tests cover both operation orderings, one-winner rotation, rollback and the
+separate device-mismatch audit insert. The latter remains compatible because
+the account lock is `FOR NO KEY UPDATE`, not `FOR UPDATE`.
+
+This supersedes the preceding token-first description for those two candidate
+paths only. Deletion eligibility and request completion remain outside the
+cascade transaction, and retention/DSR governance is still incomplete. Other
+credential issuance, profile/staff/recovery writers and the entire account
+lifecycle are not certified. No correction/resubmission control is enabled.
+Exact evidence and remaining release requirements:
+`docs/audits/ACCOUNT-SESSION-LOCK-ORDER-2026-10-08.md`.
