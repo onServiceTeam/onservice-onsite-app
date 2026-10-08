@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { Socket } from 'node:net';
 import { Pool } from 'pg';
 import '../src/config/pg-types.config';
 import { pool } from '../src/config/database.config';
@@ -15,8 +16,10 @@ const safeDatabase = (() => {
   if (!databaseUrl || process.env.NODE_ENV !== 'test') return false;
   try {
     const url = new URL(databaseUrl);
-    return ['localhost', '127.0.0.1'].includes(url.hostname)
-      && url.pathname.replace(/^\//, '').endsWith('_test');
+    return ['postgres:', 'postgresql:'].includes(url.protocol)
+      && ['localhost', '127.0.0.1'].includes(url.hostname)
+      && !url.search && !url.hash
+      && decodeURIComponent(url.pathname.replace(/^\//, '')).endsWith('_test');
   } catch { return false; }
 })();
 if (process.env.CI && !safeDatabase) {
@@ -31,6 +34,15 @@ const customerWalletB = '20000000-0000-4000-8000-000000000022';
 const escrowWallet = '00000000-0000-4000-8000-000000000010';
 const bookingA = '30000000-0000-4000-8000-000000000001';
 const bookingB = '30000000-0000-4000-8000-000000000002';
+
+function assertRefundTestIdentity(
+  peerAddress: string | undefined, expectedDatabase: string, actualDatabase: string | undefined,
+): void {
+  if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peerAddress ?? '')
+      || !expectedDatabase.endsWith('_test') || actualDatabase !== expectedDatabase) {
+    throw new Error('Refund test connection must reach the exact requested *_test database through loopback.');
+  }
+}
 
 // Focused SQL fixture with the wallet constraints from migrations 005/034/053.
 // This is not a complete migration-chain or restored-production rehearsal.
@@ -47,13 +59,20 @@ async function withRefundDatabase(run: (database: Pool) => Promise<void>): Promi
   const original = { query: pool.query, connect: pool.connect };
   let created = false;
   try {
-    const identity = await database.query<{ name: string; host: string }>(
-      'SELECT current_database() AS name, host(inet_server_addr()) AS host',
-    );
-    if (!identity.rows[0]?.name.endsWith('_test')
-        || !['127.0.0.1', '::1'].includes(identity.rows[0]?.host ?? '')) {
-      throw new Error('Refund test server identity is not the isolated loopback *_test database.');
-    }
+    const connection = await database.connect();
+    try {
+      // PostgreSQL sees its container-side interface under CI port forwarding.
+      // Validate the actual client TCP peer, not that translated server address.
+      const socket = connection.connection.stream;
+      if (!(socket instanceof Socket)) throw new Error('Refund tests require an inspectable TCP connection.');
+      const target = new URL(databaseUrl!);
+      const identity = await connection.query<{ name: string }>('SELECT current_database() AS name');
+      assertRefundTestIdentity(socket.remoteAddress,
+        decodeURIComponent(target.pathname.replace(/^\//, '')), identity.rows[0]?.name);
+      if (socket.remotePort !== Number(target.port || '5432')) {
+        throw new Error('Refund test connection did not reach the requested test port.');
+      }
+    } finally { connection.release(); }
     await database.query(`CREATE SCHEMA "${schema}"`);
     created = true;
     await database.query(`
@@ -118,6 +137,21 @@ async function refund(amount: number) {
     client, bookingA, amount, 'Synthetic support refund',
   ));
 }
+
+it('refund fixture requires the actual loopback peer and exact requested test database', () => {
+  for (const peer of ['127.0.0.1', '::1', '::ffff:127.0.0.1']) {
+    expect(() => assertRefundTestIdentity(peer, 'refund_test', 'refund_test')).not.toThrow();
+  }
+  for (const peer of [undefined, '', 'localhost', '127.0.0.1.example.invalid', '172.18.0.2', '203.0.113.7']) {
+    expect(() => assertRefundTestIdentity(peer, 'refund_test', 'refund_test')).toThrow();
+  }
+  for (const [expected, actual] of [
+    ['refund_test', undefined], ['refund_test', 'another_test'], ['refund_test', 'onservice'],
+    ['onservice', 'onservice'],
+  ]) {
+    expect(() => assertRefundTestIdentity('127.0.0.1', expected!, actual)).toThrow();
+  }
+});
 
 refundIt('wallet refund returns the full original payment without touching another booking', async () => {
   await withRefundDatabase(async database => {

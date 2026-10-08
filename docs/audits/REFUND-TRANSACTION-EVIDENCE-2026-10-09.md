@@ -49,15 +49,18 @@ original attachment, closure of all six P0 findings, or reconciliation of all
 The focused fixture reproduces wallet constraints from migrations 005, 034 and
 053, including nonnegative balances, wallet uniqueness and ledger foreign keys.
 It uses BIGINT centavos and the existing type parser. Generated schemas are
-owned by each test and removed afterward. Both the requested connection and
-actual server identity must be a loopback test database; missing unsafe CI
-configuration fails rather than silently skipping. The production schema,
-payment processor, API callers and live data are not exercised by this fixture.
+owned by each test and removed afterward. The requested URL and actual client
+TCP peer must be loopback, and the database name and peer port must match the
+request exactly. Missing or unsafe CI configuration fails rather than silently
+skipping. The production schema, payment processor, API callers and live data
+are not exercised by this fixture.
 
 The first fixture run failed before creating a schema because PostgreSQL's
 inet-to-text conversion included `/32`. Selecting `host(inet_server_addr())`
 corrected the identity check while retaining exact IPv4/IPv6 loopback validation.
-That was a test-fixture error, not a reproduced refund-code defect.
+That was a test-fixture error, not a reproduced refund-code defect. The later CI
+failure below exposed a second problem with using the server interface; the
+client-peer guard supersedes that original approach.
 
 The corrected standalone run passed **four tests in 1.857 seconds**. A connected
 selection then passed **15 suites / 36 tests in 14.593 seconds**, including the
@@ -87,6 +90,52 @@ schema, with the expected exit code 1 and zero executed tests. This verifies
 the guard, not a passing money regression. Machine-readable reports remain in
 the ignored repair-intake directory. After the full run, no owned refund schema
 or other client connection remained in the isolated test database.
+
+## CI fixture failure and connection guard correction
+
+Published candidate `17875c0b28d40cf755dc4bbde77bed7694d068a5` failed
+[CI 37827644358](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37827644358).
+The API passed **1,015 suites / 3,483 tests**, with two TODOs, but the new refund
+suite failed all four tests at its identity guard before creating a schema.
+The API runner took **77.055 seconds**. Admin and mobile jobs succeeded; the
+dependent Docker build was skipped. Gates 37827644429 reported success with
+existing dispatch/report-mode limits. None of this is a successful release.
+
+The first guard confused the server's accepting interface with the client's
+network target. PostgreSQL defines [`inet_server_addr()`](https://www.postgresql.org/docs/current/functions-info.html)
+as the address on which the server accepts a connection. That need not be
+loopback behind CI container port forwarding. The corrected fixture checks the
+actual client's [`Socket.remoteAddress`](https://nodejs.org/api/net.html#socketremoteaddress),
+the exact requested database name, and the client's peer port before creating
+its schema. It does not allow arbitrary private subnet addresses or bypass
+validation in CI. Unsupported URL protocols, query overrides and fragments are
+also rejected before a connection is opened.
+
+A local rehearsal used an owned loopback TCP relay and actual PostgreSQL, not
+a fabricated database response. The client reached `127.0.0.1`, while the
+server accepted that forwarded connection on a different loopback interface.
+The unchanged published fixture failed all four tests in **18.859 seconds**.
+The corrected fixture passed **five tests in 1.932 seconds**: all four original
+money assertions and one additional connection-guard behavior test. That guard
+test rejects missing/non-loopback peers, missing/mismatched database names and
+non-test targets. An ordinary direct database rerun then passed the connected
+**15 suites / 37 tests in 22.234 seconds**, without skips. A preceding selector
+mistake named three nonexistent test paths; it is retained as a failed run,
+not counted as passing acceptance.
+
+Five separate unsafe-CI checks rejected a remote URL, a query-based host override,
+a wrong protocol, a production database name and missing configuration. Each
+exited 1 at the expected module guard with zero executed tests. These are
+negative safety checks, not passing refund runs. API types and changed-test lint
+passed. Local Gate A again passed ten fragments, all seven gate smoke scripts
+passed, and Gate C passed seven articles with zero blocking/report failures.
+The existing private Python shim was used; no gate or allowlist was changed.
+After the runs, the isolated database had zero owned refund schemas and zero
+other client connections. Its owned server was stopped, with listener and
+process absence verified and its data directory preserved.
+
+Fresh full Linux CI must still execute the corrected SQL tests against the
+actual container service; the local relay is not a substitute for that.
 
 ## Boundaries before further repair
 
