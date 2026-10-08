@@ -185,6 +185,13 @@ microphone=(), geolocation=()`.
 
 ## Admin 2FA, recovery-code, and forced-password flow
 
+The separate marketplace phone-code sign-in must not issue privileged
+credentials. SEC-075 enforces a customer/provider/provider-staff allowlist in
+candidate code, including for configured development codes. This correction
+is not yet deployed and does not revoke previously issued sessions. See
+`docs/audits/PRIVILEGED-PHONE-SIGN-IN-2026-10-08.md` for the real database/HTTP
+reproduction, verification scope and remaining release/session requirements.
+
 ```
 POST /api/v1/auth/admin/login (email, password)
    |

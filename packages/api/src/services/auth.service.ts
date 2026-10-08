@@ -427,6 +427,21 @@ export async function verifyOtp(
     [phone],
   );
 
+  // SEC-075: phone possession is sufficient only for marketplace accounts.
+  // Privileged users must pass the separate password + 2FA/enrollment flow;
+  // neither a real SMS code nor an allowlisted development code substitutes.
+  // Check after OTP verification to avoid disclosing roles to an invalid code,
+  // but before account metadata changes or any session credential is minted.
+  const existingUser = userResult.rows[0];
+  if (existingUser && !['customer', 'provider', 'provider_staff'].includes(existingUser.role)) {
+    const denied = createAppError(
+      'Phone-code sign-in is unavailable for this account. Use the administrator sign-in or contact support.',
+      403,
+    );
+    denied.code = 'phone_sign_in_not_allowed';
+    throw denied;
+  }
+
   if (userResult.rows.length === 0) {
     isNewUser = true;
     userResult = await db.query<UserRow>(

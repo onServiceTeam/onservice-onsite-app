@@ -2873,3 +2873,30 @@ and Gates `34040199589`. API job `101505439412` explicitly passed OPS-509,
 the real PHASE164-01 boundary test and both nginx regressions: 984 suites /
 3,428 tests passed with two existing TODOs. This resolves fresh-CI uncertainty
 for that note fix, not deployment or the broader audit/retention requirements.
+
+## 88. Phone-code sign-in did not exclude privileged accounts
+
+SEC-075 reproduced a usable administrator session from the shared phone-code
+path without the administrator password/authenticator flow. Only synthetic
+local accounts were used; this is not evidence of production exploitation.
+Candidate containment limits phone-code sign-in to customer, provider and
+provider-staff roles, including for configured development codes. Privileged
+and unknown roles are refused before account/session writes. Valid denied
+codes remain consumed and incorrect-code attempt limits remain unchanged.
+
+The real PostgreSQL/HTTP failing baseline and subsequent focused checks are
+recorded in `docs/audits/PRIVILEGED-PHONE-SIGN-IN-2026-10-08.md`. Twelve auth
+suites / 20 tests pass, including normal marketplace sign-in/refresh, all
+three privileged roles with and without enrollment, and existing administrator
+two-factor behavior. API types, changed-file lint and the unchanged ID gate pass.
+The complete local API run passes 998 suites / 3,448 tests, with two TODOs;
+only two unchanged Nginx tests fail because the local Docker engine is
+unavailable. This is not a green full local suite. **Fresh candidate CI is
+required; this correction is not deployed.**
+
+This prospective guard does not invalidate older privileged sessions or prove
+that they were issued through the required factors. Private live-version and
+session review, a bounded containment release, verified operator recovery and
+scoped audited invalidation remain necessary before declaring this resolved
+in production. Do not bypass the accumulated release/migration gates, perform
+an ad hoc blanket reset or treat this finding as completed incident/legal review.

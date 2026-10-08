@@ -95,3 +95,19 @@ isolated restoration, verify matched API/admin/customer-provider artifacts and
 authenticated journeys, and confirm backups/rollback. No master merge,
 production connection, deployment, gate weakening or branch-protection change
 occurred in this slice.
+
+## Independent CI verification and next finding
+
+Published source commit `c9b042562a637d70b6965e0942834af4990886e6` and the
+documentation-only follow-up `54b275f0a6b1e82e359016f717101831fc1d3e0d` were
+subsequently verified at the latter exact head. CI `37781347237` and Gates
+`37781347354` completed successfully. Actual API logs explicitly pass OPS-521,
+OPS-522, supporting account-session tests and both Nginx checks: 998 suites /
+3,446 tests pass, with two TODOs. All four CI jobs succeeded; optional exact
+API/admin candidate packaging was skipped. This resolves fresh-CI uncertainty
+for these lock corrections, not release acceptance.
+
+The subsequent issuer review reproduced a distinct privileged phone-sign-in
+bypass. Its candidate containment and remaining existing-session/release work
+are recorded in `PRIVILEGED-PHONE-SIGN-IN-2026-10-08.md`. Do not treat the green
+lock-order run as evidence for that later change or the entire login lifecycle.
