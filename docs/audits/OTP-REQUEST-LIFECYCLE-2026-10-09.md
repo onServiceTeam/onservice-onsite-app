@@ -94,3 +94,27 @@ source requires a selected image, complete restored migration chain through
 release before activation. No usable APK or updater is claimed. All 124 findings,
 15 journeys, 14 categories and customer/provider/admin, business/support/payment/
 job, Stitch/blue design and signed Android/update work remain in the full plan.
+
+## Completed exact-source hook verification
+
+Published `0ae977f3d47b6673f1168249cb19ece464a58a5b` passed CI `37939133316`
+and Gates `37939133296`. Actual GitHub commit objects confirm CI checkout
+`62223faf66249464592c0b09c8945c324fec1e90` and the topic share source tree
+`645b85af0d95d855ed6cfd41a3b201a71e43aa3f`.
+
+Actual mobile: 601 suites/885 tests passed, 84 TODOs, zero skips/failures,
+51.696s; OPS-544/545 explicitly executed, types and compiled web passed. API:
+1031 suites/3647 tests passed, two TODOs, zero skips/failures, 136.788s;
+named refund, email/linking, issuer SQL and both Nginx checks passed. Admin:
+598 passed files/one skipped file, 706 tests/three TODOs, 219.16s, types and
+production build passed. Actual API Docker build and served `/health` passed.
+The blank database's missing-table logs mean boot liveness, not readiness or
+full-chain restoration.
+
+Four complete job logs are retained with final cleanup. Web audit artifact
+`11620995901` is not deployment eligible and was not downloaded or exercised
+as a browser journey. Optional exact API/admin release packaging was skipped.
+Conditional Gate B and D/E report-workload limits remain unchanged. No gate or
+assertion was weakened. This completes bounded source verification, not live
+Cloudflare/SMS/inbox, Android or release acceptance. The receipt accompanies
+the related native component correction, not a public docs-only commit.
