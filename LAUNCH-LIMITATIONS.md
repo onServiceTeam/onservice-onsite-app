@@ -1328,6 +1328,17 @@ uploads + presigned option all shipped, no further code is required for §35a.
 These are low-probability today (refunds/disputes are admin-driven and serialized
 in practice) but are real correctness/money-integrity gaps.
 
+**October 9 correction to that historical assessment:** operator requests are
+not inherently serialized. Exact CI on `7fa7c520` returned an unexpected 500
+for concurrent refunds on the same support case. OPS-536 reproduced a real
+case-lock/booking-lock deadlock and changes the case's initial lock to
+`FOR NO KEY UPDATE` before locking the booking. Controlled HTTP/PostgreSQL
+tests now cover affordable overlapping partial refunds, over-cap conflicts,
+replay, closure during a lock wait and an independent case proceeding. See
+`docs/audits/REFUND-CASE-LOCK-2026-10-09.md` for exact evidence and publication
+status. This narrow source correction is not live, nor proof of full refund
+safety, external retry safety or a deadlock-free wider lock graph.
+
 > **`refund_from_escrow` double-debit risk — RESOLVED IN CODE 2026-09-01.**
 > Post-commit payment failures in customer cancellation, admin cancellation,
 > dispute refunds, and Booking 360 now enqueue `process_payment_refund`, not a

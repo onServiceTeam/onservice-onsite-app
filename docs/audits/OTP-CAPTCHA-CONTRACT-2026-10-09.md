@@ -90,3 +90,15 @@ challenge recovery, browser/native acceptance and the matching deployed server
 are also still required; mocked provider responses do not certify them.
 
 Provider contract reference: [Cloudflare Siteverify documentation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
+
+## Published candidate CI failure
+
+Published `7fa7c520d699a142f4f1f1f853fab7d8b32f5c03` passed its nine new checks,
+the issuer SQL suite and both Nginx checks in CI 37895823523. However, an
+unchanged concurrent operator-refund check failed with HTTP 500 instead of the
+expected 409. The complete API run is therefore failed, not accepted. Admin and
+mobile jobs succeeded, the dependent API Docker job was skipped, and Gates
+37895823510 succeeded. Investigation reproduced a real support-case/booking
+lock cycle, documented in [OPS-536](REFUND-CASE-LOCK-2026-10-09.md). The exact
+corrected candidate must pass full CI before moving to another changed function.
+Neither source correction is a deployed email/social sign-in feature.
