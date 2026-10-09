@@ -202,6 +202,35 @@ export async function checkOtpLockout(phone: string, ipAddress: string): Promise
   return { locked: false, captchaRequired };
 }
 
+const CAPTCHA_TIMEOUT_MS = 10_000;
+const CAPTCHA_MAX_RESPONSE_BYTES = 4096;
+
+async function readCaptchaResponse(response: Response, signal: AbortController['signal']): Promise<unknown> {
+  if (!response.body) return null;
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  // OPS-539: the deadline covers headers AND body consumption. Explicit
+  // cancellation settles an unfinished reader instead of only setting a flag.
+  const cancel = (): void => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener('abort', cancel, { once: true });
+  try {
+    if (signal.aborted) { cancel(); return null; }
+    while (true) {
+      const { done, value } = await reader.read();
+      if (signal.aborted) return null;
+      if (done) break;
+      size += value.byteLength;
+      if (size > CAPTCHA_MAX_RESPONSE_BYTES) { await reader.cancel(); return null; }
+      chunks.push(value);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
+  } finally {
+    signal.removeEventListener('abort', cancel);
+    reader.releaseLock();
+  }
+}
+
 export async function verifyCaptchaToken(token: string): Promise<boolean> {
   // Provider is Cloudflare Turnstile (see escalation E07). The secret lives only
   // on the server; the matching PUBLIC site key is shipped in the client build
@@ -223,20 +252,37 @@ export async function verifyCaptchaToken(token: string): Promise<boolean> {
     return false;
   }
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CAPTCHA_TIMEOUT_MS);
+  timer.unref();
   try {
     const response = await globalThis.fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST',
+      // SEC-083: no redirected origin may receive the secret or private proof.
+      redirect: 'error',
+      signal: controller.signal,
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new globalThis.URLSearchParams({ secret: captchaSecret, response: token }),
     });
 
-    const data = (await response.json()) as { success: boolean };
-    return data.success === true;
-  } catch (err) {
+    // SEC-085: an error response is never a successful validation, even if
+    // its body claims otherwise. Do not consume an unbounded error body.
+    if (!response.ok) {
+      void response.body?.cancel().catch(() => undefined);
+      return false;
+    }
+    const data = await readCaptchaResponse(response, controller.signal);
+    return data !== null && typeof data === 'object' && !Array.isArray(data)
+      && 'success' in data && data.success === true;
+  } catch {
+    // SEC-084: arbitrary transport/parser text can contain private bytes.
     logger.error('CAPTCHA verification failed', {
-      error: err instanceof Error ? err.message : 'Unknown',
+      error: 'transport_or_response_error',
     });
     return false;
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
   }
 }
 

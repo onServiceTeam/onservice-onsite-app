@@ -74,6 +74,16 @@ curl -fsSI https://admin.onservice.ph | grep -i "content-security-policy"
 
 ## Known deployment gaps
 
+The October 9 CAPTCHA transport candidate additionally rejects redirected
+Siteverify requests and non-2xx success bodies, caps headers/body waits at ten
+seconds and streamed responses at 4,096 bytes, and removes arbitrary exception
+text from diagnostics. SEC-083/084/085 and OPS-539 have real HTTP regressions;
+the privacy disclosure test explicitly injects a same-realm transport exception.
+This is not production widget/key/hostname acceptance or a change to abuse
+thresholds, missing-secret policy or privileged authentication. Require its own
+exact-source CI before promotion. See
+[the transport audit](audits/CAPTCHA-TRANSPORT-BOUNDARIES-2026-10-09.md).
+
 The original SEC-004 code gap is closed. Launch still requires deployment-level
 evidence for the active storage backend, Turnstile production keys, CSP response
 headers, Sentry, backups/PITR, and the current items in

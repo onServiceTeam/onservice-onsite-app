@@ -30,6 +30,7 @@ import * as authService from '../src/services/auth.service';
 import * as securityService from '../src/services/security.service';
 import { sendOtpSms } from '../src/services/sms.service';
 import { sessionIntegrationIt as integrationIt, sessionOwner, withSessionDatabase } from './helpers/account-session-postgres';
+import { withCaptchaProvider } from './helpers/captcha-http';
 
 // Actual Express route, Zod middleware, CAPTCHA verifier and error response.
 // Policy/auditing and outbound Siteverify/SMS are fixture boundaries. The last
@@ -151,6 +152,18 @@ it('preserves normal phone sign-in without a token below the CAPTCHA threshold',
   expect(response.status).toBe(200);
   expect(fetchMock).not.toHaveBeenCalled();
   expect(authService.sendOtp).toHaveBeenCalledTimes(1);
+});
+
+it('rejects a real Siteverify error response before any phone-code delivery', async () => {
+  await withCaptchaProvider(response => response.writeHead(503).end('{"success":true}'), async endpoint => {
+    const response = await request(app).post('/api/v1/auth/send-otp').send({ phone, captchaToken: 'synthetic-token' });
+    expect(response.status).toBe(403);
+    expect(response.body.error.message).toBe('CAPTCHA verification failed.');
+    expect(authService.sendOtp).not.toHaveBeenCalled();
+    expect(sendOtpSms).not.toHaveBeenCalled();
+    expect(securityService.recordLoginAttempt).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+    expect(endpoint.requests).toHaveLength(1);
+  });
 });
 
 integrationIt('persists and consumes one hashed OTP after CAPTCHA acceptance through the actual login route', async () => {

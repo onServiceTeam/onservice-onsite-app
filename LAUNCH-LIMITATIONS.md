@@ -3410,6 +3410,15 @@ client linking/sign-in UI, configured inbox/social providers, full-chain image
 rehearsal through 179 and matched web/native release acceptance remain open.
 Evidence: `docs/audits/EMAIL-SIGN-IN-HTTP-2026-10-09.md`. No method is live.
 
+Completed HTTP source verification: `9c0d3759` passed CI `37926401909` and Gates
+`37926401967`, including all 22 HTTP cases and existing internal/linking SQL,
+issuer/refund/lifecycle and both Nginx checks. Actual API: 1027 suites / 3637
+tests, two TODOs, zero skips/failures. Admin/mobile tests, types/builds and API
+image build/boot pass; merge/topic trees match. Optional exact release packages
+were skipped. This completes that source stage, not enabled email, inbox,
+browser/native or full-chain release acceptance. CAPTCHA transport is separately
+reviewed below; UI and configured delivery still remain open.
+
 ## 101. Phone-code transport could forward secrets, log provider text or wait without a bound
 
 Actual native HTTP tests on `7de317ee` reproduce SEC-081 redirect forwarding of
@@ -3438,3 +3447,20 @@ no skips/failures, all seven new transport checks, existing SMS/email and SQL
 callers, and both Nginx checks. Admin/mobile tests and builds plus actual API
 Docker build/boot pass; CI merge and topic trees match. This resolves that
 candidate's CI requirement, not delivery, production or the broader sign-in work.
+
+## 102. CAPTCHA transport could forward secrets, accept error responses or wait indefinitely
+
+Actual native HTTP on `9c0d3759` reproduced redirected CAPTCHA secrets/proofs,
+success accepted from non-2xx responses, unbounded header/body waits and accepted
+oversized responses. A same-realm injected transport exception also exposed its
+private text to diagnostics. The native JSON error in Jest was cross-realm and
+reported `Unknown`; it is not claimed as an observed native JSON secret leak.
+
+Candidate SEC-083/084/085 and OPS-539 reject redirects and error HTTP status,
+bound headers/body to ten seconds and actual response bytes to 4,096, cancel
+unfinished responses and use fixed error diagnostics. Missing-secret behavior,
+OTP abuse policy, rate limits, email flags and administrator factors are unchanged.
+Actual peer-close tests and mounted phone/email denial cases cover this shared
+function. Fresh exact-source CI and live configuration/browser acceptance are
+still required. No production key, service or real account was changed. See
+`docs/audits/CAPTCHA-TRANSPORT-BOUNDARIES-2026-10-09.md` for exact receipts and scope.

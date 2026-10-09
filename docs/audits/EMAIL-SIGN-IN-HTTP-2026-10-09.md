@@ -147,3 +147,27 @@ the accumulated PR, rehearse the selected image and complete migration chain
 through 179 on an isolated restoration, prove backups/rollback, and validate
 matched API/admin/web/native authenticated behavior. Existing live-payment,
 private-access, signing/update, legal and launch limitations remain open.
+
+## Completed exact-source verification of the HTTP slice
+
+Published `9c0d37597f958692c0162a9a9c26751ac1515f24` completed CI
+`37926401909` and Gates `37926401967`. The actual API job passes **1027 suites /
+3637 tests**, two TODOs, no skips/failures, 112.393s. All 22 HTTP cases, 33 internal
+sign-in checks, 21 linking-foundation checks, 15 linking-HTTP checks, affected
+lifecycle/export/issuer/refund/scheduler checks and both Nginx checks execute.
+Admin passes 598 files / 706 tests, one skipped file and three TODOs, 212.99s,
+with types/build. Mobile passes 595 suites / 879 tests and 84 TODOs, 52.686s,
+with types and compiled web export. The API Docker image builds and serves
+`/health`; its blank-database missing-settings errors limit this to liveness,
+not full-schema readiness or authenticated acceptance.
+
+CI merge `dd11cbf07a388945f4efb4a056f634778b7104cc` and the topic share tree
+`5a39820c1e540738e4c1e2d27ce2bfbf2d62b49b`, checked against actual commit objects.
+All four complete job logs are retained privately. Optional exact API/admin
+packaging was skipped; web artifact `11614496798` is not deployment eligible
+and was not downloaded/rendered. Existing conditional Gate B and D/E report
+workloads remain unchanged. Local failed/skipped receipts above remain true.
+
+This completes this bounded source verification. Email remains disabled and
+not live. The next shared CAPTCHA transport correction has its own audit and
+must obtain fresh verification, not inherit this green candidate.

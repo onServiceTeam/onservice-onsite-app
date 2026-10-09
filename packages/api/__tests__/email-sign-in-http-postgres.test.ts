@@ -195,6 +195,21 @@ it('failed CAPTCHA cannot start email sign-in even when the client submits an ad
   }, (_channel, res) => res.end(JSON.stringify({ success: false })));
 });
 
+it('a real CAPTCHA error response cannot acknowledge or prepare an email sign-in request', async () => {
+  const transaction = jest.spyOn(db, 'transaction');
+  try {
+    await withDelivery(async sent => {
+      const response = await start();
+      expect(response.status).toBe(403);
+      expect(response.headers['cache-control']).toBe('private, no-store');
+      expect(response.headers['set-cookie']).toBeUndefined();
+      expect(work).not.toHaveBeenCalled();
+      expect(transaction).not.toHaveBeenCalled();
+      expect(sent.map(row => row.channel)).toEqual(['captcha']);
+    }, (_channel, res) => res.writeHead(503).end('{"success":true}'));
+  } finally { transaction.mockRestore(); }
+});
+
 for (const role of ['customer', 'provider', 'provider_staff']) {
   sqlIt(`mounted ${role} email sign-in delivers to the verified identity and commits one usable canonical session`, async () => {
     await withDatabase(async database => withDelivery(async sent => {
