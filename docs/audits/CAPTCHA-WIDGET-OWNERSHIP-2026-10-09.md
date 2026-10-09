@@ -93,3 +93,27 @@ automatic native update delivery is claimed by these client tests.
 The full 124-finding, customer/provider/admin feasibility, business/support/
 payment/job linkage, Stitch/blue design and signed APK/update program remains
 active. This bounded fix does not close the broad sign-in or launch requirements.
+
+## Completed exact-source widget verification
+
+Published `b14928d8934b2fc27b6c71b4c04aedc97dd25d84` passed CI `37935742392`
+and Gates `37935742320`. Actual GitHub commit objects confirm CI checkout
+`f17fd1cd218af276563cffbef1ce8f7756d07a12` and the topic share source tree
+`ebac10366659662a8372a68609677bef29a6a688`.
+
+Actual mobile logs: 599 suites/883 tests passed, 84 TODOs, zero skips/failures,
+44.745s, both OPS-542/543 explicitly passed, types and compiled web passed.
+API: 1031 suites/3647 tests passed, two TODOs, zero skips/failures, 132.502s;
+named refund, email/linking, issuer SQL and both Nginx checks passed. Admin:
+598 passed files/one skipped file, 706 tests/three TODOs, 209.96s, types/build
+passed. Actual API Docker build and served `/health` passed. Blank database
+missing-table logs mean liveness, not readiness/full-chain acceptance.
+
+Four complete job logs are retained with final cleanup. Web audit artifact
+`11617867471` is not deployment eligible or downloaded/browser-exercised.
+Optional exact API/admin packaging was skipped. Conditional Gate B and D/E
+report-workload limits remain unchanged. This verifies the bounded widget
+source, not live Cloudflare, real SMS/inbox/native or release readiness. The
+receipt accompanies the related hook lifecycle correction, not a docs-only
+commit. Hook/native limitations above are historical to the widget slice;
+see the separate OTP request lifecycle audit for subsequent scoped evidence.
