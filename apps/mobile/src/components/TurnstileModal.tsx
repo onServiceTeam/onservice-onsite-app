@@ -160,6 +160,8 @@ function NativeChallenge({ onToken, onCancel }: Omit<Props, 'visible'>): React.R
                   }}
                   onError={fail}
                   onHttpError={fail}
+                  onRenderProcessGone={fail}
+                  onContentProcessDidTerminate={fail}
                   javaScriptEnabled
                   domStorageEnabled
                   style={styles.webview}

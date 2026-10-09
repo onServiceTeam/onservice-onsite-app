@@ -66,3 +66,27 @@ changed. This is neither an installable APK nor deployment. Current full-image
 migrations through 179, matched authenticated client acceptance and rollback
 remain required before release. The broad 124-finding program and its 15 journeys/
 14 categories retain their existing status; no launch requirement is closed here.
+
+## Completed exact-source verification
+
+Candidate `6d316e95ce1ea1c44dd04cdbbc01d1aeabbb679b` subsequently completed
+[CI 37947139813](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37947139813)
+and [Gates 37947139885](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37947139885).
+Actual mobile logs pass 606 suites/890 tests, 84 TODOs, zero skips/failures,
+31.374s, including OPS-549/550, types and compiled customer/provider web.
+API passes 1031 suites/3647 tests, two TODOs, zero skips/failures, 134.943s,
+including the named refund, email, issuer SQL, server CAPTCHA and both Nginx
+suites. Admin passes 598 files/706 tests, one skipped file/three TODOs, 172.93s,
+types and production build. Actual Docker build and served `/health` pass;
+missing `platform_settings` in its blank database means liveness, not readiness
+or complete migration-chain acceptance.
+
+Actual GitHub commit objects confirm CI checkout
+`2502d736e2257be5d33137e34f1295a2ae7cdcba` and topic share tree
+`99f0c22cd97c5d5eec28b7814e081645147087d6`. Four complete per-job logs are
+retained. Web audit artifact `11624432073` (1,725,258 bytes) denies deployment
+eligibility and was not downloaded or browser-exercised. Optional exact API/
+admin packaging was skipped. Existing conditional Gate B and D/E report-workload
+limits remain unchanged. This is bounded source verification, not configured
+Cloudflare/SMS/device/deployment acceptance. This receipt accompanies the next
+related runtime correction, not a documentation-only CI cycle.
