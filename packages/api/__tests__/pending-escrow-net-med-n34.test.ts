@@ -1,16 +1,13 @@
 const queryMock = jest.fn();
-const getCommissionRateMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({
   db: { query: (...args: unknown[]) => queryMock(...args) },
 }));
-jest.mock('../src/services/settings.service', () => ({
-  getCommissionRate: (...args: unknown[]) => getCommissionRateMock(...args),
-}));
+jest.mock('../src/services/booking-financial-terms.service', () => ({}));
 
 import * as providerToolsService from '../src/services/provider-tools.service';
 
-it('Bug MED-N34 — provider pending escrow is reported net of the provider tier commission', async () => {
+it('Bug MED-N34 — provider pending escrow is summed from each booking snapshot', async () => {
   queryMock
     .mockResolvedValueOnce({
       rows: [{
@@ -19,16 +16,15 @@ it('Bug MED-N34 — provider pending escrow is reported net of the provider tier
       }],
       rowCount: 1,
     })
-    .mockResolvedValueOnce({ rows: [{ tier: 'gold' }], rowCount: 1 })
-    .mockResolvedValueOnce({ rows: [{ pending_gross: '100000' }], rowCount: 1 });
-  getCommissionRateMock.mockResolvedValue(0.10);
+    .mockResolvedValueOnce({ rows: [{ pending_net: '90000', review_count: '2' }], rowCount: 1 });
 
   const result = await providerToolsService.getEarningsSummary('provider-1');
 
-  expect(getCommissionRateMock).toHaveBeenCalledWith('gold');
+  expect(String(queryMock.mock.calls[1]?.[0])).toContain('booking_financial_terms_current');
   expect(result).toMatchObject({
     earnedToday: 9000,
     pendingEscrow: 90000,
+    pendingEscrowReviewCount: 2,
     jobsThisMonth: 3,
   });
 });

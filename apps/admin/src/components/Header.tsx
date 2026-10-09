@@ -5,11 +5,14 @@ import {
   ArrowRight,
   Banknote,
   Bell,
+  Building2,
   ChevronDown,
   ClipboardList,
+  FileText,
   Key,
   Menu,
   RefreshCw,
+  Receipt,
   Scale,
   Search,
   Settings,
@@ -24,7 +27,7 @@ interface HeaderProps {
   onOpenNavigation?: () => void;
 }
 
-type AdminSearchKind = 'customer' | 'provider' | 'booking' | 'support' | 'dispute' | 'payout';
+type AdminSearchKind = 'customer' | 'provider' | 'business' | 'contract' | 'booking' | 'statement' | 'payment' | 'legacy_sales_record' | 'gateway_retry' | 'support' | 'dispute' | 'payout';
 
 interface AdminRecordResult {
   kind: AdminSearchKind;
@@ -38,11 +41,38 @@ interface AdminRecordResult {
 const RECORD_KIND_META = {
   customer: { label: 'Customer', Icon: Users },
   provider: { label: 'Provider', Icon: Wrench },
+  business: { label: 'Business account', Icon: Building2 },
+  contract: { label: 'Contract', Icon: FileText },
   booking: { label: 'Booking', Icon: ClipboardList },
+  statement: { label: 'Statement', Icon: Receipt },
+  payment: { label: 'Payment', Icon: Banknote },
+  legacy_sales_record: { label: 'Legacy sales record', Icon: Receipt },
+  gateway_retry: { label: 'Gateway retry', Icon: RefreshCw },
   support: { label: 'Support', Icon: Ticket },
   dispute: { label: 'Dispute', Icon: Scale },
   payout: { label: 'Payout', Icon: Banknote },
 } satisfies Record<AdminSearchKind, { label: string; Icon: typeof Users }>;
+
+function isAdminSearchKind(value: unknown): value is AdminSearchKind {
+  return typeof value === 'string'
+    && Object.prototype.hasOwnProperty.call(RECORD_KIND_META, value);
+}
+
+function isAdminRecordResult(value: unknown): value is AdminRecordResult {
+  if (!value || typeof value !== 'object') return false;
+
+  const row = value as Partial<AdminRecordResult>;
+  return isAdminSearchKind(row.kind)
+    && typeof row.id === 'string'
+    && row.id.trim().length > 0
+    && typeof row.title === 'string'
+    && row.title.trim().length > 0
+    && typeof row.subtitle === 'string'
+    && (row.status === null || typeof row.status === 'string')
+    && typeof row.to === 'string'
+    && row.to.startsWith('/')
+    && !row.to.startsWith('//');
+}
 
 export default function Header({ onOpenNavigation }: HeaderProps): React.ReactElement {
   const user = useAuthStore((state) => state.user);
@@ -56,6 +86,7 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
   const [recordResults, setRecordResults] = useState<AdminRecordResult[]>([]);
   const [recordLoading, setRecordLoading] = useState(false);
   const [recordError, setRecordError] = useState(false);
+  const [recordDataWarning, setRecordDataWarning] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const navItems = useMemo(() => visibleAdminNavItems(user?.role), [user?.role]);
   const pageResults = useMemo(() => {
@@ -74,6 +105,7 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
       setRecordResults([]);
       setRecordLoading(false);
       setRecordError(false);
+      setRecordDataWarning(false);
       return;
     }
 
@@ -82,19 +114,28 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
     setRecordResults([]);
     setRecordLoading(true);
     setRecordError(false);
+    setRecordDataWarning(false);
 
     const timer = window.setTimeout(() => {
-      void api.get<{ success: true; data: AdminRecordResult[] }>('/api/v1/admin/search', {
+      void api.get<{ success: true; data: unknown }>('/api/v1/admin/search', {
         params: { q: needle },
         signal: controller.signal,
       }).then((response) => {
         if (cancelled) return;
-        setRecordResults(Array.isArray(response.data.data) ? response.data.data : []);
+        const rawResults = response.data?.data;
+        const safeResults = Array.isArray(rawResults)
+          ? rawResults.filter(isAdminRecordResult)
+          : [];
+        setRecordResults(safeResults);
+        setRecordDataWarning(
+          !Array.isArray(rawResults) || safeResults.length !== rawResults.length,
+        );
         setRecordLoading(false);
       }).catch(() => {
         if (cancelled) return;
         setRecordResults([]);
         setRecordError(true);
+        setRecordDataWarning(false);
         setRecordLoading(false);
       });
     }, 250);
@@ -134,11 +175,6 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
-
-  const handleLogout = async (): Promise<void> => {
-    await logout();
-    navigate('/login');
-  };
 
   const chooseResult = (to: string): void => {
     navigate(to);
@@ -255,34 +291,47 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
                   <p className="px-4 py-4 text-sm text-[var(--color-danger)]" role="alert">
                     Record search is unavailable. Page shortcuts still work.
                   </p>
-                ) : recordResults.length === 0 ? (
-                  <p className="px-4 py-4 text-sm text-[var(--color-text-secondary)]">No matching operational record.</p>
                 ) : (
-                  <ul>
-                    {recordResults.map((result) => {
-                      const { Icon, label } = RECORD_KIND_META[result.kind];
-                      return (
-                        <li key={`${result.kind}:${result.id}`}>
-                          <button
-                            type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => chooseResult(result.to)}
-                            className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left hover:bg-[var(--color-surface-hover)]"
-                            aria-label={`Open ${label} ${result.title}`}
-                          >
-                            <Icon size={18} className="shrink-0 text-[var(--color-primary)]" />
-                            <span className="min-w-0 flex-1">
-                              <span className="flex min-w-0 items-center gap-2">
-                                <span className="truncate text-sm font-semibold text-[var(--color-text)]">{result.title}</span>
-                                <span className="shrink-0 rounded border border-[var(--color-border)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]">{label}</span>
-                              </span>
-                              <span className="block truncate text-xs text-[var(--color-text-secondary)]">{result.subtitle}</span>
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <>
+                    {recordDataWarning && (
+                      <p className="px-4 py-4 text-sm text-[var(--color-danger)]" role="alert">
+                        {recordResults.length > 0
+                          ? 'Some record results could not be displayed. Review the listed records and do not assume the search is complete.'
+                          : 'Record search returned unusable results. Page shortcuts still work.'}
+                      </p>
+                    )}
+                    {recordResults.length === 0 ? (
+                      !recordDataWarning && (
+                        <p className="px-4 py-4 text-sm text-[var(--color-text-secondary)]">No matching operational record.</p>
+                      )
+                    ) : (
+                      <ul>
+                        {recordResults.map((result) => {
+                          const { Icon, label } = RECORD_KIND_META[result.kind];
+                          return (
+                            <li key={`${result.kind}:${result.id}`}>
+                              <button
+                                type="button"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => chooseResult(result.to)}
+                                className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left hover:bg-[var(--color-surface-hover)]"
+                                aria-label={`Open ${label} ${result.title}`}
+                              >
+                                <Icon size={18} className="shrink-0 text-[var(--color-primary)]" />
+                                <span className="min-w-0 flex-1">
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <span className="truncate text-sm font-semibold text-[var(--color-text)]">{result.title}</span>
+                                    <span className="shrink-0 rounded border border-[var(--color-border)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-tertiary)]">{label}</span>
+                                  </span>
+                                  <span className="block truncate text-xs text-[var(--color-text-secondary)]">{result.subtitle}</span>
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </>
                 )}
               </section>
             )}
@@ -355,7 +404,9 @@ export default function Header({ onOpenNavigation }: HeaderProps): React.ReactEl
             <button type="button" onClick={() => chooseResult('/change-password')} className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-[var(--color-text)] hover:bg-[var(--color-surface-hover)]">
               <Key size={17} /> Change password
             </button>
-            <button type="button" onClick={() => void handleLogout()} className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-[var(--color-danger)] hover:bg-[var(--color-danger-bg)]">
+            {/* AdminLayout routes from current auth state. An old Header
+                callback must not navigate after another operator signs in. */}
+            <button type="button" onClick={() => void logout()} className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-[var(--color-danger)] hover:bg-[var(--color-danger-bg)]">
               <ArrowRight size={17} aria-hidden="true" /> Log out
             </button>
           </div>

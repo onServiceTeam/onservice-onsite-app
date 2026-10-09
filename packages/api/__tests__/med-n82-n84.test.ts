@@ -1,5 +1,9 @@
 // MED-N82 / MED-N84 fixes verified.
 
+import {
+  enrollmentIt, enrollmentOwner, requestSetup, withEnrollmentDatabase,
+} from './helpers/admin-enrollment-postgres';
+import { decryptSecret } from '../src/utils/totp';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
@@ -15,13 +19,30 @@ const AUTH_ROUTES = readFileSync(
 );
 
 describe('MED-N82 — admin/2fa/setup writes audit + UPDATE in a transaction', () => {
-  it('MED-N82 — handler uses db.transaction wrapping the UPDATE + admin_actions INSERT', () => {
-    const anchor = AUTH_ROUTES.indexOf("'/admin/2fa/setup'");
-    expect(anchor).toBeGreaterThan(0);
-    const block = AUTH_ROUTES.slice(anchor, anchor + 3000);
-    expect(block).toMatch(/await db\.transaction\(async \(client\)/);
-    expect(block).toMatch(/client\.query[\s\S]*?UPDATE users[\s\S]*?totp_secret/);
-    expect(block).toMatch(/client\.query[\s\S]*?INSERT INTO admin_actions[\s\S]*?admin_2fa_enrolled/);
+  enrollmentIt('MED-N82 — failed enrollment audit rolls back the actual key write and a later retry persists both', async () => {
+    await withEnrollmentDatabase(async database => {
+      const accounts = (await database.query('SELECT * FROM users')).rows;
+      await database.query(`CREATE FUNCTION fail_enrollment_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'Synthetic enrollment audit failure'; END $$;
+        CREATE TRIGGER fail_enrollment_audit BEFORE INSERT ON admin_actions
+        FOR EACH ROW EXECUTE FUNCTION fail_enrollment_audit();`);
+      const rejected = await requestSetup();
+      expect(rejected.status).toBe(500);
+      expect(rejected.body.data).toBeUndefined();
+      expect(rejected.headers['set-cookie']).toBeUndefined();
+      expect((await database.query('SELECT * FROM users')).rows).toEqual(accounts);
+      expect((await database.query('SELECT * FROM admin_actions')).rows).toEqual([]);
+      await database.query('DROP TRIGGER fail_enrollment_audit ON admin_actions');
+      const retry = await requestSetup();
+      expect(retry.status).toBe(200);
+      const row = (await database.query('SELECT totp_secret,totp_enabled FROM users')).rows[0];
+      expect(row.totp_secret.startsWith('enc:')).toBe(true);
+      expect(decryptSecret(row.totp_secret) === retry.body.data.secret).toBe(true);
+      expect(row.totp_enabled).toBe(false);
+      expect((await database.query('SELECT admin_id,action_type,target_type,target_id,details FROM admin_actions')).rows)
+        .toEqual([{ admin_id: enrollmentOwner, action_type: 'admin_2fa_enrolled', target_type: 'user',
+          target_id: enrollmentOwner, details: { phase: 'setup', enabled: false } }]);
+    });
   });
 });
 

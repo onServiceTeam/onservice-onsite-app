@@ -5,6 +5,8 @@ const queryMock = jest.fn().mockResolvedValue({ rows: [], rowCount: 1 });
 jest.mock('../src/models/db', () => ({
   db: {
     query: (...args: unknown[]) => queryMock(...args),
+    transaction: async (work: Parameters<typeof import('../src/models/db').db.transaction>[0]) =>
+      work({ query: queryMock }),
   },
 }));
 jest.mock('../src/utils/logger', () => ({
@@ -18,6 +20,7 @@ import { platformConfig } from '../src/config/platform.config';
 it('Bug UX-562 — admin refresh JWT and cookie share the configured session timeout while access stays short-lived', async () => {
   const previousSecret = process.env.JWT_SECRET;
   process.env.JWT_SECRET = 'ux-562-admin-session-timeout-secret';
+  queryMock.mockResolvedValueOnce({ rows: [{ role: 'admin', is_active: true, session_version: 3 }] });
   const tokens = await createTokenPair('admin-562', 'admin', 3);
   const decoded = jwt.decode(tokens.refreshToken) as { iat: number; exp: number; sessionVersion: number };
   expect(decoded.exp - decoded.iat).toBe(platformConfig.adminSessionTimeoutHours * 3600);

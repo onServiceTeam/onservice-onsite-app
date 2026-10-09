@@ -19,18 +19,32 @@ fi
 # Production migrations 135-145 were recorded in a nonnumeric order during one
 # historical deployment, so the runner's check-order mode rejects every later
 # migration even though the migration set is complete. We therefore disable
-# that check, use an exact target for ordinary releases, and prove the pending
-# SQL with a dry run before applying it.
+# that check and use a reviewed upper bound. Passing a basename to the raw
+# node-pg-migrate CLI selects ONLY that file, silently skipping prerequisites.
+# The image's bounded runner selects all pending files through the target and
+# verifies the resulting history, under the same advisory lock.
 target_arg=""
 if [ -n "$MIGRATION_TARGET" ]; then
-  target_arg=" $MIGRATION_TARGET"
+  target_arg=" --target $MIGRATION_TARGET"
 fi
 
-migration_command='DATABASE_URL="$DATABASE_DIRECT_URL" npm run migrate:up --'"$target_arg"' --migrations-dir migrations --no-check-order'
+migration_command='DATABASE_URL="$DATABASE_DIRECT_URL" node scripts/run-reviewed-migrations.mjs'"$target_arg"' --migrations-dir migrations'
 
 compose() {
   "$DOCKER_BIN" compose -f docker-compose.prod.yml "$@"
 }
+
+# A release must dry-run and migrate with the SAME verified image that will
+# serve traffic. Initial-install callers without a release SHA keep their
+# explicitly built local image path; ordinary releases may not use that path.
+if [[ -n "${ONSERVICE_RELEASE_SHA:-}" ]]; then
+  if [[ -z "$MIGRATION_TARGET" ]]; then
+    echo "ERROR: an exact MIGRATION_TARGET is required for a release." >&2
+    exit 2
+  fi
+  source scripts/server/release-api-common.sh
+  compose() { release_compose "$@"; }
+fi
 
 echo "==> Production migration dry run${MIGRATION_TARGET:+: $MIGRATION_TARGET}"
 compose run --rm --no-deps api sh -lc "$migration_command --dry-run"

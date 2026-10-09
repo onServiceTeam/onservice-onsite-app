@@ -4,7 +4,7 @@
 
 This is the resumable record for the suspicion-first admin/company stage that follows the provider and customer desktop/linkage audits. It records what was inspected, what was changed, what was proven by executed tests, and what remains. It does not treat the existence of a route, table, button, or old test as proof that an operator workflow is feasible.
 
-The current stage is not a declaration that every admin screen is complete. Completed checkpoints cover Business Account 360, business projects, notification templates, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, Booking 360/Dispatch integrity, financial-operations truth, Customer/Provider 360 account-support authority, Catalog publishing, and the unambiguous parts of Service Areas operations. The remaining admin surfaces continue after these checkpoints.
+The current stage is not a declaration that every admin screen is complete. Completed or safely contained checkpoints cover the Business Account 360 read/linkage layer, business projects, the current two-workflow notification-template boundary, promo redemption controls, customer-home banners, marketing campaign records, communications moderation, support operations, Booking 360/Dispatch integrity, financial-operations truth outside the E55 business-billing hold, Customer/Provider 360 account-support authority, Catalog publishing, and the unambiguous parts of Service Areas operations. Checkpoint AB supersedes any implication that Business Account 360 is a launch-ready commercial write console. Checkpoint AC supersedes any implication that Notification Templates is already a per-channel publishing system. The remaining admin surfaces continue after these checkpoints.
 
 Production synchronization is not claimed. Escalation E32 still records that the supplied SSH identities are rejected by the production host. Local and GitHub code may be aligned after CI, but production cannot be updated until an authorized server identity is available.
 
@@ -395,11 +395,4393 @@ Final checkpoint verification passed:
 - Full repository ESLint, Admin/Mobile/API TypeScript checks, API and Admin production builds, Gate A, Gate C, all six gate self-tests, the phantom-test scan, and the strict 35-screenshot follow-up passed. The final service edit also passed targeted ESLint, API typecheck, and API production build.
 - The commission evidence endpoint now reads all five live commission settings and correctly defined tier samples in one database query. The N+1 heuristic dropped from 30 to 29 reviewed locations, contains no Analytics finding, and reports no unjustified marker.
 
+## Checkpoint M — System Settings control-plane truth
+
+System Settings previously let stale browsers overwrite newer values while the
+audit event could preserve the wrong before-state. Several rows also looked
+editable even though deployed code, a launch hold, or another authority owned
+the behavior. The generic JSON editor made valid operational controls needlessly
+dangerous.
+
+The completed code containment covers Bugs UX-833 through UX-849 and OPS-301:
+
+- Single and bulk updates lock the current rows inside the transaction, reject
+  stale `updatedAt` versions and duplicate bulk keys, validate a meaningful
+  reason, and preserve update plus audit evidence atomically.
+- Successful saves invalidate grouped and per-key caches before later runtime
+  readers continue. The browser no longer presents a manual cache-clear action
+  that could imply an unsuccessful write became effective.
+- Every setting reports whether it is a live runtime control, release-coupled,
+  intentionally held, or not connected. Non-authoritative controls are read-only
+  and explain what actually owns the behavior.
+- Sensitive values remain redacted and cannot be recovered through the editor.
+  The history workspace identifies the actor and before/after evidence without
+  turning redaction into a disclosure path.
+- Marketing channels use a bounded slug list and provider tier ranking uses five
+  labelled numeric weights. The page states that new ranking values affect new
+  matches only.
+- Commission-rate settings remain outside the generic editor. The effective-
+  dated Commission Controls work and immutable booking terms are still held from
+  deployment by E50's production-inventory and legacy-reconciliation checkpoint.
+
+E49 is resolved in code only. No production setting, fee, rate, AML threshold,
+refund rule, dispatch rule, or historical transaction was changed. The page was
+manually reviewed and its strict contract covers default, review, loading, empty,
+and error states at 820, 1024, 1280, 1440, and 1920 pixels.
+
+## Checkpoint N — Staff & Roles operator integrity
+
+The page correctly had two different concepts, but mutation recovery and source
+failure behavior made the distinction unsafe in practice. Directory profile
+actions closed before the server confirmed success, several errors instructed an
+operator to retry without a retry control, company-wide totals looked filtered,
+and the API service allowed an internal caller to omit the reason when adding a
+profile.
+
+Remediation landed as Bugs UX-850 through UX-855:
+
+- UX-850: role-profile, activation/deactivation, and archive confirmations remain
+  open on failure, preserve the target and reason, display the failure in the
+  dialog, and close only after server success.
+- UX-851: the directory source has a real retry action and remains fail-closed
+  until the refetch succeeds.
+- UX-852: the role-profile editor is unavailable until both role and permission
+  sources load, bounds its fields to server limits, and exposes pending state
+  without allowing cancellation halfway through the request.
+- UX-853: the summary explicitly says its counts are company-wide and do not
+  follow the result filters.
+- UX-854: adding a directory profile now requires a 10-character audit reason in
+  the service itself before any transaction starts; route validation remains the
+  first boundary.
+- UX-855: a failed admin-tier candidate search can be retried without clearing the
+  operator's search.
+
+Role-profile permission labels remain operations metadata. They do not grant or
+revoke login access. The DPO tab remains the one explicit real account-role
+handover on this page and retains session revocation and audit behavior. E39
+remains open for governed privileged-account provisioning, deactivation,
+emergency recovery, last-super-admin protection, and approval policy. This
+checkpoint does not implement an ad hoc identity lifecycle.
+
+Focused regression passed 13 Admin files and 15 tests plus the new API reason
+guard. The strict Staff & Roles visual contract passed 20 default/loading/empty/
+error states at 820, 1024, 1280, 1440, and 1920 pixels after manual tablet and
+desktop inspection.
+
+Broad checkpoint verification also passed:
+
+- Admin: 258 files passed, 1 skipped; 347 tests passed and 3 explicit todos.
+- API: 694 locally runnable suites passed, 1 skipped; 3,079 tests passed and 1
+  skipped. The Docker-only certificate-revocation test was excluded because the
+  daemon is unavailable and is not counted as a pass.
+- Mobile: 506 suites and 885 tests passed; 84 device-baseline todos remain.
+- Admin, Mobile, and API TypeScript checks; Admin and API production builds; and
+  full repository ESLint passed.
+- Gate A passed 10/10 blocking fragments, Gate C passed 6/6 blocking articles,
+  all six gate self-test groups passed, and the phantom-test scan found no
+  forbidden pattern.
+- The N+1 heuristic retained 31 reviewed/justified locations and reported no
+  unjustified marker. `git diff --check` passed.
+
 ## Next admin/company audit queue
 
-The next continuous loop starts from the admin navigation inventory and rechecks each remaining page against the operating questions above. Priority order is:
+The next continuous loop starts from the remaining admin navigation inventory
+and rechecks each surface against the operating questions above. Priority order:
 
-1. System Settings, then Staff & Roles, including every field, runtime owner, permission, lifecycle action, and audit effect.
-2. Screen-by-screen visual verification at phone, tablet, desktop, empty/error/partial/overflow states, followed by the full customer/provider/admin linkage ledger update.
+1. Trace every cached Tester Feedback item to customer, provider, support,
+   product, and admin implications without presenting the cached snapshot as
+   current production state.
+2. Dashboard, Disputes, Pricing Rules, Recurring Work, Audit Log, authentication,
+   Change Password, shell/navigation, and Not Found coverage not already closed by
+   the operational checkpoints.
+3. Update the full customer/provider/admin linkage ledger, then rerun the broad
+   suites and protected CI gates before any merge or deployment decision.
 
-Existing legal, money, production-data, and privileged-identity escalation boundaries still apply. A page-local visual improvement is not permission to invent legal wording, mutate production money, or bypass those controls.
+Existing legal, money, production-data, and privileged-identity escalation
+boundaries still apply. A page-local visual improvement is not permission to
+invent legal wording, mutate production money, or bypass those controls.
+
+## Checkpoint O: Tester Feedback privacy containment
+
+The database-backed tester queue remains separate from marketplace reviews and
+support cases. The local gitignored snapshot was rechecked without publishing
+tester identities or contact data: it contains seven submissions, four logged
+issue rows, and six referenced screenshots, all still marked New in that cached
+snapshot. The prior production trace remains the latest production evidence and
+recorded ten submissions. E32 prevents a current server/database refresh, so the
+local count is not presented as current production state.
+
+The intake and operations contract correctly preserve original evidence, named
+ownership, decision notes, and append-only status history. The code audit also
+identified recoverability, request-validation, ordinary-admin note-masking,
+search-bound, queue-count, and tablet-layout gaps that remain queued.
+
+The higher-severity privacy finding was that feedback images beneath
+`uploads/feedback/` were served without authentication and publicly cached for
+30 days. The protected Admin page therefore did not protect image evidence that
+could contain names, addresses, booking context, messages, or other personal
+data.
+
+Ken approved E52 Option A on 2026-09-01. Bugs UX-856 through UX-862 now preserve
+every existing file and payload while adding an authenticated record-linked
+Admin evidence proxy, a header-only private screenshot pull, local browser
+preview during public intake, stable relative storage identifiers, and explicit
+Nginx 404 guards in both vhosts. Admin image elements and links no longer contain
+raw storage paths. Legacy absolute storage identifiers remain readable through
+the protected translation without a data migration.
+
+Production is not claimed. E32 prevents a current row/file inventory and the
+required staged deployment. The Nginx guard must not be activated on the server
+until database/uploads/config/Git backups exist and API/Admin/form support has
+been deployed and verified against old and new evidence. The operational
+sequence is recorded in `docs/runbooks/tester-feedback-evidence-privacy.md`.
+
+Local verification passed 10 focused API feedback suites/24 tests, 6 focused
+Admin feedback files/8 tests, the full locally runnable API aggregate (699
+suites/3,084 tests with one intentional skip), the full Admin aggregate (259
+files/348 tests with one intentional file skip and three todos), API/Admin
+TypeScript and production builds, full repository ESLint, and
+`git diff --check`. The Admin build transformed 2,842 modules. Gate A passed all 10
+blocking fragments, Gate C passed all 6 blocking articles, all 6 gate self-test
+groups passed, the phantom-test scan passed, and the N+1 heuristic retained 31
+reviewed locations with no unjustified marker. Bug UX-860's Docker/Nginx
+execution test was attempted twice but is not counted as passed because the
+local Docker daemon did not start a container before the bounded timeout;
+protected CI or a working Docker host must execute it.
+
+## Checkpoint P: Tester Feedback operator workflow
+
+The page-local audit treated the feedback workspace as an operational case
+queue, not a passive survey viewer. It found that malformed query, path, and
+triage inputs could reach handlers; searches over 100 characters were silently
+truncated; ordinary-admin decision history and current notes were not fully
+masked; a missing feedback record appeared to have an empty history; and source
+failures could be shown as zero counts, stale rows, or stale selected evidence.
+The owner and history dependencies had no local recovery path, and the UI could
+permit a decision without both sources being current.
+
+Bugs UX-863 through UX-876, except unused identifier UX-877, plus UX-878 close
+those page-local gaps. Request schemas now reject unknown or malformed fields
+before service work. Ordinary admins receive
+phone/email masking across the contact, summary, nested payload, current note,
+and historical notes. Queue, detail, history, and owner failures fail closed and
+offer local retry actions. Status counts identify their area/search scope. The
+search control and API share the same 100-character limit. A missing submission
+returns 404 from history rather than a false empty record.
+
+Operator decisions now carry the selected record's `updatedAt` version. The API
+locks the row, rejects a stale overwrite with 409, advances the version by at
+least one millisecond, and writes at most one truthful audit transition when two
+operators race. The Admin offers an in-place reload of the newer decision and
+locks queue, filter, search, and pagination navigation while a save is pending.
+Queue failure and page changes cannot leave an unrelated prior record visible.
+
+The responsive contract was also corrected. The split queue/detail layout now
+begins only when the available workspace is wide enough; 820- and 1024-pixel
+tablet/browser widths use a readable stacked flow. Loading, empty, and error
+states no longer include a contradictory `No feedback selected` panel, and
+source-wide states use the full desktop workspace. Default, loading, empty, and
+error baselines now cover 820, 1024, 1280, 1440, and 1920 pixels.
+
+Verification passed 14 focused API suites/28 tests, 15 focused Admin files/17
+tests, and 23 strict Playwright behavior/visual checks. The full locally
+runnable API aggregate passed 703 suites/3,088 tests with one intentional skip;
+the two Docker-only Nginx suites remain excluded and unclaimed. The full Admin
+aggregate passed 268 files/357 tests with one intentional file skip and three
+todos. API/Admin TypeScript and production builds, repository ESLint,
+`git diff --check`, Gate A's 10 fragments, Gate C's 6 articles, all 6 gate
+self-test groups, the phantom-test scan, and the reviewed N+1 scan passed.
+Production remains unchanged under E32 and E52's staged privacy rollout.
+
+## Checkpoint Q: cached feedback linkage and intake integrity
+
+The private seven-record workstation cache was traced record by record without
+publishing tester identities, contacts, opaque IDs, or raw submissions. The
+accurate local count is four structured issue rows, not five: one deliberate
+stress/junk row, one incomplete idea row, and two usable defect rows, with one
+of the usable rows describing two failures. The earlier production trace remains
+the latest server evidence at ten submissions and five structured issue rows;
+E32 prevents a current refresh.
+
+The resulting role trace is recorded in
+`docs/audits/THIRD-PARTY-TESTER-FEEDBACK-TRACE-2026-08-24.md`. It carries every
+cached record into its customer, provider, support, product, and admin
+counterpart. It does not implement off-platform contact disclosure, individual
+service/price suggestions, undefined top-provider or nearest-provider metrics,
+bulk messaging, automation, refund percentages, or legal wording from tester
+opinion alone.
+
+The stress row exposed a current intake-integrity defect. Public feedback fields
+were silently sliced to server caps, so an oversized submission became a
+plausible-looking but incomplete research record. Bug UX-879 makes every
+existing cap explicit: the browser applies matching text limits, direct requests
+over those limits are rejected with a clear error, too many answer/issue fields
+are rejected rather than clipped, and exact-boundary text is retained unchanged.
+Historical rows and screenshots are not rewritten or deleted.
+
+The local screenshot folder contains nine filenames but the cached JSON
+references six. The three additional files are not assigned to a cached record
+and are not counted as issue evidence. No production relationship or retention
+decision is inferred from the workstation directory. E52's production inventory
+and E21's retention boundary still govern those questions.
+
+Verification passed the UX-879 rendered-form/service regression, the existing
+feedback normalization suite, and the protected local-preview regression. The
+full locally runnable API aggregate passed 704 suites and 3,087 tests with one
+intentional skip. The two Docker-only Nginx suites were attempted separately
+and are not claimed as passed because Docker Desktop was unavailable. API
+TypeScript and the production build, full repository ESLint, and
+`git diff --check` passed. Gate A passed all 10 blocking fragments, Gate C
+passed all 6 blocking articles, all 6 gate self-test groups passed, the strict
+phantom-test scan found no findings, and the N+1 heuristic retained 31 reviewed
+locations with no unjustified marker.
+
+## Checkpoint R: Tester Feedback exact-case handoff
+
+The next page-local pass found that Tester Feedback kept status, app area,
+applied search, page, and selected submission only in React memory. A refresh,
+copied link, or support handoff reopened the default New queue and silently
+selected its first row. That made an operator's case reference non-reproducible
+even though the surrounding Booking, Support, Communications, Payout, Customer,
+and Audit workspaces already preserve operational URL context.
+
+Bug UX-880 makes the validated URL the queue source of truth. Status, area,
+submitted search, page, and `feedbackId` now survive refresh and can be copied
+as one exact handoff. Selecting a row updates only the record identifier while
+retaining the queue context. A valid exact record can load even when it is not
+on the visible queue page; the workspace identifies that condition instead of
+replacing the requested record with the first result. Queue failure still hides
+the evidence and decision controls, and pending triage still locks navigation.
+
+The real-router regression restores a filtered second-page queue, opens a
+different exact linked record, asserts the API inputs and rendered evidence,
+then proves a card selection updates the URL without dropping the filters. All
+19 Admin feedback test files and 21 assertions pass. The clean full Admin
+aggregate passes 269 files and 358 assertions, with one existing skipped file
+and three explicit todos. Admin TypeScript, the 2,842-module production build,
+full repository ESLint, and `git diff --check` pass. Gate A passes all 10
+blocking fragments, Gate C passes all 6 blocking articles, all 6 gate self-test
+groups pass, the strict phantom-test scan reports no findings, and the N+1
+heuristic retains 31 reviewed locations with no unjustified marker. The first
+full Admin attempt ran concurrently with the production build and full lint;
+two one-second retry assertions timed out under that machine load. Both passed
+immediately together, and the full suite then passed when rerun alone, so the
+failed saturated run is retained here rather than misreported as a product
+failure or hidden.
+
+## Checkpoint S: Projects planning handoff and Admin authority audit
+
+The project pass treated the feature as the customer planning record that
+exists today, not the broader provider/job system contemplated by D28. The
+Admin queue loaded only the newest 200 rows, held its expanded row in component
+memory, reduced milestone context, and depended on list projections for human
+identity. A refresh or support handoff could not reliably restore an older exact
+record. The customer detail also said a project had no provider link even when a
+pre-containment legacy `providerId` was present.
+
+Bugs UX-881 through UX-884 close the safe linkage and presentation defects:
+
+- A validated `projectId` in the URL is the Admin selection source of truth. An
+  exact known project outside the loaded rows renders in an explicit linked-
+  record section, and selecting a queue row preserves unrelated URL context.
+- Exact project detail now projects the customer name and legacy provider
+  business name. Admin receives canonical Customer 360, customer-scoped Support,
+  and Provider 360 exits rather than dead names or copied UUIDs.
+- Admin milestone evidence includes the written scope and target date. Estimates
+  and milestone amounts remain clearly advisory planning values, not charges or
+  escrow.
+- Customer copy distinguishes a legacy provider link from provider invitation,
+  assignment, booking, quote, and payment. The training manual now uses the same
+  planning-only boundary and directs real work to Booking 360, Dispatch,
+  Financials, and Support.
+
+The authority audit found a separate hard stop. The Admin screen and manual are
+read-only, but the shared project service currently treats Admin/super-admin as
+an owner for project, milestone, choice, and document writes. Those writes have
+no required reason, transactionally coupled audit event, or version conflict
+check. E53 records Option A, enforce read-only Admin mutations now, as the
+immediate recommendation, with only specifically justified governed corrections
+considered later. No authorization change was made while that source-of-truth
+conflict remains open.
+
+The responsive Admin page was inspected with fixture-backed data at 820 and
+1366 pixels. Both widths had no horizontal overflow and no captured browser
+warning or error. The exact outside-list record, participant exits, milestone
+scope/deadline, choice, and document were visible; selecting a loaded row changed
+only `projectId` and retained `source=support`. The current Stitch handoff archive
+does not contain a project-specific screen, so the locked repository design
+contract governed this screen: bounded workspace, solid borders, no decorative
+shadow, touch-sized controls, and stacked-to-wide responsive composition.
+
+Verification passed:
+
+- Admin: 271 files passed, one intentional file skipped; 360 tests passed and
+  three explicit todos remained. An initial full run exposed a one-second
+  retry-test timeout under aggregate load; the real asynchronous behavior was
+  retained with a five-second bound, the two focused tests passed, and the clean
+  full rerun passed.
+- Mobile: 507 suites and 886 tests passed; 84 device-baseline todos remain.
+- API: 705 locally runnable suites passed, one intentional suite skipped; 3,088
+  tests passed and one test skipped. The two Docker/Nginx suites were excluded
+  and are not claimed.
+- Admin, Mobile, and API TypeScript, full repository ESLint, Admin/API production
+  builds, and Expo web export passed. The first export invocation omitted the
+  required explicit `EXPO_OS=web` target and failed after bundling; the corrected
+  run exported all 4,273 modules.
+- Gate A passed 10/10, Gate C passed 6/6, all six gate self-test groups passed,
+  the strict phantom-test scan found no forbidden pattern, and the N+1 heuristic
+  found no unjustified marker. Its Projects warning is formatting over fetched
+  rows, not a query inside the map. `git diff --check` passed.
+
+Open project gaps remain explicit: full server search/pagination, project-scoped
+support, customer metadata editing, complete milestone/choice/document creation,
+a real provider-side project workflow, accepted provider invitation, and
+project-to-booking conversion. D28, D27p5/E12, and E53 block architecture,
+money, and hidden Admin-write changes. E32 still blocks production inventory and
+synchronization, so no production deployment or production-data conclusion is
+claimed.
+
+## Checkpoint T: Projects full-index discovery and missing visual baselines
+
+The next Projects audit found two safe but material defects. Admin still loaded a
+fixed newest-record slice, so operators could not discover older plans by project,
+customer, provider, city, or status. The newer Projects route was also absent from
+the Admin Playwright screen catalog even though F#4's older 29-screen baseline had
+been completed.
+
+Bugs UX-885 through UX-887 add a dedicated read-only Admin list contract with
+strict status/search/page controls, escaped wildcard search over the full joined
+index, deterministic pagination, and result-wide summaries. The Admin screen now
+keeps search, status, page, exact project selection, and incoming support context
+in one reproducible URL. It never changes the existing customer/provider project
+list response. The W15 exact-record detail handoff still works when the selected
+record is outside the current result page.
+
+The visual omission is now closed with 16 reviewed Projects baselines: populated,
+loading, empty, and error at 768, 1280, 1440, and 1920 pixels. A clean second run
+matched every image, and the populated state asserts no document-level horizontal
+overflow at every width. The tablet and desktop results retain the Stitch-derived
+bounded operator workspace, solid borders, compact evidence hierarchy, and
+touch-sized controls.
+
+Verification passed 272 Admin files/361 tests, 707 locally runnable API suites/
+3,090 tests, and 507 Mobile suites/886 tests. Existing one-file/test skips and 3
+Admin plus 84 Mobile todos remain explicit. The two Docker/Nginx suites remain
+excluded and unclaimed. TypeScript, repository lint, Admin/API production builds,
+Gate A 10/10, Gate C 6/6, six gate self-tests, strict phantom-test, N+1 review,
+Playwright 16/16, and diff checks passed. The first Gate A launcher selected WSL
+Bash and failed to resolve the Windows worktree/Node environment; the corrected
+Git Bash run passed. E53 still prevents hidden Admin project mutations, D28 still
+holds provider/booking conversion, D27p5/E12 still holds milestone money, and E32
+still prevents production synchronization.
+
+## Checkpoint U: canonical planning-project support context
+
+The next cross-role trace found that a customer planning record could hand an
+operator to the customer-wide Support queue, but the case itself could not retain
+which project needed help. A later operator had to infer the plan from free text,
+and the customer could not return from the case thread to the exact project. This
+was an operational linkage defect, not authority to turn Projects into a second
+booking or payment model.
+
+Bugs UX-888 through UX-895 add one canonical, deliberately narrow relationship:
+
+- Migration 164 adds a nullable project foreign key to support tickets, leaves
+  every historical row unchanged, and enforces that a case identifies one
+  booking or one project, never both.
+- The API validates that project-linked intake uses the owning customer, exposes
+  project title context in list and detail reads, and supports an exact Admin
+  project filter. The Admin create-on-behalf path uses that same ownership check.
+- The customer project detail opens a prefilled Support intake. The new-ticket,
+  support-list, and support-thread surfaces retain the project title and customer-
+  only return link. Providers do not receive access to customer planning records.
+- Admin Projects opens the exact project-filtered support queue; Support shows the
+  linked planning record and returns to it without losing case context. Every
+  surface states that this link does not assign a provider, create a booking,
+  authorize a quote, or move money.
+- The shared Admin table now exposes API failure text as an accessible alert.
+  Forced baseline replacement also removes stale visual evidence that still
+  showed a simultaneous false empty-state message within the allowed pixel
+  tolerance even though the current component's branches were already exclusive.
+
+Executed coverage calls the real service ownership, insert, filter, join, route,
+and rendered customer/Admin handoff behavior. The final local aggregates pass 274
+Admin files/363 assertions with one intentional file skip and three todos; 710
+locally runnable API suites/3,093 assertions with one intentional suite/test skip;
+and the previously completed W17 Mobile aggregate passes 510 suites/889 assertions
+with 84 device-baseline todos. The two Docker/Nginx environment suites are still
+excluded and are not claimed as passes. All workspaces pass TypeScript, repository
+ESLint passes, and Admin/API production builds pass. The 12 Support Queue default,
+loading, empty, and error images at 1280/1440/1920 were deliberately re-captured,
+visually inspected, then matched on a strict no-update run.
+
+The existing OPS-267 financial render kept every assertion unchanged but now has
+a test-local 15-second ceiling. It completed in under one second alone; the prior
+five-second ceiling was exceeded only when the unbounded Windows runner saturated
+fork workers. The final complete Admin aggregate used four workers and is the
+claimed result; invalid process-exhaustion runs are not reported as product passes.
+
+Gate A passes 10/10, Gate C passes 6/6, all six gate self-test groups pass, the
+strict phantom-test scan reports no findings, and the N+1 heuristic reports no
+unjustified marker. Its 30 broad candidate locations are pre-existing review
+output, not a finding introduced by this checkpoint. E53, D28, D27p5/E12, and
+E32 remain active; no hidden Admin project write, provider-project workflow,
+money change, production migration, or production synchronization is claimed.
+
+## Checkpoint V: customer-owned planning metadata
+
+The next customer trace confirmed that the project API already allowed an owner
+to update planning metadata, but the customer UI could neither maintain those
+fields nor capture the planning address when creating a project. Operators could
+see the record in Admin and Support, while the customer had no direct way to
+correct the title, description, location, or advisory budget. That was a safe UI
+and linkage gap, not permission to expand the project into execution or money.
+
+Bugs UX-896 and UX-897 close that narrow gap:
+
+- Project creation now accepts a planning address and states that any future
+  booking confirms its own service address.
+- The owner-only overview exposes title, description, planning address/city, and
+  advisory budget, then saves those same fields through the existing
+  ownership-checked API contract.
+- Advisory pesos are converted to server centavos and bounded from zero through
+  PHP 20,000,000. Blank optional values clear to `null`.
+- The customer mutation deliberately omits status, provider ID, booking
+  conversion, quotes, escrow, and every payment field. Existing Admin project
+  writes remain held by E53.
+- Exact project and project-list queries are invalidated after save so Customer,
+  Admin discovery, and later project-linked Support intake use current metadata.
+
+Focused executed renders cover desktop owner editing and tablet project creation.
+A fixture-backed real browser session at 820 pixels saved and re-rendered the
+updated title, address, city, and advisory budget without horizontal overflow.
+The 1366-pixel desktop session rendered the full customer navigation workspace,
+exact project context, and support exit without browser errors. Full aggregate
+Mobile verification passes all 512 suites and 891 assertions with 84 existing
+device-baseline todos. Every workspace TypeScript check, repository ESLint, and
+the 4,273-module production web export pass. Gate A passes 10/10, Gate C passes
+6/6, all six gate self-tests pass, the strict phantom-test scan reports no
+finding, and the N+1 heuristic reports no unjustified marker among its 30
+pre-existing review locations.
+
+E53, D28, D27p5/E12, and E32 remain active. This checkpoint does not authorize a
+provider project workspace, Admin mutation, project-to-booking conversion,
+milestone money, production migration, or production synchronization.
+
+## Checkpoint W: complete customer milestone and choice context
+
+The next customer trace found that project milestones and choices could be
+created, but the milestone form captured only a title and the choice form omitted
+its existing detail field. That left scope, planning budget, target date, model,
+finish, and supplier context trapped outside the planning record. The work stayed
+within Option A: projects organize planning, while bookings remain the source of
+truth for provider work, schedules, quotes, transactions, payments, refunds, and
+support adjustments.
+
+Bugs UX-898 and UX-899 add optional milestone description, bounded advisory
+amount, real-calendar planning target date, deterministic ordering, and optional
+choice detail. The advisory amount is converted to centavos but is explicitly not
+a quote, charge, escrow hold, or approved price. The mutation omits status,
+booking, provider assignment, and every money-authority field. Bug UX-900 closes
+a defect found during live browser inspection: the API retained milestone scope,
+but the customer card did not render it back after save.
+
+Focused executed renders cover tablet milestone validation/submission, desktop
+choice detail submission, and saved milestone-description visibility. A
+fixture-backed browser session created and re-rendered both records at 820 pixels,
+then verified the role-aware customer workspace at 1366 pixels. Both widths had
+zero horizontal overflow and the browser recorded no error. The complete Mobile
+aggregate passes 515 suites and 894 assertions with 84 existing device-baseline
+todos. All workspace TypeScript checks, repository ESLint, the 4,273-module
+production web export, Gate A 10/10, Gate C 6/6, all six gate self-test groups,
+the strict phantom-test scan, the N+1 review, and `git diff --check` pass. The
+first Gate A launcher followed the Windows WSL file association and could not
+resolve the linked worktree or Windows Node runtime; the direct Git Bash rerun is
+the claimed gate result.
+
+Existing milestone/choice editing or removal and document creation remain open.
+E53 still holds conflicting Admin project writes, D28 still holds provider and
+booking conversion architecture, D27p5/E12 still holds milestone money, and E32
+still prevents production synchronization.
+
+## Checkpoint X: customer planning-record maintenance
+
+The next trace closed only the correction actions that are safe under Option A.
+Customer owners can now edit or remove planning choices and edit or remove a
+milestone before it starts. Every removal uses an in-app impact confirmation
+that says the planning item cannot be restored and that removing it does not
+cancel a booking or payment. Started and completed milestones remain visible
+history and expose no customer edit/remove action.
+
+Bugs UX-901, UX-902, UX-904, and UX-905 execute the exact customer payloads,
+date validation, pending-only milestone controls, and confirmation-before-delete
+behavior. Bug UX-903 executes the strict bounded API route and rejects blank or
+unknown booking/status fields. SEC-016 proves the new choice-update service is
+customer-owner-only; an Admin account does not inherit authority from the older
+E53-held project contract. Correction payloads contain no status, provider,
+booking, quote, commission, refund, escrow, or payment field.
+
+The 820-pixel browser pass exposed a cramped milestone action row. The repaired
+layout moves those actions below the milestone content, keeps the full action
+words visible, and has zero document-level horizontal overflow at 820 and 1366
+pixels. The accumulated development log includes expected framework warnings
+and transient Metro-disconnect entries caused by restarting the local server, so
+this checkpoint does not claim a zero-log browser session.
+
+Mobile passes 519 suites and 898 assertions with 84 existing device-baseline
+todos. The locally runnable API passes 712 suites and 3,095 assertions with one
+intentional suite/test skip; the two Docker/Nginx environment suites remain
+excluded and unclaimed. All workspace TypeScript checks, repository ESLint,
+API/Admin production builds, the 4,273-module Expo web export, Gate A 10/10,
+Gate C 6/6, all six gate self-test groups, the strict phantom-test scan, the
+30-location N+1 review, and `git diff --check` pass.
+
+Bad news retained: the older server deletion and Admin-write paths do not yet
+provide an approved immutable/versioned history contract. E53 therefore remains
+open. Document creation, provider planning, project-to-booking conversion,
+milestone money, production migration, and production synchronization also
+remain outside this checkpoint under D28, D27p5/E12, and E32.
+
+## Checkpoint Y: private project planning images
+
+This trace closes first-party image attachment without making Projects a second
+work-order, provider-assignment, or money system. The customer owner can attach
+a labelled JPG, PNG, or WebP reference. The API performs extension, MIME, size,
+and image-content checks, stores the object privately, and persists an opaque
+storage key. Every project projection now redacts `file_url`, including old
+external references, and returns only a secure access endpoint.
+
+The customer owner and Admin can mint a tamper-evident link with a 120-second
+lifetime. A legacy linked provider cannot. The Admin operator sees the image in
+the exact project record through an in-console preview, not a popup, direct
+storage address, edit control, or delete control. Closing the preview revokes
+the temporary browser URL. Existing Nginx configuration already rejects direct
+requests to `/uploads/private-artifacts/`.
+
+Bugs UX-906, UX-907, and UX-908 execute the customer picker/upload/open flow,
+strict multipart route, and Admin preview. SEC-017, SEC-018, and SEC-019 execute
+owner-only persistence, provider denial plus signed download verification, and
+raw URL redaction. Customer browser checks at 820 and 1366 pixels and Admin
+checks at 820 pixels report zero horizontal overflow. The form exposes Plan,
+Permit, Contract, Photo, and Other as human labels and remains disabled until a
+label and image are selected. Existing development-only React Native Web and
+reduced-motion warnings remain, so this checkpoint does not claim a warning-free
+browser log.
+
+Mobile passes 520 suites and 899 assertions with 84 device-baseline todos. Admin
+passes 275 files and 364 assertions with one skipped file and three todos. The
+locally runnable API passes 716 suites and 3,099 assertions with one intentional
+skip. Its complete local run had only the two Docker-dependent Nginx failures
+because Docker Desktop is unavailable; those are not counted as passes.
+TypeScript, repository lint, API/Admin production builds, the 4,273-module Expo
+web export, Gate A 10/10, Gate C 6/6, all six gate self-test groups, strict
+phantom-test scanning, the N+1 review, and diff checks pass.
+
+Bad news retained: PDFs are not yet accepted; legacy external rows are hidden
+but cannot be opened until production inventory and migration; and the older
+raw-URL creation/deletion routes remain under E53/D28 without approved
+immutable/versioned audit history. Provider planning, project-to-booking
+conversion, milestone money, and production synchronization remain outside W21
+under D28, D27p5/E12, and E32.
+
+## Checkpoint Z: recurring customer-to-support linkage
+
+This trace keeps bookings as the commercial, work, and money source of truth.
+A recurring series only plans future visits. It does not rewrite a source
+booking, generated booking, payment, refund, commission, or transaction.
+
+The prior Admin page was only a list plus cancellation action. It did not let a
+support operator inspect the completed source booking, generated booking
+history, current provider link, or booking-specific support records. Its queue
+counts described only the current page, full customer-name search failed, and
+the customer list and detail silently stopped after 20 records. Cancellation
+also committed before its Admin action, so an audit-write failure could leave a
+changed series behind an error response.
+
+Bugs UX-909/910/913 and OPS-321 add whole-result support metrics, strict
+URL-preserved discovery, an exact-series workspace, canonical Customer 360,
+Provider 360, source-booking, generated-booking, and Support exits, plus atomic
+reasoned cancellation. Bugs UX-911/912 expose all customer series and generated
+history through explicit pagination. Bug UX-914 preserves the customer's typed
+cancellation reason after a server rejection so retry does not erase their
+work. SEC-020 blocks provider, provider-staff,
+and Admin identities from the customer recurring API. SEC-021 requires an owned,
+customer-confirmed, completed fixed-price source booking for the same service.
+SEC-022 rejects malformed Admin controls before database access. SEC-023 does
+the same for customer UUID, pagination, calendar-date, cancellation, and
+attempt-history controls before service or payment-method access.
+
+The operator cancellation dialog explicitly says that only the future recurring
+series stops. Existing generated bookings and transactions stay in their
+canonical workflows. The exact-series panel also labels the E20 manual-payment
+boundary and D29/E41 provider-assignment hold instead of presenting legacy
+stored preferences as active behavior.
+
+Fixture-backed Admin browser checks at 820 and 1366 pixels covered the queue,
+exact-series support workspace, linked records, failure/support history, and
+cancellation impact dialog with zero horizontal overflow. A warning-free
+console is not claimed. Admin passes 276 files and 365 assertions with one
+skipped file and three todos. Mobile passes 522 suites and 901 assertions with
+84 device-baseline todos. The locally runnable API passes 723 suites and 3,106
+assertions with one intentional skip; the two Docker/Nginx suites remain
+excluded and unclaimed.
+
+All workspace TypeScript checks, repository lint, API/Admin production builds,
+the 4,273-module Expo web export, Gate A 10/10, Gate C 6/6, all six gate
+self-test groups, strict phantom-test scanning, the 30-location N+1 review, and
+diff checks pass. The initial export command omitted `EXPO_OS=web` and correctly
+failed the native EAS configuration guard; the deterministic web-target rerun
+is the claimed pass. E20, D29/E41, and E32 remain active. No automatic charge,
+provider-assignment redesign, master promotion, or production deployment is
+claimed.
+
+## Checkpoint AA: pricing-rule publication control
+
+The former Pricing Rules page could omit category and service-area scope, which
+made a new row global; database defaults activated it immediately; a valid 0%
+platform surge share was converted to 50%; ordinary admins could mutate it;
+published terms could be edited or hard-deleted; and no booking-authoritative
+preview explained the winner or provider/platform allocation.
+
+Ken approved E28/E54 Option A. Bugs OPS-322 through OPS-326 implement an
+inactive audited draft, draft-only editing, canonical service/area preview
+through the booking resolver, preview-bound atomic publication, and reasoned
+retirement without deleting rule or booking history. SEC-024 restricts every
+mutation to super-admin. SEC-025 rejects a preview after the active rule set
+changes. SEC-026 retires the old direct create/update/toggle/delete entry points.
+SEC-027 rejects stale browser edits. Bugs UX-915/916 add explicit scope and
+lifecycle evidence, a global-scope warning, responsive tablet cards and desktop
+table, read-only ordinary-admin posture, representative sample controls, winner
+and overlap evidence, exact customer/provider/platform amounts, and separate
+publication and retirement reasons. Existing booking financial snapshots are
+not updated.
+
+The code checkpoint is `db98bbb` on the money-path topic branch. All workspace
+TypeScript checks, repository ESLint, and API/Admin production builds pass.
+Admin passes 278 files and 367 assertions with one skipped file and three todos.
+Mobile passes 523 suites and 902 assertions with 84 device-baseline todos. API
+passes 732 suites and 3,109 assertions; its only two failures require Docker to
+launch Nginx and are environmental, not counted as passes. Docker Desktop was
+started but its engine did not become ready, so migration 165 and those two
+Nginx checks remain honestly unexecuted.
+
+Production is not changed. The runbook at
+`docs/runbooks/pricing-rule-publication.md` requires a private inventory of
+every existing rule, global scope, overlap order, and referencing booking count
+before migration. E32 still blocks server inspection and synchronization. No
+master merge, GitHub push, production migration, or live publication is claimed
+at this checkpoint.
+
+## Checkpoint AB: Business Account 360 commercial-control re-audit
+
+Checkpoint A correctly improved navigation and read linkage, but it did not
+prove the financial workflow behind the screen. This suspicion-first re-audit
+traced the customer business client/store, public business routes, booking
+price resolver, account/member/contract services, invoice generator, Admin
+routes, Business Accounts queue, Business Account 360, Booking Operations,
+database migrations, tests, D-phase200, D28, E14, E22, and operator guidance.
+
+### Screen and field findings
+
+| Surface or control | Actual behavior | Audit result |
+| --- | --- | --- |
+| Business Accounts search/status/page | Searches company, city, or contact and filters known statuses | Useful read queue; API query validation remains manual |
+| Approve | Direct ordinary-admin `pending -> active` update | No reason, transaction audit, stale guard, or reviewed contract/billing readiness |
+| Suspend + reason | Direct ordinary-admin `active -> suspended`; reason overwrites/generalizes `notes` | UI falsely says audit + notification; neither exists; existing work is not cancelled |
+| Owner/member links | Opens canonical Customer 360 record | Useful linkage; Admin cannot govern member permissions or view membership history |
+| Account manager | Super-admin, active account/profile validation, reasoned transactional audit | Correct implemented boundary; does not reassign support cases or grant business access |
+| Volume discount | Account-level percentage read later by generator | UI is super-admin-only, API is ordinary-admin; no reason/audit/version/notice/effective date |
+| Monthly credit limit | Stored account value | No enforcement was found in booking or invoice generation; label implies a control that is not operational |
+| Contracts | Read-only Admin list of service, provider, type, frequency, rate, discount, estimate, dates, renewal flag, status | No Admin lifecycle evidence; customer API permits reasonless status changes from any state; auto-renew is not implemented |
+| Bookings & support | Exact `bookings.business_account_id` scope with customer/provider/support/dispute/invoice exits | Correct read relationship and safest part of the workspace |
+| Generate invoice | Immediately inserts a `sent` prior-month record | No preview, readiness gate, reason, approval, manifest, or exact-account booking predicate |
+| Invoice detail | Opens line items and underlying Booking/Customer/Provider records | Useful retained evidence; can reveal legacy unlinked or incorrectly selected work |
+| Mark paid | Any ordinary admin supplies arbitrary non-empty text | No amount, method, date, currency, gateway/bank evidence, uniqueness, reason, version, or transactional audit |
+| Customer enterprise workspace | API service and Zustand store only | No routed screens; former route constants were removed as dead links |
+| Checkout business selection | Optional API field only | No client sends it; unresolved account/contract silently falls back to a personal booking |
+
+### Cross-role and financial-truth findings
+
+1. The invoice CTE joins `business_members` to bookings by customer. It does
+   not require `bookings.business_account_id = account.id` and does not exclude
+   removed members. This can invoice personal work, duplicate one member's work
+   across accounts, and make later selection depend on current membership.
+2. Migration 129, D-phase200, Business Account 360, and Booking Operations all
+   establish the explicit booking account link as source of truth. The invoice
+   generator is the contradicting implementation.
+3. Contract price is correctly snapshotted into the booking and the financial
+   terms record. Existing booking amounts are not recalculated when a contract
+   later changes. The unsafe part is eligibility/publication and downstream
+   invoice selection, not retroactive booking repricing.
+4. Account discount is applied only when an invoice is generated. Generated
+   invoice totals remain stored, but there is no effective-dated approval
+   evidence tying the discount version to the billed work.
+5. E22 means these retained records cannot be presented as proof of an
+   authorized Philippine principal invoice. E14 means a typed external
+   reference cannot be treated as verified PayMongo collection.
+6. D28's property/site, visits, proof readiness, corrections, and invoice-ready
+   gate remain planned. Their absence must not be disguised with extra Admin
+   fields or a second money source of truth.
+
+### Test-quality finding
+
+The existing per-account generation test proves only that an account UUID is
+passed as SQL parameter three. It does not execute invoice selection against a
+real schema, and it preserves the unsafe current-member join. The
+contract-booking test proves the positive contract case and ordinary no-account
+case, but has no explicit-account/no-contract fail-closed case. No test proves
+payment evidence or an admin audit because neither exists.
+
+### Result and hold
+
+No B2B financial behavior was changed in this checkpoint. E55 records the
+required hard stop, exact production inventory, and recommended Option A. The
+operator manual and launch limitations now remove the false claim that this is
+a ready billing console. Existing records must be preserved. E32 prevents the
+production inventory, so no account link, invoice item, payment reference,
+contract, or status was backfilled or edited.
+
+## Checkpoint AC: Notification Templates runtime and publication re-audit
+
+Checkpoint B fixed placeholder integrity, fallback safety, audit coupling, and
+the page-level preview, but it did not prove the channel labels or publication
+authority. This re-audit traced the Admin page, validators, routes, service,
+schema, seeded rows, notification resolver, in-app persistence, Expo push, and
+operator manual.
+
+### Findings
+
+- Only `new_job_available` and `booking_matched` consult the template table.
+- Both feed one in-app notification record and its best-effort push. No template
+  path sends SMS or email.
+- The stored `channel` field is not read by those delivery calls. Calling `all`
+  multi-channel or changing a connected row to SMS/email was false authority.
+- Inactive, missing, malformed, or deleted connected rows do not suppress the
+  notice. The built-in title/body continues to send.
+- Ordinary admins could create and edit customer/provider copy even though the
+  documented role boundary makes configuration publication read-only for that
+  tier. Only delete was previously super-admin-only.
+- Create/update/delete audit JSON did not uniformly require an operator reason,
+  and a no-op update could still manufacture a change record.
+- The one-row-per-slug schema has no channel variant, locale, immutable version,
+  draft/published state, effective date, test-send evidence, outbox attempt, or
+  delivery receipt. ADMIN-SPEC Module 11 remains a target, not present behavior.
+
+### Implemented containment
+
+- Runtime projections now declare both actual channels independently of the
+  legacy stored marker. Connected channel mutation to SMS/email is rejected.
+- The Admin page says in-app plus push, labels all other channels metadata-only,
+  explains fallback behavior, and lists unsupported test-send/version features.
+- Ordinary admins retain support visibility but every lifecycle mutation is
+  hidden and independently rejected by the API. Super-admin create, edit,
+  activate, deactivate, and delete require a 10-to-2,000-character reason.
+- Route validation and service validation agree, no-op updates fail before
+  database work, and the reason is stored with the transactional Admin action.
+- Existing rows, recipient selection, fallback copy, and send behavior remain
+  unchanged. No migration or external provider was introduced.
+
+Executed coverage is Bugs OPS-365 through OPS-370, SEC-035, and rendered Bugs
+UX-1020 through UX-1022, plus the updated UX-672/674/676/677 and historical delete tests.
+API TypeScript and `git diff --check` pass locally. Local Jest still fails before
+test loading on an EPERM dependency read; Admin TypeScript fails before project
+code because `node_modules/vitest/globals.d.ts` is missing; local Vitest has the
+same OneDrive dependency traversal failure. These are not passes.
+
+The first clean GitHub run `33598842096` caught that the new delete request used
+an Axios-style `data` option unsupported by the native fetch wrapper. Bug
+UX-1022 corrects it to `body` and executes the exact reason payload. The next
+run `33599191970` passed Admin typecheck/build but caught that UX-1020 asserted a
+loaded row before its query settled; the assertion now waits for the real row.
+Commit `78877fc` passes GitHub CI `33599836234` and Gates `33599836315`, including
+complete API, Admin, Mobile, Docker image build/liveness, and all five gates.
+Neither workflow supplies authenticated browser or production evidence.
+
+E66 records the unresolved scalable architecture and recommends staged,
+immutable event/locale/channel versions with preview, test-send, outbox,
+idempotency, consent/preference enforcement, and delivery evidence. No SMS,
+email, locale, migration, or production publication is authorized. Master and
+production remain unchanged under E32.
+
+## Checkpoint AD: Analytics and Marketing accuracy re-audit
+
+The later accuracy pass found that the Analytics Quality footer used the first
+score-sorted row as its freshness timestamp. A lower-scoring provider with a
+newer snapshot therefore remained invisible in the page-level freshness claim.
+UX-1028 now derives the newest timestamp across the visible evidence rows.
+
+Marketing's route and screen already omitted direct attribution editing, but
+the underlying service still accepted and overwrote signup, first-booking, and
+revenue counters from an internal caller. OPS-373 rejects those fields before
+database work, preserving provenance until an evidence-backed adjustment
+ledger exists. Campaign creation rejected an end date before its start date,
+but editing did not. OPS-374 validates the proposed end date against the stored
+start date before applying an update.
+
+The current operational boundary is now explicit:
+
+- campaign rows are manual tracking records, not a messaging delivery system,
+  payment ledger, or verified acquisition feed;
+- attribution counters are immutable through ordinary edits;
+- Home Banners is the connected customer-home surface;
+- promo redemption remains feature-flagged off even if staged rows exist;
+- budget approval, audience execution, sends, and attribution adjustments are
+  not implemented authority.
+
+Commits `95f4cc9`, `d8e99f4`, and `c87169a` pass GitHub CI
+`33616036732`, `33616743937`, and `33619612610`, plus Gates
+`33616036700`, `33616743915`, and `33619612351`. API TypeScript passed
+locally. Local Jest and Vitest failed before target loading because OneDrive
+denied dependency or config reads, so those attempts are not counted.
+
+The committed Marketing Playwright images do not show the current Home Banners
+tab or manual-attribution warning and are stale for this branch. An attempted
+local Admin render reached the login page, but no production credential or
+unsafe authentication bypass was used. Fresh authenticated Marketing and
+Analytics capture remains open. No production campaign, attribution, booking,
+payment, or budget record changed.
+
+## Checkpoint AE: Data Protection operator linkage re-audit
+
+Checkpoint K correctly established the segregated DPO queue, dedicated atomic
+actions, public/private response boundary, internal-target wording, and
+customer/provider 360 exits. Two company-operation gaps remained in the actual
+case dialog.
+
+First, `provider_staff` is a real authenticated subject role, but the DSR query
+resolved only a provider owner through `providers.user_id`. Staff privacy cases
+therefore had no company-record exit. OPS-375 now uses the same deterministic
+single-provider precedent as Support to resolve the staff membership, and
+UX-1029 opens the employing Provider 360 record. Second, claimed cases showed
+only a raw handler UUID. OPS-376 joins the current handler identity and UX-1030
+shows the name and email needed for DPO handoff and collision avoidance.
+
+Commit `8425669` passes GitHub CI `33620981564` and Gates `33620981562`.
+Commit `fa3af82` passes GitHub CI `33621702556` and Gates `33621702582`.
+Both clean runs include API, Admin, Mobile, Docker image/liveness, and the
+repository gates. API TypeScript and diff checks passed locally; the focused
+local Jest/Vitest processes failed before target loading on OneDrive reads and
+are not claimed.
+
+The re-audit also found that provider-staff accounts have no profile, password,
+session, account-data, or Data Rights workspace. Reusing the customer erasure
+screen is unsafe because E43's DSR/deletion relationship is unresolved and the
+deletion pipeline has no approved provider-staff assignment/historical
+attribution contract. E69 records the recommended shared role-aware account and
+privacy architecture. E21 still holds the retention matrix and E40 still holds
+identity-verification/deadline evidence and legal wording. No held policy was
+invented, and no user, staff membership, assignment, erasure, or production
+record changed. The changed case dialog needs fresh authenticated visual
+capture before its prior screenshots can be treated as current.
+
+## Checkpoint AF: Financial case linkage and manual payout truth
+
+The next finance pass followed failed payouts and held escrow from dashboard
+signals into the exact company records an operator must investigate. Failed
+payout identifiers now open the exact payout record, provider names open
+Provider 360, and held escrow releases retain booking/customer/provider IDs so
+Financials can open all three canonical records. A missing platform escrow
+wallet now makes the escrow workspace unavailable instead of manufacturing
+believable zero balances and an empty queue.
+
+The payout action language was also reconciled with the launch money path.
+Approve queues a manual transfer and does not send money. Reject returns the
+full wallet reservation. Record sent is available only after an external
+transfer and records that evidence without initiating the transfer. The page
+uses its in-app action dialogs as the confirmation boundary and no longer adds
+a second browser confirmation.
+
+Commits `c1445e5`, `1c3b98f`, `e300305`, and `873f40f` pass GitHub CI
+`33662964046` and Gates `33662964052` at the final checkpoint head. Focused
+coverage is OPS-384/385 and UX-1045 through UX-1048. E14, E18, E22, E24, E37,
+and the production-access hold remain active. No payout, escrow, wallet,
+booking, payment, reconciliation, or production record changed.
+
+## Checkpoint AG: consent publication and effective-date activation
+
+The consent manager recorded a future effective date but the customer/provider
+pending-consent query ignored it. A future material version could therefore
+interrupt users immediately, even though the retained evidence said it would
+start later. Ken approved the prospective scheduled-activation boundary on
+2026-09-03.
+
+OPS-386 now excludes future material publications before choosing the latest
+active version for each consent type. This preserves an earlier active material
+version until its successor starts. Missing or malformed timestamps on legacy
+events use their original publication time without rewriting history, and a
+second service boundary rejects a future row using the same database clock.
+UX-1049 removes the duplicate browser confirmation and makes the in-app publish
+dialog distinguish routine evidence, current material activation, and future
+scheduled activation. Publication is recorded immediately; re-consent starts
+only when the selected Philippine effective day begins.
+
+No consent record, publication event, historical grant, database schema, or
+production row was changed. API focused verification passes 2 suites and 8
+tests, including the new current/future/missing/malformed boundary. API and
+Admin TypeScript plus focused repository lint pass. The local Admin Vitest
+worker timed out before importing the rendered test in both fork and thread
+mode, so UX-1049 is not claimed locally. Protected CI `33675720980` passed the
+full rendered Admin Vitest suite, Admin and API TypeScript, the Admin build, the
+full API and mobile suites, and the Docker image boot/health check at final
+commit `15711b6`. Protected Gates `33675721045` passed A through E and the
+`All gates passed` rollup at the same commit.
+
+## Checkpoint AH: B2B control audit constraint
+
+The post-E71 Audit Log trace found that the approved E55 business-control code
+used first-class `business_account`, `business_contract`, and
+`business_invoice` audit targets, while migration 166 added only the new action
+verbs. The live `admin_actions_target_type_check` definition inherited from
+earlier migrations did not allow those three targets. Any account approval,
+contract publication, statement preparation, payment evidence, adjustment,
+reversal, or void would therefore reach its required audit insert and roll the
+transaction back.
+
+OPS-387 adds migration 169. It appends the three targets to the constraint
+definition while preserving every earlier target and retaining rejection of
+unknown values. Its PostgreSQL integration test creates an isolated schema,
+executes the migration, accepts old and new target rows, and confirms an
+unknown target still fails with SQLSTATE 23514. This is a forward-only
+constraint widening: it changes no account, contract, booking, statement,
+payment, adjustment, or existing audit row.
+
+Local API TypeScript and `git diff --check` pass. The machine-level npm shim is
+broken and direct Jest loading is blocked by the recorded Windows/OneDrive
+dependency-read failure, so no local Jest pass is claimed. Protected CI
+`33677946534` passed the PostgreSQL integration test, full API/Admin/mobile
+suites, both TypeScript checks, Admin build, and Docker boot/health at commit
+`fd4ab60`. Protected Gates `33677946496` passed A through E and the rollup. E32
+still prevents production migration or server synchronization, and E56 still
+keeps company booking and provider settlement disabled.
+
+## Checkpoint AI: B2B audit-to-operator linkage
+
+The database repair makes B2B decisions recordable, but the Admin Audit Log
+still treated the new targets as unknown. Account events, contract events, and
+statement events displayed as inert text, so an operator investigating a
+commercial decision could not return to the owning Business Account 360 from
+the timeline.
+
+UX-1050 recognizes all three first-class B2B targets. Account events link by
+their target ID; contract and statement events use the immutable
+`businessAccountId` retained in their before/after evidence. Missing or invalid
+linkage remains inert instead of constructing an unsafe route. The rendered
+regression fixture verifies account, contract, and statement rows all link to
+the same owning business record.
+
+`git diff --check`, local Admin TypeScript, and focused ESLint pass. Local
+Vitest reached no import or assertion because its fork worker timed out waiting
+for the Windows/OneDrive dependency tree, so no local rendered pass is claimed.
+Protected CI `33679048906` passed the full rendered Admin suite, Admin and API
+TypeScript checks, the Admin production build, full API and mobile suites, and
+the Docker image boot/health check at commit `544dea5`. Protected Gates
+`33679048898` passed A through E and the `All gates passed` rollup at the same
+commit. No customer, provider, account, contract, statement, payment, audit, or
+production record changed.
+
+## Checkpoint AJ: exact B2B audit handoff and durable account workspace state
+
+UX-1050 made controlled B2B audit rows navigable, but contract and statement
+events still opened the Business Account 360 Overview tab. The operator then
+had to find the relevant workspace and statement again, and the page kept its
+tab and selected statement only in local component state. Reloading, using
+browser back/forward, or sharing the URL discarded that investigation context.
+
+UX-1051 gives Business Account 360 validated URL-backed tab and statement
+selection. Contract events enter the Contracts tab, while statement events
+open the Invoices tab and load the exact retained statement evidence by ID.
+Changing tabs and opening or closing a statement updates that URL state; an
+invalid tab falls back to Overview and an invalid statement ID is not queried.
+The invoice list component retains local selection when embedded without a URL
+controller, so existing isolated uses are not broken.
+
+Admin TypeScript, focused ESLint, and `git diff --check` pass. The focused
+Vitest invocation started but both fork workers timed out before transform,
+setup, import, or assertion, so no local rendered pass is claimed. Protected CI
+`33680853015` passed the full rendered Admin suite, Admin and API TypeScript
+checks, the Admin production build, full API and mobile suites, and the Docker
+image boot/health check at commit `84e3ea1`. Protected Gates `33680853086`
+passed A through E and the `All gates passed` rollup at the same commit. No
+account, contract, statement, payment, audit, or production record changed.
+
+## Checkpoint AK: global Business Account operator search
+
+The Admin command search covered customers, providers, bookings, support cases,
+disputes, and payouts, but omitted Business Accounts. An operator supporting an
+enterprise customer could not find its canonical Business Account 360 by
+company, contact, owner, registration number, or tax identifier unless they
+first navigated to the separate account list.
+
+OPS-388 adds a seventh fixed, bounded search query for Business Accounts and
+UX-1052 renders those results as a distinct `Business account` record type. A
+match opens the canonical `/business-accounts/:id` workspace. Company,
+account, owner, contact, registration, and tax values can be used to locate the
+record, but registration and tax identifiers are never returned in search
+results, and returned phone and email context uses the established masking
+policy. The search remains restricted to admin and super-admin roles by the
+existing route guard.
+
+The first uncommitted implementation inserted the database query in a different
+position than its result destructuring. The focused API test exposed that rows
+could be assigned the wrong entity type, so the ordering was corrected before
+commit and both regression fixtures now follow the query contract.
+
+Local API and Admin TypeScript checks and focused ESLint pass. The two focused
+API behavior tests pass, covering cross-entity ranking, masking, canonical
+routing, and Business Account search-only identifiers. Both fork and
+single-thread local Vitest attempts timed out before transform, setup, import,
+or assertion in the Windows/OneDrive environment, so no local rendered pass is
+claimed. Protected CI `33682486985` passed the full rendered Admin suite, Admin
+and API TypeScript checks, the Admin production build, full API and mobile
+suites, and the Docker image boot/health check at commit `dd8a4ff`. Protected
+Gates `33682486914` passed A through E and the `All gates passed` rollup at the
+same commit. No customer, provider, business account, booking, support,
+payment, audit, or production record changed.
+
+## Checkpoint AL: Booking 360 business billing trace
+
+Booking records can retain a Business Account, governing contract, immutable
+account terms version, billing mode, and commercial statement items. Admin
+Booking 360 exposed none of that context. An operator handling a dispute,
+refund, reassignment, or enterprise support case could see the customer and
+provider but could not determine which commercial agreement governed the work
+or which statements claimed it.
+
+OPS-389 extends the existing read-only Booking detail query with the linked
+Business Account, contract, immutable terms version, billing mode, and every
+commercial statement that contains the booking, including voided history. The
+response derives a linkage state without changing stored history. Controlled
+records with missing or cross-account links are marked inconsistent; older
+pre-control records remain visibly `legacy_unreviewed` rather than being
+silently reclassified.
+
+UX-1053 adds a responsive Business billing context card to Booking 360. It
+links to the canonical Business Account workspace, its Contracts tab, and each
+exact statement in the Invoices tab. It shows the captured terms version and
+effective date, and renders structural inconsistencies as an operator alert.
+Consumer bookings do not receive an empty commercial card.
+
+Local API and Admin TypeScript checks and focused ESLint pass. Fifty-two
+focused API Booking regressions pass, including the new immutable business
+trail behavior. The focused rendered Admin fixture passes with one real render
+and assertion path. Protected CI `33683602609` passed the full rendered Admin
+suite, Admin and API TypeScript checks, the Admin production build, full API
+and mobile suites, and the Docker image boot/health check at commit `7b46b62`.
+Protected Gates `33683602516` passed A through E and the `All gates passed`
+rollup at the same commit. No booking, account, contract, terms, statement,
+payment, support, audit, or production record changed.
+
+## Checkpoint AM: explicit Business Account support context
+
+Support cases previously had only a user owner plus an optional booking or
+personal planning project. Business Account 360 could open support cases one
+booking at a time or show cases assigned to the account manager, but could not
+open, create, filter, or return from an account-wide company case. This made
+contract access, consolidated history, account settings, and other company
+issues look like personal customer cases with no durable company context.
+
+Migration 170 adds one nullable Business Account reference to support cases and
+leaves every existing row unchanged. A case remains owned by one real user.
+For account-only cases, the service verifies that owner is the company owner or
+an active member. Booking-linked cases inherit the booking's company link and
+reject a caller-supplied mismatch. Provider-owned cases can therefore retain
+the company context of work they performed without pretending the provider is
+a company member. Personal planning-project cases cannot also claim a Business
+Account context.
+
+OPS-391 covers account-owner/member authorization and durable creation.
+OPS-392 covers one company support view that includes both directly linked
+cases and older or booking-specific cases derived from the booking's canonical
+company link. The Admin queue can filter and search by company, case detail
+links back to Business Account 360, and Business Account 360 now offers exact
+`Open account support` and owner-scoped `Create account case` handoffs.
+
+Local API and Admin TypeScript checks and focused ESLint pass. Fourteen focused
+API support regressions pass and three focused rendered Admin regressions pass.
+OPS-390 is a real PostgreSQL migration test; it was intentionally skipped
+locally because no safe localhost database ending in `_test` is configured.
+Protected CI `33685158203` executed the PostgreSQL-backed API suite and passed
+the full API, Admin, and mobile suites, both TypeScript checks, the Admin
+production build, and the Docker image boot/health check at commit `6f41b98`.
+Protected Gates `33685158070` passed A through E and the `All gates passed`
+rollup at the same commit. No support case, booking, project, business account,
+member, payment, audit, or production record changed.
+
+## Checkpoint AN: exact commercial-record discovery and handoff
+
+The global operator command search could find a Business Account, booking,
+support case, dispute, or payout, but not a company contract or commercial
+statement. An operator holding a contract ID, statement number, or external
+payment reference had to know the account first and then manually inspect
+paginated tabs. Audit Log also opened the owning Contracts tab without carrying
+the exact contract that produced the audit event.
+
+OPS-393 and UX-1056 add a bounded contract result that includes company,
+service scope, provider context, and status, then opens the exact contract in
+Business Account 360. OPS-394 and UX-1057 let an exact external payment
+reference locate its commercial statement but never return that reference in
+the search response or rendered result. Statement number, statement ID,
+Business Account ID, and company-name discovery lead to the same exact
+statement handoff.
+
+OPS-395 and OPS-396 prove that an exact contract handoff is validated by the
+route and constrained by both Business Account ID and contract ID in the data
+query. UX-1058 proves the URL activates Contracts, sends the exact filter, and
+identifies the requested record. The existing UX-1051 Audit Log regression now
+requires the exact contract ID as well as the exact statement ID. A stale or
+cross-account contract handoff produces an explicit not-found state with a
+way back to the account's full contract list.
+
+Local API and Admin TypeScript checks and focused ESLint pass. Thirteen related
+API regressions pass across eight suites, and four focused rendered Admin
+regressions pass. Protected CI `33693445438` passed the full API, Admin, and
+mobile suites, both TypeScript checks, the Admin production build, and the
+Docker image boot/health check at commit `b05e068`. Protected Gates
+`33693445347` passed A through E and the `All gates passed` rollup at the same
+commit. No contract, statement, payment, booking, support, audit,
+business-account, customer, provider, or production record changed.
+
+## Checkpoint AO: exact consumer payment investigation handoff
+
+Financials could retrieve an older payment attempt by an exact local, booking,
+top-up, customer, or PayMongo identifier, but that search existed only as local
+component state inside the Payments tab. The global operator command search did
+not include payment attempts. A support or finance operator holding a gateway
+reference therefore had to know where to navigate, re-enter the value, and
+could not bookmark or share the resulting investigation state.
+
+OPS-397 adds one fixed, bounded, read-only payment-attempt query to global
+operator search. Exact PayMongo intent and payment identifiers may locate the
+attempt, but neither gateway identifier is returned in the search response.
+The result shows only the local payment reference, linked booking or wallet
+top-up context, customer when available, payment method, and status. UX-1059
+renders that result as a distinct Payment record and opens the canonical
+Financials Payments workspace.
+
+UX-1060 makes the exact attempt filter URL-backed. Global search now hands off
+to `/financials?tab=payments&intentSearch=<local-attempt-id>`; loading,
+refreshing, bookmarking, or sharing that URL restores the exact server query
+and visible filter value. Manual searches update the URL, clearing removes the
+filter, and leaving the Payments tab removes stale payment-search state. E14
+continues to fail external payment creation closed. This checkpoint adds no
+payment, refund, retry, receipt, or reconciliation mutation.
+
+Local API and Admin TypeScript checks and focused ESLint pass. Six focused API
+regressions pass, covering cross-record ranking, Business Account, contract,
+statement, payment privacy, and exact-payment search behavior. Three real
+rendered Admin regressions pass, covering manual attempt lookup, command-search
+navigation, and URL restoration. Protected CI `33694962565` passed the full
+API, Mobile, and rendered Admin suites, both TypeScript checks, the Admin
+production build, and Docker image boot/health at commit `6d20248`. Protected
+Gates `33694962558` passed A through E and the `All gates passed` rollup at the
+same commit. No payment, booking, customer, provider, support, receipt, audit,
+or production record changed.
+
+## Checkpoint AP: retained legacy sales-record discovery and durable filters
+
+The Financials Legacy Sales Records tab retained historical OR-labelled rows
+for audit review under E22, but the global operator search could not find one
+by its unique record ID or historical OR number. The tab also held every
+filter only in component memory, so refreshing, bookmarking, sharing, or using
+browser history discarded the investigation. Its date form accepted only one
+date boundary even though the API correctly rejects an unpaired range.
+
+OPS-398 adds one fixed, bounded, read-only search over retained legacy records.
+It matches only the record ID or historical OR number, labels the result
+`Legacy sales record`, describes non-cancellation rows as `retained for
+review`, and opens the existing E22-held review workspace. It does not describe
+the artifact as a current invoice, approved principal document, or
+BIR-compliant record, and it exposes no new money mutation.
+
+UX-1061 renders that explicit legacy result in command search. UX-1062 makes
+all Legacy Sales Records filters URL-backed, including OR number, customer,
+provider, date range, and non-default result limit. Loading the exact handoff
+URL now automatically runs the retained-record search, while changing tabs
+removes stale filter state. UX-1063 requires both date boundaries before any
+API request, matching the server contract and giving the operator an immediate
+actionable message instead of a failed request.
+
+Local API and Admin TypeScript checks and focused ESLint pass. Six focused API
+search regressions pass, including exact legacy-record labeling and routing.
+Five real rendered Admin regressions pass, covering command search, URL
+restoration, date-pair validation, pagination totals, and links from a retained
+record to Booking, Customer, and Provider 360. Protected CI `33696434851`
+passed the full API, Mobile, and rendered Admin suites, both TypeScript checks,
+the Admin production build, and Docker image boot/health at commit `3051091`.
+Protected Gates `33696434785` passed A through E and the `All gates passed`
+rollup at the same commit. E22 remains open and enforced. No sales-document,
+payment, booking, customer, provider, support, audit, or production record
+changed.
+
+## Checkpoint AQ: unresolved gateway-retry discovery and durable handoff
+
+The Payments & Refunds workspace listed unresolved post-commit refund and
+release retries, but an operator holding a retry identifier could not locate an
+older row directly. Global command search omitted retry records, the queue had
+no exact server filter, and the table did not display its own local retry ID.
+This made a `failed_permanent` investigation dependent on paging and visual
+guesswork even though the retry is evidence that a customer or provider money
+outcome remains incomplete.
+
+OPS-399 adds one fixed, bounded, read-only global-search query for unresolved
+`pending`, `in_progress`, and `failed_permanent` retries. A retry ID, exact
+booking ID, or exact dispute ID can locate the row, but global results return
+only the local retry ID, action type, shortened related record context, and
+status. They never return `last_error` or another gateway failure detail.
+UX-1064 renders that result as an explicit `Gateway retry` and opens the
+canonical Financials Payments workspace.
+
+OPS-400 and OPS-401 carry an exact local retry identifier through the validated
+Admin route into the unresolved queue query. UX-1065 makes that filter
+URL-backed, restores it on refresh/bookmark/handoff, and displays the complete
+local retry ID beside the linked Booking and optional Dispute 360 exits. The
+existing authorized Financials view still shows its bounded failure message for
+investigation. This checkpoint adds no manual replay, refund, release, payment,
+or retry mutation; E14 and the existing money holds remain enforced.
+
+Local API and Admin TypeScript checks and focused ESLint pass. Eleven focused
+API regressions pass, including three new gateway-retry boundaries and every
+older global-search query-count contract. Seven real rendered Admin regressions
+pass, including the two new command-search and exact-URL contracts plus existing
+pagination, payment-operations, and dispute-linkage coverage. Protected CI
+`33698198759` passed the full API, Mobile, and rendered Admin suites, both
+TypeScript checks, the Admin
+production build, and Docker image boot/health at commit `cc7be31`. Protected
+Gates `33698198774` passed A through E and the `All gates passed` rollup at the
+same commit. No retry, payment, refund, release, booking, dispute, support,
+audit, or production record changed.
+
+## Checkpoint AR: exact reconciliation audit-evidence handoff
+
+Reconciliation runs and discrepancy acknowledgements are represented by typed
+`admin_actions` rows against the reconciliation snapshot, and the API already
+supported exact snapshot lookup. Audit Log nevertheless rendered that target as
+inert text. Financials also loaded only the 30 most recent snapshots and did not
+show their immutable IDs, so an operator could not return from governance
+history to the exact money-comparison evidence that produced the event.
+
+UX-1066 gives both reconciliation actions explicit operator labels and maps a
+valid `reconciliation` audit target to
+`/financials?tab=reconciliation&snapshotId=<id>`. Financials restores that URL
+with the existing read-only exact-snapshot endpoint, displays only the retained
+record and its complete immutable ID, and provides a clear return to recent
+reconciliations. The exact evidence view does not offer the unrelated create
+snapshot action; an active discrepancy still uses the existing super-admin
+acknowledgement contract.
+
+UX-1067 rejects a malformed snapshot handoff in the browser before any API
+request and explains that it must not be interpreted as missing or cleared
+evidence. Audit Log likewise leaves a malformed reconciliation target inert
+instead of constructing an invalid financial route. Reconciliation arithmetic,
+snapshot creation, acknowledgement rules, wallet balances, and external money
+behavior are unchanged. E37 still holds any claim that the combined audit
+timeline is a globally complete or correlated mutation trail.
+
+Local Admin TypeScript and focused ESLint pass. Eight real rendered Admin
+regressions pass across exact audit handoff, malformed-link failure, existing
+snapshot creation and acknowledgement, expected-only labeling, exact PHP input,
+and prior Business Account audit linkage. Protected CI `33699583886` passed the
+full API, Mobile, and rendered Admin suites, both TypeScript checks, the Admin
+production build, and Docker image boot/health at commit `9ffdd61`. Protected
+Gates `33699583879` passed A through E and the `All gates passed` rollup at the
+same commit. No reconciliation, wallet, payment, booking, support, audit, or
+production record changed.
+
+## Checkpoint AS: canonical audit target identity and account handoff
+
+The combined Audit Log identified the operator through `userRole`, but did not
+separately identify the account targeted by an event. Many real
+`admin_actions` rows use the singular `user` target for customer/provider force
+logout, DPO role changes, administrator password or 2FA events, consent search,
+and audit export. The Admin UI recognized only the plural `users` target and,
+for that older shape, treated the actor role as the target role. A super-admin
+acting on a customer or provider could therefore produce inert text or a link
+classified from the super-admin instead of the account that support needed to
+inspect.
+
+OPS-402 keeps actor and target identity distinct at the API boundary. The
+timeline query still returns the masked actor identity, while a separate
+canonical target-user join returns `targetUserRole` and the target provider's
+profile ID when one exists. The provider relationship cannot duplicate an
+event because `providers.user_id` is unique. These fields describe the current
+account destination; the immutable before/after event details remain the
+evidence for a historical role transition.
+
+UX-1068 handles both `user` and `users` target forms. Customer events open the
+exact Customer 360 record, provider events open the exact provider profile,
+provider-staff events open that participant's support history, and
+admin/super-admin/DPO events open an exact Staff directory search. An older
+event may fall back to the actor role only when actor and target are the same
+account. An unclassified user remains on the safe participant-support path
+instead of being guessed from an unrelated operator. OPS-403 makes Staff
+directory search resolve both the canonical login-account UUID and the
+directory-profile UUID, and its visible search contract now includes account
+IDs.
+
+Local API and Admin TypeScript checks, affected-file ESLint, and
+`git diff --check` pass. Four related API suites pass 10 tests, and six related
+rendered Admin files pass 11 tests. Protected CI `33701447073` passed the full
+API, Mobile, and rendered Admin suites, both TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `d1e8efb`.
+Protected Gates `33701447127` passed A through E and the `All gates passed`
+rollup at the same commit. No user role, login session, staff profile, provider,
+customer, support case, audit row, database schema, or production record
+changed. Production synchronization remains blocked by E32.
+
+## Checkpoint AT: exact staff-profile audit handoff
+
+Staff creation, removal, and profile-edit actions record the directory-profile
+UUID as an `admin_staff` target. Checkpoint AS made Staff directory search
+resolve both profile and login-account UUIDs, but Audit Log still sent these
+events to the unfiltered Staff & Roles landing page. An operator investigating
+one staff-management event therefore had to copy the shortened identifier and
+manually recover the affected profile.
+
+UX-1069 maps a valid `admin_staff` audit target to
+`/staff?search=<profile-id>`, labels it as a Staff directory profile, and keeps
+the role-definition `admin_role` target on the broader Staff & Roles workspace.
+A real in-router regression now clicks the rendered Audit Log destination,
+proves that the exact profile-ID query survives navigation, proves that Staff
+directory requests that ID from the server, and proves that the matching staff
+card is rendered. The test also overrides the suite's intentionally shallow
+router stub so the handoff is exercised through the real React Router link and
+URL contract.
+
+Local Admin TypeScript, affected-file ESLint, and `git diff --check` pass. Four
+related rendered Admin files pass seven tests across canonical target identity,
+source discrimination, Staff account coverage, and the new exact-profile
+handoff. Protected CI `33703354158` passed the full API, Mobile, and rendered
+Admin suites, both TypeScript checks, the Admin production build, and Docker
+image boot/liveness at commit `ce4dcab`. Protected Gates `33703354163` passed A
+through E and the `All gates passed` rollup at the same commit. No staff
+profile, role, user account, login session, support case, audit row, database
+schema, or production record changed. Production synchronization remains
+blocked by E32.
+
+## Checkpoint AU: general-audit privacy segregation
+
+The approved D34 role boundary assigns consent evidence, data-subject requests,
+and breach records to the DPO/super-admin privacy workspace and explicitly says
+that a plain operations admin does not receive privacy-record access. The
+general Audit Log route correctly rejected a DPO session, but its combined
+timeline returned every recorded privacy event to both `admin` and
+`super_admin`. The matching CSV export and its streaming variant used the same
+unrestricted union. Masking contact fields did not fix that authorization
+failure: an ordinary admin could still receive privacy case identifiers,
+actions, reasons, and nested event context, including by applying an exact
+filter or exporting the timeline.
+
+OPS-404 introduces one shared, fail-closed visibility predicate for the general
+audit surface. Ordinary admins no longer receive DPO-owned `dsr_request`,
+`data_subject_request`, `consent_version`, or `breach` targets, nor a
+`consent_search` event recorded against a user. DSR and breach action families
+are also excluded defensively if a future or legacy row used the wrong target
+type. The predicate is applied before both count and row queries, so pagination
+and totals describe only records the viewer may receive. Super admins retain
+the approved cross-boundary governance view; DPO sessions still cannot open the
+general Audit Log.
+
+OPS-405 applies that identical predicate to the assembled CSV and streaming CSV
+paths. Missing viewer roles fail closed to the ordinary-admin view, preventing
+a future direct service caller from bypassing D34. The export still masks
+contact, network, reason, and nested free-text PII for every permitted role.
+E40 continues to hold breach classification, deadline language, and a new
+breach client screen; this checkpoint changes authorization only.
+
+Local API TypeScript, affected-file ESLint, and `git diff --check` pass. Five
+focused API suites pass 39 tests, including behavioral comparisons proving that
+an ordinary admin receives only an operational booking event while a super
+admin receives the same event plus all five represented privacy shapes, and
+that both CSV paths enforce the same result. Protected CI `33704506009` passed
+the full API, Mobile, and rendered Admin suites, both TypeScript checks, the
+Admin production build, and Docker image boot/liveness at commit `2431d91`.
+Protected Gates `33704506058` passed A through E and the `All gates passed`
+rollup at the same commit. No consent, DSR, breach, user, support, audit,
+database-schema, or production record changed. Production synchronization
+remains blocked by E32.
+
+## Checkpoint AV: exact privacy-case audit handoff
+
+Checkpoint AU correctly removed DPO-owned events from an ordinary admin's
+general Audit Log while retaining the approved super-admin governance view.
+That authorized super-admin view still rendered both recorded DSR target forms,
+`dsr_request` and `data_subject_request`, as inert text. An investigator could
+see that a privacy case changed but could not return to the exact case evidence
+without manually copying an abbreviated identifier and searching outside the
+recorded workflow.
+
+UX-1070 maps a valid DSR audit target to
+`/data-protection-log?dsrId=<id>` and gives the known DSR action families clear
+operator labels. The DPO workspace validates that URL state, loads the existing
+DPO/super-admin-only exact-detail endpoint, and opens the complete stored case
+even when the record is outside the current page or filters. Opening a queue
+row now writes the same durable case ID, so refresh, bookmark, and staff handoff
+all recover the exact case. Closing the case removes only `dsrId`, preserving
+the operator's queue filters. Successful case actions close that URL state
+before invalidating both list and exact-detail caches, preventing stale detail
+from reopening.
+
+UX-1071 rejects a malformed `dsrId` locally before any detail request is sent,
+explains that the value is invalid rather than misreporting a missing case, and
+lets the operator remove only the bad identifier. A failed authorized detail
+request has separate retry and return-to-queue actions. The API's D34 role
+boundary is unchanged: ordinary admins cannot receive these audit rows and
+cannot open the privacy workspace; only DPO and super-admin sessions can fetch
+the exact case. E40 continues to hold breach classification and new breach UI.
+
+Local Admin TypeScript, affected-file ESLint, and `git diff --check` pass. Five
+focused rendered Admin files pass five tests across the new exact and malformed
+DSR handoffs plus prior case-review, received-case action, and exact staff
+handoff coverage. The complete local Admin suite passes 348 files and 437 tests,
+with one intentionally skipped file and three existing honest TODOs. Protected
+CI `33705958571` passed the full API, Mobile, and rendered Admin suites, both
+TypeScript checks, the Admin production build, and Docker image boot/liveness
+at commit `bdef4bc`. Protected Gates `33705958566` passed A through E and the
+`All gates passed` rollup at the same commit. No DSR, consent, breach, user,
+support, audit, database-schema, or production record changed. Production
+synchronization remains blocked by E32.
+
+## Checkpoint AW: exact consent-publication audit evidence
+
+Consent publication is represented by an immutable `admin_actions` event with
+two identities: the event row ID and a dedicated `consent_version` target ID.
+The general Audit Log retained the target ID, but the DPO Consent Versions API
+discarded it when mapping publication history and offered no exact read route.
+Even an authorized super-admin could therefore see that a version was
+published without reliably reopening the publication evidence that owned the
+event. Filtering by visible text would not be a durable substitute as the
+history grows or version labels repeat across consent types.
+
+OPS-406 retains both identities in the DPO API contract and adds a bounded,
+read-only lookup of one `consent_version_published` event by its existing target
+UUID. It scopes the query to both the publication action and target type, so an
+unrelated admin action cannot satisfy the lookup. Future publication responses
+and history rows now expose the same target UUID without changing how either
+identifier is generated or rewriting historical evidence.
+
+OPS-407 exposes that lookup through a validated
+`GET /api/v1/admin/compliance/consent-versions/:id` route. The route retains the
+existing D34 DPO/super-admin boundary and returns an explicit not-found result
+instead of falling through to a broad history scan. It adds no publication,
+activation, acknowledgement, or rollback mutation.
+
+UX-1072 maps a valid `consent_version` Audit Log target to
+`/consent-versions?tab=history&publicationId=<id>`. Consent Versions restores
+that URL through the exact endpoint and renders consent type, version, material
+classification, scheduled/effective state, Manila effective and publication
+times, publisher, recorded summary, publication target ID, and audit event ID.
+History cards and desktop rows can create the same durable evidence URL.
+UX-1073 rejects malformed publication IDs in the browser before any detail
+request, distinguishes invalid input from missing evidence, and removes only
+the bad identifier while preserving the History tab. E71 Option A remains
+unchanged: publication is recorded immediately and a future material version
+does not require customer/provider re-consent before its effective timestamp.
+
+Local API and Admin TypeScript, affected-file ESLint, and `git diff --check`
+pass. Seven related API suites pass 37 tests and five related rendered Admin
+files pass five tests. The complete local Admin suite passes 350 files and 439
+tests, with one intentionally skipped file and three existing honest TODOs. A
+broader local API run passed 845 suites and 3,213 tests before two Docker-only
+nginx checks stopped because Docker Desktop is unavailable and three unrelated
+jsdom/jest-axe suites stopped on the OneDrive dependency tree's reproducible
+`UNKNOWN: read` error. Those were environment load failures, not assertion
+failures. Protected CI `33707727250` then passed the full API, Mobile, and
+rendered Admin suites, both TypeScript checks, the Admin production build, and
+Docker image boot/liveness at commit `a5ff678`. Protected Gates `33707727274`
+passed A through E and the `All gates passed` rollup at the same commit. No
+consent publication, acknowledgement, DSR, user, audit, database-schema, or
+production record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint AX: durable subject-consent lookup and audit handoff
+
+The DPO Privacy Workspace already required an exact user UUID and paged consent
+records on the server, but the selected subject and page lived only in React
+state. Refresh, bookmark, browser back, or a handoff to another authorized
+operator discarded the investigation. An out-of-range stale page could also
+show an empty result even when earlier consent evidence still existed.
+
+UX-1074 makes `consentUserId` and `consentPage` durable URL state while keeping
+the current local state path compatible with the existing rendered harness.
+Submitting a valid UUID writes the subject to the URL, pagination writes only
+pages after page one, and navigation restores the exact bounded server query.
+UX-1075 rejects a malformed saved subject UUID before the sensitive consent
+endpoint is called, explains why no request was sent, and lets the operator
+remove the invalid lookup without changing another workspace route. UX-1077
+uses the returned total to recover an out-of-range page to the last real page,
+updates the durable URL, and refetches its evidence instead of reporting a
+false empty history.
+
+The consent-search audit writer uses the requested user as its target when one
+is supplied, but must use the DPO's own account as a non-null database fallback
+for a broad search. Audit Log previously treated every `consent_search` target
+as an actual account destination. A broad event could therefore open the DPO's
+Staff record, and an exact event did not return to the consent evidence that
+was searched. UX-1076 reads the immutable `details.filters.userId` only when it
+is a valid UUID, labels the event `Consent evidence searched`, and opens the
+exact Privacy Workspace lookup. A broad event opens the unfiltered privacy
+lookup instead of pretending the fallback operator was the subject.
+
+This remains inside D34: ordinary admins do not receive `consent_search` rows,
+DPO and super-admin are the only roles that can call consent search, and DPO
+sessions still cannot enter marketplace, staff, or money workspaces. No contact
+data or consent content is placed in the URL; only the existing account UUID
+and bounded page number are retained.
+
+Local Admin TypeScript, affected-file ESLint, and `git diff --check` pass. Seven
+focused rendered Admin files pass seven tests across URL restoration, invalid
+input, exact audit handoff, stale-page recovery, existing pagination, privacy
+home, and workload separation. The complete local Admin suite passes 354 files
+and 443 tests, with one intentionally skipped file and three existing honest
+TODOs. Protected CI `33708893115` passed the full API, Mobile, and rendered
+Admin suites, both TypeScript checks, the Admin production build, and Docker
+image boot/liveness at commit `af52bf4`. Protected Gates `33708893180` passed A
+through E and the `All gates passed` rollup at the same commit. No consent,
+DSR, user, staff, support, audit, database-schema, or production record changed.
+Production synchronization remains blocked by E32.
+
+## Checkpoint AY: recurring-cancellation audit contract and handoff
+
+The Admin recurring-series workspace cancels only future generation and keeps
+existing bookings, payments, refunds, disputes, support cases, and provider
+work unchanged. Its cancellation route correctly made the series update and
+the operator evidence one transaction, but the transaction wrote
+`recurring_booking_cancelled` against a `recurring_booking` target. Neither
+value existed in the live `admin_actions` CHECK constraints. Postgres therefore
+rejected the audit insert and rolled back every Admin cancellation even though
+the screen exposed the action.
+
+OPS-408 adds migration 171, which appends the missing action and target to the
+live constraint definitions without replacing any action or target introduced
+by earlier migrations. The migration is idempotent and rejects unknown values
+after the append. A real Postgres integration regression applies it twice,
+inserts representative earlier booking, business, and review events, inserts
+the recurring cancellation event, and proves that an invented action/target is
+still rejected. The existing OPS-321 route regression continues to prove that
+a failed audit write rolls back the cancellation and prevents a success
+notification.
+
+UX-1078 gives the event a clear operator label and maps its exact UUID to
+`/recurring?seriesId=<id>`. A rendered in-router regression clicks the actual
+Audit Log link, loads a cancelled series outside the current queue page, opens
+the recurring support workspace, and verifies the recorded cancellation
+reason and durable URL. This closes both sides of the contract: the decision
+can now commit, and the resulting evidence can reopen the record it changed.
+
+Local API and Admin TypeScript, affected-file ESLint, `git diff --check`, the
+existing cancellation transaction test, and the new rendered handoff test
+pass. The new Postgres regression is intentionally skipped without a safe
+local `_test` database. The complete local Admin run reached 354 passing files
+and 443 passing tests before the unrelated OPS-269 file exceeded its five
+second timeout under local parallel load; OPS-269 and UX-1078 both passed on an
+immediate isolated rerun. Protected CI `33710381057` then passed 854 API suites
+and 3,225 tests, including the real OPS-408 Postgres migration regression, plus
+355 Admin files and 444 tests, Mobile, both TypeScript checks, the Admin build,
+and Docker image boot/liveness at commit `2595969`. Protected Gates
+`33710381049` passed A through E and the `All gates passed` rollup at the same
+commit. Migration 171 is committed but has not been applied to production.
+No recurring series, booking, payment, support case, audit row, database
+schema, or production record changed. Production synchronization remains
+blocked by E32.
+
+## Checkpoint AZ: exact tester-feedback audit handoff
+
+Tester feedback triage already wrote an immutable
+`feedback_submission_updated` admin action against the exact submission UUID,
+but the general Audit Log rendered that target as inert text. The Feedback
+workspace also initialized a missing or malformed URL selection from the first
+visible queue row. An operator following stale handoff state could therefore
+see an unrelated report and reasonably mistake it for the audited submission.
+
+UX-1079 gives the event a clear operator label and maps a valid target UUID to
+`/feedback?feedbackId=<id>`. The Feedback workspace uses its existing bounded
+exact-detail and decision-history endpoints to restore that submission even
+when the current queue request fails, so the evidence handoff does not depend
+on queue position, filters, or list availability. Queue selection writes the
+same durable URL state and closing the detail removes only `feedbackId`,
+preserving the operator's other filters.
+
+UX-1080 rejects malformed saved feedback state locally and displays an explicit
+invalid-selection alert instead of substituting the first queue item. Removing
+the bad selection leaves the current queue filters intact. The change adds no
+triage mutation, alters no feedback decision, and does not expose tester notes
+outside the existing Admin authorization boundary.
+
+Local Admin TypeScript, affected-file ESLint, and `git diff --check` pass. All
+21 Feedback-related rendered files pass 23 tests, including the exact handoff,
+exact-detail list-failure independence, invalid-selection containment, and the
+existing triage decision behavior. Protected CI `33711098766` passed 854 API
+suites and 3,225 tests, 357 Admin files and 446 tests with one intentionally
+skipped file and three existing honest TODOs, 531 Mobile suites and 910 tests
+with 84 TODOs, both TypeScript checks, the Admin production build, and Docker
+image boot/liveness at commit `3e66ca0`. Protected Gates `33711098647` passed A
+through E and the `All gates passed` rollup at the same commit. No feedback
+submission, triage decision, user, support case, audit row, database schema, or
+production record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BA: durable Provider 360 workspaces and child-record ownership
+
+Provider 360 exposed nine operational tabs, but the selected tab lived only in
+component state. Refresh, bookmark, browser navigation, and an Audit Log
+handoff therefore returned an operator to Profile even when the investigation
+concerned staff, certifications, notes, or reviews. UX-1081 makes non-default
+tabs durable as validated `tab` URL state, defaults missing or invalid values
+to Profile, and removes only `tab` when Profile is selected so unrelated
+support context remains intact.
+
+UX-1082 maps provider certification, support-note, and review targets to their
+owning Provider 360 tab. The destinations deliberately promise the scoped
+workspace rather than an exact child record because those panels do not yet
+implement child selection. Provider staff, application, and document events
+had a deeper identity gap: some historical action payloads did not contain a
+provider UUID at all. OPS-409 resolves the owner relationally from the durable
+provider application, document, certification, staff, note, and review rows,
+then exposes one canonical `targetProviderId` without trusting optional JSON.
+UX-1083 uses that owner to open Staff for a provider-staff event and Profile
+for application or document evidence.
+
+OPS-410 also records `providerId`, previous status, and next status on new
+provider-staff review, suspension, and reactivation actions. This improves
+future audit evidence without changing the decision itself. Relational lookup
+continues to support older events whose JSON did not contain the owner. No
+provider application, document, certification, staff member, note, review,
+booking, payment, or support record changed.
+
+Local API and Admin TypeScript, affected-file ESLint, and `git diff --check`
+pass. The Provider 360 URL and scoped-link group passed six rendered Admin
+files and six tests. The child-owner group passed four focused API suites and
+four tests plus three rendered Admin files and three tests. A complete local
+Admin run reached 357 passing files and 446 passing tests but reported two
+unrelated parallel-load failures: OPS-269 exceeded its five-second timeout and
+UX-417 did not complete its feedback auto-selection before assertion. Both
+files passed immediately when rerun together in isolation. Protected CI
+`33713061235` passed 856 API suites and 3,227 tests, 360 Admin files and 449
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, both TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `7f2923c`.
+Protected Gates `33713061239` passed A through E and the `All gates passed`
+rollup at the same commit. Production synchronization remains blocked by E32.
+
+## Checkpoint BB: exact official-receipt audit handoff
+
+Official receipt issuance and cancellation actions retained the receipt UUID
+as their immutable audit target, but the general Audit Log rendered that
+target as inert text. Receipt evidence already belongs to Booking 360, where
+support can review the customer, provider, job, payment, refund, dispute, and
+retained sales-document context together. New issuance events included a
+booking UUID in JSON, while historical cancellation events did not, so a link
+that trusted optional action details would have left part of the real audit
+history disconnected.
+
+OPS-411 resolves the owning booking from the retained `official_receipts` row
+and exposes it as canonical `targetBookingId`. UX-1084 gives issuance and
+cancellation clear operator labels and maps the receipt event to that exact
+Booking 360 record. OPS-412 also records the booking UUID in new cancellation
+payloads, improving future exported evidence while preserving relational
+recovery for older events. The stale service comment claiming that
+`admin_actions.admin_id` still rejected system issuance was corrected to match
+migration 055, which permits a null actor for system-authored evidence.
+
+This is a read-side support and audit change. It does not issue or cancel a
+receipt, enable the held BIR document workflow, move money, alter a booking, or
+change existing audit rows. E22 still fails tax-document writes closed and the
+Admin generate/finalize controls remain disabled.
+
+Local API and Admin TypeScript, affected-file ESLint, and `git diff --check`
+pass. Five API suites pass 62 tests across receipt generation/cancellation and
+audit identity; 18 rendered Admin audit-link files pass 25 tests. Protected CI
+`33713924567` passed 858 API suites and 3,229 tests, 361 Admin files and 450
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, both TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `4b7fcfb`.
+Protected Gates `33713924555` passed A through E and the `All gates passed`
+rollup at the same commit. Production synchronization remains blocked by E32.
+
+## Checkpoint BC: exact held tax-workpaper audit evidence
+
+The general Audit Log recorded BIR 2307 batch and VAT report events but did not
+provide a durable route back to the exact retained workpaper. Historical event
+JSON was not a reliable source for the reporting period or provider owner, and
+the Financials page kept its BIR period only in component state. An operator
+could therefore see that tax evidence changed without being able to reopen and
+verify the same batch or report.
+
+OPS-413 resolves a retained 2307 batch's provider, tax year, and quarter from
+the database and exposes those canonical owners with the audit event. OPS-414
+does the same for a VAT report's tax year and month. OPS-415 rejects a malformed
+2307 batch identifier before querying Postgres. UX-1085 and UX-1086 give the
+four tax actions clear labels and map them to durable Financials URLs carrying
+the exact period and immutable batch or report identifier.
+
+The BIR workspace now validates `taxYear`, `taxQuarter`, `batchId`, `vatMonth`,
+and `vatReportId` URL state, keeps historical selected years available in its
+selector, and renders exact retained evidence through the existing bounded
+detail endpoints. It refuses a VAT response whose report identifier does not
+match the audit target, reports malformed or unavailable evidence explicitly,
+and can still load exact evidence when the annual summary request fails. The
+held generate, regenerate, and finalize controls remain disabled under E22.
+This work does not create or finalize a tax document, change a provider ledger,
+move money, alter a transaction, or update an existing audit row.
+
+Local API and Admin TypeScript, affected-file ESLint, and `git diff --check`
+pass. Six API financial and BIR suites pass 63 tests. Six focused rendered
+Admin tax-evidence files pass six tests, and all 50 Financials and Audit Log
+files pass 59 tests. Protected CI `33715547263` passed 861 API suites and 3,232
+tests, 366 Admin files and 455 tests with one intentionally skipped file and
+three existing honest TODOs, 531 Mobile suites and 910 tests with 84 TODOs,
+both TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `4de0977`. Protected Gates `33715547245` passed A
+through E and the `All gates passed` rollup at the same commit. Production
+synchronization remains blocked by E32.
+
+## Checkpoint BD: exact service-catalog audit handoffs
+
+Category, customer-service, and add-on mutations were already transactional
+and audited, but their records were inert in the general Audit Log. Historical
+service and add-on actions could also omit their parent identifiers from JSON,
+so constructing a route from optional action details would not reliably reopen
+the hierarchy the operator changed.
+
+OPS-416 resolves the retained category and customer-service owners directly
+from `service_subcategories` and `service_addons`. UX-1090 through UX-1092 map
+category, service, and add-on events to exact durable Catalog URLs and expand
+and mark the matching retained record. Service-only evidence does not open the
+add-on panel or make its extra request. A selected add-on opens all three levels
+and retains inactive add-ons, which is necessary for deactivation evidence.
+
+UX-1093 rejects malformed identifiers before opening an unrelated hierarchy,
+and UX-1094 rejects a service/category ownership mismatch instead of marking a
+record under the wrong parent. During line review, UX-1095 found that a normal
+add-on expansion wrote URL state that a refresh did not restore and announced
+a normal selection as an audit target. The final contract uses source-neutral
+selection wording plus explicit `view=addons` state, so ordinary add-on panel
+state survives remount while an exact service audit link does not trigger an
+unnecessary add-on fetch.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Thirteen related API catalog and audit-identity suites pass 62 tests, and
+37 rendered Catalog and Audit Log files pass 46 tests. Protected CI
+`33716790302` passed 862 API suites and 3,233 tests, 372 Admin files and 461
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, both TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `f143496`.
+Protected Gates `33716790289` passed A through E and the `All gates passed`
+rollup at the same commit. No category, service, add-on, booking, price, audit,
+database-schema, master, or production record changed. Production
+synchronization remains blocked by E32.
+
+## Checkpoint BE: exact communication moderation audit evidence
+
+Conversation and message moderation actions were recorded in the general Audit
+Log, but they could only return support to the owning Booking 360 record. That
+lost the exact conversation and message under review, and a paginated or failed
+conversation queue could prevent an operator from reconstructing the decision.
+Optional action JSON was not sufficient because some legitimate customer-only
+support notifications have no conversation, while an unrelated older
+conversation can exist for the same booking.
+
+OPS-417 resolves retained conversation and message identity relationally for
+conversation views, message redactions, flag reviews, and Admin replies. It
+verifies that the message belongs to the conversation and, for booking-targeted
+events, that the conversation belongs to the audited booking. It does not
+substitute another conversation when the audited action has no exact retained
+communication identity.
+
+UX-1096 maps an event with canonical communication identity to a durable
+`conversationId`, optional `bookingId`, and optional `messageId` URL. The
+Communications workspace loads that exact thread independently of the queue,
+marks the selected audit evidence, and can therefore preserve the evidence when
+the general list fails. UX-1097 through UX-1099 reject malformed identifiers,
+a mismatched conversation response, a missing target message, and a
+booking/conversation ownership mismatch without falling back to another row.
+UX-1100 removes exact audit state when the operator deliberately leaves the
+selection, changes workspace mode, or opens a normal queue conversation.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Five focused API suites pass 23 tests, and 38 rendered Communications and
+Audit Log files pass 47 tests. Protected CI `33718299000` passed 863 API suites
+and 3,234 tests, 377 Admin files and 466 tests with one intentionally skipped
+file and three existing honest TODOs, 531 Mobile suites and 910 tests with 84
+TODOs, both TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `a036f0a`. Protected Gates `33718298994` passed A
+through E and the `All gates passed` rollup at the same commit. No conversation,
+message, booking, user, moderation decision, audit row, database schema, master,
+or production record changed. Production synchronization remains blocked by
+E32.
+
+## Checkpoint BF: exact pricing-rule audit evidence
+
+Pricing-rule draft, publication, and retirement decisions already retained the
+exact rule UUID, but the general Audit Log discarded that identity by opening
+the broad Pricing Rules list. Pagination and lifecycle filters could therefore
+hide the audited rule, and a failed list left finance operations unable to
+reconstruct the same retained pricing decision.
+
+UX-1101 maps a valid pricing-rule target to
+`/pricing-rules?ruleId=<id>`. The Pricing Rules workspace validates the target
+and loads it through the existing Admin exact-detail endpoint independently of
+the paginated list. It renders the rule ID, lifecycle, scope, schedule,
+multiplier, platform/provider surge split, publication or retirement time, and
+the recorded reason in a dedicated read-only evidence panel. This handoff does
+not open a draft editor or invoke preview, publication, or retirement.
+
+UX-1102 rejects malformed saved rule IDs before making a detail request.
+UX-1103 rejects an exact-detail response whose ID differs from the requested
+audit target and explicitly refuses to substitute another list record. UX-1104
+removes only `ruleId` when the operator clears the evidence, preserving any
+other workspace context in the URL. The approved E28/E54 pricing publication
+contract remains unchanged: super-admin-only mutation, server-authoritative
+preview, future bookings only, immutable existing booking totals, and retained
+retirement history.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. All
+33 rendered Pricing Rules and Audit Log files pass 42 tests. Protected CI
+`33719914072` passed 863 API suites and 3,234 tests, 381 Admin files and 470
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, both TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `39e929b`.
+Protected Gates `33719914096` passed A through E and the `All gates passed`
+rollup at the same commit. No pricing rule, preview, booking, payment, provider
+share, platform revenue, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BG: exact market and provider area-change audit evidence
+
+Service-area configuration actions and provider area-change decisions retained
+exact UUIDs, but the general Audit Log could only leave those targets inert or
+open a broad workspace. The normal area-change queue also contains pending
+requests only, so an approved, rejected, or cancelled decision could disappear
+from the operator surface that needed to explain it later.
+
+OPS-418 adds a bounded exact-detail read for a retained provider area-change
+request in any lifecycle state. It resolves the owning Provider 360 record and
+the current and requested market names, while preserving the same role-aware
+contact masking used by the pending queue. SEC-046 verifies that an ordinary
+Admin receives masked provider email and phone values. SEC-047 rejects a
+malformed request ID before service access, and SEC-048 rejects a non-Admin
+account before loading the record.
+
+UX-1105 maps service-area events to an exact `areaId` URL and loads the retained
+market independently of the paginated list. UX-1106 does the same for a
+provider area-change decision, including completed decisions outside the
+pending queue and a direct Provider 360 exit. The evidence panels identify the
+record, geography, coverage radius, supply, customer and booking counts,
+requested location and radius, lifecycle, recorded reason, and decision time.
+UX-1107 through UX-1110 fail closed for simultaneous targets, malformed IDs,
+and mismatched server responses, then remove only the exact target when the
+operator clears the selection so ordinary filters remain intact.
+
+E46 remains open because the repository still conflicts over direct market
+activation versus the staged planned, recruiting, soft-launch, and active
+lifecycle. This read-side work does not choose that policy or change any
+activation, launch, matching, provider coverage, customer coverage, booking,
+or historical audit behavior.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Nineteen related API service-area and area-change suites pass 58 tests,
+and 40 rendered Service Areas and Audit Log files pass 49 tests. Protected CI
+`33721657468` passed 867 API suites and 3,238 tests, 387 Admin files and 476
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, both TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `177ac9ec`.
+Protected Gates `33721657414` passed A through E and the `All gates passed`
+rollup at the same commit. No service area, provider area-change request,
+customer, provider, booking, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BH: exact Marketing audit evidence and banner write boundary
+
+Home-banner audit rows retained a promotion UUID but opened only the broad
+Marketing workspace. Promo-code and campaign changes were retained as legacy
+`config` events whose record kind lived in action values, so the general Audit
+Log treated them as System Settings changes. Operators could not reliably
+reopen the exact Marketing record after pagination, filtering, or a list
+failure, and the campaign workspace did not distinguish its manually entered
+attribution figures from system-measured outcomes.
+
+OPS-419 adds bounded exact-detail reads for the retained home banner, promo
+code, and campaign records. SEC-049 rejects malformed identifiers before
+service access, and SEC-050 rejects non-Admin accounts before any exact Admin
+Marketing record is loaded. UX-1111 through UX-1113 map each supported audit
+event to the matching durable Marketing tab and render a separate read-only
+evidence panel even when the general list fails. The panels identify canonical
+IDs, banner delivery and customer copy, promo validity and usage limits, and
+campaign spend and staff-reported attribution without implying that manual
+campaign figures are measured platform events.
+
+UX-1114 through UX-1117 fail closed for simultaneous targets, malformed IDs,
+and server responses whose record ID does not match the request. Clearing the
+evidence removes only the three exact target parameters and preserves normal
+workspace context. Review also found that the interface hid every home-banner
+mutation from ordinary Admin accounts while the API still accepted their
+direct create and update calls. SEC-051 aligns the server boundary with the
+existing interface and current platform-wide mutation policy by making all
+home-banner writes Super Admin-only. UX-1118 states that read-only boundary in
+the Admin interface instead of leaving a blank action column. Ordinary Admin
+read access remains available for support and audit work.
+
+E37 remains open because the repository does not yet have an approved global,
+correlated audit-event architecture. This checkpoint preserves the existing
+best-effort Marketing audit writes and restores exact read-side evidence; it
+does not introduce a competing event schema or claim that all related writes
+are atomic with their audit rows.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Nineteen related API Marketing, promo, and promotion suites pass 95
+tests, and 43 rendered Marketing and Audit Log files pass 52 tests. Protected
+CI `33724751153` passed 871 API suites and 3,242 tests, 395 Admin files and 484
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, all three TypeScript checks, the
+Admin production build, and Docker image boot/liveness at commit `d6b53679`.
+Protected Gates `33724751166` passed A through E and the `All gates passed`
+rollup at the same commit. No banner, promo code, campaign, customer, provider,
+booking, payment, historical audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BI: exact notification-template audit linkage
+
+Notification-template mutations retained a template UUID and change snapshot in
+the general Audit Log, but every supported event opened only the broad template
+table. Pagination, filters, or a list failure could therefore hide the current
+record. Deleted templates were even less safe: a direct detail handoff would
+guarantee a dead link, while treating the live row as historical evidence would
+misstate the repository's current non-versioned model.
+
+UX-1119 maps a non-delete event with a valid UUID to the exact current retained
+template and loads that detail independently of the general list. Its read-only
+evidence panel identifies the template, routing slug, current title and body,
+placeholders, runtime linkage, real delivery channels versus stored metadata,
+active/fallback behavior, and Manila creation and update times. The panel says
+explicitly that it is current mutable state, not an immutable historical
+version, and directs the operator back to the Audit Log snapshot for the values
+recorded at the time of change.
+
+UX-1120 keeps a deleted template identified by its retained Audit Log snapshot
+without presenting a link that must return not found. UX-1121 and SEC-052 reject
+malformed template identifiers before any exact-record request or service
+access. UX-1122 rejects an exact-detail response whose ID differs from the
+requested target instead of substituting a list row. UX-1123 removes only the
+exact `templateId` when the operator clears the evidence, preserving ordinary
+filters and pagination. SEC-053 verifies that customer accounts cannot access
+the exact Admin record; Admin and Super Admin retain read access, while the
+existing Super Admin-only write boundary is unchanged.
+
+E66 remains open for approved immutable versions, per-channel publication,
+locale behavior, external email and SMS delivery, retry/outbox semantics, and
+production-row classification. This checkpoint adds no delivery mechanism,
+publication model, version history, or competing runtime contract, and it does
+not alter any template or notification data.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Sixteen notification-template API suites pass 29 tests, and 44 rendered
+Notification Templates and Audit Log files pass 53 tests. Protected CI
+`33726995964` passed 873 API suites and 3,244 tests, 400 Admin files and 489
+tests with one intentionally skipped file and three existing honest TODOs, 531
+Mobile suites and 910 tests with 84 TODOs, all three TypeScript checks, the
+Admin production build, and Docker image boot/liveness at commit `3659b223`.
+Protected Gates `33726995930` passed A through E and the `All gates passed`
+rollup at the same commit. No notification template, notification delivery,
+customer, provider, booking, payment, historical audit row, database schema,
+master, or production record changed. Production synchronization remains
+blocked by E32.
+
+## Checkpoint BJ: exact retained role-profile audit evidence
+
+Administrative-role audit rows retained an exact role-profile UUID but opened
+only the broad Staff workspace. The normal Role Profiles list intentionally
+excludes archived profiles, so pagination, a list failure, or archival could
+hide the exact record an operator needed to explain. The existing `roleId`
+query parameter belongs to the Staff directory filter and cannot safely carry
+this different audit selection.
+
+OPS-420 adds a bounded exact-detail service read that resolves an active or
+soft-deleted role profile by UUID. It returns the retained profile metadata and
+both active and historical linked staff-profile counts without changing the
+active-only list. OPS-421 exposes that evidence at the exact Admin route.
+SEC-054 verifies that only Super Admin may read it, and SEC-055 rejects a
+malformed UUID before service access.
+
+UX-1124 maps a valid `admin_role` audit target to
+`/staff?tab=roles&roleProfileId=<id>` and renders the retained profile even when
+the active list fails. The read-only panel identifies the exact ID, lifecycle,
+description, permission metadata, linked-profile counts, Manila timestamps,
+and archive reason. It also states that these role-profile permissions are
+descriptive metadata: account access remains controlled by `users.role` and
+server route authorization. The panel is current retained state, not an
+immutable historical version; the Audit Log remains the historical evidence.
+
+UX-1125 rejects malformed exact targets before requesting the record. UX-1126
+rejects a response whose ID differs from the requested audit target. UX-1127
+removes only `roleProfileId` when the operator clears the evidence, preserving
+the Role Profiles tab, ordinary Staff `roleId` filter, and pagination. UX-1128
+removes the hidden exact target when the operator leaves the Role Profiles tab.
+
+E39 remains open for the privileged-account lifecycle, last-Super-Admin
+protection, and recovery design. This checkpoint adds no account creation,
+access grant, access revocation, role assignment, session invalidation, or
+recovery behavior, and it does not claim that editing a role profile changes
+authorization.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Four focused API suites pass four tests; the expanded Staff and role API
+set passes 34 suites and 73 tests with one pre-existing skipped suite and test.
+Five focused Admin files pass five tests, and 57 rendered Staff, role, and Audit
+Log files pass 68 tests. Protected CI `33729449034` passed 877 API suites and
+3,248 tests, 405 Admin files and 494 tests with one intentionally skipped file
+and three existing honest TODOs, 531 Mobile suites and 910 tests with 84 TODOs,
+all three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `6baf6e39`. Protected Gates `33729449225` passed A
+through E and the `All gates passed` rollup at the same commit. No role profile,
+staff account, authorization, session, customer, provider, booking, payment,
+historical audit row, database schema, master, or production record changed.
+Production synchronization remains blocked by E32.
+
+## Checkpoint BK: exact retained commission-agreement audit evidence
+
+Commission-rate scheduling and cancellation actions retained exact agreement
+UUIDs, but the general Audit Log sent tier-scoped `config` events to System
+Settings and left provider-scoped events without a durable exact destination.
+Generic `system` events were also sent to System Settings even though that
+workspace does not own records such as PII reveals or legacy password-rotation
+campaigns. These links gave support operators a plausible-looking but false
+handoff, and a retained cancelled or superseded agreement could be hidden by
+the normal paginated commission history.
+
+OPS-422 adds a bounded exact service read for a tier- or provider-scoped
+commission agreement in any retained lifecycle state, independently of the
+history list. It includes scope, schedule, rate, owners, cancellation evidence,
+and the count of immutable booking commission snapshots that reference that
+agreement. OPS-423 exposes the exact Admin route. SEC-056 verifies that a
+customer account cannot access the record, and SEC-057 rejects a malformed UUID
+before service access. Existing Admin and Super Admin read access is preserved;
+all commission mutations remain Super Admin-only.
+
+UX-1129 maps a provider-scoped commission action through its retained
+`commissionRateVersionId` to
+`/financials?tab=commission&commissionRateId=<id>`. UX-1130 maps a tier-scoped
+commission `config` action through its exact entity UUID to the same workspace
+instead of System Settings. The Financials workspace loads the exact agreement
+independently of the normal history list and renders a separate read-only
+evidence panel with its canonical ID, lifecycle, provider or tier, service
+scope, rate, booking-snapshot usage, Manila effective and recorded times,
+owner, approver, business reason, and cancellation evidence. The panel makes
+the approved E50 contract explicit: agreements are append-only and
+effective-dated, and cancelling or superseding one does not recalculate an
+existing booking's captured commercial terms.
+
+UX-1131 rejects malformed selections without an arbitrary detail request.
+UX-1132 rejects a response whose ID differs from the requested audit target
+instead of substituting a list record. UX-1133 removes only
+`commissionRateId` when the operator clears the evidence, preserving unrelated
+Financials URL context. UX-1134 removes the false System Settings destination
+from unknown `config` and generic `system` events while keeping those events
+visible and expandable in the Audit Log. UX-1135 removes a hidden exact target
+when the operator leaves Commission Controls. The exact panel presents current
+retained lifecycle state; the originating Audit Log row remains the evidence of
+what was recorded at event time.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Four focused API suites pass four tests, and the expanded commission and
+financial-admin API set passes 21 suites and 44 tests. Seven focused Admin files
+pass seven tests, and 53 rendered Financials and Audit Log files pass 62 tests.
+Protected CI `33732523134` passed 881 API suites and 3,252 tests, 412 Admin
+files and 501 tests with one intentionally skipped file and three existing
+honest TODOs, 531 Mobile suites and 910 tests with 84 TODOs, all three
+TypeScript checks, the Admin production build, and Docker image boot/liveness
+at commit `68538e73`. Protected Gates `33732522938` passed A through E and the
+`All gates passed` rollup at the same commit. No commission agreement, booking,
+payment, customer, provider, setting, historical audit row, database schema,
+master, or production record changed. PII-reveal events still need a truthful
+exact handoff to their originating masked audit record; this checkpoint does
+not claim that linkage. Production synchronization remains blocked by E32.
+
+## Checkpoint BL: exact PII-reveal origin evidence and input boundaries
+
+A Super Admin raw-audit PII reveal already wrote a durable `pii_reveal`
+decision whose system target and details both identify the original
+`audit_log` row. The general Audit Log displayed that accountability record but
+could not reopen its exact original event. Filtering by the target's entity
+identity was not equivalent to filtering by the event itself, and the screen's
+CSV action would have had no way to preserve an exact event selection.
+
+OPS-424 adds an exact event filter to the combined timeline. The canonical
+identity is the pair of source stream and event UUID, so SEC-060 requires a
+valid `audit_log` or `admin_actions` source whenever `entryId` is supplied.
+SEC-058 rejects malformed event UUIDs before database access. SEC-059 verifies
+that the existing D34 privacy visibility clause is still applied before an
+ordinary Admin's exact filter, so knowing a UUID cannot cross the DPO-owned
+record boundary. OPS-425 applies the same exact event and source pair to the
+masked CSV exporter, preventing the screen from promising a one-event export
+while downloading a broader timeline.
+
+UX-1136 maps a valid system-scoped `pii_reveal` accountability row to
+`/audit-log?source=audit_log&entryId=<id>`, loads only that original masked
+event, and selects its evidence panel automatically on desktop, tablet, and
+mobile layouts. The panel identifies the exact event and explicitly states
+that its on-screen and exported values remain masked. UX-1137 rejects a
+malformed target without a request. UX-1138 hides a response whose event ID or
+source differs from the requested pair instead of substituting a plausible
+row. UX-1139 preserves the exact pair in CSV export. UX-1140 rejects an exact
+event URL that omits its source. UX-1141 makes conflicting valid origin IDs in
+a retained reveal row inert rather than choosing one and creating false
+forensic evidence.
+
+Review of the existing raw-reveal route also found that it accepted arbitrary
+row-ID strings and copied an unbounded justification into `full_notes` even
+though the documented contract caps the reason at 500 characters. SEC-061 now
+requires a UUID before database access, and SEC-062 enforces the 20-to-500
+character justification boundary before the raw row is read. This checkpoint
+does not add a raw-reveal control, invoke that endpoint, or expose raw values.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. The combined API audit, compliance, and latent-route regression set
+passes 54 suites and 97 tests. All 44 rendered Audit Log files pass 51 tests.
+Protected CI `33735641399` passed 888 API suites and 3,259 tests, 418 Admin
+files and 507 tests with one intentionally skipped file and three existing
+honest TODOs, 531 Mobile suites and 910 tests with 84 TODOs, all three
+TypeScript checks, the Admin production build, and Docker image boot/liveness
+at commit `dbaf695e`. Protected Gates `33735641486` passed A through E and the
+`All gates passed` rollup at the same commit. No raw PII was requested or
+returned; no customer, provider, booking, payment, audit row, database schema,
+master, or production record changed. Production synchronization remains
+blocked by E32.
+
+## Checkpoint BM: exact Provider 360 certification audit evidence
+
+Provider-certification decisions retained both the certification UUID and a
+canonical owning provider UUID, but the Audit Log reopened only the provider's
+general Certifications tab. An operator investigating a verification or
+removal decision could therefore land beside multiple credentials without a
+truthful indication of which retained record owned the event.
+
+UX-1142 carries the valid certification UUID into Provider 360 and renders an
+exact-evidence state that shows only the matching retained credential. The
+selected card is visibly identified on desktop, tablet, and mobile layouts,
+while the existing full-list view remains unchanged when no exact target is
+present. UX-1143 rejects a malformed target before selecting any credential.
+UX-1144 treats a valid UUID that is absent from the provider's canonical
+credential list as a mismatch and shows no substitute. UX-1145 clears only the
+stale `certificationId` when the operator leaves Certifications, preserving
+unrelated support URL context. The prior UX-1082 workspace regression now also
+verifies the exact Audit Log destination and retained credential render.
+
+This slice adds no certification lookup or alternative ownership source. It
+uses the provider profile's existing canonical certification collection and
+the relationally resolved owner introduced by OPS-409. It does not change a
+provider's verification status, tier, customer-facing credential visibility,
+document access, or historical audit evidence.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Seven
+focused rendered files pass seven tests, and the expanded set of every rendered
+test importing Audit Log or Provider Detail passes 69 files and 80 tests.
+Protected CI `33738602014` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `78c22838`. Protected Gates `33738602006` passed A
+through E and the `All gates passed` rollup at the same commit. No customer,
+provider, certification, booking, payment, audit row, database schema, master,
+or production record changed. Production synchronization remains blocked by
+E32.
+
+## Checkpoint BN: exact Provider 360 staff-member audit evidence
+
+Provider-staff decisions retained both the staff UUID and a canonical owning
+provider UUID, but the Audit Log reopened only the provider's general Staff
+tab. An operator reviewing approval, suspension, or reactivation evidence
+could therefore land beside multiple team members without a truthful
+indication of which retained record owned the event.
+
+UX-1146 carries the valid staff UUID into Provider 360 and renders an exact
+evidence state that shows only the matching provider-owned member. The
+selected card is visibly identified across responsive layouts. UX-1147 rejects
+a malformed staff target before requesting the team list. UX-1148 treats a
+valid UUID absent from the provider's role-aware staff list as an ownership
+mismatch and shows no substitute. UX-1149 clears only the stale `staffId` when
+the operator leaves Staff, preserving unrelated support URL context. The prior
+UX-1083 child-entity regression now also verifies the exact Audit Log
+destination.
+
+This slice reuses the existing role-aware, masked provider staff endpoint. It
+does not add a staff ownership source, expose raw contact information, change
+staff status or assignability, or alter historical audit evidence.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Ten
+focused rendered files pass 12 tests, and the expanded set of every rendered
+test importing Audit Log or Provider Detail passes 73 files and 84 tests.
+Protected CI `33741105285` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `3d067b62`. Protected Gates `33741105297` passed A
+through E and the `All gates passed` rollup at the same commit. The prior
+documentation-only CI `33740341084` was superseded and cancelled by this newer
+push; its Gates run `33740341303` passed, and the newer full CI verified that
+documentation together with this implementation. No customer, provider,
+staff, booking, payment, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BO: exact Provider 360 internal-note audit evidence
+
+Provider-note create, update, pin, and soft-delete decisions retained the note
+UUID and a canonical owning provider UUID, but the Audit Log reopened only the
+provider's general Notes tab. An operator could therefore land beside multiple
+internal notes without a truthful indication of which active support record
+owned the event. A soft-deleted note is intentionally absent from the active
+Provider 360 note list even though its Audit Log event remains durable.
+
+UX-1150 carries a valid note UUID into Provider 360 and renders an exact
+evidence state that shows only the matching active provider-owned note.
+UX-1151 rejects a malformed note target before requesting the active note
+list. UX-1152 treats a valid UUID absent from that provider's active internal
+file as deleted or mismatched, preserves the Audit Log as the durable event
+record, and shows no substitute note. UX-1153 clears only the stale `noteId`
+when the operator leaves Notes, preserving unrelated support URL context. The
+prior UX-1082 provider-workspace regression now verifies the exact Audit Log
+destination.
+
+This slice deliberately does not return or reveal soft-deleted note text. It
+reuses the existing provider-scoped active-note endpoint and existing Admin
+authorization. It does not change note creation, editing, pinning, deletion,
+ownership, audit retention, or historical evidence.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Seven
+focused rendered files pass seven tests, and the expanded set of every
+rendered test importing Audit Log or Provider Detail passes 77 files and 88
+tests. Protected CI `33742569468` passed the full API, Admin, and Mobile
+suites, all three TypeScript checks, the Admin production build, and Docker
+image boot/liveness at commit `2e03cba8`. Protected Gates `33742569487` passed
+A through E and the `All gates passed` rollup at the same commit. The preceding
+BN documentation-only CI `33742464811` was superseded and cancelled by this
+implementation push; its Gates run `33742464825` passed, and the newer full CI
+verified that documentation with this implementation. No customer, provider,
+note, booking, payment, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BP: exact Provider 360 review audit evidence
+
+Provider-review evidence retained both the review UUID and a canonical owning
+provider UUID, but the Audit Log reopened only the provider's general Reviews
+tab. An operator investigating a rating or moderation concern could therefore
+land beside many reviews without a truthful indication of which retained
+customer review produced the event.
+
+OPS-426 extends the existing provider-review read contract with an optional
+exact `reviewId`, validating it as a UUID before service access and using a
+single-row first-page request. OPS-427 applies both the provider UUID and review
+UUID to the count and data queries, so an identifier owned by another provider
+cannot be selected. SEC-063 preserves the existing provider-scoped paginated
+contract when no exact review is requested. UX-1154 carries the valid review
+UUID from Audit Log into Provider 360 and renders only the exact matching
+provider-owned review with a visible selected state. UX-1155 rejects malformed
+review targets before requesting review data. UX-1156 shows no substitute when
+the API does not return the requested provider-owned review. UX-1157 clears
+only the stale `reviewId` when the operator leaves Reviews, preserving
+unrelated support URL context. The prior UX-1082 provider-workspace regression
+now verifies the exact Audit Log destination.
+
+This slice reuses the existing provider-review endpoint and existing Admin
+authorization. Exact mode reports the exact lookup count rather than
+mislabeling the provider's lifetime review total, and it hides irrelevant
+pagination. It does not expose reviewer contact data, change review content or
+ratings, alter provider aggregates, add moderation powers, or change historical
+audit evidence.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Three focused API suites pass three tests; nine focused Admin rendered
+files pass nine tests. The expanded affected API set passes 24 suites and 105
+tests, and the expanded Admin set passes 81 files and 92 tests. Protected CI
+`33743931496` passed the full API, Admin, and Mobile suites, all three
+TypeScript checks, the Admin production build, and Docker image boot/liveness
+at commit `58ae2ee6`. Protected Gates `33743931487` passed A through E and the
+`All gates passed` rollup at the same commit. The preceding BO
+documentation-only CI `33743710932` was superseded and cancelled by this
+implementation push; its Gates run `33743710968` passed, and the newer full CI
+verified that documentation with this implementation. No customer, provider,
+review, booking, payment, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BQ: warning-free Audit Log timer behavior test
+
+The Manila-date CSV behavior test advanced fake timers outside React's update
+boundary. The assertion passed, but the rendered Audit Log emitted an `act`
+warning during broader suites, making real state-update warnings easier to miss.
+
+The existing BUG-PHASE112-01 behavioral test now advances its asynchronous
+timers inside React `act`. The production component, export filename contract,
+and time-zone behavior are unchanged.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. The
+focused rendered file passes its one existing behavior test, and the expanded
+Audit Log and Provider Detail set passes 81 files and 92 tests without the
+warning. Protected Gates `33745115348` passed A through E and the `All gates
+passed` rollup at commit `bbd8e61e`. CI `33745115306` was superseded and
+cancelled by the next Customer 360 push; protected CI `33745764429` then passed
+the full API, Admin, and Mobile suites, all three TypeScript checks, the Admin
+production build, and Docker image boot/liveness with this cleanup included.
+No application behavior, customer, provider, booking, payment, audit row,
+database schema, master, or production record changed. Production
+synchronization remains blocked by E32.
+
+## Checkpoint BR: URL-bound Customer 360 support workspaces
+
+Customer 360 held its six workspace tabs only in component memory. A bookmark,
+refresh, Audit Log handoff, or shared support URL therefore returned the
+operator to Profile instead of the intended Bookings, Payments, Disputes,
+Referrals, or Activity context.
+
+UX-1158 makes the active Customer 360 workspace URL-bound, restores a requested
+valid tab, removes the redundant `tab` key for Profile, and preserves unrelated
+support-case context when the operator changes workspaces. UX-1159 rejects an
+unknown workspace value by rendering Profile and does not request an unrelated
+customer dataset. The behavior uses the same controlled URL-state pattern as
+Provider 360 and keeps the existing horizontally scrollable tablet tab rail.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Two
+focused rendered files pass two tests, and every rendered test importing
+Customer 360 passes 12 files and 14 tests. Protected CI `33745764429` passed the
+full API, Admin, and Mobile suites, all three TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `146f971a`.
+Protected Gates `33745764394` passed A through E and the `All gates passed`
+rollup at the same commit. The preceding BP documentation-only CI
+`33744977295` and warning-cleanup CI `33745115306` were superseded and
+cancelled by this implementation push; their Gates runs `33744977343` and
+`33745115348` passed, and this newer full CI verified both changes. No customer,
+provider, booking, payment, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BS: customer Audit Log workspace routing
+
+Customer wallet adjustments and account-status decisions both reopened the
+generic Customer 360 Profile workspace. Operators then had to infer whether to
+look in Payments or Activity, despite the audit action already identifying the
+kind of decision.
+
+UX-1160 routes a `customer_credited` decision to that customer's Payments
+workspace. UX-1161 routes suspension, reactivation, and fraud-review decisions
+to that customer's Activity workspace. The labels deliberately describe the
+workspace rather than claiming an exact retained row because both views were
+still bounded histories at this checkpoint. Unrelated customer audit actions
+continue to open the generic Customer 360 profile.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Two
+focused rendered files pass two tests, and every rendered test importing Audit
+Log passes 46 files and 53 tests. Protected CI `33746579370` passed the full
+API, Admin, and Mobile suites, all three TypeScript checks, the Admin production
+build, and Docker image boot/liveness at commit `d6bf6df1`. Protected Gates
+`33746579366` passed A through E and the `All gates passed` rollup at the same
+commit. No customer, provider, wallet balance, booking, payment, audit row,
+database schema, master, or production record changed. Production
+synchronization remains blocked by E32.
+
+## Checkpoint BT: exact Customer 360 wallet-adjustment evidence
+
+The customer wallet-adjustment audit decision retained the paired
+`wallet_transactions` UUID, but Customer 360 Payments exposed only the latest
+50 ledger rows. An older adjustment could disappear from that list, and a row
+owned by another customer must never be accepted as substitute evidence.
+
+OPS-428 adds an optional, UUID-validated transaction identifier to the existing
+customer-payment read route and carries both canonical IDs into the service.
+OPS-429 scopes the ledger query by customer wallet ownership and transaction ID.
+SEC-064 rejects a malformed identifier before service or database access.
+UX-1160 now carries a valid retained transaction UUID from Audit Log into
+Customer 360. UX-1162 renders only the exact matching ledger row, marks it as
+selected, and hides the unrelated adjustment form and payment-intent history
+during evidence review. UX-1163 blocks malformed browser targets before a
+payment request. UX-1164 shows no substitute row for an absent or mismatched
+response. UX-1165 clears only `transactionId` when leaving Payments and
+preserves unrelated support URL context.
+
+The endpoint's existing current-balance, recent-transaction, recent-intent, and
+payment-method contract remains unchanged when no exact transaction is
+requested. This slice is read-only. It does not change a wallet balance,
+adjustment amount, reason, authorization, approval threshold, ledger write,
+booking, refund, payment intent, or historical audit row. E31/D33 continues to
+hold the unbounded single-operator wallet mutation and its missing dual-control
+policy.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Three focused API suites pass three tests and five focused Admin rendered
+files pass five tests. The expanded customer-admin API set passes 20 suites and
+60 tests, and every Admin test importing Customer 360 or Audit Log passes 62
+files and 71 tests. Protected CI `33747822604` passed the full API, Admin, and
+Mobile suites, all three TypeScript checks, the Admin production build, and
+Docker image boot/liveness at commit `71181d11`. Protected Gates `33747822675`
+passed A through E and the `All gates passed` rollup at the same commit. No
+customer, provider, wallet balance, booking, payment, audit row, database
+schema, master, or production record changed. Production synchronization
+remains blocked by E32.
+
+## Checkpoint BU: exact Customer 360 account-decision evidence
+
+Customer suspension, reactivation, and fraud-review decisions retained their
+canonical `admin_actions` UUIDs in Audit Log, but Customer 360 Activity exposed
+only a bounded mixed history. An older decision could disappear from that
+history, and a decision owned by another customer must never be accepted as
+substitute evidence.
+
+UX-1161 now carries a valid Admin decision UUID from Audit Log into Customer
+360 Activity. UX-1166 requests and marks only the exact matching activity row.
+UX-1167 rejects a malformed browser target before any activity request.
+UX-1168 shows a durable no-substitute state when the requested decision is not
+returned for that customer. UX-1169 clears only the stale `adminActionId` when
+the operator leaves Activity and preserves unrelated support URL context.
+OPS-430 adds the optional exact identifier to the existing activity route and
+forces a one-row request. OPS-431 scopes the database read by both customer
+target and Admin decision UUID. SEC-065 rejects malformed identifiers before
+service or database access.
+
+The ordinary mixed customer activity contract remains unchanged when no exact
+decision is requested. This slice is read-only. It does not suspend, reactivate,
+flag, notify, change a profile, modify a booking or payment, add an Admin power,
+or rewrite historical audit evidence.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Three focused API suites pass three tests and five focused Admin rendered
+files pass five tests. The expanded customer-admin API set passes 23 suites and
+63 tests, and every Admin test importing Customer 360 or Audit Log passes 66
+files and 75 tests. Protected CI `33749524928` passed the full API, Admin, and
+Mobile suites, all three TypeScript checks, the Admin production build, and
+Docker image boot/liveness at commit `70421315`. Protected Gates `33749524899`
+passed A through E and the `All gates passed` rollup at the same commit. The
+preceding documentation-only CI `33749161293` was superseded and cancelled by
+this implementation push; its Gates run `33749161292` passed, and the newer full
+CI verified that documentation with this implementation. No customer, provider,
+account status, fraud flag, booking, payment, audit row, database schema, master,
+or production record changed. Production synchronization remains blocked by
+E32.
+
+## Checkpoint BV: exact Provider 360 account-decision evidence
+
+Provider approval, rejection, suspension, reactivation, and tier decisions
+retained their canonical `admin_actions` UUIDs in Audit Log, but the owning
+Provider 360 page opened only its generic Profile and Activity exposed a bounded
+mixed history. An older decision could disappear from that history, and a
+decision owned by another provider must never be accepted as substitute
+evidence.
+
+UX-1170 routes these provider-account decisions from Audit Log to the exact
+Provider 360 Activity target. UX-1171 requests and marks only the matching row.
+UX-1172 rejects a malformed browser target before any activity request.
+UX-1173 shows a durable no-substitute state when the requested decision is not
+returned for that provider. UX-1174 clears only the stale `adminActionId` when
+the operator leaves Activity and preserves unrelated support URL context.
+OPS-432 adds the optional exact identifier to the existing provider-activity
+route and forces a one-row request. OPS-433 applies the identifier after the
+complete provider ownership relation, including the provider account, login
+user, staff, documents, certifications, notes, service-area requests, and
+reviews. SEC-066 rejects malformed identifiers before service or database
+access.
+
+The ordinary mixed provider activity contract remains unchanged when no exact
+decision is requested. This slice is read-only. It does not approve, reject,
+suspend, reactivate, change a tier, notify, modify a booking or payment, add an
+Admin power, or rewrite historical audit evidence.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Three focused API suites pass three tests and five focused Admin rendered
+files pass five tests. The expanded provider-admin API set passes 27 suites and
+108 tests, and every Admin test importing Provider 360 or Audit Log passes 88
+files and 99 tests. Protected CI `33750618032` passed the full API, Admin, and
+Mobile suites, all three TypeScript checks, the Admin production build, and
+Docker image boot/liveness at commit `5d5e7032`. Protected Gates `33750618027`
+passed A through E and the `All gates passed` rollup at the same commit. The
+preceding documentation-only CI `33750583162` was superseded and cancelled by
+this implementation push; its Gates run `33750582881` passed, and the newer full
+CI verified that documentation with this implementation. No customer, provider,
+provider status, tier, booking, payment, audit row, database schema, master, or
+production record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BW: truthful provider-onboarding audit evidence
+
+The Audit Log labelled every `admin_actions` row as an Admin decision even
+though that table also retains provider-originated and system-originated
+operational actions. Provider application submission was therefore presented
+as if an administrator had performed it, and its destination opened only the
+generic Provider 360 workspace instead of the exact retained application event.
+
+UX-1175 renames the source and filter to the truthful, broader "Recorded action"
+language. OPS-434 attributes provider application submission to the provider
+actor rather than an administrator. UX-1176 routes a valid provider application
+action UUID to the owning Provider 360 Activity view, where the existing exact
+identifier contract renders only that retained row and refuses substitute
+evidence. Existing genuinely administrative decisions retain their Admin actor
+attribution and exact destinations.
+
+This slice changes presentation and evidence routing only. It does not approve
+or reject an application, change provider status or tier, grant a permission,
+alter a booking or payment, rewrite an audit row, or add an operational
+mutation.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. One focused API suite passes one test, four focused Admin rendered files
+pass seven tests, the expanded provider-admin API set passes 28 suites and 109
+tests, and every Admin test importing Provider 360 or Audit Log passes 90 files
+and 101 tests. Protected CI `33751876957` passed the full API, Admin, and Mobile
+suites, all three TypeScript checks, the Admin production build, and Docker
+image boot/liveness at commit `eeb1e742`. Protected Gates `33751876903` passed A
+through E and the `All gates passed` rollup at the same commit. The preceding
+documentation-only CI `33751707132` was superseded and cancelled by this
+implementation push; its Gates run `33751707130` passed, and the newer full CI
+verified that documentation with this implementation. No customer, provider,
+application state, booking, payment, audit row, database schema, master, or
+production record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint BX: exact Provider 360 payout evidence
+
+Provider 360 showed each recent payout's retained UUID as dead text, forcing an
+operator to copy or re-find the record in a separate queue. The Payouts page
+accepted an exact identifier but could combine it with stale queue filters,
+request malformed browser input, or render an unrelated response as if it were
+the requested evidence.
+
+UX-1177 links each Provider 360 payout directly to its canonical Payouts record.
+UX-1178 rejects a malformed payout UUID before any API request. UX-1179 filters
+the response again in the browser and shows a durable no-substitute state when
+the requested row is absent or mismatched. UX-1180 makes the exact identifier
+override stale page, provider, search, and status filters. The existing UX-520
+handoff assertion now renders a real matching record rather than treating an
+empty response as successful exact evidence. Exact mode hides unrelated queue
+filters and pagination, while clearing the selection removes only the payout
+identifier and page.
+
+This slice is read-only. It does not approve, reject, transfer, retry, clear an
+AML review, change a payout amount or destination, alter a provider wallet,
+rewrite a retained payout, or add a financial mutation.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Six
+focused rendered files pass six tests, and every Admin test importing Payouts
+or Provider 360 passes 56 files and 62 tests. Protected CI `33753355632` passed
+the full API, Admin, and Mobile suites, all three TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `5814b49c`.
+Protected Gates `33753355634` passed A through E and the `All gates passed`
+rollup at the same commit. The preceding documentation-only CI `33753283501`
+was superseded and cancelled by this implementation push; its Gates run
+`33753283543` passed, and the newer full CI verified that documentation with
+this implementation. No customer, provider, payout, wallet, booking, payment,
+audit row, database schema, master, or production record changed. Production
+synchronization remains blocked by E32.
+
+## Checkpoint BY: exact Customer 360 payment-attempt evidence
+
+Customer 360 and global Admin search could identify a payment attempt, but the
+Financials destination depended on broad intent text and retry-queue filters.
+That could leave an operator looking at several records or at stale queue state
+instead of the one retained payment-attempt UUID needed for support evidence.
+
+UX-1181 links each Customer 360 recent payment intent's attempt directly to its
+canonical Financials record. OPS-397 now routes global payment search results
+through the same dedicated `paymentAttemptId` contract. UX-1182 rejects a
+malformed browser identifier before any API request. UX-1183 filters the
+response again in the browser and shows a durable no-substitute state when the
+requested row is absent or mismatched. UX-1184 makes the exact identifier
+override stale intent, retry, and pagination filters. UX-1185 clears only the
+payment-attempt identifier when leaving exact mode and preserves unrelated
+support URL context. UX-1186 normalizes a valid pasted UUID to lowercase so an
+uppercase browser target resolves to the canonical database identifier.
+
+OPS-435 scopes the database read to the canonical payment-intent-attempt UUID.
+OPS-436 carries the dedicated identifier through the route with a one-row
+request, and SEC-067 rejects malformed server input before service or database
+access. Ordinary intent search and retry-queue search remain unchanged when no
+exact identifier is present. Exact mode hides unrelated aggregate cards,
+manual search, and retry controls so it cannot be mistaken for a queue view.
+
+A final pre-commit review caught and repaired a misplaced table heading and a
+broken JSX conditional boundary before the change was committed. The rendered
+Customer 360 assertion now verifies all seven payment-intent columns and their
+row cells, so that layout error is covered rather than merely described.
+
+This slice is read-only. It does not create, capture, retry, refund, reduce,
+cancel, or alter a payment; change a booking or wallet; rewrite an audit row; or
+add an Admin money power.
+
+Local API and Admin TypeScript, changed-file ESLint, and `git diff --check`
+pass. Six focused API suites pass six tests, 24 expanded API suites pass 65
+tests, nine focused Admin rendered files pass nine tests, and 63 expanded Admin
+rendered files pass 67 tests. Protected CI `33755653479` passed the full API,
+Admin, and Mobile suites, all three TypeScript checks, the Admin production
+build, and Docker image boot/liveness at commit `3c0ad6be`. Protected Gates
+`33755653481` passed A through E and the `All gates passed` rollup at the same
+commit. The preceding documentation-only CI `33754907142` was superseded and
+cancelled by this implementation push; its Gates run `33754907190` passed, and
+the newer full CI verified that documentation with this implementation. No
+customer, provider, payment, retry, wallet, booking, audit row, database schema,
+master, or production record changed. Production synchronization remains
+blocked by E32.
+
+## Checkpoint BZ: canonical exact-money UUID handling
+
+PostgreSQL UUIDs are case-insensitive on input and are returned in canonical
+lowercase form. The exact Payouts and Customer 360 wallet views accepted an
+uppercase UUID as valid, but compared the lowercase API row against the
+unchanged uppercase browser value. A valid copied identifier could therefore
+produce a false "record not found" result after the server returned the right
+record.
+
+UX-1187 normalizes a valid payout UUID before the exact API request and before
+the browser-side no-substitute comparison. UX-1188 applies the same canonical
+boundary to an exact customer wallet transaction. Malformed values retain the
+existing blocked-request behavior, and ordinary queue/history views remain
+unchanged when no exact identifier is present.
+
+This slice changes exact evidence matching only. It does not approve, reject,
+transfer, retry, refund, adjust, or change any payout, payment, wallet balance,
+booking, audit row, permission, or historical record.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Six
+focused exact-money rendered files pass six tests, every rendered test importing
+Payouts passes 14 files and 16 tests, and the combined Payouts/Customer 360 set
+passes 36 files and 40 tests. Protected CI `33757199516` passed the full API,
+Admin, and Mobile suites, all three TypeScript checks, the Admin production
+build, and Docker image boot/liveness at commit `f954013e`. Protected Gates
+`33757199574` passed A through E and the `All gates passed` rollup at the same
+commit. The preceding documentation-only CI `33757026947` was superseded and
+cancelled by this implementation push; its Gates run `33757026966` passed, and
+the newer full CI verified that documentation with this implementation. No
+customer, provider, payout, wallet, booking, payment, audit row, database
+schema, master, or production record changed. Production synchronization
+remains blocked by E32.
+
+## Checkpoint CA: canonical account-activity UUID handling
+
+Customer 360 and Provider 360 exact activity views accepted uppercase Admin
+action UUIDs as valid, then compared the lowercase canonical activity row to
+the unchanged uppercase browser value. A valid identifier copied from an
+external support tool or manually entered URL could therefore show a false
+ownership/missing warning after the API returned the correct account decision.
+
+UX-1189 normalizes a valid Customer 360 Admin action UUID before both the
+scoped API request and browser-side no-substitute comparison. UX-1190 applies
+the same canonical boundary to Provider 360 activity. Malformed values still
+block the request, exact mode still requests one row, and normal recent
+activity remains unchanged when no exact identifier is present.
+
+This slice changes evidence lookup only. It does not suspend, reactivate,
+approve, reject, flag, notify, modify a customer or provider, rewrite an Admin
+action, change a booking or payment, or add an Admin mutation.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Four
+focused activity files pass four tests. The full local rendered Admin suite,
+which included both new regressions, passes 467 files and 556 tests with one
+skipped file and three explicit todos. Protected CI `33758551396` passed the
+full API, Admin, and Mobile suites, all three TypeScript checks, the Admin
+production build, and Docker image boot/liveness at commit `26da2f59`.
+Protected Gates `33758551671` passed A through E and the `All gates passed`
+rollup at the same commit. The preceding documentation-only CI `33758440834`
+was superseded and cancelled by this implementation push; its Gates run
+`33758440867` passed, and the newer full CI verified that documentation with
+this implementation. No customer, provider, account decision, booking,
+payment, audit row, database schema, master, or production record changed.
+Production synchronization remains blocked by E32.
+
+## Checkpoint CB: canonical Provider 360 evidence UUID handling
+
+Provider 360 accepted uppercase UUIDs for exact certifications, reviews, staff,
+and private notes because UUID syntax is case-insensitive, but then compared the
+unchanged browser value with canonical lowercase database identifiers. A valid
+identifier copied from an external support record or manually entered URL could
+therefore show a false missing-record warning after the correct provider-owned
+evidence had been returned.
+
+UX-1191 normalizes a valid certification identifier before selecting the exact
+provider certification. UX-1192 applies the same canonical boundary to the
+review API request and browser-side no-substitute comparison. UX-1193 does so
+for the provider staff record, and UX-1194 does so for the private provider
+note. Malformed values still block their exact modes, ownership checks remain
+in place, missing records still refuse substitute evidence, and ordinary
+Provider 360 views remain unchanged when no exact identifier is present.
+
+This slice changes evidence lookup only. It does not approve or reject a
+certification, alter a review, add or remove provider staff, create or edit a
+private note, change provider status or tier, modify a booking or payment,
+rewrite an audit row, or add an Admin mutation.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Eight
+focused exact-evidence rendered files pass eight tests, and every rendered test
+that directly imports Provider 360 passes 48 files and 52 tests. The first
+protected CI attempt `33759743957` was cancelled after all visible test and
+build steps had succeeded, so it was not counted as green evidence. Its exact
+rerun at commit `180b2fce` then completed successfully on attempt 2, passing the
+full API, Admin, and Mobile suites, all three TypeScript checks, the Admin
+production build, and Docker image boot/liveness. Protected Gates
+`33759743352` passed A through E and the `All gates passed` rollup at the same
+commit. The preceding documentation-only CI `33759617688` was superseded and
+cancelled by this implementation push; its Gates run `33759617571` passed, and
+the newer full CI verified that documentation with this implementation. No
+customer, provider, certification, review, staff record, private note, booking,
+payment, audit row, database schema, master, or production record changed.
+Production synchronization remains blocked by E32.
+
+## Checkpoint CC: canonical Communications evidence UUID handling
+
+The Communications workspace accepted uppercase conversation and message UUIDs
+as syntactically valid but retained their browser casing. The API returned
+canonical lowercase identifiers, so an operator could receive the correct
+conversation and retained message yet see a false evidence-mismatch or
+message-unavailable state.
+
+UX-1195 normalizes a valid conversation UUID before selecting and requesting
+the exact thread. UX-1196 normalizes a valid message UUID before retained-message
+selection, focus, and the no-substitute comparison. Malformed identifiers still
+block exact selection, a message link still requires its owning conversation,
+booking ownership checks remain in place, and ordinary moderation queues remain
+unchanged when no exact evidence identifier is present.
+
+This slice changes evidence lookup only. It does not send, edit, redact, flag,
+review, or disclose a message; alter a conversation, support case, booking,
+customer, provider, payment, or audit row; or add an Admin mutation.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. The two
+focused rendered regressions pass two tests, and every rendered test that
+directly imports Communications passes 15 files and 17 tests. Protected CI
+`33762244272` passed the full API, Admin, and Mobile suites, all three TypeScript
+checks, the Admin production build, and Docker image boot/liveness at commit
+`ba677996`. Protected Gates `33762244249` passed A through E and the `All gates
+passed` rollup at the same commit. The preceding documentation-only CI
+`33762146943` was superseded and cancelled by this implementation push; its
+Gates run `33762146939` passed, and the newer full CI verified that documentation
+with this implementation. No customer, provider, conversation, message,
+moderation state, support case, booking, payment, audit row, database schema,
+master, or production record changed. Production synchronization remains
+blocked by E32.
+
+## Checkpoint CD: canonical Catalog evidence UUID handling
+
+The Catalog workspace accepted uppercase category, service, and add-on UUIDs
+as syntactically valid but retained their browser casing. The API returned
+canonical lowercase identifiers, so an operator could load the correct record
+and still receive a false hierarchy-mismatch or missing-record result.
+
+UX-1197 normalizes a valid category UUID before exact category selection and
+hierarchy matching. UX-1198 applies the same canonical boundary to a service
+identifier, and UX-1199 does so for an add-on identifier. Malformed identifiers
+still block exact selection, service and add-on links still require their
+owning hierarchy, returned records still must match the requested record, and
+ordinary Catalog browsing remains unchanged when no exact identifier is
+present.
+
+This slice changes evidence lookup only. It does not create, edit, activate,
+deactivate, reorder, or reprice a category, service, or add-on; change a
+booking or payment; rewrite an audit row; or add an Admin mutation.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. Eight
+focused exact, malformed, and hierarchy rendered files pass eight tests, and
+every rendered test that directly imports Catalog passes 18 files and 20
+tests. Protected CI `33763513454` passed the full API, Admin, and Mobile suites,
+all three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `e31abe3b`. Protected Gates `33763513527` passed A
+through E and the `All gates passed` rollup at the same commit. The preceding
+documentation-only CI `33763446261` was superseded and cancelled by this
+implementation push; its Gates run `33763446273` passed, and the newer full CI
+verified that documentation with this implementation. No customer, provider,
+catalog record, booking, payment, audit row, database schema, master, or
+production record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint CE: canonical configuration evidence UUID handling
+
+Eight Admin configuration workspaces accepted uppercase UUIDs as valid but
+retained their browser casing. Canonical lowercase records returned by the API
+could therefore be falsely rejected as a different pricing rule, home banner,
+promo code, campaign, notification template, role profile, service area, or
+provider service-area change request.
+
+UX-1200 normalizes a valid pricing-rule identifier before exact retrieval and
+comparison. UX-1201 through UX-1203 apply the same boundary to each Marketing
+record type. UX-1204 covers notification templates, UX-1205 covers Admin role
+profiles, and UX-1206 plus UX-1207 cover market records and provider area-change
+decisions. Malformed and ambiguous links still block their exact requests,
+returned records still must match the selected canonical ID, and each normal
+list or workspace remains unchanged without an exact identifier.
+
+This slice changes evidence lookup only. It does not publish pricing, banners,
+promos, campaigns, templates, roles, markets, or area-change decisions; modify
+a customer, provider, booking, payment, or audit row; change permissions; or
+add an Admin mutation.
+
+Local Admin TypeScript, changed-file ESLint, and `git diff --check` pass. The
+eight new real-render regressions pass eight tests, and every rendered test
+that directly imports the five changed pages passes 72 files and 82 tests.
+Protected CI `33765407126` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at commit `d509cff0`. Protected Gates `33765407269` passed A
+through E and the `All gates passed` rollup at the same commit. The preceding
+documentation-only CI `33765313035` was superseded and cancelled by this
+implementation push; its Gates run `33765313026` passed, and the newer full CI
+verified that documentation with this implementation. No customer, provider,
+configuration record, booking, payment, audit row, database schema, master, or
+production record changed. Production synchronization remains blocked by E32.
+
+## Checkpoint CF: canonical privacy evidence UUID handling
+
+The Data Protection Log, Consent Versions, and Privacy Workspace accepted
+uppercase UUIDs as valid but retained their browser casing. The API and stored
+records use canonical lowercase identifiers, so an operator could reach the
+right DSR, consent publication, or user-consent search and still receive a
+false mismatch or lose a stable exact-record handoff.
+
+UX-1208 normalizes a valid linked DSR identifier before exact retrieval.
+UX-1209 does the same for a consent-publication identifier. UX-1210 normalizes
+a consent user linked from another Admin workspace, and UX-1211 normalizes a
+manually submitted consent-user identifier before the API query and browser
+URL are updated. OPS-437 through OPS-439 enforce the same canonical boundary
+on DSR, publication, and consent-search routes, including the retained DPO
+search evidence. Malformed identifiers still fail validation and no raw PII
+reveal path was added.
+
+The three API regressions were initially assigned OPS-408 through OPS-410, which
+collided with earlier unrelated regressions. Their unique audit labels and
+filenames were corrected to OPS-437 through OPS-439 without changing behavior,
+and the renamed tests pass three suites and three tests locally. This correction
+keeps the one-bug, one-test audit trail unambiguous.
+
+This slice changes evidence lookup only. It does not alter a privacy policy or
+consent version, create or process a DSR, reveal raw audit PII, modify a user,
+booking, payment, or audit row, change permissions, or add an Admin mutation.
+
+Local Admin and API TypeScript, changed-file ESLint, and `git diff --check`
+pass. Four focused real-render regressions pass four tests, every rendered test
+that directly imports the three changed Admin pages passes 27 files and 31
+tests, and all direct compliance Admin route tests pass 11 suites and 41 tests.
+The first UX-1209 run exposed only a non-ASCII test-expectation transport issue;
+the rendered publication evidence and canonical API path were correct. The
+expectation was replaced with a semantic text match and the focused suite then
+passed.
+
+Protected CI `33784095896` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at implementation commit `5f103e01`. Protected Gates
+`33784095594` passed A through E and the `All gates passed` rollup at the same
+commit. The preceding documentation commit `a2a9c9b0` also completed rather
+than being superseded: CI `33783245659` and Gates `33783245675` both passed.
+No customer, provider, privacy record, consent record, DSR, booking, payment,
+audit row, database schema, master, or production record changed. Production
+synchronization remains blocked by E32, and raw audit PII remains blocked by
+E72.
+
+## Checkpoint CG: canonical Audit Log UUID filters
+
+The general Audit Log accepted uppercase event, actor, and entity UUIDs as
+valid but retained their browser casing. Exact event selection could therefore
+reject the canonical lowercase event returned by the API, while actor/entity
+filters and CSV export could use a different textual form from the durable
+record identifier.
+
+UX-1212 normalizes a valid exact event UUID before the request and no-substitute
+comparison. UX-1213 normalizes a manually submitted entity UUID before it is
+written to the browser URL and sent to the API. UX-1214 applies the same
+boundary to an actor UUID. OPS-440 makes list and export parsing canonical on
+the server, so both read paths receive the same event, actor, and entity
+identifier form. Malformed values retain the existing validation and error
+behavior.
+
+This slice changes evidence lookup and filter representation only. It does not
+reveal raw PII, weaken D34 privacy-event segregation, create or edit an audit
+row, modify a customer, provider, booking, support case, payment, or
+configuration record, or add an Admin mutation.
+
+Local Admin and API TypeScript, changed-file ESLint, and `git diff --check`
+pass. The three focused real-render regressions pass three tests, every rendered
+test that directly imports Audit Log passes 52 files and 59 tests, and the
+direct audit-validator inventory passes three suites and nine tests.
+
+Protected CI `33785559218` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at implementation commit `aa5749a6`. Protected Gates
+`33785558920` passed A through E and the `All gates passed` rollup at the same
+commit. The preceding Checkpoint CF/audit-ID correction CI `33785448273` was
+superseded and cancelled by this implementation push; its Gates run
+`33785448185` passed, and the newer full CI verified that checkpoint and the
+renamed behaviorally unchanged privacy tests. No customer, provider, support,
+audit, privacy, booking, payment, database schema, master, or production record
+changed. Production synchronization remains blocked by E32, and raw audit PII
+remains blocked by E72.
+
+## Checkpoint CH: canonical recurring support links and completed CI coverage
+
+The Recurring workspace accepted an uppercase schedule UUID as valid but kept
+its browser casing. The API and stored schedule use canonical lowercase IDs, so
+the operator could load the right record and then receive a false mismatch or
+lose the exact schedule handoff.
+
+UX-1215 normalizes a valid schedule UUID before detail and history requests.
+UX-1216 rejects a malformed schedule link without sending either exact request
+and preserves the remaining queue filters when the invalid field is removed.
+OPS-441 applies the same canonical boundary to the Admin recurring route, while
+OPS-442 does so for the customer recurring route before its owner lookup.
+
+This slice changes identifier representation and exact-record lookup only. It
+does not create, change, pause, cancel, or charge a recurring schedule; generate
+a booking; alter a customer, provider, payment, support case, or audit record;
+or add an Admin mutation.
+
+Local Admin and API TypeScript, changed-file ESLint, and
+`git diff --check` pass. Every rendered test that directly imports Recurring
+passes five files and seven tests. The direct API recurring inventory passes 25
+suites and 60 tests; one separately environment-gated integration suite remains
+honestly skipped by its declared guard.
+
+The original CI run `33786766995` was cancelled. Its second attempt completed
+all 493 Admin files and 582 tests successfully, but GitHub cancelled job
+finalization at the old ten-minute job limit. Commit `771718c5` raises only
+the Admin CI job limit to 15 minutes and records the measured reason in the
+workflow. Protected CI `33789558235` then passed the full API, Admin, and
+Mobile suites, all three TypeScript checks, the Admin production build, and
+Docker image boot/liveness at that commit. Protected Gates `33789558222`
+passed A through E and the `All gates passed` rollup. The preceding Checkpoint
+CG documentation CI `33786690886` was superseded and cancelled by the
+recurring implementation push; its Gates run `33786690873` passed, and the
+newer full CI verified that documentation together with the recurring change.
+No recurring schedule, generated booking, customer, provider, support case,
+payment, audit row, database schema, master, or production record changed.
+Production synchronization remains blocked by E32, and raw audit PII remains
+blocked by E72.
+
+## Checkpoint CI: canonical Support Tickets workspace links
+
+The Support Tickets workspace accepted uppercase case, booking, project,
+business-account, owner, related-customer, related-provider, and assigned-agent
+UUIDs as valid but retained their browser casing. Exact detail and history could
+therefore reject a canonical lowercase case returned by the API, while queue,
+creation, and assignment requests could use a different textual form from the
+durable record identifier. Malformed linked identifiers also did not present one
+consistent fail-closed recovery path across the workspace.
+
+UX-1217 canonicalizes an exact support-case link before detail and history
+requests. UX-1218 canonicalizes linked queue filters before the list request.
+UX-1219 blocks list, detail, and history requests when any linked identifier is
+malformed, then removes only the invalid fields while preserving valid queue
+filters. OPS-443 through OPS-447 enforce the same boundary on Admin queue,
+exact-case, agent-created case, assignment, and participant-created case routes
+before ownership or linkage checks.
+
+This slice changes identifier representation and invalid-link recovery only. It
+does not create, assign, reply to, close, reopen, or edit a support case; change
+a customer, provider, booking, project, business account, payment, or audit row;
+reveal raw PII; or add an Admin mutation.
+
+Local Admin and API TypeScript, changed-file ESLint, and `git diff --check`
+pass. The three new real-render regressions pass three tests, every rendered
+test that directly imports Support Tickets passes 20 files and 22 tests at the
+implementation commit, and the direct API route/validator inventory passes 12
+suites and 16 tests.
+
+Protected CI `33791035690` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at implementation commit `77fff51b`. Protected Gates
+`33791035675` passed A through E and the `All gates passed` rollup at the same
+commit. The preceding Checkpoint CH documentation CI `33790942438` was
+superseded and cancelled by this implementation push; its Gates run
+`33790942435` passed, and the newer full CI verified that checkpoint together
+with the Support Tickets change. No support case, customer, provider, booking,
+project, business account, payment, audit row, database schema, master, or
+production record changed. Production synchronization remains blocked by E32,
+and raw audit PII remains blocked by E72.
+
+## Checkpoint CJ: server-confirmed support case owner
+
+The agent-created Support case form previously displayed `userName` and
+`userRole` labels supplied by the browser URL while assigning the durable case
+to `userId`. A manipulated or stale handoff could therefore show one person or
+persona to the operator while the API created the case for a different account.
+
+OPS-448 adds an Admin-only, canonical account-context route that passes the
+acting Admin role into the read model. OPS-449 derives the selected customer,
+provider, or provider-staff identity from the user account and provider
+relationship without selecting raw phone or email. Ordinary Admins receive a
+last initial under the existing support privacy boundary; super-admin handling
+remains explicit. The response also states account activity and the provider
+organization/profile context when one applies.
+
+UX-1220 requires that server-confirmed account context before the form can be
+used, displays that identity instead of browser labels, and submits only the
+confirmed canonical account ID. UX-1221 fails closed while owner confirmation
+is unavailable and provides a retry without rendering or submitting the form.
+Inactive accounts remain visible as inactive so support can record a case, but
+this control neither reactivates them nor implies that it does.
+
+This slice adds one read-only support context endpoint. It does not create,
+assign, reply to, close, reopen, or edit a support case; reveal raw contact
+fields; reactivate an account; change a customer, provider, booking, project,
+business account, payment, or audit row; or add a new Admin mutation.
+
+Local Admin and API TypeScript, changed-file ESLint, and staged diff checks
+pass. The focused owner regressions pass three Admin files and three tests plus
+two API suites and two tests. Every rendered test that directly imports Support
+Tickets passes 22 files and 24 tests, and the direct API support inventory
+passes 41 suites and 63 tests.
+
+Protected CI `33792519912` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at implementation commit `39028a12`. The full Admin test step
+completed successfully in 8 minutes 33 seconds within the measured 15-minute
+job limit. Protected Gates `33792519936` passed A through E and the `All gates
+passed` rollup at the same commit. The preceding Checkpoint CI documentation
+CI `33792307925` was superseded and cancelled by the implementation push; its
+Gates run `33792307971` passed, and the newer full CI verified that checkpoint
+together with the owner-confirmation change. No support case, customer,
+provider, account state, booking, project, business account, payment, audit
+row, database schema, master, or production record changed. Production
+synchronization remains blocked by E32, and raw audit PII remains blocked by
+E72.
+
+## Checkpoint CK: fail-closed Support work-context conflicts
+
+The API already rejects a support request that combines a planning project
+with a booking or business account, because planning records do not confer job,
+provider, payment, or company authority. The Admin Support workspace did not
+apply that same rule before querying. A stale or manually combined URL could
+therefore send contradictory list, exact-case, history, owner-context, or
+create inputs and leave the operator with an indirect server error or unrelated
+background reads.
+
+UX-1222 detects a planning project combined with a booking or business account
+before any ticket-list, case-detail, history, owner-confirmation, or create
+request. The recovery control can keep the operational booking context and its
+permitted business-account context while removing only the planning project.
+UX-1223 verifies the opposite choice: keeping the planning project removes both
+booking and business-account fields, including the browser-supplied business
+label, before the server-confirmed owner form becomes available. Other queue
+and account filters remain intact.
+
+This slice changes browser-link validation and recovery only. It does not
+create, assign, reply to, close, reopen, or edit a support case; create a
+project or booking relationship; change a customer, provider, business account,
+payment, or audit row; reveal raw PII; or add an Admin or API mutation.
+
+Local Admin TypeScript, changed-file ESLint, and staged diff checks pass. Both
+new real-render regressions pass two files and two tests, and every rendered
+test that directly imports Support Tickets passes 24 files and 26 tests.
+
+Protected CI `33793853740` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at implementation commit `4078b2d0`. The complete Admin job
+finished successfully in 9 minutes 46 seconds within the 15-minute limit.
+Protected Gates `33793853760` passed A through E and the `All gates passed`
+rollup at the same commit. The preceding Checkpoint CJ documentation CI
+`33793786057` was superseded and cancelled by the implementation push; its
+Gates run `33793786101` passed, and the newer full CI verified that checkpoint
+together with the work-context guard. No support case, customer, provider,
+booking, project, business account, payment, audit row, database schema,
+master, or production record changed. Production synchronization remains
+blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CL: unique regression evidence identifiers
+
+The global test-title audit found ten genuine collisions where unrelated
+regressions claimed the same Bug ID. Passing results were still behaviorally
+useful, but the duplicated labels violated the permanent one-bug, one-test,
+one-file audit rule and made it impossible to cite one guarantee unambiguously.
+
+The correction changes only filenames and title identifiers. Mobile demo-mode
+credential disposal is now SEC-068, while SEC-011 remains the provider quote
+eligibility guarantee. The Turnstile production-secret guard is SEC-069, while
+SEC-012 remains the earlier project-creation authorization guarantee. Customer
+planning-project creation and milestone-forward controls are UX-1224 and
+UX-1225, while UX-128 and UX-129 remain the provider commission and reminder
+date guarantees.
+
+Six API guarantees that had reused UI identifiers are now OPS-450 through
+OPS-455: Booking 360 proof derivation, atomic review visibility moderation,
+separate public/private review response storage, privacy-reduced participant
+proof access, staff candidate scope, and atomic role-profile audit creation.
+Their Admin or Mobile counterparts retain UX-308, UX-455, UX-456, UX-309,
+UX-342, and UX-345 respectively.
+
+After correction, an exact scan of direct `it()` and `test()` regression titles
+across test and spec files finds 1,377 titles and zero duplicate IDs. The three
+changed Mobile suites pass six tests, and the seven changed API suites pass
+seven tests. The ten retained
+counterparts also pass: five Admin files/five tests, two Mobile suites/two
+tests, and three API suites/thirteen tests. Changed-test ESLint and staged diff
+checks pass. The staged diff contains nine file renames and ten title-number
+changes, with no test logic or production code change.
+
+Protected CI `33795192037` passed the full API, Admin, and Mobile suites, all
+three TypeScript checks, the Admin production build, and Docker image
+boot/liveness at correction commit `27e4eafb`. Protected Gates `33795192137`
+passed A through E and the `All gates passed` rollup at the same commit. The
+preceding Checkpoint CK documentation CI `33795101938` was superseded and
+cancelled by the correction push; its Gates run `33795101935` passed, and the
+newer full CI verified that checkpoint together with the relabeled regressions.
+No test behavior, application behavior, customer, provider, support case,
+booking, project, payment, audit row, database schema, master, or production
+record changed. Production synchronization remains blocked by E32, and raw
+audit PII remains blocked by E72.
+
+## Checkpoint CM: permanent unique regression-ID gate
+
+The title correction in Checkpoint CL removed the known collisions but did not
+prevent a future test from reusing an existing Bug ID. That left the permanent
+one-bug, one-test, one-file rule dependent on another manual repository scan.
+
+Local commit `bd01d943` adds the blocking Gate C
+`unique-regression-ids` article. Its scanner inventories tracked and untracked
+test and spec files under `apps/` and `packages/`, excludes generated and
+dependency trees in its non-Git fallback, and reports every duplicate with its
+source path and line. Its adversarial smoke test first proves that two
+unrelated `Bug UX-9999` titles fail, then proves distinct UX and OPS IDs pass.
+Gate metadata and the expected-failures timeline declare the article BLOCKING;
+no existing article was weakened and no allowlist was added.
+
+The direct scanner passes all 1,377 titles that existed at this commit. All
+seven gate smoke tests pass, shell syntax passes, `MODES.json` parses, and
+working-tree plus staged diff checks pass. This guard changes CI evidence only;
+it does not change test behavior, application behavior, data, schema, master,
+or production.
+
+GitHub remains at `27e4eafb` because the safety reviewer refused the attempted
+two-held-branch push after local documentation commit `770fab34`. The push was
+not retried or bypassed, so protected CI is not yet available for `770fab34`
+or `bd01d943`. Production synchronization remains blocked by E32, and raw
+audit PII remains blocked by E72.
+
+## Checkpoint CN: explicit Support workspace modes
+
+The Support page previously inferred create mode only when both `new=1` and a
+valid owner ID were present. A link with `new=1` but no owner silently became
+the ordinary queue. A link with both `new=1` and `ticketId` rendered create
+mode while exact-case and history requests could run behind it. Queue, summary,
+staff, owner, exact-case, and history queries were not organized around one
+visible operator workspace.
+
+UX-1226 now fails closed when agent-created case mode has no valid account
+owner. It explains that creation must start from a customer, provider, or
+provider-staff record, offers account-finding links, and can return to the
+linked queue without discarding valid booking, project, or business context.
+UX-1227 rejects a URL that asks to create and open an existing case at the same
+time, sends no Support data request, and lets the operator explicitly open the
+existing case. UX-1228 verifies the opposite choice: the exact case is removed
+before the server confirms the new owner.
+
+The queue, create, and existing-case views are now mutually exclusive query
+modes. Queue list and summary load only in queue mode, owner context loads only
+in valid create mode, and exact case, history, and assignable staff load only
+in existing-case mode. The older UX-1055 regression now proves a business
+filter survives returning from a case while no queue request runs behind that
+case. UX-1222 remains isolated to contradictory work context; mixed
+create/detail behavior is covered by UX-1227 and UX-1228.
+
+Local Admin TypeScript and changed-file ESLint pass. The focused three
+regressions pass three files and three tests. The complete Admin
+Support-named inventory passes 38 files and 40 tests. The permanent ID scanner
+passes 1,380 titled regressions with zero duplicates, and the diff integrity
+check passes. Implementation commit `73c291b4` changes browser workspace
+state and read-query activation only. It does not create, assign, reply to,
+close, reopen, or edit a case; change customer, provider, booking, project,
+business account, payment, audit, or schema data; or add an API mutation.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CO: server-enforced Support case owner roles
+
+The Admin create form and its account-context endpoint already limited a case
+owner to customer, provider, or provider-staff accounts. The shared write
+service validated only that the user ID existed. A direct Admin API call could
+therefore bypass the form and create a durable customer/provider Support case
+owned by an internal Admin, super-admin, or DPO account.
+
+OPS-456 restricts the owner lookup in SQL and repeats the role check in service
+logic as defense in depth. An unsupported internal role receives the same 404
+as a missing eligible owner, before ticket numbering, transaction start,
+support-ticket insert, or Admin audit insert. Inactive customer and provider
+accounts remain eligible, matching the existing support policy that agents may
+record a case without reactivating the account.
+
+The related linkage audit confirms that existing service checks already reject
+a booking unrelated to the owner, a planning project unrelated to its customer,
+a planning project mixed with booking or business context, a booking paired
+with the wrong business account, and a standalone business account for which
+the owner is neither the company owner nor an undeleted member.
+
+API TypeScript and changed-file ESLint pass. All seven Support creation suites
+pass 16 tests. The broader API Support-named inventory has 42 files: 41 suites
+pass, one existing suite is intentionally skipped, 54 tests pass, and there are
+no failures. The permanent unique-ID guard passes 1,381 titled regressions, and
+the diff integrity check passes. Implementation commit `24a519ac` changes no
+schema, migration, customer, provider, Support, booking, project, business,
+payment, audit, master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CP: participant Support link integrity
+
+The Mobile Support creation screen previously trusted booking and planning-
+project IDs supplied by navigation. A malformed ID was displayed and sent to
+the API, while a link containing both contexts could show and submit a form
+that the server must reject. The participant thread screen also sent a
+malformed case ID to its owner-scoped endpoint before explaining that the link
+was unusable.
+
+UX-1229 rejects simultaneous booking and planning-project context before the
+creation form or mutation is available. UX-1230 rejects malformed linked-work
+IDs at the same boundary and states that no request was sent. UX-1231 keeps a
+malformed Support thread ID local, sends no owner-scoped read, and gives the
+participant a truthful Return to Support action. UX-1232 canonicalizes a valid
+uppercase thread UUID before the request. Existing project creation coverage
+also now proves that a valid uppercase project UUID is submitted in canonical
+lowercase form.
+
+The shared Mobile error state now supports screen-specific action and
+accessibility labels. Its existing Try Again and Retry loading defaults remain
+unchanged. Two non-Support render suites covering customer addresses and
+provider jobs pass six tests against those defaults.
+
+The nine focused and neighboring Support regressions pass nine tests. The
+complete Mobile Support-named inventory passes 24 suites and 34 tests. Mobile
+TypeScript, changed-file ESLint, and diff integrity checks pass. The permanent
+unique-ID scanner passes 1,385 titled regressions with zero duplicates.
+Implementation commit `6c1caf95` changes navigation validation, local error
+recovery, and UUID normalization only. It does not create or alter a Support
+case, booking, project, business account, customer, provider, payment, audit,
+database schema, master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CQ: customer company Support lifecycle
+
+Admin Support and Business Account 360 already share a canonical company-case
+context, and the API already returns that context to participant Support reads.
+The customer company workspace could not start an account-scoped case, the
+Mobile create contract discarded `businessAccountId`, and the participant
+inbox and thread omitted the company context returned by the server. A customer
+therefore lost the enterprise workspace relationship precisely where support
+needed it, even though Admin could see the durable relationship afterward.
+
+UX-1233 gives every server-authorized customer company member a company Support
+handoff without tying access to financial permissions. UX-1234 displays and
+submits the canonical company UUID while keeping the case in the participant's
+ordinary Support inbox. UX-1235 adds the exact customer company return route to
+the thread and explicitly returns no such route for provider or provider-staff
+personas. Provider-owned booking cases may still display the related customer
+company name already returned by the API, but they cannot open the customer
+company workspace. UX-1236 identifies the server-attached company in the
+participant inbox.
+
+UX-1237 rejects a malformed company context before showing or submitting the
+form. UX-1238 rejects a planning project combined with a Business Account,
+matching the server's existing mutually exclusive context rule. A booking may
+still carry its canonical company context; the server verifies that the two
+records match. OPS-457 and OPS-458 preserve regression evidence that both the
+owner-scoped list and detail read models return direct or booking-inherited
+company context.
+
+The complete Mobile Support-named inventory passes 30 suites and 40 tests. The
+complete Mobile business/company-named inventory passes 12 suites and 12 tests.
+Four related API Support suites pass eight tests. Mobile and API TypeScript,
+changed-file ESLint, and diff integrity checks pass. The permanent unique-ID
+scanner passes 1,393 titled regressions with zero duplicates. Implementation
+commit `938b7f66` adds participant navigation and display behavior only; it
+does not change the API's existing authorization rules, database schema,
+company membership, support case, booking, payment, audit, master, or
+production data.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CR: customer company route integrity
+
+The earlier Business Account audit recorded that every customer company UUID
+was strictly validated. The server routes did enforce UUID schemas, but the
+Mobile company detail screen enabled account and member reads for any non-empty
+route string, and the statement screen enabled its financial read for any two
+non-empty strings. Malformed browser or notification links therefore reached
+the API and surfaced as indirect availability or permission failures instead
+of failing locally as invalid links.
+
+UX-1239 rejects a malformed Business Account route before account or member
+reads and offers a truthful return to company workspaces. UX-1240 canonicalizes
+a valid uppercase account UUID before both reads. UX-1241 rejects a malformed
+statement ID before the customer financial read. UX-1242 canonicalizes both
+the company and statement UUIDs before requesting the statement. Existing
+company render fixtures now use valid UUIDs rather than bypass-shaped labels.
+
+A shared Mobile route-ID utility now owns trimming, UUID validation, and
+lowercase canonicalization. The Support link validator delegates to the same
+utility without changing its behavior, preventing the two route families from
+drifting.
+
+The eight focused company regressions pass eight tests. The complete Mobile
+business/company-named inventory passes 16 suites and 16 tests, and the
+complete Mobile Support-named inventory passes 30 suites and 40 tests. Mobile
+TypeScript, changed-file ESLint, and diff integrity checks pass. The permanent
+unique-ID scanner passes 1,397 titled regressions with zero duplicates.
+Implementation commit `c4b4170c` changes client route validation and recovery
+only. It does not change customer membership, financial permissions, statement
+content, API authorization, database schema, company, booking, Support,
+payment, audit, master, or production data.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CS: persona-safe Support no-show classification
+
+The shared Support type list exposed `provider_no_show` to customers,
+providers, and provider staff without requiring a booking. That contradicted
+the two operating playbooks: a provider no-show is a customer case tied to the
+affected job, while a provider reporting that the customer did not meet them
+on-site must use `booking_issue` and preserve arrival evidence under the E60
+hold. The old intake could therefore create a durable record with the wrong
+persona and no job from which Support could verify the event.
+
+UX-1243 removes the customer-facing classification from provider and provider-
+staff Mobile intake. UX-1244 prevents a prefilled customer no-show case from
+being sent without its booking and explains how to recover. UX-1245 preserves
+the intended customer path when the booking is present. UX-1246 applies the
+same restriction to an agent creating a provider-owned case in Admin, and
+UX-1247 preserves the customer-with-booking path there. The Admin queue keeps
+the complete type filter, so existing historical records remain findable and
+unchanged.
+
+OPS-459 rejects a provider or provider-staff owner for new
+`provider_no_show` records at the shared write service. OPS-460 requires the
+affected booking for a customer-owned record. OPS-461 proves that a customer
+with an authorized booking can still create the case and that the verified
+booking ID reaches the insert. Both self-service and agent-created API routes
+use this service guard, so a direct request cannot bypass the UI rule. The
+provider SOP and Admin training manual now state the same classification
+contract.
+
+The complete Mobile Support/provider-no-show inventory passes 33 suites and
+43 tests. The complete Admin Support inventory passes 40 files and 42 tests.
+The API Support/ticket inventory has 48 suites: 47 pass, one existing suite is
+intentionally skipped, 60 tests pass, and there are no failures. Mobile,
+Admin, and API TypeScript, changed-file ESLint, and diff integrity checks pass.
+The permanent unique-ID scanner passes 1,405 titled regressions with zero
+duplicates. Implementation commit `3015d271` changes new-case classification
+and guidance only. It does not modify any existing Support case, booking,
+customer, provider, cancellation, refund, payout, payment, audit, schema,
+master, or production record. E60-held arrival timing and money behavior are
+untouched.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CT: Support cases awaiting a public reply
+
+The Support queue showed only total messages and `updated_at`. Assignment,
+status and priority changes, and internal notes all update that timestamp, so
+an untouched participant report could look recently handled. Operators had no
+queue-wide way to find active cases with no public agent response or cases
+where a customer/provider had replied after the agent. That made the SOP's
+first-response work depend on manual thread inspection.
+
+OPS-462 derives `needs_agent_reply` from the latest non-internal message and
+returns the first public agent-reply timestamp. A new case with no messages is
+also treated as awaiting a response because its description is the original
+participant report. Internal notes and workflow activity do not clear the
+signal; a public Admin/super-admin/support-agent message clears it until the
+participant posts another public message. Resolved and closed cases are not
+classified as awaiting a response. No column, stored flag, backfill, or worker
+was added, so the signal cannot drift from the message thread.
+
+OPS-463 adds the derived queue-wide count. OPS-464 validates and forwards the
+`needsReply` list filter as a boolean. UX-1248 makes the count an actionable
+Admin signal that opens an active needs-reply queue, UX-1249 shows the marker
+on the affected row, and UX-1250 proves the filter survives a saved/reloaded
+URL and reaches the API. The queue also shows a first-public-reply timestamp
+when one exists. The training manual and both Support SOPs explain that this
+is response evidence, not a business-hours SLA clock.
+
+The complete Admin Support inventory passes 43 files and 45 tests. The API
+Support/ticket inventory has 51 suites: 50 pass, one existing suite is
+intentionally skipped, 63 tests pass, and there are no failures. Admin and API
+TypeScript, changed-file ESLint, diff integrity, and replacement-character
+checks pass. The permanent unique-ID scanner passes 1,411 titled regressions
+with zero duplicates. Implementation commit `8d0e739c` changes derived reads,
+filtering, and Admin presentation only. It does not alter any Support message,
+case status, assignment, customer, provider, booking, payment, audit, schema,
+master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CU: participant-safe Support case data
+
+The participant Support routes hid internal message entries but still returned
+the complete underlying case row. The list included internal assignment and
+resolution fields, while the detail read also joined customer contact data,
+staff identity, provider context, and response-queue signals. The Mobile
+contract did not use those fields. An internal resolution note entered for the
+Admin audit record could therefore cross the customer/provider API boundary
+even though the participant screen did not render it.
+
+OPS-465 gives the participant list, exact case read, and self-service create
+response one explicit allowlist. Those responses retain the case number,
+classification, status, priority, participant-authored subject and report,
+authorized booking/project/company context, timestamps, public message count,
+and public thread messages. They omit the case-owner UUID, assigned staff UUID
+and identity, Admin resolution note, joined contact/profile fields, internal
+Business Account status, and internal first-reply/needs-reply signals. Admin
+routes keep their complete role-masked operational response.
+
+The Admin status dialog, case detail, decision history, customer/provider SOPs,
+training manual, and quality standard now identify terminal resolution notes as
+internal audit records. A status change does not send a participant message;
+the participant outcome belongs in a separate public reply. This aligns the UI
+with the newly enforced response boundary without changing existing records.
+
+The focused owner-boundary and owner-scope run passes two suites and six tests.
+The broader API Support/ticket inventory has 49 suites: 48 pass, one existing
+suite is intentionally skipped, 61 tests pass, and there are no failures. The
+complete Admin Support inventory passes 43 files and 45 tests. Admin and API
+TypeScript, changed-file ESLint, and diff integrity checks pass. The permanent
+unique-ID scanner passes 1,412 titled regressions with zero duplicates.
+Implementation commit `5959a423` changes response serialization, operator
+wording, and documentation only. It does not alter any Support case, message,
+assignment, customer, provider, booking, payment, audit row, database schema,
+master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CV: accountable Support escalation handoff
+
+An Admin could move an unassigned case into `escalated` with only a generic
+workflow note. The case then appeared in the escalation queue without a named
+person accountable for its next action, while the customer and provider SOPs
+routed different issues to Finance, Trust & Safety, Engineering, the DPO, or
+Ken. Status alone did not identify who owned the handoff or what decision was
+needed.
+
+OPS-466 rejects an Admin status transition to `escalated` while the locked case
+has no assigned active owner. Existing escalated records are not changed. The
+normal named-agent assignment flow remains the source of ownership and already
+validates active Admin/super-admin accounts plus an append-only assignment
+action. The assigned owner remains accountable until the case is reassigned.
+
+UX-1251 blocks the same unassigned transition in the rendered Admin workspace
+and explains how to recover. For an assigned case, the escalation dialog now
+labels the note as an escalation handoff and asks for its destination, decision
+needed, evidence already checked, next action, and urgency. The customer SOP,
+provider SOP, and Admin training manual record the same rule. No department or
+authorization capability is invented: Finance and Trust & Safety remain
+operational destinations backed by the current Admin/super-admin access model.
+
+The focused API and rendered Admin regressions each pass. The broader API
+Support/ticket inventory has 50 suites: 49 pass, one existing suite is
+intentionally skipped, 62 tests pass, and there are no failures. The complete
+Admin Support inventory passes 44 files and 46 tests. Admin and API TypeScript,
+changed-file ESLint, and diff integrity checks pass. The permanent unique-ID
+scanner passes 1,414 titled regressions with zero duplicates. Implementation
+commit `75aaba7f` changes only future Support status-transition validation,
+Admin handoff presentation, tests, and operating guidance. It does not change
+any existing case, assignment, message, customer, provider, booking, payment,
+audit row, database schema, master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CW: server-owned Support triage priority
+
+The participant Support validator reused the Admin creation fields, so a
+customer/provider could submit low, medium, high, or urgent queue priority. The
+Mobile form did not display a priority control, but it accepted a hidden
+priority route parameter and forwarded it. The customer safety screen used
+that path legitimately for an urgent safety report, which meant simply
+deleting participant priority would have silently weakened safety intake.
+
+OPS-467 separates the two authorities. Agent-created cases retain all four
+priorities. Ordinary participant intake rejects a direct `priority` field and
+starts at the server-controlled neutral `medium` priority. A participant may
+instead submit the explicit boolean `safetyConcern`; the route, not the client,
+maps that report to `urgent`. The case remains subject to first-agent triage
+and a reasoned priority correction when the facts differ.
+
+UX-1252 replaces the Mobile hidden priority payload with explicit safety
+context. The dedicated customer safety entry passes that context, the Support
+form visibly says urgent safety review was requested, and it directs anyone in
+immediate danger to call 911 because the asynchronous Support thread is not an
+emergency line. Ordinary booking, project, company, and general Support forms
+send no priority or safety flag. Participant read responses also no longer
+include internal queue priority. The customer SOP, Admin training manual, and
+screen linkage ledger record the same ownership boundary.
+
+Three focused API suites pass three tests, including unchanged Admin priority
+creation and the neutral participant default. Three focused Mobile suites pass
+three tests. The broader API Support/ticket inventory has 51 suites: 50 pass,
+one existing suite is intentionally skipped, 63 tests pass, and there are no
+failures. The complete Mobile Support inventory passes 32 suites and 42 tests.
+API and Mobile TypeScript, changed-file ESLint, and diff integrity checks pass.
+The permanent unique-ID scanner passes 1,416 titled regressions with zero
+duplicates. Implementation commit `14066c8c` changes future intake validation,
+request presentation, response serialization, tests, and operating guidance
+only. It does not alter any existing case, priority, customer, provider,
+booking, payment, audit row, database schema, master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CX: active Admin Support refresh
+
+The shared message service already locks the Support case before a write,
+rejects participant and public Admin replies after resolution/closure, permits
+only private Admin notes on terminal cases, atomically resumes a waiting case
+when its participant replies, and creates a privacy-safe participant
+notification after a durable public Admin reply. The Mobile thread polls every
+20 seconds. The Admin Support queue, summary, exact case, and decision history
+had no refresh interval, so a customer/provider reply could leave an operator's
+open browser view stale indefinitely despite the server-side resume and
+Needs-reply logic being correct.
+
+UX-1253 adds a 20-second active refresh interval to the Admin queue and summary
+while in queue mode, and to the exact case plus decision history while in case
+mode. React Query still pauses or adapts to browser visibility/network state;
+the change does not claim live-chat presence, push delivery, or a response SLA.
+Local Admin mutations continue to invalidate the same queries immediately.
+The customer SOP and Admin training manual state those boundaries explicitly.
+
+The focused rendered regression changes the mocked participant response after
+the interval and proves the visible queue updates without a manual reload. The
+complete Admin Support inventory passes 45 files and 47 tests. Admin
+TypeScript, changed-file ESLint, and diff integrity checks pass. The permanent
+unique-ID scanner passes 1,417 titled regressions with zero duplicates.
+Implementation commit `74e0aa99` changes read refresh behavior, test evidence,
+and operating guidance only. It does not create or change any Support case,
+message, status, priority, assignment, notification, customer, provider,
+booking, payment, audit row, database schema, master, or production record.
+
+This commit is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CY: deliberate Admin password rotation workspace
+
+The password-change API already had the correct security boundary: it locks the
+Admin account row, verifies the current credential, writes the new current-cost
+hash, clears forced rotation, advances the account session generation, removes
+refresh sessions, revokes CSRF tokens, writes an Admin audit action, disconnects
+live sockets, and gives only the verified browser one replacement session. The
+screen reduced that workflow to a narrow form and automatically left its
+success state after 800 milliseconds. It did not clearly separate credential
+and session effects from unchanged business records, did not mark required
+fields programmatically and visually, used raw controls, validated while the
+operator typed, and provided no loading icon or deliberate completion action.
+
+UX-1254 rebuilds the route as a bounded Stitch-aligned security workspace. It
+uses the shared Card, Input, Label, and Button controls, one-column tablet and
+two-column desktop compositions, semantic tokens, 44-pixel actions, explicit
+required-field semantics, blur-timed validation, a visible submit spinner, and
+a friendly connection-failure message. The forced-rotation state explains that
+both the React guard and API boundary remain active and intentionally exposes no
+cancel action. A voluntary visit can return without changing the password.
+
+After the server commits, the form clears credential values and stays on an
+announced success state until the operator chooses Continue to operations. The
+screen accurately states that this browser receives the replacement session,
+other browser and realtime sessions end, and existing bookings, Support cases,
+assignments, permissions, transactions, and audit history remain unchanged.
+E67 and E68 remain active private recovery-governance holds and were not edited,
+resolved, or published by this checkpoint.
+
+The focused Change Password inventory passes two files and 10 tests. The wider
+Admin authentication inventory has seven passing files, one existing skipped
+file, 15 passing tests, and three existing todos. Five focused API password,
+session, forced-rotation, socket, 2FA-boundary, and cookie-session suites pass
+all 15 tests. The complete Admin inventory passes 511 files with one existing
+skipped file, 600 tests with three existing todos, and no failures. Admin
+TypeScript, changed-file ESLint, diff integrity, and the production build pass;
+the build transforms 2,843 modules. The permanent unique-ID scanner passes
+1,418 titled regressions with zero duplicates.
+
+The built app was exercised in Chromium at 768x1024, 1280x900, and 1440x900.
+All three widths had equal document/client widths and no console warning, console
+error, or page error. The first tablet capture exposed that the shared Radix
+checkbox inherited the global 44-pixel button minimum as its visible box. The
+page now uses a 16-pixel native checkbox indicator inside a 44-pixel labelled
+target; the app was rebuilt, recaptured, and rechecked. Forced rotation had no
+cancel action, submitted successfully against a controlled route, and rendered
+the deliberate success state without navigation or overflow.
+
+Implementation commit `3dbfef68` changes only Admin presentation, local form
+state, and rendered tests. It does not change any password policy, password,
+session, role, permission, customer, provider, booking, Support case, payment,
+transaction, audit row, database schema, master, or production record.
+
+This checkpoint is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint CZ: canonical Admin login lockout identity
+
+The Admin login route counted recent failures with the lower-case, trimmed
+email, but wrote failed attempt rows and related security-event metadata with
+the operator-entered casing and whitespace. PostgreSQL compares these stored
+identifiers case-sensitively. An attacker could therefore vary the casing of a
+real Admin email and split attempts across multiple values instead of building
+one account-scoped lockout history.
+
+SEC-045 canonicalizes the email identity once at the start of Admin login and
+uses that same value for the lockout count, account lookup, successful and
+failed attempt rows, and security-event metadata. This preserves the existing
+IP controls and lockout thresholds while making every spelling variant of one
+Admin email resolve to one account boundary. It does not alter credentials,
+sessions, roles, permissions, user records, customer/provider workflows, or
+business transactions.
+
+The focused route-level regression sends a mixed-case email and proves that the
+lockout query, account query, failed-attempt record, and security event all use
+the canonical value. The wider API authentication inventory passes 25 suites
+and 89 tests, including login, password, session, and 2FA coverage. API
+TypeScript, changed-file ESLint, and diff integrity checks pass. The permanent
+unique-ID scanner passes 1,418 titled regressions with zero duplicates.
+
+Implementation commit `1b6b469f` changes only Admin login identity handling and
+its behavioral regression. E67 and E68 remain active private 2FA recovery
+governance holds and were not changed or published.
+
+This checkpoint is local only. GitHub remains at `27e4eafb` under the recorded
+push restriction, so protected CI is not yet available for this checkpoint.
+No production synchronization was attempted. Production synchronization
+remains blocked by E32, and raw audit PII remains blocked by E72.
+
+## Checkpoint DA: Admin 2FA setup recovery and pre-authentication hygiene
+
+The forced Admin 2FA enrollment screen could leave an operator with no useful
+recovery path when the setup-key request failed. The page showed a one-way
+loading message instead of a retry action, and its instructional copy still
+described authenticator codes while the operator was entering a recovery code.
+The temporary password also remained in browser React state after the first
+password-authentication step or after abandoning a temporary 2FA session.
+
+UX-1255 makes the recovery-code mode description match the field and states
+that each code is single-use. UX-1256 turns a failed setup-key request into a
+truthful error plus an explicit retry action; a successful retry restores the
+QR/setup-key path. UX-1257 clears the password as soon as the server moves the
+browser into a temporary 2FA or enrollment state and again when the operator
+returns to the login screen. The pre-auth token remains only in component
+state and is still sent only to the existing narrowly scoped setup/verify
+routes. No 2FA removal, recovery reset, account mutation, or policy decision
+was introduced; E67 and E68 remain active governance holds.
+
+Each behavior has its own rendered regression file. The focused Admin
+authentication inventory passes five files and five tests. The complete Admin
+inventory passes 514 files, with one existing skipped file and 603 passing
+tests plus three existing todos. Admin TypeScript, changed-file ESLint,
+`git diff --check`, and the production build all pass; the build transforms
+2,843 modules. The current local tree contains the implementation and tests
+for this checkpoint, while the prior remote branch remains at `27e4eafb`.
+
+This checkpoint changes only Admin login presentation, temporary client state,
+and rendered regression evidence. It does not change any customer, provider,
+booking, Support case, payment, payout, transaction, audit record, database
+schema, master branch, GitHub branch, or production record. E32 still blocks
+production synchronization and E72 still blocks generic raw audit-PII reveal.
+
+## Checkpoint DB: bounded Admin 2FA setup recovery
+
+The setup-key recovery state now also has a bounded network wait. A request that
+never settles is aborted after 15 seconds and becomes the same truthful,
+retryable error state as an ordinary request failure. The temporary setup token
+is not persisted, and the timeout does not change the existing server-side
+2FA, recovery-code, session, or credential contracts.
+
+UX-1258 executes the hanging-request path with a real rendered LoginPage and
+proves that the loading state ends, the error is announced, and the retry
+control is available. The existing UX-1255 through UX-1257 regressions continue
+to cover copy, rejected-request recovery, and password clearing. This is a
+local implementation checkpoint only; E32, E67, E68, and E72 remain in force.
+
+The complete Admin inventory after the timeout change passes 515 files, with
+one existing skipped file and 604 passing tests plus three existing todos.
+Admin TypeScript, changed-file ESLint, `git diff --check`, the production
+build, and the unique regression-ID gate pass; the build transforms 2,843
+modules.
+
+## Checkpoint DC: accessible Admin tablet navigation drawer
+
+The compact Admin navigation used a visual overlay but did not expose dialog
+semantics, move focus into the drawer, contain keyboard Tab focus, or close on
+Escape. At tablet widths this could leave a keyboard or screen-reader operator
+interacting with the page behind an open navigation layer.
+
+UX-1259 gives the drawer an accessible name and modal semantics, moves focus to
+its first control, cycles focus within the drawer, closes on Escape, and
+restores focus to the control that opened it. Route destinations, visible role
+boundaries, and desktop navigation are unchanged. The rendered regression
+executes the modal semantics, focus ownership, Tab wrap, and Escape path.
+
+The focused drawer regression and three existing Admin shell regressions pass
+five tests. The complete Admin inventory after this change passes 516 files,
+with one existing skipped file and 605 passing tests plus three existing
+todos. Admin TypeScript, changed-file ESLint, `git diff --check`, the
+production build, and the unique regression-ID gate pass; the build transforms
+2,843 modules and the gate finds 1,423 unique titled regressions.
+
+This is a local-only Admin presentation/accessibility checkpoint. It changes
+no customer, provider, booking, Support case, payment, permission, audit row,
+database schema, GitHub branch, or production record. E32 and E72 remain in
+force.
+
+## Checkpoint DD: dispute response reaches the customer
+
+The provider dispute-response path changed the durable dispute and booking
+state, but only the contest branch created a customer notification. Provider
+acceptance and partial-refund offers could therefore leave the customer without
+an inbox update, and the existing contest notification did not use the shared
+push-delivery and retry path. The database row was also missing the canonical
+notification type fields used by push preference and routing code.
+
+OPS-468 now writes one customer `dispute_update` inbox row inside the same
+transaction as every provider response branch: full acceptance, contest, and
+partial-refund offer. Each row includes the dispute and booking identifiers,
+canonical type fields, and copy that accurately describes whether a refund is
+being processed, the case is under review, or an offer needs customer review.
+After the transaction commits, the row is handed to the existing stored-push
+delivery path, which applies notification preferences, quiet hours, stale-token
+handling, and retry behavior. Push failure cannot roll back the already durable
+inbox row. Refund amounts, gateway calls, booking state transitions, and
+provider authority checks are unchanged.
+
+The new behavioral regression covers all three response branches and proves the
+customer receives both a durable-row and push handoff. The focused dispute
+inventory passes 7 suites and 9 tests. The complete API inventory passes 925
+suites, with 4 existing skips and 3,296 passing tests; the only failures are
+the 2 existing Docker-only nginx certificate tests, which cannot start because
+Docker Desktop is unavailable. API TypeScript and changed-file ESLint pass.
+
+This is a local-only linkage checkpoint. It changes no historical payment,
+refund, payout, booking, customer, provider, audit, database-schema, GitHub,
+master, or production record. E32 still blocks production synchronization and
+E72 still blocks generic raw audit-PII reveal.
+
+## Checkpoint DI: promo validity timezone is behavior-tested at both write points
+
+The Phase 115 Admin regression had been scanning `MarketingPage.tsx` for two
+timezone suffixes. It now renders the real Promo Codes workspace, opens the
+Create dialog, submits a date, and asserts the exact Manila end-of-day value
+sent to the API. It then opens the real Edit dialog, changes the date, and
+asserts the exact PATCH value. The test therefore covers both operator write
+paths without activating promo redemption or changing any pricing behavior.
+
+The focused Admin test passes 1 file and 1 test; Admin TypeScript and targeted
+ESLint pass; the Admin test scan contains no remaining `readFileSync` or
+`readFile` source-content tests. This is local test-quality evidence only. It
+changes no promo, customer, provider, booking, payment, support, audit,
+database-schema, GitHub, master, or production record. E32, E72, and E73
+remain in force.
+
+## Checkpoint DJ: booking-admin reason cap has a real service-level guard
+
+The Phase 168 regression had been reading `booking-admin.service.ts` and
+matching the private helper's implementation. It now calls the public
+`forceCompleteBooking` service with a 5,001-character reason and verifies the
+request is rejected with HTTP 400 before a database transaction is opened.
+This checks the boundary that an Admin operator actually reaches while
+preserving the existing booking-action and audit-note behavior for valid
+reasons.
+
+The focused API test passes 1 file and 1 test; API TypeScript and targeted
+ESLint pass. This is a validation-test correction only. It changes no booking,
+payment, refund, customer, provider, support, audit, database-schema, GitHub,
+master, or production record. E32, E72, and E73 remain in force.
+
+## Checkpoint DH: force-complete client validation is behavior-tested
+
+The Phase 142 Admin regression had been checking the BookingDetailPage source
+text instead of rendering the action panel. That could pass while the actual
+operator control was wired incorrectly. The regression now renders the real
+`BookingActions` component, opens the force-complete form, verifies the visible
+20-character hint, proves a 19-character reason leaves confirmation disabled,
+and proves a valid reason enables confirmation. It does not submit the
+destructive action. Server-side minimum-length enforcement remains covered by
+the API booking-admin tests.
+
+The focused Admin test passes 1 file and 1 test; Admin TypeScript and targeted
+ESLint also pass. This is a test-quality correction only. It changes no
+booking, payment, refund, customer, provider, support, audit, database-schema,
+GitHub, master, or production record. E32, E72, and E73 remain in force.
+
+## Checkpoint DF: feedback queue ownership state is internally consistent
+
+The Feedback workspace described `new` as an unowned review queue, but the
+triage request could still carry a named owner with that status. That created a
+misleading operator state: a report could appear new while already assigned,
+and the UI and API could disagree about what returning a report to review
+meant.
+
+The Admin screen now clears and disables the owner control when an operator
+returns a report to `new`. The API body validator and service enforce the same
+invariant, so direct requests cannot persist an owned `new` record. The
+existing optimistic-concurrency, required-note, owner validation, audit-log,
+and PII-masking contracts are unchanged.
+
+The focused verification passes the rendered Admin triage regression and both
+API regressions: 3 test files and 3 tests. Admin and API TypeScript checks,
+targeted ESLint, and `git diff --check` pass. This checkpoint is local-only and
+changes no feedback submission, customer, provider, booking, payment,
+support case, audit row, database schema, GitHub branch, master branch, or
+production record. E32, E72, and E73 remain in force.
+
+## Checkpoint DG: support attention semantics verified across roles
+
+The support linkage audit traced the customer/provider inbox, participant
+thread, API owner-scoped read model, and Admin queue. The participant list's
+`message_count` is a count of customer-visible messages only; it is not
+presented as unread. The Admin queue's `Needs reply` signal is a separate
+server-side calculation based on the latest public sender and excludes closed
+cases, internal notes, and administrative changes. Customer and provider
+status labels correctly translate `waiting_on_customer` and
+`waiting_on_provider` into the signed-in persona's “Waiting on you” or
+“Waiting on customer/provider” wording.
+
+The Admin queue and detail workspace refresh their active queue, summary, and
+open detail on a bounded 20-second interval. Participant support pages use
+the existing owner-scoped routes and preserve the linked booking, project, or
+Business Account context. No cumulative message count was relabeled as an
+unread count, and no new notification or money-path behavior was introduced.
+
+Verification passes 49 API support suites and 62 tests with one existing
+intentional skip, plus 32 mobile support suites and 42 tests. API feedback
+coverage passes 17 suites and 29 tests; the one remaining failure is the
+existing Docker-only nginx privacy test, which cannot start without Docker
+Desktop. This checkpoint changes no support case, notification, customer,
+provider, booking, payment, audit row, database schema, GitHub branch, master
+branch, or production record. E32, E72, and E73 remain in force.
+
+## Checkpoint DE: Admin dispute decisions wake both participants
+
+The Admin dispute-resolution path durably wrote decision notifications for the
+customer and provider, but did not pass those rows to the shared push-delivery
+and retry path. A participant could therefore see the decision only after
+opening the app manually. The legacy resolution wrapper had the same gap.
+
+OPS-469 makes the transactional dispute-resolution helper return the exact
+notification IDs, recipients, and routing data it wrote. Both the current Admin
+resolution service and the legacy wrapper deliver those stored rows after the
+transaction commits. Delivery is best-effort and isolated from the already
+committed dispute, audit, and settlement work; preferences, quiet hours,
+stale-token cleanup, and push retries remain owned by the shared notification
+service. No refund amount, gateway operation, role gate, or settlement state
+was changed.
+
+The focused dispute-resolution inventory passes 7 suites and 65 tests,
+including the customer/provider decision-row contract, Admin transaction
+boundary, provider response paths, and refund retry safety. The complete API
+inventory passes 926 suites, with 4 existing skips and 3,297 passing tests;
+the only failures are the 2 existing Docker-only nginx certificate tests,
+which cannot start because Docker Desktop is unavailable. API TypeScript,
+changed-file ESLint, `git diff --check`, and the unique regression-ID gate pass;
+the gate finds 1,425 unique titled regressions.
+
+This is a local-only linkage checkpoint. It changes no historical payment,
+refund, payout, booking, customer, provider, audit, database-schema, GitHub,
+master, or production record. E32 still blocks production synchronization and
+E72 still blocks generic raw audit-PII reveal.
+
+## Checkpoint DK: Admin browser-event portability
+
+The Admin API wrapper's forced-password-rotation redirect used the browser
+`PopStateEvent` constructor directly. TypeScript accepted it, but the shared
+repository ESLint environment does not declare that browser-specific global,
+so the Admin lint gate failed even though the redirect behavior itself was
+valid.
+
+The wrapper now dispatches the standard `Event('popstate')` after its existing
+`history.replaceState` call. React Router receives the same event type and the
+URL transition is unchanged. The rendered password-rotation regression still
+passes, and Admin TypeScript and lint pass. This is a presentation/runtime
+compatibility fix only; it changes no credentials, session, role, customer,
+provider, booking, payment, support, audit, database, GitHub, master, or
+production record.
+
+Implementation commit: `697d370f`. The complete Admin inventory at this
+checkpoint passes 516 files, with one existing skipped file, 599 passing tests,
+and three existing todos. The focused redirect test passes one file and one
+test. This checkpoint is local only. E32 still blocks production
+synchronization and E72/E73 remain in force.
+
+## Checkpoint DL: Dispute queue outage recovery
+
+The Admin Dispute Resolution queue previously rendered a plain failure
+sentence when its list request failed, without a recovery control. Because the
+table received an empty fallback at the same time, an operator could mistake a
+source outage for a clear queue.
+
+UX-1260 now renders the shared error state, explicitly says that the queue must
+not be treated as empty, and offers an in-place `Retry disputes` action. The
+successful retry returns to the normal empty or populated table and pagination
+state without leaving the queue or losing its URL filters. The change is
+read-only presentation and recovery behavior; it changes no dispute decision,
+money movement, participant notification, customer/provider record, audit row,
+database schema, GitHub branch, master branch, or production record.
+
+The focused regression passes one file and one real rendered test. The broader
+Dashboard/Dispute inventory passes 18 files and 24 tests. This checkpoint is
+local only. E32 still blocks production synchronization and E72/E73 remain in
+force.
+
+## Checkpoint DM: Pricing-rule queue outage recovery
+
+The Admin Pricing Rules workspace previously showed only a red failure sentence
+when its list request failed. It offered no retry, so an operator reviewing
+customer-price controls had to leave the page or refresh the browser, and the
+failure state did not explain that the list was not safe to interpret as empty.
+
+UX-1261 now uses the shared error state, explicitly warns operators not to
+treat an unavailable pricing queue as empty or safe to change, and offers an
+in-place `Retry pricing rules` action. A successful retry returns to the normal
+empty or populated state while preserving the current filters. The change is
+read-only presentation and recovery behavior; pricing calculations,
+publication, historical booking terms, database records, GitHub, master, and
+production are unchanged.
+
+The focused regression passes one file and one real rendered test. Admin
+TypeScript and changed-file ESLint pass, and `git diff --check` passes. This
+checkpoint is local only. E32 still blocks production synchronization and
+E72/E73 remain in force.
+
+## Checkpoint DN: Customer directory failure truthfulness
+
+Customer Management previously rendered four numeric zeroes while the
+customer-directory request was still loading or had failed. Its table showed
+an error, but there was no in-place retry, so support staff could read an
+unavailable directory as zero customers, zero inactive accounts, or zero fraud
+reviews.
+
+UX-1263 now labels queue signals `Loading…` while the request is in flight and
+`Unavailable` after failure, and replaces the failed table with a shared error
+state containing `Retry customers`. A successful retry restores the normal
+empty or populated directory. A successful older response that omits the
+additive summary fields still follows the documented compatibility default of
+zero. No customer record, fraud state, support case, payment, or database row
+is changed.
+
+The focused customer-management inventory passes five files and five tests;
+Admin TypeScript and changed-file ESLint pass. This checkpoint is local only.
+E32 still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DO: Booking queue duplicate outage state
+
+Booking Operations already had an actionable queue-level retry, but it also
+rendered a second row-level error panel telling operators to refresh the page.
+That duplicated the outage and gave conflicting recovery guidance.
+
+UX-1264 removes the obsolete second panel. The existing queue-level failure
+message and `Retry booking operations` action remain the single recovery path,
+and the strengthened real-render regression verifies the old refresh instruction
+is absent. No booking, assignment, support ownership, dispute, payment,
+refund, or database record is changed.
+
+The focused Booking Operations inventory passes five files and five tests;
+Admin TypeScript and changed-file ESLint pass. This checkpoint is local only.
+E32 still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DP: Provider directory failure recovery
+
+Provider Management previously hid the table after a failed directory request,
+but left only a sentence telling the operator to refresh the page. In an
+approval, suspension, or tier-control workspace, that strands the operator and
+does not provide a local recovery path.
+
+UX-1265 now renders the shared error state with a clear warning not to make
+provider decisions from an unavailable queue and a `Retry providers` action.
+Successful retry restores the normal empty or populated directory. No provider
+status, tier, vetting, payout, booking, or database record is changed.
+
+The focused provider-management inventory passes four files and four tests;
+Admin TypeScript and changed-file ESLint pass. This checkpoint is local only.
+E32 still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DQ: Audit timeline failure recovery
+
+The Admin Audit Log showed a non-actionable error state when its combined event
+timeline failed to load. Operators could not retry from the workspace, and the
+screen did not explicitly distinguish an unavailable timeline from an empty
+history.
+
+UX-1266 now warns that an unavailable timeline is not proof that no action was
+recorded and provides `Retry audit timeline`. A successful retry returns to the
+normal filtered empty or populated state. This change does not reveal raw PII or
+alter audit records, exports, customer/provider records, money records,
+database rows, GitHub, master, or production.
+
+The focused Audit Log inventory passes four files and nine tests; Admin
+TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
+still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DR: Dispute assignee directory recovery
+
+Dispute Detail disabled assignment when the active-admin directory failed, but
+only told the operator to refresh the page. That made a support ownership
+handoff unnecessarily dependent on leaving the dispute workspace.
+
+UX-1267 now offers `Retry active admins` and states that assignment must wait
+until the directory is available. A successful retry repopulates named active
+admins. The change does not assign a dispute or invoke any resolution, refund,
+release, notification, or other money-path action.
+
+The focused dispute inventory passes three files and three tests; Admin
+TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
+still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DS: Service-area directory failure truthfulness
+
+Service Areas already showed a retryable list error, but it also rendered the
+empty table underneath while the list query was failed. Operators could see
+both `Failed to load service areas.` and `No service areas found.`, which made a
+market directory outage look like a clear market inventory.
+
+UX-1268 now suppresses the table and pagination while the list source is
+unavailable. The existing retry restores the normal empty or populated market
+directory and does not affect the separate statistics, provider-change review,
+or exact audit-record queries. No market, provider coverage, customer
+bookability, or database record is changed.
+
+The focused Service Areas inventory passes five files and five tests; Admin
+TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
+still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DT: Business Account 360 read-source recovery
+
+Business Account 360 had several read failures that were not safe for an
+operator workspace. The primary account and member views had no in-place
+recovery. The approved-terms panel treated a failed terms read as `No approved
+terms`, and the active account-manager directory only displayed a failure
+sentence. Contracts, linked work orders and support counts, invoices, and
+invoice evidence likewise lacked local recovery controls. Those distinctions
+matter because an unavailable source must not be interpreted as an empty
+enterprise relationship, an unowned account, a publishable contract queue, or
+a zero/clear billing balance.
+
+UX-1269 through UX-1276 now provide explicit, source-specific retry actions
+for the account, members, current terms, staff directory, contracts, linked
+bookings, invoices, and invoice evidence. The terms and staff states explain
+the decision boundary; they do not allow an operator to assign or publish from
+an unavailable source. Each retry only re-reads its own query, preserves the
+current workspace, and returns to the normal empty or populated state after a
+successful response. No terms, contract, booking, support, invoice, payment,
+adjustment, refund, audit row, database row, GitHub branch, master branch, or
+production record is changed by this batch.
+
+The focused Business Account inventory passes ten files and ten real
+rendered tests, including the existing manager-picker regression. Admin
+TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
+still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DU: Customer 360 read-source recovery
+
+Customer 360 had six independent read surfaces that stopped at a plain error:
+the primary customer profile, booking history, wallet/payment history,
+dispute and fraud signals, referral ledger, and activity history. For support
+and finance operators, those failures were not safe to interpret as no
+bookings, a zero wallet, no disputes, a clear fraud review, no referral
+activity, or no recorded history. The primary profile also offered only a
+back link, forcing a page exit to try again.
+
+UX-1277 through UX-1282 now provide source-specific in-place retry actions and
+word the failure states around the decision that must wait for the source to
+recover. A successful retry returns to the existing customer context and
+filters. No customer status, wallet credit, payment, dispute, fraud marker,
+referral, support case, audit row, database row, GitHub branch, master branch,
+or production record is changed by this batch.
+
+The focused Customer 360 inventory passes six files and six real rendered
+tests; Admin TypeScript and changed-file ESLint pass. This checkpoint is local
+only. E32 still blocks production synchronization and E72/E73 remain in
+force.
+
+## Checkpoint DV: Financials degraded-source recovery
+
+Financials had four successful API responses that explicitly reported a
+missing sub-source without a recovery control: payment-intent reporting,
+gateway refund/release retry reporting, payout reporting, and guarantee-fund
+accounting. These are not ordinary empty states. An operator must not read
+them as a clear payment queue, an empty refund backlog, no provider
+withdrawals, or a zero guarantee balance.
+
+UX-1283 through UX-1286 now provide source-specific retry actions for each
+degraded state. A successful retry restores the existing financials view; no
+payment, refund, release, payout, guarantee-fund, booking, provider, audit,
+database, GitHub, master, or production record is changed by the recovery
+control. The existing legal and operational holds remain visible and
+unchanged.
+
+The focused Financials inventory passes five files and five real rendered
+tests, including the existing guarantee-fund unavailable regression. Admin
+TypeScript and changed-file ESLint pass. This checkpoint is local only. E32
+still blocks production synchronization and E72/E73 remain in force.
+
+## Checkpoint DW: Privacy workspace recovery controls
+
+The privacy workspace correctly replaced failed DSR workload counts with an
+unavailable marker, but its alert told the operator to retry without providing
+a retry control. The consent evidence lookup likewise surfaced a raw error
+sentence without a same-context retry. Those gaps left recovery dependent on
+navigating away or repeating the whole search and could make a time-sensitive
+privacy queue harder to inspect.
+
+UX-1288 now provides `Retry privacy workload` in the failed-count state. The
+alert explicitly says the unavailable counts are not zero. The retry only
+re-reads the DSR alert source and does not expose consent content, mutate a
+data-subject request, change a policy version, or write an audit record. UX-1289
+adds `Retry consent lookup` to the failed exact-user evidence state and keeps
+the same user query in place while retrying; a failed lookup is not treated as
+no consent records.
+
+The focused privacy recovery tests pass, and changed-file ESLint passes. This
+checkpoint is local only. E32 still blocks production synchronization and
+E71/E72/E73 remain in force.
+
+### Checkpoint EE - dispute refund display unit contract (H13) (2026-09-04)
+
+- **Finding:** The API and admin dispute detail both represent `refundAmount` as integer PHP centavos, but the duplicated admin interfaces did not state that unit.
+- **Action:** Made the unit explicit at the shared formatter and each admin dispute type boundary. Added a real DOM-render regression test proving `125,000` centavos renders as `₱1,250.00` in the dispute queue.
+- **Verification:** The test covers the rendered queue output. This is display-contract documentation and verification only; no refund calculation, gateway call, or historical transaction changed.
+- This checkpoint is local only. E32 still blocks production synchronization and E71/E72/E73 remain in force.
+
+### Checkpoint EF - dispatch loaded-page visibility (H6) (2026-09-04)
+
+- **Finding:** Dispatch requested up to 100 active bookings but rendered only the first 50, silently hiding half of a loaded page.
+- **Action:** The table now renders the full 100-row feed page. The existing total-vs-loaded wording remains so the console does not imply that a server total above 100 is fully loaded.
+- **Verification:** `bug-ux-1297-dispatch-loaded-page-visible.real.test.tsx` renders 51 active bookings and verifies the table reports all 51. No booking, provider, assignment, payment, or production state changes.
+- This checkpoint is local only. E32 still blocks production synchronization and E71/E72/E73 remain in force.
+
+### Checkpoint EG - legacy receipt provider fallback (H14) (2026-09-04)
+
+- **Finding:** The legacy sales-record table must not expose a null provider name as user-facing data.
+- **Action:** Verified the existing table distinguishes a missing name with a safe placeholder, including the provider-ID-present case. Added a real DOM-render regression test for the null-name case.
+- **Verification:** `bug-ux-1298-receipt-provider-fallback.real.test.tsx` passes. No receipt, payment, tax, provider, customer, or production record changed.
+- This checkpoint is local only. E32 still blocks production synchronization and E71/E72/E73 remain in force.
+
+### Checkpoint EH - Customer 360 fraud-review action (H10) (2026-09-04)
+
+- **Finding:** A detected fraud pattern in the Customer 360 Disputes tab had no direct escalation control, forcing an operator to leave the context.
+- **Action:** Added a super-admin-only reasoned `flag_fraud` action in the alert, with explicit non-super-admin guidance, profile/dispute refresh, and success/error feedback. The existing no-money/no-booking side-effect wording remains visible in the confirmation dialog.
+- **Verification:** `bug-ux-1299-customer-dispute-fraud-action.real.test.tsx` renders the alert, submits a valid reason, verifies the exact status request, and confirms success feedback. No booking, payment, dispute resolution, or production record changed in the test.
+- This checkpoint is local only. E32 still blocks production synchronization and E71/E72/E73 remain in force.
+
+## Checkpoint DX: Settings navigation active-state clarity
+
+The admin sidebar used prefix matching for `/settings`, so the dedicated
+`/settings/cancellation-policy` workspace highlighted both System Settings and
+Cancellation Policy. That made an operator's current control ambiguous.
+
+UX-1290 now treats System Settings as an exact-match navigation item while
+preserving parent highlighting for entity detail routes such as providers and
+bookings. The rendered navigation test proves the policy workspace has one
+active destination. No settings, policy, transaction, audit, or production
+record is changed.
+
+The navigation shell inventory passes three tests and changed-file ESLint
+passes. This checkpoint is local only. E32 still blocks production
+synchronization and E71/E72/E73 remain in force.
+
+## Checkpoint DY: Command-search runtime data boundary
+
+The admin command search typed its HTTP response as trusted record data and
+indexed the record-kind icon map directly. A malformed row, a forward-compatible
+kind not yet understood by this client, or an unsafe destination could therefore
+crash the header while an operator was searching for a case.
+
+UX-1291 now validates every returned record at the browser boundary. Valid
+records still open their canonical internal workspace. Unsupported rows are
+omitted and surfaced as an explicit warning, so an operator does not mistake a
+partial or unusable search response for a complete "no results" state. External
+and protocol-relative destinations are rejected. The regression is a real
+rendered test and changes no customer, provider, payment, dispute, audit,
+database, GitHub, master, or production record.
+
+The focused command-search runtime test, admin TypeScript check, and changed
+file ESLint pass. This checkpoint is local only. E32 still blocks production
+synchronization and E71/E72/E73 remain in force.
+
+## Checkpoint DZ: Catalog intake-configuration recovery
+
+The Catalog intake-field editor showed only a bare failure sentence when its
+per-service customer-question source was unavailable. Because the normal
+catalog row remained visible, an operator could not safely distinguish a
+service with no intake questions from a configuration read outage, and had to
+leave the catalog to try again.
+
+UX-1292 now gives the editor a source-specific retry and states that customer
+question configuration cannot be verified. The normal `No intake fields yet`
+state is shown only after a successful empty response. The control only
+re-reads the selected service's intake fields; it does not add, edit, delete,
+activate, deactivate, change pricing, change a booking, or alter production
+data.
+
+The focused rendered intake-field test is part of the admin audit inventory.
+This checkpoint is local only. E32 still blocks production synchronization and
+E71/E72/E73 remain in force.
+### Checkpoint EA - dispatch map source documentation reconciled (2026-09-04)
+
+- **Finding:** The living platform audit still described Dispatch's initial map center as an unresolved TODO, although the console already reads the active/default service-area center and has a real render test for the configured value.
+- **Action:** Corrected the current audit register and clarified the mobile browser map adapter and device-testing language. No runtime behavior changed in this documentation-only correction.
+- **Verification:** Existing `bug-phase97-01-dispatch-map-center.test.ts` covers the configured-center render path; no production or money-path behavior was changed.
+
+### Checkpoint EB - booking identifier search semantics (2026-09-04)
+
+- **Finding:** Booking queue search used one substring pattern for UUID identifiers and human-readable fields. Searching an ID fragment could match an unrelated record whose UUID contained that fragment in the middle.
+- **Action:** Added separate broad and identifier-prefix parameters. Booking, customer, and provider UUIDs now match from the beginning; names, contact fields, cities, services, businesses, and invoice numbers remain substring-searchable.
+- **Verification:** `bug-ux-1293-admin-booking-identifier-prefix.test.ts` asserts the generated query and parameter order. This is a read-only search correction; no booking or money state is changed.
+
+### Checkpoint EC - operator queue freshness (2026-09-04)
+
+- **Finding:** Dispute Resolution, Support Queue, and Staff & Roles showed timestamps on individual records but did not expose when the current queue source was last successfully fetched or offer an in-context refresh action. Automatic refetch alone was not visible to an operator.
+- **Action:** Added the shared `DataFreshness` control. It reports the last successful React Query update, ages the label in the browser, shows an explicit no-successful-update state, disables its refresh action while requests are in flight, and is wired into the dispute queue, support queue, staff directory, role metadata, and DPO assignment workspaces.
+- **Verification:** `bug-ux-1294-admin-data-freshness.real.test.tsx` renders the control and verifies the successful-update text, refresh callback, and disabled fetching state. No booking, payout, dispute, support case, account, audit, database, GitHub, master, or production record is changed by this control.
+
+### Checkpoint ED - BIR Manila-year fallback (2026-09-04)
+
+- **Finding:** The BIR workpaper selector used Manila time for its default year, but the response normalizer fell back to the machine's local year when the response omitted `year`. At the UTC/Manila New Year boundary, the displayed summary year could disagree with the selected/requested year.
+- **Action:** Centralized the current Manila year helper and used it for the BIR response fallback. This changes only which year label is shown when the API omits a year; it does not generate, finalize, or alter any tax workpaper.
+- **Verification:** `bug-ux-1295-bir-manila-year-fallback.real.test.tsx` renders `BirReportsPanel` at `2026-12-31T16:30:00Z`, asserts the Manila-year `2027` summary, and verifies the request year. No financial, tax, booking, provider, customer, audit, database, GitHub, master, or production record is changed.
+
+### Checkpoint EJ - dispatch support-message handoff (2026-09-04)
+
+- **Finding:** Dispatch allowed an operator to send a booking support message without an in-context reminder to review earlier support contact. Booking 360 already had the durable `admin_message_sent` timeline events and Communications already owned message text, but Dispatch did not connect the operator to either record.
+- **Action:** Added a booking-scoped `Review conversation` link and clear copy in the Dispatch support-message dialog. The dialog does not create a second message-history source or expose a partial copy of communication content.
+- **Verification:** `bug-ux-1300-dispatch-support-history.real.test.tsx`, `bug-ux-482-admin-support-message-access.real.test.tsx`, and `bug-ux-483-audit-support-message-label.real.test.tsx` pass; admin TypeScript and changed-file ESLint pass. No message, notification, booking, financial, audit, database, GitHub, master, or production record was changed by this UI handoff.
+
+### Checkpoint EI - stale high-priority backlog reconciliation (2026-09-04)
+
+- **Finding:** The point-in-time admin backlog still described H4, H5, H7, and H9 as open even though their current implementations and behavioral regressions had already landed. Leaving those records open made the audit trail disagree with the code and obscured the remaining work.
+- **Action:** Reconciled the backlog entries with the current code. Booking 360 action feedback, recurring-series support workspace linkage, authoritative dispatch reassignment validation, and provider review responses are now recorded as resolved. No new mutation or production behavior was introduced by this reconciliation.
+- **Verification:** Rechecked `bug-ux-715-booking-action-success-feedback.real.test.tsx`, `bug-ux-910-recurring-support-workspace.real.test.tsx`, `bug-ux-1078-recurring-audit-handoff.real.test.tsx`, `bug-ux-456-review-response-workflow.real.test.tsx`, and the four admin reassignment API regressions (`UX-484`, `UX-485`, `UX-486`, `UX-710`). E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
+
+### Checkpoint EK - DSR permission and timestamp contract reconciliation (H1/H2) (2026-09-04)
+
+- **Finding:** The admin backlog was stale in two ways: it described the DSR page as confusing for unauthorized operations admins, and it proposed converting absolute PostgreSQL due timestamps to Manila wall-clock timestamps.
+- **Action:** Recorded the existing page-level DPO/super-admin gate and no-read behavior as the H1 resolution. Rechecked the H2 date contract and kept instant-based comparisons in `listDsrs`, `getDsrAlerts`, and `mapDsr`; Manila is applied only for user-facing formatting. No unsafe timezone SQL change was made.
+- **Verification:** The real admin render tests cover unauthorized queue suppression and DPO review access; the API compliance tests cover the overdue/alert SQL contract and mapped DSR timing. No privacy case, notification, financial, booking, database, GitHub, master, or production record was changed.
+- This checkpoint is local only. E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
+
+### Checkpoint EL - Consent Versions publisher identity and entry guidance (H16/H17) (2026-09-04)
+
+- **Finding:** The consent audit history showed only a truncated publisher ID, and its required 30-character change summary gave no live progress feedback.
+- **Action:** Added publisher name/email lookup with an immutable ID fallback to both publication reads, rendered that identity in desktop and responsive history surfaces, and added a trimmed live character counter to the publication form. E71's consent effective-date and re-consent governance behavior was not changed.
+- **Verification:** New real admin tests cover the rendered publisher identity and counter; the API test covers the user join and mapped identity, while existing scheduled-publication and exact-evidence tests remain green. No consent publication, grant, customer, provider, database, GitHub, master, or production record was changed.
+- This checkpoint is local only. E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
+
+### Checkpoint EM - Admin compact navigation reconciliation (H21) (2026-09-04)
+
+- **Finding:** The historical admin backlog still described a desktop-only fixed sidebar, but the current shell had already been rebuilt for compact browser widths.
+- **Action:** Rechecked the shell and recorded the existing responsive behavior: large screens use the persistent sidebar; phone and tablet widths use the Header-triggered drawer with backdrop close, Escape handling, Tab containment, and focus restoration. No shell change was needed.
+- **Verification:** The focused UX-1259, UX-403, and UX-767 shell tests pass. No customer, provider, booking, support, financial, privacy, database, GitHub, master, or production record was changed.
+- This checkpoint is local only. E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
+
+### Checkpoint EN - Security Operations workspace reconciliation (H22) (2026-09-04)
+
+- **Finding:** The historical backlog described the blocked-IP and security-event API as having no admin workspace, but the current implementation already includes one.
+- **Action:** Rechecked the page, navigation, and API boundary. The workspace gives operators reasoned block/unblock actions, exact event filters, paginated queues, source-specific recovery, and links from security events to the correct customer, provider, provider-staff employer, or staff record. No new security mutation was introduced in this audit step.
+- **Verification:** The three real admin security tests and four API security input/atomicity/linkage tests pass. No IP block, security event, customer, provider, support, financial, database, GitHub, master, or production record was changed.
+- This checkpoint is local only. E32 still blocks production synchronization and E67/E68/E71/E72/E73 remain in force.
+## Checkpoint EO: service-area change review reconciliation
+
+The historical admin backlog still described provider service-area changes as
+an unimplemented backend-only feature. A current-state review found the
+opposite: `ServiceAreasPage` already renders the pending request queue and
+connects it to the existing Provider 360, service-area, and support context.
+
+The rendered regression set proves the required operator workflow: a pending
+request shows provider identity, current/requested markets, radius, and the
+reviewed location pin; a super-admin decision requires a 30-5,000 character
+reason and posts to the authoritative decision route; ordinary admins receive
+read-only guidance; provider filtering and directory failures remain honest;
+and successful decisions invalidate the request queue and related market
+queries. The service rechecks current provider status, market status, radius,
+coordinates, and concurrent coverage changes inside its transaction before
+updating matching data and writing the audit row.
+
+The stale H24 backlog record was marked resolved. This reconciliation changes
+documentation only; no provider, service-area, matching, notification, audit,
+payment, or production record was changed. Five real rendered Admin tests pass
+for the queue, cross-role impact copy, failure recovery, provider filtering,
+and read-only role behavior. Production synchronization remains blocked by
+E32, and provider application review remains paused by E74.
+
+## Checkpoint EP: dashboard deadline and chart-state reconciliation
+
+The dashboard audit confirmed that DSR deadline alerts already include the
+Manila calendar year, but their timezone/year contract had no direct rendered
+regression. A boundary test now proves a UTC timestamp crossing midnight is
+shown with the correct Manila year.
+
+The acquisition-funnel card had a real remaining gap: a successful empty
+response rendered no content, and its failure state used different wording
+from the other dashboard source failures. It now gives operators explicit
+loading, source-unavailable/retry, valid-data, and no-data states. Existing
+revenue-trend and booking-volume failure/empty behavior remains covered.
+
+The new dashboard tests are real React renders, not source-string checks. No
+DSR, analytics, customer, provider, booking, payment, audit, database,
+GitHub, master, or production record was changed. Production synchronization
+remains blocked by E32, provider application review by E74, and the existing
+money/privacy/security holds remain in force.
+
+## Checkpoint EQ: dormant A/B draft variant fields
+
+The A/B testing launch flag remains disabled because assignment and exposure
+reporting are not implemented. While reviewing the held admin surface, the
+draft form was still missing the two variant-name fields that the existing API
+contract accepts. That would have forced future operators to rely on database
+defaults and would have made the draft definition less explicit.
+
+The form now collects Variant A and Variant B names, defaults them to the
+current server-compatible labels, rejects blank labels before confirmation,
+and trims both values in the submitted payload. This does not enable A/B
+testing, assign users, record exposure, change analytics, or alter any
+production row.
+
+`bug-ux-1305-analytics-ab-variant-fields.real.test.tsx` renders the explicitly
+enabled dormant tab, edits both labels, confirms creation, and asserts the
+actual API payload. The existing disabled-flag render test also passes. Admin
+TypeScript, targeted ESLint, and `git diff --check` pass locally. E32, E72,
+E73, and E74 remain in force.
+
+## Checkpoint ER: non-super-admin commercial-term visibility
+
+The admin enterprise detail view described the approved terms as visible to
+ordinary admins, but `BillingSettingsCard` returned before rendering them for
+anyone who was not a super admin. That left support and operations staff with
+only the account's explicitly non-authoritative projection fields, despite the
+page saying the approved terms remained visible above.
+
+The read-only branch now renders the current versioned terms, payment terms,
+discount, and approved credit, with explicit loading, unavailable, and no
+published-version states. It still exposes no publication, manager-assignment,
+or other mutation controls to ordinary admins. `bug-ux-1307-business-read-only-
+terms.real.test.tsx` proves the real rendered admin view and the absence of the
+publication control. Admin business-account tests, TypeScript, and targeted
+lint pass locally. No terms, booking, invoice, payment, provider, customer,
+database, GitHub, master, or production record changed. E32, E67, E68, E71,
+E72, E73, and E74 remain in force.
+
+## Checkpoint ES: business-account directory history state
+
+The business-account directory used the URL for its active search filter, but
+the editable search field was initialized only on first mount. After an
+operator used browser Back or Forward, the table could show the historical
+results while the field still displayed a different search term. That is a
+support and operations usability defect because the visible filter no longer
+described the records on screen.
+
+The field now follows the URL whenever the URL filter changes, while still
+allowing an operator to type a new value before submitting it. `bug-ux-1308-
+business-account-search-history.real.test.tsx` renders the page through a
+real MemoryRouter history transition and asserts the recovered query is shown
+in the actual textbox. No account, booking, invoice, payment, provider,
+customer, database, GitHub, master, or production record changed. E32, E67,
+E68, E71, E72, E73, and E74 remain in force.

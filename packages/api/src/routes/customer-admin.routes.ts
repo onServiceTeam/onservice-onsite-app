@@ -132,7 +132,17 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const data = await customerAdminService.getCustomerPayments((req.params.id as string));
+      const transactionId = req.query.transactionId;
+      if (
+        transactionId !== undefined
+        && (typeof transactionId !== 'string' || !UUID_REGEX.test(transactionId))
+      ) {
+        throw createAppError('transactionId must be a valid UUID.', 400);
+      }
+      const data = await customerAdminService.getCustomerPayments(
+        req.params.id as string,
+        transactionId,
+      );
       res.json({ success: true, data });
     } catch (error) {
       next(error);
@@ -194,8 +204,18 @@ router.get(
       // intended forensic view while plain admin remains masked. DPO is
       // rejected by requireAdmin above and is never upgraded here.
       const role = req.user?.role === 'super_admin' ? 'super_admin' : 'admin';
+      const adminActionId = req.query.adminActionId;
+      if (
+        adminActionId !== undefined
+        && (typeof adminActionId !== 'string' || !UUID_REGEX.test(adminActionId))
+      ) {
+        throw createAppError('adminActionId must be a valid UUID.', 400);
+      }
       const data = await customerAdminService.getCustomerActivity(
-        (req.params.id as string), limit, role,
+        req.params.id as string,
+        adminActionId ? 1 : limit,
+        role,
+        adminActionId,
       );
       res.json({ success: true, data });
     } catch (error) {

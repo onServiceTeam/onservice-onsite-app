@@ -115,7 +115,7 @@ test.describe('SupportTicketsPage', () => {
       test('error state', async ({ page }) => {
         await mockSupportApi(page, 'error');
         await page.goto(ROUTE);
-        await expect(page.getByRole('alert')).toContainText('Failed to load tickets.');
+        await expect(page.getByRole('alert')).toContainText('Support queue unavailable.');
         await expect(page.getByText('Loading...')).toHaveCount(0);
         await expect(page).toHaveScreenshot(`support-tickets-error-${width}.png`, {
           fullPage: true,

@@ -1,10 +1,7 @@
 // MED-N31 + MED-N32 + MED-N33 + MED-N35 fix verified.
 //
-// MED-N31: provider-tools.generateReceipt used
-// platformConfig.commissionRates[prov.tier] directly. If admin
-// tuned a rate via /admin/settings, the receipt math was wrong.
-// Now: settingsService.getCommissionRate with platformConfig
-// fallback.
+// MED-N31 was superseded by E50. Provider receipts now reproduce the
+// immutable booking terms, behaviorally covered by bug-ops-254.
 //
 // MED-N32: founding-tier providers got platformConfig['new']
 // commission via the `??` fallback because platformConfig
@@ -33,27 +30,6 @@ const SVC = readFileSync(
   resolve(__dirname, '../src/services/provider-tools.service.ts'),
   'utf8',
 );
-
-describe('MED-N31+N32 — generateReceipt sources commission from settingsService', () => {
-  it('imports settingsService', () => {
-    expect(SVC).toMatch(/import \* as settingsService from '\.\/settings\.service'/);
-  });
-
-  it('calls settingsService.getCommissionRate with the provider tier', () => {
-    expect(SVC).toMatch(/await settingsService\.getCommissionRate\(prov\.tier\)/);
-  });
-
-  it('falls back to platformConfig on lookup failure', () => {
-    expect(SVC).toMatch(/Commission rate lookup failed in receipt generation/);
-    expect(SVC).toMatch(/commissionRate = platformConfig\.commissionRates\[prov\.tier\] \?\? platformConfig\.commissionRates\['new'\]!/);
-  });
-
-  it('the OLD direct platformConfig read is NO LONGER the primary path', () => {
-    // The primary path now goes through settingsService; the
-    // platformConfig read sits inside the catch block.
-    expect(SVC).toMatch(/try \{\s*commissionRate = await settingsService\.getCommissionRate/);
-  });
-});
 
 describe('MED-N33 — receipt number uses full booking UUID, not 8-char prefix', () => {
   it('receiptNumber template uses bookingId.toUpperCase() with NO .slice(0, 8)', () => {

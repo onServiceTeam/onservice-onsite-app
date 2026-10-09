@@ -24,6 +24,16 @@ interface AuditEntry {
   userId: string | null;
   userEmail: string | null;
   userRole: string | null;
+  targetUserRole?: string | null;
+  targetProviderId?: string | null;
+  targetBookingId?: string | null;
+  targetTaxYear?: number | null;
+  targetTaxQuarter?: number | null;
+  targetTaxMonth?: number | null;
+  targetCategoryId?: string | null;
+  targetSubcategoryId?: string | null;
+  targetConversationId?: string | null;
+  targetMessageId?: string | null;
   action: string;
   entityType: string;
   entityId: string | null;
@@ -46,7 +56,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 const SOURCE_BADGE: Record<NonNullable<AuditEntry['source']>, { label: string; cls: string }> = {
   audit_log: { label: 'System event', cls: 'bg-slate-100 text-slate-700' },
-  admin_actions: { label: 'Admin decision', cls: 'bg-amber-100 text-amber-800' },
+  admin_actions: { label: 'Recorded action', cls: 'bg-amber-100 text-amber-800' },
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -55,7 +65,12 @@ const ACTION_LABELS: Record<string, string> = {
   booking_cancelled: 'Booking cancelled',
   booking_force_completed: 'Booking force-completed',
   booking_reassigned: 'Booking reassigned',
+  bir_2307_batch_generated: '2307 workpaper batch generated',
+  bir_2307_regenerated: '2307 workpaper batch regenerated',
+  commission_rate_cancelled: 'Commission agreement cancelled',
+  commission_rate_scheduled: 'Commission agreement scheduled',
   config_changed: 'Configuration changed',
+  consent_search: 'Consent evidence searched',
   consent_version_published: 'Consent version published',
   conversation_viewed: 'Private booking conversation viewed',
   customer_credited: 'Customer wallet adjusted',
@@ -67,15 +82,34 @@ const ACTION_LABELS: Record<string, string> = {
   dispute_message_sent: 'Dispute message sent',
   dispute_reopened: 'Dispute reopened',
   dispute_resolved: 'Dispute resolved',
+  'dsr.created': 'Data subject request created',
+  'dsr.status_changed': 'Data subject request status changed',
+  dsr_escalated_to_npc: 'NPC case reference recorded',
+  dsr_marked_complete: 'Data subject request completed',
+  dsr_more_info_requested: 'More information requested for data subject request',
+  dsr_rejected: 'Data subject request rejected',
+  dsr_review_started: 'Data subject request review started',
+  feedback_submission_updated: 'Tester feedback triage updated',
   message_flag_reviewed: 'Reported message reviewed',
   message_redacted: 'Message redacted',
+  or_cancelled: 'Official receipt cancelled',
+  or_issued: 'Official receipt issued',
   payout_approved: 'Payout approved',
   payout_completed: 'Payout marked transferred',
   payout_rejected: 'Payout rejected',
   pii_reveal: 'Private information revealed',
   provider_approved: 'Provider approved',
+  provider_application_approved: 'Provider application approved',
+  provider_application_rejected: 'Provider application rejected',
+  provider_application_sent_back: 'Provider application sent back',
+  provider_application_submitted: 'Provider application submitted',
   provider_certification_unverified: 'Provider certification unverified',
   provider_certification_verified: 'Provider certification verified',
+  provider_document_approved: 'Provider document approved',
+  provider_document_rejected: 'Provider document rejected',
+  provider_note_added: 'Provider support note added',
+  provider_note_deleted: 'Provider support note deleted',
+  provider_note_updated: 'Provider support note updated',
   provider_reactivated: 'Provider reactivated',
   provider_rejected: 'Provider rejected',
   provider_staff_approved: 'Provider staff approved',
@@ -85,12 +119,23 @@ const ACTION_LABELS: Record<string, string> = {
   provider_staff_suspended: 'Provider staff suspended',
   provider_suspended: 'Provider suspended',
   provider_tier_changed: 'Provider tier changed',
+  recurring_booking_cancelled: 'Recurring booking cancelled',
+  reconciliation_alert_acknowledged: 'Reconciliation alert acknowledged',
+  reconciliation_run: 'Reconciliation snapshot created',
   refund_issued: 'Refund issued',
   review_response_updated: 'Provider review response updated',
   review_visibility_changed: 'Provider review visibility changed',
+  service_addon_created: 'Service add-on created',
+  service_addon_deleted: 'Service add-on deactivated',
+  service_addon_updated: 'Service add-on updated',
   service_area_created: 'Service area created',
   service_area_deleted: 'Service area deleted',
   service_area_updated: 'Service area updated',
+  service_category_created: 'Service category created',
+  service_category_updated: 'Service category updated',
+  service_subcategory_created: 'Customer service created',
+  service_subcategory_deleted: 'Customer service deactivated',
+  service_subcategory_updated: 'Customer service updated',
   staff_added: 'Staff member added',
   staff_removed: 'Staff member removed',
   staff_role_changed: 'Staff role changed',
@@ -99,6 +144,9 @@ const ACTION_LABELS: Record<string, string> = {
   support_ticket_status_updated: 'Support case status updated',
   support_ticket_status_resumed_by_reply: 'Support case resumed by participant reply',
   support_ticket_priority_updated: 'Support case priority updated',
+  user_profile_updated: 'Profile name updated',
+  vat_report_finalized: 'VAT workpaper locked',
+  vat_report_generated: 'VAT workpaper generated',
 };
 
 const ROLE_COLORS: Record<string, string> = {
@@ -149,45 +197,577 @@ function shortId(value: string): string {
   return value.slice(0, 8).toUpperCase();
 }
 
+function canonicalUuidOrOriginal(value: string): string {
+  return UUID_REGEX.test(value) ? value.toLowerCase() : value;
+}
+
+function linkedBusinessAccountId(entry: AuditEntry): string | null {
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const accountId = values?.businessAccountId;
+    if (typeof accountId === 'string' && UUID_REGEX.test(accountId)) return accountId;
+  }
+  return null;
+}
+
+function linkedProviderId(entry: AuditEntry): string | null {
+  if (entry.targetProviderId && UUID_REGEX.test(entry.targetProviderId)) {
+    return entry.targetProviderId;
+  }
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const providerId = values?.providerId;
+    if (typeof providerId === 'string' && UUID_REGEX.test(providerId)) return providerId;
+  }
+  return null;
+}
+
+function linkedBookingId(entry: AuditEntry): string | null {
+  if (entry.targetBookingId && UUID_REGEX.test(entry.targetBookingId)) {
+    return entry.targetBookingId;
+  }
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const bookingId = values?.bookingId;
+    if (typeof bookingId === 'string' && UUID_REGEX.test(bookingId)) return bookingId;
+  }
+  return null;
+}
+
+function linkedTaxNumber(
+  entry: AuditEntry,
+  canonical: number | null | undefined,
+  detailKey: 'taxYear' | 'taxQuarter' | 'periodYear' | 'periodMonth',
+): number | null {
+  if (Number.isInteger(canonical)) return canonical ?? null;
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const value = values?.[detailKey];
+    if (typeof value === 'number' && Number.isInteger(value)) return value;
+  }
+  return null;
+}
+
+function linkedCatalogId(
+  entry: AuditEntry,
+  canonical: string | null | undefined,
+  detailKey: 'categoryId' | 'subcategoryId',
+): string | null {
+  if (canonical && UUID_REGEX.test(canonical)) return canonical;
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const value = values?.[detailKey];
+    if (typeof value === 'string' && UUID_REGEX.test(value)) return value;
+  }
+  return null;
+}
+
+function linkedCommunicationId(
+  entry: AuditEntry,
+  canonical: string | null | undefined,
+  detailKey: 'conversationId' | 'messageId',
+): string | null {
+  if (canonical && UUID_REGEX.test(canonical)) return canonical;
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const value = values?.[detailKey];
+    if (typeof value === 'string' && UUID_REGEX.test(value)) return value;
+  }
+  return null;
+}
+
+function marketingConfigRecord(entry: AuditEntry): 'promo_code' | 'campaign' | null {
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const kind = values?.kind;
+    if (typeof kind !== 'string') continue;
+    if (kind.startsWith('promo_')) return 'promo_code';
+    if (kind.startsWith('campaign_')) return 'campaign';
+  }
+  return null;
+}
+
+function notificationTemplateOperation(entry: AuditEntry): string | null {
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const operation = values?.op;
+    if (typeof operation === 'string') return operation;
+  }
+  return null;
+}
+
+function linkedCommissionRateId(entry: AuditEntry): string | null {
+  if (entry.action !== 'commission_rate_scheduled' && entry.action !== 'commission_rate_cancelled') {
+    return null;
+  }
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const rateId = values?.commissionRateVersionId;
+    if (typeof rateId === 'string' && UUID_REGEX.test(rateId)) return rateId;
+  }
+  if (entry.entityType === 'config' && entry.entityId && UUID_REGEX.test(entry.entityId)) {
+    return entry.entityId;
+  }
+  return null;
+}
+
+function linkedCustomerWalletTransactionId(entry: AuditEntry): string | null {
+  if (entry.action !== 'customer_credited' || entry.entityType !== 'customer') return null;
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const transactionId = values?.transactionId;
+    if (typeof transactionId === 'string' && UUID_REGEX.test(transactionId)) return transactionId;
+  }
+  return null;
+}
+
+function linkedPiiRevealAuditEntryId(entry: AuditEntry): string | null {
+  if (entry.action !== 'pii_reveal' || entry.entityType !== 'system') return null;
+  const detailId = entry.newValues?.audit_log_id;
+  const validDetailId = typeof detailId === 'string' && UUID_REGEX.test(detailId)
+    ? detailId
+    : null;
+  const validEntityId = entry.entityId && UUID_REGEX.test(entry.entityId) ? entry.entityId : null;
+  if (validDetailId && validEntityId && validDetailId !== validEntityId) return null;
+  return validDetailId ?? validEntityId;
+}
+
+function searchedConsentUserId(entry: AuditEntry): string | null {
+  if (entry.action !== 'consent_search') return null;
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const filters = values?.filters;
+    if (!filters || typeof filters !== 'object' || Array.isArray(filters)) continue;
+    const userId = (filters as Record<string, unknown>).userId;
+    if (typeof userId === 'string' && UUID_REGEX.test(userId)) return userId;
+  }
+  return null;
+}
+
+function targetAccountRole(entry: AuditEntry): string | null {
+  if (entry.entityType !== 'user' && entry.entityType !== 'users') return null;
+  if (entry.targetUserRole) return entry.targetUserRole;
+
+  for (const values of [entry.newValues, entry.oldValues]) {
+    const accountType = values?.accountType;
+    if (typeof accountType === 'string') return accountType;
+  }
+
+  // Legacy self-authored system events used `users` and exposed only the
+  // actor role. It is target evidence only when actor and target are the same
+  // account; never use an unrelated operator's role to classify the target.
+  if (entry.entityType === 'users' && entry.entityId === entry.userId) {
+    return entry.userRole;
+  }
+  return null;
+}
+
 function entityDestination(entry: AuditEntry): { to: string; label: string } | null {
+  const revealedAuditEntryId = linkedPiiRevealAuditEntryId(entry);
+  if (revealedAuditEntryId) {
+    const params = new URLSearchParams({ source: 'audit_log', entryId: revealedAuditEntryId });
+    return {
+      to: `/audit-log?${params.toString()}`,
+      label: 'Open exact original masked audit event',
+    };
+  }
+  if (entry.action === 'consent_search') {
+    const searchedUserId = searchedConsentUserId(entry);
+    return searchedUserId
+      ? {
+          to: `/privacy?consentUserId=${encodeURIComponent(searchedUserId)}`,
+          label: 'Open exact consent evidence lookup',
+        }
+      : { to: '/privacy', label: 'Open consent evidence lookup' };
+  }
+  if (
+    entry.action === 'conversation_viewed'
+    || entry.action === 'message_redacted'
+    || entry.action === 'message_flag_reviewed'
+    || entry.action === 'admin_message_sent'
+  ) {
+    const conversationId = linkedCommunicationId(
+      entry,
+      entry.targetConversationId,
+      'conversationId',
+    );
+    const messageId = linkedCommunicationId(entry, entry.targetMessageId, 'messageId');
+    if (conversationId) {
+      const params = new URLSearchParams({ conversationId });
+      if (entry.entityType === 'booking' && entry.entityId && UUID_REGEX.test(entry.entityId)) {
+        params.set('bookingId', entry.entityId);
+      }
+      if (messageId) params.set('messageId', messageId);
+      return {
+        to: `/communications?${params.toString()}`,
+        label: messageId ? 'Open exact conversation message' : 'Open exact conversation',
+      };
+    }
+  }
+  const commissionRateId = linkedCommissionRateId(entry);
+  if (commissionRateId) {
+    return {
+      to: `/financials?tab=commission&commissionRateId=${encodeURIComponent(commissionRateId)}`,
+      label: 'Open exact commission agreement',
+    };
+  }
   if (!entry.entityId) return null;
   const id = encodeURIComponent(entry.entityId);
   switch (entry.entityType) {
     case 'booking':
       return { to: `/bookings/${id}`, label: 'Open Booking 360' };
+    case 'official_receipt': {
+      const bookingId = linkedBookingId(entry);
+      return bookingId
+        ? {
+            to: `/bookings/${encodeURIComponent(bookingId)}`,
+            label: 'Open Booking 360 receipt evidence',
+          }
+        : null;
+    }
+    case 'bir_2307_batch': {
+      const year = linkedTaxNumber(entry, entry.targetTaxYear, 'taxYear');
+      const quarter = linkedTaxNumber(entry, entry.targetTaxQuarter, 'taxQuarter');
+      if (!UUID_REGEX.test(entry.entityId) || year === null || quarter === null) return null;
+      const params = new URLSearchParams({
+        tab: 'bir',
+        taxYear: String(year),
+        taxQuarter: String(quarter),
+        batchId: entry.entityId,
+      });
+      return {
+        to: `/financials?${params.toString()}`,
+        label: 'Open exact 2307 workpaper evidence',
+      };
+    }
+    case 'vat_report': {
+      const year = linkedTaxNumber(entry, entry.targetTaxYear, 'periodYear');
+      const month = linkedTaxNumber(entry, entry.targetTaxMonth, 'periodMonth');
+      if (!UUID_REGEX.test(entry.entityId) || year === null || month === null) return null;
+      const params = new URLSearchParams({
+        tab: 'bir',
+        taxYear: String(year),
+        vatMonth: String(month),
+        vatReportId: entry.entityId,
+      });
+      return {
+        to: `/financials?${params.toString()}`,
+        label: 'Open exact VAT workpaper evidence',
+      };
+    }
+    case 'service_category':
+      return UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/catalog?categoryId=${id}`,
+            label: 'Open exact service category',
+          }
+        : null;
+    case 'service_subcategory': {
+      const categoryId = linkedCatalogId(entry, entry.targetCategoryId, 'categoryId');
+      if (!UUID_REGEX.test(entry.entityId) || !categoryId) return null;
+      const params = new URLSearchParams({ categoryId, subcategoryId: entry.entityId });
+      return { to: `/catalog?${params.toString()}`, label: 'Open exact customer service' };
+    }
+    case 'service_addon': {
+      const categoryId = linkedCatalogId(entry, entry.targetCategoryId, 'categoryId');
+      const subcategoryId = linkedCatalogId(
+        entry,
+        entry.targetSubcategoryId,
+        'subcategoryId',
+      );
+      if (!UUID_REGEX.test(entry.entityId) || !categoryId || !subcategoryId) return null;
+      const params = new URLSearchParams({
+        categoryId,
+        subcategoryId,
+        addonId: entry.entityId,
+      });
+      return { to: `/catalog?${params.toString()}`, label: 'Open exact service add-on' };
+    }
+    case 'recurring_booking':
+      return UUID_REGEX.test(entry.entityId)
+        ? { to: `/recurring?seriesId=${id}`, label: 'Open exact recurring series' }
+        : null;
     case 'customer':
+      if (entry.action === 'customer_credited') {
+        const transactionId = linkedCustomerWalletTransactionId(entry);
+        const params = new URLSearchParams({ tab: 'payments' });
+        if (transactionId) params.set('transactionId', transactionId);
+        return {
+          to: `/customers/${id}?${params.toString()}`,
+          label: transactionId
+            ? 'Open exact customer wallet transaction'
+            : 'Open customer payment history',
+        };
+      }
+      if (
+        entry.action === 'customer_suspended'
+        || entry.action === 'customer_reactivated'
+        || entry.action === 'customer_flagged_fraud'
+      ) {
+        const params = new URLSearchParams({ tab: 'activity' });
+        const hasExactDecision = entry.source === 'admin_actions' && UUID_REGEX.test(entry.id);
+        if (hasExactDecision) params.set('adminActionId', entry.id);
+        return {
+          to: `/customers/${id}?${params.toString()}`,
+          label: hasExactDecision
+            ? 'Open exact customer account decision'
+            : 'Open customer account activity',
+        };
+      }
       return { to: `/customers/${id}`, label: 'Open Customer 360' };
-    case 'provider':
+    case 'provider': {
+      if (
+        entry.action === 'provider_approved'
+        || entry.action === 'provider_rejected'
+        || entry.action === 'provider_suspended'
+        || entry.action === 'provider_reactivated'
+        || entry.action === 'provider_tier_changed'
+      ) {
+        const params = new URLSearchParams({ tab: 'activity' });
+        const hasExactDecision = entry.source === 'admin_actions' && UUID_REGEX.test(entry.id);
+        if (hasExactDecision) params.set('adminActionId', entry.id);
+        return {
+          to: `/providers/${id}?${params.toString()}`,
+          label: hasExactDecision
+            ? 'Open exact provider account decision'
+            : 'Open provider account activity',
+        };
+      }
       return { to: `/providers/${id}`, label: 'Open Provider 360' };
+    }
+    case 'provider_application': {
+      const providerId = linkedProviderId(entry);
+      if (!providerId) return null;
+      const hasExactActivity = entry.source === 'admin_actions' && UUID_REGEX.test(entry.id);
+      if (hasExactActivity) {
+        const params = new URLSearchParams({ tab: 'activity', adminActionId: entry.id });
+        return {
+          to: `/providers/${encodeURIComponent(providerId)}?${params.toString()}`,
+          label: entry.action === 'provider_application_submitted'
+            ? 'Open exact provider application submission'
+            : 'Open exact provider application decision',
+        };
+      }
+      return { to: `/providers/${encodeURIComponent(providerId)}`, label: 'Open Provider 360' };
+    }
+    case 'provider_document': {
+      const providerId = linkedProviderId(entry);
+      return providerId
+        ? { to: `/providers/${encodeURIComponent(providerId)}`, label: 'Open Provider 360' }
+        : null;
+    }
+    case 'provider_certification': {
+      const providerId = linkedProviderId(entry);
+      if (!providerId) return null;
+      const params = new URLSearchParams({ tab: 'certifications' });
+      if (UUID_REGEX.test(entry.entityId)) {
+        params.set('certificationId', entry.entityId);
+      }
+      return {
+        to: `/providers/${encodeURIComponent(providerId)}?${params.toString()}`,
+        label: UUID_REGEX.test(entry.entityId)
+          ? 'Open exact provider certification'
+          : 'Open provider certifications',
+      };
+    }
+    case 'provider_note': {
+      const providerId = linkedProviderId(entry);
+      if (!providerId) return null;
+      const params = new URLSearchParams({ tab: 'notes' });
+      if (UUID_REGEX.test(entry.entityId)) {
+        params.set('noteId', entry.entityId);
+      }
+      return {
+        to: `/providers/${encodeURIComponent(providerId)}?${params.toString()}`,
+        label: UUID_REGEX.test(entry.entityId)
+          ? 'Open exact provider note context'
+          : 'Open provider support notes',
+      };
+    }
+    case 'provider_staff': {
+      const providerId = linkedProviderId(entry);
+      if (!providerId) return null;
+      const params = new URLSearchParams({ tab: 'staff' });
+      if (UUID_REGEX.test(entry.entityId)) {
+        params.set('staffId', entry.entityId);
+      }
+      return {
+        to: `/providers/${encodeURIComponent(providerId)}?${params.toString()}`,
+        label: UUID_REGEX.test(entry.entityId)
+          ? 'Open exact provider team member'
+          : 'Open provider staff',
+      };
+    }
+    case 'review': {
+      const providerId = linkedProviderId(entry);
+      if (!providerId) return null;
+      const params = new URLSearchParams({ tab: 'reviews' });
+      if (UUID_REGEX.test(entry.entityId)) {
+        params.set('reviewId', entry.entityId);
+      }
+      return {
+        to: `/providers/${encodeURIComponent(providerId)}?${params.toString()}`,
+        label: UUID_REGEX.test(entry.entityId)
+          ? 'Open exact provider review evidence'
+          : 'Open provider reviews',
+      };
+    }
+    case 'user':
+    case 'users': {
+      const targetRole = targetAccountRole(entry);
+      if (targetRole === 'customer') {
+        return { to: `/customers/${id}`, label: 'Open Customer 360' };
+      }
+      if (targetRole === 'provider') {
+        if (entry.targetProviderId && UUID_REGEX.test(entry.targetProviderId)) {
+          return {
+            to: `/providers/${encodeURIComponent(entry.targetProviderId)}`,
+            label: 'Open Provider 360',
+          };
+        }
+        return { to: `/providers?search=${id}`, label: 'Find Provider 360' };
+      }
+      if (targetRole === 'provider_staff') {
+        return {
+          to: `/support-tickets?userId=${id}&userRole=provider_staff`,
+          label: 'Open provider staff support history',
+        };
+      }
+      if (targetRole === 'admin' || targetRole === 'super_admin' || targetRole === 'dpo') {
+        return { to: `/staff?search=${id}`, label: 'Find exact staff account' };
+      }
+      return { to: `/support-tickets?userId=${id}`, label: 'Open participant support history' };
+    }
     case 'dispute':
       return { to: `/disputes/${id}`, label: 'Open Dispute 360' };
+    case 'feedback_submission':
+      return UUID_REGEX.test(entry.entityId)
+        ? { to: `/feedback?feedbackId=${id}`, label: 'Open exact tester feedback' }
+        : null;
     case 'payout':
       return { to: `/payouts?payoutId=${id}`, label: 'Open exact payout' };
+    case 'reconciliation':
+      return UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/financials?tab=reconciliation&snapshotId=${id}`,
+            label: 'Open exact reconciliation snapshot',
+          }
+        : null;
     case 'support_ticket':
       return { to: `/support-tickets?ticketId=${id}`, label: 'Open support case' };
+    case 'dsr_request':
+    case 'data_subject_request':
+      return UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/data-protection-log?dsrId=${id}`,
+            label: 'Open exact privacy case',
+          }
+        : null;
+    case 'consent_version':
+      return UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/consent-versions?tab=history&publicationId=${id}`,
+            label: 'Open exact consent publication',
+          }
+        : null;
     case 'business':
+    case 'business_account':
       return { to: `/business-accounts/${id}`, label: 'Open business account' };
+    case 'business_contract': {
+      const accountId = linkedBusinessAccountId(entry);
+      return accountId
+        ? {
+            to: `/business-accounts/${encodeURIComponent(accountId)}?tab=contracts&contractId=${id}`,
+            label: 'Open exact business contract evidence',
+          }
+        : null;
+    }
+    case 'business_invoice': {
+      const accountId = linkedBusinessAccountId(entry);
+      return accountId
+        ? {
+            to: `/business-accounts/${encodeURIComponent(accountId)}?tab=invoices&invoiceId=${encodeURIComponent(id)}`,
+            label: 'Open exact business statement evidence',
+          }
+        : null;
+    }
     case 'service_area':
+      return UUID_REGEX.test(entry.entityId)
+        ? { to: `/service-areas?areaId=${id}`, label: 'Open exact service area' }
+        : null;
     case 'service_area_change_request':
-      return { to: '/service-areas', label: 'Open Service Areas' };
+      return UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/service-areas?changeRequestId=${id}`,
+            label: 'Open exact provider area-change decision',
+          }
+        : null;
     case 'pricing_rule':
-      return { to: '/pricing-rules', label: 'Open Pricing Rules' };
+      return UUID_REGEX.test(entry.entityId)
+        ? { to: `/pricing-rules?ruleId=${id}`, label: 'Open exact pricing rule' }
+        : null;
     case 'promotion':
-      return { to: '/marketing', label: 'Open Marketing' };
+      return UUID_REGEX.test(entry.entityId)
+        ? { to: `/marketing?tab=banners&promotionId=${id}`, label: 'Open exact home banner' }
+        : null;
     case 'notification_template':
-      return { to: '/notification-templates', label: 'Open notification templates' };
+      return notificationTemplateOperation(entry) !== 'delete' && UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/notification-templates?templateId=${id}`,
+            label: 'Open current notification template record',
+          }
+        : null;
     case 'admin_staff':
+      return { to: `/staff?search=${id}`, label: 'Find exact staff directory profile' };
     case 'admin_role':
-      return { to: '/staff', label: 'Open Staff & Roles' };
-    case 'config':
+      return UUID_REGEX.test(entry.entityId)
+        ? {
+            to: `/staff?tab=roles&roleProfileId=${id}`,
+            label: 'Open exact role profile',
+          }
+        : null;
+    case 'config': {
+      const marketingRecord = marketingConfigRecord(entry);
+      if (marketingRecord === 'promo_code') {
+        return UUID_REGEX.test(entry.entityId)
+          ? { to: `/marketing?tab=promos&promoCodeId=${id}`, label: 'Open exact promo code' }
+          : null;
+      }
+      if (marketingRecord === 'campaign') {
+        return UUID_REGEX.test(entry.entityId)
+          ? { to: `/marketing?tab=campaigns&campaignId=${id}`, label: 'Open exact campaign' }
+          : null;
+      }
+      return null;
+    }
     case 'system':
-      return { to: '/settings', label: 'Open System Settings' };
+      return null;
     default:
       return null;
   }
 }
 
+function entityLabel(entry: AuditEntry): string {
+  if (entry.action === 'consent_search') return 'Consent evidence lookup';
+  if (linkedPiiRevealAuditEntryId(entry)) return 'Original audit event';
+  if (linkedCommissionRateId(entry)) return 'Commission agreement';
+  if (entry.entityType === 'admin_staff') return 'Staff directory profile';
+  if (entry.entityType === 'dsr_request' || entry.entityType === 'data_subject_request') {
+    return 'Data subject request';
+  }
+  if (entry.entityType === 'consent_version') return 'Consent publication';
+  if (entry.entityType === 'promotion') return 'Home banner';
+  if (
+    entry.entityType === 'notification_template'
+    && notificationTemplateOperation(entry) === 'delete'
+  ) return 'Deleted notification template';
+  if (entry.entityType === 'config') {
+    const marketingRecord = marketingConfigRecord(entry);
+    if (marketingRecord === 'promo_code') return 'Promo code';
+    if (marketingRecord === 'campaign') return 'Marketing campaign';
+  }
+  if (entry.entityType !== 'user' && entry.entityType !== 'users') return humanizeSlug(entry.entityType);
+  const targetRole = targetAccountRole(entry);
+  if (targetRole === 'customer') return 'Customer account';
+  if (targetRole === 'provider') return 'Provider account';
+  if (targetRole === 'provider_staff') return 'Provider staff account';
+  if (targetRole === 'admin' || targetRole === 'super_admin' || targetRole === 'dpo') {
+    return 'Staff account';
+  }
+  return 'User account';
+}
+
 function exactEntityTimeline(entry: AuditEntry): string | null {
+  if (linkedPiiRevealAuditEntryId(entry)) return null;
   if (!entry.entityId || !UUID_REGEX.test(entry.entityId)) return null;
   const params = new URLSearchParams({ entityType: entry.entityType, entityId: entry.entityId });
   return `/audit-log?${params.toString()}`;
@@ -208,7 +788,7 @@ function EntityLink({ entry }: { entry: AuditEntry }): React.ReactElement {
   if (!destination) {
     return (
       <span className="text-[var(--color-text-secondary)]">
-        {humanizeSlug(entry.entityType)}{entry.entityId ? ` · ${shortId(entry.entityId)}` : ''}
+        {entityLabel(entry)}{entry.entityId ? ` · ${shortId(entry.entityId)}` : ''}
       </span>
     );
   }
@@ -218,7 +798,7 @@ function EntityLink({ entry }: { entry: AuditEntry }): React.ReactElement {
       className="inline-flex min-h-11 items-center gap-1 font-medium text-[var(--color-secondary)] hover:underline"
       onClick={(event) => event.stopPropagation()}
     >
-      {humanizeSlug(entry.entityType)} · {shortId(entry.entityId!)}
+      {entityLabel(entry)} · {shortId(entry.entityId!)}
       <ExternalLink size={14} aria-hidden="true" />
       <span className="sr-only">{destination.label}</span>
     </Link>
@@ -228,10 +808,11 @@ function EntityLink({ entry }: { entry: AuditEntry }): React.ReactElement {
 export default function AuditLogPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
+  const entryIdFilter = canonicalUuidOrOriginal(searchParams.get('entryId')?.trim() ?? '');
   const actionFilter = searchParams.get('action')?.trim() ?? '';
   const entityTypeFilter = searchParams.get('entityType')?.trim() ?? '';
-  const entityIdFilter = searchParams.get('entityId')?.trim() ?? '';
-  const userIdFilter = searchParams.get('userId')?.trim() ?? '';
+  const entityIdFilter = canonicalUuidOrOriginal(searchParams.get('entityId')?.trim() ?? '');
+  const userIdFilter = canonicalUuidOrOriginal(searchParams.get('userId')?.trim() ?? '');
   const sourceFilter = parseSource(searchParams.get('source'));
   const fromDate = searchParams.get('from') ?? '';
   const toDate = searchParams.get('to') ?? '';
@@ -262,25 +843,32 @@ export default function AuditLogPage(): React.ReactElement {
   const dateError = fromDate && toDate && fromDate > toDate
     ? 'From date must be before or equal to To date.'
     : '';
+  const entryIdError = entryIdFilter && !UUID_REGEX.test(entryIdFilter)
+    ? 'Audit entry ID must be a complete UUID.'
+    : '';
+  const entrySourceError = entryIdFilter && sourceFilter === 'all'
+    ? 'An exact audit event link must include its recorded source.'
+    : '';
   const entityIdError = entityIdFilter && !UUID_REGEX.test(entityIdFilter)
     ? 'Record ID must be a complete UUID.'
     : '';
   const userIdError = userIdFilter && !UUID_REGEX.test(userIdFilter)
     ? 'Actor ID must be a complete UUID.'
     : '';
-  const filterError = dateError || entityIdError || userIdError;
+  const filterError = dateError || entryIdError || entrySourceError || entityIdError || userIdError;
   const hasFilters = Boolean(
-    actionFilter || entityTypeFilter || entityIdFilter || userIdFilter
+    entryIdFilter || actionFilter || entityTypeFilter || entityIdFilter || userIdFilter
     || sourceFilter !== 'all' || fromDate || toDate,
   );
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: [
-      'admin', 'audit-log', page, actionFilter, entityTypeFilter, entityIdFilter,
+      'admin', 'audit-log', page, entryIdFilter, actionFilter, entityTypeFilter, entityIdFilter,
       userIdFilter, sourceFilter, fromDate, toDate,
     ],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize };
+      if (entryIdFilter) params.entryId = entryIdFilter;
       if (actionFilter) params.action = actionFilter;
       if (entityTypeFilter) params.entityType = entityTypeFilter;
       if (entityIdFilter) params.entityId = entityIdFilter;
@@ -291,20 +879,47 @@ export default function AuditLogPage(): React.ReactElement {
       const response = await api.get<AuditResponse>('/api/v1/admin/audit-log', { params });
       return response.data;
     },
-    placeholderData: (previous) => previous,
+    placeholderData: entryIdFilter ? undefined : (previous) => previous,
     enabled: !filterError,
   });
 
-  const entries = data?.data ?? [];
+  const responseEntries = data?.data ?? [];
+  const exactEntry = entryIdFilter && UUID_REGEX.test(entryIdFilter)
+    ? responseEntries.find((entry) => (
+        entry.id === entryIdFilter
+        && (sourceFilter === 'all' || (entry.source ?? 'audit_log') === sourceFilter)
+      )) ?? null
+    : null;
+  const exactSelectionError = entryIdFilter && data && responseEntries.length > 0 && !exactEntry
+    ? 'The server response did not match the requested audit event. No substitute event is shown.'
+    : '';
+  const entries = entryIdFilter ? (exactEntry ? [exactEntry] : []) : responseEntries;
   const pagination = data?.pagination;
+
+  useEffect(() => {
+    if (!entryIdFilter) return;
+    if (filterError || !data) {
+      if (filterError) setSelectedEntry(null);
+      return;
+    }
+    setSelectedEntry((current) => {
+      if (!exactEntry) return null;
+      if (current?.id === exactEntry.id && current.source === exactEntry.source) return current;
+      return exactEntry;
+    });
+  }, [data, entryIdFilter, exactEntry, filterError]);
 
   function applyFilters(event: React.FormEvent): void {
     event.preventDefault();
     const params = new URLSearchParams();
     if (draftAction.trim()) params.set('action', draftAction.trim());
     if (draftEntityType.trim()) params.set('entityType', draftEntityType.trim().toLowerCase());
-    if (draftEntityId.trim()) params.set('entityId', draftEntityId.trim());
-    if (draftUserId.trim()) params.set('userId', draftUserId.trim());
+    if (draftEntityId.trim()) {
+      params.set('entityId', canonicalUuidOrOriginal(draftEntityId.trim()));
+    }
+    if (draftUserId.trim()) {
+      params.set('userId', canonicalUuidOrOriginal(draftUserId.trim()));
+    }
     if (draftSource !== 'all') params.set('source', draftSource);
     if (draftFrom) params.set('from', draftFrom);
     if (draftTo) params.set('to', draftTo);
@@ -337,6 +952,7 @@ export default function AuditLogPage(): React.ReactElement {
     setExportNotice('');
     try {
       const params: Record<string, string | number> = { limit: 10_000 };
+      if (entryIdFilter) params.entryId = entryIdFilter;
       if (actionFilter) params.action = actionFilter;
       if (entityTypeFilter) params.entityType = entityTypeFilter;
       if (entityIdFilter) params.entityId = entityIdFilter;
@@ -373,8 +989,8 @@ export default function AuditLogPage(): React.ReactElement {
           </p>
           <h1 className="mt-1 text-2xl font-bold text-[var(--color-text)]">Audit Log</h1>
           <p className="mt-1 max-w-3xl text-sm text-[var(--color-text-secondary)]">
-            Reconstruct recorded admin decisions and selected system events, then open the customer,
-            provider, booking, support, dispute, payout, or company record that owns the event.
+            Reconstruct recorded operational actions and selected system events, then open the customer,
+            provider, booking, support, dispute, payout, reconciliation, or company record that owns the event.
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
@@ -387,7 +1003,7 @@ export default function AuditLogPage(): React.ReactElement {
             type="button"
             variant="outline"
             onClick={() => void exportCsv()}
-            disabled={exporting || Boolean(filterError)}
+            disabled={exporting || Boolean(filterError) || Boolean(exactSelectionError)}
           >
             <Download size={16} aria-hidden="true" />
             {exporting ? 'Preparing CSV…' : 'Export filtered CSV'}
@@ -396,10 +1012,21 @@ export default function AuditLogPage(): React.ReactElement {
       </header>
 
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        <strong>Coverage boundary:</strong> this timeline combines privileged admin actions and explicitly
+        <strong>Coverage boundary:</strong> this timeline combines recorded operational actions and explicitly
         recorded system events. It is not a complete HTTP request trace while E37 remains open. CSV exports
         use the same two sources and filters, mask contact/network/free-text PII, cap at 10,000 rows, and are audited.
       </div>
+
+      {entryIdFilter && !entryIdError && !entrySourceError && (
+        <Card className="border-sky-200 bg-sky-50 p-4" role="status">
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-900">Exact event evidence</p>
+          <p className="mt-1 text-sm text-sky-950">
+            Showing only audit entry <span className="font-mono text-xs">{entryIdFilter}</span> from the
+            {' '}{sourceFilter === 'all' ? 'selected timeline' : SOURCE_BADGE[sourceFilter].label.toLowerCase()}.
+            Values remain masked on this screen and in its CSV export.
+          </p>
+        </Card>
+      )}
 
       <Card className="p-4 md:p-5">
         <form onSubmit={applyFilters} className="space-y-4" aria-label="Audit timeline filters">
@@ -457,7 +1084,7 @@ export default function AuditLogPage(): React.ReactElement {
                 className="min-h-11 w-full rounded-md border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
               >
                 <option value="all">Both recorded sources</option>
-                <option value="admin_actions">Admin decisions</option>
+                <option value="admin_actions">Recorded actions</option>
                 <option value="audit_log">Selected system events</option>
               </select>
             </label>
@@ -494,17 +1121,24 @@ export default function AuditLogPage(): React.ReactElement {
       </Card>
 
       {filterError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{filterError}</p>}
+      {exactSelectionError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{exactSelectionError}</p>}
       {exportError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">Export failed: {exportError}</p>}
       {exportNotice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{exportNotice}</p>}
 
       {isLoading && !data ? (
         <LoadingState label="Loading recorded events…" />
       ) : isError ? (
-        <ErrorState title="Failed to load audit timeline" description={getErrorMessage(error)} />
+        <ErrorState
+          title="Audit timeline unavailable"
+          description={`${getErrorMessage(error)} Do not treat an unavailable timeline as proof that no action was recorded.`}
+          action={<Button variant="outline" onClick={() => void refetch()}>Retry audit timeline</Button>}
+        />
       ) : entries.length === 0 ? (
         <EmptyState
           title="No matching recorded events"
-          description={hasFilters
+          description={entryIdFilter
+            ? 'That exact audit event is not available within your role and the selected source.'
+            : hasFilters
             ? 'No event matches the submitted filters. Clear or broaden one filter.'
             : 'No admin decision or selected system event has been recorded yet.'}
           icon={<ClipboardList size={30} className="text-slate-400" />}
@@ -586,7 +1220,7 @@ export default function AuditLogPage(): React.ReactElement {
                       <SourceBadge entry={entry} />
                       <p className="font-semibold text-[var(--color-text)]">{actionLabel(entry.action)}</p>
                       <p className="text-sm text-[var(--color-text-secondary)]">
-                        {humanizeSlug(entry.entityType)}{entry.entityId ? ` · ${shortId(entry.entityId)}` : ''}
+                        {entityLabel(entry)}{entry.entityId ? ` · ${shortId(entry.entityId)}` : ''}
                       </p>
                     </div>
                     {expanded ? <ChevronUp size={18} aria-hidden="true" /> : <ChevronDown size={18} aria-hidden="true" />}
@@ -657,7 +1291,7 @@ function EntryDetails({ entry }: { entry: AuditEntry }): React.ReactElement {
         <DetailField label="Actor ID" value={entry.userId || 'System'} mono={Boolean(entry.userId)} />
         <DetailField label="Full action" value={entry.action} mono />
         <DetailField label="Source" value={SOURCE_BADGE[entry.source ?? 'audit_log'].label} />
-        <DetailField label="Record type" value={humanizeSlug(entry.entityType)} />
+        <DetailField label="Record type" value={entityLabel(entry)} />
         <DetailField label="Record ID" value={entry.entityId || 'Not recorded'} mono={Boolean(entry.entityId)} />
         <DetailField label="Masked network" value={entry.ipAddress || 'Not recorded'} mono />
         <DetailField label="Client" value={entry.userAgent || 'Not recorded'} />

@@ -27,6 +27,10 @@ export const sendOtpSchema = z.object({
     .string()
     .regex(PH_PHONE_REGEX, 'Phone must be in +63 9XX XXX XXXX format'),
   deviceFingerprint: DEVICE_FINGERPRINT_FIELD,
+  // SEC-080: Zod strips undeclared fields. Preserve the opaque challenge
+  // result for the route's server-side Siteverify check, without relaxing it.
+  // Cloudflare's documented maximum token length is 2048 characters.
+  captchaToken: z.string().min(1).max(2048).optional(),
 });
 
 export const verifyOtpSchema = z.object({
@@ -59,13 +63,32 @@ export const adminLoginSchema = z.object({
 
 export const adminTwoFactorVerifySchema = z.object({
   preAuthToken: z.string().min(10, 'preAuthToken is required'),
-  totpCode: z.string().regex(/^\d{6,8}$/, 'totpCode must be 6-8 digits'),
+  totpCode: z.string().regex(/^\d{6,8}$/, 'totpCode must be 6-8 digits').optional(),
+  backupCode: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{10}$/, 'backupCode must be a valid 10-character recovery code')
+    .optional(),
+}).strict().superRefine((value, ctx) => {
+  if ((value.totpCode ? 1 : 0) + (value.backupCode ? 1 : 0) !== 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide exactly one of totpCode or backupCode.',
+      path: ['totpCode'],
+    });
+  }
 });
 
 export const adminTwoFactorDisableSchema = z.object({
   totpCode: z.string().regex(/^\d{6,8}$/, 'totpCode must be 6-8 digits'),
   password: z.string().min(8).max(200).optional(),
 });
+
+export const adminChangePasswordSchema = z.object({
+  oldPassword: z.string().min(1, 'oldPassword is required').max(200),
+  newPassword: z.string().min(12, 'newPassword must be at least 12 characters').max(128),
+}).strict();
 
 export const logoutSchema = z.object({
   refreshToken: z.string().optional(),
@@ -78,6 +101,6 @@ export const logoutSchema = z.object({
 // unverified identity change. `.strict()` also prevents Zod from stripping an
 // attempted email field and letting a mixed name+email request partially pass.
 export const updateProfileSchema = z.object({
-  firstName: z.string().min(1).max(100).optional(),
-  lastName: z.string().min(1).max(100).optional(),
+  firstName: z.string().trim().min(1).max(100).optional(),
+  lastName: z.string().trim().min(1).max(100).optional(),
 }).strict();

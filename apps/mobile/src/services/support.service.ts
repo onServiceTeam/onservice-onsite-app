@@ -28,10 +28,14 @@ export interface SupportTicket {
   ticket_number: string;
   type: SupportTicketType;
   status: SupportTicketStatus;
-  priority: string;
   subject: string;
   description: string;
   booking_id: string | null;
+  project_id: string | null;
+  project_title?: string | null;
+  related_business_account_id?: string | null;
+  business_account_name?: string | null;
+  business_account_status?: string | null;
   created_at: string;
   updated_at: string;
   message_count?: string;
@@ -56,13 +60,29 @@ export interface CreateTicketPayload {
   type: SupportTicketType;
   subject: string;
   description: string;
-  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  safetyConcern?: true;
   bookingId?: string;
+  projectId?: string;
+  businessAccountId?: string;
 }
 
-export async function listMyTickets(): Promise<SupportTicket[]> {
-  const res = await api.get<ApiResponse<SupportTicket[]>>('/api/v1/support-tickets/mine');
-  return res.data.data;
+export interface SupportTicketPage {
+  tickets: SupportTicket[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export async function listMyTickets(page = 1, limit = 20): Promise<SupportTicketPage> {
+  const res = await api.get<ApiResponse<SupportTicket[]> & {
+    meta?: { total?: number; page?: number; limit?: number };
+  }>('/api/v1/support-tickets/mine', { params: { page, limit } });
+  return {
+    tickets: res.data.data,
+    total: res.data.meta?.total ?? res.data.data.length,
+    page: res.data.meta?.page ?? page,
+    limit: res.data.meta?.limit ?? limit,
+  };
 }
 
 export async function getMyTicket(id: string): Promise<SupportTicketDetail> {

@@ -265,7 +265,14 @@ export default function DisputeCaseScreen({ role }: { role: DisputeRole }): Reac
                 <Card style={styles.card}>
                   <SectionHeader title="Decision" />
                   <Text style={styles.value}>{dispute.resolutionType?.replace(/_/g, ' ') || 'Case resolved'}</Text>
-                  {dispute.refundAmount > 0 ? <Text style={styles.refundValue}>Refund: {formatPHP(dispute.refundAmount)}</Text> : null}
+                  {dispute.refundAmount > 0 ? (
+                    <>
+                      <Text style={styles.refundValue}>Approved refund: {formatPHP(dispute.refundAmount)}</Text>
+                      <Text style={styles.settlementStatus}>
+                        This is the case decision amount. Check the booking payment history or contact support for processing and completion status.
+                      </Text>
+                    </>
+                  ) : null}
                   {dispute.decisionNotes ? <Text style={styles.description}>{dispute.decisionNotes}</Text> : null}
                 </Card>
               ) : null}
@@ -407,6 +414,7 @@ const styles = StyleSheet.create({
   bookingContextRetryText: { ...typography.bodySmall, color: colors.primary, fontWeight: '700' },
   muted: { ...typography.bodySmall, color: colors.textTertiary },
   refundValue: { ...typography.h3, color: colors.success, marginTop: spacing.sm },
+  settlementStatus: { ...typography.caption, color: colors.textSecondary, lineHeight: 18, marginTop: spacing.xs },
   evidenceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   evidenceCard: { width: 112 },
   evidenceImage: { width: 112, height: 88, borderRadius: borderRadius.md, backgroundColor: colors.backgroundSecondary },

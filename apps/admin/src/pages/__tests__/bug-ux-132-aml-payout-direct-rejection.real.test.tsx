@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
@@ -39,7 +39,9 @@ it('Bug UX-132 — an internal-review-held payout offers direct rejection with a
   );
 
   fireEvent.click(await screen.findByRole('button', { name: 'Reject internal-review-held payout payout-aml-1' }));
-  const submit = screen.getByRole('button', { name: 'Reject' });
+  const dialog = screen.getByRole('dialog', { name: 'Reject Payout' });
+  expect(screen.getByText(/returns the full reserved amount/)).toBeVisible();
+  const submit = within(dialog).getByRole('button', { name: 'Reject' });
   expect(submit).toBeDisabled();
   expect(screen.getByLabelText('Rejection Reason *')).toBeTruthy();
 });

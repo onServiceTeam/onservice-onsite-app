@@ -103,7 +103,8 @@ function getEncryptionKey(): Buffer | null {
   if (!/^[0-9a-fA-F]{64}$/.test(keyHex)) {
     throw new Error(
       `TOTP_ENCRYPTION_KEY must be exactly 64 hex chars (32 bytes for AES-256). ` +
-        `Got ${keyHex.length} chars; first chars: "${keyHex.slice(0, 8)}". ` +
+        // Diagnostics can reach logs; report the format, never key material.
+        `Got ${keyHex.length} chars. ` +
         `Generate one with: node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))"`,
     );
   }

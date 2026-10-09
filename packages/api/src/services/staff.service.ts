@@ -13,6 +13,13 @@ export interface AdminRole {
   staff_count?: string;
 }
 
+export interface AdminRoleEvidence extends AdminRole {
+  deleted_at: string | null;
+  deleted_reason: string | null;
+  active_staff_count: string;
+  historical_staff_count: string;
+}
+
 export interface AdminStaff {
   id: string;
   profile_id?: string | null;
@@ -68,6 +75,24 @@ export async function getRoleById(roleId: string): Promise<AdminRole | null> {
   // Phase 14 Dispatch 06 — Bug 127: filter soft-deleted roles.
   const result = await db.query<AdminRole>(
     `SELECT * FROM admin_roles WHERE id = $1 AND deleted_at IS NULL`,
+    [roleId],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function getRoleEvidenceById(roleId: string): Promise<AdminRoleEvidence | null> {
+  const result = await db.query<AdminRoleEvidence>(
+    `SELECT ar.id, ar.name, ar.description, ar.permissions, ar.created_at, ar.updated_at,
+            ar.deleted_at, ar.deleted_reason,
+            (SELECT COUNT(*)::text
+               FROM admin_staff staff
+              WHERE staff.role_id = ar.id
+                AND staff.is_active = TRUE) AS active_staff_count,
+            (SELECT COUNT(*)::text
+               FROM admin_staff staff
+              WHERE staff.role_id = ar.id) AS historical_staff_count
+       FROM admin_roles ar
+      WHERE ar.id = $1`,
     [roleId],
   );
   return result.rows[0] ?? null;
@@ -307,6 +332,8 @@ export async function listStaff(params: {
       CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${idx} ESCAPE '\\'
       OR COALESCE(u.email, '') ILIKE $${idx} ESCAPE '\\'
       OR u.phone ILIKE $${idx} ESCAPE '\\'
+      OR u.id::text ILIKE $${idx} ESCAPE '\\'
+      OR COALESCE(ast.id::text, '') ILIKE $${idx} ESCAPE '\\'
     )`);
     values.push(`%${escaped}%`);
     idx += 1;
@@ -457,11 +484,14 @@ export async function addStaffMember(params: {
   userId: string;
   roleId: string;
   addedByAdminId: string;
-  reason?: string;
+  reason: string;
 }): Promise<AdminStaff> {
+  const reason = params.reason?.trim() ?? '';
+  if (reason.length < 10) {
+    throw createAppError('Reason must be at least 10 characters.', 400);
+  }
   try {
     return await db.transaction(async (client) => {
-      const reason = (params.reason ?? '').trim();
       const candidate = await client.query<{ id: string; role: string; is_active: boolean }>(
         `SELECT id, role, is_active FROM users WHERE id = $1 FOR SHARE`,
         [params.userId],
@@ -499,8 +529,8 @@ export async function addStaffMember(params: {
             addedRoleId: params.roleId,
             accessSource: 'users.role and route RBAC',
           }),
-          reason || 'Staff directory profile added.',
-          reason || null,
+          reason.slice(0, 500),
+          reason,
         ],
       );
       logger.info('Admin staff member added', {
@@ -623,9 +653,9 @@ export async function updateStaffMember(
 export async function removeStaffMember(
   staffId: string,
   removedByAdminId: string,
-  reason?: string,
+  reason: string,
 ): Promise<void> {
-  const trimmedReason = (reason ?? '').trim();
+  const trimmedReason = reason?.trim() ?? '';
   if (trimmedReason.length < 10) throw createAppError('Reason must be at least 10 characters.', 400);
   return db.transaction(async (client) => {
     const staffRow = await client.query<{ role_name: string; account_role: string; is_active: boolean }>(

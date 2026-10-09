@@ -5,6 +5,7 @@ import * as escrowService from './escrow.service';
 import * as socketService from './socket.service';
 import * as settingsService from './settings.service';
 import * as gatewayRetryService from './gateway-retry.service';
+import * as notificationService from './notification.service';
 
 interface DisputeRow {
   id: string;
@@ -27,6 +28,9 @@ interface DisputeRow {
   resolved_by: string | null;
   created_at: Date;
   updated_at: Date;
+  // Returned by audited mutation helpers after their canonical admin_actions
+  // row commits in the same transaction. It is not a disputes table column.
+  adminActionId?: string;
   // BUG-PHASE40-03 — populated only by listDisputes (LEFT JOIN
   // bookings + users + providers). Other dispute queries return
   // null/undefined for these. The admin DisputesPage list column
@@ -64,9 +68,87 @@ interface ProviderLookupRow {
 
 interface CountRow { count: string }
 
+type PgClient = { query: typeof db.query };
+
+interface DisputeParticipantPushRequest {
+  notificationId: string;
+  userId: string;
+  type: 'dispute_update';
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+}
+
+async function insertDisputeParticipantNotification(
+  client: PgClient,
+  params: {
+    userId: string;
+    title: string;
+    body: string;
+    data: Record<string, unknown>;
+  },
+): Promise<DisputeParticipantPushRequest> {
+  const result = await client.query<{ id: string }>(
+    `INSERT INTO notifications (user_id, type, title, body, data)
+     VALUES ($1, 'dispute_update', $2, $3, $4::jsonb)
+     RETURNING id`,
+    [
+      params.userId,
+      params.title,
+      params.body,
+      JSON.stringify({
+        type: 'dispute_update',
+        notificationType: 'dispute_update',
+        ...params.data,
+      }),
+    ],
+  );
+  const notificationId = result.rows[0]?.id;
+  if (!notificationId) {
+    throw createAppError('Failed to record dispute participant notification.', 500);
+  }
+  return {
+    notificationId,
+    userId: params.userId,
+    type: 'dispute_update',
+    title: params.title,
+    body: params.body,
+    data: params.data,
+  };
+}
+
+async function deliverDisputeParticipantPushes(
+  requests: DisputeParticipantPushRequest[],
+  disputeId: string,
+): Promise<void> {
+  if (requests.length === 0) return;
+  const results = await Promise.allSettled(
+    requests.map((request) => notificationService.deliverStoredNotificationPush(request)),
+  );
+  if (results.some((result) => result.status === 'rejected')) {
+    logger.warn('Dispute participant push failed after durable inbox delivery', {
+      disputeId,
+      notificationIds: requests.map((request) => request.notificationId),
+    });
+  }
+}
+
 type DisputeType = 'no_show' | 'incomplete' | 'substandard' | 'damage' | 'theft' | 'overcharge' | 'other';
 type ResolutionType = 'full_refund' | 'partial_refund' | 'no_refund' | 'free_redo'
   | 'refund_with_warning' | 'refund_with_suspension' | 'split_decision';
+
+const HELD_RESOLUTION_TYPES = new Set<ResolutionType>(['free_redo', 'refund_with_warning']);
+
+export function assertDisputeResolutionAvailable(resolutionType: ResolutionType): void {
+  if (HELD_RESOLUTION_TYPES.has(resolutionType)) {
+    throw createAppError(
+      resolutionType === 'free_redo'
+        ? 'Free redo is temporarily unavailable because it does not yet create a replacement work order. Use a linked support case.'
+        : 'Refund with warning is temporarily unavailable because it does not yet record a provider warning. Use Provider 360 and a linked support case.',
+      409,
+    );
+  }
+}
 
 import { platformConfig } from '../config/platform.config';
 
@@ -119,7 +201,8 @@ export async function fileDispute(
     });
   }
 
-  const dispute = await db.transaction(async (client) => {
+  const result = await db.transaction(async (client) => {
+    const pushRequests: DisputeParticipantPushRequest[] = [];
     const result = await client.query<DisputeRow>(
       `INSERT INTO disputes (booking_id, filed_by, type, description)
        VALUES ($1, $2, $3, $4) RETURNING *`,
@@ -150,7 +233,27 @@ export async function fileDispute(
         `SELECT * FROM disputes WHERE id = $1`,
         [d.id],
       );
-      return resolved.rows[0]!;
+      pushRequests.push(await insertDisputeParticipantNotification(client, {
+        userId: bk.customer_id,
+        title: 'Dispute Decision Recorded',
+        body: 'A full refund decision was recorded for your dispute. Open the case and booking payment history for processing status.',
+        data: { disputeId: d.id, bookingId, disputeStatus: 'resolved', resolution: 'full_refund' },
+      }));
+      if (bk.provider_id) {
+        const provider = await client.query<ProviderLookupRow>(
+          `SELECT user_id FROM providers WHERE id = $1`,
+          [bk.provider_id],
+        );
+        if (provider.rows[0]) {
+          pushRequests.push(await insertDisputeParticipantNotification(client, {
+            userId: provider.rows[0].user_id,
+            title: 'Dispute Decision Recorded',
+            body: 'A full refund decision was recorded for a dispute on your booking. Open the case and booking payment history for processing status.',
+            data: { disputeId: d.id, bookingId, disputeStatus: 'resolved', resolution: 'full_refund' },
+          }));
+        }
+      }
+      return { dispute: resolved.rows[0]!, pushRequests };
     }
 
     if (bk.provider_id) {
@@ -159,20 +262,18 @@ export async function fileDispute(
         [bk.provider_id],
       );
       if (provider.rows[0]) {
-        await client.query(
-          `INSERT INTO notifications (user_id, type, title, body, data)
-           VALUES ($1, 'dispute_update', 'Dispute Filed', $2, $3)`,
-          [
-            provider.rows[0].user_id,
-            'A customer has filed a dispute for one of your completed jobs. You have 48 hours to respond.',
-            JSON.stringify({ disputeId: d.id, bookingId, disputeType: data.type }),
-          ],
-        );
+        pushRequests.push(await insertDisputeParticipantNotification(client, {
+          userId: provider.rows[0].user_id,
+          title: 'Dispute Filed',
+          body: 'A customer has filed a dispute for one of your completed jobs. You have 48 hours to respond.',
+          data: { disputeId: d.id, bookingId, disputeType: data.type, disputeStatus: d.status },
+        }));
       }
     }
 
-    return d;
+    return { dispute: d, pushRequests };
   });
+  const dispute = result.dispute;
 
   // MED-N19 fix: post-commit refund block REMOVED.
   // refundFromEscrowInTransaction is now called inside attemptAutoResolution
@@ -193,6 +294,8 @@ export async function fileDispute(
       error: e instanceof Error ? e.message : String(e),
     });
   }
+
+  await deliverDisputeParticipantPushes(result.pushRequests, dispute.id);
 
   return dispute;
 }
@@ -320,6 +423,7 @@ export async function addProviderResponse(
   }
 
   const result = await db.transaction(async (client) => {
+    const pushRequests: DisputeParticipantPushRequest[] = [];
     if (action === 'accept') {
       const totalAmount = Number(bk.total_amount);
       await client.query(
@@ -338,7 +442,14 @@ export async function addProviderResponse(
         [bk.id],
       );
 
-      logger.info('Dispute resolved — provider accepted', { disputeId });
+      pushRequests.push(await insertDisputeParticipantNotification(client, {
+        userId: bk.customer_id,
+        title: 'Provider Accepted Your Dispute',
+        body: 'The provider accepted your dispute. A full refund is being processed. Open the dispute and booking payment history for status.',
+        data: { disputeId, bookingId: bk.id, disputeStatus: 'resolved', resolution: 'full_refund' },
+      }));
+
+      logger.info('Dispute resolved - provider accepted', { disputeId });
     } else if (action === 'contest') {
       const contestUpdate = await client.query(
         `UPDATE disputes SET
@@ -353,16 +464,13 @@ export async function addProviderResponse(
       if (contestUpdate.rowCount !== 1) {
         throw createAppError('This dispute already has a provider response or is no longer open.', 409);
       }
-      await client.query(
-        `INSERT INTO notifications (user_id, type, title, body, data)
-         VALUES ($1, 'dispute_update', 'Provider Responded to Dispute', $2, $3)`,
-        [
-          bk.customer_id,
-          'The provider contested your dispute. The case is now in the onService support review queue.',
-          JSON.stringify({ disputeId, bookingId: bk.id, disputeStatus: 'under_review' }),
-        ],
-      );
-      logger.info('Dispute escalated to Tier 2 — provider contested', { disputeId });
+      pushRequests.push(await insertDisputeParticipantNotification(client, {
+        userId: bk.customer_id,
+        title: 'Provider Responded to Dispute',
+        body: 'The provider contested your dispute. The case is now in the onService support review queue.',
+        data: { disputeId, bookingId: bk.id, disputeStatus: 'under_review' },
+      }));
+      logger.info('Dispute escalated to Tier 2 - provider contested', { disputeId });
     } else if (action === 'partial_offer') {
       if (!partialOfferAmount || partialOfferAmount <= 0) {
         throw createAppError('Partial offer amount must be positive.', 400);
@@ -381,6 +489,12 @@ export async function addProviderResponse(
          WHERE id = $3`,
         [response, partialOfferAmount, disputeId],
       );
+      pushRequests.push(await insertDisputeParticipantNotification(client, {
+        userId: bk.customer_id,
+        title: 'Provider Offered a Partial Refund',
+        body: 'The provider offered a partial refund. Open the dispute to review the offer and decide whether to accept it.',
+        data: { disputeId, bookingId: bk.id, disputeStatus: 'open', resolution: 'partial_refund_offer' },
+      }));
       logger.info('Provider offered partial refund', { disputeId, partialOfferAmount });
     }
 
@@ -388,14 +502,14 @@ export async function addProviderResponse(
       `SELECT * FROM disputes WHERE id = $1`,
       [disputeId],
     );
-    return updated.rows[0]!;
+    return { dispute: updated.rows[0]!, pushRequests };
   });
 
   try {
     socketService.emitAdminEvent(socketService.ADMIN_EVENTS.DISPUTE_UPDATED, {
       id: disputeId,
       bookingId: bk.id,
-      status: result.status,
+      status: result.dispute.status,
     });
   } catch (e) {
     logger.warn('Admin dispute update socket emit failed', {
@@ -403,6 +517,8 @@ export async function addProviderResponse(
       error: e instanceof Error ? e.message : String(e),
     });
   }
+
+  await deliverDisputeParticipantPushes(result.pushRequests ?? [], disputeId);
 
   if (action === 'accept') {
     const totalAmount = Number(bk.total_amount);
@@ -426,7 +542,7 @@ export async function addProviderResponse(
     }
   }
 
-  return result;
+  return result.dispute;
 }
 
 export async function acceptPartialOffer(disputeId: string, customerId: string): Promise<DisputeRow> {
@@ -531,8 +647,6 @@ export async function acceptPartialOffer(disputeId: string, customerId: string):
  * post-commit escrow refund/release calls (which target an external
  * gateway and tolerate eventual consistency per the documented pattern).
  */
-type PgClient = { query: typeof db.query };
-
 export async function resolveDisputeInTransaction(
   client: PgClient,
   disputeId: string,
@@ -543,7 +657,16 @@ export async function resolveDisputeInTransaction(
     decisionNotes: string;
     internalNotes?: string;
   },
-): Promise<{ dispute: DisputeRow; refundAmount: number; refundPercent: number; bookingId: string; bookingTotalAmount: number; providerId: string | null }> {
+): Promise<{
+  dispute: DisputeRow;
+  refundAmount: number;
+  refundPercent: number;
+  bookingId: string;
+  bookingTotalAmount: number;
+  providerId: string | null;
+  pushRequests: DisputeParticipantPushRequest[];
+}> {
+  assertDisputeResolutionAvailable(data.resolutionType);
   const dispute = await client.query<DisputeRow>(
     `SELECT * FROM disputes WHERE id = $1 FOR UPDATE`,
     [disputeId],
@@ -608,15 +731,14 @@ export async function resolveDisputeInTransaction(
     );
   }
 
-  await client.query(
-    `INSERT INTO notifications (user_id, type, title, body, data)
-     VALUES ($1, 'dispute_update', 'Dispute Resolved', $2, $3)`,
-    [
-      bk.customer_id,
-      `Your dispute has been resolved: ${formatResolutionType(data.resolutionType)}.`,
-      JSON.stringify({ disputeId, bookingId: d.booking_id, resolution: data.resolutionType }),
-    ],
-  );
+  const pushRequests: DisputeParticipantPushRequest[] = [];
+  const decisionBody = `A decision was recorded for your dispute: ${formatResolutionType(data.resolutionType)}. Open the case and booking payment history for processing status.`;
+  pushRequests.push(await insertDisputeParticipantNotification(client, {
+    userId: bk.customer_id,
+    title: 'Dispute Decision Recorded',
+    body: decisionBody,
+    data: { disputeId, bookingId: d.booking_id, resolution: data.resolutionType },
+  }));
 
   if (bk.provider_id) {
     const provider = await client.query<ProviderLookupRow>(
@@ -624,15 +746,12 @@ export async function resolveDisputeInTransaction(
       [bk.provider_id],
     );
     if (provider.rows[0]) {
-      await client.query(
-        `INSERT INTO notifications (user_id, type, title, body, data)
-         VALUES ($1, 'dispute_update', 'Dispute Resolved', $2, $3)`,
-        [
-          provider.rows[0].user_id,
-          `A dispute for your booking has been resolved: ${formatResolutionType(data.resolutionType)}.`,
-          JSON.stringify({ disputeId, bookingId: d.booking_id, resolution: data.resolutionType }),
-        ],
-      );
+      pushRequests.push(await insertDisputeParticipantNotification(client, {
+        userId: provider.rows[0].user_id,
+        title: 'Dispute Decision Recorded',
+        body: `A decision was recorded for a dispute on your booking: ${formatResolutionType(data.resolutionType)}. Open the case and booking payment history for processing status.`,
+        data: { disputeId, bookingId: d.booking_id, resolution: data.resolutionType },
+      }));
     }
   }
 
@@ -648,6 +767,7 @@ export async function resolveDisputeInTransaction(
     bookingId: d.booking_id,
     bookingTotalAmount: totalAmount,
     providerId: bk.provider_id,
+    pushRequests,
   };
 }
 
@@ -674,6 +794,8 @@ export async function resolveDispute(
     );
     return helper;
   });
+
+  await deliverDisputeParticipantPushes(result.pushRequests, disputeId);
 
   const refundAmount = result.refundAmount;
   const totalAmount = result.bookingTotalAmount;
@@ -766,9 +888,10 @@ export async function escalateDispute(disputeId: string, adminId: string, reason
       [newTier, disputeId],
     );
 
-    await client.query(
+    const auditResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
-       VALUES ($1, 'dispute_escalated', 'dispute', $2, $3, $4, $5)`,
+       VALUES ($1, 'dispute_escalated', 'dispute', $2, $3, $4, $5)
+       RETURNING id`,
       [adminId, disputeId,
        JSON.stringify({ previousTier: d.tier, newTier }),
        reason.slice(0, 500),
@@ -776,8 +899,10 @@ export async function escalateDispute(disputeId: string, adminId: string, reason
     );
 
     if (result.rows.length === 0) throw createAppError('Failed to escalate dispute — concurrent modification.', 409);
+    const adminActionId = auditResult.rows[0]?.id;
+    if (!adminActionId) throw createAppError('Failed to record dispute escalation audit.', 500);
     logger.info('Dispute escalated', { disputeId, fromTier: d.tier, toTier: newTier });
-    return result.rows[0]!;
+    return { ...result.rows[0]!, adminActionId };
   });
 }
 
@@ -795,14 +920,17 @@ export async function assignDispute(disputeId: string, adminId: string, assignee
     );
     if (result.rows.length === 0) throw createAppError('Dispute not found or already resolved.', 404);
 
-    await client.query(
+    const auditResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, 'dispute_assigned', 'dispute', $2, $3)`,
+       VALUES ($1, 'dispute_assigned', 'dispute', $2, $3)
+       RETURNING id`,
       [adminId, disputeId, JSON.stringify({ assignedTo: assigneeId })],
     );
 
+    const adminActionId = auditResult.rows[0]?.id;
+    if (!adminActionId) throw createAppError('Failed to record dispute assignment audit.', 500);
     logger.info('Dispute assigned', { disputeId, assigneeId });
-    return result.rows[0]!;
+    return { ...result.rows[0]!, adminActionId };
   });
 }
 
@@ -987,13 +1115,13 @@ export async function autoEscalateStaleDisputes(): Promise<number> {
 
 function formatResolutionType(type: string): string {
   const labels: Record<string, string> = {
-    full_refund: 'Full refund issued',
-    partial_refund: 'Partial refund issued',
+    full_refund: 'Full refund approved',
+    partial_refund: 'Partial refund approved',
     no_refund: 'No refund — claim denied',
-    free_redo: 'Free service redo offered',
-    refund_with_warning: 'Refund issued, provider warned',
-    refund_with_suspension: 'Refund issued, provider suspended',
-    split_decision: 'Split decision — partial refund and compensation',
+    free_redo: 'Free service redo selected',
+    refund_with_warning: 'Full refund approved, provider warning selected',
+    refund_with_suspension: 'Full refund approved, provider suspended',
+    split_decision: 'Split decision — partial refund approved',
   };
   return labels[type] ?? type;
 }

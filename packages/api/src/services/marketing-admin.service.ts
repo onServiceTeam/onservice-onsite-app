@@ -112,6 +112,7 @@ interface CampaignRow {
 
 const CODE_REGEX = /^[A-Z0-9_-]{3,40}$/;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const CHANNEL_REGEX = /^[a-z0-9_-]{1,40}$/;
 
 // MED-N29 fix: marketing channels are no longer a hardcoded const.
 // They live in platform_settings.marketing_channels (JSON array).
@@ -144,6 +145,20 @@ async function getAllowedChannels(): Promise<Set<string>> {
 
 export async function listAllowedMarketingChannels(): Promise<string[]> {
   return [...await getAllowedChannels()];
+}
+
+/**
+ * Channels already present in campaign history. This list is deliberately
+ * independent from the current creation allowlist: retiring a channel must
+ * not orphan the exact filter needed to review its recorded spend.
+ */
+export async function listRecordedMarketingChannels(): Promise<string[]> {
+  const result = await db.query<{ channel: string }>(
+    `SELECT DISTINCT channel
+       FROM marketing_campaigns
+      ORDER BY channel ASC`,
+  );
+  return result.rows.map((row) => row.channel);
 }
 
 function validateCode(code: string): string {
@@ -211,6 +226,16 @@ async function validateChannel(channel: string): Promise<string> {
   if (!allowed.has(channel)) {
     throw createAppError(
       `channel must be one of: ${Array.from(allowed).join(', ')}.`,
+      400,
+    );
+  }
+  return channel;
+}
+
+function validateChannelFilter(channel: string): string {
+  if (typeof channel !== 'string' || !CHANNEL_REGEX.test(channel)) {
+    throw createAppError(
+      'channel filter must be a lowercase slug containing only letters, numbers, underscores, or hyphens.',
       400,
     );
   }
@@ -553,8 +578,7 @@ export async function listCampaigns(
   const params: unknown[] = [];
 
   if (filter?.channel !== undefined) {
-    await validateChannel(filter.channel);
-    params.push(filter.channel);
+    params.push(validateChannelFilter(filter.channel));
     where.push(`channel = $${params.length}`);
   }
   // BUG-PHASE132-01 fix — pre-fix passed YYYY-MM-DD strings directly to
@@ -670,32 +694,43 @@ export async function updateCampaign(
     name: string;
     endedAt: string | null;
     spendCentavos: number;
+    /** @deprecated Direct attribution replacement is rejected below. */
     attributedSignups: number;
+    /** @deprecated Direct attribution replacement is rejected below. */
     attributedFirstBookings: number;
+    /** @deprecated Direct attribution replacement is rejected below. */
     attributedRevenueCentavos: number;
     notes: string | null;
   }>,
   adminUserId: string,
 ): Promise<MarketingCampaign> {
+  if (
+    patch.attributedSignups !== undefined
+    || patch.attributedFirstBookings !== undefined
+    || patch.attributedRevenueCentavos !== undefined
+  ) {
+    throw createAppError(
+      'Campaign attribution counters cannot be overwritten. Use an evidence-backed adjustment workflow once one is approved.',
+      400,
+    );
+  }
   if (patch.endedAt !== undefined && patch.endedAt !== null) {
     validateDateString(patch.endedAt, 'endedAt');
+    const rangeResult = await db.query<{ valid: boolean }>(
+      `SELECT ($2::date >= started_at) AS valid
+         FROM marketing_campaigns
+        WHERE id = $1`,
+      [id, patch.endedAt],
+    );
+    const range = rangeResult.rows[0];
+    if (!range) throw createAppError('Marketing campaign not found.', 404);
+    if (!range.valid) {
+      throw createAppError('endedAt must be on or after the campaign startedAt date.', 400);
+    }
   }
   if (patch.spendCentavos !== undefined) {
     validateNonNegativeInt(patch.spendCentavos, 'spendCentavos');
   }
-  if (patch.attributedSignups !== undefined) {
-    validateNonNegativeInt(patch.attributedSignups, 'attributedSignups');
-  }
-  if (patch.attributedFirstBookings !== undefined) {
-    validateNonNegativeInt(patch.attributedFirstBookings, 'attributedFirstBookings');
-  }
-  if (patch.attributedRevenueCentavos !== undefined) {
-    validateNonNegativeInt(
-      patch.attributedRevenueCentavos,
-      'attributedRevenueCentavos',
-    );
-  }
-
   const sets: string[] = [];
   const params: unknown[] = [];
   if (patch.name !== undefined) {
@@ -712,18 +747,6 @@ export async function updateCampaign(
   if (patch.spendCentavos !== undefined) {
     params.push(patch.spendCentavos);
     sets.push(`spend_centavos = $${params.length}`);
-  }
-  if (patch.attributedSignups !== undefined) {
-    params.push(patch.attributedSignups);
-    sets.push(`attributed_signups = $${params.length}`);
-  }
-  if (patch.attributedFirstBookings !== undefined) {
-    params.push(patch.attributedFirstBookings);
-    sets.push(`attributed_first_bookings = $${params.length}`);
-  }
-  if (patch.attributedRevenueCentavos !== undefined) {
-    params.push(patch.attributedRevenueCentavos);
-    sets.push(`attributed_revenue_centavos = $${params.length}`);
   }
   if (patch.notes !== undefined) {
     params.push(patch.notes);

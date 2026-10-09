@@ -15,7 +15,7 @@ const detail = {
   pricingMode: 'fixed_price', servicePrice: 100000, serviceFee: 25000, totalAmount: 125000,
   conversationId: 'conversation-1', category: { id: 'category-1', name: 'Cleaning' }, subcategory: null,
   address: { full: '1 Osmeña Boulevard', barangay: 'Capitol Site', city: 'Cebu City', province: 'Cebu' },
-  customer: null, provider: null, createdAt: '2026-08-30T01:00:00.000Z',
+  customer: null, provider: null, businessContext: null, createdAt: '2026-08-30T01:00:00.000Z',
 };
 
 it('Bug UX-476 — Booking 360 renders payment attempts, wallet movements, and legacy sales records in one money workspace', async () => {

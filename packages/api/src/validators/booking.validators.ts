@@ -44,7 +44,22 @@ export const createBookingSchema = z.object({
   // D27 Phase 4b — required for hourly subcategories. The server re-clamps to
   // the subcategory's max_estimated_hours; this is only a coarse sanity bound.
   estimatedHours: z.number().positive().max(24).optional(),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.businessAccountId && value.bookingType !== 'fixed_price') {
+    context.addIssue({
+      code: 'custom',
+      path: ['businessAccountId'],
+      message: 'Business-account billing currently supports fixed-price contracted services only.',
+    });
+  }
+  if (value.businessAccountId && value.promoCode) {
+    context.addIssue({
+      code: 'custom',
+      path: ['promoCode'],
+      message: 'Promo codes cannot be combined with a contracted business booking.',
+    });
+  }
+});
 
 // MED-N91 fix — POST /bookings/pricing-preview used to do manual
 // presence-checks on basePrice + scheduledAt + categoryId. Replace

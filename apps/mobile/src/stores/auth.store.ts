@@ -22,6 +22,15 @@ import {
 // refresh attempt from a different fingerprint can be detected.
 import { getDeviceFingerprint } from '@/services/device-fingerprint.service';
 import { unregisterStoredPushToken } from '@/services/push-token.service';
+import { resetApplicationSession } from './provider-application-session.store';
+
+// Separate from token rotation and from draft reloads. An old logout may finish
+// after a fresh sign-in, including another sign-in by this same account.
+let authIdentityGeneration = 0;
+function invalidateApplicantIdentity(): void {
+  authIdentityGeneration += 1;
+  resetApplicationSession();
+}
 
 // Phase D CRIT-88 fix — User.role no longer omits 'super_admin' (and
 // 'dpo' from E01). Pre-fix: a super_admin signing into the mobile
@@ -44,12 +53,14 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   otpRequestId: string | null;
+  // In-memory explanation only, never evidence of an approval or account role.
+  sessionExpired: boolean;
 
   hydrate: () => void;
   requestOtp: (phone: string, captchaToken?: string) => Promise<void>;
   verifyOtp: (phone: string, code: string) => Promise<void>;
   register: (phone: string, firstName: string, lastName: string) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (reason?: 'sign-in-required') => Promise<void>;
   setUser: (user: User) => void;
   // D23 — after accepting a team invite the API returns a fresh token pair
   // carrying the provider_staff role; swap in the new session so routing
@@ -70,6 +81,7 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
   isAuthenticated: false,
   isLoading: true,
   otpRequestId: null,
+  sessionExpired: false,
 
   hydrate: () => {
     const token = getAccessToken();
@@ -140,12 +152,14 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     const refreshToken = data.refreshToken;
     const user = data.user as User;
     const isNewUser = data.isNewUser === true;
+    // A fresh login for the same owner also invalidates old screen work.
+    invalidateApplicantIdentity();
     storeTokens(accessToken, refreshToken);
     storeUser(JSON.stringify(user));
     if (isNewUser) {
       storage.set('isNewUser', 'true');
     }
-    set({ user, isAuthenticated: true, otpRequestId: null });
+    set({ user, isAuthenticated: true, otpRequestId: null, sessionExpired: false });
   },
 
   register: async (_phone: string, firstName: string, lastName: string) => {
@@ -169,16 +183,18 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
   // local state. Running both requests together avoids doubling the logout
   // delay on a poor connection. If either server call fails, we still clear
   // locally; logout must always succeed from the user's perspective.
-  logout: async () => {
+  logout: async (reason) => {
+    const generation = authIdentityGeneration;
     const logoutRequests: Promise<unknown>[] = [unregisterStoredPushToken()];
     const refreshToken = getRefreshToken();
     if (refreshToken) {
       logoutRequests.push(api.post('/api/v1/auth/logout', { refreshToken }));
     }
     await Promise.allSettled(logoutRequests);
+    if (authIdentityGeneration !== generation) return;
     clearTokens();
     clearStoredUser();
-    set({ user: null, isAuthenticated: false, otpRequestId: null });
+    set({ user: null, isAuthenticated: false, otpRequestId: null, sessionExpired: reason === 'sign-in-required' });
   },
 
   setUser: (user: User) => {
@@ -191,7 +207,7 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     set((state) => {
       const user = state.user ? { ...state.user, role: 'provider_staff' as const } : state.user;
       if (user) storeUser(JSON.stringify(user));
-      return { user, isAuthenticated: true };
+      return { user, isAuthenticated: true, sessionExpired: false };
     });
   },
 }));
@@ -205,5 +221,13 @@ setAuthSessionExpiredHandler(() => {
     isAuthenticated: false,
     isLoading: false,
     otpRequestId: null,
+    sessionExpired: true,
   });
+});
+
+// One boundary covers logout, terminal expiry, restored identity, approval,
+// staff conversion and explicit account changes. Profile-only edits keep work.
+useAuthStore.subscribe((state, previous) => {
+  if (state.user?.id !== previous.user?.id || state.user?.role !== previous.user?.role
+    || state.isAuthenticated !== previous.isAuthenticated) invalidateApplicantIdentity();
 });

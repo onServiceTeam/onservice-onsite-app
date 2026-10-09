@@ -6,6 +6,13 @@ Sibling docs you will reach for: `05-provider-onboarding-and-training.md` (activ
 
 All money in this doc is Philippine pesos (₱). Timezone is Asia/Manila (PHT). All amounts in the app are stored in centavos and shown as ₱.
 
+September 6 verification note: the repository's tested development candidate is
+ahead of the live server. Check the deployed release before promising a newly
+corrected behavior to a provider. Candidate availability/matching evidence is in
+`../audits/PROVIDER-AVAILABILITY-LINKAGE-2026-09-06.md`; approval sign-in evidence
+is in `../audits/PROVIDER-APPROVAL-SIGN-IN-2026-09-06.md`. Neither document is a
+live-release certificate. Money and renewal holds below remain in force.
+
 ---
 
 ## 1. Channels and hours
@@ -42,7 +49,7 @@ These are first-response and resolution targets, not promises in the app. Measur
 | Medium | Commission question, rating dispute, document re-upload, service-area change | 8 business hours | 2 business days |
 | Low | General how-to, profile edits, app questions | 1 business day | 3 business days |
 
-Map these to the admin ticket priority field (low/medium/high/urgent) and ticket type (`booking_issue`, `payment_issue`, `provider_no_show`, `app_bug`, `account_issue`, `general_inquiry`). Ticket numbers look like `TKT-1000`.
+Map these to the admin ticket priority field (low/medium/high/urgent) and the provider-eligible ticket types (`booking_issue`, `payment_issue`, `app_bug`, `account_issue`, `general_inquiry`). `provider_no_show` is reserved for a customer-owned case linked to the affected booking; when a provider reports that the customer did not meet them on-site, use `booking_issue` and preserve the job evidence as section 9 requires. Ticket numbers look like `TKT-1000`.
 
 ---
 
@@ -55,7 +62,7 @@ Map these to the admin ticket priority field (low/medium/high/urgent) and ticket
 5. If the provider or assigned provider staff member replies while the case is waiting, the system returns an assigned case to `in_progress` or an unassigned case to `open`. Resolved and closed provider threads are read-only; open a new case for a genuinely new issue.
 6. Work the playbook for that issue (sections 5 to 14).
 7. If the issue needs Finance or Trust & Safety, escalate per section 4 and set status `escalated`.
-8. Resolve with a clear reply. Resolution notes need at least 10 characters in admin.
+8. Resolve with a clear public reply. The separate internal resolution note needs at least 10 characters in Admin and is not shown to the provider.
 
 ---
 
@@ -68,6 +75,8 @@ Map these to the admin ticket priority field (low/medium/high/urgent) and ticket
 | Ken | Money or compliance risk, two-system policy conflict (cancellation), any refund over ₱10,000, any refund-with-suspension, any damage or theft payout, anything a hard stop names | Escalation file + chat. |
 
 Money actions (refund, payout, escrow release) always stay with super-admin staff. Support agents get a limited admin login that cannot reach money buttons; they gather facts, attach evidence, and hand to a super_admin to execute. Do not promise an outcome you cannot perform.
+
+Before setting the Support case to `escalated`, assign an active case owner. The current owner remains accountable until the case is reassigned. The escalation handoff must name the destination, decision needed, evidence already checked, next action, and urgency. The server rejects an unassigned escalation.
 
 > **Set (editable):** Super-admin/Ken reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout before it goes out. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
@@ -111,27 +120,27 @@ Our operating target is up to 3 business days after approval, but the recorded s
 
 ---
 
-## 6. Commission questions (per tier)
+## 6. Commission questions
 
-Commission is a flat rate per tier. It does not vary inside a tier. It is taken off the service price; the provider receives service price minus commission. The customer service fee is currently 0%; if Ken later re-enables that separate admin-tunable charge, it is still not the provider's commission.
+Commission is taken off the service price, but it can vary inside a tier through an effective-dated provider/category/service agreement. For a priced or paid booking, its immutable Booking 360 financial terms are final. For future work, use Financials -> Commission Controls. The customer service fee is currently 0%; if Ken later re-enables that separate charge, it is still not provider commission.
 
 | Tier | Commission | How you reach it |
 |---|---|---|
-| founding | 10% | Invite-only launch batch. Not a step you earn into. Parallel tier. |
+| founding | 10% seeded base | Invite-only parallel tier; E63 hold, no new offer or assignment. |
 | new | 15% | Default on signup. |
 | verified | 13% | 5+ jobs, 4.0+ rating. |
 | pro | 11% | 25+ jobs, 4.5+ rating, no open disputes. |
 | elite | 9% | 100+ jobs, 4.7+ rating, a verified (TESDA) certification, no open disputes. |
 
 Notes for accurate answers:
-- These defaults are admin-tunable in Settings (Commissions category). If Ken changed a rate, the live number wins. Check Settings before quoting if unsure.
+- These are seeded base rates, not an existing booking's truth. Check the booking snapshot first; otherwise inspect the effective provider/tier agreement in Commission Controls. Direct Settings edits are retired under E50.
 - Tier promotion is not automatic. The app shows progress on the provider's tier-progression screen, but a super_admin sets the new tier on the Providers page (reason required, 10+ chars). When a provider meets the next tier's bar, log a ticket and route to Trust & Safety / admin to apply the change.
 - Do not confuse provider tiers with the customer Suki loyalty tiers. Different thing.
 
 Macro: commission explainer
 
 ```
-Hi [name], your tier is [tier] so your commission is [X]% on the service price. That means on a ₱[price] job, ₱[commission] is the platform commission and you receive ₱[price-commission]. The customer pays a separate service fee on top, which is not part of your commission. Your next tier is [next tier] at [Y]%, which needs [N jobs / rating / cert]. You're at [current jobs] jobs and a [rating] rating. Once you hit the bar we'll review and update your tier.
+Hi [name], booking [reference] fixed your commission at [X]% on the ₱[price] service price. That is ₱[commission] platform commission and ₱[provider amount] provider earnings before any separate payout adjustment. This rate came from [tier/provider/category agreement] and is preserved on the booking. Your current tier is [tier]. The next tier's seeded base is [Y]%, but the effective rate must be checked when future work is priced. You are currently at [jobs] jobs and [rating] rating; meeting the bar starts an admin review and does not change old bookings.
 ```
 
 ---
@@ -156,12 +165,13 @@ Change-order playbook:
 
 Useful booking facts:
 - Auto-dispatch sends one offer at a time. The provider has 45 seconds to Accept or Decline. A missed or declined offer cascades to the next provider. Max 10 attempts per booking.
-- Only approved AND available providers get offers. If a provider is offline (`is_available=false`) or suspended, they get nothing.
+- Automatic candidate matching excludes providers who are not approved or have `is_available=false`. This is not proof that an already outstanding offer was revoked; inspect the specific booking and offer when handling a case.
 - Provider job lifecycle on a paid booking: en route, arrived, in progress, completed by provider, (customer confirms) confirmed, payout ready, paid out.
 - A provider cannot move a booking from `provider_arrived` to `in_progress` and beyond on the customer's behalf in odd ways; the status machine enforces order. If a status looks stuck, check Booking 360 timeline.
 
 Playbook:
 1. "I'm not getting any job offers": check provider is approved, `is_available` is on, has the right service categories, and is inside a service area that is active. Few or zero providers can also mean the area is in soft_launch. Check the Service Areas page.
+   Check the scheduled Philippine date/time, saved weekly hours and any date override too. In the tested September 6 candidate, a blocked date prevents matching and a valid custom window replaces that day's weekly hours. Do not promise that this correction is live until release is verified. Turning availability off does not hide the public profile or cancel accepted work. Do not change an existing booking merely to repair a provider's future schedule.
 2. "I accepted but the app says someone else got it": offers are exclusive and time-boxed at 45 seconds. If it expired or a sibling offer was accepted, the job is gone. Normal.
 3. "Booking stuck, I can't mark the next step": open Booking 360 then Timeline. Confirm current status. If genuinely stuck (rare), a super_admin can force-complete (reason 20+ chars) or reassign. Escalate.
 4. "I need to cancel a job I accepted": providers can cancel from `matched`, `paid`, or `provider_en_route`. Warn them about cancellation tracking: a warning fires after 3 cancellations in 30 days, and an auto-suspend signal after 5 in 30 days. See section 13.
@@ -174,11 +184,11 @@ When the platform itself cannot match any provider (no-provider failure), the cu
 
 When the provider arrives and the customer is not there:
 1. Tell the provider to message the customer in the booking chat first (text plus a photo of arrival if useful). There is no in-app calling or masked-telephone service. Chat is the live channel and the current customer/provider copy now says so.
-2. Provider should wait a reasonable window. Starting wait is 15 minutes before reporting a no-show.
+2. The stored/default wait is currently 30 minutes, but E60 records that the API measures it from the scheduled time rather than from a verified arrival timestamp. Do not tell either party that the present route proves 30 minutes on-site.
 
-> **Set (editable):** A provider waits 15 minutes after arriving before reporting a customer no-show. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **Launch hold:** `provider_noshow_minutes` is read-only under E60. It currently drives both provider-late alerts and the customer no-show money boundary. Do not change it in PostgreSQL or bypass the Settings API.
 
-3. If the customer still does not appear, the provider reports it to support. Log this as ticket type `booking_issue` with a clear note "customer no-show at site." (The `provider_no_show` ticket type is for the opposite case, when the provider fails to show.)
+3. The provider app can submit the customer no-show action from an arrived booking. Because the current check does not prove the on-site duration, open or link a `booking_issue` support case and preserve the exact arrival, chat, photo, and location evidence. The `provider_no_show` ticket type is for the opposite case, when the provider fails to show.
 4. A customer no-show affects the refund split. On the live cancellation path, a customer no-show gives the customer a 0% refund, which means the provider is compensated for the trip. Confirm the booking is handled so the provider is not penalized.
 5. Gather evidence: arrival photo, GPS check-in (visible in Booking 360 then Evidence), chat showing the provider tried to reach the customer.
 6. Escalate to Trust & Safety / super_admin to cancel or resolve with the no-show flag so the money splits correctly. Do not leave the provider out of pocket for a confirmed customer no-show.
@@ -190,7 +200,7 @@ Note the mirror case: if the PROVIDER no-shows, the customer gets a 100% refund 
 ## 10. App, account, and login issues
 
 Provider login is phone number plus OTP. No passwords.
-- OTP is a 6-digit code to a PH mobile number (`+63 9XX XXX XXXX`).
+- OTP is sent to a PH mobile number (`+63 9XX XXX XXXX`). Enter the number of digits shown in the app; six is the default, not an immutable requirement.
 - Resend has a cooldown and an hourly cap (default 5 OTP requests per hour).
 - After repeated failures the app shows a captcha (Cloudflare Turnstile) before more attempts.
 - Dev/staging bypass code `000000` works only on non-production with the bypass flag on. Never tell a real provider to use it.
@@ -200,34 +210,31 @@ Playbook:
 2. "I'm locked out / captcha keeps showing": too many failed attempts. Have them complete the captcha and retry. If still stuck, confirm the phone number on the account matches the SIM they are using.
 3. "I changed my phone number": this is an account-identity change. Verify identity (most recent booking reference plus the registered full name plus an OTP to the number on file when possible) before any change, and escalate, since phone is the login identity. If the old number is lost, escalate to super-admin.
 4. App bug or crash: log ticket type `app_bug` with device, OS, app version, and steps. Route to engineering via the ticket. Do not guess a fix.
+5. "I was approved and then signed out": confirm the actual application decision first. Approval changes the canonical account role, so old customer credentials cannot become provider credentials by refresh. Sign in again with the same verified mobile number and a fresh OTP. Do not create a second account or suggest reapplying. A generic session-expired message alone does not prove approval.
 
 ---
 
 ## 11. Verification, documents, re-upload, and expiry
 
-The application policy requires four evidence files: NBI clearance, government ID front, government ID back, and selfie. The current approve action hard-requires only NBI, ID front, and selfie; E36 records the missing ID-back enforcement, so support and reviewers must not describe the three-field API check as the complete policy.
+The application policy requires four evidence files: NBI clearance, government ID front, government ID back, and selfie. OPS-479 now enforces all four in the tested development candidate, under the approval transaction's locks. Older production code previously checked only three. Confirm the deployed release and inspect all four documents; a successful historical API response is not proof that the complete review occurred.
 
-Current API rule: an authorized admin-tier operator cannot approve a provider unless `nbi_clearance_url`, `government_id_front_url`, and `selfie_url` are all on the row. The Approve action returns a clean error listing those missing fields. The operator must separately verify `government_id_back_url` until E36 is resolved.
+Candidate API rule: an authorized admin-tier operator cannot approve a provider unless `nbi_clearance_url`, `government_id_front_url`, `government_id_back_url`, and `selfie_url` are all on the row. Evidence must actually be reviewed; populated fields do not prove validity. The candidate also checks current account eligibility. Do not clear a fraud restriction, fabricate documents or promote a staff role to make an approval succeed. E36's wider admission and renewal work is not closed by the four-field correction.
 
 NBI expiry:
-- The provider row carries `nbi_expiry_date`. A background job warns providers whose NBI expires within 30 days (default) and notifies again when expired.
+- The provider row carries `nbi_expiry_date`. The background job uses one notified flag for both the early warning and actual expiry. Under E62, a warned provider can be skipped when expiry arrives, while a provider first selected after expiry can be auto-suspended.
 - The mobile NBI status banner classifies as missing, expiring, expired, or valid.
-- An expired NBI does not auto-suspend. Support chases the renewal manually, and only manually suspends if the provider ignores the chase. Push the provider to renew and re-upload.
+- The intended launch policy is manual chase then reasoned manual suspension, but current worker behavior is inconsistent. Do not rely on an expiry push or status mutation. Review Provider 360/dashboard evidence, open a linked support case, and escalate the suspension decision with active-job context.
 
-Re-upload playbook:
-1. "My NBI is expiring / expired": tell them to get a fresh NBI (must be recent, the app hints within the last 6 months) and re-upload through the app. KYC documents go to a private bucket; admins view them through an authenticated proxy, never raw URLs.
+Document renewal and correction playbook:
+1. "My NBI is expiring / expired": tell them to obtain a fresh NBI, then open a support case. The approved-provider app does not currently expose a secure NBI renewal submission and Provider 360 is read-only. Do not ask for KYC through chat/email or promise an upload that is unavailable; escalate under E62/E35.
 2. "I was rejected for a blurry or wrong document": rejections store a reason. Read the customer-safe reason and explain which document was wrong, but do not ask them to send KYC through chat, email, or another off-platform channel. Rejected applicants cannot currently resubmit against the same canonical provider row; log a support case and escalate under E35 instead of promising an unavailable reapplication path.
-3. "My document was approved but shows expired": check `expires_at` on the document and the NBI expiry date. If genuinely expired, it needs a new upload.
+3. "My document was approved but shows expired": check `expires_at` on the document and the NBI expiry date. If genuinely expired, open a linked support case and use the E62 renewal escalation; the approved-provider upload and verification path does not yet exist.
 4. Certifications (for Elite tier): providers self-add certifications; `is_verified` is set by an admin. Elite needs a verified certification. If a provider expects Elite but their cert is not verified yet, that is the blocker. Route the cert for verification.
 
-Macro: document re-upload
+Macro: document correction when no supported renewal/resubmission path is available
 
 ```
-Hi [name], we need a clearer [NBI clearance / government ID / selfie]. The issue: [reason from rejection]. Please:
-1. Open the app then Account & Verification then re-upload [document].
-2. Make sure the photo is sharp, well lit, and shows the whole document.
-For NBI, it should be issued within the last 6 months.
-Once you've re-uploaded, reply here and we'll review within [SLA]. Your documents are stored privately and only our verification team can see them.
+Hi [name], the document issue recorded on your case is: [customer-safe reason]. Your case is [case reference]. We have referred it to the verification team because a supported secure correction/renewal path is not currently available for this account state. Please do not send identity documents through this chat, email or Messenger. The team will explain the supported next step once it is available. This reply does not confirm document acceptance or account reactivation.
 ```
 
 ---
@@ -334,6 +341,8 @@ When a provider asks "what do I get if a customer cancels," the live cancellatio
 
 Provider ticket intake is available in the shared in-app Support screens. Email and Facebook Messenger remain valid channels; the agent logs those external contacts in admin on the provider's behalf so all work uses the same case record.
 
+At each handoff, review **Needs reply** across queue. It includes active cases with no public agent reply and cases where the provider's latest public message is newer than the agent's. Assignment, status changes, priority changes, and internal notes do not count as a provider-facing response.
+
 ---
 
 ## 17. Quick reference card
@@ -342,12 +351,12 @@ Provider ticket intake is available in the shared in-app Support screens. Email 
 |---|---|---|
 | "No money after finishing a job" | Booking + escrow + dispute state | Customer confirmation/current worker can release; E18 blocks treating the 24h/48h mismatch as final policy |
 | "Payout not received" | Payouts / Provider 360 Financials | Up to 3 business days; check status and destination account |
-| "Wrong commission" | Tier + Settings | Flat per tier (10/15/13/11/9%); admin may have tuned it |
+| "Wrong commission" | Booking 360 financial terms + Commission Controls | Explain the booking's snapshotted rate; future agreements never rewrite it |
 | "Can't add extra charge" | Original price | 50% cap, ~₱10K hard cap, must be in_progress |
 | "No job offers" | Approved + available + area | 45s exclusive offers; check availability and service area |
-| "Customer not at site" | Booking 360 Evidence | 15-min wait, then no-show handling, provider compensated |
+| "Customer not at site" | Booking 360 Evidence | E60 hold: preserve arrival/contact evidence; current 30-min check is scheduled-time based |
 | "Not getting OTP" | Phone format + hourly cap | Format `+63 9XX...`, 5/hour cap, carrier delay |
-| "NBI expiring" | NBI status banner | Renew and re-upload; private bucket; manual chase, manual suspend if ignored |
+| "NBI expiring" | Provider 360 + linked support case | E62 hold: no approved-provider renewal upload exists; review manually and escalate renewal/suspension |
 | "Bad review" | Booking 360 | Reply publicly; remove only if fake/abusive |
 | "Suspended" | Provider 360 Activity | Read reason; appeal path in section 13 |
 
@@ -359,6 +368,6 @@ Provider ticket intake is available in the shared in-app Support screens. Email 
 - Hotline placeholder removed from the app; phone support is not live until a real number is provisioned and staffed. (editable)
 - FAQ corrections batched into app releases at launch; FAQ moves to an admin-editable source post-launch. (editable)
 - Super-admin/Ken reviews every refund over ₱10,000, every refund-with-suspension, and every damage or theft payout. (editable)
-- Customer no-show wait window is 15 minutes before the provider reports it. (editable)
+- Customer no-show timing remains on E60 launch hold until a snapshotted wait is measured from verified arrival; the current stored/default value is 30 minutes. (held)
 - Support quotes the live refund money-path numbers (not the policy page) on cancellation questions until the two systems are reconciled. (editable)
 - Provider ticket intake uses the in-app Support inbox when possible, with email/Messenger-to-agent intake retained for external contacts. (editable)

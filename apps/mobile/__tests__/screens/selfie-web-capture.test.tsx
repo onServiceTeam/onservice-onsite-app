@@ -21,10 +21,9 @@ jest.mock('@/services/upload.service', () => ({
   uploadImages: jest.fn(),
 }));
 
-const mockSetDocument = jest.fn();
-jest.mock('@/stores/onboarding.store', () => ({
-  useOnboardingStore: () => ({ selfieUri: null, setDocument: mockSetDocument }),
-}));
+import { useOnboardingStore } from '@/stores/onboarding.store';
+import { readyApplication } from '../../test-support/application-draft-fixture';
+beforeEach(() => readyApplication());
 
 import SelfieScreen from '../../app/provider-onboarding/selfie';
 import * as ImagePicker from 'expo-image-picker';
@@ -57,12 +56,12 @@ describe('provider onboarding selfie — web capture path', () => {
     fireEvent.click(btn!);
 
     await waitFor(() => {
-      expect(uploadImages).toHaveBeenCalledWith(['blob:https://app.onservice.ph/selfie-1'], 'onboarding');
+      expect(uploadImages).toHaveBeenCalledWith(['blob:https://app.onservice.ph/selfie-1'], 'onboarding', expect.any(Function));
     });
     expect(mockPicker.launchCameraAsync).not.toHaveBeenCalled();
     expect(mockPicker.requestCameraPermissionsAsync).not.toHaveBeenCalled();
     await waitFor(() => {
-      expect(mockSetDocument).toHaveBeenCalledWith('selfieUri', 'https://cdn/selfie.png');
+      expect(useOnboardingStore.getState().selfieUri).toBe('https://cdn/selfie.png');
     });
   });
 

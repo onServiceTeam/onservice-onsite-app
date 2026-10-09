@@ -52,9 +52,17 @@ vi.mock('react-router-dom', async () => {
       vi.fn(),
     ],
     useLocation: () => ({ pathname: '/', search: '', hash: '', state: null, key: 'default' }),
-    Link: ({ children, ...props }: { children: React.ReactNode }) =>
+    Link: ({ children, to, ...props }: {
+      children: React.ReactNode;
+      to: string | { pathname?: string; search?: string; hash?: string };
+      [key: string]: unknown;
+    }) => {
+      const href = typeof to === 'string'
+        ? to
+        : `${to.pathname ?? ''}${to.search ?? ''}${to.hash ?? ''}`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (require('react') as any).createElement('a', props, children),
+      return (require('react') as any).createElement('a', { ...props, href, to: href }, children);
+    },
   };
 });
 

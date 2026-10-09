@@ -5,9 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { ChevronLeft } from '@/components/icons';
-import { Button } from '@/components/ui';
+import { Button, ErrorState } from '@/components/ui';
 import { Routes, buildRoute } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useAuthStore } from '@/stores/auth.store';
+import { canonicalSupportUuid, supportLinkValue } from '@/utils/support-link';
 import {
   createTicket,
   SUPPORT_TYPE_LABELS,
@@ -28,24 +30,45 @@ export default function NewSupportRequestScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { isPhone } = useResponsive();
+  const viewerRole = useAuthStore((state) => state.user?.role);
   const params = useLocalSearchParams<{
     bookingId?: string;
+    projectId?: string;
+    projectTitle?: string;
+    businessAccountId?: string;
+    businessName?: string;
     type?: string;
-    priority?: string;
+    safetyConcern?: string;
     subject?: string;
     description?: string;
   }>();
 
+  const rawBookingId = supportLinkValue(params.bookingId);
+  const rawProjectId = supportLinkValue(params.projectId);
+  const rawBusinessAccountId = supportLinkValue(params.businessAccountId);
+  const bookingId = canonicalSupportUuid(params.bookingId);
+  const projectId = canonicalSupportUuid(params.projectId);
+  const businessAccountId = canonicalSupportUuid(params.businessAccountId);
+  const providerNoShowAvailable = viewerRole === 'customer' && !!bookingId;
+  const availableTypes = TYPE_ORDER.filter(
+    (candidate) => candidate !== 'provider_no_show' || providerNoShowAvailable,
+  );
   const initialType = (TYPE_ORDER.includes(params.type as SupportTicketType)
     ? (params.type as SupportTicketType)
     : 'general_inquiry');
+  const projectTitle = supportLinkValue(params.projectTitle);
+  const businessName = supportLinkValue(params.businessName);
+  const hasInvalidWorkContext =
+    (!!rawBookingId && !bookingId) ||
+    (!!rawProjectId && !projectId) ||
+    (!!rawBusinessAccountId && !businessAccountId);
+  const hasConflictingWorkContext = !!projectId && (!!bookingId || !!businessAccountId);
 
   const [type, setType] = useState<SupportTicketType>(initialType);
-  const initialPriority = (['low', 'medium', 'high', 'urgent'] as const).find(
-    (priority) => priority === params.priority,
-  );
-  const [subject, setSubject] = useState(params.subject ?? '');
-  const [description, setDescription] = useState(params.description ?? '');
+  const hasUnavailableProviderNoShow = type === 'provider_no_show' && !providerNoShowAvailable;
+  const urgentSafetyRequest = supportLinkValue(params.safetyConcern) === '1';
+  const [subject, setSubject] = useState(supportLinkValue(params.subject));
+  const [description, setDescription] = useState(supportLinkValue(params.description));
 
   const mutation = useMutation({
     mutationFn: (payload: CreateTicketPayload) => createTicket(payload),
@@ -60,6 +83,15 @@ export default function NewSupportRequestScreen(): React.ReactElement {
   });
 
   const submit = (): void => {
+    if (hasUnavailableProviderNoShow) {
+      Alert.alert(
+        'Choose the affected booking',
+        viewerRole === 'customer'
+          ? 'A provider no-show request must start from the affected booking so support can verify and resolve the correct job.'
+          : 'Provider no-show is a customer booking classification. For a customer who did not meet you on-site, choose Booking issue and preserve the job evidence.',
+      );
+      return;
+    }
     const trimmedSubject = subject.trim();
     const trimmedBody = description.trim();
     if (trimmedSubject.length < 3) {
@@ -74,10 +106,34 @@ export default function NewSupportRequestScreen(): React.ReactElement {
       type,
       subject: trimmedSubject,
       description: trimmedBody,
-      bookingId: params.bookingId || undefined,
-      priority: initialPriority,
+      bookingId: bookingId || undefined,
+      projectId: projectId || undefined,
+      businessAccountId: businessAccountId || undefined,
+      ...(urgentSafetyRequest ? { safetyConcern: true as const } : {}),
     });
   };
+
+  if (hasInvalidWorkContext || hasConflictingWorkContext) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.title}>New request</Text>
+        </View>
+        <ErrorState
+          title="Support context unavailable"
+          message={hasInvalidWorkContext
+            ? 'This link contains an invalid booking, project, or business account. No support request was sent. Return to the related record and try again.'
+            : 'A planning-project support request cannot also be linked to a booking or business account. No support request was sent. Return to the related record and choose one context.'}
+          onRetry={() => router.back()}
+          actionLabel="Return to related record"
+          actionAccessibilityLabel="Return to related record"
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -96,15 +152,36 @@ export default function NewSupportRequestScreen(): React.ReactElement {
           keyboardShouldPersistTaps="handled"
           accessibilityLabel={isPhone ? 'Support request form' : 'Desktop support request workspace'}
         >
-          {params.bookingId ? (
+          {urgentSafetyRequest ? (
+            <View style={styles.classificationWarning} accessibilityRole="alert">
+              <Text style={styles.classificationWarningText}>
+                Urgent safety review requested. If anyone is in immediate danger, call 911 first; this Support request is not an emergency line.
+              </Text>
+            </View>
+          ) : null}
+          {bookingId ? (
             <View style={styles.bookingTag}>
-              <Text style={styles.bookingTagText}>Linked to booking {params.bookingId.slice(0, 8)}</Text>
+              <Text style={styles.bookingTagText}>Linked to booking {bookingId.slice(0, 8)}</Text>
+            </View>
+          ) : null}
+          {projectId ? (
+            <View style={styles.bookingTag}>
+              <Text style={styles.bookingTagText}>
+                Linked to project {projectTitle || projectId.slice(0, 8)}
+              </Text>
+            </View>
+          ) : null}
+          {businessAccountId ? (
+            <View style={styles.bookingTag}>
+              <Text style={styles.bookingTagText}>
+                Linked to company {businessName || businessAccountId.slice(0, 8)}
+              </Text>
             </View>
           ) : null}
 
           <Text style={styles.label}>What is this about?</Text>
           <View style={styles.typeGrid}>
-            {TYPE_ORDER.map((t) => {
+            {availableTypes.map((t) => {
               const active = t === type;
               return (
                 <TouchableOpacity
@@ -119,6 +196,16 @@ export default function NewSupportRequestScreen(): React.ReactElement {
               );
             })}
           </View>
+
+          {hasUnavailableProviderNoShow ? (
+            <View style={styles.classificationWarning} accessibilityRole="alert">
+              <Text style={styles.classificationWarningText}>
+                {viewerRole === 'customer'
+                  ? 'Provider no-show support must be opened from the affected booking. Choose another case type or return to that booking and select support.'
+                  : 'Provider no-show is reserved for a customer reporting that their provider failed to arrive. For a customer no-show, choose Booking issue.'}
+              </Text>
+            </View>
+          ) : null}
 
           <Text style={styles.label}>Subject</Text>
           <TextInput
@@ -146,14 +233,20 @@ export default function NewSupportRequestScreen(): React.ReactElement {
           />
 
           <Text style={styles.hint}>
-            Keeping this conversation in the app means support can see your booking, step in faster, and your messages count as proof if there is ever a dispute.
+            {bookingId
+              ? 'Keeping this conversation in the app lets support open the linked booking, respond faster, and preserve the message history if there is a dispute.'
+              : projectId
+                ? 'Support will receive this planning project as context. It remains separate from bookings, quotes, and payments.'
+                : businessAccountId
+                  ? 'Support will receive this company account as context. The request will stay in your Support inbox.'
+                  : 'Keeping this conversation in the app gives support the account context and message history needed to help you.'}
           </Text>
 
           <Button
             title={mutation.isPending ? 'Sending…' : 'Send to support'}
             onPress={submit}
             loading={mutation.isPending}
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || hasUnavailableProviderNoShow}
           />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -206,6 +299,15 @@ const styles = StyleSheet.create({
   typeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   typeChipText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' },
   typeChipTextActive: { color: colors.white },
+  classificationWarning: {
+    marginBottom: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.warningLight,
+    padding: spacing.md,
+  },
+  classificationWarningText: { ...typography.bodySmall, color: colors.warningDark },
   input: {
     backgroundColor: colors.surface,
     borderWidth: 1,

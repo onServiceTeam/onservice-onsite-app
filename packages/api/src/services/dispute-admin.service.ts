@@ -22,6 +22,7 @@ import { logger } from '../utils/logger';
 import * as disputeService from './dispute.service';
 import * as escrowService from './escrow.service';
 import * as gatewayRetryService from './gateway-retry.service';
+import * as notificationService from './notification.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -43,6 +44,7 @@ export interface DisputeFullDetail {
   resolvedAt: string | null;
   resolvedBy: string | null;
   resolutionType: string | null;
+  /** Approved refund in integer PHP centavos. */
   refundAmount: number | null;
   decisionNotes: string | null;
   internalNotes: string | null;
@@ -111,6 +113,7 @@ export interface AdminResolveInput {
 export interface AdminResolveResult {
   disputeId: string;
   resolutionType: string;
+  /** Refund amount in integer PHP centavos. */
   refundAmount: number;
   adminActionId: string;
 }
@@ -125,6 +128,8 @@ export interface MessageResult {
   disputeId: string;
   recipient: 'customer' | 'provider' | 'both';
   adminActionId: string;
+  deliveredTo: Array<'customer' | 'provider'>;
+  notificationIds: string[];
 }
 
 export interface ReopenResult {
@@ -143,8 +148,6 @@ const FAVORED_CUSTOMER_RESOLUTIONS = new Set<string>([
   'refund_with_warning',
   'refund_with_suspension',
 ]);
-
-const REOPENABLE_STATUSES = new Set<string>(['resolved', 'closed']);
 
 function customerPattern(
   totalDisputes: number,
@@ -439,23 +442,13 @@ export async function adminAssignDispute(
     throw createAppError('assigneeAdminId is required.', 400);
   }
 
-  await disputeService.assignDispute(disputeId, adminUserId, assigneeAdminId);
-
-  const reason = `Assigned to ${assigneeAdminId}`;
-  const actionResult = await db.query<{ id: string }>(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-     VALUES ($1, 'dispute_assigned', 'dispute', $2, $3::jsonb, $4)
-     RETURNING id`,
-    [
-      adminUserId,
-      disputeId,
-      JSON.stringify({ assigneeAdminId }),
-      reason,
-    ],
-  );
-  const adminActionId = actionResult.rows[0]?.id;
+  // dispute.service owns the state mutation and its canonical audit row in one
+  // transaction. Reuse that row instead of writing a second, out-of-transaction
+  // `dispute_assigned` action from this admin wrapper.
+  const assigned = await disputeService.assignDispute(disputeId, adminUserId, assigneeAdminId);
+  const adminActionId = assigned.adminActionId;
   if (!adminActionId) {
-    throw createAppError('Failed to record dispute assign admin action.', 500);
+    throw createAppError('Dispute assignment did not return its audit record.', 500);
   }
 
   logger.info('Dispute assigned by admin', {
@@ -478,19 +471,23 @@ export async function adminResolveDispute(
   adminUserId: string,
 ): Promise<AdminResolveResult> {
   const decisionNotes = requireText(input.decisionNotes, 'decisionNotes', 20);
+  disputeService.assertDisputeResolutionAvailable(input.resolutionType);
 
-  if (input.resolutionType === 'partial_refund') {
+  if (input.resolutionType === 'partial_refund' || input.resolutionType === 'split_decision') {
     const pct = input.refundPercent;
     if (
       pct === undefined ||
       !Number.isFinite(pct) ||
-      pct <= 0 ||
+      pct < 0 ||
       pct > 100
     ) {
       throw createAppError(
-        'refundPercent must be in (0, 100] for partial_refund.',
+        'refundPercent must be between 0 and 100 for partial_refund or split_decision.',
         400,
       );
+    }
+    if (input.resolutionType === 'partial_refund' && pct === 0) {
+      throw createAppError('refundPercent must be greater than 0 for partial_refund.', 400);
     }
   }
 
@@ -543,6 +540,7 @@ export async function adminResolveDispute(
       bookingId: helper.bookingId,
       providerId: helper.providerId,
       bookingTotalAmount: helper.bookingTotalAmount,
+      pushRequests: helper.pushRequests,
     };
   });
 
@@ -553,6 +551,17 @@ export async function adminResolveDispute(
     resolutionType: input.resolutionType,
     refundAmount: resolution.refundAmount,
   });
+
+  const pushRequests = resolution.pushRequests ?? [];
+  const pushResults = await Promise.allSettled(
+    pushRequests.map((request) => notificationService.deliverStoredNotificationPush(request)),
+  );
+  if (pushResults.some((result) => result.status === 'rejected')) {
+    logger.warn('Dispute decision push failed after durable inbox delivery', {
+      disputeId,
+      notificationIds: pushRequests.map((request) => request.notificationId),
+    });
+  }
 
   // Post-commit: gateway escrow refund/release. Errors are logged but do
   // not roll back the durable dispute resolution + audit row.
@@ -652,21 +661,9 @@ export async function adminEscalateDispute(
     trimmedReason,
   );
   const newTier = escalated.tier;
-
-  const actionResult = await db.query<{ id: string }>(
-    `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-     VALUES ($1, 'dispute_escalated', 'dispute', $2, $3::jsonb, $4)
-     RETURNING id`,
-    [
-      adminUserId,
-      disputeId,
-      JSON.stringify({ newTier }),
-      trimmedReason,
-    ],
-  );
-  const adminActionId = actionResult.rows[0]?.id;
+  const adminActionId = escalated.adminActionId;
   if (!adminActionId) {
-    throw createAppError('Failed to record dispute escalate admin action.', 500);
+    throw createAppError('Dispute escalation did not return its audit record.', 500);
   }
 
   logger.info('Dispute escalated by admin', {
@@ -680,7 +677,7 @@ export async function adminEscalateDispute(
 }
 
 // ─────────────────────────────────────────────────────────────────
-// 5) Send dispute message (audit-only; route layer dispatches notif)
+// 5) Send dispute update to participant notification inboxes
 // ─────────────────────────────────────────────────────────────────
 
 export async function sendDisputeMessage(
@@ -697,7 +694,7 @@ export async function sendDisputeMessage(
     );
   }
 
-  return db.transaction(async (client) => {
+  const outcome = await db.transaction(async (client) => {
     const disputeResult = await client.query<{
       id: string;
       booking_id: string;
@@ -716,6 +713,51 @@ export async function sendDisputeMessage(
     if (disputeResult.rows.length === 0) {
       throw createAppError('Dispute not found.', 404);
     }
+    const dispute = disputeResult.rows[0]!;
+
+    const targets: Array<{ audience: 'customer' | 'provider'; userId: string }> = [];
+    if (recipient === 'customer' || recipient === 'both') {
+      if (!dispute.customer_id) {
+        throw createAppError('This dispute has no customer notification target.', 409);
+      }
+      targets.push({ audience: 'customer', userId: dispute.customer_id });
+    }
+    if (recipient === 'provider' || recipient === 'both') {
+      if (!dispute.provider_user_id) {
+        if (recipient === 'provider') {
+          throw createAppError('This dispute has no assigned provider to notify.', 409);
+        }
+      } else {
+        targets.push({ audience: 'provider', userId: dispute.provider_user_id });
+      }
+    }
+
+    const title = 'Message from onService dispute support';
+    const notificationRows: Array<{
+      id: string;
+      audience: 'customer' | 'provider';
+      userId: string;
+    }> = [];
+    for (const target of targets) {
+      const data = {
+        type: 'dispute_update',
+        notificationType: 'dispute_update',
+        disputeId,
+        bookingId: dispute.booking_id,
+        source: 'admin_dispute_message',
+      };
+      const notificationResult = await client.query<{ id: string }>(
+        `INSERT INTO notifications (user_id, type, title, body, data)
+         VALUES ($1, 'dispute_update', $2, $3, $4::jsonb)
+         RETURNING id`,
+        [target.userId, title, trimmedMessage, JSON.stringify(data)],
+      );
+      const notificationId = notificationResult.rows[0]?.id;
+      if (!notificationId) {
+        throw createAppError('Failed to record dispute participant notification.', 500);
+      }
+      notificationRows.push({ ...target, id: notificationId });
+    }
 
     const reason = trimmedMessage.length > 500
       ? trimmedMessage.slice(0, 500)
@@ -733,7 +775,12 @@ export async function sendDisputeMessage(
       [
         adminUserId,
         disputeId,
-        JSON.stringify({ recipient, messageLength: trimmedMessage.length }),
+        JSON.stringify({
+          recipient,
+          deliveredTo: notificationRows.map((row) => row.audience),
+          notificationIds: notificationRows.map((row) => row.id),
+          messageLength: trimmedMessage.length,
+        }),
         reason,
         trimmedMessage,
       ],
@@ -754,8 +801,42 @@ export async function sendDisputeMessage(
       adminActionId,
     });
 
-    return { disputeId, recipient, adminActionId };
+    return {
+      result: {
+        disputeId,
+        recipient,
+        adminActionId,
+        deliveredTo: notificationRows.map((row) => row.audience),
+        notificationIds: notificationRows.map((row) => row.id),
+      } satisfies MessageResult,
+      pushRequests: notificationRows.map((row) => ({
+        notificationId: row.id,
+        userId: row.userId,
+        type: 'dispute_update' as const,
+        title,
+        body: trimmedMessage.slice(0, 200),
+        data: {
+          disputeId,
+          bookingId: dispute.booking_id,
+          source: 'admin_dispute_message',
+        },
+      })),
+    };
   });
+
+  const pushResults = await Promise.allSettled(
+    outcome.pushRequests.map((request) =>
+      notificationService.deliverStoredNotificationPush(request),
+    ),
+  );
+  if (pushResults.some((result) => result.status === 'rejected')) {
+    logger.warn('Dispute participant push failed after durable inbox delivery', {
+      disputeId,
+      notificationIds: outcome.result.notificationIds,
+    });
+  }
+
+  return outcome.result;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -768,59 +849,13 @@ export async function reopenDispute(
   adminUserId: string,
 ): Promise<ReopenResult> {
   const trimmedReason = requireText(reason, 'reason', 20);
-
-  return db.transaction(async (client) => {
-    const disputeResult = await client.query<{ id: string; status: string }>(
-      `SELECT id, status FROM disputes WHERE id = $1 FOR UPDATE`,
-      [disputeId],
-    );
-    const dispute = disputeResult.rows[0];
-    if (!dispute) throw createAppError('Dispute not found.', 404);
-
-    if (!REOPENABLE_STATUSES.has(dispute.status)) {
-      throw createAppError(
-        `Cannot reopen dispute in status "${dispute.status}".`,
-        409,
-      );
-    }
-    const previousStatus = dispute.status;
-
-    await client.query(
-      `UPDATE disputes
-          SET status = 'under_review',
-              resolved_at = NULL,
-              resolved_by = NULL,
-              updated_at = NOW()
-        WHERE id = $1`,
-      [disputeId],
-    );
-
-    const actionResult = await client.query<{ id: string }>(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-       VALUES ($1, 'dispute_reopened', 'dispute', $2, $3::jsonb, $4)
-       RETURNING id`,
-      [
-        adminUserId,
-        disputeId,
-        JSON.stringify({ previousStatus }),
-        trimmedReason,
-      ],
-    );
-    const adminActionId = actionResult.rows[0]?.id;
-    if (!adminActionId) {
-      throw createAppError(
-        'Failed to record dispute reopen admin action.',
-        500,
-      );
-    }
-
-    logger.info('Dispute reopened by admin', {
-      disputeId,
-      adminUserId,
-      adminActionId,
-      previousStatus,
-    });
-
-    return { disputeId, previousStatus, adminActionId };
+  logger.warn('Blocked unsafe dispute reopen attempt under E51', {
+    disputeId,
+    adminUserId,
+    reasonLength: trimmedReason.length,
   });
+  throw createAppError(
+    'Reopening a settled dispute is temporarily unavailable. Open a linked support case for new evidence or a supplemental review.',
+    409,
+  );
 }

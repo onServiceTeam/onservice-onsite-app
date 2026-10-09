@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { expect, it, vi } from 'vitest';
 
@@ -28,7 +28,9 @@ it('BUG-PHASE112-01 — Manila midnight drives the visible financial date and do
 
     renderWithClient(<AuditLogPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Export filtered CSV' }));
-    await vi.runAllTimersAsync();
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
     expect(downloadedName).toBe('audit-log-2026-05-07.csv');
   } finally {
     anchorClick.mockRestore();

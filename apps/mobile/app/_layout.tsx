@@ -111,6 +111,7 @@ function RootLayout(): React.ReactElement {
             <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
               <Stack.Screen name="index" />
               <Stack.Screen name="onboarding" />
+              <Stack.Screen name="legal" />
               <Stack.Screen name="auth" />
               <Stack.Screen name="provider-onboarding" />
               <Stack.Screen name="(tabs)" />

@@ -18,6 +18,7 @@ it('Bug UX-386 — new-project fields and its primary action are named, bounded,
   expect(screen.getByRole('button', { name: 'Go back from new project' })).toBeTruthy();
   expect(screen.getByLabelText('Project title')).toBeTruthy();
   expect(screen.getByLabelText('Project description')).toBeTruthy();
+  expect(screen.getByLabelText('Project address')).toBeTruthy();
   expect(screen.getByLabelText('Project city')).toBeTruthy();
   expect(screen.getByLabelText('Estimated total budget')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Create project' }).hasAttribute('disabled')).toBe(true);

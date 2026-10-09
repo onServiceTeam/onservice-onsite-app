@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View,
@@ -51,9 +51,13 @@ export default function ScheduleScreen(): React.ReactElement {
 
   const [schedule, setSchedule] = useState<DaySchedule[]>(DEFAULT_SCHEDULE);
   const [hasChanges, setHasChanges] = useState(false);
+  const draftIsDirty = useRef(false);
+  const editRevision = useRef(0);
 
   useEffect(() => {
-    if (existingSchedule && existingSchedule.length > 0) {
+    // UX-1352: refreshes may update the cache, but must not replace a draft.
+    if (!existingSchedule || draftIsDirty.current) return;
+    if (existingSchedule.length > 0) {
       const merged = DEFAULT_SCHEDULE.map((day) => {
         const existing = existingSchedule.find((s: ScheduleSlot) => s.dayOfWeek === day.dayOfWeek);
         if (existing) {
@@ -66,9 +70,12 @@ export default function ScheduleScreen(): React.ReactElement {
             isAvailable: existing.isAvailable,
           };
         }
-        return day;
+        // UX-1350: a missing saved day is not permission to open that day.
+        return { ...day, isAvailable: false };
       });
       setSchedule(merged);
+    } else {
+      setSchedule(DEFAULT_SCHEDULE);
     }
   }, [existingSchedule]);
 
@@ -78,9 +85,9 @@ export default function ScheduleScreen(): React.ReactElement {
   // leading zero) or "08:00" / "07:00" (end < start) and the
   // server would 4xx with a generic message. Now: validate up-
   // front and surface the offending day clearly.
-  const validateSchedule = (): string | null => {
+  const validateSchedule = (submittedSchedule: DaySchedule[]): string | null => {
     const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
-    for (const day of schedule) {
+    for (const day of submittedSchedule) {
       if (!day.isAvailable) continue;
       if (!timeRe.test(day.startTime)) {
         return `${DAY_NAMES[day.dayOfWeek]}: invalid start time "${day.startTime}". Use HH:MM (e.g. 08:00).`;
@@ -96,16 +103,23 @@ export default function ScheduleScreen(): React.ReactElement {
   };
 
   const saveMutation = useMutation({
-    mutationFn: () => {
-      const err = validateSchedule();
+    mutationFn: ({ days }: { days: DaySchedule[]; revision: number }) => {
+      const err = validateSchedule(days);
       if (err) return Promise.reject(new Error(err));
-      return setMySchedule(schedule);
+      return setMySchedule(days);
     },
-    onSuccess: () => {
+    onSuccess: (_saved, submitted) => {
+      // UX-1353: only the submitted revision was saved, not any later typing.
+      const hasNewerEdits = editRevision.current !== submitted.revision;
+      if (!hasNewerEdits) {
+        draftIsDirty.current = false;
+        setHasChanges(false);
+      }
       void queryClient.invalidateQueries({ queryKey: ['providerSchedule'] });
       void queryClient.invalidateQueries({ queryKey: ['providerProfile'] });
-      setHasChanges(false);
-      showToast('Your schedule has been updated.', 'success');
+      showToast(hasNewerEdits
+        ? 'Submitted hours saved. Your newer changes still need saving.'
+        : 'Your schedule has been updated.', 'success');
     },
     onError: (err: unknown) => {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
@@ -114,6 +128,8 @@ export default function ScheduleScreen(): React.ReactElement {
   });
 
   const toggleDay = (dayOfWeek: number): void => {
+    draftIsDirty.current = true;
+    editRevision.current += 1;
     setSchedule((prev) =>
       prev.map((d) =>
         d.dayOfWeek === dayOfWeek ? { ...d, isAvailable: !d.isAvailable } : d,
@@ -123,6 +139,8 @@ export default function ScheduleScreen(): React.ReactElement {
   };
 
   const updateTime = (dayOfWeek: number, field: 'startTime' | 'endTime', value: string): void => {
+    draftIsDirty.current = true;
+    editRevision.current += 1;
     setSchedule((prev) =>
       prev.map((d) =>
         d.dayOfWeek === dayOfWeek ? { ...d, [field]: value } : d,
@@ -173,8 +191,16 @@ export default function ScheduleScreen(): React.ReactElement {
         refreshControl={<RefreshControl refreshing={scheduleRefetching} onRefresh={() => void refetchSchedule()} tintColor={colors.secondary} />}
       >
         <Text style={styles.description}>
-          Set your weekly availability. Use 24-hour HH:MM, such as 08:00 to 17:00. Customers will only see you as available during these hours.
+          Set your regular hours for new job matching, in Manila time. Use 24-hour HH:MM, such as 08:00 to 17:00.
         </Text>
+        <Text style={styles.description}>
+          Date overrides take priority over these weekly hours. Your profile may still appear in search outside these hours. Changing hours does not cancel or reschedule existing bookings.
+        </Text>
+        {existingSchedule?.length === 0 && (
+          <Text style={styles.description}>
+            Suggested hours are not saved yet. Review them, then Save Schedule to set your weekly hours.
+          </Text>
+        )}
 
         <View
           style={[styles.scheduleGrid, !isPhone && styles.scheduleGridWide]}
@@ -231,9 +257,9 @@ export default function ScheduleScreen(): React.ReactElement {
         <View style={isDesktop ? styles.desktopSaveAction : undefined}>
           <Button
             title={saveMutation.isPending ? 'Saving...' : 'Save Schedule'}
-            onPress={() => saveMutation.mutate()}
+            onPress={() => saveMutation.mutate({ days: schedule, revision: editRevision.current })}
             loading={saveMutation.isPending}
-            disabled={!hasChanges || saveMutation.isPending}
+            disabled={(!hasChanges && existingSchedule?.length !== 0) || saveMutation.isPending}
           />
         </View>
       </View>

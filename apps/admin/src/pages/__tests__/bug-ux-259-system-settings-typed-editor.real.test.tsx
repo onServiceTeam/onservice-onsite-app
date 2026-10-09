@@ -16,12 +16,12 @@ it('Bug UX-259 — a live boolean setting opens a bounded choice editor instead 
   apiMocks.get.mockResolvedValueOnce({
     data: {
       data: {
-        categories: [{ category: 'dispatch', count: 1 }],
+        categories: [{ category: 'security', count: 1 }],
         settings: {
-          dispatch: [{
-            id: 'dispatch-1', category: 'dispatch', subcategory: null,
-            key: 'auto_dispatch_enabled', label: 'Automatic Dispatch', description: 'Offer jobs automatically.',
-            valueType: 'boolean', value: 'true', defaultValue: 'true', minValue: null, maxValue: null,
+          security: [{
+            id: 'security-1', category: 'security', subcategory: null,
+            key: 'refresh_token_strict_fingerprint', label: 'Strict Session Fingerprint', description: 'Reject changed device fingerprints.',
+            valueType: 'boolean', value: 'false', defaultValue: 'false', minValue: null, maxValue: null,
             allowedValues: null, unit: null, isSensitive: false, isDefault: true, requiresRestart: false,
             runtimeStatus: 'live', runtimeLabel: 'Live control', runtimeSummary: 'Used for new bookings.',
             editable: true, updatedAt: '2026-08-24T00:00:00.000Z',
@@ -37,11 +37,11 @@ it('Bug UX-259 — a live boolean setting opens a bounded choice editor instead 
     </QueryClientProvider>,
   );
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Edit setting auto_dispatch_enabled' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit setting refresh_token_strict_fingerprint' }));
 
-  const editor = screen.getByRole('combobox', { name: 'Value for auto_dispatch_enabled' });
-  expect(editor).toHaveValue('true');
+  const editor = screen.getByRole('combobox', { name: 'Value for refresh_token_strict_fingerprint' });
+  expect(editor).toHaveValue('false');
   expect(screen.getByRole('option', { name: 'Enabled' })).toBeVisible();
   expect(screen.getByRole('option', { name: 'Disabled' })).toBeVisible();
-  expect(screen.queryByRole('textbox', { name: 'Value for auto_dispatch_enabled' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('textbox', { name: 'Value for refresh_token_strict_fingerprint' })).not.toBeInTheDocument();
 });

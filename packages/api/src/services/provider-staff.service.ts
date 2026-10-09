@@ -4,6 +4,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { maskEmail, maskPhilippinePhone, type ActorRole } from '../utils/pii-mask';
 import * as notificationService from './notification.service';
+import { COMPLETED_BOOKING_STATUSES } from '../types/booking.types';
 
 // Provider staff / team members — D23. Phase-1 foundation: the approval state
 // machine + CRUD. The state machine is pure and unit-tested; the DB functions
@@ -140,6 +141,39 @@ export async function getStaffById(staffId: string): Promise<ProviderStaffRow | 
   return res.rows[0] ?? null;
 }
 
+interface StaffPerformanceRow {
+  id: string;
+  total_jobs: string;
+  total_reviews: string;
+  avg_rating: string | null;
+}
+
+async function readStaffPerformance(id: string, scope: 'provider' | 'member'): Promise<StaffPerformanceRow[]> {
+  // OPS-507/508: use the app's completed bucket, not a nonexistent "completed"
+  // status. Aggregate bookings and reviews separately: a direct join creates
+  // jobs x reviews rows and inflates counts. One SQL round trip, using the
+  // existing performer_staff_id indexes; no per-member application query loop.
+  // Scope is a closed internal choice, never a caller-supplied SQL fragment.
+  const filter = scope === 'provider' ? 'ps.provider_id = $1' : 'ps.id = $1';
+  const result = await db.query<StaffPerformanceRow>(
+    `SELECT ps.id, jobs.total_jobs, reviews.total_reviews, reviews.avg_rating
+       FROM provider_staff ps
+       CROSS JOIN LATERAL (
+         SELECT COUNT(*)::text AS total_jobs
+           FROM bookings b
+          WHERE b.performer_staff_id = ps.id AND b.status = ANY($2::text[])
+       ) jobs
+       CROSS JOIN LATERAL (
+         SELECT COUNT(*)::text AS total_reviews, AVG(r.rating)::text AS avg_rating
+           FROM reviews r
+          WHERE r.performer_staff_id = ps.id AND r.is_visible = TRUE
+       ) reviews
+      WHERE ${filter}`,
+    [id, COMPLETED_BOOKING_STATUSES],
+  );
+  return result.rows;
+}
+
 // Admin list: each member's DTO plus the live per-member performance breakdown
 // (computed from real bookings/reviews, not the advisory cached columns).
 export async function listStaffWithPerformance(
@@ -148,21 +182,8 @@ export async function listStaffWithPerformance(
 ): Promise<Array<Record<string, unknown>>> {
   const rows = await listStaffByProvider(providerId);
   if (rows.length === 0) return [];
-  // One grouped query for ALL members' performance instead of one query per
-  // member (was an N+1). Same numbers as getStaffPerformance, batched.
-  const perf = await db.query<{ id: string; total_jobs: string; total_reviews: string; avg_rating: string | null }>(
-    `SELECT ps.id,
-            COUNT(DISTINCT b.id) FILTER (WHERE b.status = 'completed') AS total_jobs,
-            COUNT(r.id) AS total_reviews,
-            AVG(r.rating) AS avg_rating
-       FROM provider_staff ps
-       LEFT JOIN bookings b ON b.performer_staff_id = ps.id
-       LEFT JOIN reviews r ON r.performer_staff_id = ps.id AND r.is_visible = TRUE
-      WHERE ps.provider_id = $1
-      GROUP BY ps.id`,
-    [providerId],
-  );
-  const perfById = new Map(perf.rows.map((p) => [p.id, {
+  const perf = await readStaffPerformance(providerId, 'provider');
+  const perfById = new Map(perf.map((p) => [p.id, {
     totalJobs: Number(p.total_jobs),
     totalReviews: Number(p.total_reviews),
     averageRating: p.avg_rating ? Number(Number(p.avg_rating).toFixed(2)) : 0,
@@ -334,7 +355,12 @@ export async function reviewStaff(params: {
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
        VALUES ($1, $2, 'provider_staff', $3, $4::jsonb)`,
-      [params.adminId, actionType, params.staffId, JSON.stringify({ reason: params.reason ?? null })],
+      [
+        params.adminId,
+        actionType,
+        params.staffId,
+        JSON.stringify({ providerId: row.provider_id, reason: params.reason ?? null }),
+      ],
     );
 
     return updated.rows[0]!;
@@ -416,7 +442,7 @@ export async function setStaffSuspension(params: {
         params.adminId,
         params.suspend ? 'provider_staff_suspended' : 'provider_staff_reactivated',
         params.staffId,
-        JSON.stringify({ previousStatus: row.status, nextStatus }),
+        JSON.stringify({ providerId: row.provider_id, previousStatus: row.status, nextStatus }),
         reason.slice(0, 500),
         reason,
       ],
@@ -432,18 +458,8 @@ export async function getStaffPerformance(staffId: string): Promise<{
   totalReviews: number;
   averageRating: number;
 }> {
-  const res = await db.query<{ total_jobs: string; total_reviews: string; avg_rating: string | null }>(
-    `SELECT
-       COUNT(DISTINCT b.id) FILTER (WHERE b.status = 'completed') AS total_jobs,
-       COUNT(r.id) AS total_reviews,
-       AVG(r.rating) AS avg_rating
-     FROM provider_staff ps
-     LEFT JOIN bookings b ON b.performer_staff_id = ps.id
-     LEFT JOIN reviews r ON r.performer_staff_id = ps.id AND r.is_visible = TRUE
-     WHERE ps.id = $1`,
-    [staffId],
-  );
-  const row = res.rows[0];
+  const rows = await readStaffPerformance(staffId, 'member');
+  const row = rows[0];
   return {
     totalJobs: Number(row?.total_jobs ?? 0),
     totalReviews: Number(row?.total_reviews ?? 0),
@@ -575,6 +591,7 @@ export async function getAssignedJobsForUser(userId: string): Promise<StaffAssig
             p.business_name AS provider_business_name
      FROM bookings b
      JOIN provider_staff ps ON ps.id = b.performer_staff_id
+       AND ps.provider_id = b.provider_id
      JOIN providers p ON p.id = ps.provider_id
      LEFT JOIN service_categories sc ON sc.id = b.category_id
      LEFT JOIN service_subcategories sub ON sub.id = b.subcategory_id

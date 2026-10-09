@@ -1,0 +1,911 @@
+{
+  "generatedAt": "2026-09-05T23:47:52.114Z",
+  "sourceRevision": "7ebe5dd993021b9acffd2aee7ba551b6aecd3920 plus UX-1355 working tree",
+  "scope": "Compiled read-only date override labels in four real Chromium timezones and three viewport widths with synthetic HTTP. Not PostgreSQL, native, production, all accessibility requirements or full Stitch acceptance.",
+  "indexSha256": "5eab17d9a883335a3fc78789af2d0d66292ce87a35c8a89bc044c2f9ec5a58de",
+  "entrySha256": "afd2b47e98ce77a7ad531e82dffcc5dcf63541e2d9a317547daa9995f799bed1",
+  "expected": 12,
+  "passed": 12,
+  "records": [
+    {
+      "width": 320,
+      "timezone": "Pacific/Auckland",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "month-boundary",
+          "expected": "Mon, Aug 31, 2099",
+          "screenshot": "320-Pacific-Auckland-month-boundary.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 264.15625,
+              "right": 304,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "leap-day",
+          "expected": "Fri, Feb 29, 2104",
+          "screenshot": "320-Pacific-Auckland-leap-day.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 264.15625,
+              "right": 304,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "runtimeTimezone": "Pacific/Auckland"
+    },
+    {
+      "width": 768,
+      "timezone": "Pacific/Auckland",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "month-boundary",
+          "expected": "Mon, Aug 31, 2099",
+          "screenshot": "768-Pacific-Auckland-month-boundary.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 226,
+              "right": 266,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 33,
+              "right": 283,
+              "width": 250,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 695.15625,
+              "right": 735,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "leap-day",
+          "expected": "Fri, Feb 29, 2104",
+          "screenshot": "768-Pacific-Auckland-leap-day.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 226,
+              "right": 266,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 33,
+              "right": 283,
+              "width": 250,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 695.15625,
+              "right": 735,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "runtimeTimezone": "Pacific/Auckland"
+    },
+    {
+      "width": 1366,
+      "timezone": "Pacific/Auckland",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "month-boundary",
+          "expected": "Mon, Aug 31, 2099",
+          "screenshot": "1366-Pacific-Auckland-month-boundary.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 591.984375,
+              "right": 631.984375,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 288,
+              "right": 648.984375,
+              "width": 360.984375,
+              "height": 76
+            },
+            {
+              "label": "+ Add",
+              "left": 1270.15625,
+              "right": 1310,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "leap-day",
+          "expected": "Fri, Feb 29, 2104",
+          "screenshot": "1366-Pacific-Auckland-leap-day.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 591.984375,
+              "right": 631.984375,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 288,
+              "right": 648.984375,
+              "width": 360.984375,
+              "height": 76
+            },
+            {
+              "label": "+ Add",
+              "left": 1270.15625,
+              "right": 1310,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "runtimeTimezone": "Pacific/Auckland"
+    },
+    {
+      "width": 320,
+      "timezone": "Asia/Manila",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "month-boundary",
+          "expected": "Mon, Aug 31, 2099",
+          "screenshot": "320-Asia-Manila-month-boundary.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 264.15625,
+              "right": 304,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "leap-day",
+          "expected": "Fri, Feb 29, 2104",
+          "screenshot": "320-Asia-Manila-leap-day.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 264.15625,
+              "right": 304,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "runtimeTimezone": "Asia/Manila"
+    },
+    {
+      "width": 768,
+      "timezone": "Asia/Manila",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "month-boundary",
+          "expected": "Mon, Aug 31, 2099",
+          "screenshot": "768-Asia-Manila-month-boundary.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 226,
+              "right": 266,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 33,
+              "right": 283,
+              "width": 250,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 695.15625,
+              "right": 735,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "leap-day",
+          "expected": "Fri, Feb 29, 2104",
+          "screenshot": "768-Asia-Manila-leap-day.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 226,
+              "right": 266,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 33,
+              "right": 283,
+              "width": 250,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 695.15625,
+              "right": 735,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "runtimeTimezone": "Asia/Manila"
+    },
+    {
+      "width": 1366,
+      "timezone": "Asia/Manila",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "month-boundary",
+          "expected": "Mon, Aug 31, 2099",
+          "screenshot": "1366-Asia-Manila-month-boundary.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 591.984375,
+              "right": 631.984375,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 288,
+              "right": 648.984375,
+              "width": 360.984375,
+              "height": 76
+            },
+            {
+              "label": "+ Add",
+              "left": 1270.15625,
+              "right": 1310,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "leap-day",
+          "expected": "Fri, Feb 29, 2104",
+          "screenshot": "1366-Asia-Manila-leap-day.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 591.984375,
+              "right": 631.984375,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 288,
+              "right": 648.984375,
+              "width": 360.984375,
+              "height": 76
+            },
+            {
+              "label": "+ Add",
+              "left": 1270.15625,
+              "right": 1310,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "runtimeTimezone": "Asia/Manila"
+    },
+    {
+      "width": 320,
+      "timezone": "America/Los_Angeles",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "month-boundary",
+          "expected": "Mon, Aug 31, 2099",
+          "screenshot": "320-America-Los_Angeles-month-boundary.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 264.15625,
+              "right": 304,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "leap-day",
+          "expected": "Fri, Feb 29, 2104",
+          "screenshot": "320-America-Los_Angeles-leap-day.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 264.15625,
+              "right": 304,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "runtimeTimezone": "America/Los_Angeles"
+    },
+    {
+      "width": 768,
+      "timezone": "America/Los_Angeles",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "month-boundary",
+          "expected": "Mon, Aug 31, 2099",
+          "screenshot": "768-America-Los_Angeles-month-boundary.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 226,
+              "right": 266,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 33,
+              "right": 283,
+              "width": 250,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 695.15625,
+              "right": 735,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "leap-day",
+          "expected": "Fri, Feb 29, 2104",
+          "screenshot": "768-America-Los_Angeles-leap-day.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 226,
+              "right": 266,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 33,
+              "right": 283,
+              "width": 250,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 695.15625,
+              "right": 735,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "runtimeTimezone": "America/Los_Angeles"
+    },
+    {
+      "width": 1366,
+      "timezone": "America/Los_Angeles",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "month-boundary",
+          "expected": "Mon, Aug 31, 2099",
+          "screenshot": "1366-America-Los_Angeles-month-boundary.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 591.984375,
+              "right": 631.984375,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 288,
+              "right": 648.984375,
+              "width": 360.984375,
+              "height": 76
+            },
+            {
+              "label": "+ Add",
+              "left": 1270.15625,
+              "right": 1310,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "leap-day",
+          "expected": "Fri, Feb 29, 2104",
+          "screenshot": "1366-America-Los_Angeles-leap-day.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 591.984375,
+              "right": 631.984375,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 288,
+              "right": 648.984375,
+              "width": 360.984375,
+              "height": 76
+            },
+            {
+              "label": "+ Add",
+              "left": 1270.15625,
+              "right": 1310,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "runtimeTimezone": "America/Los_Angeles"
+    },
+    {
+      "width": 320,
+      "timezone": "UTC",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "month-boundary",
+          "expected": "Mon, Aug 31, 2099",
+          "screenshot": "320-UTC-month-boundary.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 264.15625,
+              "right": 304,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "leap-day",
+          "expected": "Fri, Feb 29, 2104",
+          "screenshot": "320-UTC-leap-day.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 264.15625,
+              "right": 304,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "runtimeTimezone": "UTC"
+    },
+    {
+      "width": 768,
+      "timezone": "UTC",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "month-boundary",
+          "expected": "Mon, Aug 31, 2099",
+          "screenshot": "768-UTC-month-boundary.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 226,
+              "right": 266,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 33,
+              "right": 283,
+              "width": 250,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 695.15625,
+              "right": 735,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "leap-day",
+          "expected": "Fri, Feb 29, 2104",
+          "screenshot": "768-UTC-leap-day.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 226,
+              "right": 266,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 33,
+              "right": 283,
+              "width": 250,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 695.15625,
+              "right": 735,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "runtimeTimezone": "UTC"
+    },
+    {
+      "width": 1366,
+      "timezone": "UTC",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "month-boundary",
+          "expected": "Mon, Aug 31, 2099",
+          "screenshot": "1366-UTC-month-boundary.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 591.984375,
+              "right": 631.984375,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 288,
+              "right": 648.984375,
+              "width": 360.984375,
+              "height": 76
+            },
+            {
+              "label": "+ Add",
+              "left": 1270.15625,
+              "right": 1310,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "leap-day",
+          "expected": "Fri, Feb 29, 2104",
+          "screenshot": "1366-UTC-leap-day.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 591.984375,
+              "right": 631.984375,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 288,
+              "right": 648.984375,
+              "width": 360.984375,
+              "height": 76
+            },
+            {
+              "label": "+ Add",
+              "left": 1270.15625,
+              "right": 1310,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "runtimeTimezone": "UTC"
+    }
+  ]
+}

@@ -7,6 +7,8 @@ interface ErrorStateProps {
   title?: string;
   message?: string;
   onRetry?: () => void;
+  actionLabel?: string;
+  actionAccessibilityLabel?: string;
   compact?: boolean;
 }
 
@@ -14,6 +16,8 @@ export function ErrorState({
   title = 'Something went wrong',
   message = 'We couldn\u2019t load this content. Please check your connection and try again.',
   onRetry,
+  actionLabel = 'Try Again',
+  actionAccessibilityLabel = 'Retry loading',
   compact = false,
 }: ErrorStateProps): React.ReactElement {
   return (
@@ -34,9 +38,9 @@ export function ErrorState({
           onPress={onRetry}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Retry loading"
+          accessibilityLabel={actionAccessibilityLabel}
         >
-          <Text style={styles.retryText}>Try Again</Text>
+          <Text style={styles.retryText}>{actionLabel}</Text>
         </TouchableOpacity>
       ) : null}
     </View>

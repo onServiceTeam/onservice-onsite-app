@@ -60,6 +60,7 @@ export { Skeleton } from './Skeleton';
 export { EmptyState } from './EmptyState';
 export { LoadingState } from './LoadingState';
 export { ErrorState } from './ErrorState';
+export { default as DataFreshness } from './DataFreshness';
 export {
   ChartContainer,
   LineChart,

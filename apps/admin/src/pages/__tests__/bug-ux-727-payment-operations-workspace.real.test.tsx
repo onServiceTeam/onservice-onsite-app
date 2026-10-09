@@ -36,7 +36,7 @@ it('Bug UX-727 — finance sees payment attempt truth and unresolved refund retr
   render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/financials?tab=payments']}><FinancialsPage /></MemoryRouter></QueryClientProvider>);
 
   expect(await screen.findByText(/External checkout remains on launch hold/)).toBeVisible();
-  expect(screen.getByText('Latest 50 Payment Attempts')).toBeVisible();
+  expect(screen.getByText('Payment Attempts')).toBeVisible();
   expect(screen.getByText('Maria Santos')).toBeVisible();
   expect(screen.getByText('Manual investigation required')).toBeVisible();
   expect(screen.getByText('gateway unavailable')).toBeVisible();

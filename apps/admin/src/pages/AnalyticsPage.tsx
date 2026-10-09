@@ -124,7 +124,14 @@ function AbTestsTab(): React.ReactElement {
   const queryClient = useQueryClient();
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', targetMetric: 'conversion_rate', trafficSplit: 0.5 });
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    variantAName: 'Control',
+    variantBName: 'Variant B',
+    targetMetric: 'conversion_rate',
+    trafficSplit: 0.5,
+  });
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
 
@@ -141,8 +148,21 @@ function AbTestsTab(): React.ReactElement {
       ...body,
       name: body.name.trim(),
       description: body.description.trim(),
+      variantAName: body.variantAName.trim(),
+      variantBName: body.variantBName.trim(),
     }),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['admin', 'ab-tests'] }); setShowCreate(false); setForm({ name: '', description: '', targetMetric: 'conversion_rate', trafficSplit: 0.5 }); },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'ab-tests'] });
+      setShowCreate(false);
+      setForm({
+        name: '',
+        description: '',
+        variantAName: 'Control',
+        variantBName: 'Variant B',
+        targetMetric: 'conversion_rate',
+        trafficSplit: 0.5,
+      });
+    },
   });
 
   const statusMut = useMutation({
@@ -175,6 +195,12 @@ function AbTestsTab(): React.ReactElement {
       setActionError('Test name is required.');
       return;
     }
+    const variantAName = form.variantAName.trim();
+    const variantBName = form.variantBName.trim();
+    if (!variantAName || !variantBName) {
+      setActionError('Both variant names are required.');
+      return;
+    }
     if (!Number.isFinite(form.trafficSplit) || form.trafficSplit < 0.1 || form.trafficSplit > 0.9) {
       setActionError('Traffic split must be between 0.1 and 0.9.');
       return;
@@ -186,7 +212,13 @@ function AbTestsTab(): React.ReactElement {
     });
     if (!accepted) return;
     setActionError('');
-    createMut.mutate({ ...form, name });
+    createMut.mutate({
+      ...form,
+      name,
+      description: form.description.trim(),
+      variantAName,
+      variantBName,
+    });
   }
 
   async function updateStatus(test: AbTest, status: string): Promise<void> {
@@ -224,6 +256,16 @@ function AbTestsTab(): React.ReactElement {
           <div className="space-y-1">
             <Label htmlFor="ab-test-desc">Description</Label>
             <Textarea id="ab-test-desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What hypothesis are you testing?" rows={2} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="ab-test-variant-a">Variant A name</Label>
+              <Input id="ab-test-variant-a" value={form.variantAName} onChange={(e) => setForm({ ...form, variantAName: e.target.value })} placeholder="e.g., Current experience" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ab-test-variant-b">Variant B name</Label>
+              <Input id="ab-test-variant-b" value={form.variantBName} onChange={(e) => setForm({ ...form, variantBName: e.target.value })} placeholder="e.g., New experience" />
+            </div>
           </div>
           <div className="flex flex-wrap gap-3">
             <div className="space-y-1">
@@ -597,6 +639,13 @@ function QualityTab(): React.ReactElement {
     },
   });
 
+  const newestVisibleSnapshot = data?.data.reduce<string | null>((latest, score) => {
+    const scoreTime = new Date(score.computedAt).getTime();
+    if (!Number.isFinite(scoreTime)) return latest;
+    if (!latest || scoreTime > new Date(latest).getTime()) return score.computedAt;
+    return latest;
+  }, null) ?? null;
+
   function setSortBy(nextSortBy: string): void {
     setSearchParams((current) => {
       const params = new URLSearchParams(current);
@@ -621,8 +670,8 @@ function QualityTab(): React.ReactElement {
         tone="amber"
         definition="Legacy automated index: rating 30%, completion 25%, completion within two hours of scheduled start 20%, provider cancellation 15%, and quote response time 10%."
         source="Stored provider_quality_scores snapshots. The rating input is the provider aggregate; booking and quote inputs use the stored snapshot period."
-        freshness={data?.data[0]
-          ? `Newest visible snapshot calculated ${formatManilaDateTime(data.data[0].computedAt)} PHT.`
+        freshness={newestVisibleSnapshot
+          ? `Newest visible snapshot calculated ${formatManilaDateTime(newestVisibleSnapshot)} PHT.`
           : 'No current snapshot is visible.'}
         boundary="E47 holds recomputation because this model conflicts with the approved monthly operations scorecard. Do not use the overall number alone for discipline, tier, dispatch, or commission decisions."
       />
@@ -725,8 +774,8 @@ function CommissionTab(): React.ReactElement {
     <div className="space-y-4">
       <SourceContract
         tone="amber"
-        definition="Read-only evidence by provider tier: current live commission rate, approved provider count, average completed bookings per approved provider, average gross face value per completed booking, and legacy quality snapshot count."
-        source="Live tier commission settings, approved provider profiles, current legacy quality snapshots, and confirmed/resolved/payout-ready/paid-out bookings from the last 90 days."
+        definition="Read-only evidence by provider tier: current effective base agreement, approved provider count, average completed bookings per approved provider, average gross face value per completed booking, and legacy quality snapshot count."
+        source="Effective-dated tier agreement versions, approved provider profiles, current legacy quality snapshots, and confirmed/resolved/payout-ready/paid-out bookings from the last 90 days."
         freshness={dataUpdatedAt ? `Generated ${formatManilaDateTime(dataUpdatedAt)} PHT.` : 'Waiting for the current query.'}
         boundary="E48 removes automated rate advice. These figures do not forecast provider behavior, calculate provider earnings, approve a price change, or publish a setting."
       />
@@ -749,7 +798,7 @@ function CommissionTab(): React.ReactElement {
                     <p className="mt-1 text-xs text-slate-500">90-day read-only evidence</p>
                   </div>
                   <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-900">
-                    Current live rate {(s.currentRate * 100).toFixed(0)}%
+                    Current base agreement {(s.currentRate * 100).toFixed(2)}%
                   </span>
                 </div>
                 <dl className="grid gap-3 sm:grid-cols-2">

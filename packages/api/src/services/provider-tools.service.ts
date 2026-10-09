@@ -2,7 +2,7 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
-import * as settingsService from './settings.service';
+import * as financialTermsService from './booking-financial-terms.service';
 
 // --- Interfaces ---
 
@@ -138,6 +138,7 @@ export async function getEarningsSummary(
   earnedThisWeek: number;
   earnedThisMonth: number;
   pendingEscrow: number;
+  pendingEscrowReviewCount: number;
   jobsToday: number;
   jobsThisWeek: number;
   jobsThisMonth: number;
@@ -178,47 +179,36 @@ export async function getEarningsSummary(
     [providerId],
   );
 
-  // MED-N34 fix: pre-fix returned `pendingEscrow` as gross
-  // SUM(service_price), but the dashboard's `earned*` totals are
-  // NET (post-commission via wallet_transactions). Mixed units
-  // misled the provider into thinking they'd receive a higher
-  // payout than they actually would.
-  //
-  // Now: read the provider's tier and compute pending net of
-  // commission for each booking. Falls back to platformConfig if
-  // settings is unreachable so the dashboard still renders.
-  let commissionRate = 0.15; // safe default = highest tier rate
-  try {
-    const tierRow = await db.query<{ tier: string }>(
-      `SELECT tier FROM providers WHERE id = $1`,
-      [providerId],
-    );
-    if (tierRow.rows[0]) {
-      commissionRate = await settingsService.getCommissionRate(tierRow.rows[0].tier);
-    }
-  } catch (err) {
-    logger.warn('Commission rate lookup failed in earnings summary; using 0.15 default', {
-      providerId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-
-  const escrowResult = await db.query<{ pending_gross: string }>(
-    `SELECT COALESCE(SUM(b.service_price), 0)::text AS pending_gross
+  // E50: pending earnings are the immutable amounts promised on each booking,
+  // never current tier × gross. Category/provider contracts and later rate
+  // changes can make one current percentage wrong for every historical row.
+  const escrowResult = await db.query<{ pending_net: string; review_count: string }>(
+    `SELECT COALESCE(SUM(
+              CASE
+                WHEN ft.terms_state = 'final' AND ft.provider_id = b.provider_id
+                  THEN ft.provider_receives_centavos
+                ELSE 0
+              END
+            ), 0)::text AS pending_net,
+            COUNT(*) FILTER (
+              WHERE ft.id IS NULL OR ft.terms_state <> 'final' OR ft.provider_id <> b.provider_id
+            )::text AS review_count
      FROM bookings b
+     LEFT JOIN booking_financial_terms_current ft ON ft.booking_id = b.id
      WHERE b.provider_id = $1
        AND b.status IN ('paid', 'provider_en_route', 'provider_arrived', 'in_progress', 'completed_by_provider')`,
     [providerId],
   );
-  const pendingGross = Number(escrowResult.rows[0]?.pending_gross ?? 0);
-  const pendingNet = Math.round(pendingGross * (1 - commissionRate));
+  const pendingNet = Number(escrowResult.rows[0]?.pending_net ?? 0);
+  const pendingEscrowReviewCount = Number(escrowResult.rows[0]?.review_count ?? 0);
 
   const row = result.rows[0]!;
   return {
     earnedToday: Number(row.earned_today),
     earnedThisWeek: Number(row.earned_this_week),
     earnedThisMonth: Number(row.earned_this_month),
-    pendingEscrow: pendingNet, // MED-N34: now net of commission
+    pendingEscrow: pendingNet,
+    pendingEscrowReviewCount,
     jobsToday: Number(row.total_jobs_today),
     jobsThisWeek: Number(row.total_jobs_week),
     jobsThisMonth: Number(row.total_jobs_month),
@@ -508,26 +498,24 @@ export async function generateReceipt(
     throw createAppError('Receipt can only be generated for completed bookings.', 400);
   }
 
-  // MED-N31 + MED-N32 fix: read commission rate from settingsService
-  // (which routes through admin-editable platform_settings, with
-  // platformConfig fallback). Pre-fix used platformConfig directly,
-  // ignoring any rate the admin had tuned via /admin/settings AND
-  // missing the 'founding' tier entirely (D-J17 has since added it
-  // to platformConfig as a defensive default, but settingsService
-  // is still the canonical path).
-  let commissionRate: number;
-  try {
-    commissionRate = await settingsService.getCommissionRate(prov.tier);
-  } catch (err) {
-    logger.warn('Commission rate lookup failed in receipt generation; using platformConfig fallback', {
-      tier: prov.tier,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    commissionRate = platformConfig.commissionRates[prov.tier] ?? platformConfig.commissionRates['new']!;
+  // E50: a receipt is evidence for one booking. It must reproduce that
+  // booking's fixed agreement, not the provider's current tier or a fallback.
+  const terms = await financialTermsService.getLatestFinalTerms(bookingId);
+  if (terms.providerId !== providerId
+      || terms.servicePriceCentavos !== Number(bk.service_price)
+      || terms.serviceFeeAmountCentavos !== Number(bk.service_fee)
+      || terms.commissionRateBasisPoints === null
+      || terms.commissionAmountCentavos === null
+      || terms.providerReceivesCentavos === null) {
+    throw createAppError(
+      'Receipt amounts do not match the booking financial evidence. Contact onService support.',
+      409,
+    );
   }
-  const servicePrice = Number(bk.service_price);
-  const commissionAmount = Math.round(servicePrice * commissionRate);
-  const netEarnings = servicePrice - commissionAmount;
+  const servicePrice = terms.servicePriceCentavos;
+  const commissionRate = terms.commissionRateBasisPoints / 10000;
+  const commissionAmount = terms.commissionAmountCentavos;
+  const netEarnings = terms.providerReceivesCentavos;
 
   // MED-N33 fix: receipt number now includes the FULL booking UUID
   // (not just first 8 hex chars). Pre-fix the 8-char prefix had a

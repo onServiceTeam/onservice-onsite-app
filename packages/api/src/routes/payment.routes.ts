@@ -11,6 +11,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { canTransition, BookingStatus } from '../types/booking.types';
 import { db } from '../models/db';
 import { assertExternalPaymentAuthorizationEnabled } from '../services/external-payment-hold.service';
+import * as financialTermsService from '../services/booking-financial-terms.service';
 
 const router = Router();
 
@@ -73,6 +74,20 @@ router.post(
                     payment_intent_id = $1, updated_at = NOW()
               WHERE id = $2`,
             [walletIntent.id, bookingId],
+          );
+          // E50: fix the exact customer price, fee policy, cancellation
+          // policy, and provider commission agreement in the same transaction
+          // as authorization. If no provider is assigned yet this records a
+          // provisional version; provider acceptance appends the final terms.
+          await financialTermsService.appendAuthorizationTermsInTransaction(
+            client,
+            {
+              bookingId,
+              event: 'wallet_payment_authorized',
+              sourceEventId: walletIntent.id,
+              createdBy: userId,
+              metadata: { paymentMethod: 'wallet' },
+            },
           );
           await escrowService.holdInEscrowInTransaction(
             client,

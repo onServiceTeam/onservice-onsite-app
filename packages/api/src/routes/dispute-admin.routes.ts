@@ -3,8 +3,9 @@
  * Mounted at `/api/v1/admin/disputes/:id/...`
  *
  * Auth: every endpoint requires admin or super_admin.
- * `resolve` and `reopen` are super_admin only because they move money or
- * reverse a settled financial event.
+ * `resolve` is super_admin only because it can move money. The legacy `reopen`
+ * route remains super_admin-gated but fails closed under E51 until an immutable
+ * appeal/compensating-action model exists.
  *
  * Audit: coverage is action-specific. The global middleware is not mounted;
  *        E37 tracks the gap. Service-written `admin_actions` remain canonical.
@@ -140,7 +141,7 @@ router.post(
   },
 );
 
-// ─── Reopen (super_admin) ───────────────────────────────────────────────────
+// ─── Reopen (super_admin, temporarily held under E51) ───────────────────────
 
 router.post(
   '/:id/reopen',

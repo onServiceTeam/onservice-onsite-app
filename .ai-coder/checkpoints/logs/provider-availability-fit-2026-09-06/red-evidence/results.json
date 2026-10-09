@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-09-05T21:48:50.528Z",
+  "sourceRevision": "12c59bbb8fcfe3a1b8a4709a1d3f4c6e79048fae mobile runtime before availability fixes",
+  "scope": "Compiled provider availability layout, block/custom form payload and refreshed list with synthetic HTTP. Not actual persistence, matching, production, native or complete Stitch acceptance.",
+  "indexSha256": "d138f79580542056aa8d66d58ec273ab57a25494fa1dcf8035a7c9fbd33b354e",
+  "entrySha256": "076634269f7d0a4d1100b0a2d46cf333635f986ced90e410148bc5457b163d7c",
+  "expected": 12,
+  "passed": 0,
+  "records": [
+    {
+      "width": 320,
+      "mode": "block",
+      "passed": false,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "writes": [],
+      "captures": [
+        {
+          "name": "empty",
+          "screenshot": "320-block-empty.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 336.15625,
+              "right": 376,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "error": "empty control clipped outside viewport"
+    }
+  ]
+}

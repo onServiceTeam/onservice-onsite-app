@@ -26,7 +26,7 @@ beforeEach(() => {
 
 describe('createContract — money-field bounds', () => {
   it('rejects a negative agreedRate', async () => {
-    await expect(createContract({ ...BASE, agreedRate: -100 }, 'u1')).rejects.toThrow(/non-negative/i);
+    await expect(createContract({ ...BASE, agreedRate: -100 }, 'u1')).rejects.toThrow(/positive integer/i);
   });
 
   it('rejects a discount above 100%', async () => {

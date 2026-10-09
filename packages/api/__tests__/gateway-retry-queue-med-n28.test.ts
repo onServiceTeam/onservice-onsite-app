@@ -16,10 +16,13 @@
 // 3. Worker is wired into the scheduler queue (every 5 min).
 
 const dbQueryMock = jest.fn();
+const dbTransactionMock = jest.fn();
+const resolveDisputeInTransactionMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({
   db: {
     query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (...args: unknown[]) => dbTransactionMock(...args),
   },
 }));
 
@@ -29,6 +32,11 @@ jest.mock('../src/services/escrow.service', () => ({
   releasePartialEscrow: jest.fn(),
 }));
 
+jest.mock('../src/services/dispute.service', () => ({
+  resolveDisputeInTransaction: (...args: unknown[]) => resolveDisputeInTransactionMock(...args),
+  assertDisputeResolutionAvailable: jest.fn(),
+}));
+
 jest.mock('../src/utils/logger', () => ({
   logger: {
     info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn(),
@@ -36,6 +44,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import * as gatewayRetryService from '../src/services/gateway-retry.service';
+import { adminResolveDispute } from '../src/services/dispute-admin.service';
 
 const escrowService = require('../src/services/escrow.service') as {
   refundFromEscrow: jest.Mock;
@@ -241,53 +250,75 @@ describe('MED-N28 — listFailedPermanent for admin compliance dashboard', () =>
   });
 });
 
-describe('MED-N28 — dispute-admin.service wires enqueueRetry into 3 catch blocks', () => {
+it('MED-N28 - every failed admin dispute money outcome creates the matching durable retry', async () => {
+  dbTransactionMock.mockImplementation(async (
+    callback: (client: { query: jest.Mock }) => Promise<unknown>,
+  ) => callback({
+    query: jest.fn().mockResolvedValue({ rows: [{ id: 'admin-action-med-n28' }], rowCount: 1 }),
+  }));
+  resolveDisputeInTransactionMock
+    .mockResolvedValueOnce({
+      refundAmount: 10000,
+      bookingId: 'booking-full-refund',
+      providerId: 'provider-1',
+      bookingTotalAmount: 10000,
+    })
+    .mockResolvedValueOnce({
+      refundAmount: 4000,
+      bookingId: 'booking-partial-refund',
+      providerId: 'provider-1',
+      bookingTotalAmount: 10000,
+    })
+    .mockResolvedValueOnce({
+      refundAmount: 0,
+      bookingId: 'booking-no-refund',
+      providerId: 'provider-1',
+      bookingTotalAmount: 10000,
+    });
+  escrowService.refundFromEscrow
+    .mockRejectedValueOnce(new Error('refund gateway timeout'))
+    .mockResolvedValueOnce(undefined);
+  escrowService.releasePartialEscrow.mockRejectedValueOnce(new Error('partial release timeout'));
+  escrowService.releaseEscrow.mockRejectedValueOnce(new Error('full release timeout'));
+  const enqueueSpy = jest.spyOn(gatewayRetryService, 'enqueueRetry').mockResolvedValue(undefined);
 
-  const { readFileSync } = require('fs');
+  await adminResolveDispute('dispute-full', {
+    resolutionType: 'full_refund',
+    decisionNotes: 'The customer evidence supports a complete refund.',
+  }, 'admin-med-n28');
+  await adminResolveDispute('dispute-partial', {
+    resolutionType: 'partial_refund',
+    refundPercent: 40,
+    decisionNotes: 'The evidence supports a partial customer refund.',
+  }, 'admin-med-n28');
+  await adminResolveDispute('dispute-none', {
+    resolutionType: 'no_refund',
+    decisionNotes: 'The completed service evidence supports provider release.',
+  }, 'admin-med-n28');
 
-  const { resolve } = require('path');
-  const SVC = readFileSync(
-    resolve(__dirname, '../src/services/dispute-admin.service.ts'),
-    'utf8',
-  );
-
-  it('imports gateway-retry.service', () => {
-    expect(SVC).toMatch(/import \* as gatewayRetryService from '\.\/gateway-retry\.service'/);
-  });
-
-  it('enqueues refund_from_escrow on refund failure', () => {
-    expect(SVC).toMatch(/actionType:\s*'refund_from_escrow'/);
-  });
-
-  it('enqueues release_partial_escrow on partial-release failure', () => {
-    expect(SVC).toMatch(/actionType:\s*'release_partial_escrow'/);
-  });
-
-  it('enqueues release_escrow on full-release failure', () => {
-    expect(SVC).toMatch(/actionType:\s*'release_escrow'/);
-  });
-});
-
-describe('MED-N28 — workers.ts wires the gateway-retry job into the scheduler', () => {
-
-  const { readFileSync } = require('fs');
-
-  const { resolve } = require('path');
-  const WORKERS = readFileSync(
-    resolve(__dirname, '../src/jobs/workers.ts'),
-    'utf8',
-  );
-
-  it('imports gateway-retry.service', () => {
-    expect(WORKERS).toMatch(/import \* as gatewayRetryService from '\.\.\/services\/gateway-retry\.service'/);
-  });
-
-  it("registers a 'gateway-retry' case in the scheduler switch", () => {
-    expect(WORKERS).toMatch(/case 'gateway-retry':/);
-    expect(WORKERS).toMatch(/gatewayRetryService\.processRetries/);
-  });
-
-  it("schedules 'gateway-retry' to run every 5 minutes", () => {
-    expect(WORKERS).toMatch(/'gateway-retry'[\s\S]*?'\*\/5 \* \* \* \*'/);
-  });
+  expect(enqueueSpy.mock.calls.map(([input]) => input)).toEqual([
+    {
+      actionType: 'refund_from_escrow',
+      bookingId: 'booking-full-refund',
+      disputeId: 'dispute-full',
+      amountCentavos: 10000,
+      description: 'Admin dispute resolution: full_refund',
+      initialError: 'refund gateway timeout',
+    },
+    {
+      actionType: 'release_partial_escrow',
+      bookingId: 'booking-partial-refund',
+      disputeId: 'dispute-partial',
+      amountCentavos: 6000,
+      description: 'Partial release after refund (partial_refund)',
+      initialError: 'partial release timeout',
+    },
+    {
+      actionType: 'release_escrow',
+      bookingId: 'booking-no-refund',
+      disputeId: 'dispute-none',
+      description: 'Release after dispute (no_refund)',
+      initialError: 'full release timeout',
+    },
+  ]);
 });

@@ -49,6 +49,7 @@ jest.mock('@/services/config.service', () => ({ getConfig: () => ({ maxServiceRa
 
 jest.mock('@/stores/onboarding.store', () => ({
   useOnboardingStore: () => ({
+    ...jest.requireActual('@/stores/onboarding.store').useOnboardingStore.getInitialState(),
     businessName: '',
     categoryIds: [],
     setBusinessName: jest.fn(),

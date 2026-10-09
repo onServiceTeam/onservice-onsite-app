@@ -13,6 +13,7 @@ import PhoneInput from '@/components/PhoneInput';
 import { useCaptchaOtp } from '@/hooks/useCaptchaOtp';
 import { useResponsive } from '@/hooks/useResponsive';
 import AuthBrandPanel from '@/components/AuthBrandPanel';
+import { Routes } from '@/config/navigation';
 
 export default function RegisterScreen(): React.ReactElement {
   const router = useRouter();
@@ -141,27 +142,25 @@ export default function RegisterScreen(): React.ReactElement {
           </Link>
         </View>
 
-        {/* BUG-PHASE63-01 fix — pre-fix this was a plain-text Text so
-            the user "agreed" to Terms/Privacy without any way to read
-            them. Now the two legal docs are tappable links pushing to
-            /customer/terms with the right tab pre-selected. */}
+        {/* Read policies before creating an account. This public route does
+            not expose the protected customer account stack. */}
         <Text style={styles.legal}>
           By creating an account, you agree to our{' '}
-          <Text
+          <Link
             style={styles.legalLink}
-            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'terms' } })}
+            href={{ pathname: Routes.LEGAL, params: { tab: 'terms' } }}
             testID="register-terms-link"
           >
             Terms of Service
-          </Text>
+          </Link>
           {' '}and{' '}
-          <Text
+          <Link
             style={styles.legalLink}
-            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'privacy' } })}
+            href={{ pathname: Routes.LEGAL, params: { tab: 'privacy' } }}
             testID="register-privacy-link"
           >
             Privacy Policy
-          </Text>
+          </Link>
           .
         </Text>
         </View>

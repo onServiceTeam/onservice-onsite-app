@@ -128,8 +128,8 @@ service bookings. Kapag paid/assigned na ang job sa app, verified at nasa
 escrow ang bayad, kaya hindi ka maniningil ng cash. Lalabas ang kita sa
 wallet at puwede kang mag-request ng withdrawal sa GCash/Maya/bank.
 
-Founding-batch ka pa pwede - 10% commission lang for 12 months instead
-ng standard 15%.
+Makikita sa app ang exact commission bago maging binding ang job. Ang current
+seeded New-tier base ay 15%; huwag mangako ng Founding rate habang open ang E63.
 
 Kailangan lang: valid ID, NBI clearance (6 months), at selfie. I-review ang
 application once kumpleto; walang fixed approval time.
@@ -276,24 +276,25 @@ Note: this provider-to-provider referral reward is a recruiting tool and is sepa
 
 ---
 
-## 9. The founding-provider angle (your strongest close)
+## 9. Founding-provider offer hold
 
-Use this in every channel. It is real and it is in the platform.
+Do not use the old Founding offer as a recruiting close while E63 is open.
 
-- The first 50 providers per city can be placed in the **Founding** tier: 10 percent commission (versus the standard 15 percent for new providers) for 12 months, featured launch placement, and priority support.
-- Founding is invite-only and set by an admin. You flag a strong applicant for founding placement; the admin assigns the tier. Do not promise the tier yourself; promise that you will recommend them for it.
+- The enum and seeded 10% base exist, but the app does not record the first-50 city cohort, entitlement start, protected 12-month end, or accepted offer.
+- Do not promise, recommend, or newly assign Founding until E63's protected entitlement workflow is approved and implemented.
+- Do not promise featured placement or priority support; those benefits are not enforced by this commission control.
 
 Standard tier and commission ladder, so you can answer questions honestly:
 
 | Tier | Commission | How you get there |
 |---|---|---|
-| Founding | 10% | Invite-only, first 50 per city, 12 months |
+| Founding | 10% seeded base | E63 hold; no new offer or assignment |
 | New | 15% | Default on approval |
 | Verified | 13% | 5+ jobs, 4.0+ rating |
 | Pro | 11% | 25+ jobs, 4.5+ rating, no open disputes |
 | Elite | 9% | 100+ jobs, 4.7+ rating, verified TESDA certification, no open disputes |
 
-Plain-language pitch: start at New (15 percent), or get into the Founding batch at 10 percent if you are early. Do good work and your commission drops as you climb to Verified, Pro, and Elite. Commission is flat within a tier; it does not change job to job.
+Plain-language pitch: the seeded New-tier base is 15 percent. Do good work and you can become eligible for Verified, Pro, and Elite review. The exact prospective rate comes from Commission Controls and the exact transaction rate is fixed in that booking's financial terms; do not quote from memory.
 
 ---
 
@@ -340,7 +341,7 @@ If submitted-to-approved drops below 50 percent, the problem is upstream: you ar
 - Go-live rule: 5 approved per launch category to soft-launch, 8 in the lead category to go active.
 - Required docs to submit: government ID front + back, NBI clearance (within 6 months), selfie.
 - Status after submit: `pending`. Approval is an admin action, not yours.
-- Founding tier: first 50 per city, 10 percent commission, 12 months, admin-assigned.
+- Founding tier: E63 hold; do not advertise or newly assign until the city-cohort and protected-term workflow exists.
 - Referral reward: ₱500 to referrer + ₱300 to new provider, paid after the new provider's first 3 completed jobs, capped at 10/month.
 - Money model: a provider acts only on a server-verified paid/assigned job and relies on the booking/earnings record. Customer confirmation can release escrow; the current 24-hour worker conflicts with the 48-hour filing window under E18 and must not be promised as final. The provider submits manual withdrawal requests. External hosted checkout remains E14 until approved and tested.
 

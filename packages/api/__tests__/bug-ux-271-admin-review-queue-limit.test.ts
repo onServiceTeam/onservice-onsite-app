@@ -15,7 +15,7 @@ jest.mock('../src/middleware/auth.middleware', () => ({
   },
 }));
 
-jest.mock('../src/services/provider-onboarding.service', () => ({
+jest.mock('../src/services/provider-application-review.service', () => ({
   listPendingReview: (limit: number) => mockProviderReviewList(limit),
 }));
 jest.mock('../src/services/service-area-change.service', () => ({

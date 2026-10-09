@@ -14,4 +14,5 @@ it('Bug UX-704 — booking operations failure is unavailable with retry instead 
   expect(await screen.findByText('Booking queue signals and rows could not be loaded. No zero counts are being inferred.')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Retry booking operations' })).toBeTruthy();
   expect(screen.queryByRole('region', { name: 'Booking queue signals' })).toBeNull();
+  expect(screen.queryByText('Failed to load bookings. Refresh the page before making an operational decision.')).toBeNull();
 });

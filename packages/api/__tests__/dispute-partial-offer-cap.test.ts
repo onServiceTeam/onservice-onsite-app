@@ -10,6 +10,9 @@ jest.mock('../src/models/db', () => ({
     transaction: jest.fn(async (cb: (c: { query: jest.Mock }) => unknown) => cb({ query: jest.fn() })),
   },
 }));
+jest.mock('../src/services/notification.service', () => ({
+  deliverStoredNotificationPush: jest.fn().mockResolvedValue(undefined),
+}));
 
 import { db } from '../src/models/db';
 import { addProviderResponse } from '../src/services/dispute.service';
@@ -42,6 +45,7 @@ describe('Dispute partial offer — amount cannot exceed booking total', () => {
     primeLookups(10000);
     const clientQuery = jest.fn()
       .mockResolvedValueOnce({}) // UPDATE disputes ...
+      .mockResolvedValueOnce({ rows: [{ id: 'notification-1' }] }) // INSERT notification
       .mockResolvedValueOnce({ rows: [{ id: 'd1', status: 'open', refund_amount: 5000 }] }); // SELECT * returning the updated row
     mockTransaction.mockImplementationOnce(async (cb: (c: { query: jest.Mock }) => unknown) => cb({ query: clientQuery }));
 

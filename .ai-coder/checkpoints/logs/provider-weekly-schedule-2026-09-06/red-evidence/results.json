@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-09-05T23:14:52.384Z",
+  "sourceRevision": "21e7f93d9b2ce29347b822ab00ed69919733a9ae (before UX-1350 through UX-1354)",
+  "scope": "Compiled weekly schedule first save, partial saved week, editing during delayed saves, submitted payloads and reloads, using synthetic HTTP. Not actual PostgreSQL, production, native, every accessibility interaction or complete Stitch acceptance.",
+  "indexSha256": "0d051ff2197aa3dad26b771b40dcb65a45b71c94340ed62b4dd653b4f9cdd68f",
+  "entrySha256": "f29739bdc796ea1060254e96bd57e42814e36554cc8fc6d4fd8cf43eda1bf167",
+  "expected": 12,
+  "passed": 0,
+  "records": [
+    {
+      "width": 320,
+      "mode": "partial-delayed",
+      "passed": false,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [],
+      "captures": [],
+      "unexpected": [],
+      "pageErrors": [],
+      "error": "expect(locator).toHaveCount(expected) failed\n\nLocator:  getByLabel('Monday start time in HH:MM', { exact: true })\nExpected: 0\nReceived: 1\nTimeout:  5000ms\n\nCall log:\n  - Expect \"to.have.count\" with timeout 5000ms\n  - waiting for getByLabel('Monday start time in HH:MM', { exact: true })\n    14 × locator resolved to 1 element\n       - unexpected value \"1\"\n"
+    }
+  ]
+}

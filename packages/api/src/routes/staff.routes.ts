@@ -42,6 +42,22 @@ router.get(
   },
 );
 
+router.get(
+  '/roles/:id',
+  authMiddleware,
+  rbacMiddleware('super_admin'),
+  validationMiddleware({ params: staffIdParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const role = await staffService.getRoleEvidenceById(getParamId(req));
+      if (!role) throw createAppError('Role profile not found.', 404);
+      res.json({ success: true, data: role });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.post(
   '/roles',
   authMiddleware,

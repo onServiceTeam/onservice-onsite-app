@@ -275,6 +275,29 @@ function haversineDistanceSQL(): string {
   )`;
 }
 
+/** US-P008: a saved Manila-date override replaces that day's weekly hours.
+ * Only internal SQL fragments/parameter positions are passed here. A blocked
+ * date wins over conflicting legacy windows; missing/invalid custom hours fail
+ * closed. No override means the existing weekly predicate applies unchanged.
+ */
+function availabilityAtDateSQL(dateParameter: string, timeParameter: string, weeklyFallback: string): string {
+  return `CASE WHEN EXISTS (
+    SELECT 1 FROM provider_availability_overrides o
+      WHERE o.provider_id = p.id AND o.override_date = ${dateParameter}::date
+  ) THEN (
+    NOT EXISTS (
+      SELECT 1 FROM provider_availability_overrides o
+        WHERE o.provider_id = p.id AND o.override_date = ${dateParameter}::date
+          AND o.is_available IS NOT TRUE
+    ) AND EXISTS (
+      SELECT 1 FROM provider_availability_overrides o
+        WHERE o.provider_id = p.id AND o.override_date = ${dateParameter}::date
+          AND o.is_available = TRUE AND o.start_time < o.end_time
+          AND o.start_time <= ${timeParameter}::time AND o.end_time >= ${timeParameter}::time
+    )
+  ) ELSE ${weeklyFallback} END`;
+}
+
 export async function findMatchingProviders(
   categoryId: string,
   subcategoryId: string | null,
@@ -285,6 +308,7 @@ export async function findMatchingProviders(
   // BUG-PHASE119-01 fix — Manila-anchored.
   const dayOfWeek = manilaDayOfWeek(scheduledAt);
   const timeStr = manilaTimeString(scheduledAt);
+  const dateStr = scheduledAt.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 
   const distanceExpr = haversineDistanceSQL();
 
@@ -310,7 +334,7 @@ export async function findMatchingProviders(
        AND ps.category_id = $1
        ${subcategoryId ? 'AND (ps.subcategory_id = $4 OR ps.subcategory_id IS NULL)' : ''}
        AND ${distanceExpr} <= p.service_radius_km
-       AND EXISTS (
+       AND ${availabilityAtDateSQL(subcategoryId ? '$8' : '$7', subcategoryId ? '$6' : '$5', `EXISTS (
          SELECT 1 FROM provider_availability pa
          WHERE pa.provider_id = p.id
            AND pa.day_of_week = ${subcategoryId ? '$5' : '$4'}
@@ -330,12 +354,12 @@ export async function findMatchingProviders(
                AND (${subcategoryId ? '$6' : '$5'}::time >= pa.start_time
                     OR ${subcategoryId ? '$6' : '$5'}::time <= pa.end_time))
            )
-       )
+       )`)}
      ORDER BY p.id, ${distanceExpr} ASC
      LIMIT $${subcategoryId ? '7' : '6'}`,
     subcategoryId
-      ? [categoryId, customerLat, customerLng, subcategoryId, dayOfWeek, timeStr, MAX_MATCH_ATTEMPTS * 3]
-      : [categoryId, customerLat, customerLng, dayOfWeek, timeStr, MAX_MATCH_ATTEMPTS * 3],
+      ? [categoryId, customerLat, customerLng, subcategoryId, dayOfWeek, timeStr, MAX_MATCH_ATTEMPTS * 3, dateStr]
+      : [categoryId, customerLat, customerLng, dayOfWeek, timeStr, MAX_MATCH_ATTEMPTS * 3, dateStr],
   );
 
   const scored = await rankCandidates(result.rows);
@@ -365,6 +389,7 @@ export async function findMatchingProvidersSimple(
   // BUG-PHASE119-01 fix — Manila-anchored. Same fix as findMatchingProviders.
   const dayOfWeek = manilaDayOfWeek(scheduledAt);
   const timeStr = manilaTimeString(scheduledAt);
+  const dateStr = scheduledAt.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 
   const result = await db.query<MatchableProvider>(
     `SELECT DISTINCT ON (p.id)
@@ -387,7 +412,7 @@ export async function findMatchingProvidersSimple(
        AND p.longitude IS NOT NULL
        AND ps.category_id = $1
        AND ${distanceExpr} <= p.service_radius_km
-       AND EXISTS (
+       AND ${availabilityAtDateSQL('$7', '$5', `EXISTS (
          SELECT 1 FROM provider_availability pa
          WHERE pa.provider_id = p.id
            AND pa.day_of_week = $4
@@ -401,10 +426,10 @@ export async function findMatchingProvidersSimple(
                AND ($5::time >= pa.start_time
                     OR $5::time <= pa.end_time))
            )
-       )
+       )`)}
      ORDER BY p.id, p.rating DESC, ${distanceExpr} ASC
      LIMIT $6`,
-    [categoryId, customerLat, customerLng, dayOfWeek, timeStr, MAX_MATCH_ATTEMPTS],
+    [categoryId, customerLat, customerLng, dayOfWeek, timeStr, MAX_MATCH_ATTEMPTS, dateStr],
   );
 
   return rankCandidates(result.rows);

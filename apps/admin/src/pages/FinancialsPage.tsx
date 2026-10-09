@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { useAuthStore } from '@/stores/auth.store';
+import { CommissionControlsPanel } from '@/components/financials/CommissionControlsPanel';
+import { LegacyFinancialReviewPanel } from '@/components/financials/LegacyFinancialReviewPanel';
 import {
   Badge,
   Button,
@@ -33,6 +35,8 @@ type TabKey =
   | 'overview'
   | 'escrow'
   | 'payments'
+  | 'legacy'
+  | 'commission'
   | 'payouts'
   | 'guarantee'
   | 'reconciliation'
@@ -48,6 +52,8 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'escrow', label: 'Escrow' },
   { key: 'payments', label: 'Payments & Refunds' },
+  { key: 'legacy', label: 'Legacy Review' },
+  { key: 'commission', label: 'Commission Controls' },
   { key: 'payouts', label: 'Payouts' },
   { key: 'guarantee', label: 'Guarantee Fund' },
   { key: 'reconciliation', label: 'Reconciliation' },
@@ -56,9 +62,16 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 const TAB_KEYS = new Set<TabKey>(TABS.map((tab) => tab.key));
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parseTab(value: string | null): TabKey {
   return value && TAB_KEYS.has(value as TabKey) ? (value as TabKey) : 'overview';
+}
+
+function parseBoundedInteger(value: string | null, min: number, max: number): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : null;
 }
 
 // BUG-PHASE112-01 fix — pre-fix these helpers used
@@ -71,6 +84,10 @@ function parseTab(value: string | null): TabKey {
 // which produces the same YYYY-MM-DD shape used by the date input.
 function todayIso(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+}
+
+function currentManilaYear(): number {
+  return Number(todayIso().slice(0, 4));
 }
 
 function daysAgoIso(n: number): string {
@@ -447,7 +464,9 @@ interface EscrowAging {
 
 interface EscrowPending {
   bookingId: string;
+  customerId?: string;
   customerName: string;
+  providerId?: string | null;
   providerName: string;
   amount: number;
   amountCentavos?: number;
@@ -455,6 +474,8 @@ interface EscrowPending {
 }
 
 interface EscrowData {
+  available: boolean;
+  message: string | null;
   totalInEscrow: number;
   totalInEscrowCentavos?: number;
   pendingReleaseCount: number;
@@ -464,6 +485,8 @@ interface EscrowData {
 }
 
 interface ApiEscrowData {
+  available?: boolean;
+  message?: string | null;
   totalInEscrow?: number;
   totalInEscrowCentavos?: number;
   pendingReleaseCount?: number;
@@ -474,6 +497,8 @@ interface ApiEscrowData {
 
 function normalizeEscrow(data: ApiEscrowData): EscrowData {
   return {
+    available: data.available !== false,
+    message: data.message ?? null,
     totalInEscrow: Number(data.totalInEscrow ?? data.totalInEscrowCentavos ?? 0),
     pendingReleaseCount: Number(data.pendingReleaseCount ?? data.pendingReleaseList?.length ?? 0),
     aging: (data.aging ?? data.agingBuckets ?? []).map((row) => ({
@@ -483,7 +508,9 @@ function normalizeEscrow(data: ApiEscrowData): EscrowData {
     })),
     pendingReleaseList: (data.pendingReleaseList ?? []).map((row) => ({
       bookingId: row.bookingId,
+      customerId: row.customerId,
       customerName: row.customerName,
+      providerId: row.providerId,
       providerName: row.providerName,
       amount: Number(row.amount ?? row.amountCentavos ?? 0),
       completedAt: row.completedAt,
@@ -521,6 +548,13 @@ export function EscrowPanel(): React.ReactElement {
   );
   const data = q.data;
   if (!data) return <EmptyState title="No escrow data" description="Nothing to display." />;
+  if (!data.available) return (
+    <ErrorState
+      title="Escrow accounting unavailable"
+      description={`${data.message ?? 'The platform escrow wallet could not be read.'} Do not treat this as a zero balance or a release decision.`}
+      action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry escrow</Button>}
+    />
+  );
 
   const agingByKey = new Map(data.aging.map((a) => [a.bucket, a]));
   const totalPages = Math.ceil(data.pendingReleaseCount / pageSize);
@@ -583,8 +617,28 @@ export function EscrowPanel(): React.ReactElement {
                         {row.bookingId.slice(0, 8)}…
                       </Link>
                     </td>
-                    <td className="py-2 px-3 text-[var(--color-text)]">{row.customerName}</td>
-                    <td className="py-2 px-3 text-[var(--color-text)]">{row.providerName}</td>
+                    <td className="py-2 px-3 text-[var(--color-text)]">
+                      {row.customerId ? (
+                        <Link
+                          aria-label={`Open customer ${row.customerId}`}
+                          className="text-[var(--color-primary)] hover:underline"
+                          to={`/customers/${encodeURIComponent(row.customerId)}`}
+                        >
+                          {row.customerName}
+                        </Link>
+                      ) : row.customerName}
+                    </td>
+                    <td className="py-2 px-3 text-[var(--color-text)]">
+                      {row.providerId ? (
+                        <Link
+                          aria-label={`Open provider ${row.providerId}`}
+                          className="text-[var(--color-primary)] hover:underline"
+                          to={`/providers/${encodeURIComponent(row.providerId)}`}
+                        >
+                          {row.providerName}
+                        </Link>
+                      ) : row.providerName}
+                    </td>
                     <td className="py-2 px-3 text-right font-medium text-[var(--color-text)]">
                       {formatCurrency(row.amount)}
                     </td>
@@ -635,6 +689,9 @@ interface PaymentOperationsData {
     id: string;
     bookingId: string | null;
     topupId: string | null;
+    paymongoIntentId: string | null;
+    paymongoPaymentId: string | null;
+    customerId: string | null;
     customerName: string | null;
     amountCentavos: number;
     refundedAmountCentavos: number;
@@ -666,19 +723,53 @@ function paymentStatusVariant(status: string): 'success' | 'warning' | 'danger' 
   return 'default';
 }
 
-function PaymentsPanel(): React.ReactElement {
+export function PaymentsPanel({
+  paymentAttemptId,
+  paymentAttemptSelectionError,
+  onClearExactPaymentAttempt,
+  intentSearch,
+  onIntentSearchChange,
+  retrySearch,
+  onRetrySearchChange,
+}: {
+  paymentAttemptId: string;
+  paymentAttemptSelectionError: string;
+  onClearExactPaymentAttempt: () => void;
+  intentSearch: string;
+  onIntentSearchChange: (value: string) => void;
+  retrySearch: string;
+  onRetrySearchChange: (value: string) => void;
+}): React.ReactElement {
   const retryPageSize = 25;
+  const hasExactPaymentAttempt = paymentAttemptId.length > 0;
   const [retryPage, setRetryPage] = useState(1);
+  const [intentSearchDraft, setIntentSearchDraft] = useState(intentSearch);
+  const [retrySearchDraft, setRetrySearchDraft] = useState(retrySearch);
   const q = useQuery({
-    queryKey: ['fin-payments', retryPage],
+    queryKey: ['fin-payments', retryPage, paymentAttemptId, intentSearch, retrySearch],
     queryFn: async () => {
       const res = await api.get<ApiEnvelope<PaymentOperationsData>>('/api/v1/admin/financials/payments', {
-        params: { retryLimit: retryPageSize, retryOffset: (retryPage - 1) * retryPageSize },
+        params: hasExactPaymentAttempt
+          ? { retryLimit: retryPageSize, retryOffset: 0, paymentAttemptId }
+          : {
+              retryLimit: retryPageSize,
+              retryOffset: (retryPage - 1) * retryPageSize,
+              ...(intentSearch ? { intentSearch } : {}),
+              ...(retrySearch ? { retrySearch } : {}),
+            },
       });
       return res.data.data;
     },
+    enabled: !paymentAttemptSelectionError,
   });
 
+  if (paymentAttemptSelectionError) return (
+    <ErrorState
+      title="Invalid payment-attempt link"
+      description={`${paymentAttemptSelectionError} No payment records were requested.`}
+      action={<Button variant="outline" className="min-h-11" onClick={onClearExactPaymentAttempt}>Clear payment selection</Button>}
+    />
+  );
   if (q.isLoading) return <LoadingState />;
   if (q.isError) return (
     <ErrorState
@@ -689,10 +780,16 @@ function PaymentsPanel(): React.ReactElement {
   );
   const data = q.data;
   if (!data) return <EmptyState title="No payment operations data" />;
+  const visibleIntents = hasExactPaymentAttempt
+    ? data.recentIntents.filter((row) => row.id === paymentAttemptId)
+    : data.recentIntents;
+  const exactPaymentAttemptMissing = hasExactPaymentAttempt
+    && data.paymentIntentsAvailable
+    && visibleIntents.length === 0;
   const totalGatewayRetries = data.pendingGatewayRetries
     + data.inProgressGatewayRetries
     + data.permanentGatewayFailures;
-  const retryTotalPages = Math.ceil(totalGatewayRetries / retryPageSize);
+  const retryTotalPages = retrySearch ? 1 : Math.ceil(totalGatewayRetries / retryPageSize);
   const retryPageStart = totalGatewayRetries === 0 ? 0 : (retryPage - 1) * retryPageSize + 1;
   const retryPageEnd = Math.min(retryPage * retryPageSize, totalGatewayRetries);
 
@@ -706,11 +803,15 @@ function PaymentsPanel(): React.ReactElement {
       </div>
 
       {!data.paymentIntentsAvailable && (
-        <ErrorState title="Payment intent reporting unavailable" description="The payment-intents source is missing. Counts below are not available." />
+        <ErrorState
+          title="Payment intent reporting unavailable"
+          description="The payment-intents source is missing. Counts below are not available; do not treat the payment queue as clear."
+          action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry payment reporting</Button>}
+        />
       )}
       {data.paymentIntentsAvailable && (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          {!hasExactPaymentAttempt && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
             <KpiCard title="All Attempts" value={String(data.totalAttempts)} icon={null} />
             <KpiCard title="Awaiting Customer" value={String(data.awaitingPaymentCount)} icon={null} />
             <KpiCard title="Processing" value={String(data.processingCount)} icon={null} />
@@ -718,14 +819,69 @@ function PaymentsPanel(): React.ReactElement {
             <KpiCard title="Failed" value={String(data.failedCount)} icon={null} />
             <KpiCard title="Refunded" value={String(data.refundedCount)} icon={null} />
             <KpiCard title="Partially Refunded" value={String(data.partiallyRefundedCount)} icon={null} />
-          </div>
+          </div>}
 
           <div className="overflow-x-auto rounded-xl border border-[var(--color-border)] bg-white p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-[var(--color-text)]">Latest 50 Payment Attempts</h2>
-              <span className="text-xs text-[var(--color-text-secondary)]">Most recently updated first</span>
+              <h2 className="text-base font-semibold text-[var(--color-text)]">
+                {hasExactPaymentAttempt ? 'Payment Attempt Evidence' : 'Payment Attempts'}
+              </h2>
+              <span className="text-xs text-[var(--color-text-secondary)]">
+                {hasExactPaymentAttempt
+                  ? 'Exact retained attempt'
+                  : intentSearch
+                    ? 'Identifier matches'
+                    : 'Latest 50 · most recently updated first'}
+              </span>
             </div>
-            {data.recentIntents.length === 0 ? <EmptyState title="No payment attempts recorded" /> : (
+            {hasExactPaymentAttempt && (
+              <div className="mb-4 flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--color-primary)] bg-[var(--color-bg)] px-3 py-2 text-sm text-[var(--color-text)]">
+                <span>Exact attempt <strong className="break-all font-mono">{paymentAttemptId}</strong></span>
+                <Button variant="outline" className="min-h-9" onClick={onClearExactPaymentAttempt}>Clear</Button>
+              </div>
+            )}
+            {!hasExactPaymentAttempt && <form
+              className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setRetryPage(1);
+                onIntentSearchChange(intentSearchDraft.trim());
+              }}
+            >
+              <label className="flex-1 text-xs font-medium text-[var(--color-text-secondary)]" htmlFor="payment-attempt-search">
+                Find payment attempt
+                <input
+                  id="payment-attempt-search"
+                  className="mt-1 min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 text-sm text-[var(--color-text)]"
+                  maxLength={255}
+                  onChange={(event) => setIntentSearchDraft(event.target.value)}
+                  placeholder="Attempt, booking, customer, top-up, or gateway ID"
+                  value={intentSearchDraft}
+                />
+              </label>
+              <Button className="min-h-11" type="submit">Search attempts</Button>
+              {intentSearch && (
+                <Button
+                  className="min-h-11"
+                  onClick={() => {
+                    setIntentSearchDraft('');
+                    setRetryPage(1);
+                    onIntentSearchChange('');
+                  }}
+                  type="button"
+                  variant="outline"
+                >
+                  Clear search
+                </Button>
+              )}
+            </form>}
+            {exactPaymentAttemptMissing ? (
+              <ErrorState
+                title="Payment attempt not found"
+                description="The requested payment attempt is unavailable. No substitute payment record is shown; return to Customer 360 or global search for the durable source context."
+                action={<Button variant="outline" className="min-h-11" onClick={onClearExactPaymentAttempt}>Show payment operations</Button>}
+              />
+            ) : visibleIntents.length === 0 ? <EmptyState title="No payment attempts recorded" /> : (
               <table className="w-full text-sm">
                 <thead><tr className="border-b border-[var(--color-border)]">
                   <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Work / Customer</th>
@@ -735,11 +891,24 @@ function PaymentsPanel(): React.ReactElement {
                   <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Status</th>
                   <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Updated</th>
                 </tr></thead>
-                <tbody>{data.recentIntents.map((row) => (
-                  <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
+                <tbody>{visibleIntents.map((row) => (
+                  <tr
+                    key={row.id}
+                    aria-current={hasExactPaymentAttempt ? 'true' : undefined}
+                    className={hasExactPaymentAttempt
+                      ? 'border-b border-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                      : 'border-b border-[var(--color-border)] hover:bg-slate-50'}
+                  >
                     <td className="px-3 py-2">
                       {row.bookingId ? <Link className="font-medium text-[var(--color-primary)] hover:underline" to={`/bookings/${row.bookingId}`}>Booking {row.bookingId.slice(0, 8)}</Link> : <span className="font-medium">Wallet top-up</span>}
-                      <p className="text-xs text-[var(--color-text-secondary)]">{row.customerName ?? (row.topupId ? 'Customer not linked in this record' : 'Unlinked attempt')}</p>
+                      <p className="text-xs text-[var(--color-text-secondary)]">
+                        {row.customerId && row.customerName ? (
+                          <Link className="text-[var(--color-primary)] hover:underline" to={`/customers/${encodeURIComponent(row.customerId)}`}>{row.customerName}</Link>
+                        ) : row.customerName ?? (row.topupId ? 'Customer not linked in this record' : 'Unlinked attempt')}
+                      </p>
+                      <p className="mt-1 break-all font-mono text-[11px] text-[var(--color-text-tertiary)]">Attempt {row.id}</p>
+                      {row.paymongoIntentId && <p className="break-all font-mono text-[11px] text-[var(--color-text-tertiary)]">Gateway intent {row.paymongoIntentId}</p>}
+                      {row.paymongoPaymentId && <p className="break-all font-mono text-[11px] text-[var(--color-text-tertiary)]">Gateway payment {row.paymongoPaymentId}</p>}
                     </td>
                     <td className="px-3 py-2 text-right font-medium">{formatCurrency(row.amountCentavos)}</td>
                     <td className="px-3 py-2 text-right">{formatCurrency(row.refundedAmountCentavos)}</td>
@@ -754,24 +923,64 @@ function PaymentsPanel(): React.ReactElement {
         </>
       )}
 
-      <div className="rounded-xl border border-[var(--color-border)] bg-white p-5">
+      {!hasExactPaymentAttempt && <div className="rounded-xl border border-[var(--color-border)] bg-white p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-[var(--color-text)]">Refund and Release Retry Queue</h2>
           {data.gatewayRetriesAvailable && (
             <span className="text-xs text-[var(--color-text-secondary)]">
-              {data.pendingGatewayRetries} pending · {data.inProgressGatewayRetries} running · {data.permanentGatewayFailures} permanent
-              {totalGatewayRetries > 0 && ` · Showing ${retryPageStart}–${retryPageEnd} of ${totalGatewayRetries}`}
+              {retrySearch
+                ? 'Exact retry identifier matches'
+                : `${data.pendingGatewayRetries} pending · ${data.inProgressGatewayRetries} running · ${data.permanentGatewayFailures} permanent${totalGatewayRetries > 0 ? ` · Showing ${retryPageStart}–${retryPageEnd} of ${totalGatewayRetries}` : ''}`}
             </span>
           )}
         </div>
+        <form
+          className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setRetryPage(1);
+            onRetrySearchChange(retrySearchDraft.trim());
+          }}
+        >
+          <label className="flex-1 text-xs font-medium text-[var(--color-text-secondary)]" htmlFor="gateway-retry-search">
+            Find gateway retry
+            <input
+              id="gateway-retry-search"
+              className="mt-1 min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 text-sm text-[var(--color-text)]"
+              maxLength={255}
+              onChange={(event) => setRetrySearchDraft(event.target.value)}
+              placeholder="Exact retry ID"
+              value={retrySearchDraft}
+            />
+          </label>
+          <Button className="min-h-11" type="submit">Search retries</Button>
+          {retrySearch && (
+            <Button
+              className="min-h-11"
+              onClick={() => {
+                setRetrySearchDraft('');
+                setRetryPage(1);
+                onRetrySearchChange('');
+              }}
+              type="button"
+              variant="outline"
+            >
+              Clear retry search
+            </Button>
+          )}
+        </form>
         {!data.gatewayRetriesAvailable ? (
-          <ErrorState title="Gateway retry reporting unavailable" description="The gateway retry source is missing. Do not assume that the backlog is empty." />
+          <ErrorState
+            title="Gateway retry reporting unavailable"
+            description="The gateway retry source is missing. Do not assume that the backlog is empty."
+            action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry retry reporting</Button>}
+          />
         ) : data.gatewayRetries.length === 0 ? (
-          <EmptyState title="No active or permanently failed gateway retries" />
+          <EmptyState title={retrySearch ? 'No unresolved retry matches that identifier' : 'No active or permanently failed gateway retries'} />
         ) : (
           <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead><tr className="border-b border-[var(--color-border)]">
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Booking</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Retry / Booking</th>
               <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Action</th>
               <th className="px-3 py-2 text-right text-xs font-medium uppercase text-[var(--color-text-secondary)]">Amount</th>
               <th className="px-3 py-2 text-left text-xs font-medium uppercase text-[var(--color-text-secondary)]">Status</th>
@@ -780,7 +989,17 @@ function PaymentsPanel(): React.ReactElement {
             </tr></thead>
             <tbody>{data.gatewayRetries.map((row) => (
               <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
-                <td className="px-3 py-2"><Link className="text-[var(--color-primary)] hover:underline" to={`/bookings/${row.bookingId}`}>{row.bookingId.slice(0, 8)}</Link></td>
+                <td className="px-3 py-2">
+                  <p className="break-all font-mono text-[11px] text-[var(--color-text-tertiary)]">Retry {row.id}</p>
+                  <Link className="text-[var(--color-primary)] hover:underline" to={`/bookings/${row.bookingId}`}>{row.bookingId.slice(0, 8)}</Link>
+                  {row.disputeId && (
+                    <p className="mt-1">
+                      <Link className="text-xs font-medium text-[var(--color-secondary)] hover:underline" to={`/disputes/${encodeURIComponent(row.disputeId)}`}>
+                        Open Dispute 360
+                      </Link>
+                    </p>
+                  )}
+                </td>
                 <td className="px-3 py-2">{row.actionType.replace(/_/g, ' ')}</td>
                 <td className="px-3 py-2 text-right">{row.amountCentavos == null ? '—' : formatCurrency(row.amountCentavos)}</td>
                 <td className="px-3 py-2"><Badge label={row.status.replace(/_/g, ' ')} variant={paymentStatusVariant(row.status)} /></td>
@@ -802,7 +1021,7 @@ function PaymentsPanel(): React.ReactElement {
             onPageChange={setRetryPage}
           />
         )}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -813,6 +1032,7 @@ function PaymentsPanel(): React.ReactElement {
 
 interface PayoutFailed {
   id: string;
+  providerId?: string;
   providerName: string;
   amount: number;
   amountCentavos?: number;
@@ -852,6 +1072,7 @@ function normalizePayouts(data: PayoutsData): PayoutsData {
     failedCount: Number(data.failedCount ?? 0),
     recentFailed: (data.recentFailed ?? []).map((row) => ({
       id: row.id,
+      providerId: row.providerId,
       providerName: row.providerName,
       amount: Number(row.amount ?? row.amountCentavos ?? 0),
       failedAt: row.failedAt,
@@ -879,7 +1100,13 @@ export function PayoutsPanel(): React.ReactElement {
   );
   const d = q.data;
   if (!d) return <EmptyState title="No payouts data" />;
-  if (!d.available) return <ErrorState title="Payout reporting unavailable" description={d.message ?? 'The payout source is unavailable.'} />;
+  if (!d.available) return (
+    <ErrorState
+      title="Payout reporting unavailable"
+      description={`${d.message ?? 'The payout source is unavailable.'} Do not treat the provider withdrawal queue as empty.`}
+      action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry payout summary</Button>}
+    />
+  );
 
   return (
     <div>
@@ -925,8 +1152,22 @@ export function PayoutsPanel(): React.ReactElement {
               <tbody>
                 {d.recentFailed.map((row) => (
                   <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
-                    <td className="py-2 px-3 font-mono text-xs text-[var(--color-text)]">{row.id.slice(0, 10)}…</td>
-                    <td className="py-2 px-3 text-[var(--color-text)]">{row.providerName}</td>
+                    <td className="py-2 px-3 font-mono text-xs">
+                      <Link
+                        aria-label={`Open payout ${row.id}`}
+                        className="text-[var(--color-primary)] hover:underline"
+                        to={`/payouts?payoutId=${encodeURIComponent(row.id)}`}
+                      >
+                        {row.id.slice(0, 10)}…
+                      </Link>
+                    </td>
+                    <td className="py-2 px-3 text-[var(--color-text)]">
+                      {row.providerId ? (
+                        <Link className="text-[var(--color-primary)] hover:underline" to={`/providers/${encodeURIComponent(row.providerId)}`}>
+                          {row.providerName}
+                        </Link>
+                      ) : row.providerName}
+                    </td>
                     <td className="py-2 px-3 text-right font-medium text-[var(--color-text)]">
                       {formatCurrency(row.amount)}
                     </td>
@@ -950,6 +1191,8 @@ export function PayoutsPanel(): React.ReactElement {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface GuaranteeFundData {
+  available: boolean;
+  message: string | null;
   currentBalance: number;
   currentBalanceCentavos?: number;
   inflow30d: number;
@@ -961,18 +1204,20 @@ interface GuaranteeFundData {
   avgMonthlyOutflow: number;
   averageMonthlyOutflowCentavos?: number;
   runwayMonths: number | null;
-  needsReplenishment: boolean;
+  needsReplenishment: boolean | null;
 }
 
 function normalizeGuaranteeFund(data: GuaranteeFundData): GuaranteeFundData {
   return {
+    available: data.available !== false,
+    message: data.message ?? null,
     currentBalance: Number(data.currentBalance ?? data.currentBalanceCentavos ?? 0),
     inflow30d: Number(data.inflow30d ?? data.inflow30dCentavos ?? 0),
     outflow30d: Number(data.outflow30d ?? data.outflow30dCentavos ?? 0),
     net30d: Number(data.net30d ?? data.net30dCentavos ?? 0),
     avgMonthlyOutflow: Number(data.avgMonthlyOutflow ?? data.averageMonthlyOutflowCentavos ?? 0),
     runwayMonths: data.runwayMonths,
-    needsReplenishment: Boolean(data.needsReplenishment),
+    needsReplenishment: data.needsReplenishment == null ? null : Boolean(data.needsReplenishment),
   };
 }
 
@@ -982,7 +1227,7 @@ function formatRunway(v: number | null | undefined): string {
   return `${v.toFixed(1)} mo`;
 }
 
-function GuaranteeFundPanel(): React.ReactElement {
+export function GuaranteeFundPanel(): React.ReactElement {
   const q = useQuery({
     queryKey: ['fin-guarantee'],
     queryFn: async () => {
@@ -1001,9 +1246,24 @@ function GuaranteeFundPanel(): React.ReactElement {
   );
   const d = q.data;
   if (!d) return <EmptyState title="No guarantee-fund data" />;
+  if (!d.available) {
+    return (
+      <ErrorState
+        title="Guarantee-fund accounting unavailable"
+        description={`${d.message ?? 'The platform guarantee-fund wallet is missing.'} Do not treat this as a zero balance or a funding decision.`}
+        action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry guarantee fund</Button>}
+      />
+    );
+  }
 
   return (
     <div>
+      <div role="alert" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+        <p className="font-semibold">Internal accounting record only</p>
+        <p className="mt-1">
+          This wallet and its planning signal do not approve a customer claim, coverage amount, or payout. Guarantee terms remain on E10/F#10 legal and accounting hold.
+        </p>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
         <KpiCard title="Current Balance" value={formatCurrency(d.currentBalance)} icon={null} />
         <KpiCard title="30d Inflow" value={formatCurrency(d.inflow30d)} icon={null} />
@@ -1015,15 +1275,15 @@ function GuaranteeFundPanel(): React.ReactElement {
 
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-[var(--color-text)]">Replenishment Status</h2>
+          <h2 className="text-base font-semibold text-[var(--color-text)]">Internal Planning Signal</h2>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            Auto-evaluated from runway and outflow trends.
+            Flags a recorded balance below ₱1,000,000 or less than three months of recorded outflow runway. It does not move money.
           </p>
         </div>
         {d.needsReplenishment ? (
-          <Badge label="REPLENISH" variant="danger" />
+          <Badge label="FUNDING REVIEW" variant="danger" />
         ) : (
-          <Badge label="OK" variant="success" />
+          <Badge label="NO FUNDING ALERT" variant="success" />
         )}
       </div>
     </div>
@@ -1068,20 +1328,36 @@ function phpInputToCentavos(raw: string): number | null {
   return Number.isSafeInteger(centavos) ? centavos : null;
 }
 
-function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactElement {
+function ReconciliationPanel({
+  isSuperAdmin,
+  snapshotId,
+  onSnapshotChange,
+}: {
+  isSuperAdmin: boolean;
+  snapshotId: string;
+  onSnapshotChange: (value: string) => void;
+}): React.ReactElement {
   const qc = useQueryClient();
   const [showRun, setShowRun] = useState(false);
   const [ackTarget, setAckTarget] = useState<ReconciliationRow | null>(null);
+  const invalidSnapshotId = Boolean(snapshotId && !UUID_REGEX.test(snapshotId));
 
   const q = useQuery({
-    queryKey: ['fin-reconciliation', 30],
+    queryKey: ['fin-reconciliation', snapshotId || 'recent'],
     queryFn: async () => {
+      if (snapshotId) {
+        const res = await api.get<ApiEnvelope<ReconciliationRow>>(
+          `/api/v1/admin/bir/reconciliation/${encodeURIComponent(snapshotId)}`,
+        );
+        return [normalizeReconciliationRow(res.data.data)];
+      }
       const res = await api.get<ApiEnvelope<ReconciliationRow[]>>(
         '/api/v1/admin/bir/reconciliation/recent',
         { params: { limit: 30 } },
       );
       return res.data.data.map(normalizeReconciliationRow);
     },
+    enabled: !invalidSnapshotId,
   });
 
   const [runBalance, setRunBalance] = useState('');
@@ -1100,7 +1376,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       setShowRun(false);
       setRunBalance('');
       setRunNotes('');
-      qc.invalidateQueries({ queryKey: ['fin-reconciliation', 30] });
+      qc.invalidateQueries({ queryKey: ['fin-reconciliation'] });
     },
     onError: (err) => {
       toast.error(`Failed: ${getErrorMessage(err)}`);
@@ -1120,7 +1396,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       toast.success('Acknowledged.');
       setAckTarget(null);
       setAckNote('');
-      qc.invalidateQueries({ queryKey: ['fin-reconciliation', 30] });
+      qc.invalidateQueries({ queryKey: ['fin-reconciliation'] });
     },
     onError: (err) => {
       toast.error(`Failed: ${getErrorMessage(err)}`);
@@ -1140,7 +1416,6 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
     }
     payload.paymongoBalance = n;
     if (runNotes.trim() !== '') payload.notes = runNotes.trim();
-    if (!window.confirm('Run a new reconciliation snapshot now?')) return;
     runMut.mutate(payload);
   };
 
@@ -1151,29 +1426,51 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       toast.warning('Note must be 5–1000 characters.');
       return;
     }
-    if (!window.confirm('Acknowledge this reconciliation discrepancy?')) return;
     ackMut.mutate({ id: ackTarget.id, note });
   };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-[var(--color-text)]">Recent Reconciliations</h2>
-        {isSuperAdmin && (
-          <Button onClick={() => setShowRun(true)}>Run Reconciliation Now</Button>
-        )}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-base font-semibold text-[var(--color-text)]">
+            {snapshotId ? 'Exact Reconciliation Snapshot' : 'Recent Reconciliations'}
+          </h2>
+          {snapshotId && !invalidSnapshotId && (
+            <p className="mt-1 break-all font-mono text-xs text-[var(--color-text-secondary)]">
+              Snapshot {snapshotId}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {snapshotId && (
+            <Button variant="outline" onClick={() => onSnapshotChange('')}>
+              Back to recent reconciliations
+            </Button>
+          )}
+          {isSuperAdmin && !snapshotId && (
+            <Button onClick={() => setShowRun(true)}>Create reconciliation snapshot</Button>
+          )}
+        </div>
       </div>
 
-      {q.isLoading ? (
+      {invalidSnapshotId ? (
+        <ErrorState
+          title="Invalid reconciliation snapshot link"
+          description="The snapshot identifier must be a complete UUID. Return to recent reconciliations instead of treating this as a missing or cleared record."
+        />
+      ) : q.isLoading ? (
         <LoadingState />
       ) : q.isError ? (
         <ErrorState
-          title="Reconciliation history unavailable"
-          description={`${getErrorMessage(q.error)} Do not infer that discrepancies are clear.`}
+          title={snapshotId ? 'Reconciliation snapshot unavailable' : 'Reconciliation history unavailable'}
+          description={`${getErrorMessage(q.error)} ${snapshotId
+            ? 'Do not infer that the requested evidence does not exist or that its discrepancy is clear.'
+            : 'Do not infer that discrepancies are clear.'}`}
           action={<Button variant="outline" className="min-h-11" onClick={() => { void q.refetch(); }}>Retry reconciliation</Button>}
         />
       ) : !q.data || q.data.length === 0 ? (
-        <EmptyState title="No reconciliation snapshots yet" />
+        <EmptyState title={snapshotId ? 'Reconciliation snapshot not found' : 'No reconciliation snapshots yet'} />
       ) : (
         <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 overflow-x-auto">
           <table className="w-full text-sm">
@@ -1190,7 +1487,10 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
             <tbody>
               {q.data.map((row) => (
                 <tr key={row.id} className="border-b border-[var(--color-border)] hover:bg-slate-50">
-                  <td className="py-2 px-3 text-[var(--color-text)]">{formatDate(row.snapshotDate)}</td>
+                  <td className="py-2 px-3 text-[var(--color-text)]">
+                    {formatDate(row.snapshotDate)}
+                    <p className="mt-1 break-all font-mono text-[11px] text-[var(--color-text-tertiary)]">Snapshot {row.id}</p>
+                  </td>
                   <td className="py-2 px-3 text-right font-medium">{row.paymongoBalance == null ? 'Not supplied' : formatCurrency(row.paymongoBalance)}</td>
                   <td className="py-2 px-3 text-right">{formatCurrency(row.expectedTotal)}</td>
                   <td className={`py-2 px-3 text-right font-semibold ${row.discrepancy === 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -1231,14 +1531,14 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
       <Dialog open={showRun} onOpenChange={setShowRun}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Run Reconciliation</DialogTitle>
+            <DialogTitle>Create reconciliation snapshot</DialogTitle>
             <DialogDescription>
-              Compare the verified PayMongo balance with all internal wallet buckets. The balance is required; notes are optional.
+              Create one append-only comparison for today&apos;s Philippine date. This does not query PayMongo or move money. Enter a balance independently verified from the authorized external source; notes are optional.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label htmlFor="run-balance">Verified PayMongo Balance (PHP)</Label>
+              <Label htmlFor="run-balance">Operator-entered PayMongo balance (PHP)</Label>
               <Input
                 id="run-balance"
                 type="number"
@@ -1267,7 +1567,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
               Cancel
             </Button>
             <Button onClick={submitRun} disabled={runMut.isPending || runBalance.trim() === ''}>
-              {runMut.isPending ? 'Running…' : 'Run Now'}
+              {runMut.isPending ? 'Creating…' : 'Create snapshot'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1280,7 +1580,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
             <DialogTitle>Acknowledge Discrepancy</DialogTitle>
             <DialogDescription>
               Snapshot {ackTarget ? formatDate(ackTarget.snapshotDate) : ''} — discrepancy{' '}
-              {ackTarget ? formatCurrency(ackTarget.discrepancy) : ''}.
+              {ackTarget ? formatCurrency(ackTarget.discrepancy) : ''}. Acknowledging closes the alert flag and records your note. It does not resolve the discrepancy or change any balance.
             </DialogDescription>
           </DialogHeader>
           <div>
@@ -1300,7 +1600,7 @@ function ReconciliationPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React
               Cancel
             </Button>
             <Button onClick={submitAck} disabled={ackMut.isPending || ackNote.trim().length < 5 || ackNote.trim().length > 1000}>
-              {ackMut.isPending ? 'Submitting…' : 'Acknowledge'}
+              {ackMut.isPending ? 'Submitting…' : 'Acknowledge alert'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1361,10 +1661,50 @@ interface Q2307ListEnvelope {
   total: number;
 }
 
+interface Q2307Detail {
+  id: string;
+  providerId: string;
+  providerName?: string;
+  taxYear: number;
+  taxQuarter: number;
+  grossIncome: number;
+  withholdingRate: number;
+  withheldAmount: number;
+  pdfUrl: string | null;
+  issuedAt: string;
+}
+
+interface VatReportDetail {
+  id: string;
+  periodYear: number;
+  periodMonth: number;
+  totalGrossSales: number;
+  outputVat: number;
+  inputVat: number;
+  vatPayable: number;
+  orCount: number;
+  pdfUrl: string | null;
+  finalizedAt: string | null;
+  generatedAt: string;
+}
+
+interface BirReportsPanelProps {
+  isSuperAdmin: boolean;
+  selectedYear?: number;
+  selectedQuarter?: number | null;
+  batchId?: string;
+  vatMonth?: number | null;
+  vatReportId?: string;
+  selectionError?: string;
+  onYearChange?: (year: number) => void;
+  onQuarterChange?: (quarter: number | null) => void;
+  onClearExact?: () => void;
+}
+
 function normalizeBirOverview(data: BirOverviewData): BirOverviewData {
   const summary = data.annualSummary;
   return {
-    year: Number(data.year ?? summary?.year ?? new Date().getFullYear()),
+    year: Number(data.year ?? summary?.year ?? currentManilaYear()),
     totalOutputVat: Number(data.totalOutputVat ?? summary?.totalOutputVatCentavos ?? data.totalOutputVatCentavos ?? 0),
     totalVatPayable: Number(data.totalVatPayable ?? summary?.totalVatPayableCentavos ?? data.totalVatPayableCentavos ?? 0),
     monthsFinalized: Number(data.monthsFinalized ?? summary?.monthsFinalized ?? 0),
@@ -1383,11 +1723,36 @@ function normalizeBirOverview(data: BirOverviewData): BirOverviewData {
   };
 }
 
-export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): React.ReactElement {
+export function BirReportsPanel({
+  isSuperAdmin,
+  selectedYear,
+  selectedQuarter,
+  batchId = '',
+  vatMonth = null,
+  vatReportId = '',
+  selectionError = '',
+  onYearChange,
+  onQuarterChange,
+  onClearExact,
+}: BirReportsPanelProps): React.ReactElement {
   const qc = useQueryClient();
   const currentYear = Number(todayIso().slice(0, 4));
-  const [year, setYear] = useState<number>(currentYear);
-  const [expandedQuarter, setExpandedQuarter] = useState<number | null>(null);
+  const [localYear, setLocalYear] = useState<number>(currentYear);
+  const [localExpandedQuarter, setLocalExpandedQuarter] = useState<number | null>(null);
+  const year = selectedYear ?? localYear;
+  const expandedQuarter = selectedQuarter === undefined
+    ? localExpandedQuarter
+    : selectedQuarter;
+
+  const setYear = (value: number): void => {
+    if (onYearChange) onYearChange(value);
+    else setLocalYear(value);
+  };
+
+  const setExpandedQuarter = (value: number | null): void => {
+    if (onQuarterChange) onQuarterChange(value);
+    else setLocalExpandedQuarter(value);
+  };
 
   const overviewQ = useQuery({
     queryKey: ['bir-overview', year],
@@ -1457,21 +1822,39 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
         amount: Number(row.amount ?? row.withheldAmount ?? 0),
       }));
     },
-    enabled: expandedQuarter !== null,
+    enabled: expandedQuarter !== null && !selectionError,
   });
 
-  const yearOptions = [currentYear - 2, currentYear - 1, currentYear];
+  const exactBatchQ = useQuery({
+    queryKey: ['bir-2307-exact', batchId],
+    queryFn: async () => {
+      const res = await api.get<ApiEnvelope<Q2307Detail>>(
+        `/api/v1/admin/bir/2307/${batchId}`,
+      );
+      return res.data.data;
+    },
+    enabled: Boolean(batchId) && !selectionError,
+  });
 
-  if (overviewQ.isLoading) return <LoadingState />;
-  if (overviewQ.isError) return (
-    <ErrorState
-      title="Tax workpapers unavailable"
-      description={`${getErrorMessage(overviewQ.error)} Do not infer that filing or withholding work is complete.`}
-      action={<Button variant="outline" className="min-h-11" onClick={() => { void overviewQ.refetch(); }}>Retry workpapers</Button>}
-    />
-  );
+  const exactVatQ = useQuery({
+    queryKey: ['bir-vat-exact', year, vatMonth, vatReportId],
+    queryFn: async () => {
+      const res = await api.get<ApiEnvelope<VatReportDetail>>(
+        `/api/v1/admin/bir/vat/reports/${year}/${vatMonth}`,
+      );
+      return res.data.data;
+    },
+    enabled: Boolean(vatReportId) && vatMonth !== null && !selectionError,
+  });
+
+  const yearOptions = Array.from(new Set([
+    currentYear - 2,
+    currentYear - 1,
+    currentYear,
+    year,
+  ])).sort((a, b) => a - b);
+
   const d = overviewQ.data;
-  if (!d) return <EmptyState title="No BIR data" />;
 
   return (
     <div>
@@ -1486,6 +1869,17 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
           Philippine accountant approves the taxpayer profile, document type, tax basis, and serial authority.
         </p>
       </div>
+      {selectionError && (
+        <div role="alert" className="mb-6 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900">
+          <p className="font-semibold">Invalid tax-workpaper evidence link</p>
+          <p className="mt-1">{selectionError} No exact evidence request was sent.</p>
+          {onClearExact && (
+            <Button variant="outline" size="sm" className="mt-3" onClick={onClearExact}>
+              Remove invalid evidence selection
+            </Button>
+          )}
+        </div>
+      )}
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-4 mb-6 flex items-end gap-3">
         <div>
           <Label htmlFor="bir-year">Year</Label>
@@ -1502,6 +1896,149 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
         </div>
       </div>
 
+      {batchId && !selectionError && (
+        <section className="mb-6 rounded-xl border border-[var(--color-border)] bg-white p-5" aria-labelledby="exact-2307-heading">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-secondary)]">Audit evidence</p>
+              <h2 id="exact-2307-heading" className="mt-1 text-base font-semibold text-[var(--color-text)]">
+                Exact 2307 Workpaper Evidence
+              </h2>
+            </div>
+            {onClearExact && (
+              <Button variant="outline" size="sm" onClick={onClearExact}>Return to workpaper summary</Button>
+            )}
+          </div>
+          {exactBatchQ.isLoading ? (
+            <p className="mt-4 text-sm text-[var(--color-text-secondary)]">Loading exact batch evidence…</p>
+          ) : exactBatchQ.isError ? (
+            <ErrorState
+              title="2307 workpaper evidence unavailable"
+              description={getErrorMessage(exactBatchQ.error)}
+              action={<Button variant="outline" onClick={() => { void exactBatchQ.refetch(); }}>Retry exact evidence</Button>}
+            />
+          ) : exactBatchQ.data ? (
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Batch ID</p>
+                <p className="mt-1 break-all text-sm font-medium text-[var(--color-text)]">{exactBatchQ.data.id}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Provider</p>
+                <Link className="mt-1 inline-block text-sm font-medium text-[var(--color-secondary)] hover:underline" to={`/providers/${exactBatchQ.data.providerId}`}>
+                  {exactBatchQ.data.providerName ?? exactBatchQ.data.providerId}
+                </Link>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Tax period</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">Q{exactBatchQ.data.taxQuarter} {exactBatchQ.data.taxYear}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Issued</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatDateTime(exactBatchQ.data.issuedAt)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Gross income basis</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatCurrency(exactBatchQ.data.grossIncome)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Withholding rate</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{(exactBatchQ.data.withholdingRate * 100).toFixed(2)}%</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Withheld amount</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatCurrency(exactBatchQ.data.withheldAmount)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Stored artifact</p>
+                {exactBatchQ.data.pdfUrl ? (
+                  <a className="mt-1 inline-block text-sm font-medium text-[var(--color-secondary)] hover:underline" href={exactBatchQ.data.pdfUrl} target="_blank" rel="noopener noreferrer">Open retained PDF</a>
+                ) : (
+                  <p className="mt-1 text-sm text-[var(--color-text-secondary)]">No PDF retained</p>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      )}
+
+      {vatReportId && vatMonth !== null && !selectionError && (
+        <section className="mb-6 rounded-xl border border-[var(--color-border)] bg-white p-5" aria-labelledby="exact-vat-heading">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-secondary)]">Audit evidence</p>
+              <h2 id="exact-vat-heading" className="mt-1 text-base font-semibold text-[var(--color-text)]">
+                Exact VAT Workpaper Evidence
+              </h2>
+            </div>
+            {onClearExact && (
+              <Button variant="outline" size="sm" onClick={onClearExact}>Return to workpaper summary</Button>
+            )}
+          </div>
+          {exactVatQ.isLoading ? (
+            <p className="mt-4 text-sm text-[var(--color-text-secondary)]">Loading exact VAT evidence…</p>
+          ) : exactVatQ.isError ? (
+            <ErrorState
+              title="VAT workpaper evidence unavailable"
+              description={getErrorMessage(exactVatQ.error)}
+              action={<Button variant="outline" onClick={() => { void exactVatQ.refetch(); }}>Retry exact evidence</Button>}
+            />
+          ) : exactVatQ.data && exactVatQ.data.id !== vatReportId ? (
+            <ErrorState
+              title="VAT workpaper identity mismatch"
+              description="The retained period record does not match the audit target. Do not use it as evidence for this event."
+            />
+          ) : exactVatQ.data ? (
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Report ID</p>
+                <p className="mt-1 break-all text-sm font-medium text-[var(--color-text)]">{exactVatQ.data.id}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Tax period</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{MonthName(exactVatQ.data.periodMonth)} {exactVatQ.data.periodYear}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Status</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{exactVatQ.data.finalizedAt ? 'Locked' : 'Draft'}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Generated</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatDateTime(exactVatQ.data.generatedAt)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Gross sales</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatCurrency(exactVatQ.data.totalGrossSales)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Output VAT</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatCurrency(exactVatQ.data.outputVat)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Input VAT / payable</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{formatCurrency(exactVatQ.data.inputVat)} / {formatCurrency(exactVatQ.data.vatPayable)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">Source sales records</p>
+                <p className="mt-1 text-sm font-medium text-[var(--color-text)]">{exactVatQ.data.orCount}</p>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      )}
+
+      {overviewQ.isLoading ? (
+        <LoadingState />
+      ) : overviewQ.isError ? (
+        <ErrorState
+          title="Tax workpaper summary unavailable"
+          description={`${getErrorMessage(overviewQ.error)} Exact retained evidence above remains independently available; do not infer that filing or withholding work is complete.`}
+          action={<Button variant="outline" className="min-h-11" onClick={() => { void overviewQ.refetch(); }}>Retry workpaper summary</Button>}
+        />
+      ) : !d ? (
+        <EmptyState title="No BIR data" />
+      ) : (
+        <>
       {/* Annual summary */}
       <div className="bg-white border border-[var(--color-border)] rounded-xl p-5 mb-6">
         <h2 className="text-base font-semibold text-[var(--color-text)] mb-3">Internal Tax Workpaper Summary ({d.year})</h2>
@@ -1634,9 +2171,9 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() =>
-                          setExpandedQuarter((prev) => (prev === qb.quarter ? null : qb.quarter))
-                        }
+                        onClick={() => setExpandedQuarter(
+                          expandedQuarter === qb.quarter ? null : qb.quarter,
+                        )}
                       >
                         {expandedQuarter === qb.quarter ? 'Hide list' : 'View list'}
                       </Button>
@@ -1680,6 +2217,8 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1691,7 +2230,10 @@ export function BirReportsPanel({ isSuperAdmin }: { isSuperAdmin: boolean }): Re
 interface ReceiptRow {
   id: string;
   orNumber: string;
+  bookingId?: string;
+  customerId?: string;
   customerName: string;
+  providerId?: string | null;
   providerName: string | null;
   issuedAt: string;
   gross: number;
@@ -1713,7 +2255,10 @@ function normalizeReceiptRows(data: ReceiptRow[] | ReceiptSearchEnvelope): Recei
     rows: rows.map((row) => ({
       id: row.id,
       orNumber: row.orNumber,
+      bookingId: row.bookingId,
+      customerId: row.customerId,
       customerName: row.customerName,
+      providerId: row.providerId ?? null,
       providerName: row.providerName,
       issuedAt: row.issuedAt,
       gross: Number(row.gross ?? row.grossCentavos ?? 0),
@@ -1734,16 +2279,40 @@ interface ReceiptSearchParams {
   limit: number;
 }
 
-export function ReceiptsPanel(): React.ReactElement {
-  const [draft, setDraft] = useState<ReceiptSearchParams>({
-    orNumber: '',
-    customerName: '',
-    providerName: '',
-    from: '',
-    to: '',
-    limit: 50,
-  });
-  const [submitted, setSubmitted] = useState<ReceiptSearchParams | null>(null);
+interface ReceiptsPanelProps {
+  initialSearch?: Partial<ReceiptSearchParams>;
+  onSearchChange?: (value: ReceiptSearchParams) => void;
+}
+
+function normalizeReceiptSearch(value: Partial<ReceiptSearchParams> = {}): ReceiptSearchParams {
+  const requestedLimit = Number(value.limit ?? 50);
+  return {
+    orNumber: value.orNumber?.trim() ?? '',
+    customerName: value.customerName?.trim() ?? '',
+    providerName: value.providerName?.trim() ?? '',
+    from: value.from ?? '',
+    to: value.to ?? '',
+    limit: Number.isInteger(requestedLimit) && requestedLimit >= 1 && requestedLimit <= 100
+      ? requestedLimit
+      : 50,
+  };
+}
+
+function hasReceiptFilter(value: ReceiptSearchParams): boolean {
+  return Boolean(
+    value.orNumber || value.customerName || value.providerName || value.from || value.to,
+  );
+}
+
+export function ReceiptsPanel({
+  initialSearch,
+  onSearchChange,
+}: ReceiptsPanelProps = {}): React.ReactElement {
+  const initial = normalizeReceiptSearch(initialSearch);
+  const [draft, setDraft] = useState<ReceiptSearchParams>(initial);
+  const [submitted, setSubmitted] = useState<ReceiptSearchParams | null>(
+    hasReceiptFilter(initial) ? initial : null,
+  );
   const [receiptError, setReceiptError] = useState('');
   const [receiptPage, setReceiptPage] = useState(1);
 
@@ -1786,18 +2355,24 @@ export function ReceiptsPanel(): React.ReactElement {
       setReceiptError('Receipt search start date cannot be after end date.');
       return;
     }
+    if (Boolean(draft.from) !== Boolean(draft.to)) {
+      setReceiptError('Choose both a receipt search start date and end date.');
+      return;
+    }
     if (!Number.isFinite(draft.limit) || draft.limit < 1 || draft.limit > 100) {
       setReceiptError('Receipt search limit must be between 1 and 100.');
       return;
     }
     setReceiptError('');
     setReceiptPage(1);
-    setSubmitted({
+    const nextSearch = {
       ...draft,
       orNumber: draft.orNumber.trim(),
       customerName: draft.customerName.trim(),
       providerName: draft.providerName.trim(),
-    });
+    };
+    setSubmitted(nextSearch);
+    onSearchChange?.(nextSearch);
   };
 
   return (
@@ -1936,9 +2511,20 @@ export function ReceiptsPanel(): React.ReactElement {
                     ) : (
                       <span className="text-[var(--color-text)]">{row.orNumber}</span>
                     )}
+                    {row.bookingId && (
+                      <p className="mt-1">
+                        <Link to={`/bookings/${encodeURIComponent(row.bookingId)}`} className="font-sans text-[var(--color-primary)] hover:underline">
+                          Open Booking 360
+                        </Link>
+                      </p>
+                    )}
                   </td>
-                  <td className="py-2 px-3 text-[var(--color-text)]">{row.customerName}</td>
-                  <td className="py-2 px-3 text-[var(--color-text)]">{row.providerName ?? '—'}</td>
+                  <td className="py-2 px-3 text-[var(--color-text)]">
+                    {row.customerId ? <Link to={`/customers/${encodeURIComponent(row.customerId)}`} className="text-[var(--color-primary)] hover:underline">{row.customerName}</Link> : row.customerName}
+                  </td>
+                  <td className="py-2 px-3 text-[var(--color-text)]">
+                    {row.providerId ? <Link to={`/providers/${encodeURIComponent(row.providerId)}`} className="text-[var(--color-primary)] hover:underline">{row.providerName ?? 'Provider record'}</Link> : row.providerName ?? '—'}
+                  </td>
                   <td className="py-2 px-3 text-[var(--color-text-secondary)] text-xs">
                     {formatDateTime(row.issuedAt)}
                   </td>
@@ -1993,6 +2579,57 @@ export function ReceiptsPanel(): React.ReactElement {
 export default function FinancialsPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseTab(searchParams.get('tab'));
+  const rawPaymentAttemptId = searchParams.get('paymentAttemptId')?.trim() ?? '';
+  const paymentAttemptId = UUID_REGEX.test(rawPaymentAttemptId) ? rawPaymentAttemptId.toLowerCase() : '';
+  const paymentAttemptSelectionError = tab === 'payments' && rawPaymentAttemptId && !paymentAttemptId
+    ? 'Payment attempt ID must be a complete UUID.'
+    : '';
+  const intentSearch = searchParams.get('intentSearch')?.trim() ?? '';
+  const retrySearch = searchParams.get('retrySearch')?.trim() ?? '';
+  const rawCommissionRateId = searchParams.get('commissionRateId')?.trim() ?? '';
+  const reconciliationSnapshotId = searchParams.get('snapshotId')?.trim() ?? '';
+  const rawTaxYear = searchParams.get('taxYear')?.trim() ?? '';
+  const rawTaxQuarter = searchParams.get('taxQuarter')?.trim() ?? '';
+  const rawVatMonth = searchParams.get('vatMonth')?.trim() ?? '';
+  const rawBatchId = searchParams.get('batchId')?.trim() ?? '';
+  const rawVatReportId = searchParams.get('vatReportId')?.trim() ?? '';
+  const taxYear = parseBoundedInteger(rawTaxYear, 2024, 2100);
+  const taxQuarter = parseBoundedInteger(rawTaxQuarter, 1, 4);
+  const vatMonth = parseBoundedInteger(rawVatMonth, 1, 12);
+  const batchId = UUID_REGEX.test(rawBatchId) ? rawBatchId : '';
+  const vatReportId = UUID_REGEX.test(rawVatReportId) ? rawVatReportId : '';
+  const commissionRateId = UUID_REGEX.test(rawCommissionRateId) ? rawCommissionRateId : '';
+  const commissionSelectionError = tab === 'commission' && rawCommissionRateId && !commissionRateId
+    ? 'The audit link contains an invalid commission-agreement ID. No commission record was loaded.'
+    : '';
+  const taxSelectionError = tab !== 'bir' ? ''
+    : rawTaxYear && taxYear === null ? 'Tax year must be a whole year from 2024 through 2100.'
+      : rawTaxQuarter && taxQuarter === null ? 'Tax quarter must be 1 through 4.'
+        : rawVatMonth && vatMonth === null ? 'VAT month must be 1 through 12.'
+          : rawBatchId && !batchId ? 'The 2307 batch ID must be a complete UUID.'
+            : rawVatReportId && !vatReportId ? 'The VAT report ID must be a complete UUID.'
+              : batchId && vatReportId ? 'Choose either one 2307 batch or one VAT report, not both.'
+                : batchId && (taxYear === null || taxQuarter === null)
+                  ? 'An exact 2307 batch link must include its tax year and quarter.'
+                  : vatReportId && (taxYear === null || vatMonth === null)
+                    ? 'An exact VAT report link must include its tax year and month.'
+                    : '';
+  const receiptSearch = normalizeReceiptSearch({
+    orNumber: searchParams.get('receiptOr') ?? '',
+    customerName: searchParams.get('receiptCustomer') ?? '',
+    providerName: searchParams.get('receiptProvider') ?? '',
+    from: searchParams.get('receiptFrom') ?? '',
+    to: searchParams.get('receiptTo') ?? '',
+    limit: Number(searchParams.get('receiptLimit') ?? 50),
+  });
+  const receiptSearchKey = JSON.stringify([
+    receiptSearch.orNumber,
+    receiptSearch.customerName,
+    receiptSearch.providerName,
+    receiptSearch.from,
+    receiptSearch.to,
+    receiptSearch.limit,
+  ]);
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = useMemo(() => role === 'super_admin', [role]);
 
@@ -2003,6 +2640,140 @@ export default function FinancialsPage(): React.ReactElement {
         params.delete('tab');
       } else {
         params.set('tab', nextTab);
+      }
+      if (nextTab !== 'payments') {
+        params.delete('paymentAttemptId');
+        params.delete('intentSearch');
+        params.delete('retrySearch');
+      }
+      if (nextTab !== 'receipts') {
+        params.delete('receiptOr');
+        params.delete('receiptCustomer');
+        params.delete('receiptProvider');
+        params.delete('receiptFrom');
+        params.delete('receiptTo');
+        params.delete('receiptLimit');
+      }
+      if (nextTab !== 'reconciliation') params.delete('snapshotId');
+      if (nextTab !== 'commission') params.delete('commissionRateId');
+      if (nextTab !== 'bir') {
+        params.delete('taxYear');
+        params.delete('taxQuarter');
+        params.delete('batchId');
+        params.delete('vatMonth');
+        params.delete('vatReportId');
+      }
+      return params;
+    });
+  };
+
+  const selectPaymentAttempt = (value: string): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'payments');
+      if (value) params.set('intentSearch', value);
+      else params.delete('intentSearch');
+      params.delete('paymentAttemptId');
+      if (value) params.delete('retrySearch');
+      return params;
+    });
+  };
+
+  const selectGatewayRetry = (value: string): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'payments');
+      if (value) params.set('retrySearch', value);
+      else params.delete('retrySearch');
+      params.delete('paymentAttemptId');
+      if (value) params.delete('intentSearch');
+      return params;
+    });
+  };
+
+  const clearExactPaymentAttempt = (): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('paymentAttemptId');
+      return params;
+    });
+  };
+
+  const selectReceiptSearch = (value: ReceiptSearchParams): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'receipts');
+      const values: Array<[string, string]> = [
+        ['receiptOr', value.orNumber],
+        ['receiptCustomer', value.customerName],
+        ['receiptProvider', value.providerName],
+        ['receiptFrom', value.from],
+        ['receiptTo', value.to],
+      ];
+      for (const [key, entry] of values) {
+        if (entry) params.set(key, entry);
+        else params.delete(key);
+      }
+      if (value.limit !== 50) params.set('receiptLimit', String(value.limit));
+      else params.delete('receiptLimit');
+      return params;
+    });
+  };
+
+  const selectReconciliationSnapshot = (value: string): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'reconciliation');
+      if (value) params.set('snapshotId', value);
+      else params.delete('snapshotId');
+      return params;
+    });
+  };
+
+  const clearCommissionRate = (): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('commissionRateId');
+      return params;
+    });
+  };
+
+  const selectTaxYear = (value: number): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'bir');
+      params.set('taxYear', String(value));
+      params.delete('taxQuarter');
+      params.delete('batchId');
+      params.delete('vatMonth');
+      params.delete('vatReportId');
+      return params;
+    });
+  };
+
+  const selectTaxQuarter = (value: number | null): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'bir');
+      params.set('taxYear', String(taxYear ?? Number(todayIso().slice(0, 4))));
+      if (value === null) params.delete('taxQuarter');
+      else params.set('taxQuarter', String(value));
+      params.delete('batchId');
+      params.delete('vatMonth');
+      params.delete('vatReportId');
+      return params;
+    });
+  };
+
+  const clearTaxEvidence = (): void => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('batchId');
+      params.delete('vatMonth');
+      params.delete('vatReportId');
+      if (taxSelectionError) {
+        params.delete('taxYear');
+        params.delete('taxQuarter');
       }
       return params;
     });
@@ -2021,7 +2792,7 @@ export default function FinancialsPage(): React.ReactElement {
       <div
         role="tablist"
         aria-label="Financials sections"
-        className="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 md:grid-cols-4 2xl:grid-cols-8"
+        className="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-10"
       >
         {TABS.map((t) => {
           const active = tab === t.key;
@@ -2046,12 +2817,56 @@ export default function FinancialsPage(): React.ReactElement {
 
       {tab === 'overview' && <OverviewPanel />}
       {tab === 'escrow' && <EscrowPanel />}
-      {tab === 'payments' && <PaymentsPanel />}
+      {tab === 'payments' && (
+        <PaymentsPanel
+          key={JSON.stringify([rawPaymentAttemptId, intentSearch, retrySearch])}
+          paymentAttemptId={paymentAttemptId}
+          paymentAttemptSelectionError={paymentAttemptSelectionError}
+          onClearExactPaymentAttempt={clearExactPaymentAttempt}
+          intentSearch={intentSearch}
+          onIntentSearchChange={selectPaymentAttempt}
+          retrySearch={retrySearch}
+          onRetrySearchChange={selectGatewayRetry}
+        />
+      )}
+      {tab === 'legacy' && <LegacyFinancialReviewPanel />}
+      {tab === 'commission' && (
+        <CommissionControlsPanel
+          selectedRateId={commissionRateId}
+          selectionError={commissionSelectionError}
+          onClearExact={clearCommissionRate}
+        />
+      )}
       {tab === 'payouts' && <PayoutsPanel />}
       {tab === 'guarantee' && <GuaranteeFundPanel />}
-      {tab === 'reconciliation' && <ReconciliationPanel isSuperAdmin={isSuperAdmin} />}
-      {tab === 'bir' && <BirReportsPanel isSuperAdmin={isSuperAdmin} />}
-      {tab === 'receipts' && <ReceiptsPanel />}
+      {tab === 'reconciliation' && (
+        <ReconciliationPanel
+          isSuperAdmin={isSuperAdmin}
+          snapshotId={reconciliationSnapshotId}
+          onSnapshotChange={selectReconciliationSnapshot}
+        />
+      )}
+      {tab === 'bir' && (
+        <BirReportsPanel
+          isSuperAdmin={isSuperAdmin}
+          selectedYear={taxYear ?? undefined}
+          selectedQuarter={taxQuarter}
+          batchId={batchId}
+          vatMonth={vatMonth}
+          vatReportId={vatReportId}
+          selectionError={taxSelectionError}
+          onYearChange={selectTaxYear}
+          onQuarterChange={selectTaxQuarter}
+          onClearExact={clearTaxEvidence}
+        />
+      )}
+      {tab === 'receipts' && (
+        <ReceiptsPanel
+          key={receiptSearchKey}
+          initialSearch={receiptSearch}
+          onSearchChange={selectReceiptSearch}
+        />
+      )}
     </div>
   );
 }

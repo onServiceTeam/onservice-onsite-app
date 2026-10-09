@@ -14,7 +14,12 @@ export interface UploadedFile {
 export async function uploadImages(
   uris: string[],
   context: 'job-request' | 'change-order' | 'dispute' | 'chat' | 'review' | 'onboarding' | 'portfolio' | 'general',
+  isCurrent?: () => boolean,
 ): Promise<UploadedFile[]> {
+  const assertCurrent = (): void => {
+    if (isCurrent && !isCurrent()) throw new Error('Upload canceled because your application session changed.');
+  };
+  assertCurrent();
   if (uris.length === 0) return [];
   if (uris.length > platformConfig.maxImagesPerBooking) {
     throw new Error(`Too many images. Maximum: ${platformConfig.maxImagesPerBooking}`);
@@ -49,12 +54,15 @@ export async function uploadImages(
       }
     }
     await appendImageToFormData(formData, 'files', uri, 'photo');
+    // Browser blob preparation awaits local fetch before the authenticated HTTP
+    // client can bind its owner. Never start that request under a newer account.
+    assertCurrent();
   }
 
   const res = await api.post<{ success: boolean; data: UploadedFile[] }>(
     '/api/v1/uploads',
     formData,
   );
-
+  assertCurrent();
   return res.data.data;
 }

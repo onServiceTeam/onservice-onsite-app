@@ -18,7 +18,7 @@ jest.mock('../src/models/db', () => ({
 }));
 
 jest.mock('../src/services/settings.service', () => ({
-  getSettingNumber: jest.fn(async () => 30),
+  getNbiExpiryWarningDays: jest.fn(async () => 30),
 }));
 
 import * as svc from '../src/services/provider.service';

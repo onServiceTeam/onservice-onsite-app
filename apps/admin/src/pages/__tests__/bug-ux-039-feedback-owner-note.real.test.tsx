@@ -5,7 +5,7 @@ import { mockFeedbackApi, renderFeedbackPage } from './feedback-test-fixtures';
 
 beforeEach(mockFeedbackApi);
 
-it('Bug UX-039 — triaged feedback requires a named owner and written note before saving', async () => {
+it('Bug UX-039 - feedback triage requires an owner for active work and clears it when returned to new', async () => {
   renderFeedbackPage();
 
   const status = await screen.findByRole('combobox', { name: 'Tester feedback status' });
@@ -26,6 +26,25 @@ it('Bug UX-039 — triaged feedback requires a named owner and written note befo
       status: 'triaged',
       assignedAdminId: 'agent-1',
       note: 'Verified and linked to the wallet redirect fix.',
+      expectedUpdatedAt: '2026-06-30T08:00:00.000Z',
+    },
+  ));
+
+  fireEvent.change(status, { target: { value: 'new' } });
+  const owner = screen.getByRole('combobox', { name: 'Tester feedback owner' });
+  expect(owner).toHaveValue('');
+  expect(owner).toBeDisabled();
+  fireEvent.change(screen.getByRole('textbox', { name: 'Tester feedback triage note' }), {
+    target: { value: 'Returned to the unowned review queue.' },
+  });
+  fireEvent.click(save);
+  await waitFor(() => expect(vi.mocked(api.patch)).toHaveBeenLastCalledWith(
+    '/api/v1/admin/feedback/feedback-1/triage',
+    {
+      status: 'new',
+      assignedAdminId: null,
+      note: 'Returned to the unowned review queue.',
+      expectedUpdatedAt: '2026-06-30T08:00:00.000Z',
     },
   ));
 });

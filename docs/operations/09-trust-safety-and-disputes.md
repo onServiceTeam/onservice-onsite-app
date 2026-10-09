@@ -65,7 +65,10 @@ The API contains provider **Accept**, **Partial offer**, and customer partial-ac
 2. **Triage within target SLA** (see section 6). Open the **Dispute detail** page (`/disputes/:id`, "Dispute 360"). Read the customer claim and provider response side by side.
 3. **Collect and review evidence** (section 3). Check the customer and provider 90-day history cards for the risk pattern flag (`OK` / `REVIEW_REQUIRED` / `AT_RISK`).
 4. If you need more time or a specialist, **Assign to admin** (by UUID) and/or **Escalate** (reason 10+ chars, only when tier < 3).
-5. **Message parties** if facts are missing (customer / provider / both, 5-2000 chars). Give a clear deadline.
+5. **Send a case update** if facts are missing (customer / provider / both,
+   5-2000 chars). This is a one-way notification-inbox update. Give a clear
+   deadline and use the linked Support case when you need a reply or a private
+   conversation.
 6. **Decide** using the escrow/refund decision tree (section 4).
 7. **Resolve and notify** (super-admin only). Pick the resolution type, set
    refund % for partial/split, and write decision notes (20+ chars). The page
@@ -73,19 +76,22 @@ The API contains provider **Accept**, **Partial offer**, and customer partial-ac
    refund/provider-funds impact. That confirmation authorizes an attempt; verify
    the resulting Money and Audit records before saying funds moved.
 8. The system records the booking and escrow outcome, moves any valid internal held funds, and notifies both parties. A verified historical external PayMongo payment may also require a gateway refund; only say it was submitted after checking the real gateway result/reference. E14 blocks new hosted external authorization and does not make a browser attempt refundable money. Gateway failures are queued in `gateway_retry_queue`, but a queued item is not a completed refund.
-9. If new facts surface after a resolution, a super-admin can **Reopen** (reason 20+ chars).
+9. If new facts surface after a resolution, open or continue the linked Support
+   case and escalate it. The visible **Reopen** control is held under E51 because
+   it can make a settled dispute resolvable again without a compensating-ledger
+   model. Do not use it on a settled case.
 
 ### 2.6 Resolution types (ground truth) and what each does to the money
 
 | Resolution type | Customer gets | Provider gets | Notes |
 |---|---|---|---|
 | `full_refund` | 100% | nothing | |
-| `refund_with_warning` | 100% | nothing | logs a warning on the provider |
+| `refund_with_warning` | 100% | nothing | **E51 hold:** warning selection is not yet a canonical provider warning; use the provider quality/support record instead |
 | `refund_with_suspension` | 100% | nothing | also suspends the provider |
 | `partial_refund` | `refundPercent` (0-100) | the remainder, via partial release | you set the % |
 | `split_decision` | `refundPercent` (0-100) | the remainder | you set the % |
 | `no_refund` | nothing | full escrow released | provider was in the right |
-| `free_redo` | redo, no cash refund | escrow stays held for the redo | provider re-does the job |
+| `free_redo` | intended redo, no cash refund | escrow stays held | **E51 hold:** no replacement work order is created; do not select this outcome |
 
 Who approves: every resolution that moves money is **super-admin only** and writes a paired audit row. Plain `admin` and `dpo` see the dispute read-only with a banner.
 
@@ -131,7 +137,8 @@ START: dispute filed, escrow = held
   |
   +-- Job done but BELOW standard / incomplete in part?
   |        -> Is a redo practical and does customer want it?
-  |              yes -> free_redo (escrow stays held for the redo)
+  |              yes -> E51 hold: create a support case and escalate; the
+  |                     current free_redo option creates no replacement job
   |              no  -> partial_refund, set % to the unfinished/poor share
   |
   +-- DAMAGE or THEFT with credible evidence?
@@ -170,9 +177,10 @@ These are starting targets, adjust as you see real cases:
 |---|---|
 | Auto no-show full refund | system (verify only) |
 | Provider accept / partial offer accepted by customer | Held by E24; route to super-admin review |
-| Any admin-set resolution (full/partial/split/no/free_redo) | super_admin |
+| Any enabled admin-set resolution (full/partial/split/no/refund+suspension) | super_admin |
+| `free_redo` or `refund_with_warning` | Held by E51; use Support/Provider 360 and escalate |
 | `refund_with_suspension` | super_admin (suspends provider too) |
-| Reopen a resolved dispute | super_admin (reason 20+ chars) |
+| Reopen a resolved dispute | Held by E51; use a linked Support case and escalate |
 | Out-of-band goodwill credit to a customer wallet | super_admin (Customer detail page) |
 
 > **Set (editable):** Super-admin / Ken reviews every refund over ₱10,000, every `refund_with_suspension`, and every damage or theft payout before it is resolved. _Recommended default. To change it, edit here and anywhere this value is referenced._
@@ -183,7 +191,10 @@ There is no peso-amount threshold baked into the app, so this is a process rule,
 
 ## 5. Customer and provider communication during a dispute
 
-Keep it calm, specific, and on a clock. Use the **Message parties** action on Dispute 360 (5-2000 chars). Plain English, Bisaya or Tagalog if that is what the customer used.
+Keep it calm, specific, and on a clock. Use the **Send case update** action on
+Dispute 360 (5-2000 chars) for a one-way participant notification. Use the
+linked Support case for an answerable thread or private conversation. Plain
+English, Bisaya or Tagalog if that is what the customer used.
 
 ### Template - acknowledge to customer (on filing)
 > Hi [name], we received your report about booking [#ID]. The provider has 48 hours to respond, and our team will review the case even if they do not reply. We will update you by [date/time]. I am checking the booking's payment and escrow record before I make any refund or held-funds promise.
@@ -314,6 +325,9 @@ If a customer questions the amount, check which bracket the live path used befor
 - **Dispute window:** 48h after completion. **Provider response:** 48h. **No response = tier-3 staff review, not an automatic refund.**
 - **E18 hold:** release currently occurs at 24h while filing remains open to 48h. A post-release dispute is a money escalation, not proof of held funds.
 - **E24 hold:** provider direct accept/partial offer and customer partial accept are disabled; provider contest and admin review remain available.
+- **E51 hold:** do not use Reopen, `free_redo`, or `refund_with_warning` until
+  the immutable appeal/compensating-action, real redo-work-order, and canonical
+  provider-warning workflows exist.
 - **Auto no-show refund:** provider "completed" within 30 min of schedule on a `no_show` -> auto full refund.
 - **Who resolves money:** super_admin only. Plain admin / dpo are read-only on disputes.
 - **Statuses:** `open` -> `under_review` -> `escalated` -> `resolved` (tiers 1-3).

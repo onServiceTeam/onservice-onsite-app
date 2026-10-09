@@ -1,8 +1,10 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import * as dataManagementService from '../services/data-management.service';
+import emailLinkRouter from './email-link.routes';
 
 const router = Router();
+router.use('/sign-in-email', emailLinkRouter);
 
 // --- Data Export (RA 10173 right to data portability) ---
 

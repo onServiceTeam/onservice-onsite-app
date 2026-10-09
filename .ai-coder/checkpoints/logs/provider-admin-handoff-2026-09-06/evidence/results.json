@@ -1,0 +1,681 @@
+{
+  "sourceRevision": "3ab3db17d9b29d098af20490399be812ee71b8ee",
+  "evidenceType": "compiled admin with synthetic HTTP, not authenticated live acceptance",
+  "indexSha256": "feaa70fb24907f6a64097b40f252e22a8b67cc126317bd5c4d943d9c4b944516",
+  "providerPageSha256": "4df4b8c5056ca11d4f2e86adb472acd6447be52192ab95ff74bb6f01fbd049a8",
+  "checks": [
+    {
+      "width": 320,
+      "state": "submitted",
+      "bounds": {
+        "x": 49,
+        "y": 337,
+        "width": 222,
+        "height": 225
+      },
+      "layout": {
+        "width": 222,
+        "contentWidth": 222,
+        "documentOverflow": 0
+      },
+      "screenshot": "320-submitted.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "state": "configured",
+      "bounds": {
+        "x": 49,
+        "y": 337,
+        "width": 222,
+        "height": 225
+      },
+      "layout": {
+        "width": 222,
+        "contentWidth": 222,
+        "documentOverflow": 0
+      },
+      "screenshot": "320-configured.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "state": "empty",
+      "bounds": {
+        "x": 49,
+        "y": 375,
+        "width": 222,
+        "height": 149
+      },
+      "layout": {
+        "width": 222,
+        "contentWidth": 222,
+        "documentOverflow": 0
+      },
+      "screenshot": "320-empty.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "state": "older",
+      "bounds": {
+        "x": 49,
+        "y": 365,
+        "width": 222,
+        "height": 169
+      },
+      "layout": {
+        "width": 222,
+        "contentWidth": 222,
+        "documentOverflow": 0
+      },
+      "screenshot": "320-older.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "state": "submitted",
+      "bounds": {
+        "x": 49,
+        "y": 359,
+        "width": 292,
+        "height": 181
+      },
+      "layout": {
+        "width": 292,
+        "contentWidth": 292,
+        "documentOverflow": 0
+      },
+      "screenshot": "390-submitted.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "state": "configured",
+      "bounds": {
+        "x": 49,
+        "y": 359,
+        "width": 292,
+        "height": 181
+      },
+      "layout": {
+        "width": 292,
+        "contentWidth": 292,
+        "documentOverflow": 0
+      },
+      "screenshot": "390-configured.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "state": "empty",
+      "bounds": {
+        "x": 49,
+        "y": 383,
+        "width": 292,
+        "height": 133
+      },
+      "layout": {
+        "width": 292,
+        "contentWidth": 292,
+        "documentOverflow": 0
+      },
+      "screenshot": "390-empty.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "state": "older",
+      "bounds": {
+        "x": 49,
+        "y": 373,
+        "width": 292,
+        "height": 153
+      },
+      "layout": {
+        "width": 292,
+        "contentWidth": 292,
+        "documentOverflow": 0
+      },
+      "screenshot": "390-older.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "state": "submitted",
+      "bounds": {
+        "x": 65,
+        "y": 359,
+        "width": 294,
+        "height": 181
+      },
+      "layout": {
+        "width": 294,
+        "contentWidth": 294,
+        "documentOverflow": 0
+      },
+      "screenshot": "768-submitted.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "state": "configured",
+      "bounds": {
+        "x": 65,
+        "y": 359,
+        "width": 294,
+        "height": 181
+      },
+      "layout": {
+        "width": 294,
+        "contentWidth": 294,
+        "documentOverflow": 0
+      },
+      "screenshot": "768-configured.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "state": "empty",
+      "bounds": {
+        "x": 65,
+        "y": 383,
+        "width": 294,
+        "height": 133
+      },
+      "layout": {
+        "width": 294,
+        "contentWidth": 294,
+        "documentOverflow": 0
+      },
+      "screenshot": "768-empty.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "state": "older",
+      "bounds": {
+        "x": 65,
+        "y": 373,
+        "width": 294,
+        "height": 153
+      },
+      "layout": {
+        "width": 294,
+        "contentWidth": 294,
+        "documentOverflow": 0
+      },
+      "screenshot": "768-older.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "state": "submitted",
+      "bounds": {
+        "x": 353,
+        "y": 359,
+        "width": 278,
+        "height": 181
+      },
+      "layout": {
+        "width": 278,
+        "contentWidth": 278,
+        "documentOverflow": 0
+      },
+      "screenshot": "1024-submitted.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "state": "configured",
+      "bounds": {
+        "x": 353,
+        "y": 359,
+        "width": 278,
+        "height": 181
+      },
+      "layout": {
+        "width": 278,
+        "contentWidth": 278,
+        "documentOverflow": 0
+      },
+      "screenshot": "1024-configured.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "state": "empty",
+      "bounds": {
+        "x": 353,
+        "y": 383,
+        "width": 278,
+        "height": 133
+      },
+      "layout": {
+        "width": 278,
+        "contentWidth": 278,
+        "documentOverflow": 0
+      },
+      "screenshot": "1024-empty.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "state": "older",
+      "bounds": {
+        "x": 353,
+        "y": 373,
+        "width": 278,
+        "height": 153
+      },
+      "layout": {
+        "width": 278,
+        "contentWidth": 278,
+        "documentOverflow": 0
+      },
+      "screenshot": "1024-older.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "state": "submitted",
+      "bounds": {
+        "x": 361,
+        "y": 377,
+        "width": 441,
+        "height": 145
+      },
+      "layout": {
+        "width": 441,
+        "contentWidth": 441,
+        "documentOverflow": 0
+      },
+      "screenshot": "1366-submitted.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "state": "configured",
+      "bounds": {
+        "x": 361,
+        "y": 377,
+        "width": 441,
+        "height": 145
+      },
+      "layout": {
+        "width": 441,
+        "contentWidth": 441,
+        "documentOverflow": 0
+      },
+      "screenshot": "1366-configured.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "state": "empty",
+      "bounds": {
+        "x": 361,
+        "y": 391,
+        "width": 441,
+        "height": 117
+      },
+      "layout": {
+        "width": 441,
+        "contentWidth": 441,
+        "documentOverflow": 0
+      },
+      "screenshot": "1366-empty.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "state": "older",
+      "bounds": {
+        "x": 361,
+        "y": 391,
+        "width": 441,
+        "height": 117
+      },
+      "layout": {
+        "width": 441,
+        "contentWidth": 441,
+        "documentOverflow": 0
+      },
+      "screenshot": "1366-older.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "state": "submitted",
+      "bounds": {
+        "x": 361,
+        "y": 385,
+        "width": 718,
+        "height": 129
+      },
+      "layout": {
+        "width": 718,
+        "contentWidth": 718,
+        "documentOverflow": 0
+      },
+      "screenshot": "1920-submitted.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "state": "configured",
+      "bounds": {
+        "x": 361,
+        "y": 385,
+        "width": 718,
+        "height": 129
+      },
+      "layout": {
+        "width": 718,
+        "contentWidth": 718,
+        "documentOverflow": 0
+      },
+      "screenshot": "1920-configured.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "state": "empty",
+      "bounds": {
+        "x": 361,
+        "y": 399,
+        "width": 718,
+        "height": 101
+      },
+      "layout": {
+        "width": 718,
+        "contentWidth": 718,
+        "documentOverflow": 0
+      },
+      "screenshot": "1920-empty.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "state": "older",
+      "bounds": {
+        "x": 361,
+        "y": 399,
+        "width": 718,
+        "height": 101
+      },
+      "layout": {
+        "width": 718,
+        "contentWidth": 718,
+        "documentOverflow": 0
+      },
+      "screenshot": "1920-older.png",
+      "errors": [],
+      "unexpected": [],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/profile"
+        }
+      ]
+    }
+  ],
+  "failure": null
+}

@@ -9,14 +9,14 @@ proof that a control works.
 
 | ID | Control | Status | Evidence |
 | --- | --- | --- | --- |
-| SEC-001 | Admin 2FA (TOTP) with force-enrolment | DONE | `packages/api/src/routes/auth.routes.ts` — `/admin/login` issues `pre_auth_2fa_setup` token when an admin/super_admin lacks TOTP; `/admin/2fa/setup` and `/admin/2fa/enable` accept that token; `/admin/2fa/enable` mints full session tokens on success. Existing 2FA verify path unchanged. |
-| SEC-002 | Turnstile after N failed OTPs | VERIFIED IN CODE; PRODUCTION BLOCKED ON REAL KEYS | OTP login/registration use `useCaptchaOtp` and the native/web `TurnstileModal`; the API calls Cloudflare Siteverify through `securityService.verifyCaptchaToken` and fails closed in production without a secret. Env: `TURNSTILE_SECRET_KEY` and `EXPO_PUBLIC_TURNSTILE_SITE_KEY`; historical `CAPTCHA_*` aliases remain temporarily accepted. Behavioral coverage includes the OTP challenge suites and `bug-sec-010-turnstile-cutover-verifier.test.ts`. A 2026-08-24 live inspection found no server secret or Cloudflare token, so production-mode promotion remains blocked. |
+| SEC-001 | Admin 2FA (TOTP) with force-enrolment and recovery codes | CONNECTED IN CODE; RECOVERY GOVERNANCE REVIEW OPEN | `admin`, `super_admin`, and `dpo` accounts must enroll TOTP. Activation atomically creates eight single-use recovery codes and the enrollment page shows them once with a secure-storage save step. Login accepts exactly one TOTP or recovery code and consumes a recovery code transactionally. Temporary setup tokens cannot authorize ordinary HTTP or Socket.IO access. The pre-existing factor-removal and recovery-code-regeneration mutation routes now fail closed with a `409` launch hold and do not read or mutate account recovery state. Privileged recovery and interrupted enrollment remain launch-held under private security review. Behavioral coverage: SEC-038 through SEC-044 and Admin Bugs UX-1023/1024. |
+| SEC-002 | Turnstile after N failed OTPs | REQUEST-CONTRACT SOURCE-VERIFIED; LIVE ACCEPTANCE OPEN | OTP login/registration use `useCaptchaOtp` and native/web `TurnstileModal`. SEC-080 found the real request validator discarded the supplied CAPTCHA token, causing repeated 428 responses. The correction preserves the bounded opaque token for the existing server-side Siteverify check. All nine real mounted HTTP/SQL contract cases execute in successful CI `37898457350` at `1e9f4ad0` and again in SMS predecessor CI `37904947493` at `7de317ee`. This is not deployed or configured live widget/provider acceptance. Env: `TURNSTILE_SECRET_KEY` and `EXPO_PUBLIC_TURNSTILE_SITE_KEY`; historical `CAPTCHA_*` aliases remain accepted. The 2026-08-24 missing-key inspection is historical, not a fresh check. See [the contract audit](audits/OTP-CAPTCHA-CONTRACT-2026-10-09.md). |
 | SEC-003 | PayMongo webhook signature | VERIFIED | `packages/api/src/routes/webhook.routes.ts:14-50` — HMAC-SHA256 over `${timestamp}.${rawBody}`, 5-minute replay window, `crypto.timingSafeEqual` comparison. Rejects when `PAYMONGO_WEBHOOK_SECRET` is missing. |
 | SEC-004 | Government-ID encryption at rest (S3 SSE) | DONE IN CODE; STORAGE DEPLOYMENT STILL REQUIRES VERIFICATION | Every S3 `PutObjectCommand` uses SSE-KMS when `S3_KMS_KEY_ID` exists and SSE-S3/AES256 otherwise; private KYC objects are owner/admin proxied. `s3-sse-bug-1325.test.ts` executes both encryption branches. The current Hetzner local-volume deployment relies on host-volume security rather than claiming S3 encryption. |
 | SEC-005 | PII masking in logs | DONE (Phase 13 Dispatch D) | `packages/api/src/utils/logger.ts` exports `piiMaskFormat` (winston format factory) inserted into both root and console transport pipelines. Redacts PH phone (+63 / 09xx), email, TIN, SSS, PhilHealth, PayMongo IDs (`cus_/src_/pay_/link_`), JWT, and bcrypt hashes. Idempotent (skips strings that already contain `[REDACTED:`). Tests: `__tests__/logger-pii-masking.test.ts`. |
-| SEC-006 | Canonical, revocable JWT sessions | VERIFIED IN CODE | Access tokens are limited to 15 minutes. Customer/provider refresh tokens use the configured 30-day mobile duration. Admin, super-admin, and DPO refresh tokens and cookies use the single 8-hour `platformConfig.adminSessionTimeoutHours` contract. Every protected HTTP request and Socket.IO handshake reloads the user's current role, active state, and session generation. DPO transitions increment the generation and permanently invalidate earlier credentials; an inactive account is rejected while inactive. General admin lifecycle/reactivation revocation remains E39. Focused behavioral coverage: `bug-ux-558-canonical-session-state.test.ts`, `bug-ux-559-dpo-transition-revocation.test.ts`, and `bug-ux-562-admin-session-timeout.test.ts`. Environment overrides remain only for access and mobile refresh duration: `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`. |
-| SEC-007 | IP-level OTP brute-force detection | VERIFIED | `packages/api/src/services/security.service.ts` records `(phone, ip_address)` per attempt in `login_attempts`, ramps lockouts via `OTP_LOCKOUT_THRESHOLDS`, and exposes `cleanupOldLoginAttempts` for housekeeping. The auto-block helper at line ~430 ("`Auto-blocked: ${row.fail_count} failed login attempts`") flips offending IPs into the `blocked_ips` table. |
-| SEC-008 | Admin role check on every admin endpoint | VERIFIED | All 9 `src/routes/*admin*.ts` files import `authMiddleware`; every handler additionally enforces `role === 'admin'` or `role === 'super_admin'`. Per-file counts: `admin.routes.ts` 62/65, `bir-admin.routes.ts` 17/20, `booking-admin.routes.ts` 10/13, `compliance-admin.routes.ts` 9/10, `customer-admin.routes.ts` 9/12, `dispute-admin.routes.ts` 7/10, `financial-admin.routes.ts` 12/15, `marketing-admin.routes.ts` 11/14, `provider-admin.routes.ts` 15/18 (`authMiddleware` references / role checks). The admin route guard smoke test (`__tests__/smoke.test.ts`) walks the directory and asserts every file has at least one occurrence. |
+| SEC-006 | Canonical, revocable JWT sessions | VERIFIED IN CODE | Access tokens are limited to 15 minutes. Customer/provider refresh tokens use the configured 30-day mobile duration. Admin, super-admin, and DPO refresh tokens and cookies use the single 8-hour `platformConfig.adminSessionTimeoutHours` contract. Every protected HTTP request and Socket.IO handshake reloads the user's current role, active state, and session generation. Forced admin password rotation is a server precondition on HTTP, special 2FA routes, and sockets, not only a page redirect. Password replacement increments the generation, removes refresh sessions, revokes CSRF tokens, disconnects live sockets, and issues one replacement session to the verified browser. DPO transitions also increment the generation and invalidate earlier credentials; an inactive account is rejected while inactive. General admin lifecycle/reactivation revocation remains E39. Focused coverage adds SEC-036/041/042 and the `launch-limit-12-admin-password-rotation.test.ts` transaction/route tests to Bugs UX-558/559/562. Environment overrides remain only for access and mobile refresh duration: `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`. |
+| SEC-007 | Canonical account and IP login abuse controls | VERIFIED | `packages/api/src/services/security.service.ts` records `(phone, ip_address)` per OTP attempt in `login_attempts`, ramps lockouts via `OTP_LOCKOUT_THRESHOLDS`, and exposes `cleanupOldLoginAttempts` for housekeeping. The auto-block helper at line ~430 ("`Auto-blocked: ${row.fail_count} failed login attempts`") flips offending IPs into the `blocked_ips` table. Admin email login now canonicalizes the account identity once and uses that same lower-case, trimmed value for the lockout count, account lookup, attempt rows, and security-event metadata, so changing email case or surrounding whitespace cannot split the account-scoped failure history. Behavioral coverage: SEC-045. |
+| SEC-008 | Role authorization across privileged endpoints | SCOPED BEHAVIORAL COVERAGE; FULL INVENTORY OPEN | The old all-endpoints claim relied on source-string counts and is withdrawn. Authentication and endpoint permission are separate; DPO privacy routes must not be described as requiring operations-admin authority. UX-560 executes selected DSR/consent route permissions with synthetic authentication; UX-572 checks two residual DPO operations exclusions; UX-573 checks KYC denial at the service boundary. The former file-name/source-occurrence smoke assertion is replaced by `admin-access-smoke.test.ts`: real JWT, canonical-auth and permission middleware on three GET routes, six roles and cookie/Bearer credentials, with mocked account/list data. This is useful scoped coverage, not proof for every handler, method, alias, object owner, write-CSRF boundary or live deployment; the full inventory is an explicit TODO. |
 | SEC-009 | CSP headers on admin web | DONE (Phase 13 Dispatch D) | `apps/admin/vercel.json` declares `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`. Admin `index.html` contains no inline scripts (Vite emits external bundles only). |
 
 ## Verification commands
@@ -24,11 +24,18 @@ proof that a control works.
 To re-run the verification:
 
 ```bash
-# SEC-001 — force-enrolment branch present
-grep -n "pre_auth_2fa_setup" packages/api/src/routes/auth.routes.ts
+# SEC-001 — execute enrollment, one-time recovery, and temporary-token boundaries
+npm --workspace @onservice/api test -- --runInBand \
+  bug-sec-038-admin-backup-code-login.test.ts \
+  bug-sec-039-admin-2fa-setup-token-boundary.test.ts \
+  bug-sec-040-socket-2fa-setup-token-boundary.test.ts \
+  bug-sec-042-admin-2fa-special-route-rotation-boundary.test.ts
 
-# SEC-002 — CAPTCHA enforcement
-grep -n "captchaRequired\|verifyCaptchaToken" packages/api/src/routes/auth.routes.ts
+# SEC-002 — actual request/verification contract; the SQL case requires the
+# guarded isolated localhost *_test database, otherwise it is explicitly skipped.
+npm --workspace @onservice/api test -- --runInBand \
+  bug-sec-080-otp-captcha-contract.test.ts \
+  bug-sec-010-turnstile-cutover-verifier.test.ts
 
 # SEC-003 — webhook HMAC
 grep -n "createHmac\|timingSafeEqual" packages/api/src/routes/webhook.routes.ts
@@ -41,15 +48,25 @@ npm --workspace @onservice/api test -- --runInBand logger-pii-masking.test.ts
 
 # SEC-006 — execute canonical session-state and privileged timeout behavior
 npm --workspace @onservice/api test -- --runInBand \
+  bug-sec-036-forced-admin-password-rotation.test.ts \
+  bug-sec-041-socket-password-rotation-boundary.test.ts \
+  launch-limit-12-admin-password-rotation.test.ts \
   bug-ux-558-canonical-session-state.test.ts \
   bug-ux-559-dpo-transition-revocation.test.ts \
-  bug-ux-562-admin-session-timeout.test.ts
+  bug-ux-562-admin-session-timeout.test.ts \
+  auth-token-expiry-smoke.test.ts
 
-# SEC-007 — IP block helper
+# SEC-007 — execute canonical Admin lockout identity and inspect the IP block helper
+npm --workspace @onservice/api test -- --runInBand \
+  bug-sec-045-admin-login-canonical-lockout-identity.test.ts
 grep -n "blocked_ips\|Auto-blocked" packages/api/src/services/security.service.ts
 
-# SEC-008 — admin route guards
-ls packages/api/src/routes/*admin*.ts | xargs -I {} sh -c "echo {} && grep -c authMiddleware {}"
+# SEC-008 — selected behavioral boundaries, not a full endpoint inventory
+npm --workspace @onservice/api test -- --runInBand \
+  bug-ux-560-dpo-api-route-matrix.test.ts \
+  bug-ux-572-dpo-residual-operations-boundary.test.ts \
+  bug-ux-573-dpo-kyc-document-boundary.test.ts \
+  admin-access-smoke.test.ts
 
 # SEC-009 — inspect the deployed response, not only repository config
 curl -fsSI https://admin.onservice.ph | grep -i "content-security-policy"
@@ -57,10 +74,31 @@ curl -fsSI https://admin.onservice.ph | grep -i "content-security-policy"
 
 ## Known deployment gaps
 
+The October 9 CAPTCHA transport candidate additionally rejects redirected
+Siteverify requests and non-2xx success bodies, caps headers/body waits at ten
+seconds and streamed responses at 4,096 bytes, and removes arbitrary exception
+text from diagnostics. SEC-083/084/085 and OPS-539 have real HTTP regressions;
+the privacy disclosure test explicitly injects a same-realm transport exception.
+This is not production widget/key/hostname acceptance or a change to abuse
+thresholds, missing-secret policy or privileged authentication. Require its own
+exact-source CI before promotion. See
+[the transport audit](audits/CAPTCHA-TRANSPORT-BOUNDARIES-2026-10-09.md).
+
 The original SEC-004 code gap is closed. Launch still requires deployment-level
 evidence for the active storage backend, Turnstile production keys, CSP response
 headers, Sentry, backups/PITR, and the current items in
 `docs/runbooks/launch-cutover.md`. A green unit test is not that evidence.
+
+SEC-008's 2026-09-06 reporting correction did not remove a guard. Its subsequent
+[smoke-test repair](audits/BEHAVIORAL-SMOKE-REPAIR-2026-09-06.md) replaces the
+four nonbehavioral assertions without changing application runtime. Inventory the actual server mounts and methods,
+including mixed customer/provider/admin families and aliases, then prove
+allowed and denied roles, credentials and record ownership with real requests
+before restoring an all-endpoints claim. Health now exercises the mounted
+server handlers with mocked dependencies; expiry checks inspect real issued
+JWTs and storage arguments. Commission arithmetic invokes the actual calculator
+with synthetic settings. Persisted capture/refund/escrow/payout conservation
+is an explicit TODO, not a claim inferred from those calculator assertions.
 
 ### Live authentication remediation (2026-08-24)
 
@@ -122,6 +160,22 @@ regex-redacted because the pattern would over-match arbitrary hex strings
 and bigint columns. Code paths must avoid logging the `password_hash`
 column directly.
 
+The SEC-073 candidate also removes supplied key material from invalid TOTP
+encryption-configuration errors at their source, without relying on generic
+PII patterns to recognize a key fragment. Format/length diagnostics and strict
+validation remain. Real helper and encryption regressions pass; this does not
+prove production exposure, rotate a key, change recovery authority or complete
+deployment. See [the diagnostic audit](audits/ADMIN-TOTP-DIAGNOSTICS-2026-09-06.md).
+
+SEC-082 similarly removes untrusted SMS transport/parser exception text at the
+source. A real malformed synthetic provider response previously echoed a key
+prefix to the logger. The candidate uses a fixed error category; SEC-081 also
+rejects redirects carrying SMS secrets, and OPS-538 bounds receipt consumption
+and response waits. Seven actual native-HTTP checks pass locally, but fresh
+exact-source CI and deployment remain required. This does not certify all log
+callers or prove historical exposure. See the
+[transport audit](audits/SMS-TRANSPORT-BOUNDARIES-2026-10-09.md).
+
 ### CSP rationale (per directive)
 
 | Directive | Sources allowed | Why |
@@ -151,20 +205,41 @@ microphone=(), geolocation=()`.
 - Stand up a CSP violation reporting endpoint (`Reporting-Endpoints` +
   `report-to` directive) to surface in-the-wild violations in Sentry.
 
-## 2FA force-enrolment flow (Phase 12)
+## Admin 2FA, recovery-code, and forced-password flow
+
+The separate marketplace phone-code sign-in must not issue privileged
+credentials. SEC-075 enforces a customer/provider/provider-staff allowlist in
+candidate code, including for configured development codes. On October 9 a
+narrow compatibility guard was separately tested and activated on the older
+live API image; the accumulated topic candidate was not deployed. This
+prospective containment does not revoke or certify previously issued sessions. See
+`docs/audits/PRIVILEGED-PHONE-SIGN-IN-2026-10-08.md` for the real database/HTTP
+reproduction, verification scope and remaining release/session requirements.
+
+OPS-531/532 bind second-factor verification to current account authority and
+factor state under an account lock. Recovery consumption, its audit and login
+metadata share one transaction, so a failure within that transaction leaves the
+code available for retry. Subsequent session issuance and response delivery are
+still separate: a later revocation denies credentials without rolling back
+already committed verification effects. This candidate correction is not live
+and does not complete governed recovery or durable acknowledgement. See
+[the verification audit](audits/ADMIN-VERIFICATION-TRANSACTION-2026-10-09.md).
 
 ```
 POST /api/v1/auth/admin/login (email, password)
    |
    |-- credentials invalid -> 401
    |-- credentials valid AND totp_enabled=true
-   |       -> { requires2FA: true, preAuthToken<5min, type=pre_auth_2fa> }
+   |       -> { requires2FA: true, preAuthToken<10min, type=pre_auth_2fa> }
    |
-   |-- credentials valid AND totp_enabled=false AND role in (admin, super_admin)
-   |       -> { requires2FASetup: true, preAuthToken<5min, type=pre_auth_2fa_setup>, userId }
-   |
-   |-- credentials valid AND no 2FA needed (non-admin)
-           -> { accessToken, refreshToken, user }
+   |-- credentials valid AND totp_enabled=false
+           -> { requires2FASetup: true, preAuthToken<30min,
+                type=pre_auth_2fa_setup>, userId }
+
+POST /api/v1/auth/admin/2fa/verify
+   Body: exactly one of { totpCode } or { backupCode }
+   -> HttpOnly access/refresh cookies + JS-readable CSRF cookie + user
+   -> a valid backup code is consumed once and remaining count is returned
 
 When client receives requires2FASetup:
    POST /api/v1/auth/admin/2fa/setup
@@ -174,10 +249,48 @@ When client receives requires2FASetup:
    POST /api/v1/auth/admin/2fa/enable
        Authorization: Bearer <preAuthToken>
        Body: { totpCode }
-       -> { accessToken, refreshToken, user }   (mints full session in one step)
+       -> HttpOnly/CSRF cookies + user + eight one-time recovery codes
+       -> enrollment page blocks Continue until secure storage is acknowledged
 ```
 
 The `adminAuthOrSetupToken` middleware in `auth.routes.ts` accepts either
 the normal admin access token (so an already-logged-in admin can reconfigure
 2FA) or the `pre_auth_2fa_setup` token, and sets `req.isSetupToken` for the
-enable handler so it knows to mint full tokens on success.
+enable handler so it knows to mint full cookies on success. A normal access
+token must satisfy the forced-password precondition. The dedicated setup token
+may finish first-login enrollment, but cannot authorize ordinary HTTP or socket
+work. If the resulting full session is marked `mustRotatePassword`, only
+identity inspection, own-password replacement, and logout remain available.
+Password replacement revokes prior session material and gives the current
+verified browser one replacement session.
+
+Do not use factor removal or lost-factor recovery as an ordinary operator
+workflow. Their governed authority, audit, rollout, and recovery contract remain
+launch-held under private security review.
+
+## Shared customer/provider profile identity changes
+
+`PATCH /api/v1/auth/me` changes only the signed-in user's first and last names.
+It now locks the canonical user row and commits the update together with a
+`user_profile_updated` audit event containing the before/after names, actor,
+IP address, and user agent. A missing audit insert fails the transaction, while
+an unchanged request returns the current row without creating false activity.
+The route does not rewrite names captured in older bookings, payments,
+messages, reviews, or other historical records. Behavioral coverage:
+`bug-ops-371-profile-update-audit.test.ts`; verified by GitHub CI
+`33610063899` and Gates `33610063827`.
+
+Admin Audit Log renders this event as **Profile name updated** and converts the
+generic `users` record into a role-aware support destination. Customer subjects
+open Customer 360; provider subjects use an exact owner-ID search that resolves
+the related Provider Management record. Bugs UX-1026 and OPS-372 verify the
+rendered links and the full-name/provider-ID/user-ID search contract. Commit
+`4223052` passes GitHub CI `33611777960` and Gates `33611777913`.
+
+The same write boundary trims first and last names and rejects values that are
+empty after trimming. This prevents non-mobile clients from storing visually
+blank or padded identity values without banning a legitimate one-character
+name. SEC-045 verifies normalization and rejection. The customer UI also avoids
+sending an unchanged normalized name through this mutation; UX-1027 verifies
+the rendered no-op behavior. Final fix-forward `ee708ab` passes GitHub CI
+`33614523217` and Gates `33614523236`.

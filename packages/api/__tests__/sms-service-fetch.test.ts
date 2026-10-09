@@ -42,10 +42,7 @@ beforeEach(() => {
 describe('Bug 1271 + CRIT-N14 — sms.service uses native fetch', () => {
   it('Bug 1271 — POSTs to Semaphore via globalThis.fetch (not axios)', async () => {
     process.env.SEMAPHORE_API_KEY = 'test-key';
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => [{
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify([{
         message_id: 12345,
         user_id: 1,
         user: 'test',
@@ -60,8 +57,7 @@ describe('Bug 1271 + CRIT-N14 — sms.service uses native fetch', () => {
         source: 'api',
         created_at: '2026-05-02',
         updated_at: '2026-05-02',
-      }],
-    });
+      }]), { status: 200 }));
 
     const result = await sendSms('+639171234567', 'hello');
 
@@ -106,7 +102,7 @@ describe('Bug 1271 + CRIT-N14 — sms.service uses native fetch', () => {
     expect(result).toBe(false);
     expect(loggerMock.error).toHaveBeenCalledWith(
       'Failed to send SMS via Semaphore',
-      expect.objectContaining({ error: 'Network down' }),
+      expect.objectContaining({ error: 'transport_or_receipt_error' }),
     );
   });
 

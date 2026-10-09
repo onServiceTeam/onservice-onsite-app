@@ -2,7 +2,7 @@
 //
 // Renders the page with a stubbed api response containing one row from
 // each source stream and asserts:
-//   1. The truthful "System event" + "Admin decision" badges render.
+//   1. The truthful "System event" + "Recorded action" badges render.
 //   2. ACTION_LABELS rewrites known admin action types to friendly text.
 //   3. Unknown action strings pass through verbatim.
 //   4. The source filter dropdown is present.
@@ -82,7 +82,7 @@ describe('LL#5 admin audit timeline — source discriminator + action labels', (
       expect(rows.length).toBeGreaterThanOrEqual(2);
     });
     expect(screen.getAllByText('System event').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Admin decision').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Recorded action').length).toBeGreaterThan(0);
   });
 
   it('rewrites known admin action types via ACTION_LABELS', async () => {

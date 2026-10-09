@@ -23,6 +23,7 @@ interface BusinessAccountRow {
   volume_discount_rate: string;
   monthly_credit_limit: number;
   notes: string | null;
+  record_version?: number;
   created_at: Date;
   updated_at: Date;
   owner_name?: string | null;
@@ -33,6 +34,10 @@ interface BusinessAccountRow {
   manager_profile_id?: string | null;
   manager_profile_name?: string | null;
   manager_profile_active?: boolean | null;
+  viewer_role?: 'owner' | 'manager' | 'member';
+  viewer_can_book?: boolean;
+  viewer_can_approve?: boolean;
+  viewer_can_view_invoices?: boolean;
 }
 
 interface BusinessMemberRow {
@@ -47,7 +52,7 @@ interface BusinessMemberRow {
   created_at: Date;
 }
 
-interface BusinessContractRow {
+export interface BusinessContractRow {
   id: string;
   business_account_id: string;
   category_id: string;
@@ -63,6 +68,13 @@ interface BusinessContractRow {
   auto_renew: boolean;
   status: string;
   terms: string | null;
+  record_version?: number;
+  published_at?: Date | null;
+  published_by?: string | null;
+  publish_reason?: string | null;
+  cancelled_at?: Date | null;
+  cancelled_by?: string | null;
+  cancellation_reason?: string | null;
   created_at: Date;
   updated_at: Date;
   category_name?: string | null;
@@ -186,22 +198,20 @@ export async function getBusinessAccount(
   businessId: string,
   userId: string,
 ): Promise<BusinessAccountRow> {
-  const member = await db.query(
-    `SELECT 1 FROM business_members WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+  const result = await db.query<BusinessAccountRow>(
+    `SELECT ba.*,
+            bm.role AS viewer_role,
+            bm.can_book AS viewer_can_book,
+            bm.can_approve AS viewer_can_approve,
+            bm.can_view_invoices AS viewer_can_view_invoices
+       FROM business_accounts ba
+       JOIN business_members bm ON bm.business_account_id = ba.id
+      WHERE ba.id = $1 AND bm.user_id = $2 AND bm.deleted_at IS NULL`,
     [businessId, userId],
   );
 
-  if (member.rows.length === 0) {
-    throw createAppError('Business account not found or access denied.', 404);
-  }
-
-  const result = await db.query<BusinessAccountRow>(
-    `SELECT * FROM business_accounts WHERE id = $1`,
-    [businessId],
-  );
-
   if (result.rows.length === 0) {
-    throw createAppError('Business account not found.', 404);
+    throw createAppError('Business account not found or access denied.', 404);
   }
 
   return result.rows[0]!;
@@ -216,7 +226,12 @@ export async function getUserBusinessAccounts(
 
   const [dataResult, countResult] = await Promise.all([
     db.query<BusinessAccountRow>(
-      `SELECT ba.* FROM business_accounts ba
+      `SELECT ba.*,
+              bm.role AS viewer_role,
+              bm.can_book AS viewer_can_book,
+              bm.can_approve AS viewer_can_approve,
+              bm.can_view_invoices AS viewer_can_view_invoices
+         FROM business_accounts ba
        INNER JOIN business_members bm ON ba.id = bm.business_account_id
        WHERE bm.user_id = $1 AND bm.deleted_at IS NULL
        ORDER BY ba.created_at DESC
@@ -265,7 +280,6 @@ export async function updateBusinessAccount(
     contactPerson: 'contact_person',
     contactEmail: 'contact_email',
     contactPhone: 'contact_phone',
-    paymentTerms: 'payment_terms',
     notes: 'notes',
   };
 
@@ -304,6 +318,13 @@ export async function addMember(
   role: string,
   permissions: { canBook?: boolean; canApprove?: boolean; canViewInvoices?: boolean },
 ): Promise<BusinessMemberRow> {
+  if (role === 'owner') {
+    throw createAppError('Use ownership transfer to change the business owner.', 409);
+  }
+  if (!['manager', 'member'].includes(role)) {
+    throw createAppError('Business member role must be manager or member.', 400);
+  }
+
   const inviter = await db.query<BusinessMemberRow>(
     `SELECT role FROM business_members WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [businessId, inviterId],
@@ -311,10 +332,6 @@ export async function addMember(
 
   if (inviter.rows.length === 0 || !['owner', 'manager'].includes(inviter.rows[0]!.role)) {
     throw createAppError('Only owners and managers can add members.', 403);
-  }
-
-  if (role === 'owner' && inviter.rows[0]!.role !== 'owner') {
-    throw createAppError('Only owners can assign the owner role.', 403);
   }
 
   // MED-N40 fix: pre-validate the target user exists. Pre-fix
@@ -326,7 +343,7 @@ export async function addMember(
   // member to a business account always returned 500. Now: gate on
   // is_active = TRUE.
   const userExists = await db.query(
-    `SELECT 1 FROM users WHERE id = $1 AND is_active = TRUE`,
+    `SELECT 1 FROM users WHERE id = $1 AND is_active = TRUE AND role = 'customer'`,
     [targetUserId],
   );
   if (userExists.rows.length === 0) {
@@ -382,13 +399,23 @@ export async function addMember(
     [businessId],
   );
 
-  await notificationService.createPushNotification({
-    userId: targetUserId,
-    type: 'business_update',
-    title: 'Business Account Invitation',
-    body: `You have been added to ${account.rows[0]?.company_name ?? 'a business account'} as a ${role}.`,
-    data: { businessAccountId: businessId, role },
-  });
+  try {
+    await notificationService.createPushNotification({
+      userId: targetUserId,
+      type: 'business_update',
+      title: 'Business Account Invitation',
+      body: `You have been added to ${account.rows[0]?.company_name ?? 'a business account'} as a ${role}.`,
+      data: { businessAccountId: businessId, role },
+    });
+  } catch (error) {
+    // The membership is already durable. A push outage must not turn the
+    // successful write into a 500 that encourages a conflicting retry.
+    logger.warn('Business member notification failed after membership commit', {
+      businessId,
+      targetUserId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   logger.info('Business member added', { businessId, targetUserId, role, inviterId });
   return result.rows[0]!;
@@ -589,7 +616,8 @@ export async function getMembers(
   userId: string,
 ): Promise<Array<BusinessMemberRow & { first_name: string; last_name: string; email: string }>> {
   const member = await db.query(
-    `SELECT 1 FROM business_members WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+    `SELECT 1 FROM business_members
+      WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [businessId, userId],
   );
 
@@ -625,16 +653,16 @@ export async function createContract(
 
   // Money-field bounds — without these a negative agreedRate (creates credits)
   // or a discount > 100% (negative invoice total) corrupts B2B invoicing.
-  if (!Number.isFinite(params.agreedRate) || params.agreedRate < 0) {
-    throw createAppError('Agreed rate must be a non-negative amount.', 400);
+  if (!Number.isSafeInteger(params.agreedRate) || params.agreedRate <= 0) {
+    throw createAppError('Agreed rate must be a positive integer amount in centavos.', 400);
   }
   if (params.discountPercentage !== undefined &&
       (!Number.isFinite(params.discountPercentage) || params.discountPercentage < 0 || params.discountPercentage > 100)) {
     throw createAppError('Discount percentage must be between 0 and 100.', 400);
   }
   if (params.estimatedMonthlyValue !== undefined &&
-      (!Number.isFinite(params.estimatedMonthlyValue) || params.estimatedMonthlyValue < 0)) {
-    throw createAppError('Estimated monthly value cannot be negative.', 400);
+      (!Number.isSafeInteger(params.estimatedMonthlyValue) || params.estimatedMonthlyValue < 0)) {
+    throw createAppError('Estimated monthly value cannot be negative and must be a safe integer amount in centavos.', 400);
   }
 
   const result = await db.query<BusinessContractRow>(
@@ -669,13 +697,17 @@ export async function getContracts(
   page = 1,
   pageSize = 20,
 ): Promise<{ items: BusinessContractRow[]; total: number }> {
-  const member = await db.query(
-    `SELECT 1 FROM business_members WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+  const member = await db.query<{ role: string; can_view_invoices: boolean }>(
+    `SELECT role, can_view_invoices FROM business_members
+      WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [businessId, userId],
   );
 
   if (member.rows.length === 0) {
     throw createAppError('Access denied.', 403);
+  }
+  if (member.rows[0]!.role === 'member' && !member.rows[0]!.can_view_invoices) {
+    throw createAppError('You do not have permission to view company contract rates.', 403);
   }
 
   const offset = (page - 1) * pageSize;
@@ -723,26 +755,46 @@ export async function resolveBookingContract(
   businessAccountId: string,
   categoryId: string,
   subcategoryId: string | null,
-): Promise<{ contractId: string; agreedRate: number } | null> {
-  const result = await db.query<{ id: string; agreed_rate: number }>(
-    `SELECT bc.id, bc.agreed_rate
+  scheduledAt: string | Date,
+): Promise<{ contractId: string; agreedRate: number; accountTermsVersionId: string } | null> {
+  const result = await db.query<{
+    id: string;
+    agreed_rate: number;
+    account_terms_version_id: string;
+  }>(
+    `SELECT bc.id, bc.agreed_rate, current_terms.id AS account_terms_version_id
        FROM business_contracts bc
        JOIN business_accounts ba ON ba.id = bc.business_account_id
        JOIN business_members bm ON bm.business_account_id = ba.id
+       JOIN LATERAL (
+         SELECT batv.id
+           FROM business_account_term_versions batv
+          WHERE batv.business_account_id = ba.id
+            AND batv.effective_from <= NOW()
+          ORDER BY batv.effective_from DESC, batv.version DESC
+          LIMIT 1
+       ) current_terms ON TRUE
       WHERE bc.business_account_id = $1
         AND bm.user_id = $2 AND bm.deleted_at IS NULL
+        AND bm.can_book = TRUE
         AND ba.status = 'active'
         AND bc.status = 'active'
+        AND bc.published_at IS NOT NULL
+        AND bc.provider_id IS NULL
         AND bc.category_id = $3
         AND (bc.subcategory_id IS NULL OR bc.subcategory_id = $4)
-        AND bc.start_date <= (NOW() AT TIME ZONE 'Asia/Manila')::date
-        AND (bc.end_date IS NULL OR bc.end_date >= (NOW() AT TIME ZONE 'Asia/Manila')::date)
+        AND bc.start_date <= ($5::timestamptz AT TIME ZONE 'Asia/Manila')::date
+        AND (bc.end_date IS NULL OR bc.end_date >= ($5::timestamptz AT TIME ZONE 'Asia/Manila')::date)
       ORDER BY CASE WHEN bc.subcategory_id = $4 THEN 0 ELSE 1 END, bc.start_date DESC
       LIMIT 1`,
-    [businessAccountId, customerId, categoryId, subcategoryId],
+    [businessAccountId, customerId, categoryId, subcategoryId, scheduledAt],
   );
   if (result.rows.length === 0) return null;
-  return { contractId: result.rows[0]!.id, agreedRate: Number(result.rows[0]!.agreed_rate) };
+  return {
+    contractId: result.rows[0]!.id,
+    agreedRate: Number(result.rows[0]!.agreed_rate),
+    accountTermsVersionId: result.rows[0]!.account_terms_version_id,
+  };
 }
 
 // Phase 200 — admin read variants. The owner-facing getters above require
@@ -896,8 +948,11 @@ export async function getContractsAdmin(
   businessId: string,
   page = 1,
   pageSize = 20,
+  contractId?: string,
 ): Promise<{ items: BusinessContractRow[]; total: number }> {
   const offset = (page - 1) * pageSize;
+  const contractClause = contractId ? 'AND bc.id = $4' : '';
+  const countContractClause = contractId ? 'AND id = $2' : '';
   const [dataResult, countResult] = await Promise.all([
     db.query<BusinessContractRow>(
       `SELECT bc.*,
@@ -909,13 +964,18 @@ export async function getContractsAdmin(
          LEFT JOIN service_subcategories ss ON ss.id = bc.subcategory_id
          LEFT JOIN providers p ON p.id = bc.provider_id
        WHERE bc.business_account_id = $1
+         ${contractClause}
        ORDER BY bc.status ASC, bc.start_date DESC
        LIMIT $2 OFFSET $3`,
-      [businessId, pageSize, offset],
+      contractId
+        ? [businessId, pageSize, offset, contractId]
+        : [businessId, pageSize, offset],
     ),
     db.query<CountRow>(
-      `SELECT COUNT(*)::text as count FROM business_contracts WHERE business_account_id = $1`,
-      [businessId],
+      `SELECT COUNT(*)::text as count
+         FROM business_contracts
+        WHERE business_account_id = $1 ${countContractClause}`,
+      contractId ? [businessId, contractId] : [businessId],
     ),
   ]);
   return { items: dataResult.rows, total: Number(countResult.rows[0]?.count ?? 0) };
@@ -950,31 +1010,13 @@ export async function updateContractStatus(
     );
   }
 
-  const contract = await db.query<BusinessContractRow & { business_account_id: string }>(
-    `SELECT * FROM business_contracts WHERE id = $1`,
-    [contractId],
+  void contractId;
+  void userId;
+  void status;
+  throw createAppError(
+    'Contract lifecycle changes require an onService publication preview and super-admin decision.',
+    403,
   );
-
-  if (contract.rows.length === 0) {
-    throw createAppError('Contract not found.', 404);
-  }
-
-  const member = await db.query<BusinessMemberRow>(
-    `SELECT role, can_approve FROM business_members
-     WHERE business_account_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
-    [contract.rows[0]!.business_account_id, userId],
-  );
-
-  if (member.rows.length === 0 || (!member.rows[0]!.can_approve && member.rows[0]!.role === 'member')) {
-    throw createAppError('You do not have permission to update contracts.', 403);
-  }
-
-  const result = await db.query<BusinessContractRow>(
-    `UPDATE business_contracts SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-    [status, contractId],
-  );
-
-  return result.rows[0]!;
 }
 
 export function formatBusinessAccount(ba: BusinessAccountRow): Record<string, unknown> {
@@ -1004,10 +1046,31 @@ export function formatBusinessAccount(ba: BusinessAccountRow): Record<string, un
     status: ba.status,
     paymentTerms: ba.payment_terms,
     volumeDiscountRate: Number(ba.volume_discount_rate),
-    monthlyCreditLimit: ba.monthly_credit_limit,
+    monthlyCreditLimit: Number(ba.monthly_credit_limit),
     notes: ba.notes,
+    recordVersion: ba.record_version ?? 1,
     createdAt: ba.created_at,
     updatedAt: ba.updated_at,
+  };
+}
+
+export function formatBusinessAccountForMember(ba: BusinessAccountRow): Record<string, unknown> {
+  const formatted = formatBusinessAccount(ba);
+  const canViewFinancials = ba.viewer_role === 'owner'
+    || ba.viewer_role === 'manager'
+    || ba.viewer_can_view_invoices === true;
+  return {
+    ...formatted,
+    paymentTerms: canViewFinancials ? formatted.paymentTerms : null,
+    volumeDiscountRate: canViewFinancials ? formatted.volumeDiscountRate : null,
+    monthlyCreditLimit: canViewFinancials ? formatted.monthlyCreditLimit : null,
+    viewerPermissions: {
+      role: ba.viewer_role ?? 'member',
+      canBook: ba.viewer_can_book === true,
+      canApprove: ba.viewer_can_approve === true,
+      canViewInvoices: ba.viewer_can_view_invoices === true,
+      canViewFinancials,
+    },
   };
 }
 
@@ -1040,14 +1103,21 @@ export function formatContract(c: BusinessContractRow): Record<string, unknown> 
     providerName: c.provider_name ?? null,
     contractType: c.contract_type,
     frequency: c.frequency,
-    agreedRate: c.agreed_rate,
+    agreedRate: Number(c.agreed_rate),
     discountPercentage: Number(c.discount_percentage),
-    estimatedMonthlyValue: c.estimated_monthly_value,
+    estimatedMonthlyValue: Number(c.estimated_monthly_value),
     startDate: c.start_date,
     endDate: c.end_date,
     autoRenew: c.auto_renew,
     status: c.status,
     terms: c.terms,
+    recordVersion: c.record_version ?? 1,
+    publishedAt: c.published_at ?? null,
+    publishedBy: c.published_by ?? null,
+    publishReason: c.publish_reason ?? null,
+    cancelledAt: c.cancelled_at ?? null,
+    cancelledBy: c.cancelled_by ?? null,
+    cancellationReason: c.cancellation_reason ?? null,
     createdAt: c.created_at,
     updatedAt: c.updated_at,
   };

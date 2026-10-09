@@ -7,6 +7,12 @@ import { z } from 'zod';
 import { phLatitude, phLongitude } from './ph-coords';
 
 const urlString = z.string().url('Must be a valid URL');
+// Resumed private drafts carry owned object keys, not public/bearer URLs.
+// Ownership is rechecked by the service for BOTH accepted reference shapes.
+const onboardingReference = z.union([
+  urlString,
+  z.string().regex(/^onboarding\/[a-f0-9-]{36}\/[^?#\s\\]+$/i, 'Use an uploaded onboarding document'),
+]).refine(value => value.length <= 2048, 'Document reference is too long');
 
 // Phase K MED-K07 fix — accept optional nbiExpiryDate + idNumber
 // during provider onboarding. Pre-fix the schema dropped both fields
@@ -128,6 +134,7 @@ export const providerCertificationReviewSchema = z.object({
 });
 
 export const providerApplicationSchema = z.object({
+  draftRevision: z.string().uuid().optional(),
   businessName: z.string().min(2, 'Business name must be at least 2 characters').max(200),
   categoryIds: z.array(z.string().uuid()).min(1, 'Select at least one service category').max(10),
   // New clients send the selected admin-configured market. Optional only for
@@ -142,10 +149,10 @@ export const providerApplicationSchema = z.object({
   longitude: phLongitude,
   city: z.string().min(1).max(100),
   province: z.string().min(1).max(100),
-  governmentIdFrontUrl: urlString,
-  governmentIdBackUrl: urlString,
-  nbiClearanceUrl: urlString,
-  selfieUrl: urlString,
+  governmentIdFrontUrl: onboardingReference,
+  governmentIdBackUrl: onboardingReference,
+  nbiClearanceUrl: onboardingReference,
+  selfieUrl: onboardingReference,
   icAgreementAccepted: z.literal(true, 'You must accept the Independent Contractor agreement'),
   // K-MED-K07: optional NBI expiry + ID number fields.
   nbiExpiryDate: isoDateString.optional(),
@@ -276,7 +283,8 @@ export const availabilityOverrideSchema = z.object({
   // ISO-8601 date (YYYY-MM-DD) — HTML <input type="date"> uses this
   // and the column is `availability_overrides.override_date DATE`.
   overrideDate: z.string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'overrideDate must be in YYYY-MM-DD format'),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'overrideDate must be in YYYY-MM-DD format')
+    .refine(isRealCalendarDate, 'Enter a real calendar date'),
   isAvailable: z.boolean(),
   // Optional time window (only meaningful when isAvailable=true).
   startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'startTime must be a valid 24h HH:MM').optional(),

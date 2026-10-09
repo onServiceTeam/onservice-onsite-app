@@ -14,6 +14,7 @@ jest.mock('../../src/models/db', () => {
 jest.mock('../../src/services/dispute.service', () => ({
   resolveDisputeInTransaction: jest.fn(),
   resolveDispute: jest.fn(),
+  assertDisputeResolutionAvailable: jest.fn(),
   assignDispute: jest.fn(),
   escalateDispute: jest.fn(),
 }));
@@ -52,6 +53,7 @@ const HAPPY_HELPER = {
   bookingId: BOOKING_ID,
   bookingTotalAmount: 50000,
   providerId: PROVIDER_ID,
+  pushRequests: [],
 };
 
 beforeEach(() => {

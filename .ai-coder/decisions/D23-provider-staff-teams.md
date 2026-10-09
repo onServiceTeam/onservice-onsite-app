@@ -176,3 +176,15 @@ New `admin_actions` types: `provider_staff_invited`, `provider_staff_submitted`,
 
 If Ken disagrees with any default above, it changes Phase 4/5, not the Phase 1
 foundation.
+
+## Re-audit finding, 2026-09-06
+
+The historical completion statements above are not current acceptance evidence.
+The provider's team GET was intercepted by the provider-ID route and returned
+a real PostgreSQL UUID error. Team performance also used a nonexistent completed
+status and multiplied review counts by joined bookings. Candidate corrections
+preserve D23's single provider-owned team and operator review authority; they do
+not change admission, assignment or payout policy. Executed failing baselines,
+corrections and remaining verification are recorded in
+`docs/audits/PROVIDER-TEAM-ROUTING-PRIVACY-2026-09-06.md`.
+No new deployment or full D23 acceptance is claimed by this addendum.

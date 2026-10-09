@@ -96,6 +96,8 @@ export interface ProviderProfile {
   };
   /** @deprecated Use services. Retained for older admin clients. */
   categories: { id: string; name: string; basePrice: number | null }[];
+  /** Current category-only declarations, not priced services or an immutable application snapshot. */
+  declaredCategories: { id: string; name: string; isActive: boolean }[];
   services: Array<{
     id: string;
     name: string;
@@ -315,10 +317,21 @@ export async function getProviderProfile(
     unassigned_support_cases: string;
     support_owner_names: string[] | null;
     pending_service_area_changes: string;
+    declared_categories: ProviderProfile['declaredCategories'];
     last_login_at: Date | null;
   }>(
     `SELECT p.*, u.id AS u_id, u.first_name, u.last_name, u.phone, u.email,
             u.avatar_url, u.is_verified, u.is_active, u.last_login_at,
+            COALESCE((
+              SELECT jsonb_agg(declaration ORDER BY declaration.name, declaration.id)
+                FROM (
+                  SELECT DISTINCT sc.id, sc.name, sc.is_active AS "isActive"
+                    FROM provider_services ps
+                    JOIN service_categories sc ON sc.id = ps.category_id
+                   WHERE ps.provider_id = p.id AND ps.is_active = TRUE
+                     AND ps.subcategory_id IS NULL
+                ) declaration
+            ), '[]'::jsonb) AS declared_categories,
             (SELECT COUNT(*)::text FROM refresh_tokens rt WHERE rt.user_id = u.id) AS active_refresh_sessions,
             (SELECT COUNT(*)::text
                FROM support_tickets st
@@ -507,6 +520,9 @@ export async function getProviderProfile(
     // Provider 360 must show the same catalog prices booking creation uses.
     // Keep the old categories key temporarily so older admin builds do not
     // break while the current UI reads the complete services projection.
+    // OPS-493: application declarations have no subcategory and therefore no
+    // price. Keep them separate; inactive catalog entries remain reviewable.
+    declaredCategories: p.declared_categories ?? [],
     categories: categoriesResult.rows.map((r) => ({
       id: r.category_id,
       name: r.category_name,
@@ -863,15 +879,23 @@ export async function getProviderReviews(
   providerId: string,
   page: number = 1,
   pageSize: number = 50,
+  reviewId?: string,
 ): Promise<{ rows: ProviderReview[]; total: number; page: number; pageSize: number }> {
-  const safePage = Math.max(1, Math.floor(page));
-  const safeSize = Math.max(1, Math.min(200, Math.floor(pageSize)));
+  const exactReviewId = reviewId?.trim() || null;
+  const safePage = exactReviewId ? 1 : Math.max(1, Math.floor(page));
+  const safeSize = exactReviewId ? 1 : Math.max(1, Math.min(200, Math.floor(pageSize)));
   const offset = (safePage - 1) * safeSize;
+  const scopeSql = exactReviewId
+    ? 'r.provider_id = $1 AND r.id = $2'
+    : 'r.provider_id = $1';
+  const scopeParams = exactReviewId ? [providerId, exactReviewId] : [providerId];
+  const limitParam = scopeParams.length + 1;
+  const offsetParam = scopeParams.length + 2;
 
   const [countResult, dataResult] = await Promise.all([
     db.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM reviews WHERE provider_id = $1`,
-      [providerId],
+      `SELECT COUNT(*)::text AS count FROM reviews r WHERE ${scopeSql}`,
+      scopeParams,
     ),
     db.query<{
       id: string;
@@ -894,10 +918,10 @@ export async function getProviderReviews(
               r.created_at
          FROM reviews r
          JOIN users u ON u.id = r.reviewer_id
-        WHERE r.provider_id = $1
+        WHERE ${scopeSql}
         ORDER BY r.created_at DESC
-        LIMIT $2 OFFSET $3`,
-      [providerId, safeSize, offset],
+        LIMIT $${limitParam} OFFSET $${offsetParam}`,
+      [...scopeParams, safeSize, offset],
     ),
   ]);
 
@@ -1095,6 +1119,7 @@ export async function getProviderActivity(
   // to 'admin' (the most-restrictive role) so callers that haven't
   // been updated still get masking. super_admin sees raw values.
   requesterRole: 'admin' | 'super_admin' = 'admin',
+  adminActionId?: string,
 ): Promise<ProviderActivityRow[]> {
   const safeLimit = Math.min(200, Math.max(1, Math.floor(limit) || 50));
 
@@ -1115,6 +1140,13 @@ export async function getProviderActivity(
   const userId = userResult.rows[0].user_id;
   const phone = userResult.rows[0].phone;
   const providerName = `${userResult.rows[0].first_name} ${userResult.rows[0].last_name}`.trim();
+  const adminActionParams: unknown[] = [providerId, userId];
+  let adminActionIdClause = '';
+  if (adminActionId) {
+    adminActionParams.push(adminActionId);
+    adminActionIdClause = ` AND a.id = $${adminActionParams.length}`;
+  }
+  adminActionParams.push(adminActionId ? 1 : safeLimit);
 
   const [auditRows, loginRows, adminActionRows] = await Promise.all([
     db.query<{
@@ -1169,7 +1201,7 @@ export async function getProviderActivity(
               a.action_type, a.reason, a.details, a.created_at
          FROM admin_actions a
          LEFT JOIN users u ON u.id = a.admin_id
-        WHERE (a.target_type = 'provider' AND a.target_id = $1)
+        WHERE ((a.target_type = 'provider' AND a.target_id = $1)
            OR (a.target_type = 'provider_application' AND a.target_id = $2)
            OR (a.target_type = 'provider_note' AND EXISTS (
                  SELECT 1 FROM provider_admin_notes n WHERE n.id = a.target_id AND n.provider_id = $1
@@ -1189,10 +1221,11 @@ export async function getProviderActivity(
            OR (a.target_type = 'review' AND EXISTS (
                  SELECT 1 FROM reviews r WHERE r.id = a.target_id AND r.provider_id = $1
               ))
-           OR (a.target_type = 'user' AND a.target_id = $2)
+           OR (a.target_type = 'user' AND a.target_id = $2))
+          ${adminActionIdClause}
         ORDER BY a.created_at DESC
-        LIMIT $3`,
-      [providerId, userId, safeLimit],
+        LIMIT $${adminActionParams.length}`,
+      adminActionParams,
     ),
   ]);
 
@@ -1246,17 +1279,26 @@ export async function getProviderActivity(
 
   const adminActs = adminActionRows.rows.map<ProviderActivityRow>((r) => {
     const adminName = `${r.admin_first ?? ''} ${r.admin_last ?? ''}`.trim() || null;
+    const actorKind: ProviderActivityRow['actor']['kind'] = r.admin_id === userId
+      ? 'provider'
+      : r.admin_id
+        ? 'admin'
+        : 'system';
     return {
       id: `admin_action:${r.id}`,
       source: 'admin_action',
       action: r.action_type,
       detail: r.reason ?? (r.details ? JSON.stringify(r.details) : null),
-      actor: { kind: r.admin_id ? 'admin' : 'system', id: r.admin_id, name: adminName },
+      actor: { kind: actorKind, id: r.admin_id, name: adminName },
       ipAddress: null,
       userAgent: null,
       createdAt: r.created_at.toISOString(),
     };
   });
+
+  if (adminActionId) {
+    return adminActs.filter((row) => row.id === `admin_action:${adminActionId}`);
+  }
 
   return [...audit, ...logins, ...adminActs]
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
@@ -1502,9 +1544,8 @@ export async function deleteProviderNote(
 ): Promise<void> {
   // Phase 14 Dispatch 06 — Bug 80. Pre-D06 this was a hard DELETE with
   // NO audit. Now: soft delete (UPDATE deleted_at/deleted_by/deleted_reason
-  // from migration 076) + admin_actions audit in ONE transaction. The
-  // FK from admin_actions.target_id back to the note row remains valid
-  // since the row still exists, just with deleted_at set.
+  // from migration 076) + admin_actions audit in ONE transaction. Keep
+  // the original note row so the polymorphic audit target remains resolvable.
   await db.transaction(async (client) => {
     const existing = await client.query<{
       author_id: string;
@@ -1513,7 +1554,8 @@ export async function deleteProviderNote(
     }>(
       `SELECT author_id, provider_id, deleted_at
          FROM provider_admin_notes
-        WHERE id = $1 AND provider_id = $2`,
+        WHERE id = $1 AND provider_id = $2
+        FOR UPDATE`,
       [noteId, providerId],
     );
     const row = existing.rows[0];
@@ -1533,14 +1575,19 @@ export async function deleteProviderNote(
     if (trimmedReason.length > 1000) {
       throw createAppError('reason must be ≤ 1000 characters.', 400);
     }
-    await client.query(
+    // OPS-509: serialize with note editors/deleters on this row. A losing
+    // deletion must not report success or write a second deletion audit.
+    const deletion = await client.query(
       `UPDATE provider_admin_notes
           SET deleted_at = NOW(),
               deleted_by = $2,
               deleted_reason = $3
-        WHERE id = $1 AND deleted_at IS NULL`,
-      [noteId, authorId, trimmedReason || null],
+        WHERE id = $1 AND provider_id = $4 AND deleted_at IS NULL`,
+      [noteId, authorId, trimmedReason, providerId],
     );
+    if (deletion.rowCount !== 1) {
+      throw createAppError('Note could not be deleted. Refresh and try again.', 409);
+    }
 
     const auditResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)

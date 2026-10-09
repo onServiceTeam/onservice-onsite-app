@@ -33,7 +33,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/bookings` | Booking operations queue | W6+W8 PARTIAL | The responsive row-grid exposes URL-bound operational views/sorts, whole-queue exception counts, specific service/city/schedule context, Customer/Provider 360 exits, linked support ownership, open disputes, and gross booking value. Only verified-paid unassigned work is labelled **Paid needs assignment**. Named booking ownership is deliberately not duplicated outside support cases; authenticated wide-state evidence remains open. |
 | `/bookings/:id` | Booking 360 and evidence | W6 PARTIAL/HOLD | Conversation and support-case exits, partial-address truth, gateway/wallet/retained-sales money chronology, and rendered action confirmations are connected. Cancellation requires explicit live money inputs but E09 still holds policy/runtime authority; escrow release, refund, cancellation, and force-complete semantics remain money-path controlled. |
 | `/catalog` | Customer bookable scope and provider fulfillment contract | W1 | Service/add-on deactivation now requires audit reason and states customer impact. Continue modal and all pricing-type state visuals. |
-| `/projects` | Larger-work planning oversight | NEXT | Preserve D28 and milestone escrow holds while checking customer/provider linkage and honest capability boundaries. |
+| `/projects` | Larger-work planning oversight | W15+W16+W17+W18+W19+W20+W21 PARTIAL/HOLD | Full-index project search/filter/pagination, exact URL-bound records, customer-owned planning maintenance, customer correction/removal of choices and pending milestones, private owner-only planning-image upload, short-lived owner/Admin image access, and project support handoffs now coexist without changing booking or money authority. Admin receives read-only in-console image preview, never the storage key. Started/completed milestone history, customer/legacy-provider identities, scope, and deadline remain visible. Support context cannot create a booking, provider assignment, quote, or money relation. The new choice-update and private-upload routes are customer-owner-only, but E53 still holds older unaudited Admin write plus legacy URL creation/deletion authority; D28 holds booking/site/visit linkage and D27p5/E12 holds milestone money. PDF support, legacy-row inventory/migration, versioned/audited destructive-history policy, and provider planning tools remain open. |
 | `/disputes` | Trust queue | W9 PARTIAL/HOLD | Exact active and stale whole-queue views are URL-bound and enforced by the API, and list resolution now uses an in-app impact confirmation. Resolution/settlement behavior is unchanged and remains under E18/E24; no unsupported SLA countdown was added. |
 | `/disputes/:id` | Dispute 360 | HOLD/NEXT | Recheck evidence chronology and role exits. Settlement/reopen semantics remain held. |
 | `/financials` | Payments, escrow, tax workpapers, reconciliation | HOLD | No money/tax mutation behavior changed in W1. Requires dedicated finance audit and decision-safe tests. |
@@ -41,19 +41,19 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 | `/notification-templates` | Customer/provider communications | W1 | Create, update, activate, deactivate, and delete use in-app decisions with channel impact. Continue variable validation and preview audit. |
 | `/recurring` | Series support | W1/HOLD | Cancellation has one reasoned decision and clear existing/future booking impact. E20 still holds automatic charging. |
 | `/business-accounts` | Enterprise account queue | W1 | Approval previews terms and credit limit; suspension explains booking and invoicing impact. |
-| `/business-accounts/:id` | Enterprise account 360 | W13 PARTIAL | The named owner and internal relationship manager now resolve to human/account/directory context; manager assignment is super-admin-only, reasoned, active-account/profile validated, transactionally audited, and linked to Staff, owned support cases, and the exact audit record. Full member/contract/invoice/booking/payment/provider linkage remains the next dedicated wave. |
+| `/business-accounts/:id` | Enterprise account 360 | W13 READ LINKAGE; E55 WRITE HOLD | The named owner and internal relationship manager resolve to human/account/directory context; manager assignment is super-admin-only, reasoned, active-account/profile validated, transactionally audited, and linked to Staff, owned support cases, and the exact audit record. Booking, invoice-line, customer, provider, support, and dispute reads are linked. E55 now holds account/contract/billing/payment writes because the legacy invoice selector can include personal bookings and manual payment completion is not verified or audited. |
 | `/service-areas` | Market, coverage, and provider-capacity control | W1+W11 | Activation/default/pause/create decisions state cross-role effects. The same active, soft-launch, and recruiting area records now drive provider market selection, boundary validation, and the primary-area link at application time. Continue create/edit responsive layout and provider-request decision states. |
 | `/analytics` | Decision support | W1 | A/B and quality actions are accessible and explicit; retention and commission remain truth-labeled. Continue complete tab state visuals. |
 | `/audit-log` | Operator accountability | W12 PARTIAL/HOLD | The page and masked CSV now share the same `audit_log` plus `admin_actions` source/filter contract; action, entity type, exact record, exact actor, source, and date filters are validated and URL-bound; every supported record type has a canonical exit; and one responsive timeline becomes cards below desktop width. E37 holds any claim of a global request trace: the dormant middleware is not mounted, `request_id` is not populated, and many mutations have no writer. Authenticated visual-state evidence remains open. |
-| `/support-tickets` | Support case queue | W2+W13 | Queue-wide active signals, unassigned filtering, persona-correct waiting states, reopening, required workflow notes, success feedback, and visible append-only manual status history are implemented. W13 adds exact staff-owner links and a visible, clearable active-owner view. No SLA is invented. |
+| `/support-tickets` | Support case queue | W2+W13+W17 | Queue-wide active signals, unassigned filtering, persona-correct waiting states, reopening, required workflow notes, success feedback, and visible append-only manual status history are implemented. W13 adds exact staff-owner links and a visible, clearable active-owner view. W17 adds customer-owned planning-project context, exact project filtering/return links, and booking/project exclusivity without inventing a project execution or payment relationship. No SLA is invented. |
 | `/staff` | Company access and responsibility | W13 PARTIAL/HOLD | The account-centered responsive workspace separates login role/status/last-login from directory metadata, includes admin-tier accounts missing profiles, exposes active support workload and exact audit/support exits, and validates every query/write. Profile actions no longer pretend to control account access. E38 holds DPO session invalidation/route segregation and E39 holds governed privileged-account lifecycle. |
 | `/settings` | Platform configuration | HOLD/NEXT | Live, held, and unconnected classifications exist. Money/security settings need source-specific review and rollback preview. |
 | `/settings/cancellation-policy` | Customer cancellation presentation | HOLD | E09 blocks changing policy/money semantics until display and refund math have one authority. |
-| `/pricing-rules` | Surge and revenue-share control | HOLD | E28 records the missing server-authoritative preview/staged publication decision. Only safe Stitch surface cleanup occurred in W1. |
+| `/pricing-rules` | Surge and revenue-share control | W23 IMPLEMENTED LOCALLY / PRODUCTION HOLD | Option A now provides explicit scope, inactive drafts, canonical server preview, overlap/winner and split evidence, super-admin publication, stale-receipt protection, immutable published terms, audited retirement, responsive cards/table, and read-only Admin visibility. Existing booking snapshots remain unchanged. Migration 165 and production legacy-rule inventory remain unexecuted under E32. |
 | `/marketing` | Promotions, referrals, campaigns | NEXT | Recheck feature flags, audience truth, delivery state, redemption linkage, and held payment claims. |
 | `/dispatch` | Live assignment and coverage | W6 PARTIAL/HOLD | The map now states its real sources: booking service locations and accepting-work providers' saved service bases, not live GPS/presence. A derived attention queue replaces the nonexistent alert feed; every record links to its canonical workspace; participant support messaging is available to admins; reassignment is server-validated across account, availability, service, location, and radius; quick cancellation hands off to Booking 360. E09 and all money holds remain. |
 | `/communications` | Cross-role message operations | W2+W6 | Review queue is first, lists paginate, search is submitted rather than per-keystroke, exact message focus is preserved, participant/booking links remain visible, and moderation states participant impact plus audited success. A `bookingId` deep link now opens the exact booking conversation and can be cleared. Delivery-state evidence remains a later check. |
-| `/feedback` | Third-party tester feedback queue | W2 | Original evidence, named ownership, decision notes, no-op protection, explicit search, and visible append-only owner/status history are implemented. Production still has 10 new and 0 assigned submissions, so operational triage remains real company work rather than a code claim. |
+| `/feedback` | Third-party tester feedback queue | W2+CONTINUOUS | Original evidence, named ownership, decision notes, no-op protection, explicit search, and visible append-only owner/status history are implemented. Status, app area, submitted search, page, and exact selected record are URL-bound for reproducible handoffs; an exact linked record remains visible with explicit context even when it is outside the current queue page. The last available production evidence remains 10 new and 0 assigned submissions under E32, so operational triage is real company work rather than a code claim. |
 | `/compliance` | Regulatory and tax controls | HOLD | Dedicated compliance review required. No regulatory meaning or status behavior changed in W1. |
 | `/data-protection-log` | DSR operations | HOLD | E21 retention matrix and DPO process remain authoritative blockers for semantic changes. |
 | `/consent-versions` | Legal-document publication history | HOLD | F#10/E26 legal-source conflict remains open. Safe layout work only until attorney-approved wording/status is reconciled. |
@@ -63,6 +63,7 @@ The W1 code checkpoint was `0facf52d0662a465a74c0e3dd65cc6ac2618afb1`; its docum
 
 - Tester Feedback no longer overwrites the only visible decision record. The current state remains editable, while up to 100 earlier owner, status, actor, and evidence-note decisions are read from the append-only audit log. Identical submissions are rejected server-side instead of creating duplicate audit events.
 - Feedback and conversation search now runs on submission or clear, not on every keystroke. Communications and moderation queues page through the complete server result instead of silently stopping at 50 rows.
+- Later Bug UX-880 binds the feedback status, app area, applied search, page, and selected record to the URL. Refreshes and copied links reopen the same case, and an exact linked submission outside the visible queue page is identified rather than silently replaced by the first row.
 - Support queue cards use whole-queue counts. Urgent and unassigned cards open matching active-case filters, and the filter state is visible and removable.
 - Every manual support status decision requires a 10-character workflow note and writes the before/after state, acting administrator, reason, owner, and resolution inside one database transaction. The status history is visible in the case workspace.
 - Reopening a resolved or closed case clears stale terminal timestamps and current resolution text. The earlier outcome remains in append-only history.
@@ -212,6 +213,98 @@ coverage, and they do not change any lifecycle, money, legal, or role authority.
 These changes are Bugs UX-541 through UX-557. They do not resolve E34, E38,
 E39, money policy, compliance policy, or production access under E32.
 
+## W15 Projects planning and support-handoff contract
+
+- Project selection is now URL-bound through a validated `projectId`. A copied
+  support handoff opens the exact known planning record even when it is outside
+  the newest 200 rows loaded by the queue, and selecting another row preserves
+  surrounding URL context.
+- Project detail now carries the owning customer's name and any legacy linked
+  provider's business name. Admin can open Customer 360, the customer-scoped
+  Support queue, and Provider 360 without copying an opaque identifier.
+- Milestone detail includes its written scope and target date rather than
+  reducing the plan to a title, amount, and status. Advisory estimates and
+  milestone amounts remain explicitly non-charge, non-escrow planning values.
+- The customer project screen no longer claims a legacy provider-linked record
+  has no provider link. It states the narrower truth that the historical link
+  is not an invitation, assignment, booking, quote, or payment.
+- The operator manual now describes the actual read-only planning workspace and
+  sends staff to Booking 360, Dispatch, Financials, and Support for canonical
+  execution work.
+- E53 records the bad news: the shared API still lets Admin and super-admin
+  mutate customer projects, milestones, choices, and documents without a
+  reason, transactional audit record, or record-version check. That hidden
+  authority conflicts with the read-only screen and manual. Authorization
+  changes remain paused; it is not an approved support procedure.
+
+These changes are Bugs UX-881 through UX-884. They do not add project search or
+pagination, project-scoped support, a provider project workspace, provider
+invitation/acceptance, booking conversion, or milestone money. D28, D27p5/E12,
+and E53 remain the governing holds.
+
+## W15 local verification
+
+- Admin passed 271 test files with one intentional skipped file; 360 tests
+  passed and three explicit todos remained. The first aggregate run exposed a
+  one-second retry-test timeout under full-suite load. Both affected feedback
+  retry tests were kept behavioral and given a five-second asynchronous bound;
+  their focused rerun and the clean full Admin rerun passed.
+- Mobile passed 507 suites and 886 tests, with 84 explicit device-baseline
+  todos. API passed 705 locally runnable suites with one intentional skipped
+  suite; 3,088 tests passed and one test was intentionally skipped. The two
+  Docker/Nginx suites were excluded and are not counted as passes.
+- Admin, Mobile, and API TypeScript checks, full repository ESLint, Admin and
+  API production builds, and the final Expo web export passed. The first Expo
+  invocation omitted the repository-required `EXPO_OS=web` target and failed
+  after bundling; the corrected explicit-web invocation exported all 4,273
+  modules successfully.
+- Browser inspection of the fixture-backed Projects workspace at 820 and 1366
+  pixels showed no horizontal overflow and no captured warning or error. It
+  rendered the exact outside-list handoff, participant exits, milestone scope,
+  target date, choice, and document; selecting a loaded row retained the
+  surrounding `source=support` URL context.
+- Gate A passed all 10 blocking fragments, Gate C passed all six blocking
+  articles, all six gate self-test groups passed, the strict phantom-test scan
+  reported no finding, and the N+1 heuristic reported no unjustified marker.
+  Its 31 review warnings are repository heuristics; the Projects match formats
+  already-fetched rows and performs no query inside the map. `git diff --check`
+  passed before checkpointing.
+- Production remains unchanged under E32. No production project, customer,
+  provider, document, booking, or money record was read or mutated.
+
+## W16 Projects full-index discovery and visual contract
+
+- A separate read-only `/api/v1/admin/projects` route now searches project ID,
+  title, description, city, owning customer name, and legacy provider business
+  name across the full joined index. Status, page, and page size are strictly
+  validated; SQL wildcard characters are escaped; page size is bounded to 100;
+  and rows use deterministic created-time plus ID ordering.
+- The Admin screen keeps applied search, status, page, exact `projectId`, and
+  unrelated support context in the URL. Search and status reset pagination,
+  one-character searches fail locally with a usable message, and result-wide
+  totals no longer pretend that the visible page is the complete queue.
+- The existing customer/provider `/api/v1/projects` response is unchanged. This
+  prevents an Admin pagination contract from breaking native ownership views.
+- Bugs UX-885 through UX-887 execute the joined bounded query, strict parser,
+  rendered controls, server parameters, summary scope, page transition, and URL
+  preservation. Existing project linkage tests were migrated to the new Admin
+  response rather than left against a dead endpoint.
+- The screen was missing from the Admin Playwright baseline catalog. A new
+  16-state matrix now covers populated, loading, empty, and error surfaces at
+  768, 1280, 1440, and 1920 pixels. All 16 baselines match on a clean rerun,
+  and every populated width asserts no document-level horizontal overflow.
+
+W16 verification passed 272 Admin files and 361 assertions, with one existing
+skipped file and three explicit todos; 707 locally runnable API suites and
+3,090 assertions, with one intentional skipped suite/test; and all 507 Mobile
+suites and 886 assertions, with 84 device-baseline todos. The two Docker/Nginx
+suites remain excluded and unclaimed. Repository TypeScript and ESLint, Admin
+and API production builds, Gate A 10/10, Gate C 6/6, all six gate self-tests,
+the strict phantom-test scan, the N+1 review, Playwright 16/16, and
+`git diff --check` passed. The first Gate A attempt used Windows' WSL `bash`,
+which could not resolve the Git worktree or Windows Node; the corrected Git Bash
+run passed all 10 fragments. Production remains unchanged under E32.
+
 ## Remaining browser-native confirmations after W9
 
 W1 reduced the count from 44 to 31. W2 worked on support, feedback, communications, session bootstrap, and shared pagination, none of which contained those remaining prompts. W3 removed two Provider 360 prompts. W4 removed the two Customer 360 prompts. W6 removed four Booking 360 prompts and two Dispatch prompts, leaving 21. W7 and W8 changed read-only queue surfaces. W9 replaced the Disputes-list resolution prompt, leaving 20. The remaining prompts are deliberately visible here rather than being hidden by a false completion claim.
@@ -359,3 +452,130 @@ W1 reduced the count from 44 to 31. W2 worked on support, feedback, communicatio
 - All workspace TypeScript checks, repository lint, API/Admin production builds, API smoke 13/13, environment contract 81/81, Gate A 10/10, Gate C 6/6, all six gate self-tests, the no-N+1 scanner, strict phantom-test scan, and `git diff --check` passed.
 - Code checkpoint `2c56f9a80b44f270baf82c0f6ef10056aba14af8` was pushed to `master`. GitHub Gates run `33323987373` passed. CI run `33323987371` independently passed Mobile, API, Admin, and API image build/liveness.
 - Authenticated inner-screen browser evidence remains rendered-test evidence rather than a false production-session claim. E32 blocks production synchronization. E38 and E39 are hard stops for DPO-session and privileged-account lifecycle implementation.
+
+## W17 project-linked support case context
+
+W17 connects a customer planning project to one canonical support case without
+changing booking, provider-assignment, quote, or payment authority. Support
+tickets now carry an optional `project_id`; database and request validation make
+it mutually exclusive with `booking_id`, and service-level ownership validation
+requires the customer identified by the case to own that project. Migration 164
+is additive and leaves existing support, booking, and transaction rows unchanged.
+
+Customer project owners can open a prefilled case, see project context in their
+support list/thread, and return to the exact plan. Admin can open an exact project-
+filtered queue from Projects, create a case on behalf of the owning customer, and
+return from the case to the project. Provider users receive no customer-project
+route. The shared table error row is now an accessible alert. Forced baseline
+replacement removes the stale image that still showed a false empty-state row
+within the prior pixel tolerance; the current render branches are exclusive.
+
+Executed regressions are Bugs UX-888 through UX-895. Final verification passes
+274 Admin files/363 tests, 710 locally runnable API suites/3,093 tests, and the
+completed W17 Mobile aggregate of 510 suites/889 tests. Existing skips and todos,
+plus the two excluded Docker/Nginx environment suites, remain explicit. All three
+TypeScript workspaces, repository lint, Admin/API builds, Support Queue visual
+comparison 12/12, Gate A 10/10, Gate C 6/6, all six gate self-tests, strict
+phantom-test scanning, the N+1 review, and `git diff --check` pass. E53, D28,
+D27p5/E12, and E32 remain unchanged, so this is not a project execution, money,
+or production-deployment claim.
+
+## W20 customer planning-record maintenance
+
+W20 lets the owning customer correct or remove a planning choice and correct or
+remove a pending milestone without expanding projects into a work-order or money
+system. Started and completed milestones remain visible history without customer
+edit/remove actions. All removals require an in-app irreversible-action
+confirmation and explicitly state that a planning deletion does not cancel any
+booking or payment.
+
+Bugs UX-901/902/904/905 execute exact customer correction and confirmed-removal
+behavior. Bug UX-903 executes strict route validation, and SEC-016 proves the new
+choice-update contract rejects Admin authority instead of inheriting the older
+E53-held mutation path. No correction payload accepts booking, provider, status,
+quote, commission, refund, escrow, or payment authority.
+
+The fixture-backed browser pass found and repaired a cramped 820-pixel milestone
+action layout, then verified the final 820- and 1366-pixel workspaces with zero
+horizontal overflow. Mobile passes 519 suites/898 assertions with 84 device
+todos. The locally runnable API passes 712 suites/3,095 assertions with one
+intentional suite/test skip; the two Docker/Nginx environment suites remain
+excluded. TypeScript, lint, API/Admin builds, the 4,273-module web export, Gate A
+10/10, Gate C 6/6, all six gate self-test groups, the phantom-test scan, the
+30-location N+1 review, and diff checks pass.
+
+E53 remains open because older Admin/deletion paths still lack an approved
+immutable/versioned history contract. D28, D27p5/E12, and E32 remain unchanged;
+no production synchronization or money-path change is claimed.
+
+## W21 private project planning images
+
+W21 adds only the safe document behavior implied by Option A. The owning
+customer can attach a JPG, PNG, or WebP planning image with a human-readable
+type. The server validates extension, configured MIME, size, and image magic
+bytes, saves the object as private, and stores only an opaque
+`private-artifacts/` key. Project detail always returns `fileUrl: null` plus an
+authenticated access path, so neither a storage key nor a legacy external URL
+reaches the customer or Admin projection.
+
+The owner and Admin can request a tamper-evident link that expires after 120
+seconds. A legacy linked provider cannot mint one. Admin opens the resulting
+blob inside the exact project case instead of depending on an asynchronous
+popup, and closing the preview revokes its temporary browser URL. Existing
+Nginx rules already block direct `/uploads/private-artifacts/` requests.
+
+Bugs UX-906/907/908 execute the customer flow, bounded multipart route, and
+Admin preview. SEC-017/018/019 execute owner-only private persistence,
+provider denial plus signed download verification, and raw-URL redaction. The
+fixture-backed customer workspace has zero horizontal overflow at 820 and 1366
+pixels, and the exact Admin record plus preview has zero overflow at 820 pixels.
+Mobile passes 520 suites/899 assertions with 84 device todos. Admin passes 275
+files/364 assertions with one skipped file and three todos. The locally runnable
+API passes 716 suites/3,099 assertions with one intentional skip. Docker Desktop
+is unavailable, so the two Docker/Nginx environment tests remain excluded and
+unclaimed. TypeScript, lint, builds, the 4,273-module web export, Gate A 10/10,
+Gate C 6/6, all six gate self-test groups, phantom-test scanning, the N+1
+review, and diff checks pass.
+
+The remaining boundary is deliberate. PDFs need an approved picker and secure
+document-content validation path. Legacy external rows need production
+inventory and migration. The older raw-URL creation and deletion routes remain
+under E53/D28 until an immutable/versioned audit policy is approved. Provider
+planning, project-to-booking conversion, milestone money, and production
+synchronization remain held under D28, D27p5/E12, and E32.
+
+## W22 recurring series support workspace
+
+W22 traces recurring work from the customer-confirmed source booking through the
+series, each generated booking, the legacy provider link, and booking-filtered
+support. It leaves bookings as the work and money source of truth. A series
+cancellation changes only future recurrence and does not revise existing
+bookings, transactions, payment state, refunds, rates, or commissions.
+
+SEC-020/021/022/023 enforce customer-role ownership, an eligible completed
+fixed-price source booking for the same customer and service, strict Admin
+control input, and strict customer ID/page/date/action input. Bugs UX-909/910/913 create result-wide queue counts, full-name
+search, exact-series context, and canonical Customer, Provider, Booking, and
+Support exits. Bugs UX-911/912 remove the customer list/history first-page
+truncation. OPS-321 makes the series cancellation and Admin action one database
+transaction with a bounded reason.
+
+The rendered Admin workspace identifies manual per-booking payment as an E20
+boundary and legacy provider linkage as a D29/E41 hold. It does not expose a
+stored reusable payment identifier or imply that the original provider is
+automatically re-assigned. Fixture-backed browser checks at 820 and 1366 pixels
+found zero horizontal overflow across queue, detail, history, support, and
+cancellation states; a warning-free console is not claimed.
+
+Admin passes 276 files/365 assertions with one skipped file and three todos.
+Mobile passes 522 suites/901 assertions with 84 device-baseline todos. The
+locally runnable API passes 723 suites/3,106 assertions with one intentional
+skip; the two Docker/Nginx environment suites remain excluded and unclaimed.
+All workspace TypeScript checks, repository lint, API/Admin builds, the
+corrected 4,273-module Expo web export, Gate A 10/10, Gate C 6/6, all six gate
+self-test groups, strict phantom-test scanning, the 30-location N+1 review, and
+diff checks pass. The first export command omitted the explicit web target and
+failed the intended native EAS environment guard; only the successful
+deterministic web-target rerun is counted. E20, D29/E41, and E32 remain open, so
+automatic charging, provider-assignment redesign, master promotion, and
+production synchronization are not claimed.

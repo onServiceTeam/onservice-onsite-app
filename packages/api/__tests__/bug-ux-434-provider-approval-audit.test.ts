@@ -13,6 +13,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import { approveProvider } from '../src/services/admin.service';
+import { mockDecisionLocks, mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
 
 it('Bug UX-434 — provider approval requires and transactionally preserves the review rationale and checklist', async () => {
   await expect(
@@ -25,19 +26,20 @@ it('Bug UX-434 — provider approval requires and transactionally preserves the 
   expect(queryMock).not.toHaveBeenCalled();
   expect(transactionMock).not.toHaveBeenCalled();
 
-  queryMock.mockResolvedValueOnce({
-    rows: [{
-      nbi_clearance_url: 'private/nbi.pdf',
-      government_id_front_url: 'private/id.jpg',
-      selfie_url: 'private/selfie.jpg',
-    }],
-    rowCount: 1,
-  });
   const transactionCalls: Array<{ sql: string; params: unknown[] }> = [];
   transactionMock.mockImplementationOnce(async (callback: unknown) => {
     const client = {
       query: jest.fn(async (sql: string, params: unknown[] = []) => {
         transactionCalls.push({ sql, params });
+        const lock = mockDecisionLocks(sql, 'user-1');
+        if (lock) return lock;
+        if (sql.includes('FROM provider_application_revisions r')) return mockRevision(
+          'private/id.jpg', 'private/id-back.jpg', 'private/nbi.pdf', 'private/selfie.jpg');
+        if (/SELECT status, nbi_clearance_url/.test(sql)) {
+          return { rows: [{ status: 'pending', nbi_clearance_url: 'private/nbi.pdf',
+            government_id_front_url: 'private/id.jpg', government_id_back_url: 'private/id-back.jpg',
+            selfie_url: 'private/selfie.jpg' }], rowCount: 1 };
+        }
         if (/UPDATE providers/.test(sql)) {
           return { rows: [{ id: 'provider-1', user_id: 'user-1' }], rowCount: 1 };
         }
@@ -50,6 +52,7 @@ it('Bug UX-434 — provider approval requires and transactionally preserves the 
   const reason = 'Identity, qualifications, service scope, and references were verified.';
   const checklistSummary = 'Vetting checklist confirmed (10/10): all required review items passed.';
   await approveProvider('provider-1', 'admin-1', {
+    expectedRevisionId: mockRevisionId,
     reason,
     checklistConfirmed: true,
     checklistSummary,
@@ -60,4 +63,5 @@ it('Bug UX-434 — provider approval requires and transactionally preserves the 
   expect(audit?.params[3]).toBe(reason);
   expect(audit?.params[4]).toContain(reason);
   expect(audit?.params[4]).toContain(checklistSummary);
+  expect(queryMock).not.toHaveBeenCalled();
 });

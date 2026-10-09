@@ -1,0 +1,629 @@
+{
+  "generatedAt": "2026-09-05T21:34:33.564Z",
+  "sourceRevision": "9ec0078185c3e8761c9b405ad46cac4267d1f5e1 + local UX-1341/1342 notification changes",
+  "scope": "Compiled notification inbox, full admission text and destination routes with synthetic local HTTP. Not production, actual SMS/PG, native or full inbox/Stitch acceptance.",
+  "indexSha256": "d138f79580542056aa8d66d58ec273ab57a25494fa1dcf8035a7c9fbd33b354e",
+  "entrySha256": "076634269f7d0a4d1100b0a2d46cf333635f986ced90e410148bc5457b163d7c",
+  "expected": 18,
+  "passed": 18,
+  "records": [
+    {
+      "width": 320,
+      "scenario": "customer-rejected",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/application-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "320-customer-rejected-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/provider-onboarding/review-pending",
+          "screenshot": "320-customer-rejected-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 180,
+        "scrollHeight": 180,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 320,
+      "scenario": "customer-approved",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "320-customer-approved-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/auth/login",
+          "screenshot": "320-customer-approved-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 140,
+        "scrollHeight": 140,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 320,
+      "scenario": "provider-approved",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/provider/notifications",
+          "screenshot": "320-provider-approved-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/dashboard",
+          "screenshot": "320-provider-approved-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 140,
+        "scrollHeight": 140,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 390,
+      "scenario": "customer-rejected",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/application-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "390-customer-rejected-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/provider-onboarding/review-pending",
+          "screenshot": "390-customer-rejected-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 140,
+        "scrollHeight": 140,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 390,
+      "scenario": "customer-approved",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "390-customer-approved-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/auth/login",
+          "screenshot": "390-customer-approved-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 100,
+        "scrollHeight": 100,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 390,
+      "scenario": "provider-approved",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/provider/notifications",
+          "screenshot": "390-provider-approved-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/dashboard",
+          "screenshot": "390-provider-approved-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 100,
+        "scrollHeight": 100,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 768,
+      "scenario": "customer-rejected",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/application-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "768-customer-rejected-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/provider-onboarding/review-pending",
+          "screenshot": "768-customer-rejected-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 60,
+        "scrollHeight": 60,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 768,
+      "scenario": "customer-approved",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "768-customer-approved-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/auth/login",
+          "screenshot": "768-customer-approved-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 40,
+        "scrollHeight": 40,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 768,
+      "scenario": "provider-approved",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/provider/notifications",
+          "screenshot": "768-provider-approved-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/dashboard",
+          "screenshot": "768-provider-approved-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 40,
+        "scrollHeight": 40,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 1024,
+      "scenario": "customer-rejected",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/application-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "1024-customer-rejected-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/provider-onboarding/review-pending",
+          "screenshot": "1024-customer-rejected-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 60,
+        "scrollHeight": 60,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 1024,
+      "scenario": "customer-approved",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "1024-customer-approved-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/auth/login",
+          "screenshot": "1024-customer-approved-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 40,
+        "scrollHeight": 40,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 1024,
+      "scenario": "provider-approved",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/provider/notifications",
+          "screenshot": "1024-provider-approved-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/dashboard",
+          "screenshot": "1024-provider-approved-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 40,
+        "scrollHeight": 40,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 1366,
+      "scenario": "customer-rejected",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/application-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "1366-customer-rejected-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/provider-onboarding/review-pending",
+          "screenshot": "1366-customer-rejected-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 60,
+        "scrollHeight": 60,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 1366,
+      "scenario": "customer-approved",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "1366-customer-approved-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/auth/login",
+          "screenshot": "1366-customer-approved-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 40,
+        "scrollHeight": 40,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 1366,
+      "scenario": "provider-approved",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/provider/notifications",
+          "screenshot": "1366-provider-approved-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/dashboard",
+          "screenshot": "1366-provider-approved-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 40,
+        "scrollHeight": 40,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 1920,
+      "scenario": "customer-rejected",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/application-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "1920-customer-rejected-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/provider-onboarding/review-pending",
+          "screenshot": "1920-customer-rejected-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 60,
+        "scrollHeight": 60,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 1920,
+      "scenario": "customer-approved",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "1920-customer-approved-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/auth/login",
+          "screenshot": "1920-customer-approved-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 40,
+        "scrollHeight": 40,
+        "clamp": "none"
+      }
+    },
+    {
+      "width": 1920,
+      "scenario": "provider-approved",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications",
+        "POST /api/v1/notifications/cccccccc-cccc-4ccc-8ccc-cccccccccccc/read",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/provider/notifications",
+          "screenshot": "1920-provider-approved-inbox.png",
+          "overflow": 0
+        },
+        {
+          "name": "destination",
+          "path": "/dashboard",
+          "screenshot": "1920-provider-approved-destination.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 40,
+        "scrollHeight": 40,
+        "clamp": "none"
+      }
+    }
+  ]
+}

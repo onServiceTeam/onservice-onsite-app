@@ -23,6 +23,10 @@ the API only. It requires the `DEPLOY_HOST`, `DEPLOY_USER`, and
 `DEPLOY_SSH_KEY` repository secrets before it can be used. Those secrets are
 not currently stored in the repository settings.
 
+The API workflow now uses exact image/source verification rather than health
+alone. Read `docs/runbooks/exact-api-release.md` for prerequisites and the
+OPS-476 verification limits. It is still API-only, not a coordinated web release.
+
 Frontend artifacts are gitignored and must be built, transferred, and
 extracted separately. Until the production workflow is configured and tested,
 use the controlled SSH procedure below. Never commit an SSH private key, server
@@ -104,7 +108,10 @@ tar czf /tmp/onservice-admin-<sha>.tar.gz -C apps/admin/dist .
    external, data-bearing volume used by the API and nginx. If it is missing on
    an existing server, stop and investigate as possible data loss; do not run
    the first-install helper to create an empty replacement.
-5. Fetch `origin/master`, then fast-forward only to the already-green release
+5. Record the previous checkout, API image and web artifact identities privately.
+   Take and verify the complete backup set **before changing the checkout**,
+   retain the old image/assets, and confirm the isolated restore and rollback
+   rehearsal. Fetch `origin/master`, then fast-forward only to the already-green release
    SHA. If the server's private-repository deploy key is unavailable, create a
    uniquely named incremental `git bundle` from the verified local clone,
    transfer it to `/tmp`, run `git bundle verify` on the server, fetch its
@@ -112,25 +119,42 @@ tar czf /tmp/onservice-admin-<sha>.tar.gz -C apps/admin/dist .
    `--ff-only`. This preserves the canonical remote and avoids putting a GitHub
    token on the server. Never force-push or merge an unverified server-side
    commit.
-6. Transfer the two uniquely named frontend archives to `/tmp`.
-7. Extract each archive **in place** into the existing
-   `apps/mobile/dist-web` and `apps/admin/dist` directories. Do not rename or
-   replace either directory because nginx bind-mounts their directory inodes.
-   Old hashed assets may remain until a later controlled cleanup; the new
-   `index.html` references only the current hashes.
-8. Build and recreate only the API service:
+6. Transfer the two uniquely named frontend archives and their verified
+   revision/checksum manifest to a private, release-specific staging directory.
+   Check archive paths and extract there first, not over the live entry files.
+   Verify that both artifacts and the API were built from the same release SHA.
+7. Load the reviewed SHA-tagged API image, or build and label it from the exact
+   clean checkout. Building the image does **not** activate it:
 
    ```bash
    cd /opt/onservice
-   docker compose -f docker-compose.prod.yml build api
-   docker compose -f docker-compose.prod.yml up -d --no-deps api
+   release_sha="$(git rev-parse HEAD)"
+   docker build -f packages/api/Dockerfile \
+     --label "org.opencontainers.image.revision=$release_sha" \
+     -t "onservice-api:$release_sha" .
    ```
 
-9. Do not run migrations unless the release contains a reviewed migration and
-   the release plan explicitly authorizes it. Take the full server backup, set
-   `MIGRATION_TARGET` to the exact migration basename, and use the production
-   helper described below. Migrations bypass PgBouncer and use
-   `DATABASE_DIRECT_URL`.
+8. Do not run migrations unless the release contains reviewed migrations and
+   the release plan explicitly includes them. With the backup and isolated
+   exact-runner rehearsal verified, set `MIGRATION_TARGET` to the exact reviewed
+   final basename and `ONSERVICE_RELEASE_SHA` to that same SHA. Run the helper
+   below **before** starting an API that requires the new schema. Migrations
+   bypass PgBouncer and use `DATABASE_DIRECT_URL`. Confirm the old API can safely
+   run throughout; otherwise use the separately reviewed coordinated cutover.
+9. After schema compatibility is confirmed, activate only the exact API image:
+
+   ```bash
+   sudo -n env ONSERVICE_RELEASE_SHA="$release_sha" \
+     bash scripts/server/activate-api-release.sh
+   ```
+
+   Publish validated hashed web assets into the existing `apps/mobile/dist-web`
+   and `apps/admin/dist` directories first, preserving old assets for open browser
+   sessions. Install each new `index.html` last using a temporary file and atomic
+   file rename **inside the existing directory**. Never replace either mounted
+   directory inode. API-first entry publication is only suitable when the old
+   web clients remain compatible; otherwise the release needs an explicit
+   coordinated cutover plan. This guide is not an implemented atomic publisher.
 10. Do not recreate nginx for an ordinary frontend or API release. In-place
    extraction makes the new static files visible without replacing the shared
    proxy.
@@ -192,15 +216,17 @@ helper:
 
 ```bash
 sudo -n bash scripts/server/backup-db.sh
-sudo -n env MIGRATION_TARGET=148_provider_portfolio_consent \
+sudo -n env ONSERVICE_RELEASE_SHA="$release_sha" \
+  MIGRATION_TARGET=<exact-reviewed-final-migration-basename> \
   MIGRATIONS_DRY_RUN_ONLY=1 bash scripts/server/run-production-migrations.sh
 ```
 
-Read the dry-run output and confirm it lists only the intended migration. Then
-apply it and verify both the new ledger row and expected schema object:
+Read the dry-run output and confirm the **entire pending batch** through that
+target is intended. Then apply it and verify all expected ledger/schema changes:
 
 ```bash
-sudo -n env MIGRATION_TARGET=148_provider_portfolio_consent \
+sudo -n env ONSERVICE_RELEASE_SHA="$release_sha" \
+  MIGRATION_TARGET=<same-exact-reviewed-final-migration-basename> \
   bash scripts/server/run-production-migrations.sh
 ```
 
@@ -215,7 +241,8 @@ For an application-code regression with no migration:
 2. Wait for all GitHub CI checks on the revert to pass.
 3. Build the frontend artifacts from the revert commit and deploy them in
    place using the same procedure.
-4. Fast-forward the server checkout and rebuild/recreate only the API service.
+4. Fast-forward the server checkout and build/verify/activate only the API using
+   the exact-image procedure above, with the new revert revision and its label.
 5. Repeat every post-deploy verification, including checks of the neighboring
    apps.
 

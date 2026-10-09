@@ -421,57 +421,85 @@ export async function verifyOtp(
     }
   }
 
-  let isNewUser = false;
-  let userResult = await db.query<UserRow>(
-    `SELECT * FROM users WHERE phone = $1`,
-    [phone],
-  );
-
-  if (userResult.rows.length === 0) {
-    isNewUser = true;
-    userResult = await db.query<UserRow>(
-      `INSERT INTO users (phone, first_name, last_name, is_verified)
-       VALUES ($1, '', '', TRUE)
-       RETURNING *`,
+  // OPS-524/525: preserve the already committed OTP consumption above, then
+  // lock account -> persist session as one separate transaction. A refused or
+  // failed issuance cannot leave a new account or successful-login metadata,
+  // and a waiting issuer must inspect the account writer's committed state.
+  const signedIn = await db.transaction(async (client) => {
+    let isNewUser = false;
+    let userResult = await client.query<UserRow>(
+      `SELECT * FROM users WHERE phone = $1 FOR NO KEY UPDATE`,
       [phone],
     );
-  } else {
-    await db.query(
-      `UPDATE users SET is_verified = TRUE, last_login_at = NOW(), updated_at = NOW()
-       WHERE id = $1`,
-      [userResult.rows[0]!.id],
+
+    // SEC-075: phone possession is sufficient only for marketplace accounts.
+    // Privileged users must pass the separate password + 2FA/enrollment flow;
+    // neither a real SMS code nor an allowlisted development code substitutes.
+    // Check after OTP verification to avoid disclosing roles to an invalid code,
+    // but before account metadata changes or any session credential is minted.
+    const existingUser = userResult.rows[0];
+    if (existingUser && !['customer', 'provider', 'provider_staff'].includes(existingUser.role)) {
+      const denied = createAppError(
+        'Phone-code sign-in is unavailable for this account. Use the administrator sign-in or contact support.',
+        403,
+      );
+      denied.code = 'phone_sign_in_not_allowed';
+      throw denied;
+    }
+
+    // OPS-523: a refused sign-in must not mark a deactivated account verified
+    // or overwrite its last successful login. The valid OTP stays consumed.
+    if (existingUser && !existingUser.is_active) {
+      throw createAppError('Your account has been deactivated. Contact support.', 403);
+    }
+
+    if (userResult.rows.length === 0) {
+      isNewUser = true;
+      userResult = await client.query<UserRow>(
+        `INSERT INTO users (phone, first_name, last_name, is_verified)
+         VALUES ($1, '', '', TRUE)
+         RETURNING *`,
+        [phone],
+      );
+    } else {
+      await client.query(
+        `UPDATE users SET is_verified = TRUE, last_login_at = NOW(), updated_at = NOW()
+         WHERE id = $1`,
+        [userResult.rows[0]!.id],
+      );
+    }
+
+    const user = userResult.rows[0]!;
+
+    if (!user.is_active) {
+      throw createAppError('Your account has been deactivated. Contact support.', 403);
+    }
+
+    const sessionVersion = Number(user.session_version ?? 1);
+    const accessToken = signAccessToken(user.id, user.role, sessionVersion);
+    const refreshToken = signRefreshToken(user.id, user.role, sessionVersion);
+
+    const tokenHash = hashToken(refreshToken);
+    const refreshDuration = refreshDurationForRole(user.role);
+    const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
+
+    await client.query(
+      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, device_fingerprint, created_ip)
+       VALUES ($1, $2, $3, $4, $5::inet)`,
+      [
+        user.id,
+        tokenHash,
+        refreshExpiresAt,
+        context.deviceFingerprint ?? null,
+        context.ipAddress ?? null,
+      ],
     );
-  }
 
-  const user = userResult.rows[0]!;
+    return { accessToken, refreshToken, user, isNewUser };
+  });
 
-  if (!user.is_active) {
-    throw createAppError('Your account has been deactivated. Contact support.', 403);
-  }
-
-  const sessionVersion = Number(user.session_version ?? 1);
-  const accessToken = signAccessToken(user.id, user.role, sessionVersion);
-  const refreshToken = signRefreshToken(user.id, user.role, sessionVersion);
-
-  const tokenHash = hashToken(refreshToken);
-  const refreshDuration = refreshDurationForRole(user.role);
-  const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
-
-  await db.query(
-    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, device_fingerprint, created_ip)
-     VALUES ($1, $2, $3, $4, $5::inet)`,
-    [
-      user.id,
-      tokenHash,
-      refreshExpiresAt,
-      context.deviceFingerprint ?? null,
-      context.ipAddress ?? null,
-    ],
-  );
-
-  logger.info('User authenticated', { userId: user.id, isNewUser });
-
-  return { accessToken, refreshToken, user, isNewUser };
+  logger.info('User authenticated', { userId: signedIn.user.id, isNewUser: signedIn.isNewUser });
+  return signedIn;
 }
 
 export async function refreshAccessToken(
@@ -522,6 +550,18 @@ export async function refreshAccessToken(
   const tokenHash = hashToken(refreshToken);
 
   return await db.transaction(async (client) => {
+    // OPS-521: account -> refresh token, matching account revocation and
+    // partial anonymization. A token-first reader can retain the old token
+    // while its replacement's FK waits on an account writer that needs it.
+    // NO KEY UPDATE still permits the separate security-event FK insert below.
+    const owner = await client.query<{ id: string }>(
+      'SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE',
+      [payload.userId],
+    );
+    if (!owner.rows[0]) {
+      throw createAppError('User account not found or deactivated.', 401);
+    }
+
     const tokenResult = await client.query<RefreshTokenRow>(
       `SELECT * FROM refresh_tokens
        WHERE token_hash = $1 AND expires_at > NOW()
@@ -643,20 +683,61 @@ export async function createTokenPair(
   if (!Number.isSafeInteger(sessionVersion) || sessionVersion < 1) {
     throw new Error('Invalid session version');
   }
-  const accessToken = signAccessToken(userId, role, sessionVersion);
-  const refreshToken = signRefreshToken(userId, role, sessionVersion);
+  return db.transaction(client => createTokenPairInTransaction(client, userId, role, sessionVersion));
+}
 
-  const tokenHash = hashToken(refreshToken);
-  const refreshDuration = refreshDurationForRole(role);
-  const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
+type CredentialTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export interface CredentialContext { deviceFingerprint?: string; ipAddress?: string }
 
-  await db.query(
-    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3)`,
-    [userId, tokenHash, refreshExpiresAt],
-  );
+/** Internal issuer for a caller that verifies/consumes its own factor inside
+ * the SAME transaction. This is not a verifier, public endpoint or permission
+ * to promote an account. Return credentials only after the caller commits.
+ * Account-first ordering and canonical authority checks match the standalone
+ * issuer. Never nest createTokenPair's separate transaction under this lock.
+ */
+export async function createTokenPairInTransaction(
+  client: CredentialTransaction, userId: string, role: string, sessionVersion: number,
+  context?: CredentialContext,
+): Promise<{ accessToken: string; refreshToken: string }> {
+    if (!Number.isSafeInteger(sessionVersion) || sessionVersion < 1) {
+      throw new Error('Invalid session version');
+    }
+    // OPS-526: retain the caller's authenticated authority, never upgrade it
+    // to a newer role/generation. Account -> session locking matches refresh
+    // and account-first revocation, including while a competing writer waits.
+    const result = await client.query<Pick<UserRow, 'role' | 'is_active' | 'session_version'>>(
+      `SELECT role, is_active, session_version FROM users WHERE id = $1 FOR NO KEY UPDATE`,
+      [userId],
+    );
+    const account = result.rows[0];
+    const currentVersion = Number(account?.session_version);
+    if (!account?.is_active || account.role !== role
+        || !Number.isSafeInteger(currentVersion) || currentVersion < 1
+        || currentVersion !== sessionVersion) {
+      throw createAppError('This authentication session has been revoked. Please login again.', 401);
+    }
 
-  return { accessToken, refreshToken };
+    const accessToken = signAccessToken(userId, role, sessionVersion);
+    const refreshToken = signRefreshToken(userId, role, sessionVersion);
+    const tokenHash = hashToken(refreshToken);
+    const refreshDuration = refreshDurationForRole(role);
+    const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
+
+    if (context) {
+      const inserted = await client.query(
+        `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, device_fingerprint, created_ip)
+         VALUES ($1, $2, $3, $4, $5::inet)`,
+        [userId, tokenHash, refreshExpiresAt, context.deviceFingerprint ?? null, context.ipAddress ?? null],
+      );
+      if (inserted.rowCount !== 1) throw createAppError('Unable to persist authentication session.', 500);
+    } else {
+      await client.query(
+        `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+         VALUES ($1, $2, $3)`,
+        [userId, tokenHash, refreshExpiresAt],
+      );
+    }
+    return { accessToken, refreshToken };
 }
 
 export async function logout(userId: string, refreshToken?: string): Promise<void> {

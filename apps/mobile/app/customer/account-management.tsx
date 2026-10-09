@@ -24,6 +24,7 @@ import { showToast } from '@/lib/toast';
 // Phase 14 R5-complete — wire ConfirmModal into delete-account destructive flow.
 import ConfirmModal from '@/components/ConfirmModal';
 import { useResponsive } from '@/hooks/useResponsive';
+import { getDataExportStatusText } from '@/utils/data-export-status';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-PH', {
@@ -232,7 +233,7 @@ export default function AccountManagementScreen(): React.ReactElement {
                 const isDownloadable = exp.status === 'completed' && exp.downloadAvailable;
                 return (
                   <View key={exp.id} style={styles.exportRow}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+                    <View style={styles.exportDetails}>
                       <StatusIcon size={14} color={statusColor} />
                       <Text style={styles.exportStatus}> {exp.format.toUpperCase()}</Text>
                       {isDownloadable && (
@@ -256,15 +257,8 @@ export default function AccountManagementScreen(): React.ReactElement {
                           {`Expires ${formatDate(exp.expiresAt)}`}
                         </Text>
                       )}
-                      {/* BUG-PHASE96-01 — explicit "Expired" hint so
-                           the user knows the file is gone forever and
-                           a new export is needed. */}
-                      {exp.status === 'expired' && (
-                        <Text style={styles.exportExpires} numberOfLines={1}>
-                          Expired — request again
-                        </Text>
-                      )}
                     </View>
+                    <Text style={styles.exportStateText}>{getDataExportStatusText(exp)}</Text>
                     <Text style={styles.exportDate}>{formatDate(exp.createdAt)}</Text>
                   </View>
                 );
@@ -483,9 +477,11 @@ const styles = StyleSheet.create({
   exportHistory: { marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.divider },
   exportHistoryTitle: { ...typography.caption, fontWeight: '600', color: colors.textTertiary, marginBottom: spacing.xs },
   exportRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: spacing.xs,
+    alignItems: 'stretch', gap: spacing.xs,
+    paddingVertical: spacing.sm,
   },
+  exportDetails: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
+  exportStateText: { ...typography.bodySmall, color: colors.textSecondary },
   exportStatus: { ...typography.bodySmall, color: colors.text },
   exportDate: { ...typography.caption, color: colors.textTertiary },
   exportDownloadLink: {

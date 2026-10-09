@@ -18,14 +18,20 @@ jest.mock('../src/models/db', () => ({
 
 const getPlatformWalletMock = jest.fn();
 const getUserWalletMock = jest.fn();
+const getUserWalletInTransactionMock = jest.fn();
 const holdEscrowMock = jest.fn();
 
 jest.mock('../src/services/wallet.service', () => ({
   getPlatformWallet: (...a: unknown[]) => getPlatformWalletMock(...a),
   getUserWallet: (...a: unknown[]) => getUserWalletMock(...a),
+  getUserWalletInTransaction: (...a: unknown[]) => getUserWalletInTransactionMock(...a),
   holdEscrow: (...a: unknown[]) => holdEscrowMock(...a),
   // A5 — release paths now row-lock wallets up front (no-op in these mocks).
   lockWalletsForUpdate: jest.fn(),
+}));
+
+jest.mock('../src/services/or.service', () => ({
+  issueOR: jest.fn(),
 }));
 
 const processRefundMock = jest.fn();
@@ -51,6 +57,19 @@ jest.mock('../src/services/commission.service', () => ({
     calculateCancellationRefundMock(...a),
 }));
 
+const getLatestTermsInTransactionMock = jest.fn();
+const getLatestFinalTermsInTransactionMock = jest.fn();
+const prorateFinalTermsMock = jest.fn();
+jest.mock('../src/services/booking-financial-terms.service', () => ({
+  getLatestTermsInTransaction: (...a: unknown[]) => getLatestTermsInTransactionMock(...a),
+  getLatestFinalTermsInTransaction: (...a: unknown[]) => getLatestFinalTermsInTransactionMock(...a),
+  prorateFinalTerms: (...a: unknown[]) => prorateFinalTermsMock(...a),
+  calculateCancellationFromTerms: (...a: unknown[]) => calculateCancellationRefundMock(
+    a[0], a[2], a[3], a[4],
+  ),
+  appendAmendedTermsInTransaction: jest.fn(),
+}));
+
 import * as escrowService from '../src/services/escrow.service';
 
 interface QueryCall {
@@ -58,10 +77,45 @@ interface QueryCall {
   params: unknown[];
 }
 
-function captureClientCalls(calls: QueryCall[]): { query: jest.Mock } {
+function captureClientCalls(
+  calls: QueryCall[],
+  options: { escrowGuardRowCount?: number } = {},
+): { query: jest.Mock } {
   return {
     query: jest.fn(async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
+      if (sql.includes('SELECT customer_id, payment_method') && sql.includes('FROM bookings')) {
+        return { rows: [{ customer_id: 'c1', payment_method: 'gcash' }], rowCount: 1 };
+      }
+      if (sql.includes('FROM bookings') && sql.includes('FOR UPDATE')) {
+        return dbQueryMock(sql, params);
+      }
+      if (sql.includes('FROM providers WHERE id = $1')) {
+        return dbQueryMock(sql, params);
+      }
+      if (sql.includes('type = ANY')) {
+        return {
+          rows: [
+            { id: 'wallet-platform_escrow', type: 'platform_escrow' },
+            { id: 'wallet-platform_revenue', type: 'platform_revenue' },
+            { id: 'wallet-guarantee_fund', type: 'guarantee_fund' },
+          ],
+          rowCount: 3,
+        };
+      }
+      if (sql.includes('SELECT pending_balance')) {
+        return { rows: [{ pending_balance: '1000000' }], rowCount: 1 };
+      }
+      if (sql.includes('COALESCE(SUM(amount), 0)')) {
+        return { rows: [{ remaining: '110000' }], rowCount: 1 };
+      }
+      if (sql.includes('SELECT service_fee FROM bookings')) {
+        return { rows: [{ service_fee: '10000' }], rowCount: 1 };
+      }
+      if (sql.includes('UPDATE bookings SET escrow_status')) {
+        const rowCount = options.escrowGuardRowCount ?? 1;
+        return { rows: rowCount ? [{ id: 'b1' }] : [], rowCount };
+      }
       // The escrowGuard UPDATE checks rowCount; default to 1. Include a
       // pending_balance so refundFromEscrow's in-trx FOR UPDATE check (A4)
       // sees a sufficient balance and proceeds.
@@ -75,6 +129,7 @@ beforeEach(() => {
   dbTransactionMock.mockReset();
   getPlatformWalletMock.mockReset();
   getUserWalletMock.mockReset();
+  getUserWalletInTransactionMock.mockReset();
   holdEscrowMock.mockReset();
   processRefundMock.mockReset();
   getCommissionRateMock.mockReset();
@@ -82,6 +137,9 @@ beforeEach(() => {
   getSettingNumberMock.mockReset();
   calculateCommissionMock.mockReset();
   calculateCancellationRefundMock.mockReset();
+  getLatestTermsInTransactionMock.mockReset();
+  getLatestFinalTermsInTransactionMock.mockReset();
+  prorateFinalTermsMock.mockReset();
 
   // Default platform wallets
   getPlatformWalletMock.mockImplementation(async (type: string) => ({
@@ -94,12 +152,67 @@ beforeEach(() => {
     pending_balance: '0',
     available_balance: '0',
   }));
+  getUserWalletInTransactionMock.mockImplementation(async (_client: unknown, uid: string) => ({
+    id: `wallet-user-${uid}`,
+    pending_balance: '0',
+    available_balance: '0',
+    type: 'provider',
+  }));
   getSettingPercentMock.mockImplementation(async (key: string) => {
     if (key === 'guarantee_fund_rate') return 0.015;
     if (key === 'service_fee_rate') return 0.10;
     return 0.0;
   });
   getCommissionRateMock.mockResolvedValue(0.15);
+  const cancellationPolicy = {
+    over24HoursPercent: 100,
+    twoTo24HoursPercent: 95,
+    oneToTwoHoursPercent: 85,
+    thirtyMinutesToOneHourPercent: 75,
+    underThirtyMinutesPercent: 65,
+    providerArrivedPercent: 40,
+    customerNoShowPercent: 0,
+  };
+  getLatestTermsInTransactionMock.mockResolvedValue({
+    id: 'terms-full', bookingId: 'b1', version: 3, termsState: 'final', providerId: 'p1',
+    servicePriceCentavos: 100000, serviceFeeAmountCentavos: 10000,
+    totalAmountCentavos: 110000, commissionRateBasisPoints: 1100,
+    commissionAmountCentavos: 11000, guaranteeFundAmountCentavos: 150,
+    providerReceivesCentavos: 89000, platformRetainsCentavos: 20850,
+    serviceFeeRateBasisPoints: 1000, cancellationPolicy,
+  });
+  getLatestFinalTermsInTransactionMock.mockResolvedValue({
+    id: 'terms-partial', bookingId: 'b1', version: 3, termsState: 'final', providerId: 'p1',
+    servicePriceCentavos: 100000, serviceFeeAmountCentavos: 10000,
+    totalAmountCentavos: 110000, commissionRateBasisPoints: 1500,
+    commissionAmountCentavos: 15000, guaranteeFundAmountCentavos: 150,
+    providerReceivesCentavos: 85000, platformRetainsCentavos: 24850,
+    serviceFeeRateBasisPoints: 1000, cancellationPolicy,
+  });
+  prorateFinalTermsMock.mockImplementation((_terms: unknown, remainingAmount: number) => {
+    if (remainingAmount <= 0 || remainingAmount > 110000) {
+      const error = Object.assign(new Error('Partial release amount is outside the snapshotted booking total.'), {
+        statusCode: 400,
+      });
+      throw error;
+    }
+    return {
+    servicePriceCentavos: Math.round(remainingAmount * 100000 / 110000),
+    serviceFeeAmountCentavos: remainingAmount - Math.round(remainingAmount * 100000 / 110000),
+    commissionAmountCentavos: Math.round(Math.round(remainingAmount * 100000 / 110000) * 0.15),
+    guaranteeFundAmountCentavos: Math.round((remainingAmount - Math.round(remainingAmount * 100000 / 110000)) * 0.015),
+    providerReceivesCentavos: Math.round(remainingAmount * 100000 / 110000)
+      - Math.round(Math.round(remainingAmount * 100000 / 110000) * 0.15),
+    platformRetainsCentavos: remainingAmount
+      - (Math.round(remainingAmount * 100000 / 110000)
+        - Math.round(Math.round(remainingAmount * 100000 / 110000) * 0.15))
+      - Math.round((remainingAmount - Math.round(remainingAmount * 100000 / 110000)) * 0.015),
+    totalAmountCentavos: remainingAmount,
+    };
+  });
+  dbTransactionMock.mockImplementation(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => (
+    cb(captureClientCalls([]))
+  ));
 });
 
 // -----------------------------------------------------------------------
@@ -114,6 +227,7 @@ describe('releaseEscrow', () => {
     service_fee: '10000',
     total_amount: '110000',
     status: 'confirmed',
+    escrow_status: 'held',
     scheduled_at: new Date(),
   };
 
@@ -138,7 +252,7 @@ describe('releaseEscrow', () => {
       dbQueryMock.mockResolvedValueOnce({ rows: [{ user_id: 'u1', tier: 'new' }] });
       const calls: QueryCall[] = [];
       dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-        await cb(captureClientCalls(calls));
+        return cb(captureClientCalls(calls));
       });
       await escrowService.releaseEscrow('b1');
     },
@@ -152,13 +266,13 @@ describe('releaseEscrow', () => {
       .rejects.toMatchObject({ statusCode: 409 });
   });
 
-  it('throws 400 when service_price <= 0', async () => {
+  it('blocks release when the booking service price differs from immutable terms', async () => {
     dbQueryMock.mockResolvedValueOnce({
       rows: [{ ...happyBooking, service_price: '0' }],
     });
     dbQueryMock.mockResolvedValueOnce({ rows: [{ user_id: 'u1', tier: 'new' }] });
     await expect(escrowService.releaseEscrow('b1'))
-      .rejects.toMatchObject({ statusCode: 400 });
+      .rejects.toMatchObject({ statusCode: 409 });
   });
 
   it('throws 404 when provider row not found', async () => {
@@ -168,7 +282,7 @@ describe('releaseEscrow', () => {
       .rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it('throws 500 when money conservation violation > 2 cents', async () => {
+  it('blocks release when the booking total differs from immutable terms', async () => {
     // Force totals not to match: servicePrice 100000 + serviceFee 10000 = 110000
     // commission = 100000 * 0.15 = 15000, providerReceives = 85000
     // guaranteeFundContribution = 10000 * 0.015 = 150
@@ -179,29 +293,23 @@ describe('releaseEscrow', () => {
     });
     dbQueryMock.mockResolvedValueOnce({ rows: [{ user_id: 'u1', tier: 'new' }] });
     await expect(escrowService.releaseEscrow('b1'))
-      .rejects.toMatchObject({ statusCode: 500 });
+      .rejects.toMatchObject({ statusCode: 409 });
   });
 
-  it('logs but proceeds when conservation diff <= 2 cents', async () => {
+  it('does not tolerate even a two-centavo booking-to-snapshot mismatch', async () => {
     dbQueryMock.mockResolvedValueOnce({
       rows: [{ ...happyBooking, total_amount: '110002' }],
     });
     dbQueryMock.mockResolvedValueOnce({ rows: [{ user_id: 'u1', tier: 'new' }] });
-    const calls: QueryCall[] = [];
-    dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb(captureClientCalls(calls));
-    });
-    const out = await escrowService.releaseEscrow('b1');
-    expect(out.servicePrice).toBe(100000);
+    await expect(escrowService.releaseEscrow('b1'))
+      .rejects.toMatchObject({ statusCode: 409 });
   });
 
   it('throws 409 when escrow guard rowCount is 0 (already released)', async () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [happyBooking] });
     dbQueryMock.mockResolvedValueOnce({ rows: [{ user_id: 'u1', tier: 'new' }] });
     dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb({
-        query: jest.fn(async () => ({ rows: [], rowCount: 0 })),
-      });
+      return cb(captureClientCalls([], { escrowGuardRowCount: 0 }));
     });
     await expect(escrowService.releaseEscrow('b1'))
       .rejects.toMatchObject({ statusCode: 409 });
@@ -211,52 +319,51 @@ describe('releaseEscrow', () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [{
       id: 'b1', customer_id: 'c1', provider_id: 'p1',
       service_price: '100000', service_fee: '10000', total_amount: '110000',
-      status: 'confirmed', scheduled_at: new Date(),
+      status: 'confirmed', escrow_status: 'held', scheduled_at: new Date(),
     }] });
     dbQueryMock.mockResolvedValueOnce({ rows: [{ user_id: 'u1', tier: 'pro' }] });
     getCommissionRateMock.mockResolvedValueOnce(0.11);
     const calls: QueryCall[] = [];
     dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb(captureClientCalls(calls));
+      return cb(captureClientCalls(calls));
     });
     await escrowService.releaseEscrow('b1');
 
-    // Initial booking SELECT
-    expect(dbQueryMock.mock.calls[0]![0]).toContain('FROM bookings b WHERE b.id = $1');
-    expect(dbQueryMock.mock.calls[0]![1]).toEqual(['b1']);
-    // Provider SELECT
-    expect(dbQueryMock.mock.calls[1]![0]).toContain('FROM providers WHERE id = $1');
-    expect(dbQueryMock.mock.calls[1]![1]).toEqual(['p1']);
+    const bookingSelect = calls.find((call) => call.sql.includes('FROM bookings b'))!;
+    expect(bookingSelect.params).toEqual(['b1']);
+    const providerSelect = calls.find((call) => call.sql.includes('FROM providers WHERE id = $1'))!;
+    expect(providerSelect.params).toEqual(['p1']);
 
-    // Inside transaction:
-    // [0] escrowGuard: UPDATE bookings escrow_status=released WHERE escrow_status='held'
-    expect(calls[0]!.sql).toContain("escrow_status = 'released'");
-    expect(calls[0]!.sql).toContain("escrow_status = 'held'");
-    expect(calls[0]!.sql).toContain('RETURNING id');
-    expect(calls[0]!.params).toEqual(['b1']);
+    const escrowGuard = calls.find((call) => call.sql.includes('UPDATE bookings SET escrow_status'))!;
+    expect(escrowGuard.sql).toContain("escrow_status = 'released'");
+    expect(escrowGuard.params).toEqual(['b1', 'held']);
+
+    const moneyCalls = calls.filter((call) => (
+      call.sql.includes('UPDATE wallets SET') || call.sql.includes('INSERT INTO wallet_transactions')
+    ));
 
     // [1] escrow wallet UPDATE pending_balance -= total
-    expect(calls[1]!.sql).toContain('pending_balance = pending_balance - $1');
+    expect(moneyCalls[0]!.sql).toContain('pending_balance = pending_balance - $1');
     // [2] escrow tx INSERT type=escrow_release
-    expect(calls[2]!.sql).toContain("'escrow_release'");
-    expect(calls[2]!.sql).toContain('Escrow release for booking');
+    expect(moneyCalls[1]!.sql).toContain("'escrow_release'");
+    expect(moneyCalls[1]!.sql).toContain('Escrow release for booking');
 
     // [3] provider wallet UPDATE available_balance += providerReceives
-    expect(calls[3]!.sql).toContain('available_balance = available_balance + $1');
+    expect(moneyCalls[2]!.sql).toContain('available_balance = available_balance + $1');
     // [4] provider tx INSERT — description includes commission rate %
-    expect(calls[4]!.params[3]).toBe('Payment for booking (11% commission deducted)');
+    expect(moneyCalls[3]!.params[3]).toBe('Payment using financial terms v3 (11% commission)');
 
     // [5] revenue wallet UPDATE
-    expect(calls[5]!.sql).toContain('available_balance = available_balance + $1');
+    expect(moneyCalls[4]!.sql).toContain('available_balance = available_balance + $1');
     // [6] commission tx INSERT type=commission
-    expect(calls[6]!.sql).toContain("'commission'");
-    expect(calls[6]!.sql).toContain('Commission + service fee from booking');
+    expect(moneyCalls[5]!.sql).toContain("'commission'");
+    expect(moneyCalls[5]!.params[3]).toBe('Commission and service fee using financial terms v3');
 
     // [7] guarantee wallet UPDATE
-    expect(calls[7]!.sql).toContain('available_balance = available_balance + $1');
+    expect(moneyCalls[6]!.sql).toContain('available_balance = available_balance + $1');
     // [8] guarantee tx INSERT type=guarantee_contribution
-    expect(calls[8]!.sql).toContain("'guarantee_contribution'");
-    expect(calls[8]!.sql).toContain('Guarantee fund contribution');
+    expect(moneyCalls[7]!.sql).toContain("'guarantee_contribution'");
+    expect(moneyCalls[7]!.params[3]).toBe('Guarantee allocation using financial terms v3');
   });
 
   it('happy path: writes 4 wallet UPDATE+INSERT pairs with correct amounts', async () => {
@@ -265,7 +372,7 @@ describe('releaseEscrow', () => {
     getCommissionRateMock.mockResolvedValueOnce(0.11); // pro tier
     const calls: QueryCall[] = [];
     dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb(captureClientCalls(calls));
+      return cb(captureClientCalls(calls));
     });
     const breakdown = await escrowService.releaseEscrow('b1');
 
@@ -280,23 +387,25 @@ describe('releaseEscrow', () => {
     expect(breakdown.serviceFeeAmount).toBe(10000);
     expect(breakdown.commissionRate).toBe(0.11);
 
-    // 1 escrowGuard + 4×(UPDATE+INSERT) = 9 calls inside transaction
-    expect(calls.length).toBe(9);
+    const moneyCalls = calls.filter((call) => (
+      call.sql.includes('UPDATE wallets SET') || call.sql.includes('INSERT INTO wallet_transactions')
+    ));
+    expect(moneyCalls.length).toBe(8);
 
     // Escrow pending decreases by totalAmount=110000
-    expect(calls[1]!.params).toEqual([110000, 'wallet-platform_escrow']);
+    expect(moneyCalls[0]!.params).toEqual([110000, 'wallet-platform_escrow']);
     // Escrow tx amount = -110000
-    expect(calls[2]!.params[2]).toBe(-110000);
+    expect(moneyCalls[1]!.params[2]).toBe(-110000);
     // Provider available += 89000
-    expect(calls[3]!.params).toEqual([89000, 'wallet-user-u1']);
+    expect(moneyCalls[2]!.params).toEqual([89000, 'wallet-user-u1']);
     // Provider tx amount = +89000
-    expect(calls[4]!.params[2]).toBe(89000);
+    expect(moneyCalls[3]!.params[2]).toBe(89000);
     // Revenue available += 20850
-    expect(calls[5]!.params).toEqual([20850, 'wallet-platform_revenue']);
-    expect(calls[6]!.params[2]).toBe(20850);
+    expect(moneyCalls[4]!.params).toEqual([20850, 'wallet-platform_revenue']);
+    expect(moneyCalls[5]!.params[2]).toBe(20850);
     // Guarantee available += 150
-    expect(calls[7]!.params).toEqual([150, 'wallet-guarantee_fund']);
-    expect(calls[8]!.params[2]).toBe(150);
+    expect(moneyCalls[6]!.params).toEqual([150, 'wallet-guarantee_fund']);
+    expect(moneyCalls[7]!.params[2]).toBe(150);
   });
 });
 
@@ -359,7 +468,7 @@ describe('releasePartialEscrow', () => {
       guaranteeFundContribution: 75, providerReceives: 42500, platformRetains: 12500,
     });
     dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb({ query: jest.fn(async () => ({ rows: [], rowCount: 0 })) });
+      return cb(captureClientCalls([], { escrowGuardRowCount: 0 }));
     });
     await expect(escrowService.releasePartialEscrow('b1', 50000))
       .rejects.toMatchObject({ statusCode: 409 });
@@ -375,23 +484,25 @@ describe('releasePartialEscrow', () => {
     });
     const calls: QueryCall[] = [];
     dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb(captureClientCalls(calls));
+      return cb(captureClientCalls(calls));
     });
     const breakdown = await escrowService.releasePartialEscrow('b1', 55000);
 
     expect(breakdown.providerReceives).toBe(42500);
-    expect(calculateCommissionMock).toHaveBeenCalledWith(50000, 'new');
     // retentionFactor = 55000/110000 = 0.5; proportionalServicePrice = round(100000 * 0.5) = 50000
     // platformAmount = 55000 - 42500 - 75 = 12425
-    expect(calls.length).toBe(9);
-    expect(calls[1]!.params).toEqual([55000, 'wallet-platform_escrow']);
-    expect(calls[2]!.params[2]).toBe(-55000);
-    expect(calls[3]!.params).toEqual([42500, 'wallet-user-u1']);
-    expect(calls[4]!.params[2]).toBe(42500);
-    expect(calls[5]!.params).toEqual([12425, 'wallet-platform_revenue']);
-    expect(calls[6]!.params[2]).toBe(12425);
-    expect(calls[7]!.params).toEqual([75, 'wallet-guarantee_fund']);
-    expect(calls[8]!.params[2]).toBe(75);
+    const moneyCalls = calls.filter((call) => (
+      call.sql.includes('UPDATE wallets SET') || call.sql.includes('INSERT INTO wallet_transactions')
+    ));
+    expect(moneyCalls.length).toBe(8);
+    expect(moneyCalls[0]!.params).toEqual([55000, 'wallet-platform_escrow']);
+    expect(moneyCalls[1]!.params[2]).toBe(-55000);
+    expect(moneyCalls[2]!.params).toEqual([42500, 'wallet-user-u1']);
+    expect(moneyCalls[3]!.params[2]).toBe(42500);
+    expect(moneyCalls[4]!.params).toEqual([12425, 'wallet-platform_revenue']);
+    expect(moneyCalls[5]!.params[2]).toBe(12425);
+    expect(moneyCalls[6]!.params).toEqual([75, 'wallet-guarantee_fund']);
+    expect(moneyCalls[7]!.params[2]).toBe(75);
   });
   it('happy path: SQL content + description strings (kills SQL/desc mutants)', async () => {
     dbQueryMock.mockResolvedValueOnce({ rows: [{
@@ -407,27 +518,28 @@ describe('releasePartialEscrow', () => {
     });
     const calls: QueryCall[] = [];
     dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb(captureClientCalls(calls));
+      return cb(captureClientCalls(calls));
     });
     await escrowService.releasePartialEscrow('b1', 55000);
 
     // escrowGuard: UPDATE bookings ... WHERE escrow_status='partially_refunded'
-    expect(calls[0]!.sql).toContain("escrow_status = 'partially_refunded'");
-    expect(calls[0]!.sql).toContain("escrow_status = 'released'");
-
-    expect(calls[1]!.sql).toContain('pending_balance = pending_balance - $1');
-    expect(calls[2]!.sql).toContain("'escrow_release'");
-    expect(calls[2]!.sql).toContain('Partial escrow release');
+    const escrowGuard = calls.find((call) => call.sql.includes('UPDATE bookings SET escrow_status'))!;
+    expect(escrowGuard.params).toEqual(['b1', 'partially_refunded']);
+    const moneyCalls = calls.filter((call) => (
+      call.sql.includes('UPDATE wallets SET') || call.sql.includes('INSERT INTO wallet_transactions')
+    ));
+    expect(moneyCalls[0]!.sql).toContain('pending_balance = pending_balance - $1');
+    expect(moneyCalls[1]!.sql).toContain("'escrow_release'");
 
     // Provider tx description: refund% + commission%
     // retentionFactor = 0.5 → 50% refund; commissionRate=0.15 → 15% commission
-    expect(calls[4]!.params[3]).toBe('Partial payment for booking (after 50% refund, 15% commission deducted)');
+    expect(moneyCalls[3]!.params[3]).toBe('Partial payment after 50% refund using financial terms v3');
 
-    expect(calls[6]!.sql).toContain("'commission'");
-    expect(calls[6]!.sql).toContain('Partial commission + fee from dispute resolution');
+    expect(moneyCalls[5]!.sql).toContain("'commission'");
+    expect(moneyCalls[5]!.params[3]).toBe('Partial commission and fee using financial terms v3');
 
-    expect(calls[8]!.sql).toContain("'guarantee_contribution'");
-    expect(calls[8]!.sql).toContain('Guarantee fund contribution from partial dispute release');
+    expect(moneyCalls[7]!.sql).toContain("'guarantee_contribution'");
+    expect(moneyCalls[7]!.params[3]).toBe('Partial guarantee allocation using financial terms v3');
   });
 });
 // -----------------------------------------------------------------------
@@ -451,14 +563,6 @@ describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via cli
       pending_balance: '1000000',
       available_balance: '0',
     }));
-    // BUG-PHASE78-01 test maintenance — handleCancellation in
-    // escrow.service.ts:470 SELECTs service_fee BEFORE the trx so
-    // post-commit PayMongo refund knows the total. All tests in this
-    // describe block need this mock primed; queue it once per test.
-    dbQueryMock.mockResolvedValueOnce({
-      rows: [{ service_fee: 10000 }],
-      rowCount: 1,
-    });
   });
 
   /**
@@ -487,13 +591,36 @@ describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via cli
         bookingSelectIdx = calls.length - 1;
         return opts.bookingRow ? { rows: [opts.bookingRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
+      if (sql.includes('SELECT customer_id, payment_method') && sql.includes('FROM bookings')) {
+        return opts.bookingRow
+          ? {
+              rows: [{
+                customer_id: String(opts.bookingRow.customer_id),
+                payment_method: 'gcash',
+              }],
+              rowCount: 1,
+            }
+          : { rows: [], rowCount: 0 };
+      }
       if (sql.includes('SELECT user_id, tier FROM providers WHERE id = $1')) {
         providerSelectIdx = calls.length - 1;
         return opts.providerRow ? { rows: [opts.providerRow], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
-      // refundFromEscrowInTransaction: SELECT wallet
-      if (sql.includes('FROM wallets WHERE id = $1') && sql.includes('FOR UPDATE')) {
-        return { rows: [{ id: 'wallet-platform_escrow', pending_balance: '1000000' }], rowCount: 1 };
+      if (sql.includes('type = ANY')) {
+        const requested = params[0] as string[];
+        return {
+          rows: requested.map((type) => ({ id: `wallet-${type}`, type })),
+          rowCount: requested.length,
+        };
+      }
+      if (sql.includes('SELECT pending_balance FROM wallets WHERE id = $1')) {
+        return { rows: [{ pending_balance: '1000000' }], rowCount: 1 };
+      }
+      if (sql.includes('COALESCE(SUM(amount), 0)')) {
+        return { rows: [{ remaining: '110000' }], rowCount: 1 };
+      }
+      if (sql.includes('SELECT service_fee FROM bookings')) {
+        return { rows: [{ service_fee: '10000' }], rowCount: 1 };
       }
       return { rows: [], rowCount: 1 };
     });
@@ -523,7 +650,7 @@ describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via cli
   it('MED-N27 — full-refund path: final UPDATE bookings escrow_status="refunded" runs in trx', async () => {
     const { client, calls } = buildClientForCancellation({ bookingRow: happyBooking, providerRow: null });
     dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
-    calculateCancellationRefundMock.mockResolvedValueOnce({
+    calculateCancellationRefundMock.mockReturnValueOnce({
       customerRefundPercent: 1.0,
       providerCompensationPercent: 0,
       customerRefundAmount: 100000,
@@ -540,7 +667,7 @@ describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via cli
     // What MED-N27 still guarantees: the final UPDATE bookings runs
     // inside the captured trx calls. That's what the assertion below
     // checks. The processRefund post-commit call is expected behavior.
-    const finalUpdate = calls[calls.length - 1]!;
+    const finalUpdate = calls.find((call) => call.sql.includes('UPDATE bookings SET escrow_status'))!;
     expect(finalUpdate.sql).toContain('UPDATE bookings');
     expect(finalUpdate.params).toEqual(['refunded', 'b1']);
   });
@@ -551,16 +678,16 @@ describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via cli
       providerRow: { user_id: 'u1', tier: 'new' },
     });
     dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
-    calculateCancellationRefundMock.mockResolvedValueOnce({
+    calculateCancellationRefundMock.mockReturnValueOnce({
       customerRefundPercent: 0,
       providerCompensationPercent: 1.0,
       customerRefundAmount: 0,
       providerCompensationAmount: 50000,
     });
-    getUserWalletMock.mockResolvedValueOnce({ id: 'wallet-user-u1' });
+    getUserWalletInTransactionMock.mockResolvedValueOnce({ id: 'wallet-user-u1', type: 'provider' });
     await escrowService.handleCancellation('b1', 5, true);
     expect(processRefundMock).not.toHaveBeenCalled();
-    const finalUpdate = calls[calls.length - 1]!;
+    const finalUpdate = calls.find((call) => call.sql.includes('UPDATE bookings SET escrow_status'))!;
     expect(finalUpdate.params).toEqual(['released', 'b1']);
   });
 
@@ -570,15 +697,15 @@ describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via cli
       providerRow: { user_id: 'u1', tier: 'new' },
     });
     dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
-    calculateCancellationRefundMock.mockResolvedValueOnce({
+    calculateCancellationRefundMock.mockReturnValueOnce({
       customerRefundPercent: 0.5,
       providerCompensationPercent: 0.5,
       customerRefundAmount: 50000,
       providerCompensationAmount: 25000,
     });
-    getUserWalletMock.mockResolvedValueOnce({ id: 'wallet-user-u1' });
+    getUserWalletInTransactionMock.mockResolvedValueOnce({ id: 'wallet-user-u1', type: 'provider' });
     await escrowService.handleCancellation('b1', 1.5, false);
-    const finalUpdate = calls[calls.length - 1]!;
+    const finalUpdate = calls.find((call) => call.sql.includes('UPDATE bookings SET escrow_status'))!;
     expect(finalUpdate.params).toEqual(['partially_refunded', 'b1']);
   });
 
@@ -588,22 +715,24 @@ describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via cli
       providerRow: { user_id: 'u1', tier: 'new' },
     });
     dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
-    calculateCancellationRefundMock.mockResolvedValueOnce({
+    calculateCancellationRefundMock.mockReturnValueOnce({
       customerRefundPercent: 0,
       providerCompensationPercent: 1.0,
       customerRefundAmount: 0,
       providerCompensationAmount: 100000,
     });
-    getUserWalletMock.mockResolvedValueOnce({ id: 'wallet-user-u1' });
+    getUserWalletInTransactionMock.mockResolvedValueOnce({ id: 'wallet-user-u1', type: 'provider' });
     await escrowService.handleCancellation('b1', 5, true, true);
     expect(processRefundMock).not.toHaveBeenCalled();
-    expect(getPlatformWalletMock).toHaveBeenCalledWith('platform_revenue');
+    expect(client.query.mock.calls.some(([sql, params]) => (
+      String(sql).includes('type = ANY') && (params?.[0] as string[]).includes('platform_revenue')
+    ))).toBe(true);
   });
 
   it('MED-N27 — skips provider lookup when providerCompensationAmount === 0', async () => {
     const { client, calls } = buildClientForCancellation({ bookingRow: happyBooking });
     dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
-    calculateCancellationRefundMock.mockResolvedValueOnce({
+    calculateCancellationRefundMock.mockReturnValueOnce({
       customerRefundPercent: 1.0,
       providerCompensationPercent: 0,
       customerRefundAmount: 100000,
@@ -614,25 +743,21 @@ describe('handleCancellation (MED-N27 — trx-aware wrapper, all queries via cli
     expect(calls.find((c) => c.sql.includes('FROM providers'))).toBeUndefined();
   });
 
-  it('MED-N27 — skips provider compensation when provider not found', async () => {
+  it('MED-N27 — blocks cancellation compensation when provider record is missing', async () => {
     const { client, calls } = buildClientForCancellation({
       bookingRow: happyBooking,
       providerRow: null,
     });
     dbTransactionMock.mockImplementation(async (cb: (c: typeof client) => Promise<unknown>) => cb(client));
-    calculateCancellationRefundMock.mockResolvedValueOnce({
+    calculateCancellationRefundMock.mockReturnValueOnce({
       customerRefundPercent: 0.5,
       providerCompensationPercent: 0.5,
       customerRefundAmount: 50000,
       providerCompensationAmount: 25000,
     });
-    await escrowService.handleCancellation('b1', 1.5, false);
-    // Provider SELECT was attempted (returned 0), but the wallet
-    // movement INSERTs for provider compensation should not have run.
-    const provComp = calls.find((c) =>
-      c.sql.includes('Cancellation compensation'),
-    );
-    expect(provComp).toBeUndefined();
+    await expect(escrowService.handleCancellation('b1', 1.5, false))
+      .rejects.toMatchObject({ statusCode: 404 });
+    expect(calls.find((c) => c.sql.includes('Cancellation compensation'))).toBeUndefined();
   });
 });
 
@@ -661,9 +786,17 @@ describe('refundFromEscrow', () => {
     // not from the pre-transaction getPlatformWallet read. Drive the in-trx
     // FOR UPDATE select to return an insufficient balance.
     dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb({
+      return cb({
         query: jest.fn(async (sql: string) => {
-          if (/FOR UPDATE/.test(sql)) return { rows: [{ pending_balance: '100' }], rowCount: 1 };
+          if (sql.includes('SELECT customer_id, payment_method')) {
+            return { rows: [{ customer_id: 'c1', payment_method: 'gcash' }], rowCount: 1 };
+          }
+          if (sql.includes('type = ANY')) {
+            return { rows: [{ id: 'wallet-platform_escrow', type: 'platform_escrow' }], rowCount: 1 };
+          }
+          if (sql.includes('SELECT pending_balance')) {
+            return { rows: [{ pending_balance: '100' }], rowCount: 1 };
+          }
           return { rows: [], rowCount: 1 };
         }),
       });
@@ -677,14 +810,16 @@ describe('refundFromEscrow', () => {
   it('A4 — happy path: locks+checks the row, writes wallet update + tx, calls processRefund', async () => {
     const calls: QueryCall[] = [];
     dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      await cb(captureClientCalls(calls));
+      return cb(captureClientCalls(calls));
     });
     await escrowService.refundFromEscrow('b1', 50000, 'cancellation');
-    // [0] SELECT pending_balance ... FOR UPDATE  [1] UPDATE pending_balance  [2] INSERT tx
-    expect(calls.length).toBe(3);
-    expect(calls[0]!.sql).toMatch(/FOR UPDATE/);
-    expect(calls[1]!.params).toEqual([50000, 'wallet-platform_escrow']);
-    expect(calls[2]!.params[2]).toBe(-50000);
+    expect(calls.find((call) => call.sql.includes('SELECT customer_id, payment_method'))).toBeDefined();
+    expect(calls.find((call) => call.sql.includes('COALESCE(SUM(amount), 0)'))?.params)
+      .toEqual(['wallet-platform_escrow', 'b1']);
+    const debit = calls.find((call) => call.sql.includes('pending_balance = pending_balance - $1'))!;
+    const ledger = calls.find((call) => call.sql.includes("VALUES ($1, $2, 'refund'"))!;
+    expect(debit.params).toEqual([50000, 'wallet-platform_escrow']);
+    expect(ledger.params[2]).toBe(-50000);
     expect(processRefundMock).toHaveBeenCalledWith('b1', 50000, 'cancellation');
   });
 });

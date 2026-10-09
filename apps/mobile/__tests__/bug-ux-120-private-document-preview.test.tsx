@@ -9,6 +9,7 @@ jest.mock('expo-image-picker', () => ({
 jest.mock('@/hooks/useResponsive', () => ({ useResponsive: () => ({ isPhone: false }) }));
 jest.mock('@/stores/onboarding.store', () => ({
   useOnboardingStore: () => ({
+    ...jest.requireActual('@/stores/onboarding.store').useOnboardingStore.getInitialState(),
     governmentIdFrontUri: 'https://private.example/onboarding/user/front.jpg',
     governmentIdBackUri: 'https://private.example/onboarding/user/back.jpg',
     nbiClearanceUri: 'https://private.example/onboarding/user/nbi.jpg',

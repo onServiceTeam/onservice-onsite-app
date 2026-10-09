@@ -1,6 +1,6 @@
 # Admin visual baseline tests
 
-Per Phase 14 Part 4 §"Gate D — Visual screenshots". Each catalogued admin page (Part 2A — 28 pages) gets a Playwright test here that captures all 4 required states (loading, empty, error, success) at the documented viewport widths and matches a baseline image.
+Per Phase 14 Part 4 §"Gate D — Visual screenshots". The original 28-page catalog is retained, and newer Admin routes receive their own Playwright matrices as they land. Each covered page captures the applicable loading, empty, error, and success states at its documented viewport widths and matches committed baseline images. As of Projects checkpoint W16, this directory contains 33 specs and 552 baseline PNGs; Projects adds all four states at 768, 1280, 1440, and 1920 pixels.
 
 ## Population timeline
 

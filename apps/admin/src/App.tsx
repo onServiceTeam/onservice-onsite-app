@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/react';
 import { useAuthStore } from '@/stores/auth.store';
 import type { AdminUser } from '@/stores/auth.store';
 import AdminLayout from '@/components/AdminLayout';
+import AdminSessionQueries from '@/components/AdminSessionQueries';
 import LoginPage from '@/pages/LoginPage';
 // LAUNCH-LIMITATIONS #12 — must-rotate-password redirect target.
 const ChangePasswordPage = lazy(() => import('@/pages/ChangePasswordPage'));
@@ -28,6 +29,7 @@ const BusinessAccountDetailPage = lazy(() => import('@/pages/BusinessAccountDeta
 const ServiceAreasPage = lazy(() => import('@/pages/ServiceAreasPage'));
 const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'));
 const AuditLogPage = lazy(() => import('@/pages/AuditLogPage'));
+const SecurityOperationsPage = lazy(() => import('@/pages/SecurityOperationsPage'));
 const SystemSettingsPage = lazy(() => import('@/pages/SystemSettingsPage'));
 const CancellationPolicyPage = lazy(() => import('@/pages/settings/CancellationPolicyPage'));
 const SupportTicketsPage = lazy(() => import('@/pages/SupportTicketsPage'));
@@ -92,6 +94,7 @@ export default function App(): React.ReactElement {
         </div>
       }
     >
+      <AdminSessionQueries>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<AdminLayout />}>
@@ -124,6 +127,7 @@ export default function App(): React.ReactElement {
               <Route path="/service-areas" element={<ServiceAreasPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/audit-log" element={<AuditLogPage />} />
+              <Route path="/security" element={<SecurityOperationsPage />} />
               <Route path="/support-tickets" element={<SupportTicketsPage />} />
               <Route path="/settings" element={<SystemSettingsPage />} />
               <Route path="/settings/cancellation-policy" element={<CancellationPolicyPage />} />
@@ -149,6 +153,7 @@ export default function App(): React.ReactElement {
           </Route>
         </Route>
       </Routes>
+      </AdminSessionQueries>
     </Sentry.ErrorBoundary>
   );
 }

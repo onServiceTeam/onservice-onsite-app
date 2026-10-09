@@ -10,6 +10,7 @@ import { db } from '../models/db';
 import { redis } from '../config/redis.config';
 import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
+import { ADDON_PRICE_HARD_MAX_CENTAVOS } from '../config/catalog.config';
 import apiPackageJson from '../../package.json';
 
 const CACHE_PREFIX = 'settings:';
@@ -59,6 +60,7 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   // customer-side pipelines are intentionally launched.
   'feature_flag.promo_redemption_enabled': 'false',
   'feature_flag.ab_testing_enabled': 'false',
+  'feature_flag.business_contract_booking_enabled': 'false',
 
   // MED-N29 fix: marketing channels are admin-editable via the
   // Settings UI. Stored as a JSON array string; marketing-admin.service
@@ -128,6 +130,10 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   otp_expiry_minutes: '5',
   otp_max_attempts: '3',
   otp_cooldown_seconds: '60',
+  auth_rate_limit_window_ms: '60000',
+  auth_rate_limit_max_requests: '10',
+  upload_rate_limit_window_ms: '60000',
+  upload_rate_limit_max_requests: '30',
   jwt_access_expires: '15m',
   jwt_refresh_expires: '30d',
   admin_session_timeout_hours: '8',
@@ -139,6 +145,11 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   quote_expiry_hours: '48',
   max_quotes_per_booking: '5',
   change_order_approval_expiry_hours: '24',
+
+  // Provider quality floor applied by the matching engine only after the
+  // provider has accumulated enough completed-job reviews.
+  matching_min_rating: '2.5',
+  matching_min_rating_reviews: '5',
 
   // Recurring bookings remain manual-payment-only while E20 is open. This
   // threshold is retained solely for compatibility with legacy audit rows.
@@ -213,13 +224,15 @@ export interface AuditRow {
   old_value: string | null;
   new_value: string;
   changed_by: string;
+  changed_by_name?: string | null;
+  changed_by_email?: string | null;
   change_reason: string | null;
   ip_address: string | null;
   user_agent: string | null;
   created_at: Date;
 }
 
-export type SettingRuntimeStatus = 'live' | 'held' | 'not_connected';
+export type SettingRuntimeStatus = 'live' | 'release_coupled' | 'held' | 'not_connected';
 
 export interface SettingRuntimeControl {
   status: SettingRuntimeStatus;
@@ -244,8 +257,29 @@ const NOT_CONNECTED_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
 };
 
 const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
+  commission_rate_founding: 'Legacy direct commission editing is retired under E50. Schedule a prospective, effective-dated tier or provider agreement in Commission Controls; existing booking snapshots never change.',
+  commission_rate_new: 'Legacy direct commission editing is retired under E50. Schedule a prospective, effective-dated tier or provider agreement in Commission Controls; existing booking snapshots never change.',
+  commission_rate_verified: 'Legacy direct commission editing is retired under E50. Schedule a prospective, effective-dated tier or provider agreement in Commission Controls; existing booking snapshots never change.',
+  commission_rate_pro: 'Legacy direct commission editing is retired under E50. Schedule a prospective, effective-dated tier or provider agreement in Commission Controls; existing booking snapshots never change.',
+  commission_rate_elite: 'Legacy direct commission editing is retired under E50. Schedule a prospective, effective-dated tier or provider agreement in Commission Controls; existing booking snapshots never change.',
+  guarantee_fund_rate: 'This rate moves live money, but E10 holds the guarantee policy, eligibility, cap, funding, and recovery model. Editing is blocked until that product and accounting design is approved.',
+  bir_filer_company_name: 'BIR-labelled document issuance is disabled under E22 until the taxpayer profile, document type, numbering authority, cancellation, retention, and filing model are approved.',
+  bir_filer_tin: 'BIR-labelled document issuance is disabled under E22 until the taxpayer profile, document type, numbering authority, cancellation, retention, and filing model are approved.',
+  bir_filer_address: 'BIR-labelled document issuance is disabled under E22 until the taxpayer profile, document type, numbering authority, cancellation, retention, and filing model are approved.',
+  bir_filer_ptu_number: 'BIR-labelled document issuance is disabled under E22 until the taxpayer profile, document type, numbering authority, cancellation, retention, and filing model are approved.',
+  bir_filer_vat_status: 'BIR-labelled document issuance is disabled under E22 until the taxpayer profile, document type, numbering authority, cancellation, retention, and filing model are approved.',
+  auto_dispatch_enabled: 'Automatic dispatch is frozen under E33 until fixed-price booking creation proves authoritative payment and held escrow before any provider offer can start.',
   'feature_flag.promo_redemption_enabled': 'Promo redemption is deferred until its complete customer and settlement pipeline is launched.',
   'feature_flag.ab_testing_enabled': 'A/B assignment is deferred until exposure assignment and reporting are launched.',
+  'feature_flag.business_contract_booking_enabled': 'Contract booking is held under E56 until provider funding, cancellation, dispute, and production-history reconciliation are approved and verified end to end.',
+  business_account_types: 'Business account types are constrained by the current database schema. Editing this list is blocked under E58 so customer account creation cannot accept a value PostgreSQL will reject.',
+  business_payment_terms: 'Business payment terms are constrained by the database and due-date calculation code. Editing this list is blocked under E58 until terms are prospective, versioned definitions with an explicit number of days.',
+  suki_tiers: 'Suki tier thresholds, earning multipliers, and discounts are held under E25 and E44 until booking calculations, customer/provider displays, and the approved loyalty policy share one versioned source.',
+  suki_points_to_peso_rate: 'Suki conversion is held under E25 and E44 because the current wallet credit has a peso-to-centavo mismatch and customer redemption copy does not read the live rate.',
+  noshow_auto_resolve_window_minutes: 'This threshold can trigger an automatic full refund from completion timing alone. Editing is held under E59 until the evidence rule and E18 escrow timing are resolved without widening unsafe settlements.',
+  provider_noshow_minutes: 'One value currently controls both provider-late alerts and a customer no-show money decision. Editing is held under E60 until the wait is measured from verified arrival and snapshotted prospectively for each booking.',
+  change_order_approval_expiry_hours: 'This value currently moves the payment deadline for change orders that customers already approved. Editing is held under E61 until each approval stores and displays its own prospective expiry timestamp.',
+  nbi_expiry_warning_days: 'The NBI worker uses one notified flag for both warning and expiry, so warned providers can be skipped at expiry while other providers are auto-suspended contrary to the manual policy. Editing is held under E62.',
   recurring_auto_charge_max_consecutive_failures: 'Recurring bookings remain manual-payment-only while escalation E20 is open.',
   cancel_refund_over_24h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
   cancel_refund_2_to_24h: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
@@ -256,9 +290,39 @@ const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   cancel_refund_customer_noshow: 'This value drives live refunds, but the customer-facing cancellation policy uses a different source. Changes are frozen under E09 until one source and final tiers are approved.',
 };
 
+const RELEASE_COUPLED_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
+  brand_color_primary: 'The API publishes this color immediately, but installed mobile clients and the admin web use build-time theme values. Apply it only as part of a coordinated mobile release and admin redeploy.',
+  brand_color_secondary: 'The API publishes this color immediately, but installed mobile clients and the admin web use build-time theme values. Apply it only as part of a coordinated mobile release and admin redeploy.',
+  brand_color_accent: 'The API publishes this color immediately, but installed mobile clients and the admin web use build-time theme values. Apply it only as part of a coordinated mobile release and admin redeploy.',
+};
+
 const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   aml_large_transaction_threshold_centavos: 'New single-payout requests at or above this threshold enter an internal compliance-review hold. Existing requests keep their snapshotted threshold.',
+  addon_price_max_cents: 'Within 60 seconds, this becomes the maximum for future add-on creation, add-on price changes, and inactive add-on reactivation, up to the platform hard ceiling of ₱100,000. Existing active add-ons remain customer-visible and bookable at their current price until an operator reviews them in Catalog; historical booking price snapshots never change.',
   max_service_radius_km: 'Provider applications, provider change requests, approval review, super-admin edits, and customer/provider guidance enforce this maximum for new changes.',
+  quote_expiry_hours: 'New provider quotes snapshot this lifetime into their exact expiry timestamp. Existing quotes keep the deadline shown to both parties when the quote was submitted.',
+  refresh_token_strict_fingerprint: 'When enabled, future customer/provider refresh attempts from a different device fingerprint are rejected and require OTP sign-in. When disabled, mismatches are logged and the refresh continues.',
+  auth_rate_limit_window_ms: 'Within 60 seconds, this becomes the shared rolling window for OTP send/verify, admin sign-in, and admin 2FA verification attempts from one IP address. Routine session refresh is not charged to this low credential-attempt budget.',
+  auth_rate_limit_max_requests: 'Within 60 seconds, this becomes the combined request cap for OTP and admin credential attempts from one IP address. Lowering it can block an address that already reached the new cap until its current window expires.',
+  rate_limit_window_ms: 'Within 60 seconds, this becomes the rolling window for the total HTTP request budget. Valid server-signed session credentials are counted per user; missing, expired, unsigned, or signature-invalid credentials are counted by source IP.',
+  rate_limit_max_requests: 'Within 60 seconds, this becomes the total HTTP request cap per server-signed user identity or unauthenticated source IP, not a per-endpoint cap. Confirm normal customer/provider traffic before lowering it.',
+  upload_rate_limit_window_ms: 'Within 60 seconds, this becomes the shared rolling window for authenticated booking-photo, signature, general-upload, and project-image requests from one user.',
+  upload_rate_limit_max_requests: 'Within 60 seconds, this becomes the combined upload-request cap per authenticated user. Existing files are unchanged; one general-upload request can still contain multiple images.',
+  allowed_image_mime_types: 'Within 60 seconds, new booking photos, signatures, project images, general uploads, and tester-feedback screenshots accept only this selected subset of JPEG, PNG, and WebP. Existing stored files are unchanged; adding another format requires a coordinated release.',
+  captcha_threshold: 'Within 60 seconds, the next OTP-send request requires Cloudflare Turnstile after this many failed OTP send or verify records for the same phone over 24 hours or source IP over one hour. OTP verification keeps its separate request limit and lockout; this control does not add a challenge to the code-verification screen. Production requires valid Turnstile keys.',
+  suspicious_ip_threshold: 'Every five minutes, the security worker applies this threshold to failed OTP and admin sign-in records from one IP over the prior hour, then blocks newly qualifying addresses for 24 hours. The effective minimum is 10. Existing blocks are unchanged and a manual unblock can be re-evaluated while failures remain in that hour.',
+  marketing_channels: 'Within 60 seconds, this becomes the allowlist for new campaign tracking records. Existing campaign spend and attribution remain unchanged, and retired channels stay available as exact historical filters.',
+  matching_tier_bonus: 'Within 60 seconds, these weights affect the ordering of future provider candidate lists. Existing bookings, assignments, prices, and provider commission terms are unchanged.',
+  matching_min_rating: 'Within 60 seconds, this floor can exclude providers from future candidate lists only after they have enough completed-job reviews. It does not suspend an account or alter an existing assignment.',
+  matching_min_rating_reviews: 'Within 60 seconds, this changes how many completed-job reviews are required before the matching rating floor applies. Providers below the evidence count remain eligible; existing work is unchanged.',
+  fraud_pattern_dispute_count_threshold: 'Within 60 seconds, the Customer 360 dispute panel recomputes its read-only fraud-pattern signal using this minimum number of customer-filed disputes. It does not flag, suspend, refund, or resolve a case.',
+  fraud_pattern_window_days: 'Within 60 seconds, the Customer 360 dispute panel recomputes its read-only fraud-pattern signal over this lookback period. Existing disputes and their outcomes are unchanged.',
+  fraud_pattern_favor_provider_rate: 'Within 60 seconds, the Customer 360 dispute panel compares resolved no-refund outcomes with all resolved customer-filed disputes using this rate. It does not take enforcement or payment action.',
+  cache_ttl_categories: 'The next uncached public catalog, category, bounds, add-on, or category-detail response receives this Redis and browser-cache lifetime. Already-cached responses keep their original expiry; catalog mutations invalidate catalog keys.',
+  cache_ttl_search_results: 'The next uncached public catalog search response receives this Redis and browser-cache lifetime. Already-cached search responses keep their original expiry.',
+  map_tile_url: 'The Dispatch Console uses this HTTPS tile template on its next load after save. Other already-open admin sessions keep their current tiles until they reload.',
+  map_tile_attribution: 'The Dispatch Console shows this provider attribution with the configured tiles on its next load after save. Keep the credit required by the tile provider licence.',
+  map_tile_api_key: 'The Dispatch Console substitutes this publishable browser token into {apiKey} on its next load after save. Restrict the token to the admin domain at the tile provider; do not store a server secret here.',
 };
 
 /**
@@ -287,6 +351,16 @@ export function getSettingRuntimeControl(key: string): SettingRuntimeControl {
       label: 'Launch hold',
       summary: heldSummary,
       editable: false,
+    };
+  }
+
+  const releaseCoupledSummary = RELEASE_COUPLED_SETTING_SUMMARIES[key];
+  if (releaseCoupledSummary) {
+    return {
+      status: 'release_coupled',
+      label: 'Release required',
+      summary: releaseCoupledSummary,
+      editable: true,
     };
   }
 
@@ -573,6 +647,10 @@ export async function getCategories(): Promise<{ category: string; count: number
 export function validateSettingValue(setting: SettingRow, newValue: string): void {
   const { value_type, min_value, max_value, allowed_values, key } = setting;
 
+  if (newValue.length > 10_000) {
+    throw createAppError(`Setting "${key}" must be 10,000 characters or fewer.`, 400);
+  }
+
   if (value_type === 'number' || value_type === 'percent' || value_type === 'currency' || value_type === 'integer') {
     const num = Number(newValue);
     if (Number.isNaN(num)) {
@@ -583,6 +661,12 @@ export function validateSettingValue(setting: SettingRow, newValue: string): voi
     }
     if (min_value !== null && num < Number(min_value)) {
       throw createAppError(`Setting "${key}" minimum is ${min_value}.`, 400);
+    }
+    if (key === 'addon_price_max_cents' && num > ADDON_PRICE_HARD_MAX_CENTAVOS) {
+      throw createAppError(
+        'Setting "addon_price_max_cents" cannot exceed the platform hard ceiling of 10000000 centavos (₱100,000).',
+        400,
+      );
     }
     if (max_value !== null && num > Number(max_value)) {
       throw createAppError(`Setting "${key}" maximum is ${max_value}.`, 400);
@@ -596,49 +680,228 @@ export function validateSettingValue(setting: SettingRow, newValue: string): voi
   if (allowed_values && allowed_values.length > 0 && !allowed_values.includes(newValue)) {
     throw createAppError(`Setting "${key}" must be one of: ${allowed_values.join(', ')}`, 400);
   }
+
+  let parsedJson: unknown;
+  if (value_type === 'json') {
+    try {
+      parsedJson = JSON.parse(newValue) as unknown;
+    } catch {
+      throw createAppError(`Setting "${key}" requires valid JSON.`, 400);
+    }
+  }
+
+  if (key === 'marketing_channels') {
+    if (
+      !Array.isArray(parsedJson)
+      || parsedJson.length === 0
+      || parsedJson.length > 50
+      || !parsedJson.every((value) => typeof value === 'string' && /^[a-z0-9_-]{1,40}$/.test(value))
+      || new Set(parsedJson).size !== parsedJson.length
+    ) {
+      throw createAppError('Marketing channels must be 1–50 unique lowercase slugs.', 400);
+    }
+  }
+
+  if (key === 'matching_tier_bonus') {
+    const tiers = ['founding', 'new', 'verified', 'pro', 'elite'];
+    const record = parsedJson && typeof parsedJson === 'object' && !Array.isArray(parsedJson)
+      ? parsedJson as Record<string, unknown>
+      : null;
+    if (
+      !record
+      || Object.keys(record).length !== tiers.length
+      || !tiers.every((tier) => (
+        typeof record[tier] === 'number'
+        && Number.isFinite(record[tier])
+        && Number(record[tier]) >= -5
+        && Number(record[tier]) <= 5
+      ))
+    ) {
+      throw createAppError('Matching tier bonuses must define finite values from -5 to 5 for all five provider tiers.', 400);
+    }
+  }
+
+  if (key === 'suki_tiers') {
+    const tierNames = ['new', 'regular', 'suki', 'super_suki'];
+    const record = parsedJson && typeof parsedJson === 'object' && !Array.isArray(parsedJson)
+      ? parsedJson as Record<string, unknown>
+      : null;
+    const tiers = record
+      ? tierNames.map((name) => record[name]).filter((value): value is Record<string, unknown> => (
+        value !== null && typeof value === 'object' && !Array.isArray(value)
+      ))
+      : [];
+    const validTier = (tier: Record<string, unknown>): boolean => (
+      Number.isSafeInteger(tier.minBookings)
+      && Number(tier.minBookings) >= 0
+      && typeof tier.pointsPerPeso === 'number'
+      && Number.isFinite(tier.pointsPerPeso)
+      && Number(tier.pointsPerPeso) >= 0
+      && Number(tier.pointsPerPeso) <= 10
+      && typeof tier.discount === 'number'
+      && Number.isFinite(tier.discount)
+      && Number(tier.discount) >= 0
+      && Number(tier.discount) <= 100
+    );
+    const minimums = tiers.map((tier) => Number(tier.minBookings));
+    if (
+      !record
+      || Object.keys(record).length !== tierNames.length
+      || tiers.length !== tierNames.length
+      || !tiers.every(validTier)
+      || minimums[0] !== 0
+      || minimums.some((value, index) => index > 0 && value <= minimums[index - 1]!)
+    ) {
+      throw createAppError('Suki tiers must define new, regular, suki, and super_suki with increasing booking thresholds and valid reward values.', 400);
+    }
+  }
+
+  if (key.startsWith('brand_color_') && !/^#[0-9a-fA-F]{6}$/.test(newValue)) {
+    throw createAppError(`Setting "${key}" requires a six-digit hex color such as #003D9B.`, 400);
+  }
+
+  if (key === 'allowed_image_mime_types') {
+    const supported = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    const values = newValue.split(',').map((value) => value.trim()).filter(Boolean);
+    if (
+      values.length === 0
+      || values.length !== new Set(values).size
+      || values.some((value) => !supported.has(value))
+    ) {
+      throw createAppError('Allowed image types must be a unique comma-separated subset of image/jpeg, image/png, and image/webp.', 400);
+    }
+  }
+
+  if (key === 'map_tile_url') {
+    if (!newValue.includes('{z}') || !newValue.includes('{x}') || !newValue.includes('{y}')) {
+      throw createAppError('Map tile URL must include {z}, {x}, and {y} placeholders.', 400);
+    }
+    try {
+      const parsed = new URL(
+        newValue
+          .replaceAll('{s}', 'a')
+          .replaceAll('{z}', '1')
+          .replaceAll('{x}', '1')
+          .replaceAll('{y}', '1')
+          .replaceAll('{apiKey}', 'key'),
+      );
+      if (parsed.protocol !== 'https:') throw new Error('not https');
+    } catch {
+      throw createAppError('Map tile URL must be a valid HTTPS URL.', 400);
+    }
+  }
+
+  if (
+    key === 'map_tile_attribution'
+    && (newValue.length > 500 || /<script|\bon\w+\s*=|javascript:/i.test(newValue))
+  ) {
+    throw createAppError('Map attribution contains unsupported or unsafe markup.', 400);
+  }
 }
 
 // ── Write ──
 
-export async function updateSetting(
-  key: string,
-  newValue: string,
-  changedBy: string,
-  reason?: string,
-  ipAddress?: string,
-  userAgent?: string,
-): Promise<SettingRow> {
-  // CRIT-N13 fix: UPDATE platform_settings + INSERT platform_settings_audit
-  // are now wrapped in a single transaction. Pre-fix: two separate
-  // db.query calls — if the audit INSERT failed after the value UPDATE
-  // committed, the platform setting changed without an audit row.
-  // platform_settings is the source of truth for every money knob, so
-  // an unaudited mutation is a compliance gap.
-  const current = await db.query<SettingRow>(
-    `SELECT * FROM platform_settings WHERE key = $1`,
-    [key],
+const MIN_SETTING_REASON_LENGTH = 10;
+const MAX_SETTING_REASON_LENGTH = 500;
+
+export interface SettingMutationContext {
+  changedBy: string;
+  reason: string;
+  expectedUpdatedAt: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+/** Warning window shared by provider status and the scheduled NBI notifier. */
+export async function getNbiExpiryWarningDays(): Promise<number> {
+  return boundedInteger(
+    await getSettingInteger('nbi_expiry_warning_days'),
+    7,
+    90,
+    30,
   );
-  if (current.rows.length === 0) {
-    throw createAppError(`Setting "${key}" not found.`, 404);
+}
+
+export interface BulkSettingUpdate {
+  key: string;
+  value: string;
+  expectedUpdatedAt: string;
+}
+
+function normalizeMutationReason(reason: string): string {
+  const normalized = typeof reason === 'string' ? reason.trim() : '';
+  if (normalized.length < MIN_SETTING_REASON_LENGTH) {
+    throw createAppError(
+      `A change reason with at least ${MIN_SETTING_REASON_LENGTH} characters is required.`,
+      400,
+    );
   }
-  const setting = current.rows[0]!;
 
-  assertSettingEditable(key);
-  validateSettingValue(setting, newValue);
+  if (normalized.length > MAX_SETTING_REASON_LENGTH) {
+    throw createAppError(
+      `Change reason must be ${MAX_SETTING_REASON_LENGTH} characters or fewer.`,
+      400,
+    );
+  }
+  return normalized;
+}
 
-  const oldValue = setting.value;
+function normalizeExpectedUpdatedAt(expectedUpdatedAt: string): number {
+  const timestamp = Date.parse(expectedUpdatedAt);
+  if (!Number.isFinite(timestamp)) {
+    throw createAppError('The setting version is missing or invalid. Reload settings and try again.', 400);
+  }
+  return timestamp;
+}
 
-  const updated = await db.transaction(async (client) => {
+function assertSettingVersion(setting: SettingRow, expectedTimestamp: number): void {
+  if (new Date(setting.updated_at).getTime() !== expectedTimestamp) {
+    throw createAppError(
+      `Setting "${setting.key}" changed after this screen was loaded. Reload settings and review the newer value before trying again.`,
+      409,
+    );
+  }
+}
+
+async function updateLockedSetting(
+  key: string,
+  resolveNewValue: (setting: SettingRow) => string,
+  context: SettingMutationContext,
+  auditReason: string,
+): Promise<SettingRow> {
+  if (Object.prototype.hasOwnProperty.call(SETTING_DEFAULTS, key)) {
+    assertSettingEditable(key);
+  }
+  const expectedTimestamp = normalizeExpectedUpdatedAt(context.expectedUpdatedAt);
+
+  const mutation = await db.transaction(async (client) => {
+    const current = await client.query<SettingRow>(
+      `SELECT *
+         FROM platform_settings
+        WHERE key = $1
+        FOR UPDATE`,
+      [key],
+    );
+    if (current.rows.length === 0) {
+      throw createAppError(`Setting "${key}" not found.`, 404);
+    }
+
+    const setting = current.rows[0]!;
+    assertSettingEditable(key);
+    assertSettingVersion(setting, expectedTimestamp);
+    const newValue = resolveNewValue(setting);
+    validateSettingValue(setting, newValue);
+
     const updResult = await client.query<SettingRow>(
       `UPDATE platform_settings
-         SET value = $1, updated_by = $2, updated_at = NOW()
-       WHERE key = $3
-       RETURNING *`,
-      [newValue, changedBy, key],
+          SET value = $1,
+              updated_by = $2,
+              updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 millisecond')
+        WHERE id = $3
+        RETURNING *`,
+      [newValue, context.changedBy, setting.id],
     );
     if (updResult.rows.length === 0) {
-      // Concurrent delete race — should not happen given the SELECT above,
-      // but defensive throw rolls back any partial state.
       throw createAppError(`Setting "${key}" not found.`, 404);
     }
 
@@ -646,32 +909,46 @@ export async function updateSetting(
       `INSERT INTO platform_settings_audit
          (setting_id, setting_key, old_value, new_value, changed_by, change_reason, ip_address, user_agent)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [setting.id, key, oldValue, newValue, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
+      [
+        setting.id,
+        key,
+        setting.value,
+        newValue,
+        context.changedBy,
+        auditReason,
+        context.ipAddress ?? null,
+        context.userAgent ?? null,
+      ],
     );
 
-    return updResult.rows[0]!;
+    return { previous: setting, updated: updResult.rows[0]! };
   });
 
-  // Cache bust + log are post-commit (idempotent + non-blocking).
   await bustCache(key);
 
   logger.info('Platform setting updated', {
     key,
-    oldValue: setting.is_sensitive ? '[REDACTED]' : oldValue,
-    newValue: setting.is_sensitive ? '[REDACTED]' : newValue,
-    changedBy,
-    reason,
+    oldValue: mutation.previous.is_sensitive ? '[REDACTED]' : mutation.previous.value,
+    newValue: mutation.previous.is_sensitive ? '[REDACTED]' : mutation.updated.value,
+    changedBy: context.changedBy,
+    reason: auditReason,
   });
 
-  return updated;
+  return mutation.updated;
+}
+
+export async function updateSetting(
+  key: string,
+  newValue: string,
+  context: SettingMutationContext,
+): Promise<SettingRow> {
+  const auditReason = normalizeMutationReason(context.reason);
+  return updateLockedSetting(key, () => newValue, context, auditReason);
 }
 
 export async function bulkUpdateSettings(
-  updates: Array<{ key: string; value: string }>,
-  changedBy: string,
-  reason?: string,
-  ipAddress?: string,
-  userAgent?: string,
+  updates: BulkSettingUpdate[],
+  context: Omit<SettingMutationContext, 'expectedUpdatedAt'>,
 ): Promise<SettingRow[]> {
   // MED-N106 fix — atomic bulk update. Pre-fix: the loop called
   // updateSetting per key; if the 5th of 10 succeeded but the 6th
@@ -681,21 +958,39 @@ export async function bulkUpdateSettings(
   // every key; any failure rolls back the whole batch.
   if (updates.length === 0) return [];
 
-  // Pre-validate all keys exist before any write so failure is clean.
+  const auditReason = normalizeMutationReason(context.reason);
   const keys = updates.map((u) => u.key);
-  const existing = await db.query<SettingRow>(
-    `SELECT * FROM platform_settings WHERE key = ANY($1::text[])`,
-    [keys],
+  if (new Set(keys).size !== keys.length) {
+    throw createAppError('A bulk settings request cannot contain the same key more than once.', 400);
+  }
+  const expectedByKey = new Map(
+    updates.map((update) => [update.key, normalizeExpectedUpdatedAt(update.expectedUpdatedAt)]),
   );
-  const byKey = new Map(existing.rows.map((r) => [r.key, r]));
+
   for (const u of updates) {
-    const setting = byKey.get(u.key);
-    if (!setting) throw createAppError(`Setting "${u.key}" not found.`, 404);
-    assertSettingEditable(u.key);
-    validateSettingValue(setting, u.value);
+    if (Object.prototype.hasOwnProperty.call(SETTING_DEFAULTS, u.key)) {
+      assertSettingEditable(u.key);
+    }
   }
 
   const results = await db.transaction(async (client) => {
+    const existing = await client.query<SettingRow>(
+      `SELECT *
+         FROM platform_settings
+        WHERE key = ANY($1::text[])
+        ORDER BY key
+        FOR UPDATE`,
+      [[...keys].sort()],
+    );
+    const byKey = new Map(existing.rows.map((row) => [row.key, row]));
+    for (const update of updates) {
+      const setting = byKey.get(update.key);
+      if (!setting) throw createAppError(`Setting "${update.key}" not found.`, 404);
+      assertSettingEditable(update.key);
+      assertSettingVersion(setting, expectedByKey.get(update.key)!);
+      validateSettingValue(setting, update.value);
+    }
+
     const out: SettingRow[] = [];
     // SAFE-N+1: bulk admin write, capped at 50 keys (route-enforced); per-key audit + cache-bust required.
     // Sequential while-loop (not for-of) to avoid harness N+1 false-positive on iteration form.
@@ -706,10 +1001,12 @@ export async function bulkUpdateSettings(
       const oldValue = setting.value;
       const updRes = await client.query<SettingRow>(
         `UPDATE platform_settings
-           SET value = $1, updated_by = $2, updated_at = NOW()
-         WHERE key = $3
+            SET value = $1,
+                updated_by = $2,
+                updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 millisecond')
+          WHERE id = $3
          RETURNING *`,
-        [u.value, changedBy, u.key],
+        [u.value, context.changedBy, setting.id],
       );
       if (updRes.rows.length === 0) {
         throw createAppError(`Setting "${u.key}" not found.`, 404);
@@ -723,7 +1020,16 @@ export async function bulkUpdateSettings(
         `INSERT INTO platform_settings_audit
            (setting_id, setting_key, old_value, new_value, changed_by, change_reason, ip_address, user_agent)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [setting.id, u.key, oldValue, u.value, changedBy, reason ?? null, ipAddress ?? null, userAgent ?? null],
+        [
+          setting.id,
+          u.key,
+          oldValue,
+          u.value,
+          context.changedBy,
+          auditReason,
+          context.ipAddress ?? null,
+          context.userAgent ?? null,
+        ],
       );
       out.push(updRes.rows[0]!);
       idx += 1;
@@ -747,26 +1053,30 @@ export async function bulkUpdateSettings(
 // preferred when present; the hardcoded string is only the fallback.
 export async function resetToDefault(
   key: string,
-  changedBy: string,
-  reason?: string,
+  context: SettingMutationContext,
 ): Promise<SettingRow> {
-  const current = await db.query<SettingRow>(
-    `SELECT * FROM platform_settings WHERE key = $1`,
-    [key],
-  );
-  if (current.rows.length === 0) {
-    throw createAppError(`Setting "${key}" not found.`, 404);
-  }
-  const auditReason = reason && reason.trim().length > 0
-    ? `Reset to default: ${reason.trim()}`
-    : 'Reset to default';
-  return updateSetting(key, current.rows[0]!.default_value, changedBy, auditReason);
+  const reason = normalizeMutationReason(context.reason);
+  const auditReason = `Reset to default: ${reason}`;
+  return updateLockedSetting(key, (setting) => setting.default_value, context, auditReason);
 }
 
 export async function getSettingAuditHistory(key: string, limit = 50): Promise<AuditRow[]> {
   const result = await db.query<AuditRow>(
-    `SELECT sa.*
+    `SELECT sa.id,
+            sa.setting_id,
+            sa.setting_key,
+            CASE WHEN ps.is_sensitive THEN '[REDACTED]' ELSE sa.old_value END AS old_value,
+            CASE WHEN ps.is_sensitive THEN '[REDACTED]' ELSE sa.new_value END AS new_value,
+            sa.changed_by,
+            NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS changed_by_name,
+            u.email AS changed_by_email,
+            sa.change_reason,
+            sa.ip_address,
+            sa.user_agent,
+            sa.created_at
        FROM platform_settings_audit sa
+       JOIN platform_settings ps ON ps.id = sa.setting_id
+       LEFT JOIN users u ON u.id = sa.changed_by
       WHERE sa.setting_key = $1
       ORDER BY sa.created_at DESC
       LIMIT $2`,
@@ -807,6 +1117,7 @@ export async function bustAllCache(): Promise<void> {
 export async function getFeatureFlags(): Promise<{
   promoRedemptionEnabled: boolean;
   abTestingEnabled: boolean;
+  businessContractBookingEnabled: boolean;
 }> {
   const result = await db.query<{ key: string; value: string }>(
     `SELECT key, value FROM platform_settings
@@ -820,20 +1131,29 @@ export async function getFeatureFlags(): Promise<{
   return {
     promoRedemptionEnabled: isOn('feature_flag.promo_redemption_enabled'),
     abTestingEnabled: isOn('feature_flag.ab_testing_enabled'),
+    businessContractBookingEnabled: isOn('feature_flag.business_contract_booking_enabled'),
   };
 }
 
 export async function getClientConfig(): Promise<Record<string, unknown>> {
   // D13: feature flags surface to mobile clients via the existing
   // /api/v1/config endpoint so no new public route is needed.
-  let featureFlags: { promoRedemptionEnabled: boolean; abTestingEnabled: boolean };
+  let featureFlags: {
+    promoRedemptionEnabled: boolean;
+    abTestingEnabled: boolean;
+    businessContractBookingEnabled: boolean;
+  };
   try {
     featureFlags = await getFeatureFlags();
   } catch (err) {
     logger.warn('feature_flag_read_failed_defaulting_off', {
       error: (err as Error).message,
     });
-    featureFlags = { promoRedemptionEnabled: false, abTestingEnabled: false };
+    featureFlags = {
+      promoRedemptionEnabled: false,
+      abTestingEnabled: false,
+      businessContractBookingEnabled: false,
+    };
   }
 
   // MED-N107 fix — single bulk SELECT instead of 14 sequential
@@ -966,6 +1286,10 @@ export function formatSetting(s: SettingRow): {
   isDefault: boolean;
 } {
   const runtimeControl = getSettingRuntimeControl(s.key);
+  const storedMaxValue = s.max_value !== null ? Number(s.max_value) : null;
+  const effectiveMaxValue = s.key === 'addon_price_max_cents'
+    ? Math.min(storedMaxValue ?? ADDON_PRICE_HARD_MAX_CENTAVOS, ADDON_PRICE_HARD_MAX_CENTAVOS)
+    : storedMaxValue;
   return {
     id: s.id,
     category: s.category,
@@ -975,9 +1299,9 @@ export function formatSetting(s: SettingRow): {
     description: s.description,
     valueType: s.value_type,
     value: s.is_sensitive ? '\u2022\u2022\u2022\u2022\u2022\u2022' : s.value,
-    defaultValue: s.default_value,
+    defaultValue: s.is_sensitive ? '\u2022\u2022\u2022\u2022\u2022\u2022' : s.default_value,
     minValue: s.min_value !== null ? Number(s.min_value) : null,
-    maxValue: s.max_value !== null ? Number(s.max_value) : null,
+    maxValue: effectiveMaxValue,
     allowedValues: s.allowed_values,
     displayOrder: s.display_order,
     unit: s.unit,

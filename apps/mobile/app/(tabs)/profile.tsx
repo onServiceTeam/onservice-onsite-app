@@ -32,6 +32,7 @@ import {
   UserCheck,
   ChevronRight,
   Scale,
+  Building2,
 } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
 
@@ -86,18 +87,28 @@ export default function ProfileScreen(): React.ReactElement {
   };
 
   const handleSaveProfile = async (): Promise<void> => {
-    if (firstName.trim().length < 2 || lastName.trim().length < 2) {
+    const normalizedFirstName = firstName.trim();
+    const normalizedLastName = lastName.trim();
+    if (
+      normalizedFirstName === (user?.firstName ?? '').trim()
+      && normalizedLastName === (user?.lastName ?? '').trim()
+    ) {
+      setEditing(false);
+      showToast('No profile changes to save.', 'info');
+      return;
+    }
+    if (normalizedFirstName.length < 2 || normalizedLastName.length < 2) {
       showToast('First and last names must each be at least 2 characters.', 'error');
       return;
     }
     setSaving(true);
     try {
       const res = await api.patch<{ success: boolean; data: typeof user }>('/api/v1/auth/me', {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        firstName: normalizedFirstName,
+        lastName: normalizedLastName,
       });
       if (res.data.data && user) {
-        setUser({ ...user, firstName: firstName.trim(), lastName: lastName.trim() });
+        setUser({ ...user, firstName: normalizedFirstName, lastName: normalizedLastName });
       }
       setEditing(false);
       showToast('Profile updated.', 'success');
@@ -114,6 +125,11 @@ export default function ProfileScreen(): React.ReactElement {
   // surfaced via Help & Support → Report a safety concern. Do NOT reintroduce
   // a SiguradoShield menu row without lifting LAUNCH-LIMITATIONS §23.
   const menuItems: Array<{ label: string; icon: IconComponent; onPress: () => void }> = [
+    {
+      label: 'Company Workspaces',
+      icon: Building2,
+      onPress: () => router.push(Routes.CUSTOMER.BUSINESS_ACCOUNTS),
+    },
     { label: 'My Addresses', icon: MapPin, onPress: () => router.push(Routes.CUSTOMER.ADDRESSES) },
     {
       label: 'Payment Methods',

@@ -1,0 +1,6 @@
+# Used only by the reviewed release helpers. Do not replace the shared stack.
+# The source revision is mandatory; no mutable `latest` tag or registry pull.
+services:
+  api:
+    image: onservice-api:${ONSERVICE_RELEASE_SHA:?A full reviewed release SHA is required}
+    pull_policy: never

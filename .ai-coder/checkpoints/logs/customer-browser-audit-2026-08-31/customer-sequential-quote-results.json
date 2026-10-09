@@ -25,7 +25,7 @@
       {
         "name": "job-request-with-address",
         "path": "/customer/booking/job-request",
-        "text": "Request Custom Quote Service Category Renovation Custom Cabinets What this service covers Custom cabinetry quoted from measurements, materials, site photos, and required job details. Describe the Job * Minimum 50 characters. Be specific about the problem. 0/50 min Job Details These help providers send you an accurate quote. Installation area * Approximate floor area of the installation zone. sqm Preferred material * Marine plywood Hardwood Is the site occupied? * Yes No Photos * At least 2 photos required (max 10). Show the job site and issue clearly. + Add Photo Urgency Same Day Within 4 hours Within 3 Days Flexible scheduling Within a Week No rush Flexible Provider suggests time Budget Range (optional) Helps providers understand your expectations ₱ — ₱ Location * 42 Governor Cuenco Avenue, Kasambagan, Cebu City, Cebu Please answer all required job-detail fields (marked *). Submit Job Request Up to 5 providers can send quotes. You can compare the scope, price, and timing before choosing.",
+        "text": "Request Custom Quote Service Category Renovation Custom Cabinets What this service covers Custom cabinetry quoted from measurements, materials, site photos, and required job details. Describe the Job * Minimum 50 characters. Be specific about the problem. 0/50 min Job Details These help providers send you an accurate quote. Installation area * Approximate floor area of the installation zone. sqm Preferred material * Marine plywood Hardwood Is the site occupied? * Yes No Photos * At least 2 photos required (max 10). Show the job site and issue clearly. + Add Photo Urgency Same Day Within 4 hours Within 3 Days Flexible scheduling Within a Week No rush Flexible Provider suggests time Budget Range (optional) Helps providers understand your expectations ₱ — ₱ Location * 42 Governor Cuenco Avenue, Kasambagan, Cebu City, Cebu Please answer all required job-detail fields (marked *). Submit Job Request Up to 5 providers can send quotes. You can compare the scope, price, and timing before choosing. Service details Back Customize service",
         "overflow": 0
       },
       {
@@ -40,7 +40,7 @@
         "method": "POST",
         "pathname": "/api/v1/uploads",
         "body": "[multipart image payload]",
-        "contentType": "multipart/form-data; boundary=----WebKitFormBoundary0zhsmQjpLJCNlU7B"
+        "contentType": "multipart/form-data; boundary=----WebKitFormBoundaryU1iwkhQhPmIvfZtr"
       },
       {
         "method": "POST",
@@ -117,7 +117,7 @@
         "method": "POST",
         "pathname": "/api/v1/uploads",
         "body": "[multipart image payload]",
-        "contentType": "multipart/form-data; boundary=----WebKitFormBoundarytor5oOEPUSoPLJH7"
+        "contentType": "multipart/form-data; boundary=----WebKitFormBoundarybhhCssAIn8VAbGvQ"
       },
       {
         "method": "POST",
@@ -194,7 +194,7 @@
         "method": "POST",
         "pathname": "/api/v1/uploads",
         "body": "[multipart image payload]",
-        "contentType": "multipart/form-data; boundary=----WebKitFormBoundary6I0Gs5bAL8H6bfZx"
+        "contentType": "multipart/form-data; boundary=----WebKitFormBoundaryBcyIXTnAGSHXD53B"
       },
       {
         "method": "POST",

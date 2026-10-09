@@ -116,6 +116,11 @@ The Phase 14 design accepts these failures during Dispatches 01–13 because eac
 - **Expected to fail on master:** N/A on master itself; activates per branch.
 - **Status:** BLOCKING per dispatch branch.
 
+### Unique regression IDs
+- **Expected to fail on master:** NO after the 2026-09-04 continuous-audit correction.
+- **Reason:** Ten unrelated test-title collisions were assigned unique SEC, UX, or OPS identifiers. The scanner now finds 1,377 direct `it()`/`test()` regression titles across test and spec files and zero duplicate IDs.
+- **Status:** BLOCKING from the 2026-09-04 continuous audit onward. The fragment is `scripts/gates/c-unique-regression-ids.py`, with an adversarial smoke test that proves duplicate titles fail and distinct titles pass.
+
 ### Money-in-transaction
 - **Expected to fail on master:** NO (resolved by D06).
 - **Reason:** Phase 14 D06 (2026-04-30) closed Bugs 69, 70, 71, 78, 79, 80, 82, 83, 84, 85, 105, 106, 127, 237. Every money/audit mutation either composes via a trx-aware `*InTransaction` helper (releaseEscrowInTransaction, refundFromEscrowInTransaction, handleCancellationInTransaction, resolveDisputeInTransaction) or is annotated `// gate-c-allowed: best-effort-audit-only` for the documented non-blocking audit pattern (try/catch + logger.warn so audit failures don't roll back durable underlying state). Two real adjacent bugs were also fixed inline: `dispute.service.assignDispute` and `payout.service.approvePayout`. The gate logic itself was rewritten in D06 — the prior Kysely-pattern regex was vacuously passing because the codebase uses raw pg; the new awk pattern detects `db.query` calls with INSERT INTO admin_actions/wallet_transactions or UPDATE wallets at the top level (not inside `db.transaction`).
@@ -152,6 +157,7 @@ The Phase 14 design accepts these failures during Dispatches 01–13 because eac
 | D06 | money-in-transaction in c-constitution.sh — promoted 2026-04-30 |
 | D07/D08 | Visual baselines for admin + mobile populated |
 | D11/D12 | a-cross-source-no-emoji-icons, console.* in c-constitution.sh, full Gate D + Gate E BLOCKING |
+| Continuous audit 2026-09-04 | unique-regression-ids in c-constitution.sh |
 | D13/D14 | All gates BLOCKING in CI; v1.0.0-launch-ready tag |
 
 This file is updated by each dispatch's closeout to mark which fragments moved from "expected to fail" to "now passing."

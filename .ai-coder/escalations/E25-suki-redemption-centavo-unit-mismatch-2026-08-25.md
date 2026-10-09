@@ -56,3 +56,11 @@ Approve option 1, or specify a different points-to-peso policy. This is a money
 path, so the repository hard-stop rule prevents an autonomous production change
 without Ken's decision even though the intended unit conversion appears clear.
 
+## 2026-09-02 containment
+
+No conversion, wallet, reward, tier, discount, or historical record changed.
+Because both current settings can change money or customer value while this
+decision and E44 remain open, `suki_tiers` and `suki_points_to_peso_rate` are
+now explained **Launch hold** rows. Admin can inspect their existing values and
+history but cannot update or reset them through the Settings API or UI.
+

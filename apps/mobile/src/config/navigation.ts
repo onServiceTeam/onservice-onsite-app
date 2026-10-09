@@ -15,6 +15,7 @@
 
 export const Routes = {
   ROOT: '/',
+  LEGAL: '/legal',
 
   TABS: {
     HOME: '/(tabs)/home',
@@ -93,6 +94,9 @@ export const Routes = {
     TERMS: '/customer/terms',
     ACCOUNT_MANAGEMENT: '/customer/account-management',
     DATA_RIGHTS: '/customer/data-rights',
+    BUSINESS_ACCOUNTS: '/customer/business',
+    BUSINESS_ACCOUNT_DETAIL: '/customer/business/[id]',
+    BUSINESS_INVOICE_DETAIL: '/customer/business/[id]/invoices/[invoiceId]',
     // BUG-PHASE126-01 / Bug UX-659 — dead entries point at screens that do
     // not exist on disk and have no consumers. Removed HOME and
     // BOOKING_HISTORY in UX-659 after they escaped the original cleanup;
@@ -106,13 +110,14 @@ export const Routes = {
     // that contract and would crash any future caller that wired
     // them. Removed:
     //   SUBCATEGORY, RATE_REVIEW, PROFILE,
-    //   PROVIDER_LIST, RECURRING_SETUP, BUSINESS_*  (8 entries),
+    //   PROVIDER_LIST, RECURRING_SETUP, the former BUSINESS_* entries (8 entries),
     //   SERVICE_AREAS, SERVICE_AREA_DETAIL, WAITLIST, REBOOKING,
     //   SLOT_WAITLIST, DATA_PRIVACY, DATA_EXPORT, ACCOUNT_DELETION,
     //   SECURITY_SETTINGS, DEVICE_MANAGEMENT, ACCESSIBILITY_SETTINGS,
     //   ADD_ADDRESS, ADD_PAYMENT, PROMOTIONS, SUPPORT, EMAIL_VERIFICATION.
-    // If a v1.1+ feature genuinely needs one of these, add the
-    // route entry back AT THE SAME TIME as the screen .tsx file.
+    // E55 now restores only the three business routes above at the same time
+    // as real, read-only account, contract, member, and statement screens.
+    // Other removed entries stay absent until a corresponding screen exists.
   },
 
   PROVIDER: {

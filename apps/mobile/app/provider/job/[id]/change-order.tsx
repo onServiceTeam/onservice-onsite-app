@@ -156,12 +156,13 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
   // in Phase 48 (BUG-PHASE48-02). Provider thought they'd pocket
   // the full additional charge and got surprised at payout time.
   const providerMeQuery = useQuery<{ tier: string; commissionRate: number }>({
-    queryKey: ['providerMe'],
+    queryKey: ['providerCommissionPreview', bookingId],
     queryFn: async () => {
-      const res = await api.get<{ data: { tier: string; commissionRate: number } }>('/api/v1/providers/me');
+      const res = await api.get<{ data: { tier: string; commissionRate: number } }>(`/api/v1/providers/me/commission-preview?bookingId=${encodeURIComponent(bookingId!)}`);
       return { tier: res.data.data.tier, commissionRate: res.data.data.commissionRate };
     },
     staleTime: 5 * 60 * 1000,
+    enabled: !!bookingId,
   });
   const providerTier = providerMeQuery.data?.tier;
   const commissionRate = providerMeQuery.data?.commissionRate;
@@ -370,9 +371,9 @@ export default function ChangeOrderFormScreen(): React.ReactElement {
             />
           )}
           {amountCentavos > 0 && providerMeQuery.isLoading && (
-            <View style={styles.commissionLoading} accessibilityLabel="Loading live commission rate">
+            <View style={styles.commissionLoading} accessibilityLabel="Loading booking commission preview">
               <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.hint}>Loading live commission rate…</Text>
+              <Text style={styles.hint}>Loading booking commission preview…</Text>
             </View>
           )}
           {amountCentavos > 0 && providerMeQuery.isError && (

@@ -66,11 +66,24 @@ export const addSelectionSchema = z.object({
   sortOrder: z.number().int().min(0).max(1000).optional(),
 }).strict();
 
+export const updateSelectionSchema = z.object({
+  category: z.string().trim().min(1).max(80).optional(),
+  label: z.string().trim().min(1).max(120).optional(),
+  value: z.string().trim().min(1).max(200).optional(),
+  detail: z.string().trim().max(200).optional().nullable(),
+  sortOrder: z.number().int().min(0).max(1000).optional(),
+}).strict();
+
 export const addDocumentSchema = z.object({
   label: z.string().trim().min(1).max(160),
   fileUrl: z.string().url().max(1000).refine((value) => {
     const protocol = new URL(value).protocol;
     return protocol === 'https:' || protocol === 'http:';
   }, 'fileUrl must use http or https'),
+  docType: z.enum(DOC_TYPES).optional(),
+}).strict();
+
+export const uploadProjectDocumentSchema = z.object({
+  label: z.string().trim().min(1).max(160),
   docType: z.enum(DOC_TYPES).optional(),
 }).strict();

@@ -49,6 +49,7 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' |
 };
 
 const STATUS_OPTIONS = new Set(['aml_review_pending', 'pending', 'approved', 'processing', 'completed', 'rejected', 'failed']);
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parsePage(value: string | null): number {
   const parsed = Number(value);
@@ -75,7 +76,10 @@ export default function PayoutsPage(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
   const statusFilter = parseStatus(searchParams.get('status'));
-  const payoutId = searchParams.get('payoutId')?.trim() ?? '';
+  const rawPayoutId = searchParams.get('payoutId')?.trim() ?? '';
+  const hasExactPayout = rawPayoutId.length > 0;
+  const exactPayoutMalformed = hasExactPayout && !UUID_REGEX.test(rawPayoutId);
+  const payoutId = exactPayoutMalformed ? rawPayoutId : rawPayoutId.toLowerCase();
   const providerIdFilter = searchParams.get('providerId')?.trim() ?? '';
   const directorySearch = searchParams.get('search')?.trim() ?? '';
   const [searchInput, setSearchInput] = useState(directorySearch);
@@ -91,16 +95,27 @@ export default function PayoutsPage(): React.ReactElement {
   const payoutsQuery = useQuery({
     queryKey: ['adminPayouts', page, statusFilter, providerIdFilter, directorySearch, payoutId],
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
-      if (statusFilter) params.status = statusFilter;
-      if (providerIdFilter) params.providerId = providerIdFilter;
-      if (directorySearch) params.search = directorySearch;
-      if (payoutId) params.payoutId = payoutId;
+      const params: Record<string, string | number> = hasExactPayout
+        ? { page: 1, pageSize: adminConfig.defaultPageSize, payoutId }
+        : { page, pageSize: adminConfig.defaultPageSize };
+      if (!hasExactPayout && statusFilter) params.status = statusFilter;
+      if (!hasExactPayout && providerIdFilter) params.providerId = providerIdFilter;
+      if (!hasExactPayout && directorySearch) params.search = directorySearch;
       const res = await api.get<PaginatedResult>('/api/v1/payouts', { params });
       return res.data;
     },
+    enabled: !exactPayoutMalformed,
   });
   const { data, isLoading, isError } = payoutsQuery;
+  const visiblePayouts = hasExactPayout
+    ? (data?.data ?? []).filter((payout) => payout.id === payoutId)
+    : data?.data ?? [];
+  const exactPayoutMissing = hasExactPayout
+    && !exactPayoutMalformed
+    && !isLoading
+    && !isError
+    && Boolean(data)
+    && visiblePayouts.length === 0;
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -151,6 +166,15 @@ export default function PayoutsPage(): React.ReactElement {
     });
   }
 
+  function clearExactPayout(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('payoutId');
+      params.delete('page');
+      return params;
+    });
+  }
+
   function setStatusFilter(nextStatus: string): void {
     setSearchParams((current) => {
       const params = new URLSearchParams(current);
@@ -180,14 +204,6 @@ export default function PayoutsPage(): React.ReactElement {
       setActionError('Audit reason must be at least 10 characters.');
       return;
     }
-    const providerName = selectedPayout.providerBusinessName ?? 'this provider';
-    const actionLabel = actionType === 'clearAml'
-      ? 'Clear internal review hold for'
-      : actionType === 'complete'
-        ? 'Mark completed'
-        : `${actionType.charAt(0).toUpperCase() + actionType.slice(1)}`;
-    const confirmed = window.confirm(`${actionLabel} payout ${selectedPayout.id.slice(0, 8)} for ${providerName}?`);
-    if (!confirmed) return;
     mutation.mutate();
   }
 
@@ -338,11 +354,11 @@ export default function PayoutsPage(): React.ReactElement {
             {r.status === 'approved' && (
               <button
                 type="button"
-                aria-label={`Complete payout ${r.id}`}
+                aria-label={`Record payout ${r.id} as sent`}
                 onClick={(e) => { e.stopPropagation(); openAction(r, 'complete'); }}
                 className="min-h-11 px-2 py-2 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors"
               >
-                Complete
+                Record sent
               </button>
             )}
           </div>
@@ -366,24 +382,19 @@ export default function PayoutsPage(): React.ReactElement {
       </div>
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        {payoutId && (
+        {hasExactPayout && !exactPayoutMalformed && (
           <div className="flex min-h-11 items-center gap-2 rounded-md border border-[var(--color-primary)] bg-[var(--color-bg)] px-3 text-sm text-[var(--color-text)]">
             <span>Exact payout <strong>{payoutId.slice(0, 8).toUpperCase()}</strong></span>
             <button
               type="button"
               className="min-h-9 rounded px-2 font-semibold text-[var(--color-primary)] hover:bg-white"
-              onClick={() => setSearchParams((current) => {
-                const params = new URLSearchParams(current);
-                params.delete('payoutId');
-                params.delete('page');
-                return params;
-              })}
+              onClick={clearExactPayout}
             >
               Clear
             </button>
           </div>
         )}
-        <form onSubmit={handleSearch} className="flex gap-2">
+        {!hasExactPayout && <form onSubmit={handleSearch} className="flex gap-2">
           <label htmlFor="payout-provider-filter" className="sr-only">Search providers by name or ID</label>
           <input
             id="payout-provider-filter"
@@ -396,8 +407,8 @@ export default function PayoutsPage(): React.ReactElement {
           <button type="submit" className="min-h-11 px-4 py-2 bg-[var(--color-primary)] text-white text-sm rounded-lg hover:opacity-90 transition-opacity">
             Search
           </button>
-        </form>
-        <select
+        </form>}
+        {!hasExactPayout && <select
           aria-label="Filter payouts by status"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -411,10 +422,28 @@ export default function PayoutsPage(): React.ReactElement {
           <option value="completed">Completed</option>
           <option value="rejected">Rejected</option>
           <option value="failed">Failed</option>
-        </select>
+        </select>}
       </div>
 
       {filterError && <p role="alert" className="mb-4 text-sm text-red-600">{filterError}</p>}
+
+      {exactPayoutMalformed && (
+        <ErrorState
+          className="mb-4"
+          title="Invalid payout link"
+          description="Payout ID must be a complete UUID. No payout records were requested."
+          action={<Button variant="outline" className="min-h-11" onClick={clearExactPayout}>Clear payout selection</Button>}
+        />
+      )}
+
+      {exactPayoutMissing && (
+        <ErrorState
+          className="mb-4"
+          title="Payout record not found"
+          description="The requested payout is unavailable. No substitute payout is shown; return to the Audit Log or Provider 360 for the durable source context."
+          action={<Button variant="outline" className="min-h-11" onClick={clearExactPayout}>Show payout queue</Button>}
+        />
+      )}
 
       {isError && (
         <ErrorState
@@ -425,9 +454,17 @@ export default function PayoutsPage(): React.ReactElement {
         />
       )}
 
-      {!isError && <DataTable columns={columns} data={data?.data ?? []} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No payout requests found." />}
+      {!isError && !exactPayoutMalformed && !exactPayoutMissing && (
+        <DataTable
+          columns={columns}
+          data={visiblePayouts}
+          keyExtractor={(r) => r.id}
+          isLoading={isLoading}
+          emptyMessage="No payout requests found."
+        />
+      )}
 
-      {data && data.pagination.totalPages > 1 && (
+      {!hasExactPayout && data && data.pagination.totalPages > 1 && (
         <Pagination {...data.pagination} onPageChange={setPage} />
       )}
 
@@ -441,7 +478,11 @@ export default function PayoutsPage(): React.ReactElement {
           >
             <h3 className="text-lg font-semibold text-[var(--color-text)] mb-1">
               <span id="payout-action-title">
-              {actionType === 'clearAml' ? 'Clear Internal Review Hold' : `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} Payout`}
+              {actionType === 'clearAml'
+                ? 'Clear Internal Review Hold'
+                : actionType === 'complete'
+                  ? 'Record Payout as Sent'
+                  : `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} Payout`}
               </span>
             </h3>
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
@@ -457,6 +498,24 @@ export default function PayoutsPage(): React.ReactElement {
                     Threshold captured when requested: {formatCurrency(selectedPayout.amlThresholdAtRequest)}
                   </span>
                 )}
+              </div>
+            )}
+
+            {actionType === 'approve' && (
+              <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                This records approval and queues the manual transfer step. It does not send money. Finance must send and verify the external transfer before recording the payout as sent.
+              </div>
+            )}
+
+            {actionType === 'reject' && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+                Rejecting returns the full reserved amount to the provider&apos;s available wallet and notifies the provider. It does not send money externally.
+              </div>
+            )}
+
+            {actionType === 'complete' && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Only continue after the external transfer has been sent and verified outside onService. This records the payout as sent, removes the wallet reservation, and notifies the provider. It does not initiate or send the transfer.
               </div>
             )}
 
@@ -536,7 +595,7 @@ export default function PayoutsPage(): React.ReactElement {
                   actionType === 'reject' ? 'bg-red-600' : actionType === 'approve' ? 'bg-emerald-600' : 'bg-[var(--color-primary)]'
                 }`}
               >
-                {mutation.isPending ? 'Processing...' : actionType === 'clearAml' ? 'Confirm Hold Cleared' : actionType === 'approve' ? 'Approve' : actionType === 'reject' ? 'Reject' : 'Mark Completed'}
+                {mutation.isPending ? 'Processing...' : actionType === 'clearAml' ? 'Confirm Hold Cleared' : actionType === 'approve' ? 'Approve' : actionType === 'reject' ? 'Reject' : 'Record as Sent'}
               </button>
             </div>
           </div>

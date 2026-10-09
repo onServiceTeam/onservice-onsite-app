@@ -13,6 +13,7 @@ it('BUG-UX-160 — recurring client sends the strict server contract without a c
   await createRecurringBooking({
     categoryId: 'category-1',
     subcategoryId: 'subcategory-1',
+    originalBookingId: 'booking-1',
     frequency: 'weekly',
     preferredDay: 2,
     preferredTime: '09:00',
@@ -25,6 +26,7 @@ it('BUG-UX-160 — recurring client sends the strict server contract without a c
   expect(mockPost).toHaveBeenCalledWith('/api/v1/recurring', {
     categoryId: 'category-1',
     subcategoryId: 'subcategory-1',
+    originalBookingId: 'booking-1',
     frequency: 'weekly',
     preferredDay: 2,
     preferredTime: '09:00',

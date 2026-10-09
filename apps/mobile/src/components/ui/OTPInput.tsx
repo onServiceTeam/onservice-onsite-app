@@ -82,6 +82,9 @@ const styles = StyleSheet.create({
   },
   cell: {
     width: 48,
+    // Keep the preferred desktop size, but fit all configured digits into
+    // a narrow phone/tablet form without clipping either end of the code.
+    flexShrink: 1,
     height: 56,
     borderWidth: 1.5,
     borderColor: colors.border,

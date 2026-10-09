@@ -14,14 +14,14 @@
 // gets a loud failure at runtime so the migration can't silently
 // regress. Public helpers are preserved.
 
-import { MMKV } from 'react-native-mmkv';
+import { createMMKV } from 'react-native-mmkv';
 // Phase L typecheck fix — logger lives at @/lib/logger, not @/utils.
 // Pre-fix this file imported a non-existent path; deprecation warnings
 // were silently dropped at runtime due to the require failure being
 // caught upstream.
 import { logger } from '@/lib/logger';
 
-const publicStorage = new MMKV({
+const publicStorage = createMMKV({
   id: 'onservice-public',
 });
 
@@ -64,7 +64,7 @@ export function getPublicItem(key: string): string | undefined {
 }
 
 export function removePublicItem(key: string): void {
-  publicStorage.delete(key);
+  publicStorage.remove(key);
 }
 
 // Token + clear helpers also deprecated — auth.store and api.ts
@@ -96,7 +96,7 @@ export function clearAll(): void {
 // Reading or writing through `secureStorage` from this file is a
 // no-op + warning to discourage further use without breaking the
 // module load. Public storage is real and can be used safely.
-const secureStorage = new MMKV({
+const secureStorage = createMMKV({
   id: 'onservice-secure-deprecated',
   // No encryptionKey — this instance is intentionally inert / read-
   // only-zero so any leftover read returns nothing (preventing the

@@ -1,6 +1,7 @@
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
 import * as escrowService from './escrow.service';
+import * as paymentService from './payment.service';
 
 /**
  * MED-N28 fix — failed-gateway-action retry queue.
@@ -19,6 +20,7 @@ import * as escrowService from './escrow.service';
 
 export type RetryActionType =
   | 'refund_from_escrow'
+  | 'process_payment_refund'
   | 'release_escrow'
   | 'release_partial_escrow';
 
@@ -100,6 +102,23 @@ export async function processRetries(batchSize: number = 25): Promise<{
 }> {
   const counts = { attempted: 0, succeeded: 0, failedAndRetrying: 0, failedPermanent: 0 };
 
+  async function reconcileFinishedClaim(row: PendingRetryRow): Promise<void> {
+    const current = await db.query<{ status: string }>(
+      'SELECT status FROM gateway_retry_queue WHERE id = $1', [row.id],
+    );
+    if (current.rows[0]?.status === 'succeeded') {
+      counts.succeeded++;
+      logger.info('Gateway retry completion reconciled after an unavailable caller reply', {
+        retryId: row.id, actionType: row.action_type, bookingId: row.booking_id,
+      });
+    } else {
+      // A changed/missing claim is not authority to re-open its operation.
+      logger.warn('Gateway retry claim changed before failure could be recorded', {
+        retryId: row.id, status: current.rows[0]?.status,
+      });
+    }
+  }
+
   // Atomically claim a batch and flip status to 'in_progress' so
   // concurrent workers don't double-process.
   const claimed = await db.query<PendingRetryRow>(
@@ -120,14 +139,16 @@ export async function processRetries(batchSize: number = 25): Promise<{
   for (const row of claimed.rows) {
     counts.attempted++;
     try {
-      await runOne(row);
-      await db.query(
-        `UPDATE gateway_retry_queue
-            SET status = 'succeeded', succeeded_at = NOW(), updated_at = NOW(),
-                attempts = attempts + 1
-          WHERE id = $1`,
-        [row.id],
-      );
+      const acknowledged = await runOne(row);
+      if (!acknowledged) {
+        await db.query(
+          `UPDATE gateway_retry_queue
+              SET status = 'succeeded', succeeded_at = NOW(), updated_at = NOW(),
+                  attempts = attempts + 1
+            WHERE id = $1`,
+          [row.id],
+        );
+      }
       counts.succeeded++;
       logger.info('Gateway retry succeeded', {
         retryId: row.id, actionType: row.action_type, bookingId: row.booking_id,
@@ -137,13 +158,17 @@ export async function processRetries(batchSize: number = 25): Promise<{
       const errMsg = err instanceof Error ? err.message : String(err);
       const nextAttempts = row.attempts + 1;
       if (nextAttempts >= row.max_attempts) {
-        await db.query(
+        const marked = await db.query(
           `UPDATE gateway_retry_queue
               SET status = 'failed_permanent', failed_permanent_at = NOW(),
                   updated_at = NOW(), attempts = $1, last_error = $2
-            WHERE id = $3`,
+            WHERE id = $3 AND status = 'in_progress'`,
           [nextAttempts, errMsg.slice(0, 2000), row.id],
         );
+        if (marked.rowCount !== 1) {
+          await reconcileFinishedClaim(row);
+          continue;
+        }
         counts.failedPermanent++;
         logger.error('Gateway retry exhausted max_attempts; FAILED_PERMANENT — manual ops required', {
           retryId: row.id, actionType: row.action_type, bookingId: row.booking_id,
@@ -151,14 +176,18 @@ export async function processRetries(batchSize: number = 25): Promise<{
         });
       } else {
         const minutes = backoffMinutes(nextAttempts);
-        await db.query(
+        const marked = await db.query(
           `UPDATE gateway_retry_queue
               SET status = 'pending',
                   next_retry_at = NOW() + ($1 || ' minutes')::interval,
                   updated_at = NOW(), attempts = $2, last_error = $3
-            WHERE id = $4`,
+            WHERE id = $4 AND status = 'in_progress'`,
           [String(minutes), nextAttempts, errMsg.slice(0, 2000), row.id],
         );
+        if (marked.rowCount !== 1) {
+          await reconcileFinishedClaim(row);
+          continue;
+        }
         counts.failedAndRetrying++;
         logger.warn('Gateway retry failed; rescheduled with backoff', {
           retryId: row.id, actionType: row.action_type, attempts: nextAttempts,
@@ -171,7 +200,7 @@ export async function processRetries(batchSize: number = 25): Promise<{
   return counts;
 }
 
-async function runOne(row: PendingRetryRow): Promise<void> {
+async function runOne(row: PendingRetryRow): Promise<boolean> {
   const amount = row.amount_centavos !== null ? Number(row.amount_centavos) : null;
   switch (row.action_type) {
     case 'refund_from_escrow':
@@ -181,14 +210,24 @@ async function runOne(row: PendingRetryRow): Promise<void> {
         amount,
         row.description ?? 'Gateway retry: refund',
       );
-      return;
+      return false;
+    case 'process_payment_refund': {
+      if (amount === null) throw new Error('process_payment_refund row missing amount');
+      const receipt = await paymentService.processRefund(
+        row.booking_id,
+        amount,
+        row.description ?? 'Gateway retry: process payment refund',
+        { retryId: row.id, expectedStatus: 'in_progress' },
+      );
+      return receipt?.retryAcknowledged === true;
+    }
     case 'release_escrow':
       await escrowService.releaseEscrow(row.booking_id);
-      return;
+      return false;
     case 'release_partial_escrow':
       if (amount === null) throw new Error('release_partial_escrow row missing amount');
       await escrowService.releasePartialEscrow(row.booking_id, amount);
-      return;
+      return false;
     default:
       // TS exhaustiveness; should be unreachable given the CHECK constraint.
       throw new Error(`Unknown retry action_type: ${(row as { action_type: string }).action_type}`);

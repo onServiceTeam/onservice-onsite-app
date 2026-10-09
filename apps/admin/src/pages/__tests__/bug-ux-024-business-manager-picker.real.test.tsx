@@ -12,16 +12,16 @@ vi.mock('@/stores/auth.store', () => ({
   useAuthStore: (selector: (state: unknown) => unknown) => selector({ user: { role: 'super_admin' } }),
 }));
 
-get.mockResolvedValue({
+get.mockImplementation(async (url: string) => ({
   data: {
-    data: [{
+    data: url.endsWith('/terms/current') ? null : [{
       id: 'staff-record-1', user_id: 'user-1', is_active: true,
       account_is_active: true, account_role: 'admin',
       user_first_name: 'Maria', user_last_name: 'Reyes', user_email: 'maria@example.com',
       role_name: 'operations_manager',
     }],
   },
-});
+}));
 post.mockResolvedValue({ data: { success: true, data: { accountManagerId: 'user-1' } } });
 
 import { BillingSettingsCard } from '../BusinessAccountDetailPage';
@@ -34,6 +34,7 @@ it('Bug UX-024 — business account manager assignment uses named active staff i
     contactEmail: 'paolo@example.com', contactPhone: '+639170000000',
     accountManagerId: null, ownerUserId: null, status: 'active', paymentTerms: 'net_30',
     volumeDiscountRate: 10, monthlyCreditLimit: 5000000, notes: null,
+    recordVersion: 1,
     createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z',
   };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });

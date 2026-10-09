@@ -6,6 +6,8 @@ import { vi } from 'vitest';
 import api from '@/lib/api';
 import FeedbackPage from '../FeedbackPage';
 
+vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
+
 export const feedbackRecord = {
   id: 'feedback-1',
   createdAt: '2026-06-30T08:00:00.000Z',
@@ -13,6 +15,7 @@ export const feedbackRecord = {
   testerName: 'Customer tester',
   testerContact: 'c•••@example.com',
   contactMasked: true,
+  piiMasked: true,
   role: 'customer',
   device: 'Desktop Chrome',
   areas: ['customer', 'admin'],
@@ -42,10 +45,7 @@ export const feedbackRecord = {
   triageNote: null,
 };
 
-export function mockFeedbackApi(): void {
-  vi.mocked(api.get).mockReset();
-  vi.mocked(api.patch).mockReset();
-  vi.mocked(api.get).mockImplementation(async (url: string) => {
+export async function getFeedbackFixture(url: string): Promise<never> {
     if (url === '/api/v1/admin/feedback') {
       return {
         data: {
@@ -87,7 +87,12 @@ export function mockFeedbackApi(): void {
       return { data: { success: true, data: [{ id: 'agent-1', first_name: 'Ana', last_name: 'Reyes', role: 'admin' }] } } as never;
     }
     throw new Error(`Unexpected GET ${url}`);
-  });
+}
+
+export function mockFeedbackApi(): void {
+  vi.mocked(api.get).mockReset();
+  vi.mocked(api.patch).mockReset();
+  vi.mocked(api.get).mockImplementation(getFeedbackFixture);
   vi.mocked(api.patch).mockResolvedValue({
     data: {
       success: true,

@@ -9,16 +9,35 @@ import React from 'react';
 // posted base64-in-JSON to a /provider-onboarding/identity endpoint
 // that doesn't exist on the backend. The orphan file is documented
 // as deprecated in its header comment.
-import { Stack } from 'expo-router';
+import { Stack, useSegments } from 'expo-router';
 import { colors } from '@/config/theme';
 import { RoleRouteGuard } from '@/components/RoleRouteGuard';
 import { ProviderOnboardingDraftGuard } from '@/components/ProviderOnboardingDraftGuard';
+import { ProviderApplicationSessionGate } from '@/components/ProviderApplicationSessionGate';
+
+function ApplicationScreen({ children, routeName }: { children: React.ReactNode; routeName: string }): React.ReactElement | null {
+  const segments = useSegments();
+  // Native stacks can retain earlier screens. Only the active page may load,
+  // redirect or mount editable private controls. Returning restores saved data.
+  if (segments[segments.length - 1] !== routeName) return null;
+  return (
+    <ProviderApplicationSessionGate>
+      <ProviderOnboardingDraftGuard>{children}</ProviderOnboardingDraftGuard>
+    </ProviderApplicationSessionGate>
+  );
+}
+
+function applicationScreenLayout({ children, route }: { children: React.ReactNode; route: { name: string } }): React.ReactElement {
+  return <ApplicationScreen routeName={route.name}>{children}</ApplicationScreen>;
+}
 
 export default function ProviderOnboardingLayout(): React.ReactElement {
   return (
     <RoleRouteGuard allowedRoles={['customer']}>
-      <ProviderOnboardingDraftGuard>
+        {/* Gate screen content, not the navigator. Unmounting Stack while a
+            draft loads destroys its pending transition and navigation history. */}
         <Stack
+          screenLayout={applicationScreenLayout}
           screenOptions={{
             headerShown: false,
             animation: 'slide_from_right',
@@ -38,7 +57,6 @@ export default function ProviderOnboardingLayout(): React.ReactElement {
           <Stack.Screen name="review-pending" />
           <Stack.Screen name="background-check-status" />
         </Stack>
-      </ProviderOnboardingDraftGuard>
     </RoleRouteGuard>
   );
 }

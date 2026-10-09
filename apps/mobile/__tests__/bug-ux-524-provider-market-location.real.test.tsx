@@ -1,8 +1,10 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import api from '@/services/api';
+import { useOnboardingStore } from '@/stores/onboarding.store';
+import { readyApplication, mockDraftSaves } from '../test-support/application-draft-fixture';
 
 const mockPush = jest.fn();
-const mockSetServiceArea = jest.fn();
 const mockPermission = jest.fn().mockResolvedValue({ status: 'granted' });
 const mockPosition = jest.fn().mockResolvedValue({
   coords: { latitude: 10.32, longitude: 123.89 },
@@ -55,19 +57,12 @@ jest.mock('@/services/service-area.service', () => ({
   getProviderApplicationAreas: jest.fn(),
 }));
 
-jest.mock('@/stores/onboarding.store', () => ({
-  useOnboardingStore: () => ({
-    serviceAreaId: null,
-    serviceRadiusKm: 10,
-    latitude: null,
-    longitude: null,
-    setServiceArea: mockSetServiceArea,
-  }),
-}));
 
 import ProviderOnboardingServiceAreaScreen from '../app/provider-onboarding/service-area';
 
 it('Bug UX-524 — provider onboarding uses admin markets and saves the exact captured base instead of a hardcoded city center', async () => {
+  readyApplication();
+  mockDraftSaves();
   render(<ProviderOnboardingServiceAreaScreen />);
 
   expect(screen.getByText('Metro Cebu')).toBeTruthy();
@@ -77,19 +72,17 @@ it('Bug UX-524 — provider onboarding uses admin markets and saves the exact ca
   fireEvent.click(screen.getByLabelText('Capture exact provider operating location'));
 
   expect(await screen.findByText('Exact operating location captured inside Metro Cebu.')).toBeTruthy();
-  fireEvent.click(screen.getByText('Next'));
-
-  expect(mockSetServiceArea).toHaveBeenCalledWith({
-    areaId: mockConfiguredAreas[0]!.id,
-    radiusKm: 10,
-    lat: 10.32,
-    lng: 123.89,
+  fireEvent.click(screen.getByRole('button', { name: 'Save & continue' }));
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/provider-onboarding/vetting'));
+  expect(useOnboardingStore.getState()).toMatchObject({
+    serviceAreaId: mockConfiguredAreas[0]!.id,
+    serviceRadiusKm: 10,
+    latitude: 10.32,
+    longitude: 123.89,
     city: 'Cebu City',
     province: 'Cebu',
   });
-  expect(mockSetServiceArea).not.toHaveBeenCalledWith(expect.objectContaining({
-    lat: mockConfiguredAreas[0]!.centerLat,
-    lng: mockConfiguredAreas[0]!.centerLng,
-  }));
+  expect(api.put).toHaveBeenCalledWith('/api/v1/providers/application-draft', expect.objectContaining({ fields: expect.objectContaining({ latitude: 10.32, longitude: 123.89 }) }));
+  expect(useOnboardingStore.getState().latitude).not.toBe(mockConfiguredAreas[0]!.centerLat);
   expect(mockPush).toHaveBeenCalledWith('/provider-onboarding/vetting');
 });

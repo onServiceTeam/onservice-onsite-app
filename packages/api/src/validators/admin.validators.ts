@@ -16,6 +16,11 @@ export const suspendProviderSchema = z.object({
   reason: z.string().min(10, 'Reason must be at least 10 characters').max(1000),
 });
 
+export const rejectProviderApplicationSchema = z.object({
+  reason: z.string().trim().min(10).max(1000),
+  expectedRevisionId: z.string().uuid(),
+}).strict();
+
 // Bug 1323 fix (Phase 14 Dispatch 02 Part 3): 'founding' is now a valid
 // tier — DECISION-003 commits to a 10%-commission founding batch and the
 // rate already lived in platform_settings; migration 073 added founding to

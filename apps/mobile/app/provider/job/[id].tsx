@@ -90,13 +90,14 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   // the provider thought they'd receive the full price and got
   // surprised at payout time.
   const providerMeQuery = useQuery<{ tier: string; commissionRate: number }>({
-    queryKey: ['providerMe'],
+    queryKey: ['providerCommissionPreview', id],
     queryFn: async () => {
       const apiModule = await import('@/services/api');
-      const res = await apiModule.default.get<{ data: { tier: string; commissionRate: number } }>('/api/v1/providers/me');
+      const res = await apiModule.default.get<{ data: { tier: string; commissionRate: number } }>(`/api/v1/providers/me/commission-preview?bookingId=${encodeURIComponent(id!)}`);
       return { tier: res.data.data.tier, commissionRate: res.data.data.commissionRate };
     },
     staleTime: 5 * 60 * 1000,
+    enabled: !!id,
   });
   const proofSummaryQuery = useQuery({
     queryKey: ['bookingProofSummary', id],
@@ -278,14 +279,14 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
             <Text style={styles.earningsTotalValue}>{formatPHP(netEarnings)}</Text>
           </View>
           <Text style={styles.earningsNote}>
-            {`${tierPct}% live commission for your ${providerTier} tier, applied when payment is released.`}
+            {`${tierPct}% commission recorded for this booking under your ${providerTier} agreement.`}
           </Text>
         </>
       ) : (
         <ErrorState
           compact
           title="Net earnings unavailable"
-          message="We couldn't load the live commission rate for this job."
+          message="We couldn't load the commission agreement recorded for this job."
           onRetry={() => void providerMeQuery.refetch()}
         />
       )}

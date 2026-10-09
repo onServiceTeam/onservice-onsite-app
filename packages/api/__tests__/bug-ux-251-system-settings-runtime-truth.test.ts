@@ -23,8 +23,9 @@ it('Bug UX-251 — disconnected and launch-held settings are reported and enforc
   const statuses = Object.keys(settingsService.SETTING_DEFAULTS).map(
     (key) => settingsService.getSettingRuntimeControl(key).status,
   );
-  expect(statuses.filter((status) => status === 'live')).toHaveLength(53);
-  expect(statuses.filter((status) => status === 'held')).toHaveLength(10);
+  expect(statuses.filter((status) => status === 'live')).toHaveLength(36);
+  expect(statuses.filter((status) => status === 'release_coupled')).toHaveLength(3);
+  expect(statuses.filter((status) => status === 'held')).toHaveLength(31);
   expect(statuses.filter((status) => status === 'not_connected')).toHaveLength(12);
 
   const disconnected = settingsService.getSettingRuntimeControl('jwt_access_expires');
@@ -33,6 +34,20 @@ it('Bug UX-251 — disconnected and launch-held settings are reported and enforc
 
   const held = settingsService.getSettingRuntimeControl('feature_flag.promo_redemption_enabled');
   expect(held).toMatchObject({ status: 'held', editable: false });
+
+  expect(settingsService.getSettingRuntimeControl('guarantee_fund_rate')).toMatchObject({
+    status: 'held', editable: false,
+  });
+  expect(settingsService.getSettingRuntimeControl('bir_filer_tin')).toMatchObject({
+    status: 'held', editable: false,
+  });
+  expect(settingsService.getSettingRuntimeControl('auto_dispatch_enabled')).toMatchObject({
+    status: 'held', editable: false,
+  });
+
+  const branding = settingsService.getSettingRuntimeControl('brand_color_primary');
+  expect(branding).toMatchObject({ status: 'release_coupled', editable: true });
+  expect(branding.summary).toMatch(/mobile release and admin redeploy/i);
 
   const aml = settingsService.getSettingRuntimeControl('aml_large_transaction_threshold_centavos');
   expect(aml).toMatchObject({ status: 'live', editable: true });
@@ -46,7 +61,11 @@ it('Bug UX-251 — disconnected and launch-held settings are reported and enforc
   });
 
   await expect(
-    settingsService.updateSetting('jwt_access_expires', '30m', 'admin-1'),
+    settingsService.updateSetting('jwt_access_expires', '30m', {
+      changedBy: 'admin-1',
+      reason: 'Approved token lifetime change.',
+      expectedUpdatedAt: '2026-01-01T00:00:00.000Z',
+    }),
   ).rejects.toMatchObject({ statusCode: 409 });
   expect(dbTransactionMock).not.toHaveBeenCalled();
 });

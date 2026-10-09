@@ -12,7 +12,7 @@ Onboarding begins the moment an admin clicks **Approve** on the provider in the 
 
 - The provider row flips from `pending` to `approved`. The server refuses approval unless NBI clearance, government ID front, and selfie are on file. The application policy also requires the government ID back, but the approval API does not yet enforce it; the approving operator must manually verify that fourth file under E36. Do not assume an approved row alone proves the back image was present.
 - The system sends an **"Account Approved"** notification to the provider's app.
-- The provider lands on the standard tier **new** (15% commission) unless an admin set them to **founding** (10%, invite-only launch batch). Tier is shown in the admin Provider detail page (`/providers/:id`).
+- The provider lands on the standard tier **new** (15% seeded base schedule). Tier is shown in admin Provider detail (`/providers/:id`). Do not newly assign or promise **founding** while E63 holds its missing cohort and protected-term workflow.
 
 Approval does not put a provider into matching yet. A provider enters auto-dispatch only when both conditions are true: `status = approved` AND `is_available = TRUE` (the availability control may say "online" in their app). That toggle means **accepting work**; it is not proof that the app is open or that location is being streamed. The 7-day plan below exists to get them from approved to available and confident.
 
@@ -162,11 +162,11 @@ Earnings land in the provider's in-app wallet (`available_balance`). To cash out
 
 ## 5. Tiers and commission (what the provider keeps)
 
-Commission is flat per tier and comes off the service price. The provider keeps `service price minus commission`, plus 100% of tips. Rates below are the current defaults and are admin-tunable.
+Commission comes off the service price. The provider keeps `service price minus the booking's snapshotted commission`, plus 100% of tips. The table is the seeded base schedule; a prospective provider/category/service agreement can differ. Check Commission Controls before quoting and Booking 360 for an existing booking.
 
 | Tier | Commission | How you reach it |
 |---|---|---|
-| **founding** | 10% | Invite-only launch batch (first 50 per city). Not a step on the ladder, a parallel perk |
+| **founding** | 10% seeded base | Invite-only parallel tier; E63 hold, no new offer or assignment |
 | **new** | 15% | Default on signup |
 | **verified** | 13% | 5+ jobs and 4.0+ rating |
 | **pro** | 11% | 25+ jobs, 4.5+ rating, no open disputes |
@@ -285,11 +285,12 @@ chat? We want to hear how it went and make sure payouts and the app are
 clear. Reply with a time that works. - onService Ops
 ```
 
-**Internal: NBI expiry nudge (provider gets an in-app push automatically at 30 days; use this for direct follow-up)**
+**Internal: NBI expiry nudge (use only after manual expiry review; E62 means the automatic push is not reliable)**
 ```
-Hi [Name], your NBI clearance expires on [date]. Upload a renewed copy in
-the app before then so you can keep getting jobs. Renewals can take time,
-so please start now.
+Hi [Name], your NBI clearance expires on [date]. Please obtain a renewed
+copy and reply to your onService support case so we can guide the secure
+renewal process. Do not send the document through chat or email. Renewals
+can take time, so please start now.
 ```
 
 Support hours for any follow-up the provider needs: Monday to Saturday, 8:00 AM to 6:00 PM PHT. Urgent safety issues escalate via the on-call path even outside those hours.

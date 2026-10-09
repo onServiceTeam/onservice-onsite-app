@@ -1,0 +1,28 @@
+{
+  "evidence": "Compiled browser with synthetic HTTP and identity. Not live/server/native/Stitch signoff.",
+  "sourceRevision": "b48051dc027187badec5381171eff6831878455b",
+  "indexSha256": "0aa4825afd83ba1921c52fd8c1b3105857e4900eac435005a11e4c1e767c301a",
+  "generatedAt": "2026-09-05T18:45:45.578Z",
+  "expectedChecks": 84,
+  "checks": 1,
+  "passed": 0,
+  "results": [
+    {
+      "width": 320,
+      "route": "review-pending",
+      "state": "pending",
+      "heading": "Application submitted",
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status"
+      ],
+      "passed": false,
+      "overflow": 0,
+      "extraDecisionSpace": 117.09375,
+      "error": "Phone decision card has 117.09375px of unnecessary allocated space"
+    }
+  ]
+}

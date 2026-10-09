@@ -14,13 +14,17 @@ and in a web browser, both **locally** (on your own machine, today) and
 | **Company admin / back office** | No | **Yes — this is a real web app** |
 
 \* Customer and provider are **one app** that shows the right screens based on
-who logs in. It runs in a browser via Expo's web mode. **Caveat:** four
-map-based screens (address picker, live tracker, provider active-job map,
-provider service-area) use a mobile-only map component and will be blank or
-error in a browser. Everything else (browse, book, pay, quotes, jobs,
-earnings, chat, profile, etc.) works in a browser. For a fully polished
-customer/provider **web product**, a dedicated web front end is a later build;
-browser mode today is great for testing the core flows.
+who logs in. It runs in a browser via Expo's web mode. The four map-based
+screens (address picker, live tracker, provider active-job map, and provider
+service-area) use a browser-safe map preview, so they no longer crash or go
+blank. The customer address picker supports device geolocation and explicit
+decimal coordinates; the preview's configured area center is never treated as
+an exact property pin. Live provider GPS remains a later server capability,
+so the tracker shows the service location and honest status text until that
+producer exists. Everything else (browse, book, pay, quotes, jobs, earnings,
+chat, profile, etc.) works in a browser. A map-tile-backed customer/provider
+web product is still a later build and is not required for the core browser
+flows.
 
 The **admin** site is a true web app and works in any browser on any device.
 
@@ -71,7 +75,8 @@ work from any device, anywhere — no install, just a browser:
 
 - **Admin / back office:** `https://admin.onservice.ph`
 - **Customer + provider (web):** `https://app.onservice.ph`  *(I deploy this
-  alongside the admin site once DNS is live; same map-screen caveat as above)*
+  alongside the admin site once DNS is live; the browser-safe map behavior is
+  described above)*
 - The apps talk to the live API at `https://api.onservice.ph`.
 
 This is the easiest way to give testers and staff access: send them a link.

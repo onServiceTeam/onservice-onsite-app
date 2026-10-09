@@ -2006,6 +2006,25 @@
   (function () {
     var API = '/api/v1/feedback';
 
+    // Mirror the API's text caps in the browser so a tester cannot unknowingly
+    // write more than the server can store. The API remains authoritative for
+    // direct or programmatic requests.
+    function applyTextLimits(scope) {
+      var name = scope.querySelector('[name="testerName"]');
+      var contact = scope.querySelector('[name="testerContact"]');
+      var ideas = scope.querySelector('[name="ideas"]');
+      if (name) name.setAttribute('maxlength', '200');
+      if (contact) contact.setAttribute('maxlength', '200');
+      if (ideas) ideas.setAttribute('maxlength', '10000');
+      scope.querySelectorAll('textarea[name^="answer:"], input[type="text"][name^="answer:"]').forEach(function (field) {
+        field.setAttribute('maxlength', '2000');
+      });
+      scope.querySelectorAll('[data-k="where"], [data-k="what"], [data-k="expected"], [data-k="repro"]').forEach(function (field) {
+        field.setAttribute('maxlength', '3000');
+      });
+    }
+    applyTextLimits(document);
+
     // ---- 1-5 rating scales ----
     document.querySelectorAll('[data-name^="rating:"]').forEach(function (s) {
       var name = s.getAttribute('data-name');
@@ -2072,15 +2091,21 @@
         Array.prototype.slice.call(input.files || []).forEach(function (file) {
           var chip = document.createElement('span');
           chip.className = 'shot loading';
+          var previewUrl = typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : '';
+          if (previewUrl) chip.setAttribute('data-preview-url', previewUrl);
+          var img = document.createElement('img');
+          img.alt = 'Selected screenshot';
+          if (previewUrl) img.src = previewUrl;
+          chip.appendChild(img);
           previews.appendChild(chip);
           uploadImage(file).then(function (url) {
             chip.className = 'shot';
             chip.setAttribute('data-url', url);
-            var img = document.createElement('img'); img.src = url; img.alt = 'screenshot';
             var x = document.createElement('button'); x.type = 'button'; x.className = 'shot-x'; x.setAttribute('aria-label', 'Remove'); x.textContent = '×';
-            x.addEventListener('click', function () { chip.remove(); });
-            chip.appendChild(img); chip.appendChild(x);
+            x.addEventListener('click', function () { releasePreview(chip); chip.remove(); });
+            chip.appendChild(x);
           }).catch(function () {
+            releasePreview(chip);
             chip.className = 'shot err';
             chip.title = 'Upload failed (use a JPG/PNG/WebP under 10MB)';
           });
@@ -2090,6 +2115,14 @@
     }
     function collectShots(scope) {
       return Array.prototype.slice.call(scope.querySelectorAll('.shot[data-url]')).map(function (c) { return c.getAttribute('data-url'); });
+    }
+    function releasePreview(chip) {
+      var previewUrl = chip.getAttribute('data-preview-url');
+      if (previewUrl && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(previewUrl);
+      chip.removeAttribute('data-preview-url');
+    }
+    function releaseAllPreviews(scope) {
+      scope.querySelectorAll('.shot[data-preview-url]').forEach(releasePreview);
     }
 
     // ---- issue rows (cloned from <template id="issueTemplate">) ----
@@ -2101,8 +2134,9 @@
       wrap.className = 'issue';
       wrap.appendChild(tpl.content.cloneNode(true));
       issues.appendChild(wrap);
+      applyTextLimits(wrap);
       var rm = wrap.querySelector('[data-remove]');
-      if (rm) rm.addEventListener('click', function () { wrap.remove(); });
+      if (rm) rm.addEventListener('click', function () { releaseAllPreviews(wrap); wrap.remove(); });
       bindUploader(wrap);
     }
     var addBtn = document.getElementById('addIssue');
@@ -2165,6 +2199,7 @@
         .then(function (resp) { return resp.json().catch(function () { return {}; }).then(function (data) { return { ok: resp.ok, data: data }; }); })
         .then(function (r) {
           if (r.ok && r.data && r.data.success) {
+            releaseAllPreviews(form);
             if (form) form.style.display = 'none';
             var sb = document.querySelector('.submit-bar'); if (sb) sb.style.display = 'none';
             var thanks = document.getElementById('thanks'); if (thanks) thanks.style.display = 'block';

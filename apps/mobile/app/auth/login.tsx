@@ -17,11 +17,13 @@ import { Routes } from '@/config/navigation';
 import { DEMO_MODE, demoLogin, type DemoRole } from '@/config/demo';
 import { useResponsive } from '@/hooks/useResponsive';
 import AuthBrandPanel from '@/components/AuthBrandPanel';
+import { useAuthStore } from '@/stores/auth.store';
 
 export default function LoginScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
+  const sessionExpired = useAuthStore(state => state.sessionExpired);
   // requestOtpWithCaptcha transparently handles the server's 428 captcha
   // challenge (Cloudflare Turnstile) that appears after the lockout threshold.
   const { requestOtpWithCaptcha, captchaModal } = useCaptchaOtp();
@@ -99,6 +101,9 @@ export default function LoginScreen(): React.ReactElement {
         </View>
 
         <Card style={styles.form}>
+          {sessionExpired && <Text style={styles.sessionNotice} accessibilityRole="alert">
+            Sign in again to confirm your current account access. Use your verified mobile number. If you were applying to become a provider, signing in does not submit another application.
+          </Text>}
           {/* Phase 14 R5-complete — PhoneInput component */}
           <PhoneInput
             value={phone}
@@ -151,27 +156,25 @@ export default function LoginScreen(): React.ReactElement {
           </Link>
         </View>
 
-      {/* BUG-PHASE63-01 fix — pre-fix this was a single plain-text Text,
-          so the user agreed to Terms/Privacy without any way to read
-          them. Now the two legal docs are tappable links pushing to
-          /customer/terms with the right tab pre-selected. */}
+        {/* Public, keyboard-accessible links. The customer document route is
+            protected and redirects signed-out readers back to this screen. */}
         <Text style={styles.legal}>
           By continuing, you agree to our{' '}
-          <Text
+          <Link
             style={styles.legalLink}
-            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'terms' } })}
+            href={{ pathname: Routes.LEGAL, params: { tab: 'terms' } }}
             testID="login-terms-link"
           >
             Terms of Service
-          </Text>
+          </Link>
           {' '}and{' '}
-          <Text
+          <Link
             style={styles.legalLink}
-            onPress={() => router.push({ pathname: '/customer/terms', params: { tab: 'privacy' } })}
+            href={{ pathname: Routes.LEGAL, params: { tab: 'privacy' } }}
             testID="login-privacy-link"
           >
             Privacy Policy
-          </Text>
+          </Link>
           .
         </Text>
         </View>
@@ -208,6 +211,7 @@ const styles = StyleSheet.create({
   title: { ...typography.h1, color: colors.text, marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary },
   form: { gap: spacing.base, borderRadius: borderRadius.lg },
+  sessionNotice: { ...typography.bodySmall, color: colors.textSecondary },
   demo: {
     gap: spacing.sm,
     marginTop: spacing.base,

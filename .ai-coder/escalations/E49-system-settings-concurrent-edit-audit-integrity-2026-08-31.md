@@ -1,7 +1,7 @@
 # E49 — Concurrent System Settings edits can corrupt control-plane audit evidence
 
 **Date:** 2026-08-31
-**Status:** OPEN — no production setting or rate changed
+**Status:** RESOLVED IN CODE — production remains untouched and deployment is held by E50
 **Hard-stop reason:** affected settings control commissions, fees, AML, refunds,
 dispatch, identity checks, and other money/compliance behavior
 
@@ -59,5 +59,20 @@ the containment above. It does not authorize changing production values,
 commission policy, AML policy, refund policy, dispatch policy, or historical
 audit rows.
 
-Until approved, System Settings mutation code and production settings remain
-unchanged.
+## Resolution recorded 2026-09-01
+
+Ken authorized the recommended safe option and autonomous continuation. Commit
+`e510f13` implemented the containment without changing a configured value:
+
+- mutable rows are selected and locked inside the transaction;
+- stale `updatedAt` versions fail with a conflict;
+- bulk requests reject duplicate keys and lock in deterministic order;
+- every mutation requires a server-validated reason; and
+- update, audit evidence, and cache invalidation follow one successful control
+  path.
+
+Executed concurrency, stale-version, reason, duplicate-key, route-version, and
+rendered browser tests cover the repair. This resolves E49's code defect. It does
+not authorize a production setting change or deployment. E50 still blocks merge
+and deployment until legacy financial terms and affected production bookings are
+inventoried and reconciled.

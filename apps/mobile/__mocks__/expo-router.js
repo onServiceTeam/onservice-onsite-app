@@ -5,6 +5,7 @@ module.exports = {
   useSegments: () => [],
   usePathname: () => '/',
   Link: ({ children, ...rest }) => React.createElement('Link', rest, children),
+  Redirect: ({ href }) => React.createElement('span', { 'aria-label': `Redirect to ${href}` }, href),
   Stack: { Screen: () => null },
   Tabs: { Screen: () => null },
   Slot: () => null,

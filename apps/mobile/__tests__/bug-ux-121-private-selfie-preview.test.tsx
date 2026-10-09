@@ -9,6 +9,7 @@ jest.mock('@/utils/image-capture', () => ({
 jest.mock('@/hooks/useResponsive', () => ({ useResponsive: () => ({ isPhone: false }) }));
 jest.mock('@/stores/onboarding.store', () => ({
   useOnboardingStore: () => ({
+    ...jest.requireActual('@/stores/onboarding.store').useOnboardingStore.getInitialState(),
     selfieUri: 'https://private.example/onboarding/user/selfie.jpg',
     setDocument: jest.fn(),
   }),

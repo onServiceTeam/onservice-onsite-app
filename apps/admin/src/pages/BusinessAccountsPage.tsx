@@ -1,15 +1,16 @@
-import React, { useState, type FormEvent } from 'react';
+import React, { useEffect, useState, type FormEvent } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { Link, useSearchParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
-import api, { getErrorMessage } from '@/lib/api';
+import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import {
   DataTable,
   Badge,
+  Button,
+  ErrorState,
   Pagination,
-  useConfirmationDialog,
   type Column,
 } from '@/components/ui';
 
@@ -71,23 +72,19 @@ function parseStatus(value: string | null): string {
 }
 
 export default function BusinessAccountsPage(): React.ReactElement {
-  const { confirm, confirmationDialog } = useConfirmationDialog();
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parsePage(searchParams.get('page'));
   const statusFilter = parseStatus(searchParams.get('status'));
   const search = searchParams.get('search')?.trim() ?? '';
   const [searchInput, setSearchInput] = useState(search);
-  const [actionError, setActionError] = useState('');
-  // BUG-PHASE41-03 fix — pre-fix the suspend POST sent a hardcoded
-  // "Admin action" reason. Suspending a business account is serious
-  // (cuts off scheduled bookings, cuts off credit-line invoicing) so
-  // the reason needs to be captured for audit + recipient
-  // notification. Now: confirm modal with required reason.
-  const [suspendTarget, setSuspendTarget] = useState<BusinessAccount | null>(null);
-  const [suspendReason, setSuspendReason] = useState('');
-  const queryClient = useQueryClient();
 
-  const { data, isLoading, isError } = useQuery({
+  // The URL is the source of truth for directory filters. Keep the editable
+  // field aligned when browser Back/Forward or another in-app link changes it.
+  useEffect(() => {
+    setSearchInput(search);
+  }, [search]);
+
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['adminBusinessAccounts', page, search, statusFilter],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
@@ -96,30 +93,6 @@ export default function BusinessAccountsPage(): React.ReactElement {
       const res = await api.get<PaginatedResult>('/api/v1/admin/business-accounts', { params });
       return res.data;
     },
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await api.post(`/api/v1/admin/business-accounts/${id}/approve`);
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['adminBusinessAccounts'] });
-      setActionError('');
-    },
-    onError: (e) => setActionError(getErrorMessage(e)),
-  });
-
-  const suspendMutation = useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      await api.post(`/api/v1/admin/business-accounts/${id}/suspend`, { reason: reason.trim() });
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['adminBusinessAccounts'] });
-      setActionError('');
-      setSuspendTarget(null);
-      setSuspendReason('');
-    },
-    onError: (e) => setActionError(getErrorMessage(e)),
   });
 
   const handleSearch = (e: FormEvent): void => {
@@ -151,32 +124,6 @@ export default function BusinessAccountsPage(): React.ReactElement {
       else params.delete('status');
       return params;
     });
-  }
-
-  async function approveAccount(account: BusinessAccount): Promise<void> {
-    const accepted = await confirm({
-      title: 'Approve business account?',
-      description: `“${account.companyName}” will receive active business-account access under ${account.paymentTerms.replace('_', ' ')} payment terms and a ${formatCurrency(account.monthlyCreditLimit)} monthly credit limit.`,
-      confirmLabel: 'Approve account',
-    });
-    if (!accepted) return;
-    approveMutation.mutate(account.id);
-  }
-
-  function openSuspend(account: BusinessAccount): void {
-    setSuspendTarget(account);
-    setSuspendReason('');
-    setActionError('');
-  }
-
-  function submitSuspend(): void {
-    if (!suspendTarget) return;
-    const reason = suspendReason.trim();
-    if (reason.length < 10) {
-      setActionError('Suspension reason must be at least 10 characters.');
-      return;
-    }
-    suspendMutation.mutate({ id: suspendTarget.id, reason });
   }
 
   const columns: Column<BusinessAccount>[] = [
@@ -214,14 +161,14 @@ export default function BusinessAccountsPage(): React.ReactElement {
     },
     {
       key: 'volumeDiscountRate',
-      header: 'Discount',
+      header: 'Discount projection',
       render: (r) => (
         <span className="text-sm font-medium">{r.volumeDiscountRate > 0 ? `${r.volumeDiscountRate}%` : '—'}</span>
       ),
     },
     {
       key: 'monthlyCreditLimit',
-      header: 'Credit Limit',
+      header: 'Credit projection',
       render: (r) => (
         <span className="text-sm">{r.monthlyCreditLimit > 0 ? formatCurrency(r.monthlyCreditLimit) : '—'}</span>
       ),
@@ -242,30 +189,13 @@ export default function BusinessAccountsPage(): React.ReactElement {
       key: 'actions',
       header: '',
       render: (r) => (
-        <div className="flex gap-2">
-          {r.status === 'pending' && (
-            <button
-              type="button"
-              aria-label={`Approve business account ${r.companyName}`}
-              onClick={() => void approveAccount(r)}
-              disabled={approveMutation.isPending}
-              className="text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
-            >
-              Approve
-            </button>
-          )}
-          {r.status === 'active' && (
-            <button
-              type="button"
-              aria-label={`Suspend business account ${r.companyName}`}
-              onClick={() => openSuspend(r)}
-              disabled={suspendMutation.isPending}
-              className="text-xs text-[var(--color-error)] hover:underline disabled:opacity-50"
-            >
-              Suspend
-            </button>
-          )}
-        </div>
+        <Link
+          to={`/business-accounts/${r.id}`}
+          aria-label={`Review business account ${r.companyName}`}
+          className="inline-flex min-h-11 items-center text-xs font-semibold text-[var(--color-primary)] hover:underline"
+        >
+          Review 360
+        </Link>
       ),
     },
   ];
@@ -312,10 +242,15 @@ export default function BusinessAccountsPage(): React.ReactElement {
         </select>
       </div>
 
-      {isError && <p role="alert" className="text-sm text-red-600 mb-4">Failed to load business accounts. Please try again.</p>}
-      {actionError && <p role="alert" className="text-sm text-red-600 mb-4">{actionError}</p>}
-
-      <DataTable columns={columns} data={accounts} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No business accounts found." />
+      {isError ? (
+        <ErrorState
+          title="Business accounts unavailable"
+          description="The business-account directory could not be read. Do not treat it as empty before making an account or credit decision."
+          action={<Button variant="outline" onClick={() => void refetch()}>Retry business accounts</Button>}
+        />
+      ) : (
+        <DataTable columns={columns} data={accounts} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No business accounts found." />
+      )}
 
       {pagination && pagination.totalPages > 1 && (
         <Pagination
@@ -327,52 +262,6 @@ export default function BusinessAccountsPage(): React.ReactElement {
         />
       )}
 
-      {suspendTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="suspend-business-title"
-            className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6"
-          >
-            <h3 id="suspend-business-title" className="text-lg font-semibold text-[var(--color-text)] mb-1">Suspend business account</h3>
-            <p className="text-sm text-[var(--color-text-secondary)] mb-4">
-              {suspendTarget.companyName} ({TYPE_LABELS[suspendTarget.businessType] ?? suspendTarget.businessType})
-            </p>
-            <p className="mb-4 rounded-lg border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] p-3 text-sm text-[var(--color-text)]">
-              This blocks new scheduled bookings and credit-line invoicing. The reason is recorded
-              in the audit log and sent to the business contact.
-            </p>
-            <label htmlFor="business-suspend-reason" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Suspension reason *</label>
-            <textarea
-              id="business-suspend-reason"
-              value={suspendReason}
-              onChange={(e) => setSuspendReason(e.target.value)}
-              rows={3}
-              placeholder="Explain why (min 10 characters) — recorded in audit log"
-              className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
-            />
-            <div className="flex gap-2 justify-end mt-4">
-              <button
-                type="button"
-                onClick={() => setSuspendTarget(null)}
-                className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={submitSuspend}
-                disabled={suspendMutation.isPending || suspendReason.trim().length < 10}
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-              >
-                {suspendMutation.isPending ? 'Suspending...' : 'Confirm suspend'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {confirmationDialog}
     </div>
   );
 }

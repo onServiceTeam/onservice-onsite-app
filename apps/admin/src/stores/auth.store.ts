@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 import api from '@/lib/api';
+import {
+  assertAdminRequestSession,
+  captureAdminRequestSession,
+  isAdminRequestSessionCurrent,
+  retireAdminRequestSession,
+  subscribeAdminPasswordRotationRequired,
+} from '@/lib/admin-request-session';
 
 export interface AdminUser {
   id: string;
@@ -28,11 +35,16 @@ interface AuthState {
 
   hydrate: () => Promise<void>;
   login: (user: AdminUser, opts?: { mustRotatePassword?: boolean }) => void;
-  clearMustRotate: () => void;
+  clearMustRotate: (completedSession: object) => void;
   logout: () => Promise<void>;
 }
 
 const ADMIN_TIER_ROLES: ReadonlySet<string> = new Set(['admin', 'super_admin', 'dpo']);
+
+// Startup reads may finish after another read, login or logout. Only their
+// current ticket may settle identity/role/rotation state. This is not a cookie
+// or transport lock: requests already processed by the server remain separate.
+let hydrationRevision = 0;
 
 export function hasAdminSessionHint(): boolean {
   if (typeof document === 'undefined') return false;
@@ -42,13 +54,15 @@ export function hasAdminSessionHint(): boolean {
 // Bug 1251 fix: tokens are stored in HttpOnly cookies, never in localStorage.
 // Hydration calls /api/v1/auth/me — if the admin_session cookie is valid the
 // server returns the user; otherwise we stay logged out.
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isAuthenticated: false,
   isLoading: true,
   mustRotatePassword: false,
 
   hydrate: async () => {
+    const revision = ++hydrationRevision;
+    const requestSession = captureAdminRequestSession();
     // One-time migration for users still carrying tokens from before this fix:
     // wipe legacy localStorage keys so they never get used again.
     try {
@@ -63,6 +77,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Returning admins still hydrate and refresh normally because their CSRF
     // session hint remains present.
     if (!hasAdminSessionHint()) {
+      if (get().isAuthenticated || get().user) retireAdminRequestSession();
       set({ user: null, isAuthenticated: false, isLoading: false, mustRotatePassword: false });
       return;
     }
@@ -72,8 +87,15 @@ export const useAuthStore = create<AuthState>((set) => ({
         success: true;
         data: AdminUser & { id: string; role: string; mustRotatePassword?: boolean };
       }>('/api/v1/auth/me');
+      if (revision !== hydrationRevision) return;
+      if (!isAdminRequestSessionCurrent(requestSession)) {
+        set({ isLoading: false });
+        return;
+      }
       const u = res.data.data;
       if (u && ADMIN_TIER_ROLES.has(u.role)) {
+        const previous = get().user;
+        if (previous?.id !== u.id || previous?.role !== u.role) retireAdminRequestSession();
         set({
           user: u as AdminUser,
           isAuthenticated: true,
@@ -85,25 +107,64 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       // Not authenticated — fall through.
     }
+    if (revision !== hydrationRevision) return;
+    if (!isAdminRequestSessionCurrent(requestSession)) {
+      // A sign-in can be pending or fail without calling login(). End only
+      // obsolete bootstrap loading; never apply its old identity or clear the
+      // new sign-in's request ownership.
+      set({ isLoading: false });
+      return;
+    }
+    if (get().isAuthenticated || get().user) retireAdminRequestSession();
     set({ user: null, isAuthenticated: false, isLoading: false, mustRotatePassword: false });
   },
 
   login: (user, opts) => {
+    hydrationRevision += 1;
+    // Even the same user signing in again owns a new request lifetime.
+    retireAdminRequestSession();
     set({
       user,
       isAuthenticated: true,
+      isLoading: false,
       mustRotatePassword: opts?.mustRotatePassword === true,
     });
   },
 
-  clearMustRotate: () => {
-    set({ mustRotatePassword: false });
+  clearMustRotate: (completedSession) => {
+    // The successful password change replaces this browser's server session.
+    // Old reads/requirements cannot overwrite its completed state, nor can an
+    // obsolete password callback clear another operator's requirement.
+    assertAdminRequestSession(completedSession);
+    hydrationRevision += 1;
+    retireAdminRequestSession();
+    set({ mustRotatePassword: false, isLoading: false });
   },
 
   logout: async () => {
+    hydrationRevision += 1;
+    retireAdminRequestSession();
+    const requestSession = captureAdminRequestSession();
     try {
       await api.post('/api/v1/auth/admin/logout');
-    } catch { /* best effort — clear local state regardless */ }
-    set({ user: null, isAuthenticated: false, mustRotatePassword: false });
+    } catch { /* best effort — clear the initiating local session below */ }
+    // A later sign-in, password replacement, role change or logout owns its
+    // own state. Even an obsolete failed logout must not clear that state.
+    if (!isAdminRequestSessionCurrent(requestSession)) return;
+    // Also retire a startup check that began while logout was awaiting HTTP.
+    hydrationRevision += 1;
+    retireAdminRequestSession();
+    set({ user: null, isAuthenticated: false, isLoading: false, mustRotatePassword: false });
   },
 }));
+
+const unsubscribePasswordRotation = subscribeAdminPasswordRotationRequired(() => {
+  const state = useAuthStore.getState();
+  if (!state.isAuthenticated || !state.user) return;
+  // An earlier /auth/me response may still contain false. This explicit
+  // requirement is newer evidence, but must not cancel an in-flight change.
+  hydrationRevision += 1;
+  useAuthStore.setState({ mustRotatePassword: true, isLoading: false });
+});
+
+if (import.meta.hot) import.meta.hot.dispose(unsubscribePasswordRotation);

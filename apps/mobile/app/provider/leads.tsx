@@ -96,7 +96,7 @@ export default function ProviderLeadsScreen(): React.ReactElement {
         <TouchableOpacity
           style={[styles.card, numColumns > 1 && styles.cardGrid]}
           activeOpacity={0.7}
-          onPress={() => router.push(`/provider/job/${item.id}`)}
+          onPress={() => router.push(`/provider/job/${item.id}/quote`)}
           accessibilityRole="button"
           accessibilityLabel={`Open ${item.categoryName} job request and prepare a quote`}
         >

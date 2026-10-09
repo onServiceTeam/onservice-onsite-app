@@ -1,0 +1,1631 @@
+{
+  "sourceRevision": "4840b276da8a1604712883310c371d89f78479fb plus local UX-1370 refresh-result correction",
+  "createdAt": "2026-09-06T03:34:07.044Z",
+  "evidenceType": "compiled note/auth/refresh controls; synthetic HTTP and HttpOnly cookies; not production acceptance",
+  "indexSha256": "c636e51fa47c6b53565ff162c443e9eed2527eeb6a2051e35da7f0bf38cd5f63",
+  "entrySha256": "9f5d7ccc3cf7c0c998ec891506159636ebd3904600f2247a8ea39abab541493a",
+  "checks": [
+    {
+      "width": 320,
+      "scenario": "operator-switch",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": null,
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": "synthetic-new-csrf",
+          "body": {
+            "body": "Synthetic current operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-operator-switch-old-note.png",
+        "320-operator-switch-new-owner.png",
+        "320-operator-switch-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic current operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 320,
+      "scenario": "same-owner-refresh",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-refreshed-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-same-owner-refresh-old-note.png",
+        "320-same-owner-refresh-same-owner-refreshed.png",
+        "320-same-owner-refresh-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic old operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Old Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 320,
+      "scenario": "stale-rotation",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": null,
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": "synthetic-new-csrf",
+          "body": {
+            "body": "Synthetic current operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-stale-rotation-old-note.png",
+        "320-stale-rotation-new-owner.png",
+        "320-stale-rotation-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic current operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 390,
+      "scenario": "operator-switch",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": null,
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": "synthetic-new-csrf",
+          "body": {
+            "body": "Synthetic current operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-operator-switch-old-note.png",
+        "390-operator-switch-new-owner.png",
+        "390-operator-switch-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic current operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 390,
+      "scenario": "same-owner-refresh",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-refreshed-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-same-owner-refresh-old-note.png",
+        "390-same-owner-refresh-same-owner-refreshed.png",
+        "390-same-owner-refresh-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic old operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Old Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 390,
+      "scenario": "stale-rotation",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": null,
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": "synthetic-new-csrf",
+          "body": {
+            "body": "Synthetic current operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-stale-rotation-old-note.png",
+        "390-stale-rotation-new-owner.png",
+        "390-stale-rotation-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic current operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 768,
+      "scenario": "operator-switch",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": null,
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": "synthetic-new-csrf",
+          "body": {
+            "body": "Synthetic current operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-operator-switch-old-note.png",
+        "768-operator-switch-new-owner.png",
+        "768-operator-switch-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic current operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 768,
+      "scenario": "same-owner-refresh",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-refreshed-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-same-owner-refresh-old-note.png",
+        "768-same-owner-refresh-same-owner-refreshed.png",
+        "768-same-owner-refresh-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic old operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Old Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 768,
+      "scenario": "stale-rotation",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": null,
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": "synthetic-new-csrf",
+          "body": {
+            "body": "Synthetic current operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-stale-rotation-old-note.png",
+        "768-stale-rotation-new-owner.png",
+        "768-stale-rotation-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic current operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "operator-switch",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": null,
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": "synthetic-new-csrf",
+          "body": {
+            "body": "Synthetic current operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-operator-switch-old-note.png",
+        "1024-operator-switch-new-owner.png",
+        "1024-operator-switch-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic current operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "same-owner-refresh",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-refreshed-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-same-owner-refresh-old-note.png",
+        "1024-same-owner-refresh-same-owner-refreshed.png",
+        "1024-same-owner-refresh-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic old operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Old Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "stale-rotation",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": null,
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": "synthetic-new-csrf",
+          "body": {
+            "body": "Synthetic current operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-stale-rotation-old-note.png",
+        "1024-stale-rotation-new-owner.png",
+        "1024-stale-rotation-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic current operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "operator-switch",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": null,
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": "synthetic-new-csrf",
+          "body": {
+            "body": "Synthetic current operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-operator-switch-old-note.png",
+        "1366-operator-switch-new-owner.png",
+        "1366-operator-switch-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic current operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "same-owner-refresh",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-refreshed-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-same-owner-refresh-old-note.png",
+        "1366-same-owner-refresh-same-owner-refreshed.png",
+        "1366-same-owner-refresh-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic old operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Old Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "stale-rotation",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": null,
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": "synthetic-new-csrf",
+          "body": {
+            "body": "Synthetic current operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-stale-rotation-old-note.png",
+        "1366-stale-rotation-new-owner.png",
+        "1366-stale-rotation-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic current operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "operator-switch",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": null,
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": "synthetic-new-csrf",
+          "body": {
+            "body": "Synthetic current operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-operator-switch-old-note.png",
+        "1920-operator-switch-new-owner.png",
+        "1920-operator-switch-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic current operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "same-owner-refresh",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/refresh",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-refreshed-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-same-owner-refresh-old-note.png",
+        "1920-same-owner-refresh-same-owner-refreshed.png",
+        "1920-same-owner-refresh-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic old operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Old Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "stale-rotation",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf",
+          "body": {
+            "body": "Synthetic old operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": null,
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": "synthetic-new-csrf",
+          "body": {
+            "body": "Synthetic current operator note",
+            "category": "quality",
+            "pinned": true
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-stale-rotation-old-note.png",
+        "1920-stale-rotation-new-owner.png",
+        "1920-stale-rotation-saved-current-note.png"
+      ],
+      "storedNotes": [
+        {
+          "id": "eeeeeeee-eeee-4eee-8eee-000000000001",
+          "body": "Synthetic current operator note",
+          "category": "quality",
+          "pinned": true,
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "documentOverflow": 0,
+      "blockedRealtimeConnections": 0
+    }
+  ],
+  "failure": null,
+  "failedScenario": null
+}

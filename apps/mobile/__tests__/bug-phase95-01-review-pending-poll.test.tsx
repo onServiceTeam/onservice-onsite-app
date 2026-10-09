@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const mockReplace = jest.fn();
@@ -18,28 +18,39 @@ jest.mock('@/hooks/useResponsive', () => ({
 }));
 
 jest.mock('@/stores/auth.store', () => ({
-  useAuthStore: () => ({ setUser: jest.fn() }),
+  useAuthStore: () => ({ setUser: jest.fn(), isAuthenticated: true, user: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', role: 'customer' } }),
 }));
 
 import ReviewPendingScreen from '../app/provider-onboarding/review-pending';
 
 it('BUG-PHASE95-01 — pending applicants poll their auth-only application status without receiving provider access', async () => {
+  jest.useFakeTimers();
   mockGetApplicationStatus.mockResolvedValue({ status: 'pending', rejectionReason: null });
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
 
-  render(
+  const view = render(
     <QueryClientProvider client={client}>
       <ReviewPendingScreen />
     </QueryClientProvider>,
   );
 
-  await waitFor(() => expect(screen.getByText('Application Under Review')).toBeTruthy());
+  await act(async () => { await jest.advanceTimersByTimeAsync(10); });
+  expect(screen.getByText('Application submitted')).toBeTruthy();
   expect(mockGetApplicationStatus).toHaveBeenCalledTimes(1);
-  expect(screen.getByText('Manual document review')).toBeTruthy();
+  expect(screen.getByText(/cannot yet confirm whether the review has started/i)).toBeTruthy();
+  expect(screen.queryByText('In review')).toBeNull();
   expect(screen.queryByText('24-48 hours')).toBeNull();
+
+  await act(async () => { await jest.advanceTimersByTimeAsync(15_000); });
+  expect(mockGetApplicationStatus).toHaveBeenCalledTimes(2);
+  expect(screen.getByText('Application submitted')).toBeTruthy();
+  expect(mockReplace).not.toHaveBeenCalled();
 
   fireEvent.click(screen.getByText('Go to Customer Home'));
   expect(mockReplace).toHaveBeenCalledWith('/(tabs)/home');
+  view.unmount();
+  client.clear();
+  jest.useRealTimers();
 });

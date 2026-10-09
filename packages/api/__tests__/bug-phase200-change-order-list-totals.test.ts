@@ -14,13 +14,10 @@ jest.mock('../src/models/db', () => ({
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
-jest.mock('../src/services/settings.service', () => ({
-  getSettingPercent: jest.fn().mockResolvedValue(0.1), // 10% service fee
-  getSettingNumber: jest.fn().mockImplementation((key: string) => {
-    if (key === 'service_fee_min') return Promise.resolve(2500);
-    if (key === 'service_fee_max') return Promise.resolve(50000);
-    return Promise.resolve(0);
-  }),
+const getLatestTermsOrNullMock = jest.fn();
+jest.mock('../src/services/booking-financial-terms.service', () => ({
+  getLatestTermsOrNull: (...args: unknown[]) => getLatestTermsOrNullMock(...args),
+  calculateServiceFeeFromTerms: (servicePrice: number) => Math.min(50000, Math.max(2500, Math.round(servicePrice * 0.1))),
 }));
 
 import { getChangeOrders } from '../src/services/booking.service';
@@ -29,6 +26,8 @@ const BOOKING_ID = 'booking-1';
 
 beforeEach(() => {
   dbQueryMock.mockReset();
+  getLatestTermsOrNullMock.mockReset();
+  getLatestTermsOrNullMock.mockResolvedValue({ termsState: 'final' });
 });
 
 describe('Phase 200 — getChangeOrders returns marginal fee + total', () => {

@@ -22,7 +22,23 @@ export function resolveNotificationRoute(
   const recurringBookingId = stringValue(data, 'recurringBookingId');
   const providerId = stringValue(data, 'providerId');
   const disputeId = stringValue(data, 'disputeId');
+  const ticketId = stringValue(data, 'ticketId');
   const isChat = ['new_message', 'chat_started', 'chat_last_message'].includes(type);
+
+  if (type === 'support_update' && ticketId) {
+    return buildRoute(Routes.SUPPORT.THREAD, { id: ticketId });
+  }
+
+  // Admission is about the signed-in account, not a public provider listing.
+  // A rejected applicant remains a customer. An old approved customer session
+  // reaches owned review, where canonical auth requires fresh sign-in. Never
+  // grant authority from notification payloads or send approval to deletion.
+  if (type === 'provider_approved') {
+    return role === 'provider' ? Routes.PROVIDER_TABS.DASHBOARD : Routes.PROVIDER_ONBOARDING.REVIEW_PENDING;
+  }
+  if (type === 'provider_rejected' && role === 'customer') {
+    return Routes.PROVIDER_ONBOARDING.REVIEW_PENDING;
+  }
 
   if (role === 'customer') {
     if (disputeId) return buildRoute(Routes.CUSTOMER.DISPUTE_DETAIL, { id: disputeId });
@@ -57,7 +73,7 @@ export function resolveNotificationRoute(
   if (type === 'provider_certification_verified' || type === 'provider_certification_unverified') return Routes.PROVIDER.CERTIFICATIONS;
   if (type === 'provider_staff_approved' || type === 'provider_staff_rejected') return Routes.PROVIDER.TEAM;
   if (type === 'service_area_change_approved' || type === 'service_area_change_rejected') return Routes.PROVIDER.SERVICE_AREA;
-  if (['nbi_expiring', 'provider_approved', 'provider_rejected', 'provider_suspended', 'provider_reactivated'].includes(type)) {
+  if (['nbi_expiring', 'provider_rejected', 'provider_suspended', 'provider_reactivated'].includes(type)) {
     return Routes.PROVIDER.ACCOUNT_MANAGEMENT;
   }
   if (type === 'business_update') return Routes.PROVIDER_TABS.DASHBOARD;

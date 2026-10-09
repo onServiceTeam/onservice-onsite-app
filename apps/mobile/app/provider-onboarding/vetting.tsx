@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 // three references. yearsExperience maps to providers.years_experience; the
 // rest are saved into providers.vetting_answers (JSONB) on submit.
 import {
-  View, Text, TouchableOpacity, TextInput, StyleSheet, Alert, ScrollView,
+  View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView,
   type TextInputProps,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -15,6 +15,9 @@ import {
   useOnboardingStore, emptyVetting, type VettingData, type VettingReference,
 } from '@/stores/onboarding.store';
 import { Button } from '@/components/ui';
+import { ProviderApplicationDraftActions } from '@/components/ProviderApplicationDraftActions';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import { applicationFieldsFromStore } from '@/services/provider-application-draft.service';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Briefcase } from '@/components/icons';
 import { Routes } from '@/config/navigation';
@@ -25,13 +28,17 @@ const BUSINESS_TYPES = ['Solo worker', 'Small team', 'Registered company'];
 // Module-level so the input does not remount on every keystroke (which would
 // drop focus). Renders a labelled input with an optional hint.
 function LabeledInput(
-  { label, hint, ...props }: { label: string; hint?: string } & TextInputProps,
+  { label, hint, error, ...props }: { label: string; hint?: string; error?: string } & TextInputProps,
 ): React.ReactElement {
+  const id = React.useId();
   return (
     <View>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
-      <TextInput style={styles.input} placeholderTextColor={colors.textTertiary} {...props} />
+      <Text nativeID={`${id}-label`} style={styles.fieldLabel}>{label}</Text>
+      {hint ? <Text nativeID={`${id}-hint`} style={styles.fieldHint}>{hint}</Text> : null}
+      <TextInput style={styles.input} placeholderTextColor={colors.textTertiary}
+        accessibilityLabel={label} aria-labelledby={`${id}-label`} aria-required={label.endsWith('*')}
+        aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined} {...props} />
+      {error ? <Text nativeID={`${id}-error`} style={styles.error} accessibilityRole="alert">{error}</Text> : null}
     </View>
   );
 }
@@ -42,6 +49,8 @@ export default function VettingScreen(): React.ReactElement {
   const { isPhone } = useResponsive();
   const [years, setYears] = useState(store.yearsExperience != null ? String(store.yearsExperience) : '');
   const [v, setV] = useState<VettingData>({ ...emptyVetting, ...store.vetting });
+  const [removingReference, setRemovingReference] = useState<number | null>(null);
+  const [errors, setErrors] = useState<{ years?: string; skills?: string; references?: string }>({});
 
   const refs: VettingReference[] = v.references.length > 0
     ? v.references
@@ -54,49 +63,21 @@ export default function VettingScreen(): React.ReactElement {
     if (refs.length < 3) set({ references: [...refs, { name: '', contact: '', relation: '' }] });
   };
 
-  const handleNext = (): void => {
+  const validateContinue = (): boolean => {
+    const nextErrors: typeof errors = {};
     const trimmedYears = years.trim();
-    if (!/^\d{1,2}$/.test(trimmedYears)) {
-      Alert.alert('Required', 'Enter your years of experience as a whole number (0 to 60).');
-      return;
-    }
-    const yearsNum = parseInt(trimmedYears, 10);
-    if (yearsNum < 0 || yearsNum > 60) {
-      Alert.alert('Out of range', 'Years of experience must be between 0 and 60.');
-      return;
+    if (!/^\d{1,2}$/.test(trimmedYears) || Number(trimmedYears) > 60) {
+      nextErrors.years = 'Enter your years of experience as a whole number from 0 to 60.';
     }
     if (v.mainSkills.trim().length < 2) {
-      Alert.alert('Required', 'Tell us your main skills or specialties (at least 2 characters).');
-      return;
+      nextErrors.skills = 'Tell us your main skills or specialties (at least 2 characters).';
     }
-    const ref1 = refs[0];
-    if (!ref1 || ref1.name.trim().length < 2 || ref1.contact.trim().length < 5) {
-      Alert.alert('Required', 'Add at least one reference with a name and a contact number.');
-      return;
+    const incompleteIndex = refs.findIndex(reference => reference.name.trim().length < 2 || reference.contact.trim().length < 5);
+    if (incompleteIndex >= 0) {
+      nextErrors.references = `Complete the name and contact for reference ${incompleteIndex + 1}${incompleteIndex > 0 ? ' or remove that reference' : ''}. You can save incomplete details as a draft.`;
     }
-    const cleanedRefs = refs
-      .map((r) => ({ name: r.name.trim(), contact: r.contact.trim(), relation: r.relation.trim() }))
-      .filter((r) => r.name.length >= 2 && r.contact.length >= 5);
-
-    store.setVetting({
-      yearsExperience: yearsNum,
-      vetting: {
-        ...v,
-        mainSkills: v.mainSkills.trim(),
-        businessType: v.businessType.trim(),
-        yearStarted: v.yearStarted.trim(),
-        teamSize: v.teamSize.trim(),
-        fullAddress: v.fullAddress.trim(),
-        website: v.website.trim(),
-        facebook: v.facebook.trim(),
-        socialOther: v.socialOther.trim(),
-        credentials: v.credentials.trim(),
-        registrations: v.registrations.trim(),
-        resumeUrl: v.resumeUrl.trim(),
-        references: cleanedRefs,
-      },
-    });
-    router.push(Routes.PROVIDER_ONBOARDING.DOCUMENTS);
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const canContinue =
@@ -144,6 +125,7 @@ export default function VettingScreen(): React.ReactElement {
           label="Years of experience *"
           hint="How long have you done this kind of work? (0 to 60)"
           value={years}
+          error={errors.years}
           onChangeText={(t) => setYears(t.replace(/[^0-9]/g, '').slice(0, 2))}
           placeholder="e.g. 5"
           keyboardType="number-pad"
@@ -153,6 +135,7 @@ export default function VettingScreen(): React.ReactElement {
           label="Main skills / specialties *"
           hint="What are you best at? Separate items with commas."
           value={v.mainSkills}
+          error={errors.skills}
           onChangeText={(t) => set({ mainSkills: t })}
           placeholder="e.g. aircon cleaning, freon recharge, split-type install"
           multiline
@@ -254,6 +237,7 @@ export default function VettingScreen(): React.ReactElement {
 
         {/* ── References ── */}
         <Text style={styles.sectionLabel}>References</Text>
+        {errors.references ? <Text style={styles.error} accessibilityRole="alert">{errors.references}</Text> : null}
         <Text style={styles.fieldHint}>
           People who can vouch for your work — past clients or supervisors. At least one is required.
         </Text>
@@ -263,6 +247,7 @@ export default function VettingScreen(): React.ReactElement {
             <LabeledInput label="Name" value={r.name} onChangeText={(t) => setRef(i, { name: t })} placeholder="e.g. Maria Santos" autoCapitalize="words" maxLength={120} />
             <LabeledInput label="Contact number" value={r.contact} onChangeText={(t) => setRef(i, { contact: t })} placeholder="e.g. 0917 123 4567" keyboardType="phone-pad" maxLength={40} />
             <LabeledInput label="How they know you" value={r.relation} onChangeText={(t) => setRef(i, { relation: t })} placeholder="e.g. past client, former supervisor" maxLength={60} />
+            {i > 0 ? <Button title={`Remove reference ${i + 1}`} variant="ghost" onPress={() => setRemovingReference(i)} /> : null}
           </View>
         ))}
         {refs.length < 3 ? (
@@ -270,13 +255,23 @@ export default function VettingScreen(): React.ReactElement {
             <Text style={styles.addRefText}>+ Add another reference</Text>
           </TouchableOpacity>
         ) : null}
-      </ScrollView>
-
       <View style={styles.footer}>
         <View style={[styles.footerInner, !isPhone && styles.footerInnerWide]}>
-          <Button title="Next" onPress={handleNext} disabled={!canContinue} />
+          <ProviderApplicationDraftActions
+            fields={{ ...applicationFieldsFromStore(store), yearsExperience: years === '' ? null : Number(years),
+              vettingAnswers: { ...v, references: refs } }}
+            validateContinue={validateContinue} continueDisabled={!canContinue}
+            onContinue={() => router.push(Routes.PROVIDER_ONBOARDING.DOCUMENTS)} />
         </View>
       </View>
+      </ScrollView>
+      <ConfirmModal visible={removingReference !== null} title="Remove this reference?"
+        message="This removes the reference from your form. Save the draft to update the saved version."
+        confirmLabel="Remove reference" destructive onCancel={() => setRemovingReference(null)}
+        onConfirm={() => {
+          set({ references: refs.filter((_reference, index) => index !== removingReference) });
+          setRemovingReference(null);
+        }} />
     </SafeAreaView>
   );
 }
@@ -324,6 +319,7 @@ const styles = StyleSheet.create({
   },
   fieldLabel: { ...typography.body, fontWeight: '600', color: colors.text, marginTop: spacing.md, marginBottom: 2 },
   fieldHint: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.sm },
+  error: { ...typography.bodySmall, color: colors.error, marginBottom: spacing.sm },
   input: {
     ...typography.body, color: colors.text, backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: borderRadius.md,

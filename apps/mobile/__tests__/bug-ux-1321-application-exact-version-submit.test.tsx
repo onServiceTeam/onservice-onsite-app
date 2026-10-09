@@ -1,0 +1,64 @@
+import React from 'react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import api, { storage } from '@/services/api';
+import { useOnboardingStore } from '@/stores/onboarding.store';
+import { useApplicationSession } from '@/stores/provider-application-session.store';
+import { apiDraft, completeApplicationFields, deferred, draftFixture, mockDraftSaves, readyApplication, revisionOne, revisionTwo } from '../test-support/application-draft-fixture';
+import Terms from '../app/provider-onboarding/terms';
+
+const mockReplace = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn(), replace: mockReplace }) }));
+jest.mock('@/services/api', () => ({ __esModule: true, ApiError: class extends Error {},
+  default: { get: jest.fn(), put: jest.fn(), post: jest.fn(), delete: jest.fn() }, storage: { delete: jest.fn() } }));
+
+it('Bug UX-1321 — final application submits only the confirmed saved version after fresh consent and retains details on uncertain responses', async () => {
+  const fields = completeApplicationFields();
+  fields.businessName = '  Synthetic home services  ';
+  readyApplication(fields);
+  useOnboardingStore.setState({ icAgreed: true });
+  mockDraftSaves();
+  let view = render(<Terms />);
+  expect(screen.getByRole('checkbox').getAttribute('aria-checked')).toBe('false');
+  expect(screen.getByRole('button', { name: 'Submit Application' })).toHaveProperty('disabled', true);
+  fireEvent.click(screen.getByRole('checkbox'));
+  jest.mocked(api.put).mockRejectedValueOnce(new Error('Save unavailable'));
+  fireEvent.click(screen.getByRole('button', { name: 'Submit Application' }));
+  await waitFor(() => expect(screen.getAllByRole('alert').some(alert => alert.textContent?.includes('Save unavailable'))).toBe(true));
+  expect(api.post).not.toHaveBeenCalled();
+  expect(useOnboardingStore.getState().businessName).toBe('Synthetic home services');
+  const pending = deferred<ReturnType<typeof apiDraft>>();
+  jest.mocked(api.put).mockReturnValueOnce(pending.promise);
+  jest.mocked(api.post).mockResolvedValueOnce({ status: 201, data: { success: true, data: {} } } as never);
+  fireEvent.click(screen.getByRole('button', { name: 'Submit Application' }));
+  expect(api.post).not.toHaveBeenCalled();
+  await act(async () => pending.resolve(apiDraft(draftFixture({ fields: { ...fields, businessName: 'Synthetic home services' } }))));
+  await waitFor(() => expect(screen.getAllByRole('alert').some(alert => alert.textContent?.includes('did not confirm'))).toBe(true));
+  expect(storage.delete).not.toHaveBeenCalled();
+  expect(mockReplace).not.toHaveBeenCalled();
+  expect(useApplicationSession.getState().phase).toBe('ready');
+  expect(screen.getByRole('button', { name: 'Check application status' })).toBeTruthy();
+  jest.mocked(api.post).mockResolvedValueOnce({ status: 201, data: { success: true, data: { id: revisionTwo } } } as never);
+  fireEvent.click(screen.getByRole('button', { name: 'Submit Application' }));
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/provider-onboarding/review-pending'));
+  const put = jest.mocked(api.put).mock.calls.at(-1)![1] as { expectedRevision: string; fields: object };
+  expect(put.expectedRevision).toBe(revisionOne);
+  const { nbiExpiryDate: _expiry, governmentIdNumber: _number, ...saved } = put.fields as ReturnType<typeof completeApplicationFields>;
+  expect(api.post).toHaveBeenLastCalledWith('/api/v1/providers/apply', { ...saved, draftRevision: revisionTwo, icAgreementAccepted: true });
+  expect(useApplicationSession.getState()).toMatchObject({ phase: 'submitted', draft: null, busy: false });
+  expect(useOnboardingStore.getState().icAgreed).toBe(false);
+  view.unmount();
+  // Account change while PUT is pending cannot initiate POST or clear the new owner.
+  readyApplication(completeApplicationFields());
+  view = render(<Terms />);
+  fireEvent.click(screen.getByRole('checkbox'));
+  const late = deferred<ReturnType<typeof apiDraft>>();
+  jest.mocked(api.put).mockReturnValueOnce(late.promise);
+  fireEvent.click(screen.getByRole('button', { name: 'Submit Application' }));
+  const posts = jest.mocked(api.post).mock.calls.length;
+  await act(async () => { readyApplication(); useOnboardingStore.setState({ businessName: 'New account data' }); });
+  await act(async () => late.resolve(apiDraft(draftFixture())));
+  expect(api.post).toHaveBeenCalledTimes(posts);
+  expect(useOnboardingStore.getState().businessName).toBe('New account data');
+  expect(storage.delete).toHaveBeenCalledTimes(1);
+  view.unmount();
+});

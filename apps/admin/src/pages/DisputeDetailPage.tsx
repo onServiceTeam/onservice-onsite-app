@@ -63,6 +63,7 @@ export interface DisputeFullDetail {
   resolvedAt: string | null;
   resolvedBy: string | null;
   resolutionType: string | null;
+  /** Approved refund in integer PHP centavos, as returned by the API. */
   refundAmount: number | null;
   decisionNotes: string | null;
   internalNotes: string | null;
@@ -117,6 +118,7 @@ interface AssignableAdmin {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
+/** Format an integer PHP-centavos value from the admin API for display. */
 function fmtCentavos(centavos: number): string {
   return (centavos / 100).toLocaleString('en-PH', {
     style: 'currency',
@@ -291,7 +293,7 @@ function ResolutionCard({ detail }: { detail: DisputeFullDetail }): React.ReactE
               <p className="text-sm text-[var(--color-text)]">{fmtDate(detail.resolvedAt)}</p>
             </div>
             <div>
-              <p className="text-xs text-[var(--color-text-secondary)]">Refund amount</p>
+              <p className="text-xs text-[var(--color-text-secondary)]">Approved refund</p>
               <p className="text-sm text-[var(--color-text)] font-medium">
                 {detail.refundAmount != null && detail.refundAmount > 0
                   ? fmtCentavos(detail.refundAmount)
@@ -546,8 +548,6 @@ const RESOLUTION_OPTIONS: ReadonlyArray<{ value: ResolutionType; label: string }
   { value: 'full_refund', label: 'Full refund' },
   { value: 'partial_refund', label: 'Partial refund' },
   { value: 'no_refund', label: 'No refund' },
-  { value: 'free_redo', label: 'Free redo' },
-  { value: 'refund_with_warning', label: 'Refund + warning' },
   { value: 'refund_with_suspension', label: 'Refund + suspension' },
   { value: 'split_decision', label: 'Split decision' },
 ];
@@ -569,7 +569,6 @@ export function DisputeActions({
   const [internalNotes, setInternalNotes] = useState('');
   const [confirmResolve, setConfirmResolve] = useState(false);
   const [escalateReason, setEscalateReason] = useState('');
-  const [reopenReason, setReopenReason] = useState('');
   const [recipient, setRecipient] = useState<Recipient>('both');
   const [message, setMessage] = useState('');
 
@@ -641,17 +640,6 @@ export function DisputeActions({
     },
   });
 
-  const reopenMut = useMutation({
-    mutationFn: async (input: { reason: string }) => {
-      const res = await api.post(`/api/v1/admin/disputes/${disputeId}/reopen`, input);
-      return res.data;
-    },
-    onSuccess: () => {
-      invalidate();
-      setReopenReason('');
-    },
-  });
-
   const decisionOk = decisionNotes.trim().length >= 20;
   const refundPercentValue = Number(refundPercent);
   const refundPercentOk =
@@ -666,17 +654,24 @@ export function DisputeActions({
       case 'refund_with_warning':
       case 'refund_with_suspension':
         return totalAmount;
-      case 'partial_refund': {
+      case 'partial_refund':
+      case 'split_decision': {
         const pct = Number(refundPercent);
         if (!Number.isFinite(pct) || pct <= 0 || pct > 100) return 0;
         return Math.round((totalAmount * pct) / 100);
       }
-      case 'split_decision':
-        return Math.round(totalAmount / 2);
       default:
         return 0;
     }
   }, [resolutionType, refundPercent, totalAmount]);
+  const supportCaseParams = new URLSearchParams({ bookingId: detail.bookingId });
+  if (detail.customer) {
+    supportCaseParams.set('userId', detail.customer.id);
+    supportCaseParams.set('userName', detail.customer.fullName || 'Customer');
+    supportCaseParams.set('userRole', 'customer');
+    supportCaseParams.set('new', '1');
+  }
+  const supportCaseHref = `/support-tickets?${supportCaseParams.toString()}`;
 
   return (
     <Card className="p-5 space-y-6">
@@ -715,9 +710,14 @@ export function DisputeActions({
             <RefreshCw size={14} /> Assign
           </Button>
           {agentsQuery.isError && (
-            <span role="alert" className="text-xs text-red-600">
-              Active admins could not be loaded. Refresh this page to try again.
-            </span>
+            <>
+              <span role="alert" className="text-xs text-red-600">
+                Active admins could not be loaded. Retry before assigning this dispute.
+              </span>
+              <Button type="button" size="sm" variant="outline" onClick={() => void agentsQuery.refetch()}>
+                Retry active admins
+              </Button>
+            </>
           )}
           {assignMut.isError && (
             <span role="alert" className="text-xs text-red-600">
@@ -736,6 +736,11 @@ export function DisputeActions({
       {isSuperAdmin && detail.status !== 'resolved' && (
         <div className="space-y-3 pt-3 border-t border-[var(--color-border)]">
           <p className="text-sm font-medium text-[var(--color-text)]">Resolution</p>
+          <div role="note" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            Free redo and refund + warning are temporarily unavailable. They do not yet create the
+            promised replacement work order or provider-warning record. Use a linked support case
+            and Provider 360 instead.
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {RESOLUTION_OPTIONS.map((opt) => (
               <label
@@ -827,7 +832,9 @@ export function DisputeActions({
               </span>
             )}
             {resolveMut.isSuccess && (
-              <span className="text-xs text-green-600">Dispute resolved.</span>
+              <span className="text-xs text-green-600">
+                Decision recorded. Verify the booking Money view before confirming settlement completion.
+              </span>
             )}
           </div>
 
@@ -840,10 +847,11 @@ export function DisputeActions({
                   <p>
                     This will resolve the dispute as{' '}
                     <strong>{resolutionType.replace(/_/g, ' ')}</strong> and notify both parties.
-                    Estimated refund: <strong>{fmtCentavos(estimatedRefund)}</strong>.
+                    Estimated approved refund: <strong>{fmtCentavos(estimatedRefund)}</strong>.
                   </p>
                   <p className="text-xs text-[var(--color-text-secondary)]">
-                    Money flows through the audited escrow primitives. This action cannot be undone.
+                    Money processing can continue after this decision is recorded. Verify the booking
+                    Money view and any retry status before telling either party that funds moved.
                   </p>
                 </div>
               </div>
@@ -908,7 +916,13 @@ export function DisputeActions({
 
       {/* Message */}
       <div className="space-y-2 pt-3 border-t border-[var(--color-border)]">
-        <p className="text-sm font-medium text-[var(--color-text)]">Send message to parties</p>
+        <div>
+          <p className="text-sm font-medium text-[var(--color-text)]">Send case update to parties</p>
+          <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+            This creates a one-way update in each selected participant&apos;s notification inbox.
+            Use the linked support case when you need a reply or a private conversation.
+          </p>
+        </div>
         <div className="flex items-center gap-3 flex-wrap">
           {(['customer', 'provider', 'both'] as const).map((r) => (
             <label key={r} className="inline-flex items-center gap-1 text-sm">
@@ -937,7 +951,7 @@ export function DisputeActions({
             disabled={!canSendMessage || messageMut.isPending}
             onClick={() => messageMut.mutate({ recipient, message: message.trim() })}
           >
-            <Send size={14} /> Send <MessageSquare size={14} />
+            <Send size={14} /> Send update <MessageSquare size={14} />
           </Button>
           {messageMut.isError && (
             <span role="alert" className="text-xs text-red-600">
@@ -945,7 +959,7 @@ export function DisputeActions({
             </span>
           )}
           {messageMut.isSuccess && (
-            <span className="text-xs text-green-600">Message dispatched.</span>
+            <span className="text-xs text-green-600">Update delivered to the notification inbox.</span>
           )}
           {/* keep Coins import referenced for icon-catalog enforcement */}
           <span className="hidden">
@@ -954,41 +968,23 @@ export function DisputeActions({
         </div>
       </div>
 
-      {/* Reopen (super-admin only) */}
-      {/* BUG-PHASE143-01 fix — pre-fix client validated reopenReason
-          ≥ 10 chars, but server's reopenDispute (dispute-admin.service.ts:756
-          → requireText(reason, 'reason', 20)) requires 20. Same
-          client/server validation-mismatch pattern as Phase 142
-          (force-complete) and Phase 77-02 (cancel). Now: 20-char floor
-          on both placeholder hint and disabled gate. */}
+      {/* E51 containment: preserve the settled dispute and move new facts into
+          an owned support case until an immutable appeal/compensating-action
+          model exists. */}
       {isSuperAdmin && detail.status === 'resolved' && (
-        <div className="space-y-2 pt-3 border-t border-[var(--color-border)]">
-          <p className="text-sm font-medium text-[var(--color-text)]">Reopen</p>
-          <Textarea
-            aria-label="Reopen reason"
-            value={reopenReason}
-            onChange={(e) => setReopenReason(e.target.value)}
-            placeholder="Why is this being reopened? (min 20 characters — describe the new evidence or reason)"
-            rows={2}
-          />
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={reopenReason.trim().length < 20 || reopenMut.isPending}
-              onClick={() => {
-                if (window.confirm('Reopen this resolved dispute?'))
-                  reopenMut.mutate({ reason: reopenReason.trim() });
-              }}
-            >
-              <RefreshCw size={14} /> Reopen
-            </Button>
-            {reopenMut.isError && (
-              <span role="alert" className="text-xs text-red-600">
-                {getErrorMessage(reopenMut.error)}
-              </span>
-            )}
+        <div role="alert" className="space-y-3 pt-3 border-t border-[var(--color-border)]">
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+            <p className="text-sm font-medium text-amber-900">Supplemental review required</p>
+            <p className="text-xs text-amber-800 mt-1">
+              Reopen is temporarily unavailable because the prior settlement must remain immutable.
+              Record new evidence in a linked support case and escalate any financial correction.
+            </p>
           </div>
+          <Link to={supportCaseHref}>
+            <Button size="sm" variant="secondary">
+              <MessageSquare size={14} /> Open linked support case
+            </Button>
+          </Link>
         </div>
       )}
     </Card>

@@ -1,0 +1,52 @@
+{
+  "generatedAt": "2026-09-05T20:58:31.804Z",
+  "sourceRevision": "unverified working tree",
+  "scope": "Compiled UI with synthetic HTTP, identity and OTP. Not actual PostgreSQL, SMS, production, native or complete dashboard/Stitch acceptance.",
+  "indexSha256": "db5fdfa75e25f41477720b1e95eeb9e8ad39fc3de66851fe3aeb02bb757be931",
+  "entrySha256": "e956f4aa2044152d12ef8964512bf9c096961b61617501c4aa3fa2d706f21173",
+  "expectedFlows": 12,
+  "passed": 0,
+  "records": [
+    {
+      "width": 320,
+      "mode": "normal",
+      "passed": false,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "320-normal-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "320-normal-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 4,
+          "screenshot": "320-normal-otp.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "error": "otp document overflow 4",
+      "failedPath": "/auth/otp-verify",
+      "failedText": "Enter Verification Code\nWe sent a verification code with 6 digits to\n+63 917 000 0001\nVerify\nResend in 60s"
+    }
+  ]
+}

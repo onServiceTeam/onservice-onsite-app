@@ -7,10 +7,10 @@
  * least-privilege exposure: only super_admin sees raw PII; DPO sees
  * partially masked; all other roles see fully masked.
  *
- * Reveal action (Bug 81): super_admin can request a one-row reveal via
- * POST /admin/audit-log/:id/reveal-pii — the reveal itself is audit-logged
- * with action_type='pii_reveal'. The reveal endpoint lives in
- * routes/admin-audit-log.routes.ts (or wherever the audit log GET lives).
+ * The legacy one-row audit reveal in admin-latent.routes.ts is held under
+ * E72 pending case-scoped investigation access. This generic role-aware
+ * utility does not authorize releasing historical audit payloads. Audit
+ * callers must apply their own projection and access policy.
  */
 
 export type ActorRole =

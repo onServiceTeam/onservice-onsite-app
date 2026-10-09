@@ -38,11 +38,11 @@ Escrow release is refused (held for admin) when the provider was suspended mid-b
 
 ## 3. Commission per provider tier
 
-Commission is taken off the service price. The provider receives `service_price - commission`. Rates are admin-tunable (admin Settings, Commissions category). These are the current defaults.
+Commission is taken off the service price. The provider receives `service_price - commission`. The table is the seeded base schedule. Super-admin schedules prospective tier/provider/category agreements in Financials -> Commission Controls; direct Settings edits are retired under E50. Existing bookings always use their immutable financial terms.
 
 | Tier | Commission | Notes |
 |---|---|---|
-| `founding` | 10% | Invite-only launch batch. First 50 providers per city, 10% for 12 months. |
+| `founding` | 10% seeded base | E63 hold: the first-50/12-month entitlement is not enforceable; no new offer or assignment. |
 | `new` | 15% | Default on signup. |
 | `verified` | 13% | 5+ jobs, 4.0+ rating. |
 | `pro` | 11% | 25+ jobs, 4.5+ rating, no open disputes. |
@@ -277,7 +277,11 @@ Starting breach runbook (tune with the DPO):
    and affected-subject procedure and record the actual references and evidence.
 6. Log the incident, root cause, and fix. See `09-trust-safety-and-disputes.md` for incident handling.
 
-Consent versions: when the DPO publishes a new material consent version (admin Consent Versions page), affected users re-grant inline at next use.
+Consent versions: publishing from the Admin Consent Versions page records the
+audit event immediately. A material version makes affected users re-grant
+inline at their next use only after its selected effective date begins in
+Philippine time. Until then, the scheduled version must not interrupt customer
+or provider access.
 
 ---
 
@@ -341,7 +345,7 @@ Payout {{payoutId}} for provider {{providerName}} is PHP {{amount}}, at/above th
 
 | Knob | Default | Where to change |
 |---|---|---|
-| Commission (per tier) | 10 / 15 / 13 / 11 / 9% | Settings -> Commissions |
+| Commission seeded bases | 10 / 15 / 13 / 11 / 9% | Financials -> Commission Controls for prospective agreements; Booking 360 for exact transaction |
 | Service fee | 0%, ₱0 min (migration 137) | Settings -> Fees; re-enable only with Ken approval |
 | Guarantee fund rate | 1.5% of service fee; currently zero contribution while service fee is zero | Settings -> Fees |
 | VAT | 12% | Settings -> Fees |

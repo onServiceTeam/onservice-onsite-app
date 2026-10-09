@@ -1,10 +1,12 @@
-import React, { useEffect, useState, type FormEvent } from 'react';
+import React, { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminConfig } from '@/config/admin.config';
 import api, { getErrorMessage } from '@/lib/api';
-import { DataTable, Badge, Pagination, type Column } from '@/components/ui';
-import { VettingChecklist, buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
+import { Badge, Button, DataTable, ErrorState, Pagination, type Column } from '@/components/ui';
+import { buildChecklistSummary, type VettingState } from '@/components/VettingChecklist';
+import { ProviderApprovalReview } from '@/components/ProviderApprovalReview';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/Dialog';
 import { Star } from '@/components/icons';
 
 interface Provider {
@@ -68,6 +70,28 @@ export default function ProvidersPage(): React.ReactElement {
   const [actionError, setActionError] = useState('');
   // Vetting checklist state for the approve flow (rationale + all-items-ticked).
   const [vetting, setVetting] = useState<VettingState>({ isComplete: false, rationale: '' });
+  const actionTrigger = useRef<HTMLButtonElement | null>(null);
+  const searchField = useRef<HTMLInputElement | null>(null);
+  const [discardPrompt, setDiscardPrompt] = useState(false);
+
+  const openAction = (type: NonNullable<typeof actionModal>['type'], provider: Provider, trigger: HTMLButtonElement): void => {
+    actionTrigger.current = trigger;
+    setActionReason('');
+    setActionTier(type === 'tier' ? provider.tier : '');
+    setActionError('');
+    setDiscardPrompt(false);
+    setVetting({ isComplete: false, rationale: '' });
+    setActionModal({ type, provider });
+  };
+
+  const closeAction = (): void => {
+    setActionModal(null);
+    setActionReason('');
+    setActionTier('');
+    setActionError('');
+    setDiscardPrompt(false);
+    setVetting({ isComplete: false, rationale: '' });
+  };
 
   useEffect(() => {
     const nextSearch = searchParams.get('search') ?? '';
@@ -87,7 +111,7 @@ export default function ProvidersPage(): React.ReactElement {
     setSearchParams(params, { replace: true });
   };
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['adminProviders', page, search, statusFilter, tierFilter, serviceAreaFilter],
     queryFn: async () => {
       const params: Record<string, string | number> = { page, pageSize: adminConfig.defaultPageSize };
@@ -101,17 +125,22 @@ export default function ProvidersPage(): React.ReactElement {
   });
 
   const actionMutation = useMutation({
+    onMutate: () => { setActionError(''); },
     mutationFn: async () => {
       if (!actionModal) return;
       const { type, provider } = actionModal;
+      if ((type === 'approve' || type === 'reject') && (!vetting.isComplete || !vetting.expectedRevisionId)) {
+        throw new Error('Complete the review of the displayed submission first.');
+      }
       if (type === 'approve') {
         await api.put(`/api/v1/admin/providers/${provider.id}/approve`, {
+          expectedRevisionId: vetting.expectedRevisionId,
           reason: vetting.rationale,
           checklistConfirmed: true,
           checklistSummary: buildChecklistSummary(),
         });
       } else if (type === 'reject') {
-        await api.put(`/api/v1/admin/providers/${provider.id}/reject`, { reason: actionReason });
+        await api.put(`/api/v1/admin/providers/${provider.id}/reject`, { reason: vetting.rationale, expectedRevisionId: vetting.expectedRevisionId });
       } else if (type === 'suspend') {
         await api.put(`/api/v1/admin/providers/${provider.id}/suspend`, { reason: actionReason });
       } else if (type === 'reactivate') {
@@ -120,18 +149,27 @@ export default function ProvidersPage(): React.ReactElement {
         await api.put(`/api/v1/admin/providers/${provider.id}/tier`, { tier: actionTier, reason: actionReason });
       }
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['adminProviders'] });
-      setActionModal(null);
-      setActionReason('');
-      setActionTier('');
-      setActionError('');
-      setVetting({ isComplete: false, rationale: '' });
+    onSuccess: async () => {
+      // Refresh before restoring focus: an approval/rejection can remove the
+      // trigger from a filtered queue. The stable search field is the fallback.
+      await queryClient.invalidateQueries({ queryKey: ['adminProviders'] });
+      closeAction();
     },
     onError: (err) => {
       setActionError(getErrorMessage(err));
     },
   });
+
+  const requestCloseAction = (): void => {
+    // Once sent, closing is not cancellation. Keep the target and result in
+    // view until the request settles so a late callback cannot dismiss a
+    // different provider's action. An unfinished review needs explicit discard.
+    if (actionMutation.isPending) return;
+    if (actionReason.length > 0 || actionModal?.type === 'approve' || actionModal?.type === 'reject'
+      || (actionModal?.type === 'tier' && actionTier !== actionModal.provider.tier)) {
+      setDiscardPrompt(true);
+    } else closeAction();
+  };
 
   const handleSearch = (e: FormEvent): void => {
     e.preventDefault();
@@ -196,20 +234,17 @@ export default function ProvidersPage(): React.ReactElement {
         <div className="flex items-center gap-1 flex-wrap">
           {r.status === 'pending' && (
             <>
-              <ActionBtn label="Approve" color="emerald" onClick={() => setActionModal({ type: 'approve', provider: r })} />
-              <ActionBtn label="Reject" color="red" onClick={() => setActionModal({ type: 'reject', provider: r })} />
+              <ActionBtn label="Approve" color="emerald" onClick={(trigger) => openAction('approve', r, trigger)} />
+              <ActionBtn label="Reject" color="red" onClick={(trigger) => openAction('reject', r, trigger)} />
             </>
           )}
           {r.status === 'approved' && (
-            <ActionBtn label="Suspend" color="red" onClick={() => setActionModal({ type: 'suspend', provider: r })} />
+            <ActionBtn label="Suspend" color="red" onClick={(trigger) => openAction('suspend', r, trigger)} />
           )}
           {r.status === 'suspended' && (
-            <ActionBtn label="Reactivate" color="sky" onClick={() => setActionModal({ type: 'reactivate', provider: r })} />
+            <ActionBtn label="Reactivate" color="sky" onClick={(trigger) => openAction('reactivate', r, trigger)} />
           )}
-          <ActionBtn label="Tier" color="amber" onClick={() => {
-            setActionTier(r.tier);
-            setActionModal({ type: 'tier', provider: r });
-          }} />
+          <ActionBtn label="Tier" color="amber" onClick={(trigger) => openAction('tier', r, trigger)} />
         </div>
       ),
     },
@@ -229,11 +264,12 @@ export default function ProvidersPage(): React.ReactElement {
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <form onSubmit={handleSearch} className="flex gap-2">
           <input
+            ref={searchField}
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by name or phone..."
-            aria-label="Search providers by name or phone"
+            placeholder="Name, business, phone, email, or ID"
+            aria-label="Search providers by name, business, phone, email, or ID"
             className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]"
           />
           <button
@@ -299,9 +335,11 @@ export default function ProvidersPage(): React.ReactElement {
       )}
 
       {isError && (
-        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-          Failed to load providers. Please try refreshing the page.
-        </div>
+        <ErrorState
+          title="Provider directory unavailable"
+          description="The provider directory could not be read. Do not make approval, suspension, or tier decisions from an unavailable queue."
+          action={<Button variant="outline" onClick={() => void refetch()}>Retry providers</Button>}
+        />
       )}
 
       {!isError && (
@@ -313,25 +351,39 @@ export default function ProvidersPage(): React.ReactElement {
       )}
 
       {actionModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="provider-action-title"
-            className="bg-white rounded-xl border border-[var(--color-border)] w-full max-w-md p-6"
+        <Dialog open onOpenChange={(open) => { if (!open) requestCloseAction(); }}>
+          <DialogContent
+            className="max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              if (actionTrigger.current?.isConnected) actionTrigger.current.focus();
+              else searchField.current?.focus();
+            }}
           >
-            <h3 id="provider-action-title" className="text-lg font-semibold text-[var(--color-text)] mb-1 capitalize">
+            <DialogTitle className="pr-8 capitalize">
               {actionModal.type} Provider
-            </h3>
-            <p className="text-sm text-[var(--color-text-secondary)] mb-4">
+            </DialogTitle>
+            <DialogDescription className="pr-8">
               {actionModal.provider.fullName?.trim() || actionModal.provider.businessName}
               {' — '}
               {actionModal.provider.phone}
-            </p>
+            </DialogDescription>
+
+            {discardPrompt && (
+              <section aria-label="Discard unsaved provider review" className="rounded-lg border border-[var(--color-border)] p-4">
+                <p role="alert" className="text-sm text-[var(--color-text)]">Discard this unsaved review? The entries will be cleared without sending another action.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => setDiscardPrompt(false)}>Keep reviewing</Button>
+                  <Button variant="outline" onClick={closeAction}>Discard review</Button>
+                </div>
+              </section>
+            )}
+
+            {actionMutation.isPending && <p role="status" className="text-sm text-[var(--color-text)]">Saving this provider decision. Closing this dialog does not cancel a submitted request.</p>}
 
             {actionModal.type === 'reactivate' && (
               <p className="mb-4 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-sm text-[var(--color-text-secondary)]">
-                Reactivation restores future discovery, matching, and job acceptance. It does not clear review holds on bookings that were active when the provider was suspended.
+                Reactivation requires a recorded prior approval and an active provider account without a fraud flag. It restores future discovery, matching, and job acceptance. It does not clear review holds on bookings that were active when the provider was suspended.
               </p>
             )}
 
@@ -347,7 +399,8 @@ export default function ProvidersPage(): React.ReactElement {
               </div>
             )}
 
-            {(actionModal.type === 'reject' || actionModal.type === 'suspend' || actionModal.type === 'reactivate' || actionModal.type === 'tier') && (
+            <fieldset disabled={actionMutation.isPending || discardPrompt} aria-label="Provider action details" className="m-0 min-w-0 border-0 p-0">
+            {(actionModal.type === 'suspend' || actionModal.type === 'reactivate' || actionModal.type === 'tier') && (
               <div className="mb-4">
                 <label htmlFor="provider-action-reason" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Reason</label>
                 <textarea
@@ -364,9 +417,9 @@ export default function ProvidersPage(): React.ReactElement {
               </div>
             )}
 
-            {actionModal.type === 'approve' && (
+            {(actionModal.type === 'approve' || actionModal.type === 'reject') && (
               <div className="mb-4">
-                <VettingChecklist onChange={setVetting} />
+                <ProviderApprovalReview key={`${actionModal.provider.id}:${actionModal.type}`} providerId={actionModal.provider.id} decision={actionModal.type} onChange={setVetting} />
               </div>
             )}
 
@@ -389,27 +442,29 @@ export default function ProvidersPage(): React.ReactElement {
               </div>
             )}
 
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => { setActionModal(null); setActionReason(''); setActionError(''); setVetting({ isComplete: false, rationale: '' }); }}
-                className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-slate-50 transition-colors"
+            </fieldset>
+
+            <div className="flex flex-wrap gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={requestCloseAction}
+                disabled={actionMutation.isPending}
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => actionMutation.mutate()}
                 disabled={
-                  actionMutation.isPending ||
-                  ((actionModal.type === 'suspend' || actionModal.type === 'reactivate' || actionModal.type === 'reject' || actionModal.type === 'tier') && actionReason.trim().length < 10) ||
-                  (actionModal.type === 'approve' && !vetting.isComplete)
+                  actionMutation.isPending || discardPrompt ||
+                  ((actionModal.type === 'suspend' || actionModal.type === 'reactivate' || actionModal.type === 'tier') && actionReason.trim().length < 10) ||
+                  ((actionModal.type === 'approve' || actionModal.type === 'reject') && (!vetting.isComplete || !vetting.expectedRevisionId))
                 }
-                className="px-4 py-2 text-sm bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
               >
                 {actionMutation.isPending ? 'Processing...' : 'Confirm'}
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
@@ -422,10 +477,10 @@ const ACTION_COLORS: Record<string, string> = {
   amber: 'text-amber-700 bg-amber-50 hover:bg-amber-100',
 };
 
-function ActionBtn({ label, color, onClick }: { label: string; color: string; onClick: () => void }): React.ReactElement {
+function ActionBtn({ label, color, onClick }: { label: string; color: string; onClick: (trigger: HTMLButtonElement) => void }): React.ReactElement {
   return (
     <button
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onClick={(e) => { e.stopPropagation(); onClick(e.currentTarget); }}
       className={`px-2 py-1 text-xs font-medium rounded-md transition-colors ${ACTION_COLORS[color] ?? ''}`}
     >
       {label}

@@ -221,7 +221,7 @@ export default function SafetyAndSupportScreen(): React.ReactElement {
               pathname: Routes.SUPPORT.NEW,
               params: {
                 type: 'booking_issue',
-                priority: 'urgent',
+                safetyConcern: '1',
                 subject: 'Safety concern',
                 description: 'I need help with a safety concern. ',
               },

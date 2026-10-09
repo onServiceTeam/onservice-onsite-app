@@ -8,7 +8,6 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
 const PII_MASK = readFileSync(resolve(__dirname, '../src/utils/pii-mask.ts'), 'utf8');
-const ADMIN_SVC = readFileSync(resolve(__dirname, '../src/services/admin.service.ts'), 'utf8');
 const COMPLIANCE_ADMIN = readFileSync(resolve(__dirname, '../src/routes/compliance-admin.routes.ts'), 'utf8');
 const COMPLIANCE_SVC = readFileSync(resolve(__dirname, '../src/services/compliance-admin.service.ts'), 'utf8');
 const NOTIFICATION_SVC = readFileSync(resolve(__dirname, '../src/services/notification.service.ts'), 'utf8');
@@ -18,13 +17,10 @@ const M082 = readFileSync(resolve(__dirname, '../migrations/082_d08_breach_log.s
 const M083 = readFileSync(resolve(__dirname, '../migrations/083_d08_admin_user_preferences.sql'), 'utf8');
 const LAUNCH_LIMITATIONS = readFileSync(resolve(__dirname, '../../../LAUNCH-LIMITATIONS.md'), 'utf8');
 
-describe('Bug 66 — audit log PII raw to admin (closed by maskPiiForRole applied in admin.service.getAdminActions)', () => {
-  it('admin.service.getAdminActions accepts viewerRole and applies maskPiiForRole', () => {
-    expect(ADMIN_SVC).toMatch(/maskPiiForRole/);
-    expect(ADMIN_SVC).toMatch(/viewerRole/);
-    expect(ADMIN_SVC).toMatch(/Bug 66/);
-  });
-});
+// Bugs 66 and 331: source-string claims have been replaced by the actual
+// route/service behavior in bug-sec-071-legacy-audit-list-masking.test.ts.
+// That regression checks nested contact/IP/UA and free-text masking, the
+// super-admin bypass, authorization and preservation of retained records.
 
 describe('Bug 75 — customer activity feed shows raw IPs (encompassed by Bug 66 maskPiiForRole)', () => {
   it('pii-mask.ts maskPiiForRole handles dpo + support roles for activity feed callers', () => {
@@ -115,12 +111,6 @@ describe('Bug 311 — audit log entity_id raw UUID (encompassed by Bug 66 + UI l
     // concern, not a data concern; D02's routes registry covers it.
     // Verify that target_id continues to be the UUID anchor in admin_actions.
     expect(M082).toMatch(/target_type/);
-  });
-});
-
-describe('Bug 331 — audit log raw IP/UA (encompassed by Bug 66)', () => {
-  it('same fix as Bug 66 — maskPiiForRole applied at the response layer', () => {
-    expect(ADMIN_SVC).toMatch(/maskPiiForRole/);
   });
 });
 

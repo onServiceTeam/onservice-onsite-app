@@ -22,6 +22,7 @@ import api from '@/services/api';
 export interface FeatureFlags {
   promoRedemptionEnabled: boolean;
   abTestingEnabled: boolean;
+  businessContractBookingEnabled: boolean;
 }
 
 export interface ClientConfig {
@@ -37,6 +38,7 @@ interface ClientConfigEnvelope {
 const DEFAULT_FLAGS: FeatureFlags = {
   promoRedemptionEnabled: false,
   abTestingEnabled: false,
+  businessContractBookingEnabled: false,
 };
 
 export function useFeatureFlags(): FeatureFlags {
