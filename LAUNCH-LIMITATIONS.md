@@ -222,7 +222,21 @@ launch-cutover runbook.
 
 ---
 
-## 11. CAPTCHA client/server linkage — CODE RESOLVED; PRODUCTION KEY PENDING
+## 11. CAPTCHA client/server linkage — REQUEST-CONTRACT CORRECTED LOCALLY; LIVE ACCEPTANCE OPEN
+
+**2026-10-09 correction to the earlier code-resolved claim:** SEC-080 found
+that the actual send-OTP validator discarded `captchaToken`. The existing
+client/verifier code below therefore did not prove that a solved challenge
+could complete the request. The narrow candidate correction preserves the
+bounded opaque token for server verification. The original final nine checks
+failed seven cases; the corrected connected run passes 11 suites / 58 tests,
+including actual PostgreSQL OTP hashing, consumption and session issuance.
+The external challenge response and SMS delivery are fixtures, not live proof.
+Exact-candidate CI, deployed keys/widget and web/native acceptance remain
+required. See `docs/audits/OTP-CAPTCHA-CONTRACT-2026-10-09.md`.
+
+The earlier implementation and dated deployment findings follow as history,
+not a fresh claim that the live configuration was re-inspected.
 
 The earlier hCaptcha plan was superseded. Customer/provider OTP login and
 registration now use Cloudflare Turnstile after the configured failed-attempt

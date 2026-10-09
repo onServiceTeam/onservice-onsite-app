@@ -27,6 +27,10 @@ export const sendOtpSchema = z.object({
     .string()
     .regex(PH_PHONE_REGEX, 'Phone must be in +63 9XX XXX XXXX format'),
   deviceFingerprint: DEVICE_FINGERPRINT_FIELD,
+  // SEC-080: Zod strips undeclared fields. Preserve the opaque challenge
+  // result for the route's server-side Siteverify check, without relaxing it.
+  // Cloudflare's documented maximum token length is 2048 characters.
+  captchaToken: z.string().min(1).max(2048).optional(),
 });
 
 export const verifyOtpSchema = z.object({
