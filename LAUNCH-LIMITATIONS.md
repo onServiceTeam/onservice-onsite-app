@@ -3371,6 +3371,24 @@ social adapters remain unfinished. Full image/chain rehearsal through 177 and
 matched authenticated release acceptance remain required. Evidence:
 `docs/audits/EMAIL-LINK-DELIVERY-HTTP-2026-10-09.md`.
 
+Completed linking-HTTP source verification: `db025577` passed CI `37918764034`
+and Gates `37918764050`, including all fifteen HTTP and twenty-one foundation
+checks, API 1025 suites / 3581 tests with two TODOs and no skips/failures,
+both Nginx checks, admin/mobile tests and builds, and API Docker boot liveness.
+Merge/topic trees match. Optional exact release packages were skipped. This
+resolves the preceding source-verification requirement, not delivery or deployment.
+
+Next candidate, still not public or deployed: migration 178 and an internal
+email sign-in transaction bind a fresh one-use proof to verified identity and
+current marketplace authority, then commit session, login metadata, audit and
+proof consumption together. Owner export, partial anonymization and bounded
+cleanup cover the new records. Thirty-two actual SQL cases plus one input check
+require exact-candidate execution; local skips are not acceptance. The private
+preparation result must never become a public response or enumeration oracle.
+Neutral public HTTP/delivery, web/native screens, actual sender/provider setup,
+social adapters and full-chain matched release remain open. See
+`docs/audits/EMAIL-SIGN-IN-TRANSACTION-2026-10-09.md`.
+
 ## 101. Phone-code transport could forward secrets, log provider text or wait without a bound
 
 Actual native HTTP tests on `7de317ee` reproduce SEC-081 redirect forwarding of

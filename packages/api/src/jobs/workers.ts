@@ -18,6 +18,7 @@ import * as providerCrmService from '../services/provider-crm.service';
 import * as settingsService from '../services/settings.service';
 import * as providerApplicationDraftService from '../services/provider-application-draft.service';
 import * as emailLinkCleanupService from '../services/email-link-cleanup.service';
+import * as emailSignInCleanupService from '../services/email-sign-in-cleanup.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -486,6 +487,7 @@ const schedulerWorker = new Worker(
         // Fixed, bounded work on the existing scheduler. Never trust a job's
         // cutoff/limit, log identifiers or suppress a failed SQL transaction.
         results.emailLinkCleanup = await emailLinkCleanupService.cleanupEmailLinkChallenges(100);
+        results.emailSignInCleanup = await emailSignInCleanupService.cleanupEmailSignInChallenges(100);
         break;
       case 'quality-score-compute':
         // Bug UX-830 / E47: retain the processor branch so already queued
@@ -668,6 +670,7 @@ export async function initScheduledJobs(): Promise<void> {
   logger.info('Scheduled jobs initialized: auto-confirm/expire-quotes/no-show/dispute-escalate every 5 min (all), booking offer sweep every 5 seconds, NBI check daily midnight PHT, bypass detection weekly Sunday midnight PHT, recurring bookings daily 6AM PHT, invoice generation 1st of month midnight PHT, overdue check daily midnight PHT, slot waitlist expiry daily 1AM PHT, data export processing every 10 min, account deletion processing daily 2AM PHT, suspicious IP detection every 5 min, security cleanup monthly 3AM PHT, quality score compute weekly 4AM PHT Monday, dispute escalation every 6 hours');
   logger.info('Provider application draft expiry scheduled every 5 minutes, at most 100 expired rows per attempt; uploaded objects and submitted evidence are not removed');
   logger.info('Email-link cleanup scheduled every 5 minutes: at most 100 proof expiries and 100 old request removals per attempt; verified identities and audits are retained');
+  logger.info('The same email cleanup job also expires at most 100 sign-in proofs and removes at most 100 old sign-in requests; no new queue or process');
 }
 
 export { schedulerWorker };

@@ -251,6 +251,7 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
     applicationRevisionsResult,
     signInEmailResult,
     emailLinkRequestResult,
+    emailSignInRequestResult,
   ] =
     await Promise.all([
       db.query(
@@ -455,6 +456,11 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
          FROM email_link_challenges WHERE user_id = $1 ORDER BY created_at, id`,
         [userId],
       ),
+      db.query(
+        `SELECT state, attempts, request_ip, created_at, expires_at, finished_at
+         FROM email_sign_in_challenges WHERE user_id = $1 ORDER BY created_at, id`,
+        [userId],
+      ),
     ]);
 
   return {
@@ -483,6 +489,7 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
     providerApplicationRevisions: applicationRevisionsResult.rows,
     signInEmails: signInEmailResult.rows,
     emailLinkRequests: emailLinkRequestResult.rows,
+    emailSignInRequests: emailSignInRequestResult.rows,
   };
 }
 
@@ -862,6 +869,7 @@ async function anonymizeUser(userId: string): Promise<void> {
     // Soft anonymization does not fire FK ON DELETE CASCADE. Erase added
     // sign-in identifiers and outstanding proofs in this same transaction.
     await client.query('DELETE FROM email_link_challenges WHERE user_id = $1', [userId]);
+    await client.query('DELETE FROM email_sign_in_challenges WHERE user_id = $1', [userId]);
     await client.query('DELETE FROM sign_in_email_identities WHERE user_id = $1', [userId]);
 
     // Use crypto.randomUUID() for the anonymized phone/email so two
