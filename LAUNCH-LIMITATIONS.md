@@ -3293,3 +3293,25 @@ required. No migration, money policy, gate or issuer changes. **Candidate only, 
 detail/evidence/support readers, cached disclosure, concurrent authority, full
 K07 and release holds remain open. See
 `docs/audits/STAFF-JOB-LIST-PARENT-2026-10-09.md`.
+
+## 100. Customer/provider email and social sign-in are not available yet
+
+Ken explicitly requested email, Google, Apple and popular social sign-in on
+October 9. The current shared customer/provider entry remains phone-only;
+administrator email/password plus TOTP is a separate privileged flow.
+Legacy `users.email` contact data does not establish verified sign-in ownership.
+
+An internal Resend code-delivery candidate now distinguishes provider acceptance,
+rejection, missing configuration and uncertain outcomes. It has no public route
+or authentication caller yet, and no email/social button or method is enabled.
+The sender uses fixed-destination HTTPS, immutable challenge idempotency, bounded
+responses, timeout cancellation and private logging. Local synthetic HTTP tests
+exercise those contracts, not a real provider inbox or completed login.
+
+Verified identity/linking, hashed purpose-bound challenges, abuse controls,
+single-use account/session verification, actual sender/provider configuration,
+safe phone-required onboarding, configured Google/Apple adapters, Facebook
+evaluation and complete web/native acceptance remain required. No account is
+auto-linked by contact email, no privileged shortcut is introduced and no
+existing migrations are replaced. See
+`docs/audits/EMAIL-CODE-DELIVERY-2026-10-09.md` for exact evidence and boundaries.
