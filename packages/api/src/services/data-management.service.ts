@@ -249,6 +249,8 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
     dsrResult,
     applicationDraftResult,
     applicationRevisionsResult,
+    signInEmailResult,
+    emailLinkRequestResult,
   ] =
     await Promise.all([
       db.query(
@@ -441,6 +443,17 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
          ORDER BY submitted_at, id`,
         [userId],
       ),
+      // Ownership metadata, never challenge codes/hashes or authentication
+      // tokens. A legacy contact email remains a separate profile field.
+      db.query(
+        'SELECT email, verified_at FROM sign_in_email_identities WHERE user_id = $1',
+        [userId],
+      ),
+      db.query(
+        `SELECT phone, email, state, request_ip, created_at, expires_at, finished_at
+         FROM email_link_challenges WHERE user_id = $1 ORDER BY created_at, id`,
+        [userId],
+      ),
     ]);
 
   return {
@@ -467,6 +480,8 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
     dataSubjectRequests: dsrResult.rows,
     providerApplicationDraft: applicationDraftResult.rows[0] ?? null,
     providerApplicationRevisions: applicationRevisionsResult.rows,
+    signInEmails: signInEmailResult.rows,
+    emailLinkRequests: emailLinkRequestResult.rows,
   };
 }
 
@@ -842,6 +857,11 @@ async function anonymizeUser(userId: string): Promise<void> {
       `DELETE FROM refresh_tokens WHERE user_id = $1`,
       [userId],
     );
+
+    // Soft anonymization does not fire FK ON DELETE CASCADE. Erase added
+    // sign-in identifiers and outstanding proofs in this same transaction.
+    await client.query('DELETE FROM email_link_challenges WHERE user_id = $1', [userId]);
+    await client.query('DELETE FROM sign_in_email_identities WHERE user_id = $1', [userId]);
 
     // Use crypto.randomUUID() for the anonymized phone/email so two
     // simultaneous deletions don't collide on UNIQUE constraints.

@@ -99,6 +99,22 @@ nine SEC-080 checks, five issuer SQL checks and both Nginx checks, alongside ful
 API/admin/mobile regressions, compiled clients and actual API Docker build/boot.
 The predecessor's completed CI does not verify this new correction.
 
+### Subsequent exact-source completion
+
+Candidate `f2d090e12b8eb348aaa90c59a254c587465d35de` completed CI
+`37908585031` and Gates `37908585041` successfully. Actual API logs pass
+1022 suites / 3543 tests, two TODOs, no failures/skips, in 91.347 seconds.
+All seven new transport checks, five OPS-537 checks including two real database
+callers, eleven email checks, 28 refund checks, nine SEC-080 checks, five issuer
+SQL checks and both Nginx regressions execute/pass. Admin passes 706 tests with
+one skipped file/three TODOs and types/build; mobile passes 879 tests/84 TODOs
+and types/compiled web. Actual API image build and served `/health` pass.
+Merge `ca6fb5f77e0280c74998929332ec1eca3d5be590` and topic share tree
+`54f254640a746f4438410e13a17ddffd1546c401`. Optional exact API/admin packaging
+was skipped; retained web artifact 11605363824 is not deployment eligible and
+was not downloaded/exercised. The failed/skipped local receipt above is retained,
+not rewritten as green. This completes source verification only.
+
 ## Remaining work and release boundary
 
 The shared SMS boolean contract still conflates rejection and uncertain external

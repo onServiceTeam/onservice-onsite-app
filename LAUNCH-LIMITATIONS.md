@@ -3323,6 +3323,16 @@ auto-linked by contact email, no privileged shortcut is introduced and no
 existing migrations are replaced. See
 `docs/audits/EMAIL-CODE-DELIVERY-2026-10-09.md` for exact evidence and boundaries.
 
+Internal linking foundation, October 9: additive migration 175 and a server-only
+service now represent separate verified email ownership and a fresh phone/email
+proof operation. They do not backfill contact addresses, create accounts, issue
+sessions or expose a public endpoint. Owner export and soft anonymization include
+the new records without exporting codes/hashes. Actual PostgreSQL verification of
+this candidate is still pending; locally skipped tests are not acceptance.
+Delivery coordination, retention scheduling, public HTTP/UI, real configuration,
+email login and social adapters remain unimplemented. See
+`docs/audits/EMAIL-LINK-FOUNDATION-2026-10-09.md`. No live migration occurred.
+
 ## 101. Phone-code transport could forward secrets, log provider text or wait without a bound
 
 Actual native HTTP tests on `7de317ee` reproduce SEC-081 redirect forwarding of
@@ -3344,3 +3354,10 @@ The SMS boolean still conflates rejection and uncertain external acceptance.
 Real sender/delivery, fresh verified identity/linking, email/social UI, Android
 acceptance and matched-release requirements remain open. This narrow correction
 does not change OTP policy or certify the unchanged non-production simulations.
+
+Completed source receipt: exact `f2d090e1` passed CI `37908585031` and Gates
+`37908585041`. Actual API logs pass 1022 suites / 3543 tests with two TODOs,
+no skips/failures, all seven new transport checks, existing SMS/email and SQL
+callers, and both Nginx checks. Admin/mobile tests and builds plus actual API
+Docker build/boot pass; CI merge and topic trees match. This resolves that
+candidate's CI requirement, not delivery, production or the broader sign-in work.

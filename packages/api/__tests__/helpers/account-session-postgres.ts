@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import jwt from 'jsonwebtoken';
 import type { Pool } from 'pg';
 import { passwordOwner, withPasswordDatabase } from './admin-password-postgres';
@@ -37,6 +39,7 @@ export async function withSessionDatabase(
         CREATE TABLE security_events (user_id uuid REFERENCES users(id), event_type text,
           ip_address inet, device_fingerprint text, metadata jsonb);
       `);
+      await database.query(fs.readFileSync(path.resolve(__dirname, '../../migrations/175_verified_sign_in_email.sql'), 'utf8'));
       await database.query(`INSERT INTO users (id,role,email) VALUES ($1,$2,'synthetic-session@example.invalid')`, [passwordOwner, role]);
       const token = jwt.sign({ userId: passwordOwner, role, sessionVersion: 1, type: 'refresh' }, sessionSecret,
         { algorithm: 'HS256', expiresIn: 3600 });
