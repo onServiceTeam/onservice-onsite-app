@@ -5,6 +5,94 @@ source candidates. Neither source CI nor a web export proves complete live
 business acceptance. This file tracks the **native** Android/iOS build, which
 gates two device-level QA tracks: Appium native E2E and F#3 Maestro baselines.
 
+## October 10: read-only APK artifact inspection
+
+`scripts/release/inspect-android-apk.mjs` inspects a completed, immutable local
+APK before it can be considered for the update-download lane. It does not build,
+sign, install, upload or publish anything, and needs no signing secret. It runs
+the selected installed SDK's actual `apksigner` and `aapt`, with a thirty-second
+limit and eight-MiB output limit per tool. APK input is limited to512MiB. Keep
+the build stopped during inspection; before/after hash and metadata checks are
+not an adversarial concurrent-writer snapshot guarantee.
+
+Supply four absolute paths to Node: APK, Android build-tools directory, Java
+executable and an independently prepared expectation JSON file. For example,
+from the repository root in PowerShell, using operator-selected path variables:
+
+```powershell
+node scripts/release/inspect-android-apk.mjs $apkPath $buildToolsDirectory $javaExecutable $expectationPath
+```
+
+The expectation has exactly these fields: `packageName`, `versionName`, numeric
+`versionCode`, numeric `previousVersionCode`, `certificateSha256` (64 hex digits)
+and `requiredAbis` (a nonempty unique array including `arm64-v8a`). Obtain the
+certificate pin from the independently retained release identity, not the APK
+being inspected. Obtain the prior code from the actual previous release record.
+The tool verifies a strict increase over the supplied previous code; it does
+not independently discover what was published or installed. The CLI returns a
+fixed failure diagnostic and nonzero exit status without echoing tool errors or
+manifest values. Successful JSON is evidence to retain, not an update manifest.
+
+Checks include exact package/version identity, one pinned non-debug signer,
+successful v2/v3 verification with warnings treated as errors, no debuggable or
+test-only flag, known manifest development sentinels, one launchable activity,
+numeric SDK levels, consistent archive/ABI inventory and nonempty manifest,
+DEX and embedded JavaScript bundle entries. Actual permissions are reported for
+review, not approved. SHA256, byte size, certificate and observed metadata are
+returned with **`deploymentEligible:false` unconditionally**. No option changes
+that result into release approval.
+
+These checks deliberately do not claim that bundle/DEX/library presence proves
+valid executable code, a particular source revision, correct Maps/API/CAPTCHA
+configuration, safe permissions, full signature-lineage compatibility or device
+behavior. Unknown SDK output fails closed. The complete-app storage/authentication,
+physical-phone installation, two-version data-preserving upgrade, paired API/client
+release, backup/rollback and served HTTPS/update acceptance remain mandatory.
+This is not the requested in-app update button, automatic check or a usable APK.
+
+Eleven Node contract tests execute through the existing mobile CI test harness.
+They exercise policy parsing and actual failed subprocess/CLI behavior; synthetic
+SDK observations are not cryptographic or device evidence. The local focused
+selection passed three suites/22tests, no skips/TODOs, in5.21seconds. The final
+full mobile run passed619suites/931tests with84existing TODOs, zero skips/failures,
+in250.014seconds. Types, scoped lint, unchanged GateA10/C7 and seven smoke scripts
+passed. The first lint attempt rejected a test-only missing `URL` import; that
+import was corrected without a waiver before the full run. No new local full
+API/admin, compiled browser or handset result is claimed. Exact-candidate CI is
+still required before accepting this new tooling source.
+
+Separately, actual Build Tools36 and JDK17 verified a12,778-byte disposable signed
+ARM64 fixture. Five actual checks passed: positive complete inspection, wrong
+certificate refusal, reused-version refusal, tampered-APK signature refusal and
+rejection of the retained debuggable onService APK. The original signed fixture
+hash remained unchanged. This fixture has a distinct package and disposable key;
+it is not onService and must never be delivered or installed as the user app.
+An initial private harness failed on Windows ESM path syntax before inspection;
+only its import URL was corrected, preserving that failed receipt. No real
+release key, app data, product APK, server or provider account was changed.
+
+The preceding signing source `dbb2186222182aecc159b44f61ca677f6791b7bd` completed
+[CI37982389207](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37982389207)
+and [Gates37982389202](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37982389202):
+mobile618suites/930tests/84TODO, API1032suites/3652tests/twoTODO with no skips/failures,
+admin706tests/one skipped file/threeTODO, types/builds and real API image/health
+liveness. Merge41f021a40ea51a50ab63b62e17930320477ce3b8 and that topic share
+tree90d992e073c19c9a4f4082366478589ec9bce372. A truncated formatted mobile log was
+retained and its omitted final totals recovered from the actual raw job log.
+Optional API/admin packaging was skipped, web audit artifact eligibility stayed
+false, and no APK was produced. This completes the prior signing-source check,
+not verification of this new inspector or the complete-app release.
+
+A prospective first-release identity has separately been retained and verified
+privately, outside Git and build artifacts. No published APK uses it yet, and
+independent recovery outside its current Windows profile is still unproven.
+Do not regenerate it or treat local custody as completed release/backup acceptance.
+Real Android Maps configuration, full-app storage acceptance and the standing
+APK/update requirements below remain open.
+
+Tool contracts: [Android apksigner verification](https://developer.android.com/tools/apksigner)
+and [Android versioning](https://developer.android.com/studio/publish/versioning).
+
 ## October 10: reproducible local release signing
 
 An actual Gradle signing report confirmed that the generated release variant
