@@ -26,7 +26,7 @@ afterAll(() => {
   else process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY = previousKey;
 });
 const message = (token: string): WebViewMessageEvent => ({
-  nativeEvent: { data: JSON.stringify({ type: 'token', token }) },
+  nativeEvent: { url: 'https://app.onservice.ph', data: JSON.stringify({ type: 'token', token }) },
 } as WebViewMessageEvent);
 type Termination = 'android-crash' | 'android-reclaimed' | 'ios';
 function terminate(page: WebViewProps, kind: Termination): void {

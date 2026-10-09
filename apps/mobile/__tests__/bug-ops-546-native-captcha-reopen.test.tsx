@@ -26,7 +26,7 @@ afterAll(() => {
   else process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY = previousKey;
 });
 const message = (value: unknown): WebViewMessageEvent => ({
-  nativeEvent: { data: JSON.stringify(value) },
+  nativeEvent: { url: 'https://app.onservice.ph', data: JSON.stringify(value) },
 } as WebViewMessageEvent);
 
 it('Bug OPS-546 — closing a failed native security check allows a fresh loading attempt', async () => {

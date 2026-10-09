@@ -21,7 +21,7 @@ afterAll(() => {
   else process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY = previousKey;
 });
 const message = (value: unknown): WebViewMessageEvent => ({
-  nativeEvent: { data: JSON.stringify(value) },
+  nativeEvent: { url: 'https://app.onservice.ph', data: JSON.stringify(value) },
 } as WebViewMessageEvent);
 
 it('Bug OPS-547 — each native widget settles once and ignores removed or cancelled bridge callbacks', () => {
@@ -55,7 +55,7 @@ it('Bug OPS-547 — each native widget settles once and ignores removed or cance
   expect(currentHandler).not.toHaveBeenCalled();
   const fourth = reopen();
   act(() => {
-    fourth.onMessage!({ nativeEvent: { data: 'not-json' } } as WebViewMessageEvent);
+    fourth.onMessage!({ nativeEvent: { url: 'https://app.onservice.ph', data: 'not-json' } } as WebViewMessageEvent);
     for (const invalid of [null, [], { type: 'unrelated' }, { type: 'token', token: '' }, { type: 'token', token: 42 }]) {
       fourth.onMessage!(message(invalid));
     }

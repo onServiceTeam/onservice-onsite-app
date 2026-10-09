@@ -7,14 +7,14 @@ export function nativeCaptchaPage(props: WebViewProps): {
   context: ReturnType<typeof createContext>;
   messages: string[];
 } {
-  const source = props.source as { html: string };
+  const source = props.source as { html: string; baseUrl: string };
   const page = new window.DOMParser().parseFromString(source.html, 'text/html');
   const messages: string[] = [];
   const context = createContext({
     document: page, setTimeout, clearTimeout,
     ReactNativeWebView: { postMessage: (data: string) => {
       messages.push(data);
-      props.onMessage?.({ nativeEvent: { data } } as Parameters<NonNullable<WebViewProps['onMessage']>>[0]);
+      props.onMessage?.({ nativeEvent: { data, url: source.baseUrl } } as Parameters<NonNullable<WebViewProps['onMessage']>>[0]);
     } },
   });
   context.window = context;

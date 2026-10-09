@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import { WebView, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 
 // Public Turnstile site key — safe to ship in the client. Set in the build env
 // (EXPO_PUBLIC_TURNSTILE_SITE_KEY). The matching SECRET lives only on the server
 // (CAPTCHA_SECRET_KEY) and verifies the token there.
 const SITE_KEY = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY ?? '';
+const PAGE_URL = 'https://app.onservice.ph';
 
 function buildHtml(siteKey: string): string {
   // Minimal page that renders the managed Turnstile widget and posts the token
@@ -110,8 +111,32 @@ function NativeChallenge({ onToken, onCancel }: Omit<Props, 'visible'>): React.R
     callbacks.current.onCancel();
   }
 
+  function isPage(url: unknown): boolean {
+    // Android's modern bridge reports an origin; iOS and the Android fallback
+    // report a document URL. Accept only the expected attribution, not a URL
+    // supplied inside the payload. This is not full legacy-frame attribution.
+    return url === PAGE_URL || url === `${PAGE_URL}/`;
+  }
+
+  const shouldNavigate: NonNullable<WebViewProps['onShouldStartLoadWithRequest']> = (request) => {
+    if (!active.current || phase.current !== 'pending') return false;
+    let allowed = isPage(request.url) || request.url === 'about:blank';
+    if (request.isTopFrame === false) {
+      // Turnstile uses challenge and opaque child frames. Allow these loads;
+      // bridge messages attributed to those frames are rejected separately.
+      allowed = allowed || request.url === 'about:srcdoc';
+      try {
+        const url = new URL(request.url);
+        allowed = allowed || (url.origin === 'https://challenges.cloudflare.com' && !url.username && !url.password);
+      } catch { /* Invalid navigation is denied below. */ }
+    }
+    if (!allowed) fail();
+    return allowed;
+  };
+
   function handleMessage(e: WebViewMessageEvent): void {
     if (!active.current || phase.current !== 'pending') return;
+    if (!isPage(e.nativeEvent.url)) { fail(); return; }
     try {
       const msg = JSON.parse(e.nativeEvent.data) as { type: string; token?: string };
       if (msg.type === 'token' && typeof msg.token === 'string' && msg.token.length > 0) {
@@ -148,11 +173,20 @@ function NativeChallenge({ onToken, onCancel }: Omit<Props, 'visible'>): React.R
               <>
                 {loading && <ActivityIndicator color={colors.primary} style={styles.loader} />}
                 <WebView
+                  // Keep the library from launching off-whitelist URLs through
+                  // Linking. The application policy below denies them instead.
                   originWhitelist={['*']}
+                  onShouldStartLoadWithRequest={shouldNavigate}
+                  onNavigationStateChange={({ url }) => {
+                    // Android's native navigation wait can time out and allow a
+                    // load. Invalidate the attempt if that page is observed.
+                    if (!isPage(url) && url !== 'about:blank') fail();
+                  }}
+                  onOpenWindow={fail}
                   source={{
                     html: buildHtml(SITE_KEY),
                     // A real origin is required for Turnstile to issue a token.
-                    baseUrl: 'https://app.onservice.ph',
+                    baseUrl: PAGE_URL,
                   }}
                   onMessage={handleMessage}
                   onLoadEnd={() => {

@@ -59,3 +59,24 @@ APK, new email/social method or live deployment from this change. The selected
 image/full restored migration chain through 179, matched authenticated clients,
 uploads/reference checks and rollback remain release prerequisites. The broad
 124 findings, 15 journeys and 14 categories retain their existing status.
+
+## Completed exact-source verification
+
+Candidate `dd937cc9f4910df82c3278fd23064bef7e9ecb04` completed
+[CI 37950135085](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37950135085)
+and [Gates 37950135072](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37950135072).
+Actual mobile logs pass 607 suites/891 tests, 84 TODOs, zero skips/failures,
+34.461s, including OPS-551, types and compiled web. API passes 1031 suites/3647
+tests, two TODOs, zero skips/failures, 134.475s, including refund 28, email HTTP
+23/internal 33/foundation 21/link HTTP 15, issuer SQL and both Nginx checks.
+Admin passes 598 files/706 tests, one skipped file/three TODOs, 214.60s, types
+and production build. Actual Docker build and served `/health` pass; missing
+`platform_settings` in its blank database means liveness, not readiness.
+
+Actual GitHub objects confirm merge `7704b39a44bee5d30793b30feb8e45a518147b05`
+and topic share tree `560e02585e36192dae828bd5e2f62cac267ec5ed`. Four complete
+per-job logs retain final cleanup. Web artifact `11625882369` (1,725,259 bytes)
+is not deployment eligible and was not downloaded or browser-exercised. Optional
+API/admin packages were skipped. Existing conditional Gate B and D/E report
+limits remain unchanged. This receipt accompanies the related page-boundary
+correction, not a documentation-only CI cycle or deployment claim.
