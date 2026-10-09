@@ -222,7 +222,7 @@ launch-cutover runbook.
 
 ---
 
-## 11. CAPTCHA client/server linkage — REQUEST-CONTRACT CORRECTED LOCALLY; LIVE ACCEPTANCE OPEN
+## 11. CAPTCHA client/server linkage — REQUEST-CONTRACT SOURCE-VERIFIED; LIVE ACCEPTANCE OPEN
 
 **2026-10-09 correction to the earlier code-resolved claim:** SEC-080 found
 that the actual send-OTP validator discarded `captchaToken`. The existing
@@ -234,6 +234,13 @@ including actual PostgreSQL OTP hashing, consumption and session issuance.
 The external challenge response and SMS delivery are fixtures, not live proof.
 Exact-candidate CI, deployed keys/widget and web/native acceptance remain
 required. See `docs/audits/OTP-CAPTCHA-CONTRACT-2026-10-09.md`.
+
+Subsequent source receipt: `1e9f4ad0` passed CI `37898457350` and Gates
+`37898457325` after the independently reproduced refund lock correction. All
+nine SEC-080 cases, issuer/refund SQL and both Nginx checks execute/pass. The
+later SMS predecessor `7de317ee` also executes all nine cases in successful
+CI `37904947493`. This resolves the historical source-CI requirement above,
+not configured live widget/provider, deployed source or web/native acceptance.
 
 The earlier implementation and dated deployment findings follow as history,
 not a fresh claim that the live configuration was re-inspected.
@@ -3315,3 +3322,25 @@ evaluation and complete web/native acceptance remain required. No account is
 auto-linked by contact email, no privileged shortcut is introduced and no
 existing migrations are replaced. See
 `docs/audits/EMAIL-CODE-DELIVERY-2026-10-09.md` for exact evidence and boundaries.
+
+## 101. Phone-code transport could forward secrets, log provider text or wait without a bound
+
+Actual native HTTP tests on `7de317ee` reproduce SEC-081 redirect forwarding of
+synthetic SMS credentials/code, SEC-082 parser text exposing a synthetic key
+prefix to diagnostics and OPS-538 unresolved header/body waits plus accepted
+oversized receipts. No live key, account, SMS or production disclosure is claimed.
+
+The candidate rejects redirects, bounds headers/body to ten seconds and receipt
+consumption to 4,096 bytes, cancels unfinished responses and logs a fixed private
+error category. Seven new HTTP checks pass, including real peer closure and
+exact-byte boundaries. Final connected selection passes 34 checks with eight
+explicit SQL skips. Full local API passes 954 suites / 3,413 tests, with two
+Docker-unavailable Nginx failures, 66 suites / 128 tests skipped and two TODOs;
+this is not a green full run or actual local database acceptance. Types/lint,
+Gate A/C and seven smoke scripts pass unchanged. **Fresh exact-source CI remains
+required; not deployed.** See `docs/audits/SMS-TRANSPORT-BOUNDARIES-2026-10-09.md`.
+
+The SMS boolean still conflates rejection and uncertain external acceptance.
+Real sender/delivery, fresh verified identity/linking, email/social UI, Android
+acceptance and matched-release requirements remain open. This narrow correction
+does not change OTP policy or certify the unchanged non-production simulations.

@@ -92,3 +92,28 @@ privacy/export/deletion integration and configured delivery. Legacy contact
 email is not verified sign-in ownership. Google/Apple/Facebook and usable signed
 Android delivery remain open. Existing provider/staff admission, administrator
 password/TOTP, payment isolation and matched-release requirements remain intact.
+
+## Completed exact-source verification and transport continuation
+
+Exact `7de317ee5cff7c2b0c867d4a2e94815f38038cc2` completed CI `37904947493`
+and Gates `37904947441` successfully. Actual API logs pass 1,019 suites / 3,536
+tests, two TODOs, no skips/failures. All five OPS-537 checks execute, including
+both actual PostgreSQL/HTTP callers; eleven email, 28 refund/participant, nine
+SEC-080, five issuer SQL and both Nginx checks also pass. The failed/skipped
+local receipts above remain unchanged.
+
+Admin passes 598 files / 706 tests, one skipped file / three TODOs, types/build;
+mobile passes 595 suites / 879 tests, 84 TODOs, types/compiled web. Actual API
+Docker build and `/health` boot pass. CI merge
+`5c83601e1423024742c8f35abe2ef5732823e862` and topic share source tree
+`2bb93843eeef198050bf6646688ad85843e15506`. Optional exact API/admin release
+packaging was skipped. Web audit artifact `11604580397` is not deployment
+eligible and was not downloaded or rendered. Gate B conditional dispatch and
+D/E report-workload limits remain unchanged. This verifies the bounded source
+correction, not deployment, provider delivery or wider sign-in completion.
+
+The subsequent [SMS transport audit](SMS-TRANSPORT-BOUNDARIES-2026-10-09.md)
+records real redirect disclosure, private error text and unbounded-response
+failures plus their candidate corrections. It supersedes the transport-review
+TODO above only within its stated scope and requires its own exact-source CI.
+The remaining boolean outcome, identity/linking and release limitations remain.
