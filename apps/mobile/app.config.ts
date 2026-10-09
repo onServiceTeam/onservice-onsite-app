@@ -181,6 +181,7 @@ const config: ExpoConfig = {
     ],
   },
   plugins: [
+    ['./plugins/withLocalAndroidSigning.js', { enabled: standaloneAndroid }],
     'expo-router',
     [
       'expo-location',

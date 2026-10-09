@@ -5,6 +5,76 @@ source candidates. Neither source CI nor a web export proves complete live
 business acceptance. This file tracks the **native** Android/iOS build, which
 gates two device-level QA tracks: Appium native E2E and F#3 Maestro baselines.
 
+## October 10: reproducible local release signing
+
+An actual Gradle signing report confirmed that the generated release variant
+used the shared Android Debug certificate. The explicit local standalone mode
+now installs a small Expo configuration plugin that applies the checked-in
+`plugins/android-release-signing.gradle` after the existing app build template.
+Regeneration must preserve this behavior; editing an ignored generated Gradle
+file alone is not the signing implementation. Returning to default/EAS mode
+removes this plugin's own application, leaving that mode's signing process alone.
+
+For a selected local standalone build, Gradle requires these process environment
+variables, loaded privately outside the source checkout:
+
+- `ONSERVICE_ANDROID_KEYSTORE_PATH`: absolute path to an existing keystore outside
+  the build checkout, including after canonical path resolution.
+- `ONSERVICE_ANDROID_KEY_ALIAS`, `ONSERVICE_ANDROID_STORE_PASSWORD` and
+  `ONSERVICE_ANDROID_KEY_PASSWORD`: the existing private signing material.
+- `ONSERVICE_ANDROID_CERT_SHA256`: the independently established public
+  certificate fingerprint, exactly64 hexadecimal characters without separators.
+
+Configuration fails closed for missing values, inaccessible/wrong-password stores,
+missing private-key aliases, invalid/expired certificates, Android Debug identities
+and a fingerprint mismatch. Only the release build type is assigned to the verified
+`onserviceRelease` identity. The debug build type is unchanged. This implementation
+does not create, rotate, export or reset a key. Keep real values out of command-line
+arguments, project env files, generated source, public logs and release artifacts.
+Expo never reads these signing values into its public configuration. Android's
+signing-report task itself prints key paths and aliases, so real-account reports
+must stay private. Use a bounded no-daemon build process when handling credentials.
+
+Local verification uses the real Expo config/mod resolver and actual Gradle9.1.0,
+AGP8.12.0 and Android Build Tools36.0.0. The generated wrapper still specifies9.0.0;
+these diagnostics are not a claim of exact wrapper reproduction. A disposable
+`ph.onservice.signingfixture` APK was assembled and its actual signature/certificate
+verified with `apksigner`. It is not the onService application, was not installed,
+and must never be delivered as the user APK. Fixture keys are not release keys.
+The original offline assembly failed on uncached lint dependencies; the ordinary
+online dependency retry retained lint and completed, preserving the failed report.
+
+The full mobile regression run passed618suites/930tests,84existing TODOs and no
+skips/failures in218.524seconds. Three new tests execute the actual Expo mod,
+including idempotence, switching back to default mode, unsupported-template
+rejection and no signing-secret serialization. They do not execute Gradle or a
+handset. Initial test-only type errors and an inspection harness that incorrectly
+used Expo's plugin-removing `skipPlugins` option were corrected without changing
+the assertions or product guards; both failed receipts remain retained. Types,
+scoped lint, unchanged GateA10/C7 and seven smoke scripts pass. The actual signing
+matrix passed the positive release model and ten rejected configurations: wrong
+fingerprint, wrong key password, absent alias, relative path, missing value,
+debug identity, renamed debug certificate, key inside the checkout, malformed
+fingerprint and bad store password. The debug model stayed unchanged; the private
+diagnostic marker was not emitted. One runner inherited exit1 from its final
+expected rejection; separate receipt/artifact verification passed without
+rewriting that original result. The final focused selection passed five suites/
+24tests with no skips/TODOs. Exact-candidate CI is still required before source
+acceptance; no local full API/admin or complete-app device result is claimed.
+
+No real release identity, maps credentials, embedded onService release APK,
+device storage/authentication, visible-version repair or update feature is
+delivered by this prerequisite. Those remain required before a download is offered.
+
+The preceding configuration source a71b06235916761ddc06c08a220204163958652d completed
+[CI37979089085](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37979089085)
+and [Gates37979089173](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37979089173):
+mobile617suites/927tests/84TODO, API1032suites/3652tests/twoTODO and admin706tests
+with one skipped file/threeTODO, types/builds and actual API image/health liveness.
+API/mobile had no skipped or failed tests. Merge44f490bd38306ea5a28205f054f4f70feb8f4343
+and that topic share tree2fed2b6c143a30c36b4ed0bd29859d1f69207e0d. This older result
+does not verify the new signing implementation or certify an APK/live release.
+
 ## October 10: explicit standalone Android configuration
 
 The build-time selector `ONSERVICE_ANDROID_STANDALONE=1` supports the requested
