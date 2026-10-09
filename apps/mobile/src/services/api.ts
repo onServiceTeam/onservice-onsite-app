@@ -144,41 +144,50 @@ async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosL
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const abortFromCaller = (): void => controller.abort(init.signal?.reason);
 
-  let res: Response;
   try {
-    res = await fetch(finalUrl, {
+    // A caller may cancel sooner, but must not replace the request's deadline.
+    if (init.signal?.aborted) abortFromCaller();
+    else init.signal?.addEventListener('abort', abortFromCaller, { once: true });
+    const res = await fetch(finalUrl, {
       ...init,
       method,
       headers,
       body: serializedBody,
-      signal: init.signal ?? controller.signal,
+      signal: controller.signal,
     });
+
+    // Fetch resolves at headers. Keep cancellation alive until its body is read.
+    if (init.responseType === 'blob') {
+      if (!res.ok) {
+        const errText = await res.text().catch(error => {
+          // An interrupted 401 body is not permission to refresh/replay a POST.
+          if (controller.signal.aborted) throw error;
+          return '';
+        });
+        let errBody: ApiFailure | null = null;
+        try { errBody = errText ? (JSON.parse(errText) as ApiFailure) : null; } catch { /* ignore */ }
+        throw new ApiError(res.status, errBody, `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      return { data: blob as unknown as T, status: res.status, ok: true };
+    }
+
+    let parsed: unknown = null;
+    const text = await res.text();
+    if (text) {
+      try { parsed = JSON.parse(text); } catch { /* not JSON */ }
+    }
+
+    if (!res.ok) {
+      throw new ApiError(res.status, parsed as ApiFailure | null, `HTTP ${res.status}`);
+    }
+    return { data: parsed as T, status: res.status, ok: true };
   } finally {
     clearTimeout(timeoutId);
+    init.signal?.removeEventListener('abort', abortFromCaller);
   }
-
-  if (init.responseType === 'blob') {
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      let errBody: ApiFailure | null = null;
-      try { errBody = errText ? (JSON.parse(errText) as ApiFailure) : null; } catch { /* ignore */ }
-      throw new ApiError(res.status, errBody, `HTTP ${res.status}`);
-    }
-    const blob = await res.blob();
-    return { data: blob as unknown as T, status: res.status, ok: true };
-  }
-
-  let parsed: unknown = null;
-  const text = await res.text();
-  if (text) {
-    try { parsed = JSON.parse(text); } catch { /* not JSON */ }
-  }
-
-  if (!res.ok) {
-    throw new ApiError(res.status, parsed as ApiFailure | null, `HTTP ${res.status}`);
-  }
-  return { data: parsed as T, status: res.status, ok: true };
 }
 
 // Phase K MED-K03 fix — single-flight refresh.

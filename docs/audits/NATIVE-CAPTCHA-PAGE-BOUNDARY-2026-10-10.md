@@ -83,3 +83,23 @@ email/social method or deployment. The current selected-image restoration throug
 migration 179, matched authenticated clients, upload references and rollback
 remain required. The broad 124 findings, 15 journeys and 14 categories retain
 their existing status; no launch-readiness claim follows from these tests.
+
+## Completed exact-source verification
+
+Published `195d02ce681f713107de47de9b46bfa815592d4f` completed CI
+`37956773661` and Gates `37956773678`. Actual mobile logs pass 609 suites /
+893 tests, 84 TODOs, zero skips/failures, 52.099s, including both SEC-086/087,
+types and compiled web. API passes 1031 suites / 3647 tests, two TODOs, zero
+skips/failures, 133.774s, including refund/email/issuer SQL and both Nginx checks.
+Admin passes 598 files / 706 tests, one skipped file / three TODOs, 292.62s,
+with types/build. The actual API Docker image builds and serves `/health`;
+missing `platform_settings` in its blank database means liveness, not readiness.
+
+Actual GitHub commit objects confirm merge
+`819e2ee5afc4a48d0fe8db9de768e6ccc7350648` and topic share tree
+`a1dfee8e6c485e4e920fe927a14cb5c7ac71b6ad`. Four complete job logs are retained.
+An initial admin log retrieval failed on a remote closed connection; its
+separate bounded retry completed. This was not a CI test failure. Web artifact
+`11627834217` is not deployment eligible or a browser journey. Optional API/admin
+packaging was skipped. Conditional Gate B and D/E workload limits stay unchanged.
+This completes bounded source verification, not native or live acceptance.
