@@ -6,8 +6,8 @@ import { runInThisContext } from 'node:vm';
 // Use Node's real fetch/streams/abort implementation, also inside jsdom. Only
 // the endpoint and platform/storage boundaries are fixtures, not HTTP responses.
 export function installNativeHttp(): () => void {
-  const native = runInThisContext('({fetch, Headers, FormData, AbortController})') as
-    Pick<typeof globalThis, 'fetch' | 'Headers' | 'FormData' | 'AbortController'>;
+  const native = runInThisContext('({fetch, Headers, FormData, AbortController, TextDecoder, Blob})') as
+    Pick<typeof globalThis, 'fetch' | 'Headers' | 'FormData' | 'AbortController' | 'TextDecoder' | 'Blob'>;
   const originals = Object.getOwnPropertyDescriptors(globalThis);
   for (const [name, value] of Object.entries(native)) {
     Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });

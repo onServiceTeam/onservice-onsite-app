@@ -82,3 +82,20 @@ selected-image restored migration chain through 179, matched authenticated
 clients, upload references and rollback before synchronized release. The broader
 124 findings remain 117 unreconciled, seven partial and zero closed. This is not
 live email/social sign-in, an APK, deployment or launch readiness.
+
+## Completed exact-source CI receipt
+
+Candidate `508229ba6c10df73ca3257cd9c1baa312d0071a8` completed
+[CI 37964718901](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37964718901)
+and [Gates 37964718902](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37964718902).
+Actual API logs pass 1032 suites/3652 tests, two TODOs, zero skips/failures,
+including all five discovery checks, the email SQL/HTTP, refund, issuer and both
+Nginx suites. Mobile passes 612 suites/903 tests, 84 TODOs, types and compiled
+web; admin passes 706 tests, one skipped file/three TODOs, types and production
+build. Actual API Docker build and served health pass, not full-chain readiness.
+Merge `5f155556a225bd18fa11e60ce8d86c6de07a65f8` and topic have identical tree
+`1cec453ee977bc0c681e9c5f745f63e7ff204193`, checked through GitHub objects.
+Complete logs are retained. Optional API/admin packaging was skipped; retained
+web artifact `11632673932` is not deployment eligible or browser exercised.
+Conditional Gate B and D/E report-workload limits remain unchanged. This supplies
+source verification without rewriting the failed/skipped local receipt above.

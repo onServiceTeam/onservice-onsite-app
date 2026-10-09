@@ -145,50 +145,98 @@ async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosL
   }
 
   const controller = new AbortController();
+  let cancelBody: (() => void) | undefined;
+  let rejectAbort: (reason: unknown) => void = () => undefined;
+  const aborted = new Promise<never>((_resolve, reject) => { rejectAbort = reject; });
+  const abortReason = (): unknown => controller.signal.reason
+    ?? Object.assign(new Error('The request was aborted.'), { name: 'AbortError' });
+  const onAbort = (): void => {
+    cancelBody?.();
+    rejectAbort(abortReason());
+  };
+  controller.signal.addEventListener('abort', onAbort, { once: true });
   const timeoutId = setTimeout(() => controller.abort(), 15000);
   const abortFromCaller = (): void => controller.abort(init.signal?.reason);
 
   try {
-    // A caller may cancel sooner, but must not replace the request's deadline.
-    if (init.signal?.aborted) abortFromCaller();
-    else init.signal?.addEventListener('abort', abortFromCaller, { once: true });
-    const res = await fetch(finalUrl, {
-      ...init,
-      method,
-      headers,
-      body: serializedBody,
-      signal: controller.signal,
-    });
-
-    // Fetch resolves at headers. Keep cancellation alive until its body is read.
-    if (init.responseType === 'blob') {
-      if (!res.ok) {
-        const errText = await res.text().catch(error => {
-          // An interrupted 401 body is not permission to refresh/replay a POST.
-          if (controller.signal.aborted) throw error;
-          return '';
-        });
-        let errBody: ApiFailure | null = null;
-        try { errBody = errText ? (JSON.parse(errText) as ApiFailure) : null; } catch { /* ignore */ }
-        throw new ApiError(res.status, errBody, `HTTP ${res.status}`);
+    const operation = (async (): Promise<ApiAxiosLikeResponse<T>> => {
+      // A caller may cancel sooner, but must not replace the request's deadline.
+      if (init.signal?.aborted) abortFromCaller();
+      else init.signal?.addEventListener('abort', abortFromCaller, { once: true });
+      if (controller.signal.aborted) throw abortReason();
+      const res = await fetch(finalUrl, {
+        ...init,
+        method,
+        headers,
+        body: serializedBody,
+        signal: controller.signal,
+      });
+      // A transport may ignore its signal, including after returning headers.
+      // Never consume/deliver a late response; explicitly cancel streamed bodies.
+      if (controller.signal.aborted) {
+        void res.body?.cancel().catch(() => undefined);
+        throw abortReason();
       }
-      const blob = await res.blob();
-      return { data: blob as unknown as T, status: res.status, ok: true };
-    }
+      const readBody = async (binary = false): Promise<string | Blob> => {
+        if (!res.body?.getReader) return binary ? res.blob() : res.text();
+        const reader = res.body.getReader();
+        cancelBody = (): void => { void reader.cancel(abortReason()).catch(() => undefined); };
+        try {
+          const decoder = binary ? null : new globalThis.TextDecoder();
+          const chunks: ArrayBuffer[] = [];
+          let text = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (controller.signal.aborted) throw abortReason();
+            if (done) break;
+            if (decoder) text += decoder.decode(value, { stream: true });
+            else chunks.push(new Uint8Array(value).buffer);
+          }
+          return decoder ? text + decoder.decode()
+            : new Blob(chunks, { type: res.headers.get('Content-Type') ?? '' });
+        } catch (error) {
+          void reader.cancel(error).catch(() => undefined);
+          throw error;
+        } finally {
+          cancelBody = undefined;
+          reader.releaseLock();
+        }
+      };
 
-    let parsed: unknown = null;
-    const text = await res.text();
-    if (text) {
-      try { parsed = JSON.parse(text); } catch { /* not JSON */ }
-    }
+      // Fetch resolves at headers. Keep cancellation alive until its body is read.
+      if (init.responseType === 'blob') {
+        if (!res.ok) {
+          const errText = await readBody().catch(error => {
+            // An interrupted 401 body is not permission to refresh/replay a POST.
+            if (controller.signal.aborted) throw error;
+            return '';
+          });
+          let errBody: ApiFailure | null = null;
+          try { errBody = errText ? (JSON.parse(errText as string) as ApiFailure) : null; } catch { /* ignore */ }
+          throw new ApiError(res.status, errBody, `HTTP ${res.status}`);
+        }
+        const blob = await readBody(true);
+        return { data: blob as unknown as T, status: res.status, ok: true };
+      }
 
-    if (!res.ok) {
-      throw new ApiError(res.status, parsed as ApiFailure | null, `HTTP ${res.status}`);
-    }
-    return { data: parsed as T, status: res.status, ok: true };
+      let parsed: unknown = null;
+      const text = await readBody();
+      if (text) {
+        try { parsed = JSON.parse(text as string); } catch { /* not JSON */ }
+      }
+
+      if (!res.ok) {
+        throw new ApiError(res.status, parsed as ApiFailure | null, `HTTP ${res.status}`);
+      }
+      return { data: parsed as T, status: res.status, ok: true };
+    })();
+    // Also settle non-streaming native transports that ignore AbortSignal.
+    // The observed operation cannot later deliver credentials or replay a POST.
+    return await Promise.race([operation, aborted]);
   } finally {
     clearTimeout(timeoutId);
     init.signal?.removeEventListener('abort', abortFromCaller);
+    controller.signal.removeEventListener('abort', onAbort);
   }
 }
 
