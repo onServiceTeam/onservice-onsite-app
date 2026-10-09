@@ -683,7 +683,25 @@ export async function createTokenPair(
   if (!Number.isSafeInteger(sessionVersion) || sessionVersion < 1) {
     throw new Error('Invalid session version');
   }
-  return db.transaction(async (client) => {
+  return db.transaction(client => createTokenPairInTransaction(client, userId, role, sessionVersion));
+}
+
+type CredentialTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export interface CredentialContext { deviceFingerprint?: string; ipAddress?: string }
+
+/** Internal issuer for a caller that verifies/consumes its own factor inside
+ * the SAME transaction. This is not a verifier, public endpoint or permission
+ * to promote an account. Return credentials only after the caller commits.
+ * Account-first ordering and canonical authority checks match the standalone
+ * issuer. Never nest createTokenPair's separate transaction under this lock.
+ */
+export async function createTokenPairInTransaction(
+  client: CredentialTransaction, userId: string, role: string, sessionVersion: number,
+  context?: CredentialContext,
+): Promise<{ accessToken: string; refreshToken: string }> {
+    if (!Number.isSafeInteger(sessionVersion) || sessionVersion < 1) {
+      throw new Error('Invalid session version');
+    }
     // OPS-526: retain the caller's authenticated authority, never upgrade it
     // to a newer role/generation. Account -> session locking matches refresh
     // and account-first revocation, including while a competing writer waits.
@@ -705,13 +723,21 @@ export async function createTokenPair(
     const refreshDuration = refreshDurationForRole(role);
     const refreshExpiresAt = new Date(Date.now() + parseDurationToSeconds(refreshDuration) * 1000);
 
-    await client.query(
-      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3)`,
-      [userId, tokenHash, refreshExpiresAt],
-    );
+    if (context) {
+      const inserted = await client.query(
+        `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, device_fingerprint, created_ip)
+         VALUES ($1, $2, $3, $4, $5::inet)`,
+        [userId, tokenHash, refreshExpiresAt, context.deviceFingerprint ?? null, context.ipAddress ?? null],
+      );
+      if (inserted.rowCount !== 1) throw createAppError('Unable to persist authentication session.', 500);
+    } else {
+      await client.query(
+        `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+         VALUES ($1, $2, $3)`,
+        [userId, tokenHash, refreshExpiresAt],
+      );
+    }
     return { accessToken, refreshToken };
-  });
 }
 
 export async function logout(userId: string, refreshToken?: string): Promise<void> {

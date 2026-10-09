@@ -1090,13 +1090,16 @@ export async function refundBookingEscrow(
       };
     }
 
+    // OPS-536: this transaction updates the case after locking the booking.
+    // Take the writer lock now; two SHARE holders could otherwise deadlock
+    // when one waits for the booking and the other upgrades the case lock.
     const ticketResult = await client.query<{ id: string; ticket_number: string }>(
       `SELECT id, ticket_number
          FROM support_tickets
         WHERE id = $1
           AND booking_id = $2
           AND status NOT IN ('resolved', 'closed')
-        FOR SHARE`,
+        FOR NO KEY UPDATE`,
       [supportTicketId, bookingId],
     );
     const ticket = ticketResult.rows[0];

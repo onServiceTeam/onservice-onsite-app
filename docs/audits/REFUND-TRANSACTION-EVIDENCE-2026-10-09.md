@@ -420,3 +420,14 @@ this newer correction requires its own final local and exact CI evidence.
 See `docs/audits/BOOKING-PROVIDER-ASSIGNMENT-2026-10-09.md`. The historical
 118/six/zero inventory count above remains a point-in-time receipt, not a
 claim that all finding states were reconciled by this continuation.
+
+### October 9 concurrent case-lock failure
+
+Later exact CI on `7fa7c520` exposed a real intermittent 500 in the original
+distinct-key operator-refund test. Controlled HTTP/PostgreSQL overlap confirmed
+a support-case shared-lock upgrade deadlock. OPS-536 changes only that initial
+case lock to `FOR NO KEY UPDATE`, preserving the original refund-cap assertion
+and adding actual overlapping-success, cap-conflict, replay, case-closure and
+unrelated-case evidence. See [the failure and repair receipt](REFUND-CASE-LOCK-2026-10-09.md).
+Earlier passing schedules remain historical evidence, not proof that concurrency
+was fully safe. This does not close the wider lock graph or funding/retry gaps.

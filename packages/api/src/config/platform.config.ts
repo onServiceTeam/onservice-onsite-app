@@ -44,6 +44,15 @@ export const platformConfig = {
   otpExpiryMinutes: 5,
   otpMaxAttempts: 3,
   otpCooldownSeconds: 60,
+  // Internal verified-email linking uses hard account/recipient/IP limits.
+  // No relaxed-test bypass; public enablement is a separate acceptance step.
+  emailLinkRequestsPerHour: 5,
+  emailSignInRequestsPerHour: 5,
+  // Engineering default aligned with existing login-attempt metadata, not a
+  // legal retention approval. Expired proof hashes clear on the next batch;
+  // this longer window applies only to request metadata, never usable codes.
+  emailLinkRequestRetentionDays: 90,
+  emailSignInRequestRetentionDays: 90,
 
   // --- Quotes ---
   quoteExpiryHours: 48,           // Quotes expire after 48 hours

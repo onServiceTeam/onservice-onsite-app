@@ -10,7 +10,7 @@ proof that a control works.
 | ID | Control | Status | Evidence |
 | --- | --- | --- | --- |
 | SEC-001 | Admin 2FA (TOTP) with force-enrolment and recovery codes | CONNECTED IN CODE; RECOVERY GOVERNANCE REVIEW OPEN | `admin`, `super_admin`, and `dpo` accounts must enroll TOTP. Activation atomically creates eight single-use recovery codes and the enrollment page shows them once with a secure-storage save step. Login accepts exactly one TOTP or recovery code and consumes a recovery code transactionally. Temporary setup tokens cannot authorize ordinary HTTP or Socket.IO access. The pre-existing factor-removal and recovery-code-regeneration mutation routes now fail closed with a `409` launch hold and do not read or mutate account recovery state. Privileged recovery and interrupted enrollment remain launch-held under private security review. Behavioral coverage: SEC-038 through SEC-044 and Admin Bugs UX-1023/1024. |
-| SEC-002 | Turnstile after N failed OTPs | VERIFIED IN CODE; PRODUCTION BLOCKED ON REAL KEYS | OTP login/registration use `useCaptchaOtp` and the native/web `TurnstileModal`; the API calls Cloudflare Siteverify through `securityService.verifyCaptchaToken` and fails closed in production without a secret. Env: `TURNSTILE_SECRET_KEY` and `EXPO_PUBLIC_TURNSTILE_SITE_KEY`; historical `CAPTCHA_*` aliases remain temporarily accepted. Behavioral coverage includes the OTP challenge suites and `bug-sec-010-turnstile-cutover-verifier.test.ts`. A 2026-08-24 live inspection found no server secret or Cloudflare token, so production-mode promotion remains blocked. |
+| SEC-002 | Turnstile after N failed OTPs | REQUEST-CONTRACT SOURCE-VERIFIED; LIVE ACCEPTANCE OPEN | OTP login/registration use `useCaptchaOtp` and native/web `TurnstileModal`. SEC-080 found the real request validator discarded the supplied CAPTCHA token, causing repeated 428 responses. The correction preserves the bounded opaque token for the existing server-side Siteverify check. All nine real mounted HTTP/SQL contract cases execute in successful CI `37898457350` at `1e9f4ad0` and again in SMS predecessor CI `37904947493` at `7de317ee`. This is not deployed or configured live widget/provider acceptance. Env: `TURNSTILE_SECRET_KEY` and `EXPO_PUBLIC_TURNSTILE_SITE_KEY`; historical `CAPTCHA_*` aliases remain accepted. The 2026-08-24 missing-key inspection is historical, not a fresh check. See [the contract audit](audits/OTP-CAPTCHA-CONTRACT-2026-10-09.md). |
 | SEC-003 | PayMongo webhook signature | VERIFIED | `packages/api/src/routes/webhook.routes.ts:14-50` — HMAC-SHA256 over `${timestamp}.${rawBody}`, 5-minute replay window, `crypto.timingSafeEqual` comparison. Rejects when `PAYMONGO_WEBHOOK_SECRET` is missing. |
 | SEC-004 | Government-ID encryption at rest (S3 SSE) | DONE IN CODE; STORAGE DEPLOYMENT STILL REQUIRES VERIFICATION | Every S3 `PutObjectCommand` uses SSE-KMS when `S3_KMS_KEY_ID` exists and SSE-S3/AES256 otherwise; private KYC objects are owner/admin proxied. `s3-sse-bug-1325.test.ts` executes both encryption branches. The current Hetzner local-volume deployment relies on host-volume security rather than claiming S3 encryption. |
 | SEC-005 | PII masking in logs | DONE (Phase 13 Dispatch D) | `packages/api/src/utils/logger.ts` exports `piiMaskFormat` (winston format factory) inserted into both root and console transport pipelines. Redacts PH phone (+63 / 09xx), email, TIN, SSS, PhilHealth, PayMongo IDs (`cus_/src_/pay_/link_`), JWT, and bcrypt hashes. Idempotent (skips strings that already contain `[REDACTED:`). Tests: `__tests__/logger-pii-masking.test.ts`. |
@@ -31,8 +31,11 @@ npm --workspace @onservice/api test -- --runInBand \
   bug-sec-040-socket-2fa-setup-token-boundary.test.ts \
   bug-sec-042-admin-2fa-special-route-rotation-boundary.test.ts
 
-# SEC-002 — CAPTCHA enforcement
-grep -n "captchaRequired\|verifyCaptchaToken" packages/api/src/routes/auth.routes.ts
+# SEC-002 — actual request/verification contract; the SQL case requires the
+# guarded isolated localhost *_test database, otherwise it is explicitly skipped.
+npm --workspace @onservice/api test -- --runInBand \
+  bug-sec-080-otp-captcha-contract.test.ts \
+  bug-sec-010-turnstile-cutover-verifier.test.ts
 
 # SEC-003 — webhook HMAC
 grep -n "createHmac\|timingSafeEqual" packages/api/src/routes/webhook.routes.ts
@@ -70,6 +73,16 @@ curl -fsSI https://admin.onservice.ph | grep -i "content-security-policy"
 ```
 
 ## Known deployment gaps
+
+The October 9 CAPTCHA transport candidate additionally rejects redirected
+Siteverify requests and non-2xx success bodies, caps headers/body waits at ten
+seconds and streamed responses at 4,096 bytes, and removes arbitrary exception
+text from diagnostics. SEC-083/084/085 and OPS-539 have real HTTP regressions;
+the privacy disclosure test explicitly injects a same-realm transport exception.
+This is not production widget/key/hostname acceptance or a change to abuse
+thresholds, missing-secret policy or privileged authentication. Require its own
+exact-source CI before promotion. See
+[the transport audit](audits/CAPTCHA-TRANSPORT-BOUNDARIES-2026-10-09.md).
 
 The original SEC-004 code gap is closed. Launch still requires deployment-level
 evidence for the active storage backend, Turnstile production keys, CSP response
@@ -154,6 +167,15 @@ validation remain. Real helper and encryption regressions pass; this does not
 prove production exposure, rotate a key, change recovery authority or complete
 deployment. See [the diagnostic audit](audits/ADMIN-TOTP-DIAGNOSTICS-2026-09-06.md).
 
+SEC-082 similarly removes untrusted SMS transport/parser exception text at the
+source. A real malformed synthetic provider response previously echoed a key
+prefix to the logger. The candidate uses a fixed error category; SEC-081 also
+rejects redirects carrying SMS secrets, and OPS-538 bounds receipt consumption
+and response waits. Seven actual native-HTTP checks pass locally, but fresh
+exact-source CI and deployment remain required. This does not certify all log
+callers or prove historical exposure. See the
+[transport audit](audits/SMS-TRANSPORT-BOUNDARIES-2026-10-09.md).
+
 ### CSP rationale (per directive)
 
 | Directive | Sources allowed | Why |
@@ -187,8 +209,10 @@ microphone=(), geolocation=()`.
 
 The separate marketplace phone-code sign-in must not issue privileged
 credentials. SEC-075 enforces a customer/provider/provider-staff allowlist in
-candidate code, including for configured development codes. This correction
-is not yet deployed and does not revoke previously issued sessions. See
+candidate code, including for configured development codes. On October 9 a
+narrow compatibility guard was separately tested and activated on the older
+live API image; the accumulated topic candidate was not deployed. This
+prospective containment does not revoke or certify previously issued sessions. See
 `docs/audits/PRIVILEGED-PHONE-SIGN-IN-2026-10-08.md` for the real database/HTTP
 reproduction, verification scope and remaining release/session requirements.
 

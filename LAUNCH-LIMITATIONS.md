@@ -222,7 +222,28 @@ launch-cutover runbook.
 
 ---
 
-## 11. CAPTCHA client/server linkage — CODE RESOLVED; PRODUCTION KEY PENDING
+## 11. CAPTCHA client/server linkage — REQUEST-CONTRACT SOURCE-VERIFIED; LIVE ACCEPTANCE OPEN
+
+**2026-10-09 correction to the earlier code-resolved claim:** SEC-080 found
+that the actual send-OTP validator discarded `captchaToken`. The existing
+client/verifier code below therefore did not prove that a solved challenge
+could complete the request. The narrow candidate correction preserves the
+bounded opaque token for server verification. The original final nine checks
+failed seven cases; the corrected connected run passes 11 suites / 58 tests,
+including actual PostgreSQL OTP hashing, consumption and session issuance.
+The external challenge response and SMS delivery are fixtures, not live proof.
+Exact-candidate CI, deployed keys/widget and web/native acceptance remain
+required. See `docs/audits/OTP-CAPTCHA-CONTRACT-2026-10-09.md`.
+
+Subsequent source receipt: `1e9f4ad0` passed CI `37898457350` and Gates
+`37898457325` after the independently reproduced refund lock correction. All
+nine SEC-080 cases, issuer/refund SQL and both Nginx checks execute/pass. The
+later SMS predecessor `7de317ee` also executes all nine cases in successful
+CI `37904947493`. This resolves the historical source-CI requirement above,
+not configured live widget/provider, deployed source or web/native acceptance.
+
+The earlier implementation and dated deployment findings follow as history,
+not a fresh claim that the live configuration was re-inspected.
 
 The earlier hCaptcha plan was superseded. Customer/provider OTP login and
 registration now use Cloudflare Turnstile after the configured failed-attempt
@@ -1313,6 +1334,17 @@ uploads + presigned option all shipped, no further code is required for §35a.
 
 These are low-probability today (refunds/disputes are admin-driven and serialized
 in practice) but are real correctness/money-integrity gaps.
+
+**October 9 correction to that historical assessment:** operator requests are
+not inherently serialized. Exact CI on `7fa7c520` returned an unexpected 500
+for concurrent refunds on the same support case. OPS-536 reproduced a real
+case-lock/booking-lock deadlock and changes the case's initial lock to
+`FOR NO KEY UPDATE` before locking the booking. Controlled HTTP/PostgreSQL
+tests now cover affordable overlapping partial refunds, over-cap conflicts,
+replay, closure during a lock wait and an independent case proceeding. See
+`docs/audits/REFUND-CASE-LOCK-2026-10-09.md` for exact evidence and publication
+status. This narrow source correction is not live, nor proof of full refund
+safety, external retry safety or a deadlock-free wider lock graph.
 
 > **`refund_from_escrow` double-debit risk — RESOLVED IN CODE 2026-09-01.**
 > Post-commit payment failures in customer cancellation, admin cancellation,
@@ -3268,3 +3300,167 @@ required. No migration, money policy, gate or issuer changes. **Candidate only, 
 detail/evidence/support readers, cached disclosure, concurrent authority, full
 K07 and release holds remain open. See
 `docs/audits/STAFF-JOB-LIST-PARENT-2026-10-09.md`.
+
+## 100. Customer/provider email and social sign-in are not available yet
+
+Ken explicitly requested email, Google, Apple and popular social sign-in on
+October 9. The current shared customer/provider entry remains phone-only;
+administrator email/password plus TOTP is a separate privileged flow.
+Legacy `users.email` contact data does not establish verified sign-in ownership.
+
+An internal Resend code-delivery candidate now distinguishes provider acceptance,
+rejection, missing configuration and uncertain outcomes. It has no public route
+or authentication caller yet, and no email/social button or method is enabled.
+The sender uses fixed-destination HTTPS, immutable challenge idempotency, bounded
+responses, timeout cancellation and private logging. Local synthetic HTTP tests
+exercise those contracts, not a real provider inbox or completed login.
+
+Verified identity/linking, hashed purpose-bound challenges, abuse controls,
+single-use account/session verification, actual sender/provider configuration,
+safe phone-required onboarding, configured Google/Apple adapters, Facebook
+evaluation and complete web/native acceptance remain required. No account is
+auto-linked by contact email, no privileged shortcut is introduced and no
+existing migrations are replaced. See
+`docs/audits/EMAIL-CODE-DELIVERY-2026-10-09.md` for exact evidence and boundaries.
+
+Internal linking foundation, October 9: additive migration 175 and a server-only
+service now represent separate verified email ownership and a fresh phone/email
+proof operation. They do not backfill contact addresses, create accounts, issue
+sessions or expose a public endpoint. Owner export and soft anonymization include
+the new records without exporting codes/hashes. Actual PostgreSQL verification of
+this candidate is still pending; locally skipped tests are not acceptance.
+Delivery coordination, retention scheduling, public HTTP/UI, real configuration,
+email login and social adapters remain unimplemented. See
+`docs/audits/EMAIL-LINK-FOUNDATION-2026-10-09.md`. No live migration occurred.
+
+Completed foundation source verification: exact `1638b15a` passed CI
+`37912712008` and Gates `37912712014`, including all sixteen linking checks
+(fifteen actual SQL cases), affected account-session/deletion fixtures, both
+Nginx checks, complete API/admin/mobile checks, builds and API Docker boot.
+CI merge and topic trees match. This resolves the preceding foundation CI
+requirement, not email login, delivery, live deployment or a full release.
+
+The next bounded candidate adds expiry/hash clearing and ninety-day request
+metadata cleanup on the existing scheduler, with additive index migration 176.
+Verified ownership, audits and recent abuse counts are preserved. The metadata
+window is an engineering default, not E21 legal-retention approval or complete
+erasure. Its four new SQL cases still require actual exact-candidate execution;
+local skips are not acceptance. Public HTTP/UI, real sender/inbox configuration,
+session issuance and social methods remain unimplemented. Details and honest
+local failures: `docs/audits/EMAIL-LINK-CLEANUP-2026-10-09.md`. Nothing is live.
+
+Completed cleanup source verification: exact `7bb06275` passed CI `37915363720`
+and Gates `37915363736`. Actual API logs pass 1024 suites / 3566 tests, two
+TODOs, no skips/failures, all twenty-one linking checks (nineteen actual SQL),
+affected account lifecycle, issuer/refund and both Nginx checks. Admin/mobile
+regressions, types/builds and actual API Docker boot pass. Merge/topic trees
+match. Optional exact release packages were skipped; no deployed journey is
+implied. The earlier failed/skipped local receipts are retained.
+
+Next candidate, still disabled and not deployed: authenticated marketplace
+email-link request/status/confirmation routes now coordinate fresh SMS/email
+proofs, durable per-channel delivery outcomes and owner-only response recovery.
+Migration 177 is additive; earlier history is unchanged. Missing configuration
+fails closed even in development. CAPTCHA and both proofs are required, and no
+new JWT, account merge, provider approval or admin shortcut is introduced.
+The new fifteen-check HTTP suite includes thirteen actual SQL cases that must
+execute in exact-candidate CI before this stage is accepted. Local SQL skips
+are not passes. Owner exports include delivery metadata without proof secrets.
+Email login/session issuance, client UI, live sender/inbox configuration and
+social adapters remain unfinished. Full image/chain rehearsal through 177 and
+matched authenticated release acceptance remain required. Evidence:
+`docs/audits/EMAIL-LINK-DELIVERY-HTTP-2026-10-09.md`.
+
+Completed linking-HTTP source verification: `db025577` passed CI `37918764034`
+and Gates `37918764050`, including all fifteen HTTP and twenty-one foundation
+checks, API 1025 suites / 3581 tests with two TODOs and no skips/failures,
+both Nginx checks, admin/mobile tests and builds, and API Docker boot liveness.
+Merge/topic trees match. Optional exact release packages were skipped. This
+resolves the preceding source-verification requirement, not delivery or deployment.
+
+Next candidate, still not public or deployed: migration 178 and an internal
+email sign-in transaction bind a fresh one-use proof to verified identity and
+current marketplace authority, then commit session, login metadata, audit and
+proof consumption together. Owner export, partial anonymization and bounded
+cleanup cover the new records. Thirty-two actual SQL cases plus one input check
+require exact-candidate execution; local skips are not acceptance. The private
+preparation result must never become a public response or enumeration oracle.
+Neutral public HTTP/delivery, web/native screens, actual sender/provider setup,
+social adapters and full-chain matched release remain open. See
+`docs/audits/EMAIL-SIGN-IN-TRANSACTION-2026-10-09.md`.
+
+Completed internal sign-in source verification: `5deb00ae` passed CI
+`37922879922` and Gates `37922879915`. Actual API logs pass 1026 suites /
+3615 tests, two TODOs, no skips/failures, including all 33 sign-in checks,
+21 linking-foundation checks, 15 linking-HTTP checks and both Nginx checks.
+Admin/mobile tests, types/builds and actual API Docker build/boot pass;
+merge/topic trees match. Optional exact release packages were skipped.
+This resolves that internal stage's CI requirement, not deployment or delivery.
+
+Next candidate, default-disabled and not deployed: public email request and
+confirmation routes coordinate the existing verified-identity transaction and
+sender. Neutral request receipts precede account-dependent work; private
+one-attempt delivery metadata uses additive migration 179. No contact-address
+fallback, new account, merge, privilege upgrade or admin shortcut is introduced.
+The 22-check mounted HTTP suite includes 19 real SQL cases that must execute
+in exact-candidate CI; local skips are not passes. A receipt is not a durable
+queue or guaranteed email delivery. A crash may lose an unsent request, and an
+uncertain attempt is not automatically retried. Existing CAPTCHA transport,
+client linking/sign-in UI, configured inbox/social providers, full-chain image
+rehearsal through 179 and matched web/native release acceptance remain open.
+Evidence: `docs/audits/EMAIL-SIGN-IN-HTTP-2026-10-09.md`. No method is live.
+
+Completed HTTP source verification: `9c0d3759` passed CI `37926401909` and Gates
+`37926401967`, including all 22 HTTP cases and existing internal/linking SQL,
+issuer/refund/lifecycle and both Nginx checks. Actual API: 1027 suites / 3637
+tests, two TODOs, zero skips/failures. Admin/mobile tests, types/builds and API
+image build/boot pass; merge/topic trees match. Optional exact release packages
+were skipped. This completes that source stage, not enabled email, inbox,
+browser/native or full-chain release acceptance. CAPTCHA transport is separately
+reviewed below; UI and configured delivery still remain open.
+
+## 101. Phone-code transport could forward secrets, log provider text or wait without a bound
+
+Actual native HTTP tests on `7de317ee` reproduce SEC-081 redirect forwarding of
+synthetic SMS credentials/code, SEC-082 parser text exposing a synthetic key
+prefix to diagnostics and OPS-538 unresolved header/body waits plus accepted
+oversized receipts. No live key, account, SMS or production disclosure is claimed.
+
+The candidate rejects redirects, bounds headers/body to ten seconds and receipt
+consumption to 4,096 bytes, cancels unfinished responses and logs a fixed private
+error category. Seven new HTTP checks pass, including real peer closure and
+exact-byte boundaries. Final connected selection passes 34 checks with eight
+explicit SQL skips. Full local API passes 954 suites / 3,413 tests, with two
+Docker-unavailable Nginx failures, 66 suites / 128 tests skipped and two TODOs;
+this is not a green full run or actual local database acceptance. Types/lint,
+Gate A/C and seven smoke scripts pass unchanged. **Fresh exact-source CI remains
+required; not deployed.** See `docs/audits/SMS-TRANSPORT-BOUNDARIES-2026-10-09.md`.
+
+The SMS boolean still conflates rejection and uncertain external acceptance.
+Real sender/delivery, fresh verified identity/linking, email/social UI, Android
+acceptance and matched-release requirements remain open. This narrow correction
+does not change OTP policy or certify the unchanged non-production simulations.
+
+Completed source receipt: exact `f2d090e1` passed CI `37908585031` and Gates
+`37908585041`. Actual API logs pass 1022 suites / 3543 tests with two TODOs,
+no skips/failures, all seven new transport checks, existing SMS/email and SQL
+callers, and both Nginx checks. Admin/mobile tests and builds plus actual API
+Docker build/boot pass; CI merge and topic trees match. This resolves that
+candidate's CI requirement, not delivery, production or the broader sign-in work.
+
+## 102. CAPTCHA transport could forward secrets, accept error responses or wait indefinitely
+
+Actual native HTTP on `9c0d3759` reproduced redirected CAPTCHA secrets/proofs,
+success accepted from non-2xx responses, unbounded header/body waits and accepted
+oversized responses. A same-realm injected transport exception also exposed its
+private text to diagnostics. The native JSON error in Jest was cross-realm and
+reported `Unknown`; it is not claimed as an observed native JSON secret leak.
+
+Candidate SEC-083/084/085 and OPS-539 reject redirects and error HTTP status,
+bound headers/body to ten seconds and actual response bytes to 4,096, cancel
+unfinished responses and use fixed error diagnostics. Missing-secret behavior,
+OTP abuse policy, rate limits, email flags and administrator factors are unchanged.
+Actual peer-close tests and mounted phone/email denial cases cover this shared
+function. Fresh exact-source CI and live configuration/browser acceptance are
+still required. No production key, service or real account was changed. See
+`docs/audits/CAPTCHA-TRANSPORT-BOUNDARIES-2026-10-09.md` for exact receipts and scope.

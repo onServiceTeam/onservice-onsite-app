@@ -1,8 +1,53 @@
 # Native Android build — status + what it needs (Appium + Maestro baselines)
 
-The app ships as a **web build** (Expo web export), fully tested at the web/API
-layer. This file tracks the **native** Android/iOS build, which gates two
-device-level QA tracks: Appium native E2E and the F#3 Maestro visual baselines.
+The app has deployed **web builds** (Expo web export) and separately verified
+source candidates. Neither source CI nor a web export proves complete live
+business acceptance. This file tracks the **native** Android/iOS build, which
+gates two device-level QA tracks: Appium native E2E and F#3 Maestro baselines.
+
+## October 10, 2026: reconcile the Android candidate with current verified source
+
+The eleven pending Android paths were preserved in a local commit before
+integrating verified marketplace source `bb725efcf661b6af0160e4796b619305976ae46a`
+into the existing Android branch. The merge introduced no conflict. Compared
+with that marketplace source, only the same eleven Android alignment/storage/
+test/documentation paths differ. The shared API wrapper retains both its
+current cancellation/no-replay fixes and the native MMKV v4 compatibility fix;
+neither side was copied over the other. No primary-branch or live-server update
+is part of this integration.
+
+The original OPS534/535 failing evidence and all earlier receipts below remain
+valid historical evidence, not acceptance of this combined candidate. The
+existing lockfile and storage source hashes were checked unchanged before the
+merge. Current combined-source regressions, types, gates, exact-candidate CI
+and web compilation must pass before this candidate is source-verified. Native
+encryption/persistence, standalone signed ARM packaging, real sign-in and
+data-preserving upgrades remain separate required acceptance steps.
+
+The reviewed combined source passed 616 mobile suites / 909 tests, with 84
+existing TODOs and no skips or failures (248.924 seconds). The focused storage
+and request-policy/cancellation selection passed five suites / thirteen tests
+(47.508 seconds), including both OPS534/535 and the newer OPS554 behavior.
+Mobile, API and admin TypeScript checks and changed-file lint passed. The
+unchanged Gate A ten fragments, Gate C seven articles and all seven gate smoke
+scripts passed. Runtime, tests and the dependency lock stayed unchanged through
+these checks. These receipts do not replace a fresh full API/admin run, a
+compiled web check or exact-candidate CI with this dependency lock. The earlier
+API Docker-unavailable failures and device failures below remain historical
+failures, not retroactively green results.
+
+The installed native-package versions were also reconciled against Expo
+55.0.31's bundled-module matrix. Existing patched React/ReactDOM 19.2.5 and
+the intentionally newer Jest/TypeScript versions were retained rather than
+downgraded to the matrix recommendations. This metadata comparison and the
+regressions are not native binary, cipher or device compatibility acceptance.
+
+Ken reiterated the permanent delivery requirement: keep a verified APK
+download available and updated alongside verified releases, with a visible
+installed version and an in-app **Check for updates** button. Retain the last
+verified APK until its replacement passes. The detailed signing, bounded
+automatic/manual checking, Update/Later and upgrade rules below apply. No APK
+or updater is delivered merely by publishing this source candidate.
 
 ## October 9, 2026 continuation: alignment under verification, no APK release yet
 
@@ -185,8 +230,10 @@ was again rejected before execution with `blocked by policy`. The remaining
 restriction is the execution platform's policy, NOT missing approval from Ken
 or an E80 recovery hold. No alternative shell, port, proxy or serving mechanism
 was tried. Do not keep asking Ken to approve the same action or claim a server
-is running. This local correction remains uncommitted/unpublished alongside
-the pending alignment; no production service or account changed.
+is running. At that October 9 checkpoint the local correction remained
+uncommitted/unpublished alongside the pending alignment; no production service
+or account changed. The October 10 integration receipt above supersedes that
+source-publication status, not the unresolved native acceptance.
 
 These requirements implement Ken's requested delivery discipline, not a claim
 that APK downloads or automatic updates already exist. Complete the current

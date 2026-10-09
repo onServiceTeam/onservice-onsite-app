@@ -19,6 +19,7 @@ import { appendAuthorizationTermsInTransaction, appendProviderAssignmentTermsInT
 import { errorMiddleware } from '../src/middleware/error.middleware';
 import { processRetries } from '../src/services/gateway-retry.service';
 import { processRefund } from '../src/services/payment.service';
+import { logger } from '../src/utils/logger';
 
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
@@ -921,6 +922,124 @@ refundIt('concurrent distinct operator refund keys cannot spend another booking 
     expect(after.wallets.find(row => row.id === customerWalletA)).toMatchObject({ available_balance: '220000' });
     expect(after.intents.find(row => row.booking_id === bookingA)).toMatchObject({ refunded_amount: 70000 });
   });
+}, 30000);
+
+refundIt('Bug OPS-536 - overlapping refunds on one support case finish without a shared-lock upgrade deadlock', async () => {
+  for (const amount of [25000, 70000]) {
+    await withOperatorRefundDatabase(async database => {
+      jest.mocked(logger.error).mockClear();
+      const before = await operatorSnapshot(database);
+      const blocker = await database.connect();
+      const http = refundHttp();
+      const requests: Array<Promise<request.Response>> = [];
+      let responses: request.Response[];
+      let transactionOpen = false;
+      try {
+        await blocker.query('BEGIN');
+        transactionOpen = true;
+        await blocker.query('SELECT id FROM bookings WHERE id=$1 FOR UPDATE', [bookingA]);
+        requests.push(
+          http.post({ ...refundBody, amount }).then(response => response),
+          http.post({ ...refundBody, amount, idempotencyKey: secondKey }).then(response => response),
+        );
+        // Hold the real booking row until both HTTP transactions are waiting.
+        // Before repair both held SHARE on the case and waited for this row;
+        // afterward one waits on the case's exclusive lock instead. Observe
+        // actual PostgreSQL waits, not an assumed sleep or mocked SQL result.
+        const deadline = Date.now() + 10000;
+        let waiting = 0;
+        while (waiting < 2 && Date.now() < deadline) {
+          const state = await database.query<{ count: number }>(`SELECT COUNT(*)::int AS count
+            FROM pg_stat_activity WHERE datname=current_database()
+              AND application_name=current_setting('application_name')
+              AND wait_event_type='Lock' AND state='active'
+              AND (query LIKE '%FROM bookings%' OR query LIKE '%FROM support_tickets%')`);
+          waiting = state.rows[0]!.count;
+          if (waiting < 2) await new Promise(resolve => setTimeout(resolve, 10));
+        }
+        expect(waiting).toBe(2);
+        await blocker.query('COMMIT');
+        transactionOpen = false;
+        responses = await Promise.all(requests);
+      } finally {
+        if (transactionOpen) await blocker.query('ROLLBACK');
+        blocker.release();
+        // Let owned requests finish before the schema/client fixture closes,
+        // including when the lock-observation assertion itself fails.
+        await Promise.allSettled(requests);
+      }
+      expect({ statuses: responses.map(response => response.status).sort(),
+        errors: jest.mocked(logger.error).mock.calls.filter(call => call[0] === 'Request error'),
+      }).toEqual({ statuses: amount === 25000 ? [200, 200] : [200, 409], errors: [] });
+      const after = await operatorSnapshot(database);
+      const count = amount === 25000 ? 2 : 1;
+      expect(after.audits).toHaveLength(count);
+      expect(after.messages).toHaveLength(count);
+      expect(after.retry).toHaveLength(count);
+      expect(after.retry.every(row => row.status === 'succeeded')).toBe(true);
+      expect(after.ledger.filter(row => row.booking_id === bookingA && row.type === 'refund')).toHaveLength(count * 2);
+      expect(after.wallets.find(row => row.id === customerWalletA))
+        .toMatchObject({ available_balance: String(150000 + amount * count) });
+      expect(after.intents.find(row => row.booking_id === bookingA))
+        .toMatchObject({ refunded_amount: amount * count });
+      expect(after.ledger.filter(row => row.booking_id === bookingB))
+        .toEqual(before.ledger.filter(row => row.booking_id === bookingB));
+      expect(after.intents.find(row => row.booking_id === bookingB))
+        .toEqual(before.intents.find(row => row.booking_id === bookingB));
+      const succeeded = responses.find(response => response.status === 200)!;
+      const successfulKey = after.audits.find(row => row.id === succeeded.body.data.adminActionId)!.details.idempotencyKey;
+      expect((await http.post({ ...refundBody, amount, idempotencyKey: successfulKey })).body.data)
+        .toMatchObject({ idempotentReplay: true, paymentProcessingStatus: 'processed' });
+      expect(await operatorSnapshot(database)).toEqual(after);
+    });
+  }
+}, 30000);
+
+refundIt('a blocked refund case leaves other cases usable and rechecks closure after the lock wait', async () => {
+  for (const status of ['resolved', 'closed']) {
+    await withOperatorRefundDatabase(async database => {
+      const blocker = await database.connect();
+      const http = refundHttp();
+      let blocked: Promise<request.Response> | undefined;
+      let transactionOpen = false;
+      try {
+        await blocker.query('BEGIN');
+        transactionOpen = true;
+        await blocker.query('SELECT id FROM support_tickets WHERE id=$1 FOR NO KEY UPDATE', [ticketId]);
+        blocked = http.post().then(response => response);
+        const deadline = Date.now() + 10000;
+        let waiting = 0;
+        while (waiting < 1 && Date.now() < deadline) {
+          const state = await database.query<{ count: number }>(`SELECT COUNT(*)::int AS count
+            FROM pg_stat_activity WHERE datname=current_database()
+              AND application_name=current_setting('application_name')
+              AND wait_event_type='Lock' AND state='active'
+              AND query LIKE '%FROM support_tickets%'`);
+          waiting = state.rows[0]!.count;
+          if (waiting < 1) await new Promise(resolve => setTimeout(resolve, 10));
+        }
+        expect(waiting).toBe(1);
+        // Complete an unrelated booking/case refund while case A stays locked.
+        const other = await http.post({ ...refundBody, supportTicketId: otherTicketId, idempotencyKey: secondKey }, bookingB);
+        expect(other.status).toBe(200);
+        expect(other.body.data).toMatchObject({ paymentProcessingStatus: 'processed', customerWalletCredited: true });
+        const expected = await operatorSnapshot(database);
+        expect(expected.audits).toHaveLength(1);
+        expect(expected.wallets.find(row => row.id === customerWalletB)).toMatchObject({ available_balance: '1025000' });
+        const closed = await blocker.query('UPDATE support_tickets SET status=$2,updated_at=NOW() WHERE id=$1 RETURNING *',
+          [ticketId, status]);
+        expected.cases = expected.cases.map(row => row.id === ticketId ? closed.rows[0] : row);
+        await blocker.query('COMMIT');
+        transactionOpen = false;
+        expect((await blocked).status).toBe(409);
+        expect(await operatorSnapshot(database)).toEqual(expected);
+      } finally {
+        if (transactionOpen) await blocker.query('ROLLBACK');
+        blocker.release();
+        if (blocked) await Promise.allSettled([blocked]);
+      }
+    });
+  }
 }, 30000);
 
 refundIt('actual payment-only worker repairs failed wallet accounting without repeating the committed operator refund', async () => {
