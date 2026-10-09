@@ -417,6 +417,8 @@ sqlIt('identity export includes only the requested owner email and verification 
       expect(exported.emailLinkRequests).toEqual([{
         phone: proof.phone, email, state: 'completed', request_ip: ip,
         created_at: expect.any(Date), expires_at: expect.any(Date), finished_at: expect.any(Date),
+        phone_delivery: 'not_started', email_delivery: 'not_started',
+        delivery_started_at: null, delivery_finished_at: null,
       }]);
       expect((await gatherUserData(other)).signInEmails).toEqual([{ email: 'Other@example.invalid', verified_at: expect.any(Date) }]);
       expect((await gatherUserData(other)).emailLinkRequests).toEqual([]);

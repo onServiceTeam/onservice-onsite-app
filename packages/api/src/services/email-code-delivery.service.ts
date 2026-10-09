@@ -34,6 +34,11 @@ function deliveryConfig(): { apiKey: string; from: string } | null {
   return { apiKey, from };
 }
 
+/** Configuration presence only, not domain verification or inbox acceptance. */
+export function isEmailCodeDeliveryConfigured(): boolean {
+  return deliveryConfig() !== null;
+}
+
 async function readReceipt(response: Response, signal: AbortController['signal']): Promise<string | null> {
   if (!response.body) return null;
   const reader = response.body.getReader();

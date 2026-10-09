@@ -5,10 +5,12 @@ import { db } from '../models/db';
 import { platformConfig } from '../config/platform.config';
 import { createAppError } from '../middleware/error.middleware';
 import { SCRYPT_N, SCRYPT_R, SCRYPT_P, SCRYPT_MAXMEM, SCRYPT_KEYLEN } from './auth.service';
+import { isEmailCodeDeliveryConfigured, sendEmailVerificationCode } from './email-code-delivery.service';
+import { sendSms } from './sms.service';
 
-// INTERNAL foundation, deliberately not mounted or connected to delivery.
-// A public caller still needs configured delivery, CAPTCHA, neutral responses,
-// retention scheduling and complete browser/native acceptance before enablement.
+// The low-level foundation is internal. The opt-in HTTP workflow below requires
+// canonical authentication, CAPTCHA and configured delivery before starting.
+// Provider acknowledgements never substitute for either ownership proof.
 const actorSchema = z.object({
   userId: z.string().uuid(),
   role: z.enum(['customer', 'provider', 'provider_staff']),
@@ -27,7 +29,7 @@ interface Challenge {
   expires_at: Date;
 }
 export interface EmailLinkDelivery {
-  // Secrets: return only to the future server-side delivery coordinator, never
+  // Secrets: return only to the server-side delivery coordinator, never
   // serialize this object to a client, job payload, audit or log.
   id: string; phone: string; email: string; phoneCode: string; emailCode: string; expiresAt: Date;
 }
@@ -207,4 +209,116 @@ export async function completeEmailLink(
     await finish(client, operationId, 'completed');
     return { status: 'linked', email: challenge.email };
   });
+}
+
+type PhoneDelivery = 'accepted' | 'unknown' | 'unavailable';
+type DeliveryState = PhoneDelivery | 'not_started' | 'rejected';
+export interface EmailLinkStatus {
+  linkedEmail: string | null;
+  request: null | {
+    id: string; email: string; phoneSuffix: string; expiresAt: Date;
+    state: 'pending' | 'expired' | 'completed' | 'invalidated';
+    delivery: { phone: DeliveryState; email: DeliveryState };
+  };
+}
+
+export function assertEmailLinkEnabled(): void {
+  if (process.env.EMAIL_LINKING_ENABLED !== '1') {
+    throw createAppError('Adding a sign-in email is not available yet.', 503);
+  }
+}
+
+function phoneDeliveryConfigured(): boolean {
+  const key = process.env.SEMAPHORE_API_KEY ?? '';
+  return key.trim().length > 0 && !/^x+$/i.test(key.trim());
+}
+
+/** Owner-only recovery of a lost response. No send/retry, secret or new session. */
+export async function getEmailLinkStatus(input: EmailLinkActor, operationId?: string): Promise<EmailLinkStatus> {
+  const actor = actorInput(input);
+  return db.transaction(async client => {
+    const account = await lockAccount(client, actor);
+    const identity = await client.query<{ email: string }>(
+      'SELECT email FROM sign_in_email_identities WHERE user_id=$1', [actor.userId]);
+    const result = await client.query<{
+      id: string; email: string; phone: string; role: string; session_version: number;
+      state: 'pending' | 'completed' | 'invalidated'; expires_at: Date; expired: boolean;
+      phone_delivery: DeliveryState | 'attempting'; email_delivery: DeliveryState | 'attempting';
+    }>(`SELECT id,email,phone,role,session_version,state,expires_at,
+        expires_at<=clock_timestamp() AS expired,phone_delivery,email_delivery
+        FROM email_link_challenges WHERE user_id=$1 AND ($2::uuid IS NULL OR id=$2)
+        ORDER BY created_at DESC,id DESC LIMIT 1`, [actor.userId, operationId ?? null]);
+    const row = result.rows[0];
+    // A new session generation must not recover a previously authorized proof.
+    const request = !row || row.role !== actor.role || row.session_version !== actor.sessionVersion
+      || row.phone !== account.phone ? null : {
+        id: row.id, email: row.email, phoneSuffix: row.phone.slice(-4), expiresAt: row.expires_at,
+        state: row.state === 'pending' && row.expired ? 'expired' as const : row.state,
+        // A reserved attempt might still be running, or its response/process
+        // may have been lost. Neither situation authorizes an automatic resend.
+        delivery: {
+          phone: row.phone_delivery === 'attempting' ? 'unknown' as const : row.phone_delivery,
+          email: row.email_delivery === 'attempting' ? 'unknown' as const : row.email_delivery,
+        },
+      };
+    return { linkedEmail: identity.rows[0]?.email ?? null, request };
+  });
+}
+
+async function deliverLinkPhoneProof(proof: EmailLinkDelivery): Promise<PhoneDelivery> {
+  // Never inherit sendSms's development missing-key success simulation.
+  if (!phoneDeliveryConfigured() || proof.expiresAt.getTime() <= Date.now()) return 'unavailable';
+  const expiry = new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+  }).format(proof.expiresAt);
+  const accepted = await sendSms(proof.phone,
+    `onService: ${proof.phoneCode} adds an email sign-in to your account. Expires ${expiry} Philippine time. Do not share. Ignore if not requested.`);
+  // The legacy boolean cannot distinguish rejection from lost acceptance.
+  // Conservatively keep uncertainty; never invent a definitive failure/retry.
+  return accepted ? 'accepted' : 'unknown';
+}
+
+/** Starts one fresh, limited operation and sends each factor at most once here.
+ * No queue stores codes. A lost response is recovered with getEmailLinkStatus;
+ * explicit later restart obeys cooldown and invalidates the preceding proof.
+ */
+export async function requestEmailLink(
+  input: EmailLinkActor, emailInput: string, requestIp: string,
+): Promise<EmailLinkStatus> {
+  const actor = actorInput(input);
+  assertEmailLinkEnabled();
+  if (!phoneDeliveryConfigured() || !isEmailCodeDeliveryConfigured()) {
+    throw createAppError('Verification delivery is temporarily unavailable. Please try again later.', 503);
+  }
+  const proof = await beginEmailLink(actor, emailInput, requestIp);
+  // Commit a claim BEFORE either external call. Recheck authority and expiry
+  // after any account/row wait, without holding a DB lock across network I/O.
+  await db.transaction(async client => {
+    const account = await lockAccount(client, actor);
+    const selected = await client.query<{ valid: boolean }>(
+      `SELECT state='pending' AND phone=$3 AND role=$4 AND session_version=$5
+          AND phone_delivery='not_started' AND email_delivery='not_started'
+          AND expires_at>clock_timestamp() AS valid
+       FROM email_link_challenges WHERE id=$1 AND user_id=$2 FOR UPDATE`,
+      [proof.id, actor.userId, account.phone, actor.role, actor.sessionVersion]);
+    if (!selected.rows[0]?.valid) throw createAppError('This verification request is no longer usable.', 409);
+    const claimed = await client.query(`UPDATE email_link_challenges SET
+      phone_delivery='attempting',email_delivery='attempting',delivery_started_at=clock_timestamp()
+      WHERE id=$1 AND expires_at>clock_timestamp() RETURNING id`, [proof.id]);
+    if (claimed.rowCount !== 1) throw createAppError('This verification request has expired.', 409);
+  });
+  const [phone, email] = await Promise.all([
+    deliverLinkPhoneProof(proof).catch(() => 'unknown' as const),
+    sendEmailVerificationCode({ deliveryId: proof.id, email: proof.email, code: proof.emailCode,
+      purpose: 'link_email', expiresAt: proof.expiresAt }).then(outcome => outcome.status).catch(() => 'unknown' as const),
+  ]);
+  // Failure here intentionally leaves an uncertain claim, never an automatic
+  // repeat. A late receipt must not reopen a completed/invalidated operation.
+  const recorded = await db.query(`UPDATE email_link_challenges SET phone_delivery=$3,email_delivery=$4,
+    delivery_finished_at=clock_timestamp() WHERE id=$1 AND user_id=$2
+    AND phone_delivery='attempting' AND email_delivery='attempting' RETURNING id`,
+  [proof.id, actor.userId, phone, email]);
+  if (recorded.rowCount !== 1) throw createAppError('Unable to confirm verification delivery. Check the request status before trying again.', 503);
+  // A slow old response must describe its own operation, not a newer request.
+  return getEmailLinkStatus(actor, proof.id);
 }

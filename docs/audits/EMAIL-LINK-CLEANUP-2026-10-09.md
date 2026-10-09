@@ -114,3 +114,25 @@ Full selected-image restoration through 176, preserved data, backup/rollback,
 matched API/admin/web/native artifacts and authenticated multi-role acceptance
 remain necessary before release. No email/social method is available on live,
 no APK was delivered, and no zero-bug or launch-ready claim is made.
+
+## Completed independent cleanup verification
+
+Exact `7bb06275ad91f456e5489c668d6147af8c697a1f` passed CI `37915363720`
+and Gates `37915363736`. Actual API job `113770107084` passes 1024 suites /
+3566 tests, two TODOs, no skips/failures, in 98.032 seconds. All twenty-one
+email-link checks execute, including nineteen real SQL cases, alongside both
+scheduler checks, affected account lifecycle, issuer/refund and both Nginx checks.
+Admin passes 598 files / 706 tests, one skipped file / three TODOs, types/build.
+Mobile passes 595 suites / 879 tests, 84 TODOs, types/compiled web. Actual API
+Docker build and served `/health` pass. Complete per-job logs are retained.
+
+CI merge `2e14a9cd25db4eb59a2b94af0cb82c46b3491ac6` and the topic share tree
+`ab4d90a49d99887374a0f781f0a9f5ac7d5bea15`. Web artifact `11609822396` is
+explicitly not deployment eligible and was not downloaded/exercised. Optional
+exact API/admin packaging was skipped. Gate B conditional dispatch and D/E
+report-workload limits remain. No gate, mode or assertion was weakened.
+
+This resolves the cleanup source-verification requirement, not its failed/skipped
+local receipt, deployment or full sign-in. This receipt accompanies the next
+related delivery/HTTP implementation, not a documentation-only CI loop. That
+new candidate needs its own actual SQL/full CI and remains disabled by default.

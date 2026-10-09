@@ -3349,6 +3349,28 @@ local skips are not acceptance. Public HTTP/UI, real sender/inbox configuration,
 session issuance and social methods remain unimplemented. Details and honest
 local failures: `docs/audits/EMAIL-LINK-CLEANUP-2026-10-09.md`. Nothing is live.
 
+Completed cleanup source verification: exact `7bb06275` passed CI `37915363720`
+and Gates `37915363736`. Actual API logs pass 1024 suites / 3566 tests, two
+TODOs, no skips/failures, all twenty-one linking checks (nineteen actual SQL),
+affected account lifecycle, issuer/refund and both Nginx checks. Admin/mobile
+regressions, types/builds and actual API Docker boot pass. Merge/topic trees
+match. Optional exact release packages were skipped; no deployed journey is
+implied. The earlier failed/skipped local receipts are retained.
+
+Next candidate, still disabled and not deployed: authenticated marketplace
+email-link request/status/confirmation routes now coordinate fresh SMS/email
+proofs, durable per-channel delivery outcomes and owner-only response recovery.
+Migration 177 is additive; earlier history is unchanged. Missing configuration
+fails closed even in development. CAPTCHA and both proofs are required, and no
+new JWT, account merge, provider approval or admin shortcut is introduced.
+The new fifteen-check HTTP suite includes thirteen actual SQL cases that must
+execute in exact-candidate CI before this stage is accepted. Local SQL skips
+are not passes. Owner exports include delivery metadata without proof secrets.
+Email login/session issuance, client UI, live sender/inbox configuration and
+social adapters remain unfinished. Full image/chain rehearsal through 177 and
+matched authenticated release acceptance remain required. Evidence:
+`docs/audits/EMAIL-LINK-DELIVERY-HTTP-2026-10-09.md`.
+
 ## 101. Phone-code transport could forward secrets, log provider text or wait without a bound
 
 Actual native HTTP tests on `7de317ee` reproduce SEC-081 redirect forwarding of

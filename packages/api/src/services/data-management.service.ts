@@ -450,7 +450,8 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
         [userId],
       ),
       db.query(
-        `SELECT phone, email, state, request_ip, created_at, expires_at, finished_at
+        `SELECT phone, email, state, request_ip, created_at, expires_at, finished_at,
+                phone_delivery, email_delivery, delivery_started_at, delivery_finished_at
          FROM email_link_challenges WHERE user_id = $1 ORDER BY created_at, id`,
         [userId],
       ),
