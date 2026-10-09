@@ -75,3 +75,30 @@ working email/social sign-in, a usable APK, deployment or launch readiness.
 The selected-image restored migration chain through 179, matched authenticated
 clients, upload references and rollback remain required before release. All 124
 historical findings remain 117 unreconciled, seven partial and zero closed.
+
+## Completed exact-source CI receipt
+
+Published `d64b4f394aa8e1b23aff817637409128f323f089` completed
+[CI 37962522465](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37962522465)
+and [Gates 37962522266](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37962522266).
+Actual GitHub objects confirm checkout
+`f813c1eebcb424c57b9b7c02d3be876486c6445b` and topic share tree
+`3d3d24d959c35558f7a9f7d57e1c0da04321caff`.
+
+- Mobile: 612 suites/903 tests passed, 84 TODOs, zero skips/failures, 59.212s;
+  all seven new checks, OPS552/553, UX1314/1315, types and compiled web pass.
+- API: 1031 suites/3647 tests passed, two TODOs, zero skips/failures, 134.521s;
+  refund 28, email HTTP 23/internal 33/foundation 21/link HTTP 15, issuer SQL
+  and both Nginx suites execute and pass.
+- Admin: 598 passed files/706 tests, one skipped file/three TODOs, 218.50s;
+  types and production build pass.
+- Docker: actual image build and served `/health` pass. The blank database's
+  missing platform settings mean liveness, not full-schema readiness.
+
+Four complete job logs retain final cleanup. An initial API log download failed
+with an HTTP/2 stream cancellation; one bounded retry retrieved the complete log,
+without rerunning tests. Web artifact `11632286849` (1,725,417 bytes) is not
+deployment eligible and was not downloaded/browser exercised. Optional exact
+API/admin packages were skipped. Existing conditional Gate B and D/E report
+workloads remain unchanged. No assertion or gate was weakened. This completes
+bounded source verification, not browser/native transport or live acceptance.

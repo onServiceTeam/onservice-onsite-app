@@ -19,6 +19,7 @@ import {
 import * as authService from '../services/auth.service';
 import * as securityService from '../services/security.service';
 import * as adminTwoFactorService from '../services/admin-2fa.service';
+import { assertEmailSignInDeliveryConfigured } from '../services/email-sign-in.service';
 import { platformConfig } from '../config/platform.config';
 import { generateTotpSecret, verifyTotp, generateTotpUri, encryptSecret, decryptSecret } from '../utils/totp';
 import {
@@ -57,6 +58,27 @@ function formatUserResponse(u: UserProfileRow): Record<string, unknown> {
 }
 
 const router = Router();
+
+// Public, account-independent configuration discovery. This is not provider
+// health, inbox acceptance, account eligibility or permission to skip a proof.
+router.get('/methods', (_req: Request, res: Response) => {
+  let emailCode: { enabled: boolean; captchaSiteKey?: string } = { enabled: false };
+  try {
+    // Reuse the producer's opt-in/sender guard; never invent a second flag.
+    assertEmailSignInDeliveryConfigured();
+    const siteKey = process.env.TURNSTILE_SITE_KEY?.trim();
+    const secret = process.env.CAPTCHA_SECRET_KEY || process.env.TURNSTILE_SECRET_KEY;
+    if (siteKey && secret?.trim()) emailCode = { enabled: true, captchaSiteKey: siteKey };
+  } catch {
+    // Missing/disabled configuration has one shape, without private details.
+  }
+  res.set('Cache-Control', 'private, no-store');
+  // end(), rather than send()/json(), avoids Express-generated ETags and 304
+  // responses: callers always receive a newly evaluated configuration body.
+  res.status(200).type('application/json').end(JSON.stringify({
+    success: true, data: { phoneOtp: { supported: true }, emailCode },
+  }));
+});
 
 // Custom middleware for the 2FA enrolment flow: accepts EITHER a normal admin
 // access token OR a short-lived `pre_auth_2fa_setup` token issued by
