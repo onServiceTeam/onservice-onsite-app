@@ -80,6 +80,7 @@ it('email sign-in rejects malformed input and unbounded cleanup before any datab
       await expect(beginEmailSignIn(address, ip)).rejects.toMatchObject({ statusCode: 400 });
     }
     await expect(beginEmailSignIn(email, 'not-an-ip')).rejects.toMatchObject({ statusCode: 400 });
+    await expect(beginEmailSignIn(email, ip, 'not-an-operation-id')).rejects.toMatchObject({ statusCode: 400 });
     await expect(completeEmailSignIn('bad-id', '123456')).rejects.toMatchObject({ statusCode: 400 });
     await expect(completeEmailSignIn(crypto.randomUUID(), '12345')).rejects.toMatchObject({ statusCode: 400 });
     await expect(completeEmailSignIn(crypto.randomUUID(), '123456', { deviceFingerprint: 'short' })).rejects.toMatchObject({ statusCode: 400 });
@@ -334,7 +335,8 @@ sqlIt('owner export excludes proof secrets and unowned requests while partial an
     try {
       const data = await gatherUserData(sessionOwner);
       expect(data.emailSignInRequests).toEqual([{ state: 'pending', attempts: 0, request_ip: ip,
-        created_at: expect.any(Date), expires_at: expect.any(Date), finished_at: null }]);
+        created_at: expect.any(Date), expires_at: expect.any(Date), finished_at: null,
+        delivery_state: 'not_started', delivery_started_at: null, delivery_finished_at: null }]);
       expect((await gatherUserData(crypto.randomUUID())).emailSignInRequests).toEqual([]);
       for (const secret of [proof.id, proof.delivery!.code, digest(email), 'code_hash', 'identity_proof_id', decoy.id]) {
         expect(JSON.stringify(data)).not.toContain(JSON.stringify(secret));

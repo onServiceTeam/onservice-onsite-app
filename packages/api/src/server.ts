@@ -37,6 +37,7 @@ import { initScheduledJobs } from './jobs/workers';
 import { collectMetrics, toPrometheusFormat } from './services/metrics.service';
 
 import authRoutes from './routes/auth.routes';
+import emailSignInRoutes from './routes/email-sign-in.routes';
 import bookingRoutes from './routes/booking.routes';
 import catalogRoutes from './routes/catalog.routes';
 import providerRoutes from './routes/provider.routes';
@@ -211,6 +212,7 @@ app.get('/health/ready', async (_req, res) => {
 app.use('/api/v1/webhooks', webhookRoutes);
 
 // --- API Routes ---
+app.use('/api/v1/auth/email', emailSignInRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/bookings', bookingRoutes);
 app.use('/api/v1/catalog', catalogRoutes);

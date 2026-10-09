@@ -457,7 +457,8 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
         [userId],
       ),
       db.query(
-        `SELECT state, attempts, request_ip, created_at, expires_at, finished_at
+        `SELECT state, attempts, request_ip, created_at, expires_at, finished_at,
+                delivery_state, delivery_started_at, delivery_finished_at
          FROM email_sign_in_challenges WHERE user_id = $1 ORDER BY created_at, id`,
         [userId],
       ),

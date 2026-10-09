@@ -6,7 +6,8 @@ import { platformConfig } from '../config/platform.config';
 import { createAppError } from '../middleware/error.middleware';
 import { createTokenPairInTransaction, SCRYPT_N, SCRYPT_R, SCRYPT_P, SCRYPT_MAXMEM,
   SCRYPT_KEYLEN, type CredentialContext } from './auth.service';
-import type { EmailVerificationDelivery } from './email-code-delivery.service';
+import { isEmailCodeDeliveryConfigured, sendEmailVerificationCode,
+  type EmailVerificationDelivery } from './email-code-delivery.service';
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const emailInput = z.string().trim().email().max(254).regex(/^[\x21-\x7e]+$/);
@@ -63,9 +64,13 @@ async function finish(client: Transaction, id: string, state: 'consumed' | 'inva
  * verified identity ownership is considered. No contact-email fallback, new
  * account, privilege conversion, external send or reusable linking proof.
  */
-export async function beginEmailSignIn(email: string, requestIp: string): Promise<EmailSignInStart> {
+export async function beginEmailSignIn(
+  email: string, requestIp: string, operationId: string = crypto.randomUUID(),
+): Promise<EmailSignInStart> {
   const parsed = emailInput.safeParse(email);
-  if (!parsed.success || isIP(requestIp) === 0) throw createAppError('Invalid verification request.', 400);
+  if (!parsed.success || isIP(requestIp) === 0 || !uuid.safeParse(operationId).success) {
+    throw createAppError('Invalid verification request.', 400);
+  }
   const key = parsed.data.toLowerCase(), recipient = recipientHash(key);
   return db.transaction(async client => {
     const initial = (await client.query<{ user_id: string }>(
@@ -93,7 +98,7 @@ export async function beginEmailSignIn(email: string, requestIp: string): Promis
         'SELECT email,proof_id FROM sign_in_email_identities WHERE user_id=$1 AND email_key=$2', [account.id, key])).rows[0]
       : undefined;
     const code = crypto.randomInt(0, 1000000).toString().padStart(6, '0');
-    const proof: Proof = { id: crypto.randomUUID(), purpose: 'sign_in', recipient_hash: recipient,
+    const proof: Proof = { id: operationId, purpose: 'sign_in', recipient_hash: recipient,
       user_id: identity ? account!.id : null, identity_proof_id: identity?.proof_id ?? null,
       role: identity ? account!.role : null, session_version: identity ? account!.session_version : null,
       phone: identity ? account!.phone : null, code_hash: null, attempts: 0,
@@ -115,6 +120,67 @@ export async function beginEmailSignIn(email: string, requestIp: string): Promis
     return { id: proof.id, expiresAt, delivery: identity
       ? { deliveryId: proof.id, email: identity.email, code, purpose: 'sign_in', expiresAt } : null };
   });
+}
+
+export function assertEmailSignInEnabled(): void {
+  if (process.env.EMAIL_SIGN_IN_ENABLED !== '1') {
+    throw createAppError('Email sign-in is not available yet.', 503);
+  }
+}
+
+export function assertEmailSignInDeliveryConfigured(): void {
+  assertEmailSignInEnabled();
+  if (!isEmailCodeDeliveryConfigured()) {
+    throw createAppError('Email sign-in is temporarily unavailable. Please use phone sign-in.', 503);
+  }
+}
+
+/** PRIVATE coordinator, awaited after the neutral public request receipt.
+ * The route, not the caller, allocates operationId. Never return this outcome
+ * as account discovery. No plaintext queue, response cache or automatic resend.
+ * A crash before preparation/claim may lose this request; after claim it leaves
+ * uncertainty. An explicit fresh request obeys cooldown and replaces old proof.
+ */
+export async function requestEmailSignIn(email: string, requestIp: string, operationId: string): Promise<void> {
+  assertEmailSignInDeliveryConfigured();
+  const prepared = await beginEmailSignIn(email, requestIp, operationId);
+  const delivery = prepared.delivery;
+  if (!delivery) return;
+  const claimed = await db.transaction(async client => {
+    const owner = (await client.query<{ user_id: string | null }>(
+      'SELECT user_id FROM email_sign_in_challenges WHERE id=$1', [prepared.id])).rows[0];
+    if (!owner?.user_id) return false;
+    const account = (await client.query<Account>(
+      'SELECT * FROM users WHERE id=$1 FOR NO KEY UPDATE', [owner.user_id])).rows[0];
+    const proof = (await client.query<Proof & { delivery_state: string }>(
+      'SELECT * FROM email_sign_in_challenges WHERE id=$1 FOR UPDATE', [prepared.id])).rows[0];
+    const identity = account ? (await client.query<{ proof_id: string; email_key: string }>(
+      'SELECT proof_id,email_key FROM sign_in_email_identities WHERE user_id=$1', [account.id])).rows[0] : undefined;
+    if (!proof || proof.state !== 'pending' || proof.delivery_state !== 'not_started') return false;
+    if (!account?.is_active || !account.is_verified || !marketplaceRoles.includes(account.role)
+        || account.id !== proof.user_id || account.role !== proof.role || account.phone !== proof.phone
+        || account.session_version !== proof.session_version || proof.purpose !== 'sign_in'
+        || !identity || identity.proof_id !== proof.identity_proof_id
+        || recipientHash(identity.email_key) !== proof.recipient_hash
+        || recipientHash(delivery.email) !== proof.recipient_hash || proof.expires_at <= await currentTime(client)) {
+      await finish(client, proof.id, 'invalidated'); return false;
+    }
+    // Commit the one attempt before any network I/O; no account/row lock is
+    // held while calling the provider. Revocation after this point is still
+    // enforced by completeEmailSignIn, not bypassed by receiving an email.
+    const result = await client.query(`UPDATE email_sign_in_challenges SET delivery_state='attempting',
+      delivery_started_at=clock_timestamp() WHERE id=$1 AND expires_at>clock_timestamp() RETURNING id`, [proof.id]);
+    if (result.rowCount !== 1) throw createAppError('Unable to reserve verification delivery.', 503);
+    return true;
+  });
+  if (!claimed) return;
+  const outcome = await sendEmailVerificationCode(delivery).catch(() => ({ status: 'unknown' as const }));
+  // An uncertain receipt must not reopen/consume the proof or resend its code.
+  // Ownership verification remains possible even if this acknowledgement fails.
+  const recorded = await db.query(`UPDATE email_sign_in_challenges SET delivery_state=$2,
+    delivery_finished_at=clock_timestamp() WHERE id=$1 AND delivery_state='attempting' RETURNING id`,
+  [prepared.id, outcome.status]);
+  if (recorded.rowCount !== 1) throw createAppError('Unable to record verification delivery.', 503);
 }
 
 /** Consume proof, issue/persist the same canonical session, login metadata and

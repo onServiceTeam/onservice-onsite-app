@@ -3389,6 +3389,27 @@ Neutral public HTTP/delivery, web/native screens, actual sender/provider setup,
 social adapters and full-chain matched release remain open. See
 `docs/audits/EMAIL-SIGN-IN-TRANSACTION-2026-10-09.md`.
 
+Completed internal sign-in source verification: `5deb00ae` passed CI
+`37922879922` and Gates `37922879915`. Actual API logs pass 1026 suites /
+3615 tests, two TODOs, no skips/failures, including all 33 sign-in checks,
+21 linking-foundation checks, 15 linking-HTTP checks and both Nginx checks.
+Admin/mobile tests, types/builds and actual API Docker build/boot pass;
+merge/topic trees match. Optional exact release packages were skipped.
+This resolves that internal stage's CI requirement, not deployment or delivery.
+
+Next candidate, default-disabled and not deployed: public email request and
+confirmation routes coordinate the existing verified-identity transaction and
+sender. Neutral request receipts precede account-dependent work; private
+one-attempt delivery metadata uses additive migration 179. No contact-address
+fallback, new account, merge, privilege upgrade or admin shortcut is introduced.
+The 22-check mounted HTTP suite includes 19 real SQL cases that must execute
+in exact-candidate CI; local skips are not passes. A receipt is not a durable
+queue or guaranteed email delivery. A crash may lose an unsent request, and an
+uncertain attempt is not automatically retried. Existing CAPTCHA transport,
+client linking/sign-in UI, configured inbox/social providers, full-chain image
+rehearsal through 179 and matched web/native release acceptance remain open.
+Evidence: `docs/audits/EMAIL-SIGN-IN-HTTP-2026-10-09.md`. No method is live.
+
 ## 101. Phone-code transport could forward secrets, log provider text or wait without a bound
 
 Actual native HTTP tests on `7de317ee` reproduce SEC-081 redirect forwarding of

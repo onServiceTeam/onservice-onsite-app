@@ -143,3 +143,26 @@ through 178 on an isolated restoration, prove backup/rollback and historical
 preservation, and validate matched API/admin/customer-provider artifacts and
 controlled authenticated web/native acceptance. The existing private test guide,
 live payment restriction, APK/signing/update and broader launch limitations remain.
+
+## Completed exact-source verification
+
+Candidate `5deb00aee0e5408500d5b703d70983c1683209fa` completed CI
+`37922879922` and Gates `37922879915` successfully. Actual API logs pass
+1026 suites / 3615 tests, two TODOs and no skips/failures in 115.782 seconds.
+All 33 sign-in checks, 21 linking-foundation checks, 15 linking-HTTP checks,
+affected lifecycle/export/scheduler/issuer/refund tests and both Nginx checks
+execute and pass. The failed/skipped local receipts above remain unchanged.
+
+Admin passes 598 files / 706 tests, one skipped file / three TODOs, types and
+production build. Mobile passes 595 suites / 879 tests, 84 TODOs, types and
+compiled web export. Actual API Docker build and `/health` boot liveness pass;
+the blank test database's missing platform settings are not readiness evidence.
+Merge `36ec4bfb6300e86416208eb9517ec2f01ac35fad` and topic share source tree
+`65b1d9951fc0f51eb8e59ad9fb18033f7c660bbf`. Web audit artifact `11612558745`
+is not deployment eligible and was not downloaded or exercised as a browser
+journey. Optional exact API/admin release packages were skipped. Existing Gate B
+conditional dispatch and D/E report-workload limits are unchanged.
+
+This completes source verification of the internal transaction, not public
+delivery, UI or live acceptance. The next connected stage is recorded in
+`EMAIL-SIGN-IN-HTTP-2026-10-09.md`; it needs its own exact-source verification.
