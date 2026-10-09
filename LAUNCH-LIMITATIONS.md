@@ -3233,3 +3233,38 @@ photo/checklist/support authorization, current authority under booking locks,
 concurrent assignment/suspension, dedicated-flow targets, timing, funding/crash
 acceptance and all release holds remain open. No data repair, migration or
 refund-policy change is included; full K01/K07/K08 are not complete.
+
+Completed independent source verification: `2dc18a3d` passed CI `37860308257`
+and Gates `37860308306`. All 24 guarded checks, unchanged issuer SQL and both
+Nginx checks execute/pass: API 1016 suites / 3507 tests, two TODOs, no skips or
+failures. Admin logs pass 706 tests with build/types; mobile full-suite/type/web
+export steps pass, with detailed count download incomplete rather than an
+inherited old count. Actual API image build and `/health` liveness pass. CI and
+topic source trees match. Optional exact release packaging was skipped and the
+web audit artifact is not deployment eligible or a browser journey. This
+resolves that staff-status source checkpoint, not deployment or separate readers.
+
+## 99. Staff job lists could disclose another provider's customer and address
+
+SEC-079 reproduces actual GET/SQL disclosure on verified `2dc18a3d`: a retained
+approved performer link exposed an unassigned and another provider's job, with
+customer name/address and the staff member's own provider label. Individual D23
+foreign keys permit the deliberately inconsistent fixture; ordinary assignment
+already rejects it. No production inventory, disclosure or data repair is claimed.
+
+The candidate list join now requires the booking provider to equal the approved
+staff member's parent provider, preserving valid assignments and attribution.
+The clean original run failed one test / passed 25; first corrected connected
+run passes five suites / 34 tests with all 26 guarded checks executing. Current
+membership and credential rejection, valid DTO/order and unchanged money/state
+are tested through mounted HTTP and actual SQL, including migration 131.
+Full local API is not green: 1014 suites / 3507 tests pass, two unchanged
+Docker-unavailable Nginx checks fail and two TODOs remain, in 470.145s. All 26
+guarded checks and unchanged issuer SQL execute/pass. Final reviewed connected
+five suites / 34 tests pass in 12.032s; unchanged staff renders two suites /
+three tests use mocked APIs/native primitives. Types/lint, Gate A/C and seven
+smoke scripts pass unchanged. Fresh exact CI and release acceptance remain
+required. No migration, money policy, gate or issuer changes. **Candidate only, not deployed.** Separate
+detail/evidence/support readers, cached disclosure, concurrent authority, full
+K07 and release holds remain open. See
+`docs/audits/STAFF-JOB-LIST-PARENT-2026-10-09.md`.

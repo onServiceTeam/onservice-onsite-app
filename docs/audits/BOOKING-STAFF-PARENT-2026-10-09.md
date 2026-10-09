@@ -92,6 +92,25 @@ candidate success is not verification of this correction.
 
 ## Remaining work and release boundary
 
+Completed independent source verification: exact `2dc18a3d` passed
+[CI 37860308257](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37860308257)
+and [Gates 37860308306](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37860308306).
+Actual API logs pass 1016 suites / 3507 tests, two TODOs and no skips/failures,
+including all 24 guarded checks, unchanged issuer SQL and both Nginx checks.
+Admin logs pass 598 files / 706 tests with one skipped file / three TODOs and
+types/build. Mobile's completed full-suite/type/export steps pass; its detailed
+count-log download did not finish, so an older count is not inherited. Actual
+Docker logs build image `49e650c472f1fead5bcdbd3ee785e23a49cbec53c8458194446ddbc66a5a21aa`
+and serve `/health`. This is liveness on an empty CI database, not readiness or
+complete selected-image migration acceptance. CI checkout
+`1178e2de2ef335760bf3b68b141b43889cb266f0` and topic share source tree
+`0d042b9d6d1b841f2ba3bdc1e58061fbb4b6ad04`. Optional exact release packaging
+was skipped; retained web artifact 11586161777 is not deployment eligible or
+exercised as a browser journey here. Existing Gate B/D/E workload limits remain.
+This resolves the pending source-verification checkpoint, not the failed local
+receipt, broader access or deployment. It is published with the related SEC-079
+list correction, not in a documentation-only CI loop.
+
 This fixes the reproduced staff status-parent mismatch in candidate code, not
 complete R-ACC-02 or K07 acceptance. Staff jobs/readers, photo/checklist/proof
 and support callers have separate authorization boundaries requiring review.

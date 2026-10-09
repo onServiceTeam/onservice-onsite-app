@@ -14,6 +14,7 @@ import { refundFromEscrowInTransaction } from '../src/services/escrow.service';
 import { debitWalletInTransaction, holdEscrowInTransaction } from '../src/services/wallet.service';
 import bookingAdminRouter from '../src/routes/booking-admin.routes';
 import bookingRouter from '../src/routes/booking.routes';
+import providerStaffRouter from '../src/routes/provider-staff.routes';
 import { appendAuthorizationTermsInTransaction, appendProviderAssignmentTermsInTransaction } from '../src/services/booking-financial-terms.service';
 import { errorMiddleware } from '../src/middleware/error.middleware';
 import { processRetries } from '../src/services/gateway-retry.service';
@@ -341,6 +342,51 @@ function participantHttp(userId: string, role: string, claims: Record<string, un
     .send({ status, cancellationReason: 'Synthetic participant cancellation' });
 }
 
+async function withStaffJobListDatabase(run: (database: Pool, staffUserId: string, staffId: string) => Promise<void>) {
+  await withParticipantRefundDatabase(async database => {
+    await database.query(`ALTER TABLE users ADD COLUMN first_name text, ADD COLUMN last_name text;
+      ALTER TABLE providers ADD COLUMN business_name text;
+      ALTER TABLE service_categories ADD COLUMN name text;
+      ALTER TABLE service_subcategories ADD COLUMN name text;
+      ALTER TABLE bookings ADD COLUMN address text, ADD COLUMN barangay text;
+      CREATE TABLE reviews (id uuid PRIMARY KEY);`);
+    // Execute D23's actual staff table, approval constraint and individual FKs.
+    // This is still a scoped fixture, not the complete production chain.
+    await database.query(fs.readFileSync(path.resolve(__dirname, '../migrations/131_provider_staff.sql'), 'utf8'));
+    const staffUserId = crypto.randomUUID();
+    const staffId = crypto.randomUUID();
+    await database.query("INSERT INTO users(id,role) VALUES ($1,'provider_staff')", [staffUserId]);
+    await database.query("INSERT INTO provider_staff(id,provider_id,user_id,status) VALUES ($1,$2,$3,'approved')",
+      [staffId, providerB, staffUserId]);
+    await database.query("UPDATE users SET first_name='Synthetic',last_name=CASE WHEN id=$1 THEN 'Customer A' ELSE 'Customer B' END WHERE id IN ($1,$2)",
+      [customerA, customerB]);
+    await database.query("UPDATE providers SET business_name=CASE WHEN id=$1 THEN 'Synthetic team A' ELSE 'Synthetic team B' END", [providerA]);
+    const categoryId = crypto.randomUUID();
+    const subcategoryId = crypto.randomUUID();
+    await database.query("INSERT INTO service_categories(id,name) VALUES ($1,'Synthetic cleaning')", [categoryId]);
+    await database.query("INSERT INTO service_subcategories(id,name) VALUES ($1,'Synthetic turnover')", [subcategoryId]);
+    await database.query('UPDATE bookings SET category_id=$1,subcategory_id=$2', [categoryId, subcategoryId]);
+    await database.query("UPDATE bookings SET performer_staff_id=$1,address=CASE WHEN id=$2 THEN 'Synthetic address A' ELSE 'Synthetic address B' END,barangay='Synthetic barangay'",
+      [staffId, bookingA]);
+    await db.transaction(async client => {
+      await client.query('UPDATE bookings SET provider_id=$2 WHERE id=$1', [bookingA, providerB]);
+      await appendProviderAssignmentTermsInTransaction(client, {
+        bookingId: bookingA, providerId: providerB, event: 'provider_assigned', sourceEventId: bookingA,
+      });
+    });
+    await run(database, staffUserId, staffId);
+  });
+}
+
+function staffJobsHttp(userId: string, role = 'provider_staff', claims: Record<string, unknown> = {}) {
+  const app = express();
+  app.use(cookieParser());
+  app.use('/api/v1/staff', providerStaffRouter);
+  app.use(errorMiddleware);
+  const token = jwt.sign({ userId, role, type: 'access', sessionVersion: 1, ...claims }, syntheticSecret, { expiresIn: '5m' });
+  return () => request(app).get('/api/v1/staff/my-jobs').set('Authorization', `Bearer ${token}`);
+}
+
 async function participantSnapshot(database: Pool) {
   return {
     ...await operatorSnapshot(database),
@@ -455,6 +501,71 @@ refundIt('Bug SEC-078 - approved staff cannot start bookings without their own p
     expect(absentParent.body.error.message).toBe('This job is not assigned to you.');
     expect(otherParent.body.error.message).toBe('This job is not assigned to you.');
     expect((await database.query('SELECT * FROM provider_staff ORDER BY id')).rows).toEqual(staffBefore);
+  });
+}, 30000);
+
+refundIt('Bug SEC-079 - staff job list excludes retained performers without the same parent-provider assignment', async () => {
+  await withStaffJobListDatabase(async (database, staffUserId) => {
+    const http = staffJobsHttp(staffUserId);
+    const disclosed: unknown[] = [];
+    // D23 permits each foreign key independently. The normal assignment
+    // service rejects these relationships, but a read must not disclose them.
+    for (const otherParent of [null, providerA]) {
+      await database.query('UPDATE bookings SET provider_id=$2 WHERE id=$1', [bookingB, otherParent]);
+      const before = await participantSnapshot(database);
+      const staffBefore = (await database.query('SELECT * FROM provider_staff ORDER BY id')).rows;
+      const response = await http();
+      expect(response.status).toBe(200);
+      disclosed.push(response.body.data);
+      expect(await participantSnapshot(database)).toEqual(before);
+      expect((await database.query('SELECT * FROM provider_staff ORDER BY id')).rows).toEqual(staffBefore);
+    }
+    const ownJob = {
+      id: bookingA, status: 'paid', scheduledAt: expect.any(String),
+      address: 'Synthetic address A', barangay: 'Synthetic barangay', city: 'Cebu City',
+      serviceName: 'Synthetic turnover', customerName: 'Synthetic Customer A',
+      providerBusinessName: 'Synthetic team B',
+    };
+    expect(disclosed).toEqual([[ownJob], [ownJob]]);
+  });
+}, 30000);
+
+refundIt('staff job list preserves approved same-provider ordering and rejects revoked memberships and credentials', async () => {
+  await withStaffJobListDatabase(async (database, staffUserId, staffId) => {
+    await database.query("UPDATE bookings SET provider_id=$2,status='in_progress' WHERE id=$1", [bookingB, providerB]);
+    const before = await participantSnapshot(database);
+    const http = staffJobsHttp(staffUserId);
+    const assigned = await http();
+    expect(assigned.status).toBe(200);
+    expect(assigned.body.data.map((job: { id: string }) => job.id)).toEqual([bookingB, bookingA]);
+    expect(assigned.body.data[0]).toMatchObject({
+      status: 'in_progress', address: 'Synthetic address B', serviceName: 'Synthetic turnover',
+      customerName: 'Synthetic Customer B', providerBusinessName: 'Synthetic team B',
+    });
+    for (const status of ['invited', 'pending_review', 'rejected', 'suspended', 'deactivated']) {
+      await database.query('UPDATE provider_staff SET status=$2 WHERE id=$1', [staffId, status]);
+      const denied = await http();
+      expect(denied.status).toBe(200);
+      expect(denied.body.data).toEqual([]);
+      expect(await participantSnapshot(database)).toEqual(before);
+    }
+    await database.query("UPDATE provider_staff SET status='approved' WHERE id=$1", [staffId]);
+    for (const type of ['refresh', '2fa_pending', '2fa_setup']) {
+      expect((await staffJobsHttp(staffUserId, 'provider_staff', { type })()).status).toBe(401);
+    }
+    for (const role of ['customer', 'provider', 'admin', 'super_admin']) {
+      await database.query('UPDATE users SET role=$2 WHERE id=$1', [staffUserId, role]);
+      expect((await staffJobsHttp(staffUserId, role)()).status).toBe(403);
+    }
+    await database.query("UPDATE users SET role='provider_staff',session_version=2 WHERE id=$1", [staffUserId]);
+    expect((await http()).status).toBe(401);
+    await database.query('UPDATE users SET session_version=1,is_active=FALSE WHERE id=$1', [staffUserId]);
+    expect((await http()).status).toBe(401);
+    await database.query('UPDATE users SET is_active=TRUE WHERE id=$1', [staffUserId]);
+    await database.query('UPDATE bookings SET performer_staff_id=NULL');
+    const cleared = await participantSnapshot(database);
+    expect((await http()).body.data).toEqual([]);
+    expect(await participantSnapshot(database)).toEqual(cleared);
   });
 }, 30000);
 

@@ -591,6 +591,7 @@ export async function getAssignedJobsForUser(userId: string): Promise<StaffAssig
             p.business_name AS provider_business_name
      FROM bookings b
      JOIN provider_staff ps ON ps.id = b.performer_staff_id
+       AND ps.provider_id = b.provider_id
      JOIN providers p ON p.id = ps.provider_id
      LEFT JOIN service_categories sc ON sc.id = b.category_id
      LEFT JOIN service_subcategories sub ON sub.id = b.subcategory_id
