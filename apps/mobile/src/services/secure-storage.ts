@@ -27,13 +27,14 @@
 // this new file at id `onservice-auth-secure` holds tokens + user PII
 // only.
 
-import { MMKV } from 'react-native-mmkv';
+import { createMMKV, type MMKV } from 'react-native-mmkv';
 import * as SecureStore from 'expo-secure-store';
 
 const ENCRYPTION_KEY_NAME = 'onservice-mmkv-auth-key-v1';
 const KEY_LENGTH_BYTES = 32;
 
 let secureMmkv: MMKV | null = null;
+let initialization: Promise<void> | null = null;
 
 /**
  * Generate or retrieve the MMKV encryption key from the OS keychain.
@@ -79,7 +80,8 @@ async function getOrCreateEncryptionKey(): Promise<string> {
 /**
  * Initialize encrypted secure storage. MUST be awaited at app boot via
  * apps/mobile/app/_layout.tsx BEFORE any token read or write. Subsequent
- * calls return immediately because the cached MMKV instance is reused.
+ * calls reuse the cached MMKV instance. Overlapping startup calls share one
+ * initialization so they cannot persist competing first-install keys.
  *
  * On first launch (no key in keychain): generates a new key, stores it,
  * creates the MMKV instance.
@@ -89,11 +91,20 @@ async function getOrCreateEncryptionKey(): Promise<string> {
  */
 export async function initSecureStorage(): Promise<void> {
   if (secureMmkv) return;
-  const encryptionKey = await getOrCreateEncryptionKey();
-  secureMmkv = new MMKV({
-    id: 'onservice-auth-secure',
-    encryptionKey,
-  });
+  if (!initialization) {
+    initialization = (async () => {
+      const encryptionKey = await getOrCreateEncryptionKey();
+      secureMmkv = createMMKV({
+        id: 'onservice-auth-secure',
+        encryptionKey,
+      });
+    })().finally(() => {
+      // A failed read, write or factory call must allow a later retry. Never
+      // replace a saved key or expose a store before setup has succeeded.
+      initialization = null;
+    });
+  }
+  await initialization;
 }
 
 /**
@@ -102,6 +113,7 @@ export async function initSecureStorage(): Promise<void> {
  */
 export function __resetForTests(): void {
   secureMmkv = null;
+  initialization = null;
 }
 
 function ensureInitialized(): MMKV {
@@ -125,7 +137,7 @@ export function setSecureItem(key: string, value: string): void {
 }
 
 export function removeSecureItem(key: string): void {
-  ensureInitialized().delete(key);
+  ensureInitialized().remove(key);
 }
 
 // Auth-token convenience helpers — used by api.ts request/response interceptors
