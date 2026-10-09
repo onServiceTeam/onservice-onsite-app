@@ -4,23 +4,16 @@
 // HTTP client in the API package.
 import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
+import { z } from 'zod';
 
-interface SemaphoreResponse {
-  message_id: number;
-  user_id: number;
-  user: string;
-  account_id: number;
-  account: string;
-  recipient: string;
-  message: string;
-  sender_name: string;
-  network: string;
-  status: string;
-  type: string;
-  source: string;
-  created_at: string;
-  updated_at: string;
-}
+// OPS-537: HTTP success is not submission acceptance. This service sends to
+// one recipient, so require exactly one matching receipt with an accepted
+// provider state. Even "Sent" means network delivery, not handset receipt.
+const semaphoreReceipt = z.array(z.object({
+  message_id: z.number().int().positive().safe(),
+  recipient: z.string(),
+  status: z.string().transform(value => value.toLowerCase()).pipe(z.enum(['queued', 'pending', 'sent'])),
+})).length(1);
 
 const SEMAPHORE_API_URL = 'https://api.semaphore.co/api/v4/messages';
 
@@ -64,12 +57,18 @@ export async function sendSms(phone: string, message: string): Promise<boolean> 
       return false;
     }
 
-    const data = (await response.json()) as SemaphoreResponse[];
-    const result = data[0];
-    logger.info('SMS sent successfully', {
+    const parsed = semaphoreReceipt.safeParse(await response.json());
+    const result = parsed.success ? parsed.data[0] : undefined;
+    if (!result || result.recipient !== phone.replace('+', '')) {
+      // A rejected/malformed/wrong-recipient receipt must never be reported as
+      // an accepted code. Do not echo the response body or automatically retry.
+      logger.warn('SMS submission was not acknowledged for the requested recipient');
+      return false;
+    }
+    logger.info('SMS submission accepted by provider', {
       phone: phone.slice(-4),
-      messageId: result?.message_id,
-      network: result?.network,
+      messageId: result.message_id,
+      status: result.status,
     });
 
     return true;

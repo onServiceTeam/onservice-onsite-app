@@ -131,10 +131,27 @@ before the next test. All original eleven assertions and timeout bounds remain.
 The corrected email and unchanged SMS selection passes two suites/16 tests,
 without skips/TODOs, in 11.804 seconds. API types and focused lint pass. Local
 Gate A ten fragments, Gate C seven articles and seven smoke scripts pass again.
-The
-runtime delivery service, dependencies, database, workflow and gates are
+The runtime delivery service, dependencies, database, workflow and gates are
 unchanged. No PostgreSQL restart or production resource was needed for this
 fixture correction. A fresh exact-candidate full CI/Docker run is still required.
+
+### Completed fixture-correction CI
+
+Candidate `c906880b6c89a92ffb2fabd57452f55c029986aa` completed CI `37902830423`
+and Gates `37902830240` successfully. Actual logs passed all 1018 API suites /
+3531 tests, two TODOs and no skips/failures, including all eleven email checks,
+28 guarded refund/participant cases, nine SEC-080 cases, five issuer SQL cases
+and both Nginx checks. Admin passed 598 files/706 tests, one skipped file/three
+TODOs, types and build. Mobile passed 595 suites/879 tests, 84 TODOs, types and
+compiled web export. Actual API Docker build and liveness boot passed.
+
+CI merge `850d3a9cb7bf74c1c157938e2f1e62cf78e7b060` and the topic share tree
+`d438b19032d8e82395790952757135a228d5b0d7`. Optional exact API/admin release
+packaging was skipped. The retained browser audit is not a deployment or an
+authenticated journey. Conditional Gate B and D/E report-workload limits remain.
+The prior failed CI and failed local Nginx receipts are retained, not rewritten.
+This completion receipt accompanies the related OPS-537 SMS correction, not
+a documentation-only CI loop. No live email sender or sign-in method was enabled.
 
 ## Remaining ordered implementation
 
