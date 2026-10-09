@@ -5,6 +5,67 @@ source candidates. Neither source CI nor a web export proves complete live
 business acceptance. This file tracks the **native** Android/iOS build, which
 gates two device-level QA tracks: Appium native E2E and F#3 Maestro baselines.
 
+## October 10: explicit standalone Android configuration
+
+The build-time selector `ONSERVICE_ANDROID_STANDALONE=1` supports the requested
+local Android path without requiring an Expo account or an iOS Maps key.
+It declares only the Android platform. `EXPO_OS` must be Android or unset;
+conflicting web/iOS targets and `EAS_BUILD=true` are rejected. Default/unset or
+`0` preserves the existing multi-platform/EAS requirements and web behavior.
+
+The selected Android Maps key remains mandatory, including prebuild evaluation
+in development mode. Empty and known placeholder values fail. An optional EAS
+project identity must be a UUID; when absent, no EAS identity or updates URL is
+invented. Configured identity metadata alone still does not establish working
+push delivery or OTA. No push service, auth/storage behavior, signing key,
+permissions, package identity, version code, dependency or gate is changed.
+
+This is prerequisite build configuration for completing the existing storage
+and APK acceptance, not a separate finished user feature or a workaround for
+the recorded development-server denial. A real Android Maps configuration,
+stable release signing, correct API/CAPTCHA configuration, embedded bundle,
+increasing release version and actual device/upgrade checks remain mandatory.
+The `.env.example` localhost API is for development, not a delivery default.
+
+Actual pre-change evaluation rejected the requested account-free path for
+missing EAS identity and, with identity supplied, missing iOS Maps settings.
+The initial new-mode contract selection was 16 failed/three passed; these are
+new capability/guard expectations, not sixteen claimed pre-existing bugs.
+After the change, all19 configuration checks passed, including the unchanged
+web export contract. Actual installed Expo SDK55 config introspection also
+completed in offline production mode with a synthetic Android Maps fixture,
+without generating an APK, configuring any provider account or invoking Metro.
+Introspection produced exactly one Android Maps manifest entry with the supplied
+synthetic value. This validates plugin configuration, not the credential or maps.
+Expo's prebuild command still needs an explicit Android target: its platform
+filter may warn and continue on a conflicting command. The selector is not an
+absolute native-build isolation or merged-artifact acceptance gate.
+
+The final reviewed local mobile run passed617suites/927tests with84existing
+TODOs, zero skips/failures, in211.355seconds. Build configuration and tests stayed
+byte-identical during that run. Mobile types, scoped lint, unchanged GateA's ten
+fragments, GateC's seven articles and all seven gate smoke scripts passed. No new
+local full API/admin run or compiled browser/device acceptance is claimed.
+Exact-candidate CI remains required before accepting this new source.
+
+The preceding Android source `442bc89fb7af12df2718860d3d6e3f515acc70e6` completed
+[CI37974500862](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37974500862)
+and [Gates37974500864](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37974500864):
+mobile616suites/909tests/84TODO, API1032suites/3652tests/twoTODO, admin706tests
+with one skipped file/threeTODO, types/builds and real API Docker build/health.
+API/mobile had zero skipped or failed tests. The blank-database image check
+was liveness, not readiness. CI merge9804b35bf18ae8d574599922e6e75bd77116a6d3
+and that topic shared tree89b94375e874ae57ab1343c7bc8341be9264f866. This older
+green result does not verify the new build-configuration change.
+
+An isolated Android-native MMKV2.4.0 probe additionally passed twelve synthetic
+write/reopen/remove/reopen checks, including the existing 44-character key
+format. This is evidence against assuming that key must be replaced. It does
+not exercise React Native, SecureStore, complete-app initialization, sudden OS
+death, a physical phone or APK upgrades. No existing app key/data was changed.
+The exact mobile/shared build-input mirror also passed21suites/30tests and
+types after staging the verified source; the old debug APK remains unchanged.
+
 ## October 10, 2026: reconcile the Android candidate with current verified source
 
 The eleven pending Android paths were preserved in a local commit before
@@ -298,10 +359,11 @@ storage change's native acceptance before changing the next runtime function.
    [Expo local release build guide](https://docs.expo.dev/guides/local-app-production/)
    and, if OTA is later selected, its [SDK 55 update contract](https://docs.expo.dev/versions/v55.0.0/sdk/updates/).
 
-The current config still requires an EAS project ID and both native Maps keys
+At the October9 checkpoint, config required an EAS project ID and both native Maps keys
 for production native evaluation, including Android. The account-free path
-therefore needs a reviewed target-specific configuration change and its tests;
-it is not usable by changing a label. Never supply fake IDs/keys or set a
+therefore needed a reviewed target-specific configuration change and its tests;
+the October10 selector above addresses that prerequisite, not APK delivery.
+Never supply fake IDs/keys or set a
 production delivery build to development mode to defeat these checks.
 
 October 9 artifact-to-render audit: actual `aapt` inspection of the retained
@@ -318,8 +380,8 @@ and artifact/render/device evidence.
 The same audit executed the unchanged source placeholder gate successfully,
 then inspected the actual APK manifest: two development-sentinel lines and a
 debuggable flag remain. This is expected for the retained development artifact,
-not a production artifact passing release validation. The app-config comment
-names a nonexistent `check-mobile-config-no-placeholders.sh`; the actual gate
+not a production artifact passing release validation. The app-config comment then
+named a nonexistent `check-mobile-config-no-placeholders.sh`; the actual gate
 is `a-cross-source-no-google-maps-placeholder.sh`. Do not use the stale comment
 to claim that merged APK configuration has been tested. No gate was changed.
 
