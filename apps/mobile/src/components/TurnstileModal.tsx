@@ -15,7 +15,6 @@ function buildHtml(siteKey: string): string {
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <style>
   html,body{margin:0;padding:0;height:100%;display:flex;align-items:center;justify-content:center;background:transparent;font-family:-apple-system,Segoe UI,Roboto,sans-serif}
   .cf-turnstile{margin:0 auto}
@@ -24,9 +23,44 @@ function buildHtml(siteKey: string): string {
 <body>
 <div class="cf-turnstile" data-sitekey="${siteKey}" data-callback="onTok" data-error-callback="onErr" data-expired-callback="onErr" data-theme="light"></div>
 <script>
-  function post(m){ if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(m)); }
-  function onTok(t){ post({ type: 'token', token: t }); }
-  function onErr(){ post({ type: 'error' }); }
+  (function () {
+    var settled = false;
+    var script = document.createElement('script');
+    var deadline;
+    function post(m) { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(m)); }
+    function detach() {
+      clearTimeout(deadline);
+      script.onload = null;
+      script.onerror = null;
+    }
+    function fail() {
+      if (settled) return;
+      settled = true;
+      detach();
+      script.remove();
+      post({ type: 'error' });
+    }
+    window.onTok = function (token) {
+      if (settled || typeof token !== 'string' || !token.length) return;
+      settled = true;
+      detach();
+      post({ type: 'token', token: token });
+    };
+    window.onErr = fail;
+    script.onload = function () {
+      if (settled) return;
+      if (!window.turnstile || typeof window.turnstile.render !== 'function') { fail(); return; }
+      // The SDK loaded. Do not time-limit the human solving its widget.
+      detach();
+    };
+    script.onerror = fail;
+    // Same SDK-only loading bound as the browser component, not an OTP retry.
+    deadline = setTimeout(fail, 15000);
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+    script.async = true;
+    // Container and callbacks exist before the implicit-rendering SDK executes.
+    document.head.appendChild(script);
+  })();
 </script>
 </body>
 </html>`;

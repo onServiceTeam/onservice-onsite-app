@@ -83,3 +83,20 @@ including complete admin feasibility, business/support/payment/job linkage,
 role-appropriate sign-in, canonical blue/Stitch alignment and signed Android
 delivery with verified updates. No whole finding or launch requirement is closed
 by these component tests.
+
+## Completed predecessor CI receipt
+
+Published `da044bbff0f5eeabf90a4b3ea28f29be45cdd1f1` passed CI `37942660809`
+and Gates `37942661016`. Actual mobile logs explicitly execute OPS-546/547/548:
+604 suites/888 passed, 84 TODOs, zero skips/failures, 37.559s, plus types and
+compiled web. API: 1,031 suites/3,647 passed, two TODOs, zero skips/failures,
+134.981s, including the refund/email/issuer database suites and both Nginx checks.
+Admin: 598 files/706 passed, one skipped file/three TODOs, 255.01s, types/build.
+The API image actually built and served liveness; its blank database is not
+full-chain/readiness evidence. Optional API/admin packaging was skipped.
+
+CI merge `027aad20db6f6ce552e321f3915eabcca92048b3` and topic share tree
+`4904e8372c7fd727faa93cb68e4996e977e66a55`. Web artifact `11622166258` remains
+not deployment eligible and was not downloaded/browser-exercised in that review.
+Existing conditional/report-workload gate limits remain. This verifies that
+bounded predecessor source, not the subsequent SDK-loading changes or deployment.
