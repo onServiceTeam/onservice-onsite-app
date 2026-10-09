@@ -3333,6 +3333,22 @@ Delivery coordination, retention scheduling, public HTTP/UI, real configuration,
 email login and social adapters remain unimplemented. See
 `docs/audits/EMAIL-LINK-FOUNDATION-2026-10-09.md`. No live migration occurred.
 
+Completed foundation source verification: exact `1638b15a` passed CI
+`37912712008` and Gates `37912712014`, including all sixteen linking checks
+(fifteen actual SQL cases), affected account-session/deletion fixtures, both
+Nginx checks, complete API/admin/mobile checks, builds and API Docker boot.
+CI merge and topic trees match. This resolves the preceding foundation CI
+requirement, not email login, delivery, live deployment or a full release.
+
+The next bounded candidate adds expiry/hash clearing and ninety-day request
+metadata cleanup on the existing scheduler, with additive index migration 176.
+Verified ownership, audits and recent abuse counts are preserved. The metadata
+window is an engineering default, not E21 legal-retention approval or complete
+erasure. Its four new SQL cases still require actual exact-candidate execution;
+local skips are not acceptance. Public HTTP/UI, real sender/inbox configuration,
+session issuance and social methods remain unimplemented. Details and honest
+local failures: `docs/audits/EMAIL-LINK-CLEANUP-2026-10-09.md`. Nothing is live.
+
 ## 101. Phone-code transport could forward secrets, log provider text or wait without a bound
 
 Actual native HTTP tests on `7de317ee` reproduce SEC-081 redirect forwarding of

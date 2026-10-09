@@ -124,3 +124,29 @@ provider consent/outage/replay tests, and matched builds. A new selected-image
 restoration through 175, data preservation, backup/rollback and authenticated
 multi-role acceptance are required before deployment. The verified predecessor
 and old full-chain rehearsal through 174 cannot certify this migration.
+
+## Completed independent foundation verification
+
+Exact `1638b15abfeb5a77b434fb444460e92751fa1cd1` passed CI `37912712008`
+and Gates `37912712014`. Actual API job `113761433496` logs pass 1,023 suites /
+3,559 tests with two TODOs and no skips or failures, in 100.411 seconds. The
+named email-link suite passes all sixteen checks, including all fifteen real
+database cases (28.311 seconds). The affected account-session/deletion fixtures,
+refund/issuer SQL and both Nginx checks also pass.
+
+Admin job `113761433994` passes 598 files / 706 tests, one skipped file / three
+TODOs, types and production build. Mobile job `113761433716` passes 595 suites /
+879 tests with 84 TODOs, types and compiled web export. Actual Docker job
+`113762602499` builds the API image and verifies served `/health` liveness.
+All four complete per-job logs are retained, not partial downloads.
+
+CI checkout `d113000e699686ab8a49d7c2ec30f484c68e299d` and the topic share
+tree `64592cfb8cccd79feb26c165a0aa1dcd0edc62f9`. Web audit artifact
+`11606718868` is not deployment eligible or a downloaded/exercised browser
+journey. Optional exact API/admin packaging was skipped. Existing Gate B
+conditional dispatch and D/E report-workload limits remain unchanged.
+
+This supplies the foundation's missing database/full-source verification without
+rewriting the failed/skipped local receipts. It does not establish delivery,
+deployment or complete sign-in. The next bounded cleanup implementation and its
+own pending acceptance are recorded in `EMAIL-LINK-CLEANUP-2026-10-09.md`.

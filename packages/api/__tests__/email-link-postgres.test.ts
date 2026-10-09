@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { db } from '../src/models/db';
 import { beginEmailLink, completeEmailLink, type EmailLinkActor, type EmailLinkDelivery } from '../src/services/email-link.service';
 import { gatherUserData, processExpiredCoolingOff } from '../src/services/data-management.service';
+import { cleanupEmailLinkChallenges } from '../src/services/email-link-cleanup.service';
 import { withSessionDatabase, sessionOwner, seedDeletion } from './helpers/account-session-postgres';
 import { waitForBlockedApproval } from './helpers/provider-approval-postgres';
 
@@ -110,6 +111,120 @@ sqlIt('email linking counts incorrect factors durably and locks the operation af
     });
   });
 }, 15000);
+
+let cleanupPhoneSequence = 1;
+async function seedCleanupRequests(database: Pool, count: number, state: 'pending' | 'invalidated', ageSeconds: number): Promise<string[]> {
+  const ids: string[] = [];
+  for (let n = 0; n < count; n++) {
+    const owner = crypto.randomUUID(), id = crypto.randomUUID();
+    const phone = `+63919${String(cleanupPhoneSequence++).padStart(7, '0')}`;
+    await database.query('INSERT INTO users (id,role,phone) VALUES ($1,\'customer\',$2)', [owner, phone]);
+    await database.query(`INSERT INTO email_link_challenges
+      (id,user_id,purpose,role,session_version,phone,email,email_key,request_ip,
+       phone_code_hash,email_code_hash,max_attempts,state,created_at,expires_at,finished_at)
+      SELECT $1,$2,'link_email','customer',1,$3,$4,$4,'192.0.2.1',
+        CASE WHEN $5='pending' THEN 'synthetic-expired-hash' END,
+        CASE WHEN $5='pending' THEN 'synthetic-expired-hash' END,
+        3,$5,t.created,t.created+INTERVAL '5 minutes',
+        CASE WHEN $5='invalidated' THEN t.created+INTERVAL '1 minute' END
+      FROM (SELECT clock_timestamp()-($6 * INTERVAL '1 second') AS created) t`,
+    [id, owner, phone, `${owner}@example.invalid`, state, ageSeconds]);
+    ids.push(id);
+  }
+  return ids;
+}
+
+it('email-link cleanup rejects unbounded or malformed limits before querying any records', async () => {
+  const transaction = jest.spyOn(db, 'transaction');
+  try {
+    for (const limit of [0, -1, 501, 1.5, NaN, Infinity]) {
+      await expect(cleanupEmailLinkChallenges(limit)).rejects.toMatchObject({ statusCode: 400 });
+    }
+    expect(transaction).not.toHaveBeenCalled();
+  } finally { transaction.mockRestore(); }
+});
+
+sqlIt('cleanup clears expired secrets, retains current requests and removes only old request metadata, never identities or audits', async () => {
+  await withDatabase(async database => {
+    const proof = await beginEmailLink(actor, email, ip);
+    await submit(proof);
+    await database.query(`UPDATE email_link_challenges SET created_at=clock_timestamp()-INTERVAL '91 days',
+      expires_at=clock_timestamp()-INTERVAL '91 days'+INTERVAL '5 minutes' WHERE id=$1`, [proof.id]);
+    const [expired] = await seedCleanupRequests(database, 1, 'pending', 3600);
+    const [active] = await seedCleanupRequests(database, 1, 'pending', 0);
+    const [recent] = await seedCleanupRequests(database, 1, 'invalidated', 89 * 86400);
+    const before = await counts(database);
+    const users = (await database.query('SELECT * FROM users ORDER BY id')).rows;
+    expect(await cleanupEmailLinkChallenges()).toEqual({ proofsExpired: 1, requestsPurged: 1 });
+    expect((await database.query('SELECT state,phone_code_hash,email_code_hash FROM email_link_challenges WHERE id=$1', [expired])).rows)
+      .toEqual([{ state: 'invalidated', phone_code_hash: null, email_code_hash: null }]);
+    expect((await database.query('SELECT state,phone_code_hash FROM email_link_challenges WHERE id=$1', [active])).rows)
+      .toEqual([{ state: 'pending', phone_code_hash: 'synthetic-expired-hash' }]);
+    expect((await database.query('SELECT id FROM email_link_challenges WHERE id=$1', [recent])).rowCount).toBe(1);
+    expect((await database.query('SELECT id FROM email_link_challenges WHERE id=$1', [proof.id])).rowCount).toBe(0);
+    expect(await counts(database)).toEqual(before);
+    expect((await database.query('SELECT * FROM users ORDER BY id')).rows).toEqual(users);
+    expect(await submit(proof)).toEqual({ status: 'invalid' });
+    expect(await cleanupEmailLinkChallenges()).toEqual({ proofsExpired: 0, requestsPurged: 0 });
+  });
+});
+
+sqlIt('bounded concurrent cleanup skips real locked requests without duplicate actions and completes after release', async () => {
+  await withDatabase(async database => {
+    const expired = await seedCleanupRequests(database, 4, 'pending', 3600);
+    const old = await seedCleanupRequests(database, 4, 'invalidated', 91 * 86400);
+    const blocker = await database.connect();
+    try {
+      await blocker.query('BEGIN');
+      await blocker.query('SELECT id FROM email_link_challenges WHERE id=ANY($1::uuid[]) FOR UPDATE', [[expired[0], old[0]]]);
+      const results = await Promise.all([cleanupEmailLinkChallenges(2), cleanupEmailLinkChallenges(2)]);
+      expect(results.every(result => result.proofsExpired <= 2 && result.requestsPurged <= 2)).toBe(true);
+      expect(results.reduce((sum, row) => sum + row.proofsExpired, 0)).toBe(3);
+      expect(results.reduce((sum, row) => sum + row.requestsPurged, 0)).toBe(3);
+      expect((await database.query('SELECT state FROM email_link_challenges WHERE id=$1', [expired[0]])).rows[0].state).toBe('pending');
+      expect((await database.query('SELECT id FROM email_link_challenges WHERE id=$1', [old[0]])).rowCount).toBe(1);
+      await blocker.query('COMMIT');
+    } finally { await blocker.query('ROLLBACK'); blocker.release(); }
+    expect(await cleanupEmailLinkChallenges(2)).toEqual({ proofsExpired: 1, requestsPurged: 1 });
+    expect(await cleanupEmailLinkChallenges(2)).toEqual({ proofsExpired: 0, requestsPurged: 0 });
+  });
+});
+
+sqlIt('a real retention-delete failure rolls back secret clearing and the complete batch can retry', async () => {
+  await withDatabase(async database => {
+    const [expired] = await seedCleanupRequests(database, 1, 'pending', 3600);
+    await seedCleanupRequests(database, 1, 'invalidated', 91 * 86400);
+    await database.query(`CREATE FUNCTION reject_request_purge() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'Synthetic cleanup failure'; END; $$;
+      CREATE TRIGGER reject_request_purge BEFORE DELETE ON email_link_challenges FOR EACH ROW EXECUTE FUNCTION reject_request_purge()`);
+    await expect(cleanupEmailLinkChallenges()).rejects.toThrow('Synthetic cleanup failure');
+    expect((await database.query('SELECT state,phone_code_hash FROM email_link_challenges WHERE id=$1', [expired])).rows)
+      .toEqual([{ state: 'pending', phone_code_hash: 'synthetic-expired-hash' }]);
+    expect((await database.query('SELECT count(*)::int AS count FROM email_link_challenges')).rows[0].count).toBe(2);
+    await database.query('DROP TRIGGER reject_request_purge ON email_link_challenges');
+    expect(await cleanupEmailLinkChallenges()).toEqual({ proofsExpired: 1, requestsPurged: 1 });
+  });
+});
+
+sqlIt('cleanup preserves recent abuse counters while removing abandoned expired requests older than the retention window', async () => {
+  await withDatabase(async database => {
+    const proof = await beginEmailLink(actor, email, ip);
+    await database.query(`UPDATE email_link_challenges SET created_at=clock_timestamp()-INTERVAL '2 minutes',
+      expires_at=clock_timestamp()+INTERVAL '3 minutes' WHERE id=$1`, [proof.id]);
+    for (let n = 0; n < 4; n++) {
+      await database.query(`INSERT INTO email_link_challenges
+        (id,user_id,purpose,role,session_version,phone,email,email_key,request_ip,max_attempts,
+         state,created_at,expires_at,finished_at)
+        SELECT $1,user_id,purpose,role,session_version,phone,email,email_key,request_ip,max_attempts,
+          'invalidated',created_at,expires_at,clock_timestamp() FROM email_link_challenges WHERE id=$2`, [crypto.randomUUID(), proof.id]);
+    }
+    await seedCleanupRequests(database, 1, 'pending', 91 * 86400);
+    expect(await cleanupEmailLinkChallenges()).toEqual({ proofsExpired: 1, requestsPurged: 1 });
+    expect((await database.query('SELECT count(*)::int AS count FROM email_link_challenges')).rows[0].count).toBe(5);
+    await expect(beginEmailLink(actor, 'Changed@example.invalid', '192.0.2.9')).rejects.toMatchObject({ statusCode: 429 });
+    expect(await submit(proof)).toEqual({ status: 'linked', email });
+  });
+});
 
 sqlIt('an old login or substituted account, generation, phone, recipient or factor hash cannot authorize linking', async () => {
   await withDatabase(async database => {

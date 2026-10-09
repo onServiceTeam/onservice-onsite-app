@@ -40,6 +40,7 @@ export async function withSessionDatabase(
           ip_address inet, device_fingerprint text, metadata jsonb);
       `);
       await database.query(fs.readFileSync(path.resolve(__dirname, '../../migrations/175_verified_sign_in_email.sql'), 'utf8'));
+      await database.query(fs.readFileSync(path.resolve(__dirname, '../../migrations/176_email_link_cleanup_indexes.sql'), 'utf8'));
       await database.query(`INSERT INTO users (id,role,email) VALUES ($1,$2,'synthetic-session@example.invalid')`, [passwordOwner, role]);
       const token = jwt.sign({ userId: passwordOwner, role, sessionVersion: 1, type: 'refresh' }, sessionSecret,
         { algorithm: 'HS256', expiresIn: 3600 });
