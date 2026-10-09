@@ -106,3 +106,29 @@ backup/rollback and matched API/admin/customer-provider browser/native acceptanc
 remain required before synchronizing production. All 124 historical findings
 retain their separate reconciliation status; these corrections do not close
 the whole sign-in, money, admin feasibility or launch program.
+
+## Completed exact-source receipt, recorded with the browser-loader correction
+
+Candidate `68b608c32081743b59214153b4439ed6159b4577` completed CI
+`37929432208` and Gates `37929432033` successfully. The actual CI checkout
+`6f7b8f4292b5bc972e2691674f1a66a12dee94a9` and topic have identical source tree
+`fd74e2fff3c237dce3495d820bdc02af94e8798a`, checked against commit objects.
+
+API job `113816223776` passed 1,031 suites / 3,647 tests, two TODOs, zero skips
+or failures, 134.27s. All eight new transport checks, ten SEC-080 phone checks,
+23 email HTTP checks (19 actual SQL and four non-SQL), 33 internal email, 21
+foundation, 15 linking HTTP, issuer/lifecycle/export/cleanup/refund regressions
+and both Nginx checks executed and passed. Admin job `113816223846` passed
+598 files / 706 tests, one skipped file / three TODOs, 169.24s, types/build.
+Mobile job `113816223442` passed 595 suites / 879 tests, 84 TODOs, 51.315s,
+types and compiled web. Docker job `113817636169` built the actual API image
+and served `/health`; its blank database lacked `platform_settings`, so that
+is liveness, not readiness or full migration-chain verification.
+
+Four complete job logs are retained privately. Web artifact `11616130115`
+(1,724,943 bytes) is explicitly not deployment eligible and was not downloaded
+or exercised as a browser journey. Optional exact API/admin release packaging
+was skipped. Existing conditional Gate B and D/E report-workload limits remain;
+no assertion, gate or mode was weakened. The failed/skipped local receipts above
+are unchanged. This completes bounded server-source verification, not deployment
+or verification of the subsequent browser-loader correction.

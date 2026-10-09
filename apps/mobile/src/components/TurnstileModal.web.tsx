@@ -17,6 +17,8 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 const SITE_KEY = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
 const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+// Only bounds SDK loading, not the time a person has to solve the challenge.
+const SCRIPT_LOAD_TIMEOUT_MS = 15_000;
 
 interface TurnstileApi {
   render: (
@@ -48,14 +50,34 @@ function loadTurnstile(): Promise<TurnstileApi> {
     const script = document.createElement('script');
     script.src = SCRIPT_SRC;
     script.async = true;
+    let settled = false;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    const detach = (): void => {
+      if (deadline !== undefined) clearTimeout(deadline);
+      script.onload = null;
+      script.onerror = null;
+    };
+    const fail = (message: string): void => {
+      // Both a network failure and a loaded-but-missing SDK must permit a
+      // fresh explicit attempt. Detach this failed script's handlers so a
+      // late event cannot clear a newer attempt's shared promise.
+      if (settled) return;
+      settled = true;
+      detach();
+      script.remove();
+      scriptPromise = null;
+      reject(new Error(message));
+    };
     script.onload = () => {
-      if (window.turnstile) resolve(window.turnstile);
-      else reject(new Error('Turnstile script loaded but API missing'));
+      if (settled) return;
+      if (window.turnstile) {
+        settled = true;
+        detach();
+        resolve(window.turnstile);
+      } else fail('Turnstile script loaded but API missing');
     };
-    script.onerror = () => {
-      scriptPromise = null; // allow a retry on the next open
-      reject(new Error('Turnstile script failed to load'));
-    };
+    script.onerror = () => fail('Turnstile script failed to load');
+    deadline = setTimeout(() => fail('Turnstile script load timed out'), SCRIPT_LOAD_TIMEOUT_MS);
     document.head.appendChild(script);
   });
   return scriptPromise;
