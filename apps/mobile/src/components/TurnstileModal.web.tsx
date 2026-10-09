@@ -100,8 +100,15 @@ export default function TurnstileModal({ visible, onToken, onCancel }: Props): R
   useEffect(() => {
     if (!visible || SITE_KEY.length === 0) return undefined;
     let cancelled = false;
+    let settled = false;
     let widgetId: string | null = null;
     let api: TurnstileApi | null = null;
+
+    const failWidget = (): void => {
+      if (cancelled || settled) return;
+      settled = true;
+      setErrored(true);
+    };
 
     setLoading(true);
     setErrored(false);
@@ -113,16 +120,22 @@ export default function TurnstileModal({ visible, onToken, onCancel }: Props): R
         widgetId = turnstile.render(hostRef.current, {
           sitekey: SITE_KEY,
           theme: 'light',
-          callback: (token: string) => onTokenRef.current(token),
-          'error-callback': () => setErrored(true),
-          'expired-callback': () => setErrored(true),
+          callback: (token: string) => {
+            // SDK callbacks can arrive after removal. Bind them to this
+            // visible widget, never a later phone/challenge attempt.
+            if (cancelled || settled) return;
+            settled = true;
+            onTokenRef.current(token);
+          },
+          'error-callback': failWidget,
+          'expired-callback': failWidget,
         });
         setLoading(false);
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && !settled) {
           setLoading(false);
-          setErrored(true);
+          failWidget();
         }
       });
 

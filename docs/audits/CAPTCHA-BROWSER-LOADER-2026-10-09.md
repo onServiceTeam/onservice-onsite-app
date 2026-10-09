@@ -100,3 +100,28 @@ All 124 historical findings retain their separate reconciliation status. This
 does not close full sign-in, money, admin feasibility, Stitch/native or launch
 acceptance. The broader customer/provider/admin, support/payment/job linkage,
 signed APK and verified update-delivery program remains active.
+
+## Completed exact-source verification of this loader
+
+Published `cb0511752dcb80f71a72dcf5db9ac3cb3125f346` completed CI `37932784705`
+and Gates `37932784702` successfully. Actual CI checkout
+`5c03e87783ceb941238c818a1fbe48116c02f032` and the topic commit share source tree
+`7fbadf03f6e87add5bab147c6179f16102af1ff5`; both commit objects were checked.
+
+Actual mobile logs pass 597 suites / 881 tests, 84 TODOs, zero skips/failures,
+47.102s, including both OPS-540/541 regressions, types and compiled web. API
+logs pass 1031 suites / 3647 tests, two TODOs, zero skips/failures, 117.112s,
+including the named email/linking SQL, refund, issuer, server CAPTCHA and both
+Nginx checks. Admin passes 598 files / 706 tests, one skipped file and three
+TODOs, 272.92s, types and production build. Actual API image build and served
+`/health` pass. Missing tables in the blank boot database still mean liveness,
+not readiness or full-chain selected-image acceptance.
+
+All four full job logs were retained with their final cleanup. Web audit
+artifact `11617012884` is not deployment eligible and was not downloaded or
+exercised as a browser journey. Optional exact API/admin packaging was skipped.
+Gate B's conditional dispatch and D/E report-workload limits remain unchanged.
+No assertions or gates were weakened. This completes this loader's source
+verification, not deployment, configured Cloudflare/inbox/native acceptance or
+launch readiness. The receipt is included with the related widget-ownership
+runtime correction, not a separate documentation-only CI loop.
