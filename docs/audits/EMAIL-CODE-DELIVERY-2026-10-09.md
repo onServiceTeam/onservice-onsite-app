@@ -106,6 +106,36 @@ other clients or owned test runners remaining. Process/listener absence was
 verified; data was retained. No foreign PostgreSQL process was stopped. The
 email HTTP listeners were ephemeral and test-owned, not permanent services.
 
+## Exact CI fixture failure and isolation correction
+
+Published foundation `4cfa071db97dd6bc8398c3fbfc3390889e9b56f6`, tree
+`e5bc72fe0f6e605bc4fc8dcbb5d4647ab3876dfa`, failed CI `37901590649`.
+Gates `37901590570` passed, but this is not function acceptance. The API
+passed 1017 suites/3530 tests, with two TODOs and one failed email test, in
+78.628 seconds. EMAIL-05 expected accepted and received unknown. The other ten
+email checks, all 28 refund checks, nine SEC-080, five issuer SQL and both Nginx
+checks passed. Admin and mobile jobs succeeded; dependent Docker build skipped.
+Retain `email-delivery-ci-api-original.log`; do not substitute the predecessor's
+green build or rerun the failing fixture until it happens to pass.
+
+The test reused one HTTP listener/origin for the whole suite but force-closed
+its connections after every case. A plain Node/native HTTP probe reproduced
+30 connection resets in 30 next-case sends to that reused origin; fresh owned
+origins passed all 30. The fixture was racing fetch's pooled keep-alive sockets.
+The service correctly treated the reset as unknown, rather than claiming that
+mail was accepted. No production send retry or relaxed success condition was
+introduced to hide it.
+
+Each test now creates its own loopback listener/origin and awaits its shutdown
+before the next test. All original eleven assertions and timeout bounds remain.
+The corrected email and unchanged SMS selection passes two suites/16 tests,
+without skips/TODOs, in 11.804 seconds. API types and focused lint pass. Local
+Gate A ten fragments, Gate C seven articles and seven smoke scripts pass again.
+The
+runtime delivery service, dependencies, database, workflow and gates are
+unchanged. No PostgreSQL restart or production resource was needed for this
+fixture correction. A fresh exact-candidate full CI/Docker run is still required.
+
 ## Remaining ordered implementation
 
 1. Establish verified sign-in identities and fresh-factor account linking.

@@ -34,7 +34,19 @@ function challenge(overrides: Record<string, unknown> = {}) {
   };
 }
 
-beforeAll(async () => {
+beforeEach(async () => {
+  requests = [];
+  jest.clearAllMocks();
+  process.env.EMAIL_AUTH_DELIVERY_ENABLED = '1';
+  process.env.RESEND_API_KEY = syntheticKey;
+  process.env.EMAIL_FROM = 'signin@example.test';
+  reply = res => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ id: receiptId }));
+  };
+  // Each case owns its origin as well as its listener. Reusing one origin
+  // after closeAllConnections raced fetch's pooled keep-alive socket, turning
+  // the next otherwise valid submission into an actual ECONNRESET.
   server = http.createServer((req, res) => {
     let body = '';
     req.setEncoding('utf8');
@@ -50,18 +62,6 @@ beforeAll(async () => {
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Missing owned HTTP listener');
   baseUrl = `http://127.0.0.1:${address.port}`;
-});
-
-beforeEach(() => {
-  requests = [];
-  jest.clearAllMocks();
-  process.env.EMAIL_AUTH_DELIVERY_ENABLED = '1';
-  process.env.RESEND_API_KEY = syntheticKey;
-  process.env.EMAIL_FROM = 'signin@example.test';
-  reply = res => {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ id: receiptId }));
-  };
   fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
     // Fail before any network access if production code chooses another URL.
     if (input !== 'https://api.resend.com/emails') {
@@ -71,16 +71,13 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
   fetchSpy.mockRestore();
   for (const key of ['EMAIL_AUTH_DELIVERY_ENABLED', 'RESEND_API_KEY', 'EMAIL_FROM', 'NODE_ENV']) {
     if (originalEnv[key] === undefined) delete process.env[key];
     else process.env[key] = originalEnv[key];
   }
   server.closeAllConnections();
-});
-
-afterAll(async () => {
   await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
 });
 
