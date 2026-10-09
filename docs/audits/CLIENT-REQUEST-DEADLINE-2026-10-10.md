@@ -95,3 +95,28 @@ deployment is claimed. Require exact-source full CI, then the selected-image
 restored migration chain through 179, matched authenticated clients, uploads and
 rollback before a synchronized release. The broader 124-finding program remains
 117 unreconciled, seven partial and zero closed; this is not launch readiness.
+
+## Completed exact-source CI receipt
+
+Published `d22499a174df118c51f40d2e6901e7f912f34b08` subsequently completed
+[CI 37959981927](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37959981927)
+and [Gates 37959981950](https://github.com/onServiceTeam/onservice-onsite-app/actions/runs/37959981950).
+Actual GitHub commit objects confirm CI checkout
+`6abc00e71e6118b76f95bef8b51da5a191ac6d7d` and the topic share source tree
+`6722fa191e8b86904ac0f4c5ba2af78836b8d34b`.
+
+- Mobile: 611 suites/896 tests passed, 84 TODOs, zero skips/failures, 59.139s;
+  both new regressions, compatibility, types and compiled web passed.
+- API: 1031 suites/3647 tests passed, two TODOs, zero skips/failures, 132.087s;
+  refund 28, email HTTP 23/internal 33/foundation 21/link HTTP 15, issuer SQL,
+  cleanup and both Nginx checks executed and passed.
+- Admin: 598 passed files/706 tests, one skipped file/three TODOs, 293.58s;
+  types and production build passed.
+- Docker: actual image build and served `/health` passed. The blank database's
+  missing platform settings mean liveness, not readiness/full-chain acceptance.
+
+Four complete job logs retain final cleanup. Web artifact `11630028820`
+(1,725,275 bytes) is not deployment eligible and was not downloaded/browser
+exercised. Optional exact API/admin packages were skipped. Existing conditional
+Gate B and D/E report-workload limits remain; no assertion, mode or gate changed.
+This completes this bounded source verification, not release or live acceptance.

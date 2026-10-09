@@ -93,6 +93,8 @@ export class ApiError extends Error {
 }
 
 interface ApiRequestInit extends Omit<RequestInit, 'body' | 'method'> {
+  /** One-time proof operations must opt out of session refresh/replay. */
+  auth?: 'session' | 'session-no-replay' | 'anonymous';
   method?: string;
   body?: unknown;
   params?: Record<string, unknown>;
@@ -290,13 +292,34 @@ export async function refreshAuthSession(): Promise<boolean> {
 async function request<T>(
   url: string, init: ApiRequestInit, isRetry = false, ownerId = currentAccountId(),
 ): Promise<ApiAxiosLikeResponse<T>> {
+  const { auth = 'session', ...requestInit } = init;
+  if (!['session', 'session-no-replay', 'anonymous'].includes(auth)) {
+    throw new Error('Invalid request authentication mode.');
+  }
+  const noReplay = auth !== 'session';
+  const initiatingRefreshToken = noReplay ? getRefreshToken() : undefined;
   try {
     assertSameAccount(ownerId);
-    const result = await rawFetch<T>(url, init);
+    if (noReplay) {
+      // Proof requests use only their selected authority, never caller-supplied
+      // or ambient cookies. Do not forward this private policy option to fetch.
+      const headers = new Headers(requestInit.headers);
+      headers.delete('Authorization');
+      headers.delete('Cookie');
+      headers.delete('Cookie2');
+      Object.assign(requestInit, { headers, credentials: 'omit', cache: 'no-store',
+        redirect: 'error', _bearerOverride: auth === 'anonymous' ? '' : getAccessToken() ?? '' });
+    }
+    const result = await rawFetch<T>(url, requestInit);
     assertSameAccount(ownerId); // Do not deliver old-account data to a new UI.
+    if (noReplay && getRefreshToken() !== initiatingRefreshToken) throw accountChangedError();
     return result;
   } catch (err) {
     assertSameAccount(ownerId); // Do not replay or sign out a different account.
+    // Also reject an older proof response after a new login/rotation for the
+    // same account. A caller must resolve uncertainty, not apply old credentials.
+    if (noReplay && getRefreshToken() !== initiatingRefreshToken) throw accountChangedError();
+    if (noReplay) throw err;
     if (
       err instanceof ApiError &&
       err.status === 401 &&
