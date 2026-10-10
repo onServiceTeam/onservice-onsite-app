@@ -74,11 +74,14 @@ async function resolveBookingRole(
   userId: string,
 ): Promise<{ role: 'customer' | 'provider' } | null> {
   const result = await db.query<BookingActorRow>(
+    // SEC-094 (as SEC-078 for status): the recorded performer counts only
+    // while they are staff of the booking's current provider.
     `SELECT b.id, b.customer_id, p.user_id AS provider_user_id,
             ps.user_id AS staff_user_id, ps.status AS staff_status
      FROM bookings b
      LEFT JOIN providers p ON p.id = b.provider_id
      LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+                                AND ps.provider_id = b.provider_id
      WHERE b.id = $1`,
     [bookingId],
   );

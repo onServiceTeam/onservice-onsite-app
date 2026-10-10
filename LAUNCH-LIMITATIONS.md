@@ -3669,3 +3669,40 @@ who wrote the quote is still not told that the customer paid (true of every
 payment path today). This is verified in source and tests in the candidate
 only and is not deployed. See
 `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 113. A former team member could still add evidence to a job
+
+Each booking remembers which team member performs it. When a booking moved to
+another provider, or lost its provider, that record stayed. The job-evidence
+screens trusted it: the team member could still tick the job's checklist,
+upload before and after photos, add a customer sign-off image and start the
+checklist, all recorded as the provider's own evidence, on a job their
+provider no longer had.
+
+Candidate SEC-094 makes every evidence writer accept the recorded team member
+only while they belong to the booking's current provider, the same rule S1-2
+applied to job status changes. The team member of the booking's own provider,
+the provider owner and the customer are unchanged. Reading another provider's
+job (details, photos, support links) is closed separately in S1-11. This is
+verified in source and tests in the candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 114. Job evidence can be faked or changed after the job (open)
+
+Found while reviewing S1-10 (2026-10-10). Not fixed.
+
+- The older provider photo upload (`POST /api/v1/bookings/:id/photos`) accepts
+  any web address as a photo. It does not check that the picture was uploaded
+  through onService. Those entries count toward the two "after" photos a
+  provider needs before marking a job complete, so a provider or their team
+  member could mark a job complete with no real photos. If the customer does
+  nothing, the job is then confirmed automatically after 24 hours. The current
+  app no longer uses this upload, but the server still accepts it.
+- None of the job-evidence screens check the booking's stage. The checklist,
+  photos and the customer sign-off image can still be added or changed after
+  the job was confirmed, or while it is under dispute, by the provider side
+  that is allowed to work on it. An admin reviewing a dispute could then see
+  evidence that was changed after the fact.
+
+Both need a decision on when evidence becomes read-only, and the old photo
+upload should accept only files onService stored itself.

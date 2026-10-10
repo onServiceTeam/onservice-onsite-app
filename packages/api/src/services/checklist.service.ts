@@ -68,7 +68,10 @@ async function loadBookingForActor(
             b.status
        FROM bookings b
        LEFT JOIN providers p ON p.id = b.provider_id
+       -- SEC-094 (as SEC-078 for status): the recorded performer counts
+       -- only while they are staff of the booking's current provider.
        LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+                                  AND ps.provider_id = b.provider_id
       WHERE b.id = $1`,
     [bookingId],
   );
@@ -355,7 +358,10 @@ export async function toggleChecklistItem(
          JOIN booking_checklists bc ON bc.id = bi.booking_checklist_id
          JOIN bookings b ON b.id = bc.booking_id
          LEFT JOIN providers p ON p.id = b.provider_id
+         -- SEC-094: the recorded performer counts only while they are
+         -- staff of the booking's current provider.
          LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+                                    AND ps.provider_id = b.provider_id
         WHERE bi.id = $1
         FOR UPDATE OF bi`,
       [itemId],

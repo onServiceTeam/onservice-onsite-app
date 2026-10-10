@@ -87,11 +87,15 @@ async function verifyProviderPhotoWriteAccess(
   role: string,
 ): Promise<'provider' | 'admin'> {
   const result = await db.query<ProviderPhotoActorRow>(
+    // SEC-094 (as SEC-078 for status): the recorded performer counts only
+    // while they are staff of the booking's current provider. A booking with
+    // no provider, or a different one, gives them no evidence authority.
     `SELECT b.id, p.user_id AS provider_user_id,
             ps.user_id AS staff_user_id, ps.status AS staff_status
        FROM bookings b
        LEFT JOIN providers p ON p.id = b.provider_id
        LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+                                  AND ps.provider_id = b.provider_id
       WHERE b.id = $1`,
     [bookingId],
   );

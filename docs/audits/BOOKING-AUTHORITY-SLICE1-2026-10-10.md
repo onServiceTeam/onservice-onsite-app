@@ -1449,6 +1449,14 @@ It was red against `736420a8`, with the 409 above.
   - Gate A passes.
 - **Full API runs (4 workers):** 1,056/1,058 suites after the build, after the first review's fixes and after the second review's (finally 3,723 tests passed, 2 todo). Only the two Docker-only nginx suites failed; nothing timed out.
 
+### Exact-commit CI (commit `25cebf6e`)
+
+CI `38061258768` and Gates `38061258825` both succeeded, including all six Gates jobs.
+
+- API job `114239817910`: 1,058/1,058 suites; 3,725 passed, 2 todo, 0 skipped. OPS-559 and `quote-payment-postgres` passed.
+- Mobile job `114239818320`: 615/615 suites (909 passed, 84 todo), including the OPS-559 app test.
+- The admin and Docker jobs succeeded.
+
 ### Independent review
 
 **First review.** Three read-only reviewers, each with one lens: money and concurrency, callers and the app, and tests. A skeptic then tried to refute each serious finding. **No money defect in the code as reviewed, but one serious rule error:**
@@ -1484,3 +1492,129 @@ It was red against `736420a8`, with the 409 above.
   - a scheduled time that has passed;
   - no quote terms.
 - **Wording waiting on Ken:** the three refusal messages (D35 Q10 and Q12).
+
+## S1-10: a retained performer cannot write another provider's job evidence (SEC-094)
+
+### Defect, reproduced before the fix
+
+A booking records the team member who performs it (`performer_staff_id`). The job-evidence writers accepted that team member whenever their staff row was approved. They never checked that the team member belongs to the booking's current provider.
+
+The record stays on the booking when the booking moves to another provider, or loses its provider. S1-2 (SEC-078) closed this for status changes. These five writers still trusted the retained performer:
+
+| Writer | Route |
+|---|---|
+| Tick a checklist item | `PATCH /api/v1/jobs/:id/checklist/items/:itemId` (`checklist.service` toggle) |
+| Open the checklist, which creates it on first open | `GET /api/v1/jobs/:id/checklist` (`checklist.service loadBookingForActor`) |
+| Upload a job photo | `POST /api/v1/uploads/booking-photo` (`booking-photo.service resolveBookingRole`) |
+| Upload a customer-acceptance signature | `POST /api/v1/uploads/booking-signature` (same check) |
+| The legacy provider photo writer | `POST /api/v1/bookings/:id/photos` (`verifyProviderPhotoWriteAccess`) |
+
+Captured against `25cebf6e` on the guarded staff fixture: an approved team member of provider B, still recorded as the performer on a booking with no provider, then on a booking of provider A. Each time:
+
+- the item was ticked, with the note saved;
+- both photos were stored and recorded as provider evidence;
+- the signature was stored;
+- the missing checklist was created.
+
+### Fix
+
+In each writer's staff join, the recorded performer now counts only while their staff row belongs to the booking's current provider: `LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id AND ps.provider_id = b.provider_id`. A booking with no provider never matches.
+
+Unchanged:
+
+- the provider owner;
+- the customer;
+- admins;
+- the approval requirement.
+
+The four readers that join the same way are S1-11 (SEC-095):
+
+- the booking detail;
+- the booking access check;
+- the photo list;
+- the support-case booking link.
+
+### Tests
+
+**Bug test `bug-sec-094-retained-performer-evidence-writes.test.ts`.** It runs on the guarded staff fixture, with migrations 078 and 079 run exactly and storage spied. Both cases, no provider and provider A:
+
+- all five writers answer 403;
+- nothing reaches storage;
+- the checklist, photo, signature and legacy-photo records are unchanged.
+
+It was red against `25cebf6e`.
+
+**Supporting tests** (no Bug title), in `staff-evidence-writers-postgres.test.ts`:
+
+1. **The team member of the booking's own provider keeps every writer.** The tick, both photos, the signature and the checklist creation all succeed and are recorded under that team member, with the provider role (needed for T11).
+2. **A booking the owner performs** (no team member recorded, the normal case):
+   - the provider owner keeps all five writers;
+   - the customer keeps the photo and signature uploads.
+3. **A booking now of provider A that still records provider B's team member:** its current owner still ticks the checklist, and its customer still uploads a photo.
+4. **A non-approved team member of the right provider** is still refused on all five writers, and nothing changes.
+
+The new helper `__tests__/helpers/staff-evidence-postgres.ts` adds:
+
+- the exact migration 078 and 079 tables;
+- one checklist item per booking;
+- the legacy photo columns (migration 037's shape);
+- the real routes, mounted as in `server.ts`.
+
+**Mutations:** 9 mutations. Each was reverted, and the three files were confirmed byte-identical afterwards.
+
+| Mutation | Failed |
+|---|---|
+| The three files at `25cebf6e` | SEC-094 |
+| Drop the check from the legacy photo writer | SEC-094 (a legacy photo was recorded) |
+| Drop it from the photo service | SEC-094 (a photo and the signature were recorded) |
+| Drop it from the checklist open | SEC-094 (the checklist was created) |
+| Drop it from the checklist tick | SEC-094 (the item was ticked) |
+| Make the photo service's staff join an inner join | supporting tests 2 and 3: the owner and customer were locked out |
+| The same in the legacy photo writer | SEC-094 and supporting test 2 |
+| The same in the checklist open | SEC-094 and supporting test 2 |
+| The same in the checklist tick | SEC-094 and supporting tests 2 and 3 |
+
+### Verification
+
+- **Focused tests.**
+  - Every API suite that touches the checklist, photo, upload or staff code: 62 suites, 411 tests, before the review additions.
+  - The 5 S1-10 tests after them.
+- **API `tsc` and eslint** on the changed files: clean.
+- **Gates:**
+  - gate smoke 7/7;
+  - Gate C passes. The unique regression ids went from 1,660 to 1,661;
+  - Gate A passes.
+- **Full API runs (4 workers):** 1,058/1,060 suites before and after the review additions (finally 3,728 tests passed, 2 todo). Each time, only the two Docker-only nginx suites (`bug-ux-201`, `bug-ux-860`) failed.
+
+### Independent review
+
+**Two read-only reviewers**, each with one lens: authorization across the whole API, and the tests. A skeptic then tried to refute each serious finding.
+
+**The result: no problem in the change.**
+
+- Every use of `performer_staff_id` for authority was checked. Each one is in one of these groups:
+  - fixed here;
+  - fixed by SEC-078;
+  - one of the four S1-11 sites;
+  - the team member's own job list, which already had the check.
+- No other writer reachable by a team member trusts the retained performer. Change orders, quotes, no-show reports, disputes, chat and sockets check the provider owner directly.
+- No legitimate user is locked out. The condition sits inside a LEFT JOIN, and staff assignment only sets a performer of the booking's own provider.
+
+**Applied:**
+
+- **Tests that would catch a lock-out.** A future edit that made the join strict would have locked owners and customers out, and no test would have failed. Supporting tests 2 and 3 now catch it (the inner-join mutations).
+- **The team member's tick is asserted.**
+- **The non-approved test also opens the checklist.**
+- **The fixture's legacy photo columns** now match migration 037.
+
+**Recorded, not changed:**
+
+- **Pre-existing:** the older photo upload accepts any web address, and those entries satisfy the two-after-photo completion gate. The evidence writers also have no booking-stage gate, so evidence can change after confirmation or during a dispute. Both are LAUNCH-LIMITATIONS 114 (open).
+- **`createTicket` is a writer** (it links a new support case to the booking). It is fixed in S1-11 with the approved-status check, and its red test will also assert that no case row is created.
+- **A customer review still copies a retained performer** onto the review, and the per-member team stats count it. This is attribution data, not authority. It goes with S1-12's reassignment reset.
+- **When D35 Q3 (suspended providers) is answered,** the answer applies to these evidence writers as well as status changes. A suspension today revokes only the owner's sessions, not the team members'.
+
+### Scope and limits
+
+- **Not deployed.**
+- **The four readers** with the same old join are S1-11 (SEC-095).

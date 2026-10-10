@@ -60,6 +60,8 @@ This is related to D31 and E29, which cover a suspended *team member*, but it is
 
 **Held until answered:** suspension behavior does not change. One addition since S1-9: an accepted quote whose provider is not approved cannot be paid (Q12).
 
+When you answer (a), the answer should apply to job evidence too (checklist, photos, the customer sign-off image), not only to status changes. Today a suspension signs out only the provider owner, not their team members.
+
 ## Q4. Cancellation when escrow shows a partial refund
 
 When a booking's escrow already shows a partial refund and it is then cancelled, who gets what is left? There are two ways a booking ends up there:
@@ -219,5 +221,6 @@ Bookings matched through a job offer ("matched") keep the earlier rules: no sche
 
 **Related:**
 
+- **E42** (open) already asks how agreed schedules should work: a quote request's urgency becomes an invented appointment time (finding R-DSP-11). Answering E42 answers most of this question; please decide them together.
 - The no-show alert promises "a full refund" while a cancellation after the scheduled time refunds by the late bracket. That message is wrong for any late booking, not only quotes.
-- After a quote is paid, the confirmation screen still says onService is "finding the best provider" and will notify the customer when one accepts. The provider is already assigned, so that notice never comes. This goes with the known gap that the provider is not told the booking was paid.
+- After a quote is paid, the confirmation screen still says onService is "finding the best provider" and will notify the customer when one accepts. The provider is already assigned, so that notice never comes. This goes with the known gap that the provider is not told the booking was paid (finding R-CUS-09).
