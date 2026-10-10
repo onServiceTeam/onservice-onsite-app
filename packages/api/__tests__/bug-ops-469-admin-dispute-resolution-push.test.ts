@@ -14,8 +14,12 @@ jest.mock('../src/services/dispute.service', () => ({
 jest.mock('../src/services/notification.service', () => ({
   deliverStoredNotificationPush: (...args: unknown[]) => deliverStoredNotificationPushMock(...args),
 }));
+const paymentStepMock = jest.fn();
 jest.mock('../src/services/escrow.service', () => ({
   refundFromEscrow: jest.fn().mockResolvedValue(undefined),
+  // MC-03: the post-commit payment-record step of a committed dispute refund
+  // (its call is pinned in booking-dispute-admin and MED-N28).
+  processEscrowRefundPaymentStep: (...args: unknown[]) => paymentStepMock(...args),
   releasePartialEscrow: jest.fn(),
   releaseEscrow: jest.fn(),
 }));
@@ -53,8 +57,10 @@ it('Bug OPS-469 — an Admin dispute decision sends each durable participant row
     bookingTotalAmount: 100000,
     providerId: 'provider-1',
     pushRequests,
+    refundPaymentMethod: 'wallet',
   });
   deliverStoredNotificationPushMock.mockResolvedValue(undefined);
+  paymentStepMock.mockResolvedValue(undefined);
   transactionMock.mockImplementationOnce(async (callback: (client: { query: jest.Mock }) => Promise<unknown>) =>
     callback({
       query: jest.fn().mockResolvedValue({ rows: [{ id: 'audit-1' }], rowCount: 1 }),

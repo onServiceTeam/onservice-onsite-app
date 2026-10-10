@@ -25,7 +25,9 @@ export type RetryActionType =
   | 'release_partial_escrow';
 
 export interface EnqueueRetryInput {
-  actionType: RetryActionType;
+  // MC-03: a whole-refund row can no longer be queued. Rows of that type may
+  // still exist from before MC-03; the worker never runs them.
+  actionType: Exclude<RetryActionType, 'refund_from_escrow'>;
   bookingId: string;
   disputeId?: string | null;
   amountCentavos?: number | null;
@@ -87,6 +89,9 @@ interface PendingRetryRow {
   max_attempts: number;
 }
 
+export const REFUND_REPLAY_DISABLED =
+  'Replay of a local escrow refund is disabled (MC-03): reconcile this booking\'s escrow and payment record manually.';
+
 /**
  * Worker entry point. Pulls all pending rows whose next_retry_at
  * has passed and attempts each. Returns counts for telemetry.
@@ -138,6 +143,37 @@ export async function processRetries(batchSize: number = 25): Promise<{
 
   for (const row of claimed.rows) {
     counts.attempted++;
+    // MC-03 — a whole-refund row is never replayed (repair contract K01 rule
+    // 3: the worker retries only the external step, never the ledger). The
+    // worker cannot tell whether the row's local escrow debit committed.
+    // Usually it did not (the refund's own transaction threw, so the customer
+    // may still be owed), but after a lost commit acknowledgement, or for a
+    // row queued before the payment-only retry existed, it did, and a replay
+    // would debit escrow and credit the customer a second time. So it goes
+    // straight to failed_permanent for manual reconciliation against the
+    // booking's escrow ledger, keeping the row's previous error as evidence.
+    // The admin Financials payment-operations list shows failed_permanent
+    // rows first, as "Manual investigation required".
+    if (row.action_type === 'refund_from_escrow') {
+      const marked = await db.query(
+        `UPDATE gateway_retry_queue
+            SET status = 'failed_permanent', failed_permanent_at = NOW(),
+                updated_at = NOW(),
+                last_error = LEFT($1 || ' Previous error: ' || COALESCE(last_error, 'none'), 2000)
+          WHERE id = $2 AND status = 'in_progress'`,
+        [REFUND_REPLAY_DISABLED, row.id],
+      );
+      if (marked.rowCount !== 1) {
+        await reconcileFinishedClaim(row);
+        continue;
+      }
+      counts.failedPermanent++;
+      logger.error('Whole-refund retry not replayed; FAILED_PERMANENT — reconcile manually (MC-03)', {
+        retryId: row.id, bookingId: row.booking_id, disputeId: row.dispute_id,
+        amountCentavos: row.amount_centavos,
+      });
+      continue;
+    }
     try {
       const acknowledged = await runOne(row);
       if (!acknowledged) {
@@ -204,13 +240,9 @@ async function runOne(row: PendingRetryRow): Promise<boolean> {
   const amount = row.amount_centavos !== null ? Number(row.amount_centavos) : null;
   switch (row.action_type) {
     case 'refund_from_escrow':
-      if (amount === null) throw new Error('refund_from_escrow row missing amount');
-      await escrowService.refundFromEscrow(
-        row.booking_id,
-        amount,
-        row.description ?? 'Gateway retry: refund',
-      );
-      return false;
+      // MC-03 — never reached: processRetries routes these rows to manual
+      // reconciliation before calling runOne.
+      throw new Error(REFUND_REPLAY_DISABLED);
     case 'process_payment_refund': {
       if (amount === null) throw new Error('process_payment_refund row missing amount');
       const receipt = await paymentService.processRefund(

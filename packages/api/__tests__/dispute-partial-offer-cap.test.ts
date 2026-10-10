@@ -44,7 +44,9 @@ describe('Dispute partial offer — amount cannot exceed booking total', () => {
   it('allows a partial offer within the booking total', async () => {
     primeLookups(10000);
     const clientQuery = jest.fn()
-      .mockResolvedValueOnce({}) // UPDATE disputes ...
+      // MC-03: the offer is a single guarded write (RETURNING id), so the
+      // update must report the one row it changed.
+      .mockResolvedValueOnce({ rows: [{ id: 'd1' }], rowCount: 1 }) // UPDATE disputes ...
       .mockResolvedValueOnce({ rows: [{ id: 'notification-1' }] }) // INSERT notification
       .mockResolvedValueOnce({ rows: [{ id: 'd1', status: 'open', refund_amount: 5000 }] }); // SELECT * returning the updated row
     mockTransaction.mockImplementationOnce(async (cb: (c: { query: jest.Mock }) => unknown) => cb({ query: clientQuery }));
@@ -52,5 +54,6 @@ describe('Dispute partial offer — amount cannot exceed booking total', () => {
     const res = await addProviderResponse('d1', 'puser', 'Half back', 'partial_offer', 5000);
     expect(res).toBeTruthy();
     expect(clientQuery).toHaveBeenCalled();
+    expect(clientQuery.mock.calls[0]![0]).toMatch(/AND status = 'open'[\s\S]*AND provider_response IS NULL/);
   });
 });

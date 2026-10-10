@@ -3612,3 +3612,38 @@ without moving money, until Ken decides (D35 Q11). Customers and providers are
 still not notified of an admin cancel (wording in D35 Q6). This is verified in
 source and tests in the candidate only and is not deployed. See
 `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 111. A dispute refund could take the escrow money twice
+
+When a dispute ended in a refund (the provider accepted, the customer accepted
+a partial offer, or an admin decided), the decision was saved first and the
+refund ran afterwards. If that later refund call reported an error, a "retry
+the whole refund" job was queued. When the money had in fact already moved,
+the retry worker took the booking's escrow money and credited the customer a
+second time. Two near-simultaneous accepts of one partial offer could also both
+refund, and a provider's double tap was accepted twice. An admin decision whose
+refund could not be made was still recorded as resolved, with no money moved.
+An automatic no-show refund never marked the payment record as refunded.
+
+Candidates FIN-013 to FIN-016 and OPS-561 (MC-03) make each dispute refund
+move the escrow money inside the same database step that records the
+decision. If the refund cannot be made, the decision is not saved and the
+person sees the error. Only the payment-record update runs afterwards, and if
+it fails only that update is retried, linked to its dispute. The retry worker
+no longer re-runs a whole refund: any such queued job is set aside, keeping
+its earlier error, and shown as "Manual investigation required" in the admin
+Financials payment-operations list. This updates the 2026-09-01 note under
+section 35, which says the legacy `refund_from_escrow` action remains for a
+failure before the local escrow step commits: no code queues it any more, and
+any leftover row is set aside instead of run. A second accept of the same
+offer, or a second provider reply, is refused. The partial and full releases
+to the provider still run after the decision is saved, as before. When a
+customer accepts a partial offer, the provider is still not notified.
+
+The provider's direct accept, the provider's partial offer and the customer's
+accept-offer stay switched off on the live site by the E24 hold until Ken
+lifts it; MC-03 changes how they work, not whether they are available. Before
+this is deployed, the live queue must be checked (read-only) for whole-refund
+jobs, because they will be set aside instead of run. This is verified in
+source and tests in the candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.

@@ -2,7 +2,12 @@ jest.mock('../src/models/db', () => ({ db: { query: jest.fn(), transaction: jest
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
-jest.mock('../src/services/escrow.service', () => ({}));
+// MC-03: the full refund is debited inside resolveDisputeInTransaction.
+jest.mock('../src/services/escrow.service', () => ({
+  refundFromEscrowInTransaction: jest.fn(async () => ({
+    remainingEscrowCentavos: 0, paymentMethod: 'wallet', customerWalletCredited: true,
+  })),
+}));
 jest.mock('../src/services/socket.service', () => ({}));
 jest.mock('../src/services/settings.service', () => ({}));
 jest.mock('../src/services/gateway-retry.service', () => ({}));

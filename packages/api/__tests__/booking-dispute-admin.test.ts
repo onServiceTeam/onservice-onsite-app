@@ -39,6 +39,8 @@ jest.mock('../src/services/escrow.service', () => ({
   refundFromEscrowInTransaction: jest.fn(),
   handleCancellationInTransaction: jest.fn(),
   processCancellationGatewayRefund: jest.fn(),
+  // MC-03: the post-commit payment-record step of a committed dispute refund.
+  processEscrowRefundPaymentStep: jest.fn(),
 }));
 
 // S1-8: the admin cancel kicks the slot waitlist after its commit; keep that
@@ -138,6 +140,7 @@ beforeEach(() => {
   escrowMocks.releaseEscrowInTransaction.mockReset();
   escrowMocks.refundFromEscrowInTransaction.mockReset();
   escrowMocks.handleCancellationInTransaction.mockReset();
+  escrowMocks.processEscrowRefundPaymentStep.mockReset();
   disputeMocks.resolveDispute.mockReset();
   disputeMocks.resolveDisputeInTransaction.mockReset();
   disputeMocks.assertDisputeResolutionAvailable.mockReset();
@@ -974,7 +977,9 @@ describe('adminResolveDispute', () => {
       bookingTotalAmount: 8888,
       providerId: PROVIDER_ID,
       pushRequests: [],
+      refundPaymentMethod: 'wallet',
     });
+    escrowMocks.processEscrowRefundPaymentStep.mockResolvedValueOnce(undefined);
     const calls = setupTxRecorder(async (sql) => {
       if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-res' }]);
       return rows([]);
@@ -995,6 +1000,12 @@ describe('adminResolveDispute', () => {
     expect(insert!.sql).toContain('full_notes');
     expect(out.refundAmount).toBe(8888);
     expect(out.adminActionId).toBe('aa-res');
+    // MC-03: the refund committed inside the helper; after commit only the
+    // payment-record step runs, never a second escrow refund.
+    expect(escrowMocks.processEscrowRefundPaymentStep).toHaveBeenCalledWith(
+      BOOKING_ID, 8888, 'Admin dispute resolution: full_refund', 'wallet', DISPUTE_ID,
+    );
+    expect(escrowMocks.refundFromEscrow).not.toHaveBeenCalled();
   });
 });
 

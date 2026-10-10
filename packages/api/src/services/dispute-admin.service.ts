@@ -497,8 +497,9 @@ export async function adminResolveDispute(
   // failed after dispute state was already committed, the dispute changed
   // status without the admin-level audit trail. Now: ONE outer transaction
   // wraps disputeService.resolveDisputeInTransaction (the trx-aware helper)
-  // + the admin_actions INSERT. Post-commit escrow refund/release calls
-  // mirror the legacy resolveDispute pattern (gateway-tolerant).
+  // + the admin_actions INSERT. MC-03: the escrow refund runs inside that
+  // helper, so it commits or rolls back with the decision and its audit
+  // row. Post-commit payment-record and release calls mirror resolveDispute.
   const resolution = await db.transaction(async (client) => {
     const helper = await disputeService.resolveDisputeInTransaction(
       client,
@@ -541,6 +542,7 @@ export async function adminResolveDispute(
       providerId: helper.providerId,
       bookingTotalAmount: helper.bookingTotalAmount,
       pushRequests: helper.pushRequests,
+      refundPaymentMethod: helper.refundPaymentMethod,
     };
   });
 
@@ -563,39 +565,29 @@ export async function adminResolveDispute(
     });
   }
 
-  // Post-commit: gateway escrow refund/release. Errors are logged but do
-  // not roll back the durable dispute resolution + audit row.
+  // Post-commit. MC-03 — the escrow refund committed with the resolution
+  // and its audit row (resolveDisputeInTransaction); only its payment-record
+  // step runs here, and a failure queues only a payment-only retry. The
+  // partial and full releases still run here, as before.
   // gate-c-allowed: post-commit-gateway-refund
   if (resolution.refundAmount > 0) {
-    let refundSucceeded = false;
     try {
-      await escrowService.refundFromEscrow(
+      await escrowService.processEscrowRefundPaymentStep(
         resolution.bookingId,
         resolution.refundAmount,
         `Admin dispute resolution: ${input.resolutionType}`,
-      );
-      refundSucceeded = true;
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      logger.error('Failed to process admin dispute refund (post-commit)', {
-        disputeId, refundAmount: resolution.refundAmount, error: errMsg,
-      });
-      // MED-N28 fix: enqueue for the gateway-retry worker so the
-      // refund actually happens eventually instead of relying on
-      // manual ops triage of logs. Best-effort enqueue (does NOT
-      // throw — durable dispute state is already committed).
-      await gatewayRetryService.enqueueRetry({
-        actionType: 'refund_from_escrow',
-        bookingId: resolution.bookingId,
+        resolution.refundPaymentMethod,
         disputeId,
-        amountCentavos: resolution.refundAmount,
-        description: `Admin dispute resolution: ${input.resolutionType}`,
-        initialError: errMsg,
+      );
+    } catch (err) {
+      logger.error('Admin dispute refund payment step failed after commit; reconcile the payment record manually', {
+        disputeId, refundAmount: resolution.refundAmount,
+        error: err instanceof Error ? err.message : String(err),
       });
     }
 
     const remainingAmount = resolution.bookingTotalAmount - resolution.refundAmount;
-    if (refundSucceeded && remainingAmount > 0 && resolution.providerId) {
+    if (remainingAmount > 0 && resolution.providerId) {
       try {
         await escrowService.releasePartialEscrow(resolution.bookingId, remainingAmount);
       } catch (err) {

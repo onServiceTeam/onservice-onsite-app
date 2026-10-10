@@ -3,6 +3,7 @@ const transactionMock = jest.fn();
 const pushMock = jest.fn();
 const refundMock = jest.fn();
 const legacyRefundMock = jest.fn();
+const paymentStepMock = jest.fn();
 const retryMock = jest.fn();
 const emitMock = jest.fn();
 
@@ -16,6 +17,7 @@ jest.mock('../src/services/notification.service', () => ({
 jest.mock('../src/services/escrow.service', () => ({
   refundFromEscrowInTransaction: (...args: unknown[]) => refundMock(...args),
   refundFromEscrow: (...args: unknown[]) => legacyRefundMock(...args),
+  processEscrowRefundPaymentStep: (...args: unknown[]) => paymentStepMock(...args),
 }));
 jest.mock('../src/services/gateway-retry.service', () => ({
   enqueueRetry: (...args: unknown[]) => retryMock(...args),
@@ -99,7 +101,11 @@ it('Bug OPS-471 — filing records participant inboxes atomically and delivers p
         state.refunded = true;
         events.push('refund');
         if (failure === 'refund') throw new Error('refund failed');
+        return { remainingEscrowCentavos: 0, paymentMethod: 'wallet', customerWalletCredited: true };
       });
+      // MC-03's post-commit payment-record step; its order is pinned in
+      // dispute-auto-refund-payment-step.test.ts.
+      paymentStepMock.mockResolvedValue(undefined);
       pushMock.mockImplementation(async ({ userId }: { userId: string }) => {
         expect(events).toContain('commit');
         events.push(`push:${userId}`);

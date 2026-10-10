@@ -2,6 +2,7 @@ const dbQueryMock = jest.fn();
 const dbTransactionMock = jest.fn();
 const refundInTransactionMock = jest.fn();
 const legacyRefundMock = jest.fn();
+const paymentStepMock = jest.fn();
 const emitAdminEventMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({
@@ -13,6 +14,7 @@ jest.mock('../src/models/db', () => ({
 jest.mock('../src/services/escrow.service', () => ({
   refundFromEscrowInTransaction: (...args: unknown[]) => refundInTransactionMock(...args),
   refundFromEscrow: (...args: unknown[]) => legacyRefundMock(...args),
+  processEscrowRefundPaymentStep: (...args: unknown[]) => paymentStepMock(...args),
 }));
 jest.mock('../src/services/socket.service', () => ({
   ADMIN_EVENTS: { DISPUTE_FILED: 'dispute:filed' },
@@ -151,7 +153,11 @@ it('MED-N19 - a failed automatic no-show refund rolls back the dispute and booki
     expect(client).toBe(activeTransactionClient);
     state.refundMoved = true;
     if (failRefund) throw new Error('simulated refund ledger failure');
+    return { remainingEscrowCentavos: 0, paymentMethod: 'gcash', customerWalletCredited: false };
   });
+  // MC-03's post-commit payment-record step; pinned in
+  // dispute-auto-refund-payment-step.test.ts.
+  paymentStepMock.mockResolvedValue(undefined);
 
   const input = {
     type: 'no_show' as const,

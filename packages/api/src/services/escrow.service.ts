@@ -371,6 +371,14 @@ export async function releasePartialEscrow(
 /**
  * Process refund from escrow (before escrow release).
  * If escrow hasn't been released, refund is from pending balance.
+ *
+ * @deprecated MC-03: no production caller remains. Dispute decisions run
+ * refundFromEscrowInTransaction inside their own transaction and
+ * processEscrowRefundPaymentStep after commit; cancellations use
+ * handleCancellationInTransaction and processCancellationGatewayRefund; the
+ * Booking 360 refund has its own durable outbox. Do not call this after a
+ * committed decision: a failure here cannot be retried safely as a whole
+ * refund.
  */
 export async function refundFromEscrow(
   bookingId: string,
@@ -383,16 +391,34 @@ export async function refundFromEscrow(
   const movement = await db.transaction((client) => (
     refundFromEscrowInTransaction(client, bookingId, refundAmount, reason)
   ));
+  await processEscrowRefundPaymentStep(bookingId, refundAmount, reason, movement.paymentMethod);
+  logger.info('Escrow refund processed', { bookingId, refundAmount, reason });
+}
 
+/**
+ * The post-commit payment-record step of an escrow refund. Call it only
+ * after the transaction that ran refundFromEscrowInTransaction committed.
+ * MC-03: extracted from refundFromEscrow so the dispute paths, which now
+ * refund inside their resolution transaction, run the same step. A dispute
+ * caller passes its dispute id so a payment-only retry row keeps the link
+ * to the decision that authorized the refund.
+ */
+export async function processEscrowRefundPaymentStep(
+  bookingId: string,
+  refundAmount: number,
+  reason: string,
+  paymentMethod: string | null,
+  disputeId: string | null = null,
+): Promise<void> {
   // The local escrow and (for wallet-funded bookings) customer-wallet
   // movements are already committed. A failed payment-intent/PayMongo update
-  // must therefore retry only that external/accounting step. Retrying this
-  // whole function would debit the booking's escrow a second time.
+  // must therefore retry only that external/accounting step. Retrying the
+  // whole refund would debit the booking's escrow a second time.
   try {
     await paymentService.processRefund(bookingId, refundAmount, reason);
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    if (movement.paymentMethod === 'wallet' && /no payment found/i.test(errMsg)) {
+    if (paymentMethod === 'wallet' && /no payment found/i.test(errMsg)) {
       logger.info('Wallet refund completed without a payment-intent row', {
         bookingId,
         refundAmount,
@@ -407,13 +433,13 @@ export async function refundFromEscrow(
       await gatewayRetryService.enqueueRetry({
         actionType: 'process_payment_refund',
         bookingId,
+        disputeId,
         amountCentavos: refundAmount,
         description: reason,
         initialError: errMsg,
       });
     }
   }
-  logger.info('Escrow refund processed', { bookingId, refundAmount, reason });
 }
 
 /**

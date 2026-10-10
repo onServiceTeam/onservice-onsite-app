@@ -1046,6 +1046,15 @@ Nothing after the commit can turn the committed cancellation into an error (C-19
 - **Full API run (4 workers), before and after the review fixes:** 1,047/1,049 suites both times. Only the two Docker-only nginx suites failed; nothing timed out.
 - **An earlier attempt was invalid, not counted.** It ran while the 124-finding audit workflow was also running, and its real-database tests failed at fixture connection timeouts before reaching any test code.
 
+### Exact-commit CI (commit `75c754ba`)
+
+CI `38051001713` and Gates `38051001706` both succeeded, including all six Gates jobs.
+
+- API job `114209940378`: 1,049/1,049 suites; 3,687 passed, 2 todo, 0 skipped.
+- FIN-012, OPS-558 and `booking-admin-cancel-core-postgres` passed.
+- The two Docker-only nginx suites that cannot run locally also passed on CI's Linux runner.
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 **Three read-only reviewers**, each with one lens: money and concurrency, callers and contracts, and tests. A skeptic then tried to refute each serious finding. The result: **no money defects**; 4 findings confirmed, two of them downgraded to notes, plus 6 notes.
@@ -1082,3 +1091,218 @@ Nothing after the commit can turn the committed cancellation into an error (C-19
 - **Held, unchanged:** the admin cancel of a released booking (D35 Q11 decision 1).
 - **Not built:** customer and provider notices of an admin cancel (D35 Q6).
 - **The admin-supplied hours still decide the refund bracket**, and the server does not check them against the booking time. This is E75 behaviour, recorded in the answers file, and is unchanged here.
+
+## MC-03: dispute refunds can never take the escrow money twice (FIN-013 to FIN-016, OPS-561)
+
+The basis is repair contract K01:
+
+- **rule 3:** the retry worker retries only the external step and never re-runs the ledger;
+- **"Where the existing code goes":** a dispute resolution refunds inside its own transaction;
+- **acceptance A2 and A9:** no double debit, and an unknown outcome is never blindly replayed.
+
+The full ledger (`booking_funds`, `money_operations`) is not built here. MC-03 uses the existing in-transaction refund helper, the same approach S1-5 took for cancellation.
+
+**What changes on the live site once deployed, and what does not.** The E24 hold (`dispute-party-settlement-hold.service.ts`) still answers 503 in production for a provider's direct accept, a provider's partial offer and a customer accepting a partial offer. MC-03's fixes to those three paths therefore have no production effect until Ken lifts E24 through a reviewed change. The parts that take effect on deploy are the admin decisions (both routes), the automatic no-show refund and the retry worker.
+
+### Defect, reproduced before the fix
+
+Before MC-03, every dispute refund except the automatic no-show one ran **after** the decision was committed, through `refundFromEscrow`. Any error from that call queued a `refund_from_escrow` retry, and the retry worker re-ran the **whole** refund, local escrow debit included.
+
+Captured against `75c754ba` on the guarded fixture (booking B: a paid wallet booking of 1,000,000 centavos, completed by provider B, with a succeeded payment record):
+
+| Case | Result before MC-03 |
+|---|---|
+| **FIN-013.** A dispute refund of 300,000 whose escrow debit already committed, plus a pending `refund_from_escrow` row (a lost commit acknowledgement, or a row queued before the payment-only retry existed). The worker runs. | The worker took the booking's escrow a second time: the escrow wallet fell from 800,000 to 500,000, and the customer's wallet went from 1,300,000 to 1,600,000. |
+| **FIN-014.** Two near-simultaneous customer accepts of one 300,000 partial offer, on a real blocker connection. | Both answered OK. `acceptPartialOffer` had no transaction or lock at all, so both read the offer as open and both refunded. |
+| **FIN-015.** An admin 80% decision (800,000) on a booking with only 750,000 left after an earlier support refund. | It answered success: the dispute was recorded `resolved` and the booking partially refunded, no money moved, and a whole-refund retry was queued that could never succeed. |
+| **FIN-016.** A `no_show` dispute filed on a job marked complete ten minutes after its start, which resolves automatically. | The escrow refund committed, but the payment record still read `succeeded` with nothing refunded: no payment-record step ran. |
+| **OPS-561.** A provider's response sent twice at once: first a full acceptance, then (separately) a partial offer. | Both copies answered OK each time. The accept and partial-offer updates had no "still open, not yet answered" guard (the contest path had one); the second offer overwrote the first. |
+
+### Fix
+
+1. **`escrow.service.ts`.**
+   - The post-commit payment-record step of `refundFromEscrow` is extracted as `processEscrowRefundPaymentStep(bookingId, amount, reason, paymentMethod, disputeId?)`. A wallet payment with no payment record is tolerated, as before. Any other failure queues a payment-only `process_payment_refund` retry, as before. That row now carries the dispute id, so admin Financials still links it to its dispute.
+   - `refundFromEscrow` keeps its behaviour by calling it. It has no production caller left and is marked deprecated.
+2. **Admin decisions (`resolveDisputeInTransaction`, used by `resolveDispute` and `adminResolveDispute`).**
+   - The booking is locked after the dispute.
+   - `refundFromEscrowInTransaction` runs inside the decision's transaction, together with its audit row. A refund that cannot be made rolls the whole decision back, and the admin sees the error.
+   - After commit, only the payment-record step runs. The partial and full releases and their retries stay after commit, unchanged; they now always follow a committed refund.
+3. **Provider responses (`addProviderResponse`).**
+   - The accept and partial-offer updates gain `AND status = 'open' AND provider_response IS NULL ... RETURNING id`. Zero rows answers 409 "This dispute already has a provider response or is no longer open."
+   - For an accept, the booking is then locked and the full refund runs inside the transaction. The payment-record step runs after commit.
+4. **Customer accepts a partial offer (`acceptPartialOffer`).** One transaction:
+   - lock the dispute, re-check the filer, that it is open and the offer amount;
+   - lock the booking;
+   - the dispute update gains `AND status = 'open'`;
+   - the booking update and the refund run in the same transaction.
+
+   After commit: the payment-record step, then the partial release (with its existing retry).
+5. **Automatic no-show (`fileDispute`).** The refund already ran inside the filing transaction (MED-N19). After commit, the payment-record step now runs too, last, after the admin event and the participant pushes, as on the other dispute paths.
+6. **The retry worker.**
+   - A `refund_from_escrow` row is never run. It goes straight to `failed_permanent`. Its `last_error` becomes "Replay of a local escrow refund is disabled (MC-03): reconcile this booking's escrow and payment record manually." followed by " Previous error: " and the row's earlier error, kept as evidence.
+   - The admin Financials payment-operations list shows `failed_permanent` rows first, as "Manual investigation required".
+   - `enqueueRetry` no longer accepts this action type, so no code can queue one.
+7. **E24 hold.** Its explanation now says MC-03 addresses the two reasons it gave. The hold itself is unchanged.
+
+**Lock order.** Every dispute money path locks the dispute first, then the booking, then (inside the refund helper) the wallets. Paths outside the dispute service never lock dispute rows. The first draft of the provider accept locked the booking before the dispute. A test that races a provider accept against an admin decision showed a real PostgreSQL deadlock (code 40P01) with that order, so the accept now writes the guarded dispute update first.
+
+### Tests
+
+**Bug tests**, on the guarded fixture with real escrow, wallet and payment records. Each was red against `75c754ba`.
+
+- **`bug-fin-013-dispute-refund-retry-replays-debit.test.ts`:**
+  - the worker leaves wallets, ledger and payment records unchanged;
+  - 700,000 stays in the booking's escrow;
+  - the row is `failed_permanent` with the MC-03 text plus " Previous error: lost acknowledgement".
+- **`bug-fin-014-double-partial-offer-accept.test.ts`:**
+  - one accept answers OK and the other 409;
+  - one 300,000 refund, and the customer's wallet is 1,300,000;
+  - the provider's 700,000 is released once and nothing is left.
+- **`bug-fin-015-dispute-resolved-while-refund-failed.test.ts`:**
+  - 409 "Refund exceeds this booking's remaining escrow (750000 centavos).";
+  - the snapshot unchanged, the dispute still `open` and the booking `disputed`.
+- **`bug-fin-016-auto-no-show-refund-payment-record.test.ts`:** the payment record is `refunded` for 1,000,000, with one escrow refund and no retry rows.
+- **`bug-ops-561-provider-double-response.test.ts`:**
+  - a double-tapped accept: one OK and one 409 with the guard's own message, one refund, one inbox row;
+  - a double-tapped partial offer: one OK and one 409, the first offer stands, one inbox row, no money moved.
+
+**Supporting tests** (no Bug title), in `dispute-refund-commits-with-resolution-postgres.test.ts`:
+
+1. A provider accept: one 1,000,000 refund, the customer's wallet 2,000,000, the payment record `refunded`, no retry rows.
+2. A provider accept whose refund cannot be made (the booking holds 750,000): 409, and nothing changes. Red against `75c754ba`.
+3. A customer accepting a 300,000 partial offer:
+   - one refund;
+   - the payment record `partially_refunded` for 300,000;
+   - the provider's 700,000 released;
+   - no retry rows.
+4. A partial-offer accept whose refund cannot be made: 409, and nothing changes. Red against `75c754ba`.
+5. to 7. Three races on a held booking row, each ending in one refund and a 409 with no deadlock. Each catches a booking-first lock order on one path:
+   - a provider accept, then an admin decision;
+   - an admin decision, then a provider accept;
+   - a customer partial-offer accept, then an admin decision.
+8. An admin 60% decision:
+   - one 600,000 refund;
+   - the payment record `partially_refunded`;
+   - the provider's 400,000 released, nothing left;
+   - one audit row.
+9. The dispute route's resolver (`resolveDispute`): one refund, the payment record marked once.
+10. A payment-record failure after a committed provider accept:
+    - the dispute stays resolved;
+    - the escrow is debited once;
+    - only a `process_payment_refund` retry is queued, carrying the dispute id.
+
+**Supporting unit test** `dispute-auto-refund-payment-step.test.ts`:
+
+- after an automatic no-show refund, the payment-record step runs once, with the dispute id, last: after the commit, the admin event and both pushes;
+- a filing whose refund fails runs no payment-record step.
+
+The new helper `__tests__/helpers/dispute-postgres.ts` adds the exact migration-014 dispute tables to the participant fixture, plus the shared lock-wait helper.
+
+**Pinned tests updated to the in-transaction order**, with no assertion weakened:
+
+- **`dispute-refund-enqueue-35b.test.ts` (§35b):** rewritten. A refund that cannot be made now rolls the accept back and queues nothing. A successful accept runs, in order:
+  - the guarded dispute update;
+  - the booking lock;
+  - the refund on the transaction client;
+  - after commit, only the payment-record step.
+- **`gateway-retry-queue-med-n28.test.ts` (MED-N28):**
+  - the success case uses a release row;
+  - a new case pins that a `refund_from_escrow` row is never replayed and keeps its previous error;
+  - another new case: when another worker already finished that row's claim, it is not counted or logged as set aside;
+  - the max-attempts case now uses a release row, so it exercises the max-attempts branch again;
+  - the enqueue case uses the payment-only action;
+  - the admin-decision case expects the payment-record step (with the dispute id) after commit, and only release retries.
+- **`services/dispute-resolve-tx.test.ts` (Bug 83):**
+  - the partial-refund case expects the payment-record step and the release after commit, and no second escrow refund;
+  - the rollback cases also check that no payment-record step runs.
+- **`booking-dispute-admin.test.ts`:** its fake escrow service now has the payment-record step, and the admin-decision happy path asserts its exact call. Before this, a "not a function" error was being swallowed there.
+- **`bug-ops-469`:** its fake escrow service gains the payment-record step, so the test no longer runs through a swallowed error; its assertions are unchanged.
+- **`bug-ops-468`, `bug-ops-471`, `dispute-auto-resolve-trx-med-n19`, `bug-ops-314`, `dispute-partial-offer-cap`:** their fake refund helper now returns a result like the real one, and they gain a plain payment-record mock where the code reaches it. Their own assertions are unchanged, except the cap test's guarded-update check.
+
+**Mutations:** 19 mutations. Each was reverted, and the four source files were confirmed byte-identical afterwards.
+
+| Mutation | Failed |
+|---|---|
+| The whole pre-MC-03 dispute, admin-dispute, escrow and retry services | 14 tests: FIN-013 to FIN-016, OPS-561, supporting tests 2, 4, 6, 7 and 10, the supporting unit test, and three MED-N28 cases |
+| Lock the booking before the dispute in the provider accept | supporting test 5 (deadlock, code 40P01) |
+| The same in the admin decision | supporting test 6 |
+| The same in the partial-offer accept | supporting test 7 |
+| Drop the provider-accept guard | OPS-561 |
+| Drop both partial-offer-accept guards (the dispute lock and `AND status = 'open'`) | FIN-014, supporting test 7 |
+| Ignore a zero-row partial-offer update | OPS-561 |
+| The dispute payment-record step does nothing | 7 tests, including FIN-016 and the supporting unit test |
+| Skip the payment-record step after an automatic no-show | FIN-016, the supporting unit test |
+| Run it before the pushes again | the supporting unit test |
+| Skip the admin payment-record step | supporting tests 6 and 8, the MED-N28 admin-decision case |
+| Skip the partial-offer accept's payment-record step | supporting test 3 |
+| Move the partial-offer accept's refund back after commit (the pre-MC-03 shape) | supporting test 4 |
+| Restore the worker's whole-refund replay | FIN-013, the MED-N28 no-replay case |
+| Drop the kept previous error | FIN-013, the MED-N28 no-replay case |
+| Drop the dispute id from the payment-only retry | supporting test 10 |
+| `>=` to `>` in the worker's max-attempts check | the MED-N28 max-attempts case |
+| Run the admin decision's refund outside its transaction | FIN-015, supporting tests 6, 8 and 9 |
+| Count and log a whole-refund row as set aside when its guarded update changed nothing | the MED-N28 finished-claim case |
+
+### Verification
+
+- **Focused tests.** The final run covered every API suite that touches the dispute, admin-dispute, escrow or retry services, or the E24 hold: 87 suites, 372/372 passed.
+  - Before that, one new supporting test failed for a fixture reason. The shared escrow pool held too little, so the pool check refused before the per-booking cap.
+  - The test now adds another booking's escrow to the pool.
+- **API `tsc` and eslint** on the changed files: clean. A type check of the changed test files shows only errors that already exist at `75c754ba` (in `booking-dispute-admin`, `bug-ops-314` and the shared fixture). The updated admin mock removed one of them.
+- **Gates:**
+  - gate smoke 7/7;
+  - Gate C passes, including money-in-transaction. The unique regression ids went from 1,654 to 1,659;
+  - Gate A passes.
+- **Full API runs (4 workers):** 1,051/1,053 suites after the first build, 1,053/1,055 after the first review's fixes, and 1,054/1,056 (3,704 tests passed, 2 todo) after the second review's. Only the two Docker-only nginx suites failed each time; nothing timed out.
+
+### Independent review
+
+**Three read-only reviewers**, each with one lens: money and concurrency, callers and contracts, and tests. A skeptic then tried to refute each serious finding. The result: **no money defects**. Three findings were kept, each downgraded from medium to low, plus several low findings and notes. **A second review of the fixes** (code and tests, two read-only reviewers) found no code defects, only wording and test-placement issues, all applied below.
+
+**Applied:**
+
+- **A set-aside whole-refund job no longer loses its earlier error.** For rows queued by the code at `75c754ba`, that error usually shows the refund itself failed, so the customer may still be owed money. The worker now keeps it after the MC-03 text.
+- **Payment-only retries from dispute refunds carry the dispute id again**, so admin Financials links them to the dispute.
+- **The automatic no-show refund's payment-record step now runs after the admin event and the pushes**, as on the other dispute paths.
+- **`enqueueRetry` can no longer queue a whole-refund row**, and the unused `refundFromEscrow` is marked deprecated.
+- **Tests:**
+  - the MED-N28 max-attempts case had silently stopped reaching the max-attempts branch; it now uses a release row and asserts the exact update;
+  - the partial-offer accept now has its own payment-record and refusal tests;
+  - two mock admin tests were passing through a swallowed "not a function" error, and now assert the payment-record call;
+  - the partial-offer guard now has a behavioural test (OPS-561);
+  - the race tests now cover a booking-first lock order on all three paths, not only the provider accept;
+  - the two fixes that had no Bug test now have one (FIN-016, OPS-561);
+  - two supporting test titles no longer claim more than they check;
+  - (second review) the no-show ordering checks moved out of the OPS-471, OPS-469 and MED-N19 bug tests into their own supporting unit test, so each bug test checks only its own bug;
+  - (second review) a case for the worker's finished-claim path.
+- **Stale comments fixed:**
+  - the retry worker's doc block;
+  - the partial-offer cap;
+  - `resolveDisputeInTransaction`;
+  - `adminResolveDispute`;
+  - the `refundFromEscrow` deprecation note (cancellations use their own step);
+  - the E24 hold's explanation. The hold itself is unchanged. E24 has a progress note saying exactly which of its items MC-03 meets, path by path;
+  - LAUNCH-LIMITATIONS 111 updates the section 35 note that said the whole-refund action remains for failures before commit.
+
+**Recorded, not changed:**
+
+- **Pre-existing: `fileDispute`'s "one active dispute per booking" check is an unlocked read.** There is no database backstop, so a double-submitted filing can create two open disputes on one booking. Each is still capped by the booking's own escrow. Fixing it means locking the booking at the start of filing, or adding a partial unique index (a migration). It goes with the `fileDispute` remainder of R-MON-03.
+- **The refund now holds the shared escrow wallet lock until the decision commits**, through the notification inserts, the provider suspension and the audit row. This trades a little throughput for one atomic decision. No lock cycle was found.
+- **The provider accept still takes its amount and ownership from the read made before its transaction.** Nothing changes those fields on a disputed booking, and the refund is capped by the booking's own escrow.
+- **The filing request still waits for the automatic refund's payment-record step.** While E14 holds external payments every booking is wallet-paid, and that step is local.
+- **Pre-existing: when a customer accepts a partial offer, nobody is notified and no audit row is written.** This is recorded in E24 as open before the hold can be lifted.
+- **The type-level ban on queueing a whole-refund row has no test of its own.** The worker's no-replay shortcut, which FIN-013 and MED-N28 test, is the money protection.
+- **An admin decision whose refund cannot be made now answers 409 with the amount in centavos** (FIN-015). The admin page shows the raw message. Plain-language wording would be a small admin-app change.
+
+### Scope and limits
+
+- **Not deployed.**
+- **On deploy, only some of this takes effect.** The admin decisions, the automatic no-show refund and the retry worker change. The provider accept, the provider partial offer and the customer accept-offer stay behind the E24 hold until Ken lifts it.
+- **Release precondition: a read-only count on live.** Count the pending and in-progress `refund_from_escrow` rows. For each, export the id, booking, dispute, amount, attempts and `last_error`, next to that booking's escrow-ledger refund rows. After this change those rows are set aside, not run, and each needs a person to decide whether the customer is still owed.
+- **Behaviour change for admins:** a dispute decision whose refund cannot be made now fails with the error instead of recording "resolved" with no money moved.
+- **Out of scope, recorded:**
+  - releases are still post-commit (K01 later);
+  - `fileDispute` still sets `escrow_status = 'held'` unconditionally, and its duplicate check is unlocked (R-MON-03 remainder);
+  - `releasePartialEscrow` trusts the caller's amount (R-MON-03 remainder);
+  - the card path has no once-only key (R-MON-08);
+  - stuck `in_progress` retry rows (R-MON-10).

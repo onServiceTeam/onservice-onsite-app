@@ -13,6 +13,12 @@ jest.mock('../src/utils/logger', () => ({
 }));
 jest.mock('../src/services/escrow.service', () => ({
   refundFromEscrow: jest.fn().mockResolvedValue(undefined),
+  // MC-03: the accept refund runs inside the transaction, then only the
+  // payment-record step runs after commit.
+  refundFromEscrowInTransaction: jest.fn().mockResolvedValue({
+    remainingEscrowCentavos: 0, paymentMethod: 'wallet', customerWalletCredited: true,
+  }),
+  processEscrowRefundPaymentStep: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../src/services/socket.service', () => ({
   emitAdminEvent: jest.fn(),
