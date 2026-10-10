@@ -618,6 +618,18 @@ router.patch(
             bookingId: id,
             error: escrowErr instanceof Error ? escrowErr.message : 'Unknown',
           });
+          // S2-1 — a payout refused because the booking's escrow does not
+          // match is for support (logged in full when raised); the customer
+          // is asked to contact support (D36 Q2 wording).
+          const refusalCode = (escrowErr as { code?: string }).code;
+          if (refusalCode === 'HOURLY_REFUND_EXCEEDS_BOOKING_ESCROW' || refusalCode === 'ESCROW_RELEASE_AMOUNT_MISMATCH') {
+            const refusal = createAppError(
+              "This booking's payment needs a check by our support team before it can be completed. Please contact support.",
+              409,
+            );
+            refusal.code = refusalCode;
+            throw refusal;
+          }
           throw escrowErr;
         }
 
@@ -1442,13 +1454,27 @@ router.post(
           `UPDATE bookings SET status = 'cancelled_by_customer', cancellation_reason = $1, cancelled_at = NOW(), updated_at = NOW() WHERE id = $2`,
           [`Customer no-show — provider was on-site for ${noShowMinutes}+ minutes`, id],
         );
-        await escrowService.handleCancellationInTransaction(
-          client,
-          id,
-          hoursUntil,
-          true /* providerArrived */,
-          true /* customerNoShow */,
-        );
+        try {
+          await escrowService.handleCancellationInTransaction(
+            client,
+            id,
+            hoursUntil,
+            true /* providerArrived */,
+            true /* customerNoShow */,
+          );
+        } catch (error) {
+          // S2-1 — the escrow detail is for support (logged when raised); the
+          // provider is asked to contact support (D36 Q2 wording).
+          if ((error as { code?: string }).code === 'CANCELLATION_ESCROW_MISMATCH') {
+            const refusal = createAppError(
+              "This booking's payment needs a check by our support team before the no-show can be recorded. Please contact support.",
+              409,
+            );
+            refusal.code = 'CANCELLATION_ESCROW_MISMATCH';
+            throw refusal;
+          }
+          throw error;
+        }
       });
 
       // Post-commit notification — best-effort only.

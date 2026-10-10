@@ -79,7 +79,7 @@ interface QueryCall {
 
 function captureClientCalls(
   calls: QueryCall[],
-  options: { escrowGuardRowCount?: number } = {},
+  options: { escrowGuardRowCount?: number; bookingEscrowHeld?: string } = {},
 ): { query: jest.Mock } {
   return {
     query: jest.fn(async (sql: string, params: unknown[] = []) => {
@@ -107,7 +107,7 @@ function captureClientCalls(
         return { rows: [{ pending_balance: '1000000' }], rowCount: 1 };
       }
       if (sql.includes('COALESCE(SUM(amount), 0)')) {
-        return { rows: [{ remaining: '110000' }], rowCount: 1 };
+        return { rows: [{ remaining: options.bookingEscrowHeld ?? '110000' }], rowCount: 1 };
       }
       if (sql.includes('SELECT service_fee FROM bookings')) {
         return { rows: [{ service_fee: '10000' }], rowCount: 1 };
@@ -484,7 +484,8 @@ describe('releasePartialEscrow', () => {
     });
     const calls: QueryCall[] = [];
     dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      return cb(captureClientCalls(calls));
+      // S2-1: after the 50% refund the booking holds the 55,000 being released.
+      return cb(captureClientCalls(calls, { bookingEscrowHeld: '55000' }));
     });
     const breakdown = await escrowService.releasePartialEscrow('b1', 55000);
 
@@ -518,7 +519,8 @@ describe('releasePartialEscrow', () => {
     });
     const calls: QueryCall[] = [];
     dbTransactionMock.mockImplementationOnce(async (cb: (client: { query: jest.Mock }) => Promise<unknown>) => {
-      return cb(captureClientCalls(calls));
+      // S2-1: after the 50% refund the booking holds the 55,000 being released.
+      return cb(captureClientCalls(calls, { bookingEscrowHeld: '55000' }));
     });
     await escrowService.releasePartialEscrow('b1', 55000);
 

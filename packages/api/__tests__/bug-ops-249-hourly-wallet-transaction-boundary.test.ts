@@ -31,6 +31,7 @@ it('Bug OPS-249 — hourly settlement resolves every refund wallet through the c
   }));
 
   let bookingRead = 0;
+  let ledgerReads = 0;
   const client = {
     query: jest.fn(async (sql: string, params: unknown[] = []) => {
       if (sql.includes('b.is_hourly')) {
@@ -64,7 +65,10 @@ it('Bug OPS-249 — hourly settlement resolves every refund wallet through the c
         return { rows: [{ pending_balance: '1000000' }], rowCount: 1 };
       }
       if (sql.includes('COALESCE(SUM(amount), 0)')) {
-        return { rows: [{ remaining: '55000' }], rowCount: 1 };
+        // S2-1: the booking holds its full 110,000 when the unused-time
+        // refund is checked, and 55,000 once that refund is written.
+        ledgerReads += 1;
+        return { rows: [{ remaining: ledgerReads === 1 ? '110000' : '55000' }], rowCount: 1 };
       }
       if (sql.includes('UPDATE bookings SET escrow_status')) {
         return { rows: [{ id: 'booking-1' }], rowCount: 1 };

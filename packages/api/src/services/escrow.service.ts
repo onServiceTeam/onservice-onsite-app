@@ -150,6 +150,44 @@ async function resolvePlatformWalletsInTransaction(
   return byType;
 }
 
+// S2-1 (FIN-017, FIN-018) — the platform escrow wallet is shared by every
+// booking, so its balance never shows what one booking may pay out. Sum the
+// booking's own escrow ledger. Callers read this after locking the escrow
+// wallet: every escrow movement updates that wallet row, so the sum cannot
+// change before the payout commits.
+async function bookingEscrowHeldInTransaction(
+  client: PgClient,
+  escrowWalletId: string,
+  bookingId: string,
+): Promise<number> {
+  const result = await client.query<{ remaining: string }>(
+    `SELECT COALESCE(SUM(amount), 0)::text AS remaining
+       FROM wallet_transactions
+      WHERE wallet_id = $1
+        AND booking_id = $2`,
+    [escrowWalletId, bookingId],
+  );
+  return Number(result.rows[0]?.remaining ?? 0);
+}
+
+// Amounts in refusal texts are shown in pesos, as on the admin screens.
+function formatPesos(centavos: number): string {
+  const sign = centavos < 0 ? '-' : '';
+  const abs = Math.abs(centavos);
+  const whole = Math.trunc(abs / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${sign}\u20B1${whole}.${(abs % 100).toString().padStart(2, '0')}`;
+}
+
+// A refused payout rolls its whole transaction back, including any audit
+// row, and a 409 is logged only as a routine warning. Log the refusal at
+// error level first, so support sees it and the evidence survives.
+function escrowPayoutRefusal(code: string, message: string, details: Record<string, unknown>): Error {
+  logger.error('Escrow payout refused for operations review', { code, ...details });
+  const error = createAppError(message, 409);
+  error.code = code;
+  return error;
+}
+
 async function writeReleaseMovements(
   client: PgClient,
   input: {
@@ -188,6 +226,20 @@ async function writeReleaseMovements(
     wallets.revenueWalletId,
     wallets.guaranteeWalletId,
   ]);
+  // S2-1 (FIN-017) — a release pays out exactly what the booking still holds.
+  // The partial release takes its amount from the caller (a dispute decision
+  // or a queued retry), which may predate a later refund; the full release
+  // re-checks here under the wallet lock. Paying more would spend other
+  // bookings' escrow; paying less would mark the escrow released and strand
+  // the rest.
+  const held = await bookingEscrowHeldInTransaction(client, wallets.escrowWalletId, input.bookingId);
+  if (held !== allocation.totalAmount) {
+    throw escrowPayoutRefusal(
+      'ESCROW_RELEASE_AMOUNT_MISMATCH',
+      `This release of ${formatPesos(allocation.totalAmount)} does not match the ${formatPesos(held)} this booking still holds in escrow. Nothing was paid. Ask finance to review this booking's payments before releasing or refunding it.`,
+      { bookingId: input.bookingId, releaseCentavos: allocation.totalAmount, heldCentavos: held },
+    );
+  }
   const escrowBalance = await client.query<{ pending_balance: string }>(
     `SELECT pending_balance::text AS pending_balance FROM wallets WHERE id = $1`,
     [wallets.escrowWalletId],
@@ -806,6 +858,18 @@ export async function settleHourlyAndReleaseInTransaction(
     if (Number(locked.rows[0]?.pending_balance ?? 0) < refundRemainder) {
       throw createAppError('Insufficient escrow balance for hourly refund.', 409);
     }
+    // S2-1 — the unused-time refund comes out of the shared escrow wallet
+    // too, so it may not exceed what this booking itself still holds. (The
+    // release that follows in this transaction would refuse such a booking
+    // anyway; this keeps the refund leg safe on its own.)
+    const held = await bookingEscrowHeldInTransaction(client, escrowWalletId, bookingId);
+    if (held < refundRemainder) {
+      throw escrowPayoutRefusal(
+        'HOURLY_REFUND_EXCEEDS_BOOKING_ESCROW',
+        `This booking holds ${formatPesos(held)} in escrow, less than the ${formatPesos(refundRemainder)} unused-time refund. Nothing was settled or paid. Ask finance to review this booking's payments.`,
+        { bookingId, heldCentavos: held, refundCentavos: refundRemainder },
+      );
+    }
     await client.query(
       `UPDATE wallets SET pending_balance = pending_balance - $1, updated_at = NOW() WHERE id = $2`,
       [refundRemainder, escrowWalletId],
@@ -996,8 +1060,11 @@ export async function handleCancellationInTransaction(
   // A5 — pre-resolve every wallet this cancellation may touch and lock them
   // (in id order) before any balance write, so it serializes cleanly with
   // concurrent releases/refunds on the shared escrow + revenue wallets. The
-  // booking row is already locked (FOR UPDATE above), so the global lock order
-  // is bookings -> wallets across every money path (deadlock-free).
+  // booking row is already locked (FOR UPDATE above). This is not fully
+  // deadlock-free: the refund leg below locks the customer wallet after the
+  // escrow wallet, the reverse of the wallet payment and change-order paths,
+  // so a concurrent payment by the same customer can deadlock with it. One
+  // transaction is then aborted and moves no money (LAUNCH-LIMITATIONS 120).
   const needsProviderComp = refund.providerCompensationAmount > 0 && !!bk.provider_id;
   const needsNoShowFee = customerNoShow && serviceFee > 0;
 
@@ -1021,6 +1088,23 @@ export async function handleCancellationInTransaction(
   await walletService.lockWalletsForUpdate(client, [
     escrowWalletId, providerWallet?.id, revenueWalletId,
   ]);
+
+  // S2-1 (FIN-018) — the refund, fee and compensation below add up to the
+  // booking's whole total, and only the refund leg checks this booking's own
+  // escrow. Move any of it only while the booking is labelled held and still
+  // holds exactly that total. A label reset by older code (a partly refunded
+  // or released booking relabelled "held"), or a booking that was never
+  // funded, would otherwise be paid out of other bookings' escrow.
+  const held = await bookingEscrowHeldInTransaction(client, escrowWalletId, bookingId);
+  if (bk.escrow_status !== 'held' || held !== Number(bk.total_amount)) {
+    throw escrowPayoutRefusal(
+      'CANCELLATION_ESCROW_MISMATCH',
+      `This booking holds ${formatPesos(held)} in escrow, not its full ${formatPesos(Number(bk.total_amount))} (escrow label: ${bk.escrow_status ?? 'none'}). Nothing was cancelled or paid. Do not change its status; ask finance to review this booking's payments first.`,
+      {
+        bookingId, heldCentavos: held, totalCentavos: Number(bk.total_amount), escrowStatus: bk.escrow_status,
+      },
+    );
+  }
 
   if (totalCustomerRefund > 0) {
     await refundFromEscrowInTransaction(

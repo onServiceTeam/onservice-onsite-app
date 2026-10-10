@@ -3776,3 +3776,88 @@ paid for work that was done, there is no way to do it. A dispute decided
 "no refund" on such a booking also leaves a release that keeps failing. This
 needs Ken's decision on who may clear the mark, then an audited admin action
 (D36 Q13).
+
+## 119. Escrow payouts are now limited to what each booking holds
+
+All customers' held money sits in one shared escrow account. Some payouts from
+it were checked only against that account's total, not against the booking
+being paid out:
+
+- a partial payout to the provider after a dispute decision, including a
+  queued retry of one;
+- the compensation and fee paid when a booking is cancelled;
+- a provider's customer no-show report;
+- the hourly unused-time refund. This one is now checked directly, but it
+  could not lose money before: the payout in the same step already refused
+  such a booking.
+
+Candidates FIN-017, FIN-018 and FIN-019 (S2-1) make each of these move exactly
+what that booking holds, or refuse with nothing moved. Each refusal is logged
+at error level for support. The wording is interim (D36 Q2):
+
+- a customer or provider who cancels, confirms or reports a no-show is asked
+  to contact support;
+- the super admin sees the amounts.
+
+Until S2-3, one interim state remains. A partial dispute decision made after
+an earlier support refund still refunds that percentage of the original total.
+The customer can therefore get back more than either answer to D36 Q1 would
+give. The provider's payout that follows is then refused, and ends in
+Financials as "manual investigation". In the same situation, a full-refund
+decision is refused outright, and a no-refund decision's payout is refused.
+
+This is verified in source and tests in the candidate only and is not
+deployed. See `docs/audits/MONEY-SLICE2-2026-10-11.md`.
+
+## 120. Two money steps can deadlock with another payment (open)
+
+Found while reviewing S2-1 (2026-10-11). Not fixed.
+
+Wallet locks are meant to be taken in one order: the customer's or provider's
+own wallet first (loading it also locks it), then the platform wallets in a
+single call. Two steps break that order:
+
+- **A cancellation that refunds to the customer's wallet.** It locks the
+  escrow account before the customer's wallet. A wallet payment, change-order
+  payment or refund by the same customer at the same moment can deadlock with
+  it.
+- **An hourly settlement.** It locks the escrow account before the provider's
+  wallet and the platform revenue and guarantee wallets. A release or a
+  cancellation compensation paying the same provider at the same moment can
+  deadlock with it.
+
+The database then aborts one of the two requests. That request fails with a
+server error and moves no money, and it can be retried.
+
+The fix is to load each step's customer and provider wallets first, as
+payments, refunds and releases already do, and then lock them together with
+the platform wallets in one call. Slice 2 does not build this; it is recorded
+for a later money step. The code comments that called the order deadlock-free
+now point here.
+
+## 121. Some bookings whose escrow status does not match their money need a decision (open)
+
+Found while reviewing S2-1 (2026-10-11). Not fixed.
+
+Older code could leave a booking's escrow status as "held" when part or all
+of its money had already been refunded or paid out. For example, filing a
+dispute relabels the money as "held". S2-2 is planned to fix that; until
+then, this candidate still does it. After S2-1 there are two cases.
+
+1. **Labelled "held" but holding nothing.**
+   - Cancel, refund and release all refuse it.
+   - The only way to close it would be a status edit that records a payout
+     that never happened. Support must not do that.
+   - It needs a one-off, reviewed data repair that relabels it to match where
+     its money went.
+2. **Labelled "held" and holding only part of its total.**
+   - Cancel and release refuse it.
+   - A super admin support refund of up to what it holds still works. It
+     relabels the booking, and a release then pays the provider the rest.
+   - That refund decides how the rest is split between customer and provider
+     (D36 Q1). Support must not use it to unblock a booking without that
+     decision.
+   - Otherwise it needs the same data repair.
+
+The repair changes production data, so it needs Ken's yes and a read-only
+export first. Support should escalate any booking that shows these refusals.

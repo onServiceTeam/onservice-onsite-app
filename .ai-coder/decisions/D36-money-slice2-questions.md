@@ -29,15 +29,25 @@ A booking already had a partial refund from support (for example ₱2,500 of ₱
 
 **Interim built in S2-3:** any refund decision on a dispute after an earlier refund is refused, and nothing moves. A dispute on a booking with no earlier refund works as today.
 
-## Q2. Wording of the admin refusals in S2-3
+## Q2. Wording of the payout and dispute refusals
 
-S2-3 adds refusals to admin dispute decisions:
+**S2-1 (built, interim wording).** A payout is refused when the booking does not hold the amount it would pay out. Nothing moves, and the refusal is logged for support. The texts:
+
+- **Customer cancelling:** "This booking's payment needs a check by our support team before it can be cancelled. Please contact support."
+- **Provider cancelling:** the same text as the customer.
+- **Customer confirming a job whose payment does not match:** "This booking's payment needs a check by our support team before it can be completed. Please contact support." (The confirmation itself is still saved, as before.)
+- **Provider reporting a customer no-show:** "This booking's payment needs a check by our support team before the no-show can be recorded. Please contact support."
+- **Super admin cancelling:** "This booking holds ₱7,500.00 in escrow, not its full ₱10,000.00 (escrow label: held). Nothing was cancelled or paid. Do not change its status; ask finance to review this booking's payments first." (The amounts are the booking's own.)
+- **A release shown in Financials:** "This release of ₱4,000.00 does not match the ₱3,000.00 this booking still holds in escrow. Nothing was paid. Ask finance to review this booking's payments before releasing or refunding it."
+- **Hourly settlement:** "This booking holds ₱2,000.00 in escrow, less than the ₱5,000.00 unused-time refund. Nothing was settled or paid. Ask finance to review this booking's payments."
+
+**S2-3 (planned).** This step adds refusals to admin dispute decisions:
 
 - after an earlier refund (Q1);
 - when no money is held for the booking any more;
 - when the booking's held amount does not match its total.
 
-The current interim wording is plain and technical. Please approve or replace it before release.
+Please approve or replace all of these before release.
 
 ## Q3. Card-paid bookings and change orders paid from the wallet
 

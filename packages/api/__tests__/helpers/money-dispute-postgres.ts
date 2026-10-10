@@ -18,6 +18,7 @@ import type { Pool } from 'pg';
 import { db } from '../../src/models/db';
 import disputeRouter from '../../src/routes/dispute.routes';
 import disputeAdminRouter from '../../src/routes/dispute-admin.routes';
+import bookingRouter from '../../src/routes/booking.routes';
 import { errorMiddleware } from '../../src/middleware/error.middleware';
 import { canTransition, type BookingStatus } from '../../src/types/booking.types';
 import { debitWalletInTransaction, holdEscrowInTransaction } from '../../src/services/wallet.service';
@@ -25,7 +26,7 @@ import { appendAuthorizationTermsInTransaction } from '../../src/services/bookin
 import { withDisputeDatabase } from './dispute-postgres';
 import { adminCancelHttp, adminReleaseHttp } from './booking-admin-cancel-postgres';
 import {
-  bookingB, customerB, escrowWallet, operatorId, otherTicketId, refundHttp, participantHttp, syntheticSecret,
+  bookingB, customerB, escrowWallet, operatorId, otherTicketId, providerUserB, refundHttp, participantHttp, syntheticSecret,
 } from './booking-participant-postgres';
 
 export { adminCancelHttp, adminReleaseHttp };
@@ -115,6 +116,19 @@ export function adminResolveHttp() {
     .post(`/api/v1/admin/disputes/${disputeId}/resolve`)
     .set('Authorization', `Bearer ${token}`)
     .send({ decisionNotes: 'Synthetic admin decision recorded for this test.', ...body });
+}
+
+// The provider's real customer no-show report (S2-1), as provider B.
+export function reportNoShowHttp(providerUserId = providerUserB) {
+  const app = express();
+  app.use(express.json(), cookieParser());
+  app.use('/api/v1/bookings', bookingRouter);
+  app.use(errorMiddleware);
+  const token = signed(providerUserId, 'provider');
+  return (bookingId: string) => request(app)
+    .post(`/api/v1/bookings/${bookingId}/report-no-show`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({});
 }
 
 // Booking B confirmed and released, still inside the dispute window, with no

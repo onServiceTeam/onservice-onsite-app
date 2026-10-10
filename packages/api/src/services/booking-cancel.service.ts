@@ -60,6 +60,10 @@ export interface CancellationOutcome<TRow> {
 // provider had arrived.
 const PROVIDER_ARRIVED_STATUSES = new Set(['provider_arrived', 'in_progress', 'completed_by_provider']);
 
+// S2-1 interim wording (D36 Q2), shown to customers and providers.
+export const PARTICIPANT_ESCROW_REVIEW_MESSAGE =
+  "This booking's payment needs a check by our support team before it can be cancelled. Please contact support.";
+
 function cancellationRefusal(code: string, message: string): Error {
   const error = createAppError(message, 409);
   error.code = code;
@@ -126,13 +130,24 @@ export async function cancelBookingInTransaction<TRow extends QueryResultRow & {
   // roll back the whole cancellation.
   let refund: CancellationRefund | null = null;
   if (lockedBooking.escrow_status === 'held') {
-    refund = await escrowService.handleCancellationInTransaction(
-      client,
-      bookingId,
-      moneyInputs.hoursUntilScheduled,
-      moneyInputs.providerArrived,
-      moneyInputs.customerNoShow,
-    );
+    try {
+      refund = await escrowService.handleCancellationInTransaction(
+        client,
+        bookingId,
+        moneyInputs.hoursUntilScheduled,
+        moneyInputs.providerArrived,
+        moneyInputs.customerNoShow,
+      );
+    } catch (error) {
+      // S2-1 — when the booking's escrow does not match its total, the
+      // detailed text is for the super admin (and is logged when raised); a
+      // customer or provider is asked to contact support (D36 Q2 wording).
+      if (targetStatus !== 'cancelled_by_admin'
+          && (error as { code?: string }).code === 'CANCELLATION_ESCROW_MISMATCH') {
+        throw cancellationRefusal('CANCELLATION_ESCROW_MISMATCH', PARTICIPANT_ESCROW_REVIEW_MESSAGE);
+      }
+      throw error;
+    }
   }
 
   const updates: string[] = [`status = $2`, `updated_at = NOW()`, `cancelled_at = NOW()`];

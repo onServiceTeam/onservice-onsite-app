@@ -53,6 +53,9 @@ it('Bug OPS-234 — partial escrow release prorates the immutable terms and pres
       if (/UPDATE bookings SET escrow_status = 'released'/.test(sql)) {
         return { rows: [{ id: 'booking-1' }], rowCount: 1 };
       }
+      // S2-1: after its 50% refund booking-1 holds the 55,000 being released,
+      // and the release is checked against that.
+      if (/COALESCE\(SUM\(amount\), 0\)/.test(sql)) return { rows: [{ remaining: '55000' }], rowCount: 1 };
       if (/SELECT pending_balance::text/.test(sql)) return { rows: [{ pending_balance: '55000' }], rowCount: 1 };
       return { rows: [], rowCount: 1 };
     }),
