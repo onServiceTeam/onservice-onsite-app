@@ -10,6 +10,7 @@ jest.mock('@/hooks/useResponsive', () => ({
 }));
 jest.mock('@/stores/onboarding.store', () => ({
   useOnboardingStore: () => ({
+    ...jest.requireActual('@/stores/onboarding.store').useOnboardingStore.getInitialState(),
     businessName: 'Roberto Services',
     categoryIds: [],
     setBusinessName: jest.fn(),

@@ -1,4 +1,5 @@
 import api from './api';
+import { z } from 'zod';
 import type { ApiResponse } from './api';
 import type { Booking } from './booking.service';
 
@@ -100,11 +101,18 @@ export interface ProviderApplicationStatus {
   rejectionReason: string | null;
 }
 
+const applicationStatusEnvelope = z.object({ success: z.literal(true), data: z.object({
+  status: z.enum(['pending', 'approved', 'rejected', 'suspended', 'deactivated']),
+  rejectionReason: z.string().max(1000).nullable(),
+}).nullable() });
+
 export async function getApplicationStatus(): Promise<ProviderApplicationStatus | null> {
-  const res = await api.get<ApiResponse<ProviderApplicationStatus | null>>(
+  const res = await api.get<unknown>(
     '/api/v1/providers/application-status',
   );
-  return res.data.data;
+  const parsed = applicationStatusEnvelope.safeParse(res.data);
+  if (!parsed.success) throw new Error('The application status could not be verified. Please retry.');
+  return parsed.data.data;
 }
 
 export async function getMyProfile(): Promise<ProviderDashboard> {
@@ -306,6 +314,8 @@ export interface TierRequirement {
 export interface TierProgressionData {
   currentTier: string;
   currentCommission: number;
+  currentCommissionSource: 'tier_default' | 'provider_contract';
+  currentCommissionRateVersionId: string;
   progressionTrack: 'founding' | 'standard';
   promotionMode: 'admin_review';
   nextTier: TierRequirement | null;

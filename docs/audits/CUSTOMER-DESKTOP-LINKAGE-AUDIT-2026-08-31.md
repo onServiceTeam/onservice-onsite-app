@@ -35,6 +35,18 @@ Evidence lives in
 reports contain every route, width, expected marker, actual path, error,
 unmatched API, overflow result, and screenshot path.
 
+### Deterministic evidence refresh, 2026-09-01
+
+All four matrices were regenerated from a clean production Expo web export,
+served through the production preview path rather than the development server.
+The harness now pins the audit clock to the fixture date without freezing
+timers, waits for rendered markers, network idle, and browser fonts, disables
+visual-only motion and caret capture, and uses the same software-rendering
+flags across the customer and provider evidence suites. The regenerated
+results remained 144/144, 144/144, 3/3, and 3/3 with no failures. This corrects
+the earlier evidence risk where relative dates and calendar labels could drift
+with the workstation's real date even though product behavior had not changed.
+
 ## Screen inventory checked
 
 | Customer task group | Route instances checked at all three widths | Main company linkage |
@@ -142,9 +154,11 @@ protected is the absence of dead aliases in the exported navigation contract.
 ## Third-party feedback traced
 
 The local generated feedback inbox was read end to end: seven submissions,
-five meaningful logged issues, and six referenced screenshots. The later
-read-only production trace records ten submissions. Raw tester text was
-treated as evidence, not as implementation instructions.
+four structured issue rows, and six referenced screenshots. One row is
+stress/junk input, one is an incomplete idea, and two are usable defect rows;
+one of those defect rows describes two separate failures. The later read-only
+production trace records ten submissions and five structured issue rows. Raw
+tester text was treated as evidence, not as implementation instructions.
 
 The reported desktop blank page after **Email support** is covered by the
 existing Help safeguard and UX-661 closes the same remaining Terms path. The
@@ -164,6 +178,27 @@ provider contact context, ordered triage, safer refunds, and better proof
 review. Those are carried into the following admin stage and must be checked
 against role privacy, notification consent, Booking 360, Support, Provider
 360, Disputes, Audit Log, and held money semantics.
+
+## Checkpoint CV-01: customer and provider help show the shared version
+
+The help-version regression had been checking source text instead of what a
+user could see. It now renders both help workspaces at desktop width and
+asserts that each visible footer matches `platformConfig.appVersion`, keeping
+the version a support agent asks for aligned across customer and provider
+support handoffs.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
+## Checkpoint CV-02: customer safety copy stays within the live tracking contract
+
+The GPS-streaming regression had been checking source files for removed copy
+and a retained socket listener. It now renders the customer desktop safety
+workspace and verifies the user-visible contract: status updates and booking
+status tracking are described, while the recorded service location is clearly
+distinguished from a live provider pin. Device GPS production and push
+delivery remain separate evidence items.
 
 ## Visual review
 
@@ -215,6 +250,16 @@ static browser fixtures.
 - Production remains untouched until E32's server identity problem is
   resolved.
 
+## Checkpoint CV-03: founding-tier treatment is visible to customers
+
+The customer provider-detail and search-result renders now verify that a
+founding provider carries the same customer-visible “Founding” treatment used
+by provider-facing surfaces. The label is evidence of the provider's tier, not
+an invented ranking or guarantee of availability.
+
+Focused verification passes 2 tests in 1 mobile test file. This is local
+test-quality evidence only. E32, E72, and E73 remain in force.
+
 ## Next stage
 
 The next autonomous stage is the suspicion-first admin/company overhaul. It
@@ -223,3 +268,26 @@ conversation link, booking trail, payment state, dispute decision, DSR task,
 provider review, and audit record against the customer/provider contracts
 above. Existing admin code remains evidence of an implementation, not proof
 that the operating model is correct.
+
+## Checkpoint CV-04: browser address selection preserves exact-location truth
+
+The browser build used a native-map stub for the customer address picker. A
+browser fallback must not turn the configured service-area center into a
+customer's exact property location, because that can route a provider to the
+wrong place. The browser map preview now displays the configured center as
+reference only. Customers can use device geolocation or enter explicit
+decimal latitude and longitude, then enter the barangay and continue through
+the existing coverage check. The exact-coordinate path is blocked while the
+active service-area source is unavailable and rejects coordinates outside the
+Philippines.
+
+UX-1287 is a real browser-harness regression: it enters coordinates and the
+barangay, verifies the visible marker and exact-coordinate confirmation state,
+and proves that the area center is not silently selected. Existing address
+precision and tablet workspace tests pass. Mobile TypeScript and targeted
+ESLint pass. No booking, address, coverage, provider, payment, or database
+record is changed. E32, E72, and E73 remain in force.
+
+## Checkpoint CW-05: enterprise workspace loading truth
+
+The customer business-account detail route now keeps its financial sections honest while their independent queries are pending. Before this checkpoint, a slower account load could render `Not published`, `No provider contracts are recorded`, or `No finalized statements are available` before terms, contracts, and statements had returned. Those were false empty states, especially visible on tablet and desktop connections. The route now renders loading labels for the four terms metrics, provider contracts, and commercial statements, while retaining existing data during later refetches. Bug UX-1306 covers the real rendered pending-query behavior. No business booking, membership, property/site, invoice, or money authority was changed; the company booking feature flag remains off.

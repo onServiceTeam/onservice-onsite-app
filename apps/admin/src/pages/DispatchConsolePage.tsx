@@ -6,7 +6,8 @@
  *   - Map (top): react-leaflet OSM with custom markers per booking status and
  *     available-provider service-base markers. Provider locations are not
  *     live GPS in the v1.0 release.
- *   - Bottom-left: ACTIVE BOOKINGS list (capped at 50 rows). Reassign and
+ *   - Bottom-left: ACTIVE BOOKINGS list (shows the full 100-row feed page).
+ *     Reassign and
  *     support-message buttons are wired to real mutations. Cancellation is
  *     handed off to Booking 360 because refund inputs require full case review.
  *     Each mutation button opens a modal with client-side
@@ -16,7 +17,7 @@
  *   - Bottom-right: derived dispatch-attention queue from the loaded bookings.
  *
  * Data sources:
- *   - GET /api/v1/admin/bookings?status=active&limit=100  (graceful empty
+ *   - GET /api/v1/admin/bookings?status=active&pageSize=100  (graceful empty
  *     fallback if endpoint returns 404).
  *   - GET /api/v1/admin/providers?online=true&limit=200   (same fallback).
  *   - Live socket events: booking:created, booking:status_changed, and
@@ -280,6 +281,7 @@ const OSM_ATTRIBUTION =
 interface MapTileConfig {
   url: string;
   attribution: string;
+  usingFallback: boolean;
 }
 
 interface SettingRow {
@@ -299,10 +301,10 @@ async function fetchMapTileConfig(): Promise<MapTileConfig> {
     const attribution = (byKey.get('map_tile_attribution') ?? '').trim() || OSM_ATTRIBUTION;
     // Substitute the {apiKey} placeholder only when a key is configured.
     const url = apiKey ? rawUrl.replace('{apiKey}', encodeURIComponent(apiKey)) : rawUrl;
-    return { url, attribution };
+    return { url, attribution, usingFallback: false };
   } catch {
     // Settings unreachable — fall back to keyless OSM so the map still draws.
-    return { url: OSM_TILE_URL, attribution: OSM_ATTRIBUTION };
+    return { url: OSM_TILE_URL, attribution: OSM_ATTRIBUTION, usingFallback: true };
   }
 }
 
@@ -370,7 +372,11 @@ export default function DispatchConsolePage(): React.ReactElement {
     queryFn: fetchMapTileConfig,
     staleTime: 5 * 60_000,
   });
-  const mapTile: MapTileConfig = mapConfigQuery.data ?? { url: OSM_TILE_URL, attribution: OSM_ATTRIBUTION };
+  const mapTile: MapTileConfig = mapConfigQuery.data ?? {
+    url: OSM_TILE_URL,
+    attribution: OSM_ATTRIBUTION,
+    usingFallback: false,
+  };
 
   const [cityFilter, setCityFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -415,7 +421,10 @@ export default function DispatchConsolePage(): React.ReactElement {
     });
   }, [allBookings, cityFilter, statusFilter, serviceFilter]);
 
-  const visibleBookings = filteredBookings.slice(0, 50);
+  // The API feed is intentionally page-sized at 100. Do not silently hide
+  // the second half of a loaded page; the header separately reports when the
+  // server says more rows exist than this page contains.
+  const visibleBookings = filteredBookings.slice(0, 100);
   const visibleProviders = useMemo(
     () => cityFilter
       ? allProviders.filter((provider) => provider.city === cityFilter)
@@ -713,6 +722,19 @@ export default function DispatchConsolePage(): React.ReactElement {
       {!providersQuery.isError && (providersQuery.data?.total ?? 0) > allProviders.length && (
         <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
           The map shows the first {allProviders.length} of {providersQuery.data?.total} providers accepting work. Use provider search in Reassign to reach providers outside this loaded map page.
+        </div>
+      )}
+
+      {mapTile.usingFallback && (
+        <div role="status" className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+          <span>Map settings are unavailable. Dispatch is using the OpenStreetMap fallback until the configured tile source can be loaded.</span>
+          <button
+            type="button"
+            onClick={() => void mapConfigQuery.refetch()}
+            className="min-h-11 shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-2 font-semibold hover:bg-amber-100"
+          >
+            Retry map settings
+          </button>
         </div>
       )}
 
@@ -1103,6 +1125,20 @@ export default function DispatchConsolePage(): React.ReactElement {
             </DialogDescription>
           </DialogHeader>
           <div>
+            {messageTarget && (
+              <div className="mb-4 rounded border border-slate-200 bg-slate-50 p-3" aria-label="Recent booking support activity">
+                <p className="text-sm font-semibold text-slate-800">Review recent support activity</p>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  Check the booking conversation and timeline before sending another participant update. They are the canonical record of message text and delivery history.
+                </p>
+                <Link
+                  to={`/communications?bookingId=${encodeURIComponent(messageTarget.id)}`}
+                  className="mt-2 inline-flex min-h-11 items-center text-xs font-semibold text-[var(--color-secondary)] hover:underline"
+                >
+                  Review conversation
+                </Link>
+              </div>
+            )}
             <Label htmlFor="message-body">Message</Label>
             <Textarea
               id="message-body"

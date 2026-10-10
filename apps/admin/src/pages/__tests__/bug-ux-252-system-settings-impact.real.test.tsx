@@ -61,7 +61,7 @@ it('Bug UX-252 — settings page distinguishes live controls from nonfunctional 
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText('Not connected')).toBeVisible();
+  expect((await screen.findAllByText('Not connected')).length).toBeGreaterThan(0);
   expect(screen.getByText('Live control')).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Edit setting jwt_access_expires' })).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Edit setting otp_length' })).toBeVisible();

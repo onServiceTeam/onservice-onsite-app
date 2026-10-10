@@ -49,6 +49,8 @@ interface DsrRecord {
   dueAt: string;
   completedAt: string | null;
   handledBy: string | null;
+  handledByName: string | null;
+  handledByEmail: string | null;
   userMessage: string | null;
   adminNotes: string | null;
   responsePayloadUrl: string | null;
@@ -61,7 +63,12 @@ interface DsrListResponse {
   data: { rows: DsrRecord[]; total: number };
 }
 
+interface DsrDetailResponse {
+  data: DsrRecord;
+}
+
 const PAGE_SIZE = 25;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const STATUS_OPTIONS: Array<{ value: DsrStatus | 'all'; label: string }> = [
   { value: 'all', label: 'All statuses' },
@@ -130,8 +137,16 @@ export function isSecureResponseUrl(value: string): boolean {
 
 function subjectRoute(record: DsrRecord): string | null {
   if (record.userRole === 'customer') return `/customers/${record.userId}`;
-  if (record.userRole === 'provider' && record.providerProfileId) return `/providers/${record.providerProfileId}`;
+  if ((record.userRole === 'provider' || record.userRole === 'provider_staff') && record.providerProfileId) {
+    return `/providers/${record.providerProfileId}`;
+  }
   return null;
+}
+
+function subjectRouteLabel(record: DsrRecord): string {
+  return record.userRole === 'provider_staff'
+    ? 'Open employing provider 360 record'
+    : 'Open subject 360 record';
 }
 
 type DialogKind = 'review' | 'start_review' | 'complete' | 'request_info' | 'reject' | 'escalate' | null;
@@ -146,6 +161,9 @@ export default function DataProtectionLogPage(): React.ReactElement {
   const typeFilter = parseType(searchParams.get('type'));
   const overdueOnly = searchParams.get('overdueOnly') === 'true';
   const page = parsePage(searchParams.get('page'));
+  const linkedDsrValue = searchParams.get('dsrId')?.trim() ?? '';
+  const linkedDsrId = UUID_REGEX.test(linkedDsrValue) ? linkedDsrValue.toLowerCase() : null;
+  const linkedDsrInvalid = linkedDsrValue.length > 0 && linkedDsrId === null;
 
   const [dialogKind, setDialogKind] = useState<DialogKind>(null);
   const [selected, setSelected] = useState<DsrRecord | null>(null);
@@ -184,6 +202,19 @@ export default function DataProtectionLogPage(): React.ReactElement {
     staleTime: 15_000,
   });
 
+  const linkedDsrQuery = useQuery({
+    queryKey: ['adminDsrDetail', linkedDsrId],
+    queryFn: async (): Promise<DsrRecord> => {
+      const response = await api.get<DsrDetailResponse>(
+        `/api/v1/admin/compliance/dsr/${encodeURIComponent(linkedDsrId!)}`,
+      );
+      return response.data.data;
+    },
+    enabled: canManagePrivacy && linkedDsrId !== null,
+    retry: false,
+    staleTime: 15_000,
+  });
+
   const total = dsrQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -197,7 +228,23 @@ export default function DataProtectionLogPage(): React.ReactElement {
     }
   }, [dsrQuery.isSuccess, page, setSearchParams, totalPages]);
 
+  useEffect(() => {
+    if (linkedDsrQuery.data && linkedDsrQuery.data.id === linkedDsrId) {
+      setSelected(linkedDsrQuery.data);
+      setDialogKind('review');
+    }
+  }, [linkedDsrId, linkedDsrQuery.data]);
+
+  function clearLinkedDsr(): void {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('dsrId');
+      return next;
+    }, { replace: true });
+  }
+
   function closeDialogs(): void {
+    clearLinkedDsr();
     setDialogKind(null);
     setSelected(null);
     setResponseUrl('');
@@ -208,13 +255,19 @@ export default function DataProtectionLogPage(): React.ReactElement {
     setErasureConfirm('');
   }
 
-  function openDialog(kind: Exclude<DialogKind, null>, record: DsrRecord): void {
+  function openReview(record: DsrRecord): void {
     setSelected(record);
-    setDialogKind(kind);
+    setDialogKind('review');
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('dsrId', record.id);
+      return next;
+    });
   }
 
   function refreshPrivacyWork(): void {
     void queryClient.invalidateQueries({ queryKey: ['adminDsrList'] });
+    void queryClient.invalidateQueries({ queryKey: ['adminDsrDetail'] });
     void queryClient.invalidateQueries({ queryKey: ['privacyDsrAlerts'] });
   }
 
@@ -223,7 +276,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
       if (!selected) return;
       await api.post(`/api/v1/admin/compliance/dsr/${selected.id}/start-review`, { reviewNote: reviewNote.trim() });
     },
-    onSuccess: () => { toast.success('Data request claimed and review started.'); refreshPrivacyWork(); closeDialogs(); },
+    onSuccess: () => { toast.success('Data request claimed and review started.'); closeDialogs(); refreshPrivacyWork(); },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
@@ -234,7 +287,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
       if (responseUrl.trim()) body.responsePayloadUrl = responseUrl.trim();
       await api.post(`/api/v1/admin/compliance/dsr/${selected.id}/complete`, body);
     },
-    onSuccess: () => { toast.success('Data request marked complete.'); refreshPrivacyWork(); closeDialogs(); },
+    onSuccess: () => { toast.success('Data request marked complete.'); closeDialogs(); refreshPrivacyWork(); },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
@@ -243,7 +296,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
       if (!selected) return;
       await api.post(`/api/v1/admin/compliance/dsr/${selected.id}/request-info`, { infoNeeded: infoNeeded.trim() });
     },
-    onSuccess: () => { toast.success('Information request recorded and notification queued.'); refreshPrivacyWork(); closeDialogs(); },
+    onSuccess: () => { toast.success('Information request recorded and notification queued.'); closeDialogs(); refreshPrivacyWork(); },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
@@ -252,7 +305,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
       if (!selected) return;
       await api.post(`/api/v1/admin/compliance/dsr/${selected.id}/reject`, { reason: rejectReason.trim() });
     },
-    onSuccess: () => { toast.success('Data request rejected.'); refreshPrivacyWork(); closeDialogs(); },
+    onSuccess: () => { toast.success('Data request rejected.'); closeDialogs(); refreshPrivacyWork(); },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
@@ -261,7 +314,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
       if (!selected) return;
       await api.post(`/api/v1/admin/compliance/dsr/${selected.id}/escalate`, { npcReference: npcReference.trim() });
     },
-    onSuccess: () => { toast.success('NPC case reference recorded.'); refreshPrivacyWork(); closeDialogs(); },
+    onSuccess: () => { toast.success('NPC case reference recorded.'); closeDialogs(); refreshPrivacyWork(); },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
@@ -326,6 +379,31 @@ export default function DataProtectionLogPage(): React.ReactElement {
         </CardContent>
       </Card>}
 
+      {canManagePrivacy && linkedDsrInvalid && (
+        <ErrorState
+          title="Invalid privacy case link"
+          description="The saved case ID is not a valid UUID, so no case-detail request was sent. Remove it to keep the current queue filters."
+          action={<Button variant="outline" onClick={clearLinkedDsr}>Remove invalid case link</Button>}
+        />
+      )}
+
+      {canManagePrivacy && linkedDsrId && linkedDsrQuery.isLoading && (
+        <LoadingState label="Loading linked privacy case…" />
+      )}
+
+      {canManagePrivacy && linkedDsrId && linkedDsrQuery.isError && (
+        <ErrorState
+          title="Linked privacy case unavailable"
+          description={getErrorMessage(linkedDsrQuery.error)}
+          action={(
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="outline" onClick={() => void linkedDsrQuery.refetch()}>Retry linked case</Button>
+              <Button variant="outline" onClick={clearLinkedDsr}>Return to filtered queue</Button>
+            </div>
+          )}
+        />
+      )}
+
       {!canManagePrivacy ? null : dsrQuery.isLoading ? (
         <LoadingState label="Loading privacy cases…" />
       ) : dsrQuery.isError ? (
@@ -360,7 +438,7 @@ export default function DataProtectionLogPage(): React.ReactElement {
                     <p className={`mt-1 text-sm font-medium ${record.isOverdue ? 'text-red-700' : 'text-[var(--color-text)]'}`}>{targetLabel(record)}</p>
                     <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">{formatDateTime(record.dueAt)}</p>
                   </div>
-                  <Button className="min-h-11" variant="outline" onClick={() => openDialog('review', record)} aria-label={`Review data request ${record.id.slice(-8)}`}>
+                  <Button className="min-h-11" variant="outline" onClick={() => openReview(record)} aria-label={`Review data request ${record.id.slice(-8)}`}>
                     Review case <ArrowRight size={15} />
                   </Button>
                 </div>
@@ -390,10 +468,14 @@ export default function DataProtectionLogPage(): React.ReactElement {
                 <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Received</dt><dd className="mt-1">{formatDateTime(selected.receivedAt)}</dd></div>
                 <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Internal target</dt><dd className="mt-1">{formatDateTime(selected.dueAt)} · {targetLabel(selected)}</dd></div>
                 <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Completed</dt><dd className="mt-1">{formatDateTime(selected.completedAt)}</dd></div>
-                <div><dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Handler ID</dt><dd className="mt-1 break-all">{selected.handledBy ?? 'Unassigned'}</dd></div>
+                <div>
+                  <dt className="text-xs font-bold uppercase text-[var(--color-text-tertiary)]">Current handler</dt>
+                  <dd className="mt-1 break-words">{selected.handledByName ?? selected.handledByEmail ?? selected.handledBy ?? 'Unassigned'}</dd>
+                  {selected.handledByName && selected.handledByEmail && <dd className="mt-0.5 break-all text-xs text-[var(--color-text-secondary)]">{selected.handledByEmail}</dd>}
+                </div>
               </dl>
               {selectedSubjectRoute && (
-                <Link to={selectedSubjectRoute} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--color-primary)]">Open subject 360 record <ArrowRight size={15} /></Link>
+                <Link to={selectedSubjectRoute} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--color-primary)]">{subjectRouteLabel(selected)} <ArrowRight size={15} /></Link>
               )}
               <div className="grid gap-4 md:grid-cols-2">
                 <CaseText title="Subject message" value={selected.userMessage} empty="No message supplied." />

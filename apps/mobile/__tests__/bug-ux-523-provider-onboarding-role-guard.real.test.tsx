@@ -6,7 +6,7 @@ let mockRole: 'customer' | 'provider' = 'provider';
 jest.mock('@/stores/auth.store', () => ({
   useAuthStore: (selector: (state: unknown) => unknown) => selector({
     isAuthenticated: true,
-    user: { role: mockRole },
+    user: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', role: mockRole },
   }),
 }));
 
@@ -22,7 +22,7 @@ jest.mock('expo-router', () => {
     ReactRuntime.createElement('span', { 'data-route-name': name }, name);
   const Redirect = ({ href }: { href: string }) =>
     ReactRuntime.createElement('span', { 'aria-label': `Redirect to ${href}` }, href);
-  return { Stack, Redirect };
+  return { Stack, Redirect, useSegments: () => ['provider-onboarding', 'role-select'] };
 });
 
 import ProviderOnboardingLayout from '../app/provider-onboarding/_layout';

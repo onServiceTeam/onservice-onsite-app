@@ -66,7 +66,7 @@ export default function DataTable<T>({
             {isError ? (
               <tr>
                 <td colSpan={columns.length} className="text-center py-12 text-sm text-[var(--color-error)]">
-                  {errorMessage}
+                  <span role="alert">{errorMessage}</span>
                 </td>
               </tr>
             ) : (data ?? []).length === 0 ? (

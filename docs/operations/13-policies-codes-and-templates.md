@@ -43,7 +43,13 @@ Refunds on a verified external payment are intended to return through PayMongo t
 When a refund happens:
 
 - **Cancellation.** Auto-computed per System A above.
-- **Dispute.** Resolved by admin. Resolution types: full refund, partial refund (you set a percent), no refund, free redo, refund with warning, refund with suspension, split decision. Full refund, refund with warning, and refund with suspension are all 100%. Any remaining escrow after a partial refund still goes to the provider.
+- **Dispute.** Resolved by admin. Implemented decision types include full
+  refund, partial refund (you set a percent), no refund, refund with suspension,
+  and split decision. Full refund and refund with suspension are 100%. Any
+  remaining escrow after a partial refund still goes to the provider. E51 holds
+  Reopen, free redo, and refund with warning because the current code lacks a
+  safe appeal/reversal model, a replacement redo work order, and a canonical
+  provider-warning record.
 - **Unresponded dispute.** If the provider does not respond within 48 hours, the worker escalates the case to tier 3 for staff review. Silence does not itself decide or move money.
 - **No-provider-available.** If dispatch never finds a provider, the booking expires (72h cap) and the customer is refunded in full, plus a ₱150 goodwill credit for the platform failure (see `08-dispatch-and-live-operations.md`).
 
@@ -73,7 +79,7 @@ Consequences for violations: account flagged for fraud review, suspension, or cl
 Full version lives in `05-provider-onboarding-and-training.md`. Short form for reference:
 
 - [ ] Show up on time, in the branded onService shirt, for the job you accepted.
-- [ ] Keep NBI clearance current. We warn 30 days before expiry. Expiry does not automatically suspend or block dispatch at launch; support chases renewal and a super-admin may suspend if ignored.
+- [ ] Keep NBI clearance current. We aim to warn before expiry, then support reviews renewal and a super-admin may suspend if ignored. E62 records that the current warning/enforcement worker is inconsistent, so staff must use the manual queue rather than promise either notification or automatic enforcement.
 - [ ] Do the work to standard. Take before and after photos (mandatory during the 3-job probation).
 - [ ] Stay on-platform. No asking the customer for cash, no swapping numbers to book direct. Chat messages that look like off-platform attempts get flagged.
 - [ ] Use change orders for any extra work and price (capped at 50% of the original service price). Never demand cash on site.
@@ -81,7 +87,7 @@ Full version lives in `05-provider-onboarding-and-training.md`. Short form for r
 - [ ] Treat customers and their homes with respect. Damage, theft, or harassment leads to suspension and possible removal.
 - [ ] Respond to disputes within 48 hours. Silence escalates the case for staff review using the evidence on file; it does not protect your side of the record.
 
-Commission by tier (flat per tier, taken off the service price): Founding 10%, New 15%, Verified 13%, Pro 11%, Elite 9%. Tier requirements: Verified = 5+ jobs and 4.0+ rating; Pro = 25+ jobs, 4.5+ rating, no open disputes; Elite = 100+ jobs, 4.7+ rating, TESDA-certified, no open disputes. Founding is invite-only.
+Seeded tier-base commission (taken off the service price): Founding 10%, New 15%, Verified 13%, Pro 11%, Elite 9%. Effective provider/category/service agreements can differ, and every booking snapshots its exact rate. Tier requirements: Verified = 5+ jobs and 4.0+ rating; Pro = 25+ jobs, 4.5+ rating, no open disputes; Elite = 100+ jobs, 4.7+ rating, TESDA-certified, no open disputes. Founding is invite-only and held from new assignment under E63.
 
 ---
 
@@ -157,7 +163,7 @@ Copy-paste ready. Replace `[bracketed]` fields. Bilingual (English with Bisaya o
 ### 6.2 Provider approval message
 
 (The app also sends an automatic "Account Approved" notification. Use this for a personal touch.)
-> Congrats [Name], you're approved on onService as a [tier] provider. Your commission is [X]% per job. Keep your NBI current and your ratings up to move to the next tier. First jobs will start coming through as offers (45 seconds to accept). Welcome aboard.
+> Congrats [Name], you're approved on onService as a [tier] provider. The current prospective commission shown in your account is [X]%; each booking will preserve the exact rate shown for that job. Keep your NBI current and your ratings up to become eligible for the next tier review. First jobs will start coming through as offers (45 seconds to accept). Welcome aboard.
 
 ### 6.3 Provider rejection message
 
@@ -194,7 +200,7 @@ Use during provider review (admin Provider detail, Profile tab). Pass mark is a 
 | Government ID front + back | Clear, name matches application | [ ] |
 | NBI clearance | Uploaded, issued within 6 months, not expired | [ ] |
 | Selfie | Matches the ID photo (visual review, no auto-verification in v1.0) | [ ] |
-| NBI expiry date recorded | Entered so the 30-day warning works | [ ] |
+| NBI expiry date recorded | Entered for the manual expiry queue; E62 means the one-time warning worker cannot be relied on | [ ] |
 | Skills test | Passed (per-category question bank, section 5) | [ ] |
 | References | 2 references contacted | [ ] |
 | Service categories | Sensible for their skills | [ ] |
@@ -296,11 +302,11 @@ Reminder: suspected privacy incidents are contained and sent to the DPO immediat
 
 **New provider activation:**
 - [ ] Application approved in admin (NBI + gov ID + selfie verified)
-- [ ] Tier set (default New; Founding only if invited)
+- [ ] Tier set to default New (do not newly assign Founding while E63 is open)
 - [ ] Service categories and service area confirmed
 - [ ] Payout method on file (GCash/Maya 09XXXXXXXXX, or bank 8-16 digits)
 - [ ] TIN collected before first payout (flag if approaching ₱500,000 YTD for BIR withholding)
-- [ ] Welcome message sent; commission rate explained
+- [ ] Welcome message sent; prospective agreement and per-booking immutable commission explained
 - [ ] Branded shirt arranged
 - [ ] Probation flagged (first 3 jobs, before/after photos)
 - [ ] First-job support contact assigned

@@ -489,10 +489,9 @@ export async function issueOR(input: IssueOrInput): Promise<OfficialReceipt> {
     });
   }
 
-  // Audit row — system issuance has no admin user, so admin_id is best-effort.
-  // The admin_actions table currently requires admin_id NOT NULL; if the
-  // schema rejects the insert we log + continue (the OR itself is the
-  // authoritative artifact and must not be rolled back here).
+  // Audit row. System issuance has no admin user. Migration 055 permits a
+  // NULL admin_id for system-authored evidence; failure is still isolated so
+  // an audit outage cannot roll back the already-persisted receipt artifact.
   // gate-c-allowed: best-effort-audit-only — try/catch'd, OR row durable from prior insert, audit failure doesn't invalidate money path
   try {
     await db.query(
@@ -633,6 +632,7 @@ export async function cancelOR(
         cancelledBy,
         original.id,
         JSON.stringify({
+          bookingId: original.bookingId,
           originalOrNumber: original.orNumber,
           cancellationOrId: cancellation.id,
           cancellationOrNumber: cancellation.orNumber,

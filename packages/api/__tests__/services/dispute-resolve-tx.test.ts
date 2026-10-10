@@ -14,12 +14,14 @@ jest.mock('../../src/models/db', () => {
 jest.mock('../../src/services/dispute.service', () => ({
   resolveDisputeInTransaction: jest.fn(),
   resolveDispute: jest.fn(),
+  assertDisputeResolutionAvailable: jest.fn(),
   assignDispute: jest.fn(),
   escalateDispute: jest.fn(),
 }));
 
 jest.mock('../../src/services/escrow.service', () => ({
   refundFromEscrow: jest.fn(),
+  processEscrowRefundPaymentStep: jest.fn(),
   releasePartialEscrow: jest.fn(),
   releaseEscrow: jest.fn(),
 }));
@@ -52,12 +54,15 @@ const HAPPY_HELPER = {
   bookingId: BOOKING_ID,
   bookingTotalAmount: 50000,
   providerId: PROVIDER_ID,
+  pushRequests: [],
+  refundPaymentMethod: 'wallet',
 };
 
 beforeEach(() => {
   resetDbMock();
   (disputeService.resolveDisputeInTransaction as jest.Mock).mockReset();
   (escrowService.refundFromEscrow as jest.Mock).mockReset();
+  (escrowService.processEscrowRefundPaymentStep as jest.Mock).mockReset();
   (escrowService.releasePartialEscrow as jest.Mock).mockReset();
   (escrowService.releaseEscrow as jest.Mock).mockReset();
 });
@@ -128,8 +133,9 @@ describe('Bug 83 — adminResolveDispute transactional', () => {
       ),
     ).rejects.toThrow(/simulated audit failure/);
 
-    // Post-commit escrow refund/release MUST NOT run when transaction failed.
+    // Post-commit payment step/release MUST NOT run when transaction failed.
     expect(escrowService.refundFromEscrow).not.toHaveBeenCalled();
+    expect(escrowService.processEscrowRefundPaymentStep).not.toHaveBeenCalled();
     expect(escrowService.releaseEscrow).not.toHaveBeenCalled();
   });
 
@@ -150,9 +156,12 @@ describe('Bug 83 — adminResolveDispute transactional', () => {
     const txCalls = getTxCalls();
     expect(txCalls.find((c) => /INSERT INTO admin_actions/.test(c.sql))).toBeUndefined();
     expect(escrowService.refundFromEscrow).not.toHaveBeenCalled();
+    expect(escrowService.processEscrowRefundPaymentStep).not.toHaveBeenCalled();
   });
 
-  it('runs post-commit escrow refund + releasePartialEscrow on partial_refund', async () => {
+  // MC-03: the escrow debit itself now commits inside resolveDisputeInTransaction
+  // (mocked here); after commit only the payment-record step and the release run.
+  it('runs the post-commit payment step + releasePartialEscrow on partial_refund, never a second escrow refund', async () => {
     (disputeService.resolveDisputeInTransaction as jest.Mock).mockResolvedValue({
       ...HAPPY_HELPER,
       refundAmount: 30000,
@@ -169,7 +178,10 @@ describe('Bug 83 — adminResolveDispute transactional', () => {
       ADMIN_ID,
     );
 
-    expect(escrowService.refundFromEscrow).toHaveBeenCalledWith(BOOKING_ID, 30000, expect.stringContaining('partial_refund'));
+    expect(escrowService.refundFromEscrow).not.toHaveBeenCalled();
+    expect(escrowService.processEscrowRefundPaymentStep).toHaveBeenCalledWith(
+      BOOKING_ID, 30000, 'Admin dispute resolution: partial_refund', 'wallet', DISPUTE_ID,
+    );
     expect(escrowService.releasePartialEscrow).toHaveBeenCalledWith(BOOKING_ID, 20000);
   });
 
@@ -191,11 +203,12 @@ describe('Bug 83 — adminResolveDispute transactional', () => {
 
     expect(escrowService.releaseEscrow).toHaveBeenCalledWith(BOOKING_ID);
     expect(escrowService.refundFromEscrow).not.toHaveBeenCalled();
+    expect(escrowService.processEscrowRefundPaymentStep).not.toHaveBeenCalled();
   });
 
-  it('does not crash when post-commit gateway refund fails', async () => {
+  it('does not crash when the post-commit payment step fails', async () => {
     (disputeService.resolveDisputeInTransaction as jest.Mock).mockResolvedValue(HAPPY_HELPER);
-    (escrowService.refundFromEscrow as jest.Mock).mockRejectedValue(new Error('gateway timeout'));
+    (escrowService.processEscrowRefundPaymentStep as jest.Mock).mockRejectedValue(new Error('gateway timeout'));
     setTxQueryImpl(makeRouter([
       { match: /INSERT INTO admin_actions/, rows: [{ id: 'audit-res' }], rowCount: 1 },
     ]));

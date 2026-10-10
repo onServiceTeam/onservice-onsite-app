@@ -1,34 +1,49 @@
-// BUG-PHASE181-01 — admin-latent decide routes (provider apps,
-// service-area-change requests) accepted unbounded reason strings.
-// Same server-cap shape as Phase 152-168 + Phase 179 + Phase 180.
+import express from 'express';
+import request from 'supertest';
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+const providerDecisionMock = jest.fn().mockResolvedValue({ status: 'approved' });
+const areaDecisionMock = jest.fn().mockResolvedValue({ status: 'approved' });
+jest.mock('../src/services/provider-application-review.service', () => ({
+  decideApplication: (...args: unknown[]) => providerDecisionMock(...args),
+}));
+jest.mock('../src/services/service-area-change.service', () => ({
+  decide: (...args: unknown[]) => areaDecisionMock(...args),
+}));
+jest.mock('../src/middleware/auth.middleware', () => ({
+  authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction): void => {
+    (req as express.Request & { user: unknown }).user = { userId: 'operator', role: 'super_admin' };
+    next();
+  },
+}));
 
-const SOURCE = readFileSync(
-  resolve(__dirname, '../src/routes/admin-latent.routes.ts'),
-  'utf8',
-);
+import adminLatentRouter from '../src/routes/admin-latent.routes';
 
-describe('BUG-PHASE181-01 — admin decide routes have explicit reason cap', () => {
-  it('defines DECIDE_REASON_MAX = 5000 and validateDecideReason helper', () => {
-    expect(SOURCE).toMatch(/DECIDE_REASON_MAX\s*=\s*5000/);
-    expect(SOURCE).toMatch(/function\s+validateDecideReason/);
-  });
+it('Bug PHASE181-01 — admin decision routes reject oversized reasons before invoking either decision service', async () => {
+  const app = express();
+  app.use(express.json());
+  app.use('/admin', adminLatentRouter);
+  app.use((error: { statusCode?: number; message?: string },
+    _req: express.Request, res: express.Response, _next: express.NextFunction,
+  ) => res.status(error.statusCode ?? 500).json({ error: error.message }));
+  const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  for (const endpoint of [
+    `/admin/provider-applications/${id}/decide`,
+    `/admin/service-area-changes/${id}/decide`,
+  ]) {
+    const rejected = await request(app).post(endpoint)
+      .send({ decision: 'approved', reason: 'x'.repeat(5001) });
+    expect(rejected.status).toBe(400);
+    expect(rejected.body.error).toBe('reason cannot exceed 5000 characters.');
+  }
+  expect(providerDecisionMock).not.toHaveBeenCalled();
+  expect(areaDecisionMock).not.toHaveBeenCalled();
 
-  it('applies validateDecideReason in provider-applications/decide route', () => {
-    expect(SOURCE).toMatch(
-      /reason\s*=[\s\S]+?validateDecideReason\(reason\)[\s\S]+?'approved' && decision !== 'rejected' && decision !== 'sent_back'/,
-    );
-  });
-
-  it('applies validateDecideReason in service-area-changes/decide route', () => {
-    expect(SOURCE).toMatch(
-      /reason\s*=[\s\S]+?validateDecideReason\(reason\)[\s\S]+?'approved' && decision !== 'rejected'\)/,
-    );
-  });
-
-  it('PHASE181-01 fix-comment is preserved', () => {
-    expect(SOURCE).toMatch(/BUG-PHASE181-01 fix/);
+  // Exercise the inclusive cap on the route whose canonical reason contract
+  // is 5000 characters. Provider approval applies a stricter downstream cap.
+  const accepted = await request(app).post(`/admin/service-area-changes/${id}/decide`)
+    .send({ decision: 'approved', reason: 'x'.repeat(5000) });
+  expect(accepted.status).toBe(200);
+  expect(areaDecisionMock).toHaveBeenCalledWith({
+    changeId: id, adminUserId: 'operator', decision: 'approved', reason: 'x'.repeat(5000),
   });
 });

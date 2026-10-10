@@ -7,13 +7,16 @@ import React, { useState } from 'react';
 // Post-fix: two optional text inputs below the document slots feed
 // the onboarding store; terms.tsx submit forwards them to
 // /providers/apply (validator + service updated in this same fix).
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, Image, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, Image, ActivityIndicator, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 import { uploadImages } from '@/services/upload.service';
-import { Button } from '@/components/ui';
+import { ProviderApplicationDraftActions } from '@/components/ProviderApplicationDraftActions';
+import { applicationFieldsFromStore, draftFieldsSchema } from '@/services/provider-application-draft.service';
+import { useApplicationOperation } from '@/hooks/useApplicationOperation';
+import { useApplicationSession } from '@/stores/provider-application-session.store';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Check, FileText } from '@/components/icons';
 
@@ -39,33 +42,39 @@ export default function DocumentsScreen(): React.ReactElement {
   const { isPhone } = useResponsive();
   const [uploading, setUploading] = useState<DocField | null>(null);
   const [localPreviews, setLocalPreviews] = useState<Partial<Record<DocField, string>>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [expiryError, setExpiryError] = useState<string | null>(null);
+  const operation = useApplicationOperation(() => setUploading(null));
+  const draftBusy = useApplicationSession(state => state.busy);
 
   const pickAndUpload = async (field: DocField): Promise<void> => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Photo library access is needed to upload documents.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: false,
-      quality: 0.8,
-    });
-
-    if (result.canceled || result.assets.length === 0) return;
-
+    if (uploading) return;
+    const isCurrent = operation.begin();
+    if (!isCurrent) return;
     setUploading(field);
+    setError(null);
     try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!isCurrent()) return;
+      if (status !== 'granted') {
+        setError('Photo library access is needed to upload documents. Allow access and try again.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'], allowsMultipleSelection: false, quality: 0.8,
+      });
+      if (!isCurrent() || result.canceled || result.assets.length === 0) return;
       const localUri = result.assets[0]!.uri;
-      const uploaded = await uploadImages([localUri], 'onboarding');
-      store.setDocument(field, uploaded[0]!.url);
+      const uploaded = await uploadImages([localUri], 'onboarding', isCurrent);
+      if (!isCurrent()) return;
+      const reference = uploaded[0]?.url;
+      if (!reference) throw new Error('Upload returned no document');
+      store.setDocument(field, reference);
       setLocalPreviews((current) => ({ ...current, [field]: localUri }));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Upload failed';
-      Alert.alert('Upload Error', msg);
+    } catch {
+      if (isCurrent()) setError('Your document could not be uploaded. Any previous file is unchanged. Choose the file and try again.');
     } finally {
-      setUploading(null);
+      if (isCurrent()) setUploading(null);
     }
   };
 
@@ -73,10 +82,12 @@ export default function DocumentsScreen(): React.ReactElement {
     !!store.governmentIdFrontUri && !!store.governmentIdBackUri && !!store.nbiClearanceUri;
   const uploadedCount = DOC_SLOTS.filter(({ field }) => !!store[field]).length;
 
-  const handleNext = (): void => {
+  const validateContinue = (): boolean => {
+    setError(null);
+    setExpiryError(null);
     if (!allUploaded) {
-      Alert.alert('Required', 'Please upload all three documents to continue.');
-      return;
+      setError('Please upload all three documents to continue.');
+      return false;
     }
     // BUG-PHASE62-01 fix — pre-fix the optional NBI Expiry / Gov ID
     // Number TextInputs accepted any string and forwarded raw to
@@ -86,24 +97,18 @@ export default function DocumentsScreen(): React.ReactElement {
     // Provider Certifications fix in Phase 60 (BUG-PHASE60-01). Now:
     // catch the format issue here, before the user advances.
     const expiry = (store.nbiExpiryDate ?? '').trim();
-    if (expiry.length > 0 && !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
-      Alert.alert(
-        'Invalid Expiry Date',
-        'NBI expiry date must be in YYYY-MM-DD format (e.g. 2027-01-15) or left blank.',
-      );
-      return;
+    if (!draftFieldsSchema.shape.nbiExpiryDate.safeParse(expiry || null).success) {
+      setExpiryError('Enter a real NBI expiry date in YYYY-MM-DD format (e.g. 2027-01-15), or leave it blank.');
+      return false;
     }
     if (expiry.length > 0) {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
       if (expiry < today) {
-        Alert.alert(
-          'Expired NBI',
-          'The NBI expiry date is in the past. NBI clearance must be valid (issued within 6 months).',
-        );
-        return;
+        setExpiryError('The NBI expiry date is in the past. Upload your current clearance or correct the date.');
+        return false;
       }
     }
-    router.push(Routes.PROVIDER_ONBOARDING.SELFIE);
+    return true;
   };
 
   return (
@@ -134,6 +139,7 @@ export default function DocumentsScreen(): React.ReactElement {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.title}>Verification Documents</Text>
+        {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
         <Text style={styles.subtitle}>
           Upload your government ID and NBI clearance for identity verification.
           These files stay in the private verification area and are available only through authorized review.
@@ -174,10 +180,10 @@ export default function DocumentsScreen(): React.ReactElement {
                   style={[styles.docSlot, uri && styles.docSlotDone]}
                   onPress={() => pickAndUpload(field)}
                   activeOpacity={0.7}
-                  disabled={isLoading}
+                  disabled={Boolean(uploading) || draftBusy}
                   accessibilityRole="button"
-                  accessibilityLabel={`${label}. ${isLoading ? 'Uploading' : uri ? 'On file. Tap to replace' : 'Required. Tap to upload'}`}
-                  accessibilityState={{ disabled: isLoading, busy: isLoading }}
+                  accessibilityLabel={`${label}. ${isLoading ? 'Selecting or uploading' : uri ? 'On file. Tap to replace' : 'Required. Tap to upload'}`}
+                  accessibilityState={{ disabled: Boolean(uploading) || draftBusy, busy: isLoading }}
                 >
                   {isLoading ? (
                     <ActivityIndicator size="small" color={colors.primary} />
@@ -225,7 +231,10 @@ export default function DocumentsScreen(): React.ReactElement {
               keyboardType="numbers-and-punctuation"
               maxLength={10}
               accessibilityLabel="NBI expiry date, optional"
+              aria-invalid={Boolean(expiryError)}
+              aria-describedby={expiryError ? 'nbi-expiry-error' : undefined}
             />
+            {expiryError ? <Text nativeID="nbi-expiry-error" style={styles.error} accessibilityRole="alert">{expiryError}</Text> : null}
             <Text style={styles.fieldLabel}>Government ID Number (optional)</Text>
             <Text style={styles.fieldHint}>Speeds up admin review. Stored alongside the ID image.</Text>
             <TextInput
@@ -240,13 +249,15 @@ export default function DocumentsScreen(): React.ReactElement {
             />
           </View>
         </View>
-      </ScrollView>
-
       <View style={styles.footer}>
         <View style={styles.footerInner}>
-          <Button title="Next" onPress={handleNext} disabled={!allUploaded} />
+          <ProviderApplicationDraftActions fields={{ ...applicationFieldsFromStore(store),
+            nbiExpiryDate: store.nbiExpiryDate?.trim() || null }} validateContinue={validateContinue}
+            disabled={Boolean(uploading)} continueDisabled={!allUploaded}
+            onContinue={() => router.push(Routes.PROVIDER_ONBOARDING.SELFIE)} />
         </View>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -364,6 +375,7 @@ const styles = StyleSheet.create({
   // Phase K MED-K07 styles.
   fieldLabel: { ...typography.body, fontWeight: '600', color: colors.text, marginTop: spacing.md, marginBottom: 2 },
   fieldHint: { ...typography.caption, color: colors.textTertiary, marginBottom: spacing.sm },
+  error: { ...typography.bodySmall, color: colors.error, marginBottom: spacing.sm },
   input: {
     ...typography.body,
     color: colors.text,

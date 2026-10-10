@@ -19,10 +19,12 @@ import { platformConfig } from '@/config/platform.config';
 import {
   getAccessToken,
   getRefreshToken,
+  getStoredUser,
   storeTokens,
   clearTokens,
   removeSecureItem,
 } from './secure-storage';
+import { getDeviceFingerprint } from './device-fingerprint.service';
 
 // MMKV cache for non-PII data (push token, hasOnboarded flag etc.).
 // Tokens + user PII are in `./secure-storage` (OS-keychain-encrypted) per
@@ -91,6 +93,8 @@ export class ApiError extends Error {
 }
 
 interface ApiRequestInit extends Omit<RequestInit, 'body' | 'method'> {
+  /** One-time proof operations must opt out of session refresh/replay. */
+  auth?: 'session' | 'session-no-replay' | 'anonymous';
   method?: string;
   body?: unknown;
   params?: Record<string, unknown>;
@@ -141,42 +145,99 @@ async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosL
   }
 
   const controller = new AbortController();
+  let cancelBody: (() => void) | undefined;
+  let rejectAbort: (reason: unknown) => void = () => undefined;
+  const aborted = new Promise<never>((_resolve, reject) => { rejectAbort = reject; });
+  const abortReason = (): unknown => controller.signal.reason
+    ?? Object.assign(new Error('The request was aborted.'), { name: 'AbortError' });
+  const onAbort = (): void => {
+    cancelBody?.();
+    rejectAbort(abortReason());
+  };
+  controller.signal.addEventListener('abort', onAbort, { once: true });
   const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const abortFromCaller = (): void => controller.abort(init.signal?.reason);
 
-  let res: Response;
   try {
-    res = await fetch(finalUrl, {
-      ...init,
-      method,
-      headers,
-      body: serializedBody,
-      signal: init.signal ?? controller.signal,
-    });
+    const operation = (async (): Promise<ApiAxiosLikeResponse<T>> => {
+      // A caller may cancel sooner, but must not replace the request's deadline.
+      if (init.signal?.aborted) abortFromCaller();
+      else init.signal?.addEventListener('abort', abortFromCaller, { once: true });
+      if (controller.signal.aborted) throw abortReason();
+      const res = await fetch(finalUrl, {
+        ...init,
+        method,
+        headers,
+        body: serializedBody,
+        signal: controller.signal,
+      });
+      // A transport may ignore its signal, including after returning headers.
+      // Never consume/deliver a late response; explicitly cancel streamed bodies.
+      if (controller.signal.aborted) {
+        void res.body?.cancel().catch(() => undefined);
+        throw abortReason();
+      }
+      const readBody = async (binary = false): Promise<string | Blob> => {
+        if (!res.body?.getReader) return binary ? res.blob() : res.text();
+        const reader = res.body.getReader();
+        cancelBody = (): void => { void reader.cancel(abortReason()).catch(() => undefined); };
+        try {
+          const decoder = binary ? null : new globalThis.TextDecoder();
+          const chunks: ArrayBuffer[] = [];
+          let text = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (controller.signal.aborted) throw abortReason();
+            if (done) break;
+            if (decoder) text += decoder.decode(value, { stream: true });
+            else chunks.push(new Uint8Array(value).buffer);
+          }
+          return decoder ? text + decoder.decode()
+            : new Blob(chunks, { type: res.headers.get('Content-Type') ?? '' });
+        } catch (error) {
+          void reader.cancel(error).catch(() => undefined);
+          throw error;
+        } finally {
+          cancelBody = undefined;
+          reader.releaseLock();
+        }
+      };
+
+      // Fetch resolves at headers. Keep cancellation alive until its body is read.
+      if (init.responseType === 'blob') {
+        if (!res.ok) {
+          const errText = await readBody().catch(error => {
+            // An interrupted 401 body is not permission to refresh/replay a POST.
+            if (controller.signal.aborted) throw error;
+            return '';
+          });
+          let errBody: ApiFailure | null = null;
+          try { errBody = errText ? (JSON.parse(errText as string) as ApiFailure) : null; } catch { /* ignore */ }
+          throw new ApiError(res.status, errBody, `HTTP ${res.status}`);
+        }
+        const blob = await readBody(true);
+        return { data: blob as unknown as T, status: res.status, ok: true };
+      }
+
+      let parsed: unknown = null;
+      const text = await readBody();
+      if (text) {
+        try { parsed = JSON.parse(text as string); } catch { /* not JSON */ }
+      }
+
+      if (!res.ok) {
+        throw new ApiError(res.status, parsed as ApiFailure | null, `HTTP ${res.status}`);
+      }
+      return { data: parsed as T, status: res.status, ok: true };
+    })();
+    // Also settle non-streaming native transports that ignore AbortSignal.
+    // The observed operation cannot later deliver credentials or replay a POST.
+    return await Promise.race([operation, aborted]);
   } finally {
     clearTimeout(timeoutId);
+    init.signal?.removeEventListener('abort', abortFromCaller);
+    controller.signal.removeEventListener('abort', onAbort);
   }
-
-  if (init.responseType === 'blob') {
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      let errBody: ApiFailure | null = null;
-      try { errBody = errText ? (JSON.parse(errText) as ApiFailure) : null; } catch { /* ignore */ }
-      throw new ApiError(res.status, errBody, `HTTP ${res.status}`);
-    }
-    const blob = await res.blob();
-    return { data: blob as unknown as T, status: res.status, ok: true };
-  }
-
-  let parsed: unknown = null;
-  const text = await res.text();
-  if (text) {
-    try { parsed = JSON.parse(text); } catch { /* not JSON */ }
-  }
-
-  if (!res.ok) {
-    throw new ApiError(res.status, parsed as ApiFailure | null, `HTTP ${res.status}`);
-  }
-  return { data: parsed as T, status: res.status, ok: true };
 }
 
 // Phase K MED-K03 fix — single-flight refresh.
@@ -193,8 +254,30 @@ async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosL
 // concurrent 401s await the SAME in-flight promise instead of
 // kicking off their own refresh. After the refresh resolves, the
 // gate is cleared and subsequent 401s start fresh.
-let inFlightRefresh: Promise<string | null> | null = null;
+interface RefreshFlight { ownerId: string | null; refreshToken: string; promise: Promise<string | null> }
+let inFlightRefresh: RefreshFlight | null = null;
 let authSessionExpiredHandler: (() => void) | null = null;
+
+function currentAccountId(): string | null {
+  const stored = getStoredUser();
+  if (!stored) return null;
+  try {
+    const user = JSON.parse(stored) as { id?: unknown } | null;
+    return typeof user?.id === 'string' && user.id.length > 0 ? user.id : null;
+  } catch { return null; }
+}
+
+function assertSameAccount(ownerId: string | null): void {
+  if (currentAccountId() === ownerId) return;
+  throw accountChangedError();
+}
+
+function accountChangedError(): ApiError {
+  return new ApiError(409, { success: false, error: {
+    code: 'account_changed', statusCode: 409,
+    message: 'Your sign-in session changed. Reload this screen before trying again.',
+  } }, 'Your sign-in session changed.');
+}
 
 /**
  * Keep the transport independent from the Zustand store while still allowing
@@ -205,57 +288,99 @@ export function setAuthSessionExpiredHandler(handler: () => void): void {
 }
 
 async function refreshOnce(): Promise<string | null> {
-  // Coalesce concurrent callers onto the same in-flight refresh.
-  if (inFlightRefresh) return inFlightRefresh;
+  const ownerId = currentAccountId();
+  const refreshToken = getRefreshToken();
+  // UX-1315: do not leave a permanently resolved-null flight after this exit.
+  if (!refreshToken) return null;
+  // UX-1314: another account or a newer login for the same account must never
+  // join the previous session's rotation. Normal rotation updates this key.
+  if (inFlightRefresh?.ownerId === ownerId && inFlightRefresh.refreshToken === refreshToken) return inFlightRefresh.promise;
 
-  inFlightRefresh = (async () => {
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) return null;
+  const flight: RefreshFlight = { ownerId, refreshToken, promise: Promise.resolve(null) };
+  inFlightRefresh = flight;
+  flight.promise = (async () => {
     try {
+      let deviceFingerprint: string | undefined;
+      try { deviceFingerprint = await getDeviceFingerprint(); }
+      catch { deviceFingerprint = undefined; } // Best-effort on supported clients.
+      if (currentAccountId() !== ownerId || getRefreshToken() !== refreshToken) return null;
       const res = await rawFetch<{ success: boolean; data: { accessToken: string; refreshToken?: string } }>(
         '/api/v1/auth/refresh-token',
-        { method: 'POST', body: { refreshToken }, _bearerOverride: '' },
+        { method: 'POST', body: { refreshToken, deviceFingerprint }, _bearerOverride: '' },
       );
+      // Logging out or signing in while the request is in flight must not
+      // resurrect old credentials or replace the newer token pair.
+      if (currentAccountId() !== ownerId || getRefreshToken() !== refreshToken) return null;
       const data = res.data?.data;
-      if (!data?.accessToken) return null;
+      if (typeof data?.accessToken !== 'string' || !data.accessToken
+        || (data.refreshToken !== undefined && (typeof data.refreshToken !== 'string' || !data.refreshToken))) return null;
       storeTokens(data.accessToken, data.refreshToken ?? refreshToken);
+      flight.refreshToken = data.refreshToken ?? refreshToken;
       return data.accessToken;
     } catch {
       return null;
     } finally {
-      // Clear the gate AFTER the promise settles so the next 401
-      // (which arrives after the rotation) starts a fresh refresh.
-      // We microtask-defer the clear so other awaiters resolve
-      // against the SAME promise reference before it's nulled.
-      setTimeout(() => { inFlightRefresh = null; }, 0);
+      // Let same-account awaiters share this result for this tick. A late
+      // previous-account completion must not erase a newer flight's gate.
+      setTimeout(() => { if (inFlightRefresh === flight) inFlightRefresh = null; }, 0);
     }
   })();
-  return inFlightRefresh;
+  return flight.promise;
 }
 
 /**
- * Rotate the current mobile token pair on demand. Approval and staff-role
- * transitions use this before entering a workspace whose API authorization is
- * carried in the access-token role claim.
+ * Rotate the current mobile token pair on demand without changing authority.
+ * A canonical role change rejects the old pair and requires fresh sign-in.
+ * Staff-invite acceptance has its own server-issued replacement credentials.
  */
 export async function refreshAuthSession(): Promise<boolean> {
   return (await refreshOnce()) !== null;
 }
 
-async function request<T>(url: string, init: ApiRequestInit, isRetry = false): Promise<ApiAxiosLikeResponse<T>> {
+async function request<T>(
+  url: string, init: ApiRequestInit, isRetry = false, ownerId = currentAccountId(),
+): Promise<ApiAxiosLikeResponse<T>> {
+  const { auth = 'session', ...requestInit } = init;
+  if (!['session', 'session-no-replay', 'anonymous'].includes(auth)) {
+    throw new Error('Invalid request authentication mode.');
+  }
+  const noReplay = auth !== 'session';
+  const initiatingRefreshToken = noReplay ? getRefreshToken() : undefined;
   try {
-    return await rawFetch<T>(url, init);
+    assertSameAccount(ownerId);
+    if (noReplay) {
+      // Proof requests use only their selected authority, never caller-supplied
+      // or ambient cookies. Do not forward this private policy option to fetch.
+      const headers = new Headers(requestInit.headers);
+      headers.delete('Authorization');
+      headers.delete('Cookie');
+      headers.delete('Cookie2');
+      Object.assign(requestInit, { headers, credentials: 'omit', cache: 'no-store',
+        redirect: 'error', _bearerOverride: auth === 'anonymous' ? '' : getAccessToken() ?? '' });
+    }
+    const result = await rawFetch<T>(url, requestInit);
+    assertSameAccount(ownerId); // Do not deliver old-account data to a new UI.
+    if (noReplay && getRefreshToken() !== initiatingRefreshToken) throw accountChangedError();
+    return result;
   } catch (err) {
+    assertSameAccount(ownerId); // Do not replay or sign out a different account.
+    // Also reject an older proof response after a new login/rotation for the
+    // same account. A caller must resolve uncertainty, not apply old credentials.
+    if (noReplay && getRefreshToken() !== initiatingRefreshToken) throw accountChangedError();
+    if (noReplay) throw err;
     if (
       err instanceof ApiError &&
       err.status === 401 &&
       !isRetry &&
       !url.endsWith('/api/v1/auth/refresh-token')
     ) {
+      const refreshTokenBefore = getRefreshToken();
       const newToken = await refreshOnce();
+      assertSameAccount(ownerId);
       if (newToken) {
-        return await request<T>(url, { ...init, _bearerOverride: newToken }, true);
+        return await request<T>(url, { ...init, _bearerOverride: newToken }, true, ownerId);
       }
+      if (getRefreshToken() !== refreshTokenBefore) throw accountChangedError();
       // Refresh failed → tokens are dead. Clear secure store + legacy cache.
       clearTokens();
       removeSecureItem('user');

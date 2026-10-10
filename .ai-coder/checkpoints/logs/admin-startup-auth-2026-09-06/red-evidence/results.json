@@ -1,0 +1,9 @@
+{
+  "sourceRevision": "4fd131383cb62a05b360782bce1ecdf7e7e8d413",
+  "createdAt": "2026-09-06T02:03:37.350Z",
+  "evidenceType": "compiled delayed startup/login ownership; synthetic HTTP; not live auth or realtime acceptance",
+  "indexSha256": "9cb463a76b9cab310a7bbb97b995f825880ecf99f333954bf75b149d5c51bc35",
+  "entrySha256": "82df59ca6fc617836baa6b410fd7ffac849ec021d54724008d8e5ab91310b838",
+  "checks": [],
+  "failure": "Error: expect(locator).toBeVisible() failed\n\nLocator: getByText('new@example.invalid', { exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"to.be.visible\" with timeout 5000ms\n  - waiting for getByText('new@example.invalid', { exact: true })\n\n    at captureRawStack (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright-core\\lib\\coreBundle.js:3130:17)\n    at callMatcherAsStep (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright\\lib\\matchers\\expect.js:12873:57)\n    at Object.toBeVisible (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright\\lib\\matchers\\expect.js:12863:23)\n    at C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\.ai-coder\\checkpoints\\logs\\admin-startup-auth-2026-09-06\\audit.mjs:119:69"
+}

@@ -23,6 +23,6 @@ it('Bug UX-631 — a support-thread link without a ticket ID fails explicitly in
   render(<QueryClientProvider client={client}><SupportThreadScreen /></QueryClientProvider>);
 
   expect(screen.getByText('Support request unavailable')).toBeTruthy();
-  expect(screen.getByText(/does not identify a support request/i)).toBeTruthy();
+  expect(screen.getByText(/does not contain a valid support request ID/i)).toBeTruthy();
   expect(mockGetMyTicket).not.toHaveBeenCalled();
 });

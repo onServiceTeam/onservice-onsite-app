@@ -559,7 +559,7 @@ describe('exportAuditLogCsv', () => {
 
   it('omits WHERE when no filters', async () => {
     dbQueryMock.mockResolvedValueOnce(rows([]));
-    await svc.exportAuditLogCsv({});
+    await svc.exportAuditLogCsv({ viewerRole: 'super_admin' });
     expect(dbQueryMock.mock.calls[0][0] as string).not.toMatch(/WHERE/);
   });
 

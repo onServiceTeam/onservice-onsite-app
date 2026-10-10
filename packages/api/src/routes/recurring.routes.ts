@@ -2,17 +2,33 @@ import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { createAppError } from '../middleware/error.middleware';
-import { createRecurringSchema } from '../validators/recurring.validators';
+import {
+  createRecurringSchema,
+  customerRecurringCancelBodySchema,
+  customerRecurringSkipBodySchema,
+  recurringAttemptsQuerySchema,
+  recurringIdParamsSchema,
+  recurringPaginationQuerySchema,
+  recurringPreviewParamsSchema,
+  type RecurringPaginationQuery,
+} from '../validators/recurring.validators';
 import * as recurringService from '../services/recurring.service';
 // E02 / D22 (2026-05-02) — auto-charge management endpoints.
 import * as autoChargeService from '../services/recurring-auto-charge.service';
 
-function getParamId(req: AuthenticatedRequest): string {
-  const id = req.params.id;
-  if (typeof id !== 'string' || !id) {
-    throw createAppError('Recurring booking ID is required.', 400);
+function requireCustomer(
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction,
+): void {
+  // BUG-SEC-020 — recurring series are customer-owned commercial records.
+  // Pre-fix, any authenticated provider, provider staff member, or admin
+  // could call the create endpoint and write a series under their user ID.
+  if (req.user?.role !== 'customer') {
+    next(createAppError('Customer access required.', 403));
+    return;
   }
-  return id;
+  next();
 }
 
 const router = Router();
@@ -25,6 +41,7 @@ const router = Router();
 router.post(
   '/',
   authMiddleware,
+  requireCustomer,
   validationMiddleware(createRecurringSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -33,7 +50,7 @@ router.post(
         providerId?: string;
         categoryId: string;
         subcategoryId: string;
-        originalBookingId?: string;
+        originalBookingId: string;
         frequency: 'weekly' | 'bi_weekly' | 'monthly';
         preferredDay: number;
         preferredTime: string;
@@ -75,11 +92,12 @@ router.post(
 router.get(
   '/',
   authMiddleware,
+  requireCustomer,
+  validationMiddleware({ query: recurringPaginationQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.userId;
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
+      const { page, pageSize } = req.query as unknown as RecurringPaginationQuery;
 
       const result = await recurringService.getCustomerRecurringBookings(userId, page, pageSize);
 
@@ -100,12 +118,11 @@ router.get(
 router.get(
   '/preview/:subcategoryId',
   authMiddleware,
+  requireCustomer,
+  validationMiddleware({ params: recurringPreviewParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const subcategoryId = req.params.subcategoryId;
-      if (typeof subcategoryId !== 'string' || !subcategoryId) {
-        throw createAppError('Subcategory ID is required.', 400);
-      }
+      const subcategoryId = req.params.subcategoryId as string;
       const preview = await recurringService.getRecurringPricePreview(subcategoryId);
       res.json({ success: true, data: preview });
     } catch (err) {
@@ -117,9 +134,11 @@ router.get(
 router.get(
   '/:id',
   authMiddleware,
+  requireCustomer,
+  validationMiddleware({ params: recurringIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const recurringId = getParamId(req);
+      const recurringId = req.params.id as string;
       const userId = req.user!.userId;
       const rb = await recurringService.getRecurringBooking(recurringId, userId);
 
@@ -136,14 +155,18 @@ router.get(
 router.get(
   '/:id/instances',
   authMiddleware,
+  requireCustomer,
+  validationMiddleware({
+    params: recurringIdParamsSchema,
+    query: recurringPaginationQuerySchema,
+  }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const recurringId = getParamId(req);
+      const recurringId = req.params.id as string;
       const userId = req.user!.userId;
       await recurringService.getRecurringBooking(recurringId, userId);
 
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
+      const { page, pageSize } = req.query as unknown as RecurringPaginationQuery;
       const result = await recurringService.getRecurringInstances(recurringId, page, pageSize);
 
       res.json({
@@ -160,9 +183,11 @@ router.get(
 router.post(
   '/:id/pause',
   authMiddleware,
+  requireCustomer,
+  validationMiddleware({ params: recurringIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const recurringId = getParamId(req);
+      const recurringId = req.params.id as string;
       const userId = req.user!.userId;
       const rb = await recurringService.pauseRecurringBooking(recurringId, userId);
 
@@ -179,9 +204,11 @@ router.post(
 router.post(
   '/:id/resume',
   authMiddleware,
+  requireCustomer,
+  validationMiddleware({ params: recurringIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const recurringId = getParamId(req);
+      const recurringId = req.params.id as string;
       const userId = req.user!.userId;
       const rb = await recurringService.resumeRecurringBooking(recurringId, userId);
 
@@ -198,9 +225,14 @@ router.post(
 router.post(
   '/:id/cancel',
   authMiddleware,
+  requireCustomer,
+  validationMiddleware({
+    params: recurringIdParamsSchema,
+    body: customerRecurringCancelBodySchema,
+  }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const recurringId = getParamId(req);
+      const recurringId = req.params.id as string;
       const userId = req.user!.userId;
       const { reason } = req.body as { reason?: string };
 
@@ -219,15 +251,16 @@ router.post(
 router.post(
   '/:id/skip',
   authMiddleware,
+  requireCustomer,
+  validationMiddleware({
+    params: recurringIdParamsSchema,
+    body: customerRecurringSkipBodySchema,
+  }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const recurringId = getParamId(req);
+      const recurringId = req.params.id as string;
       const userId = req.user!.userId;
       const { skipDate } = req.body as { skipDate: string };
-
-      if (!skipDate) {
-        throw createAppError('Skip date is required.', 400);
-      }
 
       const rb = await recurringService.skipNextInstance(recurringId, userId, skipDate);
 
@@ -248,6 +281,7 @@ router.post(
 router.put(
   '/:id/auto-charge',
   authMiddleware,
+  requireCustomer,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       // E20 containment: the underlying amount, lifecycle, consent, provider
@@ -269,9 +303,11 @@ router.put(
 router.delete(
   '/:id/auto-charge',
   authMiddleware,
+  requireCustomer,
+  validationMiddleware({ params: recurringIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const recurringId = getParamId(req);
+      const recurringId = req.params.id as string;
       const userId = req.user!.userId;
       await autoChargeService.clearAutoChargePaymentMethod(recurringId, userId);
       res.json({ success: true, message: 'Auto-charge payment method cleared.' });
@@ -285,13 +321,18 @@ router.delete(
 router.get(
   '/:id/auto-charge/attempts',
   authMiddleware,
+  requireCustomer,
+  validationMiddleware({
+    params: recurringIdParamsSchema,
+    query: recurringAttemptsQuerySchema,
+  }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const recurringId = getParamId(req);
+      const recurringId = req.params.id as string;
       const userId = req.user!.userId;
       // Authorization: only the owner can read their own history.
       await recurringService.getRecurringBooking(recurringId, userId);
-      const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+      const { limit } = req.query as unknown as { limit: number };
       const attempts = await autoChargeService.listAttempts(recurringId, limit);
       res.json({ success: true, data: attempts });
     } catch (err) {

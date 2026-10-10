@@ -34,6 +34,10 @@ import { sendOtp, verifyOtp } from '../src/services/auth.service';
 beforeEach(() => {
   dbQueryMock.mockReset();
   dbTransactionMock.mockReset();
+  // Successful verification now has a separate account/session transaction.
+  // The per-test mockImplementationOnce callbacks still exercise OTP consume.
+  dbTransactionMock.mockImplementation(async (cb: Parameters<typeof import('../src/models/db').db.transaction>[0]) =>
+    cb({ query: dbQueryMock }));
   sendOtpSmsMock.mockReset();
   sendOtpSmsMock.mockResolvedValue(true);
   process.env.JWT_SECRET = 'test-secret';
@@ -313,7 +317,8 @@ describe('CRIT-N12 — OTP codes are stored as hashes, not plaintext', () => {
     await verifyOtp('+639171234567', '111111');
     // The serialization guarantee: the row is locked FOR UPDATE so a
     // concurrent verify blocks until this one commits.
-    expect(dbTransactionMock).toHaveBeenCalledTimes(1);
+    // OTP consumption commits independently of the account/session transaction.
+    expect(dbTransactionMock).toHaveBeenCalledTimes(2);
     expect(selectSql).toMatch(/FOR UPDATE/);
   });
 

@@ -81,7 +81,12 @@ describe('MED-N129 — addStaffMember writes admin_actions audit row inside trx'
       .mockResolvedValueOnce({ rows: [{ name: 'admin' }], rowCount: 1 })
       .mockRejectedValueOnce(Object.assign(new Error('dup'), { code: '23505' }));
     await expect(
-      addStaffMember({ userId: 'u1', roleId: 'r1', addedByAdminId: 'super-1' }),
+      addStaffMember({
+        userId: 'u1',
+        roleId: 'r1',
+        addedByAdminId: 'super-1',
+        reason: 'Create a required operations directory profile.',
+      }),
     ).rejects.toThrow(/already a staff member/);
   });
 });

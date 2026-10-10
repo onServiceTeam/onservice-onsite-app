@@ -1,10 +1,20 @@
 # LAUNCH-LIMITATIONS — onService Onsite App
 
-This file enumerates **known product / behavioural limitations** present
-at v1 launch. Each item is intentional (not a bug) but operators and
-support staff need to be aware so they can route around it. Each entry
-links to the originating decision (phase / dispatch) and a follow-up
-ticket where applicable.
+This file records known limitations, unresolved defects, launch blockers and
+their resolution history. An entry here is not automatically an accepted v1
+trade-off or permission for operators to work around a safety hold. Keep each
+original finding and its later evidence; do not delete a limitation to make
+the product appear ready.
+
+**Current-state note, 2026-09-05:** Ken approved engineering work on the existing
+escalations. E32 SSH authentication is resolved, so older references below to
+access preventing all server inspection are historical. The correct production
+checkout has been verified, recovery tested, and its pending SQL migrations
+rehearsed in isolation. That is not a live rollout or closure of the underlying
+feature, money, privacy, legal or operational requirements. Use
+[the resumption evidence ledger](docs/audits/AUTONOMOUS-RESUMPTION-2026-09-05.md)
+for later checkpoints. Historical screen/test counts and phase-era launch
+claims below require current evidence, not automatic acceptance.
 
 ---
 
@@ -104,17 +114,21 @@ to prevent submit-then-cancel loops). Backed by a single SELECT count
 on `data_subject_requests.received_at >= NOW() - INTERVAL '24 hours'`.
 Edge-level WAF rate limit remains in place as defence in depth.
 
-## 5. Consent versions — no forced re-consent on publish — RESOLVED 2026-05-02
+## 5. Consent versions — no forced re-consent on publish — RESOLVED, activation corrected 2026-09-03
 
 **Where:** [apps/admin/src/pages/ConsentVersionsPage.tsx](apps/admin/src/pages/ConsentVersionsPage.tsx)
 
-**Status:** RESOLVED — opt-in `material` flag added to consent publish.
-
+**Status:** RESOLVED — opt-in `material` flag plus effective-date activation.
 **Resolution:** `complianceAdmin.publishConsentVersion` now accepts an
 optional `material: boolean` (defaults to `false`, preserving the legacy
-marker-only semantics). When the operator passes `material: true`, every
-user who previously granted an OLDER version of that consent type is
-considered "pending re-consent". A new customer-facing endpoint
+marker-only semantics). Publication writes its audit event immediately. When
+the operator passes `material: true`, every user who previously granted an
+OLDER version of that consent type is considered "pending re-consent" only
+after the recorded `effectiveAt` timestamp has arrived. A future material
+version remains scheduled, and any earlier active material version remains
+authoritative until then. Missing or malformed timestamps on legacy publish
+events fall back to the original publication time without rewriting history.
+A customer-facing endpoint
 `GET /api/v1/compliance/my-pending-consents` returns the outstanding
 items per user; mobile `customer/data-rights.tsx` surfaces a banner with
 an inline "I agree" button that calls `POST /api/v1/compliance/consent`
@@ -124,8 +138,9 @@ and any surface that needs the consent must trigger its own opt-in
 flow. The decision of which publishes are material is captured at
 publish time (operator UI passes `material: true`) and is not applied
 retroactively, so historical publishes remain inert. See
-`packages/api/__tests__/launch-limit-5-material-reconsent.test.ts` for
-the 9 behavioural tests.
+`packages/api/__tests__/launch-limit-5-material-reconsent.test.ts` and
+`packages/api/__tests__/bug-ops-386-consent-effective-date-activation.test.ts`
+for behavioral coverage.
 
 ## 6. Admin booking-participant support messaging — RESOLVED, corrected 2026-08-30
 
@@ -207,7 +222,28 @@ launch-cutover runbook.
 
 ---
 
-## 11. CAPTCHA client/server linkage — CODE RESOLVED; PRODUCTION KEY PENDING
+## 11. CAPTCHA client/server linkage — REQUEST-CONTRACT SOURCE-VERIFIED; LIVE ACCEPTANCE OPEN
+
+**2026-10-09 correction to the earlier code-resolved claim:** SEC-080 found
+that the actual send-OTP validator discarded `captchaToken`. The existing
+client/verifier code below therefore did not prove that a solved challenge
+could complete the request. The narrow candidate correction preserves the
+bounded opaque token for server verification. The original final nine checks
+failed seven cases; the corrected connected run passes 11 suites / 58 tests,
+including actual PostgreSQL OTP hashing, consumption and session issuance.
+The external challenge response and SMS delivery are fixtures, not live proof.
+Exact-candidate CI, deployed keys/widget and web/native acceptance remain
+required. See `docs/audits/OTP-CAPTCHA-CONTRACT-2026-10-09.md`.
+
+Subsequent source receipt: `1e9f4ad0` passed CI `37898457350` and Gates
+`37898457325` after the independently reproduced refund lock correction. All
+nine SEC-080 cases, issuer/refund SQL and both Nginx checks execute/pass. The
+later SMS predecessor `7de317ee` also executes all nine cases in successful
+CI `37904947493`. This resolves the historical source-CI requirement above,
+not configured live widget/provider, deployed source or web/native acceptance.
+
+The earlier implementation and dated deployment findings follow as history,
+not a fresh claim that the live configuration was re-inspected.
 
 The earlier hCaptcha plan was superseded. Customer/provider OTP login and
 registration now use Cloudflare Turnstile after the configured failed-attempt
@@ -263,18 +299,26 @@ now closed:
     (not per user) to avoid log spam.
   - `changeOwnAdminPassword({userId, oldPassword, newPassword})`
     verifies old, validates new (12–128 chars, must differ), hashes
-    with current scrypt N, clears the flag, audits — all in one trx.
+    with current scrypt N, clears the flag, increments the session generation,
+    removes refresh sessions, revokes CSRF tokens, and audits in one transaction.
+    After commit it disconnects the account's live sockets.
 - **Routes** (security.routes.ts):
   - `GET /api/v1/security/admin/legacy-password-stats` (any admin tier)
   - `POST /api/v1/security/admin/flag-legacy-password-hashes`
     (super_admin only)
   - `POST /api/v1/security/admin/me/change-password`
-- **Login flow** (auth.routes.ts) — admin login + admin 2FA verify
-  responses now include `mustRotatePassword: boolean` so the admin
-  web app can route straight to the change-password screen and gate
-  every other route until the rotation lands. Tokens are still
-  issued (so the user CAN reach the change-password screen).
-- **Tests** — 12 tests in `launch-limit-12-admin-password-rotation.test.ts`.
+- **Runtime enforcement** — admin login + 2FA responses include
+  `mustRotatePassword`, but React is not the security boundary. Canonical HTTP
+  middleware returns `428 password_rotation_required` outside identity,
+  own-password, and logout boundaries; the special 2FA middleware applies the
+  same rule to normal access sessions; Socket.IO rejects a flagged handshake;
+  and a campaign disconnects newly flagged live sockets immediately.
+- **Current-browser continuity** — successful replacement invalidates every old
+  access/refresh/CSRF/socket session, then issues one new cookie session to the
+  browser that verified the old password.
+- **Tests** — the original focused suite plus SEC-036/041/042 and Admin
+  UX-1025 execute the transaction, route, socket, server-error-code, and client
+  redirect behavior.
 
 **Operator workflow:**
 1. Apply migration 116.
@@ -349,7 +393,24 @@ job per expired request to a dedicated `account-anonymization` worker,
 preserving per-row resilience while removing the synchronous per-row
 DB cost from the cron path. Not blocking launch.
 
+2026-10-08 concurrency correction, candidate only: OPS-521/522 make session
+renewal and the existing partial anonymization transaction lock the account
+before refresh tokens. Real PostgreSQL tests reproduce the old inversions and
+verify both operation orderings and rollback. This does not close the separate
+eligibility/claim gap: booking/dispute/balance checks still occur outside the
+cascade transaction, and request claiming/completion are separate writes.
+The historical "not blocking launch" classification above applies to per-row
+throughput, not acceptance of those races or the unresolved E21/E43 retention
+and DSR requirements. No retention scope or live records changed. Evidence:
+`docs/audits/ACCOUNT-SESSION-LOCK-ORDER-2026-10-08.md`.
+
 ## 18. axe-core wired in dev console; automated assertion deferred (Phase 13 Dispatch F)
+
+**2026-09-05 correction:** the "no test runner" rationale below is obsolete.
+Admin now has Vitest, jsdom and Testing Library configuration, and the complete
+Admin CI job executes those tests. That does not establish a complete automated
+accessibility pass. Keep accessibility acceptance open until its actual checks
+and screen coverage are inspected. The original rationale follows as history.
 
 `@axe-core/react` is registered in `apps/admin/src/main.tsx` behind an
 `import.meta.env.DEV` guard, so a11y violations stream to the browser
@@ -698,6 +759,13 @@ chat scoped out of D07's provider-job-execution-trust focus per spec
 
 ## 26. NPC RA 10173 compliance posture (Phase 14 Dispatch 08)
 
+**Historical phase claim, not a current compliance sign-off.** The broad launch
+statement and post-launch classification below are superseded by the current
+launch-cutover requirements and the unresolved privacy/retention/document
+work in sections 45, 46 and 57. Engineering approval is not qualified legal
+review, registration evidence or proof of production operation. Do not use
+this old checklist to tell customers that compliance has been certified.
+
 The platform meets the operational compliance bar for v1.0 launch:
 
 - **Consent records:** all consent actions write rows to `consent_records`
@@ -752,6 +820,13 @@ The platform meets the operational compliance bar for v1.0 launch:
 
 ## 27. Provider onboarding manual review (Phase 14 Dispatch 09)
 
+**2026-09-05 implementation boundary:** manual review remains the direction,
+but the historical steps below overstate corrections/resubmission. The new
+compatibility queue projects real pending provider applications and delegates
+approval/rejection to Provider 360. A send-back request is still explicitly
+rejected until the durable revision workflow exists; do not promise that step
+8 works. Section 52 and the E74 resumption ledger track the remaining lifecycle.
+
 v1.0 launch ships with **manual admin review** of every provider
 application. No automated liveness vendor (Onfido / Persona / similar)
 is contracted at launch.
@@ -799,6 +874,12 @@ is contracted at launch.
 ---
 
 ## 28. Mobile customer per-screen polish + visual baselines (Phase 14 Dispatch 11)
+
+**Historical deferral, superseded by the audit-remediation bar.** F#3 native
+visual baseline evidence remains required before the launch-ready tag, not an
+optional v1.1 task. The original bridge tests and claims that every screen was
+working are not current acceptance evidence. The full customer/provider/admin
+Stitch audit still requires screen-specific rendered and behavioral evidence.
 
 D11 ships the **cross-cutting infrastructure** for the 15 polish patterns
 (i18n, toast, ConfirmModal, FilterChips/Modal, PhoneInput, StatusBadge,
@@ -1226,12 +1307,20 @@ uploads + presigned option all shipped, no further code is required for §35a.
   UPDATEs; a PayMongo failure in prod rolls the trx back so no partial state is
   recorded. Test: `b-crit01-crit02-partial-refund.test.ts` (FOR-UPDATE shape).
 - `escrow.service.refundFromEscrow` debits escrow in a trx, then calls
-  `processRefund` OUTSIDE it. A mid-failure leaves escrow debited but the intent
-  not updated. **Mitigated (2026-06-04):** every caller now enqueues a
-  gateway-retry on failure (see below), so the eventual-consistency retry brings
-  the intent in line. Full single-transaction atomicity (escrow ledger +
-  PayMongo) is impractical because PayMongo is an external call; the retry queue
-  is the accepted reconciliation path. Tracked for the v1.1 rework below.
+  `processRefund` OUTSIDE it. Full single-transaction atomicity (escrow ledger +
+  PayMongo) is impossible because PayMongo is external. **Corrected again
+  2026-09-01:** the shared refund primitive now caps against the booking's own
+  immutable escrow ledger, credits wallet-funded refunds back to the customer
+  wallet in the same transaction, and gateway failure queues
+  `process_payment_refund`, which cannot touch escrow. Booking 360 additionally
+  creates that payment-only work item inside the same transaction as the local
+  refund, support-case note, and admin audit, closing the commit-to-enqueue crash
+  window for operator refunds. Its first worker attempt is delayed by ten
+  minutes so it cannot race the request handler's immediate payment attempt.
+  The normal confirmation, auto-confirm, force-complete, and manual-release
+  paths now release a partially refunded booking's ledger remainder using a
+  prorated copy of its immutable terms instead of stranding or over-releasing
+  the remainder.
 - `dispute.service` (resolveDispute / acceptPartialOffer / addProviderResponse) —
   **RESOLVED (2026-06-04).** Pre-fix these three paths committed the booking to
   `status='resolved'` and then, post-commit, called `refundFromEscrow` /
@@ -1246,19 +1335,35 @@ uploads + presigned option all shipped, no further code is required for §35a.
 These are low-probability today (refunds/disputes are admin-driven and serialized
 in practice) but are real correctness/money-integrity gaps.
 
-> **Newly found while fixing §35b (low-probability, retry-only) — `refund_from_escrow`
-> retry can double-debit escrow.** The gateway-retry worker's `refund_from_escrow`
-> action replays the WHOLE `refundFromEscrow` (escrow ledger debit + PayMongo). If
-> the original post-commit call committed the escrow debit and then PayMongo
-> failed, the enqueued retry re-debits the platform-escrow wallet. It only fires
-> when a refund's PayMongo leg fails after the escrow leg committed (rare), and
-> the existing `handleCancellation` + `dispute-admin` paths already carry the same
-> latent issue — the §35b dispute fix did not introduce it, it made those paths
-> consistent. **v1.1 fix (proposed):** split the escrow-ledger move (do it inside
-> the resolution transaction, atomic with the status flip) from the PayMongo leg
-> (post-commit), and add a `paymongo_refund_only` retry action that replays ONLY
-> `processRefund` (which is now itself `FOR UPDATE`-locked and cap-revalidated, so
-> it is safe to replay). Then no retry ever re-touches the escrow ledger.
+**October 9 correction to that historical assessment:** operator requests are
+not inherently serialized. Exact CI on `7fa7c520` returned an unexpected 500
+for concurrent refunds on the same support case. OPS-536 reproduced a real
+case-lock/booking-lock deadlock and changes the case's initial lock to
+`FOR NO KEY UPDATE` before locking the booking. Controlled HTTP/PostgreSQL
+tests now cover affordable overlapping partial refunds, over-cap conflicts,
+replay, closure during a lock wait and an independent case proceeding. See
+`docs/audits/REFUND-CASE-LOCK-2026-10-09.md` for exact evidence and publication
+status. This narrow source correction is not live, nor proof of full refund
+safety, external retry safety or a deadlock-free wider lock graph.
+
+> **`refund_from_escrow` double-debit risk — RESOLVED IN CODE 2026-09-01.**
+> Post-commit payment failures in customer cancellation, admin cancellation,
+> dispute refunds, and Booking 360 now enqueue `process_payment_refund`, not a
+> second escrow movement. The legacy `refund_from_escrow` action remains only
+> for a failure before the local escrow transaction commits. Migration 163
+> widens the queue constraint. Behavioral coverage is OPS-283 through OPS-298.
+
+**Remaining external-provider limitation:** the current PayMongo integration
+does not send or persist a provider idempotency key for refunds. If PayMongo
+accepts a refund but the process dies before the local payment-intent update or
+queue-success marker commits, an automatic retry is ambiguous. A missing or
+invalid production payment ID now blocks the local payment-intent update and
+surfaces reconciliation rather than falsely reporting success. New external
+payment authorization is held under E14, so this cannot affect a new launch
+transaction while that hold remains. Before E14 is lifted, implement a
+gateway-reconciled refund-operation state machine or obtain verified provider
+idempotency behavior; do not treat an uncertain network outcome as safe to
+blindly replay.
 
 ### 35c. File-upload defense-in-depth — RESOLVED (2026-06-04)
 Pre-fix: `upload.service.validateFile` checked the CLIENT-SUPPLIED MIME +
@@ -1684,6 +1789,13 @@ deployment, and live role evidence remain blocked by E32 until the server
 identity is established. See
 `.ai-coder/escalations/E34-dpo-admin-route-segregation-is-incomplete-2026-08-30.md`.
 
+October 9 correction to the historical scope claim: the shared participant
+booking status route still admitted a DPO through an unsupported-role
+fall-through. This was reproduced with actual SQL and HTTP, including a
+wallet refund and false customer notices. Limitation 97 records the narrow
+candidate correction; the earlier admin-route matrix did not prove this
+shared endpoint or live segregation safe.
+
 ---
 
 ## 52. Provider onboarding drafts and rejected resubmission are not durable
@@ -1708,6 +1820,115 @@ audited request-changes/resubmission lifecycle. E32 blocks the required live
 row inspection. See
 `.ai-coder/escalations/E35-provider-onboarding-source-of-truth-and-resubmission-2026-08-30.md`.
 
+2026-09-05 candidate update, **still open**: the read-only production inventory
+is now completed (zero legacy progress rows and associated application audit
+rows), superseding the old E32 inspection block above. The typed private draft
+foundation in `f80d41ff` passed CI `33972140158`, including actual PostgreSQL
+OPS-486 through OPS-489. A follow-up adds exact-revision submission and atomic
+draft consumption, with first CI still pending at publication. Neither is live.
+The mobile/web screens remain memory-only until their owner-bound hydration
+and save/retry/conflict flow is connected and verified. Worker expiry, privacy
+inventory, immutable review revisions and same-record correction/resubmission
+also remain open. See `docs/architecture/provider-application-lifecycle.md`.
+
+2026-09-06 applicant candidate update, **still open**: owner-bound hydration,
+save/retry/conflict/reload/discard controls now run in the real six-step
+application. Terms saves and submits the same normalized revision. Commit
+`6a138e46` passed CI `33981649089` and Gates `33981649071`, including all four
+CI jobs and 567 mobile suites / 851 passing tests with 84 explicit TODOs.
+This supersedes the preceding statement that the candidate screens remain
+memory-only, not the live deployment limitation. A further status-screen
+correction distinguishes the canonical pending/approved/rejected/suspended/
+deactivated values and guards delayed account activation. Detailed evidence is
+in `docs/audits/PROVIDER-APPLICATION-REVIEW-STATUS-2026-09-06.md`. Fresh browser
+acceptance is not complete: the local Expo export failed with a filesystem read
+error before producing a bundle. Draft expiry scheduling, privacy inventory,
+review revisions, correction/resubmission and paired release remain open.
+
+Later 2026-09-06 evidence: the supported full-workspace install produced a
+fresh compiled browser build outside OneDrive. Both review URLs passed 84
+synthetic state/viewport checks; screenshot inspection exposed and led to
+correction of phone card spacing and decision-inappropriate guidance. Before/
+after evidence and full test results are retained in the review-status audit.
+This supersedes the local build impediment for that workflow, not the remaining
+six-step browser/native acceptance or the latest Stitch-reference gap.
+
+Further 2026-09-06 browser evidence, **still not deployed**: a complete
+synthetic-HTTP browser run exposed a navigator reset that the earlier mocked
+router test missed, missing browser checked states and a clipped Cancel action.
+UX-1335/1336/1337 correct those defects. All six viewport flows now pass entry,
+save failure/retry, refresh, two-tab conflict, confirmed reload/discard, actual
+Back, four uploads and exact-version submission. Sixty screen captures and
+before-fix failures are retained in
+`docs/audits/PROVIDER-APPLICATION-BROWSER-2026-09-06.md`. The full mobile suite
+passed 577 files / 861 tests, with 84 TODOs; the 84 review checks passed again.
+This is not real database/browser paired acceptance, native evidence, latest
+Stitch signoff or completion of reviewer corrections/resubmission/privacy.
+
+Further 2026-09-06 candidate correction, **still open**: OPS-500 connects the
+existing bounded expiry service to a separate five-minute scheduler job;
+OPS-501 includes retained owner draft fields in private JSON/CSV account
+archives, with read failures failing the export. The lifecycle document now
+records the draft-specific privacy inventory, including the gap between
+account anonymization, draft-row expiry, uploaded files and archived copies.
+Local focused behavior tests pass; the guarded PostgreSQL tests require fresh
+CI at publication. No production cleanup or complete erasure is claimed.
+Reviewer revisions, correction/resubmission, approved E21 retention, full
+browser/native/Stitch acceptance and paired deployment remain open. See
+`docs/audits/PROVIDER-DRAFT-EXPIRY-EXPORT-2026-09-06.md`.
+
+Further 2026-09-06 submitted-record stage, **still open**: migration 173 and
+atomic submission capture original accepted fields, catalog labels and owned
+document references on the same provider identity. Private account archives
+include retained owner revisions. No legacy evidence is manufactured. Final
+focused verification passed 15 suites / 27 tests on real isolated PostgreSQL;
+the full local run still failed two Docker-dependent nginx tests. Fresh CI,
+full-chain rehearsal through 173 and paired release remain required. Approval
+is not yet revision-bound; changes-requested/resubmission and reviewer history
+screens are not implemented. Object bytes/retention are not made immutable by
+these rows. E21/E43 and full browser/native/Stitch acceptance remain open. See
+`docs/audits/PROVIDER-SUBMITTED-EVIDENCE-2026-09-06.md`.
+
+2026-09-07 private-review reader, **still open**: OPS-510/511 add bounded
+historical summaries, exact submitted fields and provider/revision-scoped
+original document streaming for operations admins. Missing legacy evidence is
+not reconstructed; current profile/status and original evidence stay distinct.
+Eight focused suites / 13 tests passed on real isolated PostgreSQL. The full
+local run passed 984 suites / 3,428 tests, with two existing TODOs and only the
+two Docker-unavailable nginx tests failing (239.303 seconds). Fresh CI remains
+required. Admin revision screens, revision-bound decisions, correction and
+resubmission, retained file bytes and paired release are not completed by this
+API stage. See `docs/audits/PROVIDER-SUBMISSION-REVIEW-READER-2026-09-07.md`.
+
+2026-09-30 operator-screen stage, **still open**: the reader commit `ee16e2e3`
+passed CI `34082814032` and Gates `34082814039`, including OPS-510/511 and both
+nginx tests (986 suites / 3,430 passing API tests, two TODOs). Provider 360 now
+renders preserved submissions separately from current profile/catalog data,
+with exact fields, bounded paging, honest missing/error states and owner-bound
+private previews. Four focused rendered tests and four compiled browser widths
+pass, including a narrow-header layout regression found during screenshot review.
+The full two-worker admin run passed 702 tests with three existing TODOs; its
+earlier failing default-worker run is retained in
+`docs/audits/PROVIDER-SUBMISSION-REVIEW-UI-2026-09-30.md`.
+Revision-bound decisions, correction/resubmission, governed legacy admission,
+object-byte retention and matched API/web/schema deployment remain unfinished.
+No production rollout or latest-Stitch/every-screen acceptance is claimed.
+
+Further 2026-09-30 decision stage, **still open**: both admin decision entry
+points now review the preserved submission and send its exact revision ID.
+The canonical service refuses stale/foreign/absent or already-decided evidence
+and commits status/role, immutable decision, audit and applicant inbox notice
+together. Migration 174 is additive, with no legacy backfill. Six actual
+PostgreSQL regressions and rendered/browser checks cover the new contract;
+16 compiled synthetic decision journeys and four reader repeats pass at four
+widths. The full local API run still failed only the two Docker-unavailable
+nginx checks; admin passed 704 tests with three TODOs, with the later history
+test passing separately. Fresh CI, full selected-image migration through 174,
+paired acceptance and deployment remain required. Correction/resubmission,
+lock-order standardization, governed legacy admission, decision export/retention,
+original object bytes and full Stitch/native evidence remain open. See
+`docs/audits/PROVIDER-SUBMISSION-DECISIONS-2026-09-30.md`.
+
 ---
 
 ## 53. Provider approval does not enforce the government ID back image
@@ -1722,6 +1943,27 @@ three-field server check as complete KYC enforcement. Tightening the predicate
 requires the E32-blocked aggregate production audit so existing pending and
 approved records are not stranded without a deliberate legacy path. See
 `.ai-coder/escalations/E36-provider-approval-does-not-enforce-government-id-back-2026-08-30.md`.
+
+2026-09-05 continuation under Ken's delegated approval: the read-only live
+inventory and complete-backup verification are now available. No pending rows
+were present. Existing approved records lacked all four references; their
+test/legacy classification and real vetting evidence are not established.
+They were not demoted, backfilled, or represented as verified. OPS-479 adds
+all-four-document validation under the approval transaction's row lock.
+OPS-480 makes owner-role promotion conditional on an active customer or legacy
+provider account with no fraud flag. Both changes remain unpublished to the
+live server and need their fresh mandatory PostgreSQL CI tests. The Admin
+checklist/incomplete-state follow-up, legacy evidence review, correction and
+resubmission, and reactivation-path audit remain open. This item is not closed.
+
+Further 2026-09-05 evidence: OPS-479/480 passed the actual PostgreSQL CI tests
+at `5fb2ab41`, and that full CI/Gates run passed. Five approved records match
+exact public demo fixture identities; one remains unclassified. UX-1311 adds
+the explicit four-document incomplete/loading/error state and front/back
+checklist wording to both admin approval surfaces, with rendered regression
+coverage. These fixes are not deployed. Immutable review revisions,
+correction/resubmission, reactivation safeguards and the remaining legacy
+evidence question prevent full closure.
 
 ---
 
@@ -1843,3 +2085,1779 @@ calculate provider earnings, approve a change, or write a setting. Any future
 rate decision requires an approved policy, minimum evidence standard, human
 approval and audit workflow, and rollback plan. See
 `.ai-coder/escalations/E48-automated-commission-rate-advice-not-approved-2026-08-31.md`.
+
+---
+
+## 60. Tester-feedback screenshot privacy — CODE CONTAINMENT IMPLEMENTED; PRODUCTION PENDING
+
+The prior path stored images under `uploads/feedback/`, served the files through
+both generic public Nginx upload locations with a 30-day public cache, and placed
+the same direct URLs in the protected Admin page. A tester could therefore
+attach a customer, provider, or admin screen containing personal data that was
+retrievable without authentication by anyone who obtained the URL.
+
+Ken approved E52 Option A on 2026-09-01. The code now preserves old files and
+payloads while retrieving evidence through an authenticated, record-linked
+Admin proxy or a header-keyed private pull route. Admin links never expose the
+raw storage path, new intake previews the local browser file, and both Nginx
+vhosts contain an explicit `private, no-store` 404 guard for
+`/uploads/feedback/`. Legacy absolute and current relative storage identifiers
+remain supported without a database migration.
+
+The same pending release also adds version-checked Tester Feedback decisions.
+The API and Admin must be deployed together because the API now requires the
+record's `expectedUpdatedAt` value and rejects a stale operator overwrite with
+409. This is a release-order constraint, not a database migration.
+
+This is not yet resolved in production. E32 prevents the required current
+row/file inventory, backup, deployment, and live validation. Do not delete or
+move existing evidence. Deploy the API/Admin/form support first, verify old and
+new protected retrieval, then activate the Nginx guard and prove ordinary public
+uploads remain unaffected. Follow
+`docs/runbooks/tester-feedback-evidence-privacy.md` and see
+`.ai-coder/escalations/E52-tester-feedback-screenshots-are-public-2026-09-01.md`.
+
+---
+
+## 61. Business-account billing and contract operations are not launch-safe
+
+**2026-09-05 checkpoint:** the findings below describe the original unsafe
+workflow, not a complete inventory of current code. E55 Option A introduced
+controlled commercial terms and statement/payment evidence; the former
+SQL-string-only migration test has been replaced by populated PostgreSQL
+verification. The release-safety ledger records restored production-data
+preservation separately from synthetic fixture coverage. Business-credit
+booking remains held until the distinct E56 provider funding/payable path is
+implemented and verified. No old invoice, booking ownership or payment history
+may be rewritten to conceal these findings.
+
+The Business Account 360 read model now links explicitly stamped bookings to
+customers, providers, invoices, support cases, and disputes. The commercial
+write path underneath it is still unsafe.
+
+The monthly generator selects work through current account membership instead
+of requiring the booking's explicit `business_account_id`. It can put a
+member's personal booking on a company invoice, duplicate one person's work
+across companies, and change selection after membership changes. Explicit
+business booking selection can also fall back silently to a personal
+catalog-priced booking when no eligible contract resolves.
+
+Account approval/suspension, contract lifecycle, discount/credit changes,
+invoice generation, and invoice payment recording do not share the required
+super-admin, reason, preview, version, and transactional audit contract. The
+manual mark-paid action accepts an arbitrary text reference without verified
+amount or payment evidence. The customer enterprise workspace has service and
+store code but no routed screens, so no current app flow sends the explicit
+business account into checkout.
+
+Do not operate these controls as a live B2B billing system. Existing records
+must remain unchanged pending a private production inventory; E32 blocks that
+inspection. E22 separately holds Philippine principal-invoice claims and E14
+blocks treating an external redirect/reference as verified payment. The
+recommended remediation is E55 Option A: contain the writes, rebuild explicit
+commercial booking and draft/readiness/finalization controls, and preserve old
+financial records through append-only corrections rather than rewrites. See
+`.ai-coder/escalations/E55-business-account-billing-and-contract-authority-2026-09-02.md`.
+
+---
+
+## 62. Notification Templates is not a per-channel publishing system
+
+Only `new_job_available` and `booking_matched` read Admin-managed template
+copy. Each uses one title/body for an in-app notification and best-effort push.
+The stored `channel` marker is not a delivery instruction; seeded and custom
+SMS/email rows do not send through this workflow.
+
+Inactive, missing, malformed, or deleted connected rows use built-in fallback
+copy. Deactivation therefore does not suppress a required booking notice.
+Ordinary admins have read-only support visibility. Every lifecycle mutation is
+reserved for super-admin, requires a durable reason, rejects no-op changes, and
+retains the reason in the transactional Admin action.
+
+The current schema has no channel-specific or locale-specific version, draft
+publication, effective date, rollback, test-send evidence, outbox attempt, or
+delivery receipt. Do not activate SMS/email, reinterpret reference rows, or
+claim that the ADMIN-SPEC target is deployed. E66 recommends staged immutable
+event/locale/channel versions with consent/preference enforcement and delivery
+evidence. Production inventory and migration remain blocked by E32. See
+`.ai-coder/escalations/E66-notification-template-channel-publication-and-versioning-2026-09-02.md`.
+
+---
+
+## 63. Admin 2FA recovery governance remains launch-held
+
+TOTP enrollment and login recovery codes are now connected: activation
+atomically creates eight single-use codes, the Admin shows them once and blocks
+entry until the operator acknowledges secure storage, and login consumes one
+code at a time. Temporary setup tokens are rejected by ordinary HTTP and
+Socket.IO authorization.
+
+Privileged factor removal, interrupted enrollment completion, lost-factor
+recovery, last-seat protection, and the existing-account rollout are not yet an
+approved company workflow. Do not expose a routine disable control or perform
+an ad hoc database reset. The detailed threat model and recommended governed
+design are kept in local-only security decision records because this repository
+is public. As pre-decision containment, the existing public factor-removal and
+recovery-code-regeneration mutation routes now return the same explicit `409`
+policy hold without reading or changing recovery state. Commit `19deb1e` passes
+GitHub CI `33608677040` and Gates `33608677041`, including complete API, Admin,
+Mobile, API Docker build/liveness, and all five gates. Production inventory and
+account changes remain blocked by E32.
+
+---
+
+## 64. Shared profile-name changes are transactionally audited in code; production pending
+
+The customer/provider `PATCH /api/v1/auth/me` route previously changed the
+canonical first and last names without preserving the before/after identity in
+the company audit record. That made later support review unable to distinguish
+an operator-visible name change from the name originally associated with an
+older booking, message, review, or payment record.
+
+The route now locks the current user row, rejects a no-op as an unchanged
+response, and commits the name update together with one `user_profile_updated`
+audit event containing only the prior and replacement names plus request
+attribution. A missing audit insert fails the transaction. The change does not
+rewrite booking snapshots, payment records, messages, reviews, or other
+historical transactions. Bug OPS-371 executes the lock, update, audit order,
+before/after values, request attribution, response, and single-transaction
+boundary. Commit `e2409ce` passes GitHub CI `33610063899` and Gates
+`33610063827`, including complete API, Admin, Mobile, API Docker
+build/liveness, and all five gates. API TypeScript and diff checks also passed
+locally. No migration, account mutation, master merge, deployment, server
+synchronization, or production change occurred; E32 remains active.
+
+The matching Admin support handoff is also connected in code. Audit Log labels
+the event **Profile name updated**, identifies whether the subject is a
+customer, provider, provider staff member, or company staff account, and opens
+Customer 360 or an exact provider-owner search as appropriate. Provider
+Management now actually searches the person's full name, business name, phone,
+email, provider ID, and owner user ID, matching the field promise shown to the
+operator. Bugs UX-1026 and OPS-372 execute the rendered customer/provider links
+and both SQL search paths. Commit `4223052` passes GitHub CI `33611777960` and
+Gates `33611777913`, including complete API, Admin, Mobile, API Docker
+build/liveness, and all five gates. Production remains unchanged under E32.
+
+The canonical profile validator now trims both names and rejects values that
+are empty after trimming, while preserving legitimate one-character names.
+The customer Profile screen separately detects an unchanged normalized name,
+closes edit mode, and reports that there is nothing to save without issuing a
+false update request. SEC-045 and UX-1027 execute those boundaries. The first
+UX-1027 CI run `33613949995` correctly failed because the new test captured a
+mock before initialization; fix-forward `ee708ab` replaces the closure capture
+with module-owned Jest mocks. Final GitHub CI `33614523217` and Gates
+`33614523236` pass complete API, Admin, Mobile, API Docker build/liveness, and
+all five gates. No existing identity or historical transaction was rewritten,
+and production remains unchanged under E32.
+
+---
+
+## 65. Marketing records are not campaign execution or verified attribution
+
+The Marketing workspace separates staged promo codes, connected customer-home
+banners, and staff-entered campaign records. Campaign rows do not select an
+audience, send SMS/email/push, authorize a budget, reconcile payment spend, or
+prove that a signup, booking, or revenue amount came from a channel.
+
+Direct editing no longer exposes attribution counters, and the service now
+rejects every direct caller that attempts to overwrite them. A future
+correction requires an append-only, evidence-backed adjustment ledger with
+reason, actor, source, time, and before/after values. Campaign editing also
+rejects an end date before the stored start date. Existing records and counters
+are unchanged.
+
+The committed Marketing screenshots predate the current Home Banners tab and
+manual-source warning. Do not use them as current authenticated evidence. Fresh
+capture is required before launch review. Commits `95f4cc9`, `d8e99f4`, and
+`c87169a` pass GitHub CI `33616036732`, `33616743937`, and `33619612610`,
+plus Gates `33616036700`, `33616743915`, and `33619612351`. Production remains
+unchanged under E32.
+
+---
+
+## 66. Provider-staff accounts lack a safe account and privacy workspace
+
+Provider-staff users currently have assigned jobs, invitations, shared support,
+and logout, but no profile, password/session, notification, account-data, or
+Data Rights workspace. Their authenticated DSRs can reach the DPO queue, and
+the Admin case now links the subject to the employing Provider 360 record and
+names the human handler. That back-office linkage is not a substitute for a
+staff-facing account/privacy surface.
+
+Do not simply expose the customer erasure screen. Its DSR creation can start
+the generic deletion pipeline, while E43 still holds the canonical DSR/deletion
+relationship and no approved rule covers active staff assignments, historical
+performer evidence, provider-team status, or cross-provider history. E21 also
+holds the retention matrix. E69 records the recommended role-aware workspace
+and fail-closed erasure design. No staff route guard, account, assignment, or
+production row was changed during discovery.
+
+---
+
+## 67. Release migration targeting can silently skip prerequisites
+
+Discovered 2026-09-05 while preparing the exact-image restore rehearsal. The
+old production helper passed a final basename to `node-pg-migrate up`, but that
+argument selects exactly one file. When several migrations are pending, a
+successful final-file execution does not prove that earlier required schema
+changes ran. The image-identity and shell-invocation regressions did not test
+this library behavior.
+
+OPS-478 replaces that invocation with a bounded runner that selects all files
+through the reviewed target, rejects unknown/duplicate/out-of-bound history,
+keeps history validation and execution under the existing advisory lock, and
+verifies the final applied set. The real PostgreSQL regression reproduces the
+old failure and exercises prerequisites, dry runs, historical preservation,
+repeat application, later-file exclusion, failure and concurrency boundaries.
+
+Status: implemented locally, release-held pending fresh CI and an exact-image
+rehearsal on the isolated restored database. Local helper tests, lint and API
+TypeScript passed; the new database integration test is skipped locally because
+no safe test PostgreSQL service is available. No production migration, live
+application deployment or historical transaction rewrite was performed for
+this finding. Do not infer launch readiness from the previous candidate's
+green CI. See `docs/runbooks/exact-api-release.md`.
+
+2026-09-05 verification update: **RESOLVED in the verified candidate, not yet
+deployed.** The public-entry fix-forward and UX-1310 candidate passed complete
+CI `33962050423` and Gates `33962050420`. The exact packaged API image for CI
+source `09051d72b57dd3a5d33666ee18900c0997f3cd0f` was rehearsed, without a
+substituted runner, on a fresh isolated restoration of the selected complete
+backup. Dry-run checks preserved public columns/constraints and sampled
+historical records; all 15 pending migrations applied, all 160 migration names
+matched the image, and repeat application added no history entries. Original
+fields in 218 business records and 145 prior migration-history rows were
+unchanged. This is not an exhaustive comparison of every production table or
+authenticated business acceptance. Production remains on `7ed367cd`, with no
+live migration performed. Paired frontend/API publication, rollback and the
+other launch requirements remain open.
+
+---
+
+## 68. Provider reactivation can bypass initial admission
+
+The older API permits a pending applicant to be suspended and then reactivated
+as approved, without passing canonical admission. OPS-481 restricts suspension
+to approved providers and requires a retained approval event, a review timestamp
+and a currently eligible provider account before reactivation. Row/account
+locks, transactional audit/inbox, and unchanged booking holds are covered by
+a new real PostgreSQL regression. This is a candidate change, not deployed or
+claimed verified by its locally skipped database test.
+
+The read-only 2026-09-05 inventory found six approved providers and no pending
+or suspended rows, but no retained provider-approval events for any of the six.
+Five match public demo identities; one remains unclassified. No record was
+changed. A later reactivation would deliberately be refused without retained
+admission proof. Governed legacy classification/admission, durable E74 records,
+NBI renewal and production acceptance remain open. Do not fabricate evidence
+or treat the interim event lookup as the final retention architecture.
+
+2026-09-05 CI update: OPS-481 passed the actual PostgreSQL regression in CI
+`33967149207` (947 API suites / 3,311 tests). All CI jobs and Gates
+`33967149209` passed for `cdad4114130677ad49357d16aab7d052e4801e02`.
+This resolves the local-test uncertainty, not legacy admission or deployment.
+
+---
+
+## 69. Provider application submission concurrency and catalog integrity
+
+The initial submission service checked for duplicates outside its transaction,
+did not recheck the account's current eligibility under a lock, accepted
+inactive/nonexistent categories, and could create repeated category-only links.
+Its undefined-column fallback also tried to use an already-aborted PostgreSQL
+transaction while intending to discard optional review evidence.
+
+OPS-482/483/484 correct those paths without changing existing applications or
+financial records. Three real PostgreSQL regressions cover account/catalog
+concurrency, duplicate requests, optional evidence preservation and atomic
+rollback. Status: candidate implementation, local type/lint and focused tests
+passed; new database tests skipped locally and awaiting CI. No live deployment
+or migration has occurred. These corrections do not implement durable drafts,
+review revisions or resubmissions. See the September 5 resumption audit.
+
+2026-09-05 verification update: **RESOLVED in candidate code, not deployed.**
+Commit `b288524b3ace5a1493e798f7eb538306ee647961` passed CI `33968968274`
+and Gates `33968968271`. The three new database regressions explicitly passed
+within 950 API suites / 3,314 tests. All CI jobs passed. The full application
+lifecycle and release limitations above remain in force.
+
+---
+
+## 70. Customer/provider delayed requests could cross a sign-in change
+
+The shared mobile/web network wrapper could refresh and replay an old-account
+request using a newer account's session, deliver an old response to a new
+screen, or let an old rotation interfere with a newer login. A separate early
+exit with no refresh token could leave the refresh gate permanently stuck.
+
+UX-1314/1315 reproduce both bugs with controlled HTTP promises and account
+changes, then verify refusal of stale delivery/replay, separate account/session
+refresh work, no resurrection after logout, protection of newer same-account
+logins and recovery after a no-token attempt. Status: **candidate fix, not
+deployed**. Full local mobile tests passed (555 files / 839 tests; 84 TODOs
+remain), with type/lint checks passing. Fresh CI remains required. This does
+not cancel server-processed operations or prove complete UI-cache isolation.
+
+2026-09-06 independent verification: commit `87b1450749c0516b1cd1a500eb2ed9adddf1a921`
+passed CI `33974769862` and Gates `33974769636`. All four CI jobs succeeded;
+mobile job `101329422601` explicitly passed UX-1314/1315 and the full 555 suites /
+839 passing tests, with 84 TODOs. This resolves the fresh-CI requirement for
+that transport correction, not deployment or every screen's cache ownership.
+
+---
+
+## 71. Approved applicants need fresh sign-in; verification boxes clipped on phones
+
+The earlier review screen assumed old customer refresh credentials could acquire
+provider authority after approval. Canonical role checks intentionally reject
+both old access and refresh credentials. UX-1339 retains this security boundary
+and explains fresh sign-in, without claiming that a generic session failure proves
+approval. Retained approved screens offer an explicit guarded sign-out rather than
+attempting automatic role promotion. Successful sign-in clears the generic notice.
+
+Actual compiled-browser navigation then exposed verification boxes clipped beyond
+the narrow form. UX-1340 lets the preferred-width boxes shrink without hiding
+overflow or changing verification requirements. Sixty synthetic browser journeys
+passed across six phone/tablet/desktop widths and all five configured code lengths.
+The failed screenshot evidence is retained. Complete local mobile tests pass
+579 files / 863 tests with 84 TODOs; TypeScript and changed-file lint pass.
+
+Status: **candidate corrections, not deployed**. OPS-494 adds real PostgreSQL and
+HTTP coverage of OTP sign-in, approval, revoked old authority and fresh provider
+authority, but is skipped locally until an isolated database is available. Fresh
+candidate CI must execute it before this is treated as independently verified.
+This does not close provider lifecycle, external SMS, native baseline, paired
+release or launch requirements. See
+`docs/audits/PROVIDER-APPROVAL-SIGN-IN-2026-09-06.md` for evidence and limitations.
+
+Independent verification update: candidate `9ec00781` passed CI `33992639416`
+and Gates `33992639405`. OPS-494 explicitly passed with all 960 API suites /
+3,324 tests; mobile passed 579 suites / 863 tests with 84 TODOs. This resolves
+the database-test uncertainty for that candidate, not deployment or launch.
+
+Follow-up candidate corrections OPS-495 and UX-1341/1342 align future approval
+notices with fresh sign-in/setup, route admission messages to owned review or the
+approved workspace, and make their full text readable in both inboxes. Eighteen
+synthetic compiled-browser journeys passed at six widths, and complete mobile
+tests passed 581 files / 865 tests with 84 TODOs. The local API run had 3,301
+passing tests, 22 database skips and two Docker-unavailable Nginx failures; it is
+not a green full API result. New OPS-495 remains locally skipped pending fresh CI.
+No historical notices or live records changed. Evidence and remaining work:
+`docs/audits/PROVIDER-DECISION-NOTIFICATIONS-2026-09-06.md`.
+
+Independent notification verification: `12c59bbb` passed CI `33993696967`
+and Gates `33993696999`, including actual OPS-495 PostgreSQL execution
+(961 API suites / 3,325 tests). UX-1341/1342 explicitly passed with all
+581 mobile suites / 865 tests and 84 TODOs. No deployment has occurred.
+
+---
+
+## 72. Provider date-override forms clipped on narrow browsers
+
+Phone columns inherited wide minimum widths, both action buttons requested the
+full row width, and custom-hours inputs could not shrink below browser defaults.
+The empty list also claimed an active weekly schedule without fetching it.
+UX-1343 through UX-1346 correct these independent issues with rendered regressions.
+
+Status: **resolved in local candidate code, not deployed or yet verified by fresh
+CI**. Complete mobile tests pass 585 suites / 869 tests, with 84 TODOs; TypeScript,
+changed-file lint and the regression-ID gate pass. Twelve compiled synthetic
+browser scenarios pass across six phone/tablet/desktop widths, with exact form
+payload checks and 36 final captures. Three failed browser iterations remain
+available for independent review, including the misleadingly named intermediate
+`verified-evidence` and `accepted-evidence` folders, which are not green results.
+
+Matching, actual persistence, existing bookings and availability rules are
+unchanged and require separate end-to-end review. See
+`docs/audits/PROVIDER-AVAILABILITY-FIT-2026-09-06.md` for scope and remaining work.
+
+Independent verification: `39f5c78b` passed all four jobs in CI `33995233818`
+and Gates `33995233856`. UX-1343 through UX-1346 explicitly passed within
+585 mobile suites / 869 tests, with 84 TODOs. Not deployed.
+
+---
+
+## 73. Saved provider date overrides were disconnected from matching
+
+Both provider-matching queries ignored saved date overrides. Replacing a saved
+override used separate delete/insert statements that could lose the old block on
+failure or interleave concurrent custom-hours saves. The date parser also accepted
+impossible calendar dates. OPS-496 through OPS-498 implement candidate corrections
+for these three defects, without changing existing bookings, pricing or schema.
+
+Local focused tests passed 45 tests / six suites with two explicit database skips.
+The new real-PostgreSQL regressions and fresh CI remain required. Do not infer
+end-to-end eligibility or release readiness: direct assignment, operator
+reassignment, outstanding offer acceptance and support diagnostics still need
+aligned eligibility checks. Public search also contradicts the provider toggle's
+“hidden from search” claim. See
+`docs/audits/PROVIDER-AVAILABILITY-LINKAGE-2026-09-06.md` for evidence, boundaries
+and the continuation plan. No live data was changed.
+
+Independent verification: `68fbab2a` passed all CI jobs in `33996053962`
+and Gates `33996053941`. OPS-496/497/498 explicitly executed successfully,
+including real PostgreSQL rollback/concurrency checks, within 964 API suites /
+3,328 tests. These three defects are resolved in verified candidate code.
+The separate assignment/release limitations remain open; no deployment occurred.
+
+Follow-up UX-1347/1348/1349 correct the availability toggle's search/booking
+claims, reject impossible dates locally and replace the expired date example.
+Complete mobile tests passed 588 suites / 872 tests, with 84 TODOs. Twelve
+compiled synthetic browser scenarios passed with 48 final captures, including
+an actually visible invalid-date warning and zero invalid-date POSTs. The first
+warning capture was too early in its animation and is retained, not treated as
+complete visual evidence. Support instructions now distinguish candidate/live
+behavior and no longer promise the unsupported KYC renewal upload. Fresh CI is
+required for this newer checkpoint. See
+`docs/audits/PROVIDER-AVAILABILITY-GUIDANCE-2026-09-06.md`.
+
+Independent guidance verification: `21e7f93d` passed all four CI jobs in
+`33997197201` and Gates `33997197220`. UX-1347/1348/1349 explicitly passed
+with 588 mobile suites / 872 tests and 84 TODOs. Not deployed.
+
+---
+
+## 74. Weekly schedule defaults and refreshes could misrepresent saved hours
+
+Missing stored weekdays appeared available; new suggested hours could not be
+saved unchanged; refreshes overwrote drafts; completing an earlier save discarded
+newer typing. The screen also overstated how weekly hours affect search visibility.
+UX-1350 through UX-1354 correct these separate defects in candidate code, with
+real-render failures recorded before correction and passing regressions afterward.
+
+Complete mobile tests pass 593 suites / 877 tests, with 84 TODOs. Twelve compiled
+synthetic browser journeys pass at six widths with 48 captures, exact PUT values,
+delayed-save editing and reload checks. Types, changed-file lint and the unchanged
+regression-ID gate pass. Fresh CI is required. No production deployment or
+database change occurred. This does not resolve multi-device concurrent saves,
+all accessibility/account-switch cases or the remaining matching/operator gaps.
+See `docs/audits/PROVIDER-WEEKLY-SCHEDULE-2026-09-06.md` for evidence and next work.
+
+Independent UI verification: `eec23014` passed all four jobs in CI
+`33998508944` and Gates `33998508945`. UX-1350 through UX-1354 explicitly
+passed with 593 mobile suites / 877 tests and 84 TODOs. Not deployed.
+
+Follow-up OPS-499 serializes whole-week replacement by provider within the
+existing transaction, addressing possible combinations of concurrent partial
+weeks. The new real-PostgreSQL regression checks empty/existing weeks, concurrent
+writers, other-provider progress, rollback and unchanged booking rows. Local
+focused results are 21 passing tests and three explicit database skips; types,
+lint and the ID gate pass. **Database verification remains pending fresh CI**.
+No live records or schema changed, and multi-device optimistic conflict warnings
+are not implemented. See
+`docs/audits/PROVIDER-WEEKLY-SCHEDULE-CONCURRENCY-2026-09-06.md`.
+
+Actual PostgreSQL verification: candidate `7ebe5dd9`, API job `101395007170`
+in CI `33999232619`, explicitly passed OPS-499 along with OPS-496/497.
+All 965 API suites / 3,329 tests passed. The new concurrency behavior is
+database-tested in candidate code; full-run completion and deployment are
+separate checks. Gates `33999232613` passed.
+
+Final concurrency run verification: all four CI jobs in `33999232619` completed
+successfully. The remaining deployment and wider assignment limitations persist.
+
+---
+
+## 75. Provider date overrides could display the previous day abroad
+
+The availability list interpreted a date-only value as device-local midnight
+before converting it to Manila. UX-1355 anchors it to Manila midnight and corrects
+the label without changing stored dates, matching or bookings. A real-render
+regression failed in an Auckland-timezone process before correction and passed
+in three fresh timezone processes afterward. Twelve compiled-browser checks
+passed across four timezones and three widths, with 24 retained captures.
+
+Complete mobile tests pass 594 suites / 878 tests, with 84 TODOs; types, lint
+and the unchanged regression-ID gate pass. **Candidate correction, not deployed;
+fresh CI remains required.** Evidence and remaining accessibility/operator work:
+`docs/audits/PROVIDER-OVERRIDE-TIMEZONE-2026-09-06.md`.
+
+Published candidate `1cf7e309` subsequently passed CI `33999991201` (all
+four jobs) and Gates `33999991204`. UX-1355 explicitly passed in the mobile
+job; 594 suites / 878 tests passed, with 84 TODOs. The fresh-CI requirement
+above is resolved for that candidate, not production deployment.
+
+## 76. Provider 360 drafts and contact reveals could follow another record
+
+UX-1356 through UX-1359 reproduce cached-record navigation retaining another
+provider's private contact reveal, note draft, suspension confirmation and
+wallet-adjustment draft. The page's loaded subtree now follows the canonical
+provider ID, resetting those states on a different record while retaining an
+unsaved note during same-provider refresh. E76 records the narrow approved
+engineering containment; no financial policy or live transaction is changed.
+
+Four regressions failed before correction. Full admin tests afterward passed
+569 files / 653 tests, with 1 skipped file / 3 TODOs. Types, lint and the
+unchanged regression-ID gate passed. Thirty compiled-browser scenarios passed
+at six widths with 60 captures and no unexpected HTTP, page exceptions or
+document overflow. **Candidate correction, not deployed; fresh CI required.**
+Full evidence and remaining customer-record, operator and release work:
+`docs/audits/PROVIDER-RECORD-OWNERSHIP-2026-09-06.md`.
+
+Published provider candidate `306ca0ed` passed CI `34001766960` (all four
+jobs) and Gates `34001766965`. Admin logs explicitly pass UX-1356 through
+UX-1359 and all 653 tests, with 3 TODOs. Fresh CI for that provider correction
+is resolved, not the deployment boundary.
+
+## 77. Customer 360 operator drafts could follow a different customer
+
+UX-1360 through UX-1364 reproduce retained private contact, suspension and
+forced-sign-out dialogs, wallet drafts and dispute-tab fraud confirmations
+after warm-cache customer navigation. The loaded page now follows canonical
+customer ID, preserving a same-customer draft on refresh while discarding
+record-specific state on another customer. No money/status action is submitted.
+
+Five regressions failed before correction. The first full corrected admin
+run passed 574 files / 658 tests, with 1 skipped file / 3 TODOs. Types and
+lint passed after correcting test-only typing mistakes. Thirty-six compiled
+browser scenarios passed at six widths, with 72 captures and zero unexpected
+HTTP, page exceptions or document overflow. **Candidate correction, not
+deployed; final local rerun and fresh GitHub CI remain required.** Evidence:
+`docs/audits/CUSTOMER-RECORD-OWNERSHIP-2026-09-06.md`.
+
+Final local rerun after both test-only typing corrections also passed:
+574 files / 658 tests, with 1 skipped file / 3 TODOs, in 174.89 seconds.
+Types and lint passed. The local rerun requirement is resolved; fresh CI
+and deployment are not implied.
+
+Published customer candidate `b1b05b71` passed all four jobs in CI
+`34003132465` and Gates `34003132466`. Admin logs explicitly pass UX-1360
+through UX-1364 and all 658 tests, with 3 TODOs. Its fresh-CI requirement
+is resolved; production deployment remains separate.
+
+## 78. A new admin operator could inherit a previous operator's record cache
+
+UX-1365 reproduces actual logout/login retaining a supervisor's private customer
+contact for an ordinary operator. The route subtree now owns separate query
+clients by authenticated ID/role and signed-out boundary. Same-owner refresh
+retains caching; another owner gets empty route state and a fresh cache. E77
+records the recommended containment and current engineering approval.
+
+The regression failed before correction. Complete admin tests pass 576 files /
+663 tests, with 1 skipped file / 3 TODOs; types, lint and the unchanged ID gate
+pass. Twenty-four compiled browser scenarios pass across customer/provider,
+completed/delayed responses and six widths, with 72 captures and no unexpected
+HTTP, page exceptions or document overflow. Only synthetic auth writes occurred.
+**Candidate correction, not deployed; fresh CI required.** This is not a claim
+that transport retries, async authentication, cross-tab sessions or realtime
+connections are isolated. Evidence and remaining work:
+`docs/audits/ADMIN-ACTOR-QUERY-CACHE-2026-09-06.md`.
+
+Published cache candidate `4fd13138` passed all four jobs in CI `34004877588`
+and Gates `34004877495`. Admin logs explicitly pass UX-1365, its four supporting
+tests and all 663 tests, with 3 TODOs. Its fresh-CI requirement is resolved;
+production deployment and broader authentication boundaries remain open.
+
+## 79. Delayed admin startup checks could restore obsolete session identity
+
+UX-1366 through UX-1368 reproduce startup reads overwriting a new login,
+restoring a signed-out operator and replacing a newer role/rotation requirement.
+The real auth store now admits only the current startup ticket and invalidates
+old tickets at login/logout boundaries. Successful login finishes loading.
+E78 records the recommended narrow correction and current engineering approval.
+
+Focused tests pass 6 files / 9 tests; types, lint and the unchanged ID gate pass.
+Eighteen compiled synthetic browser scenarios pass at six widths, with 54
+captures, no unexpected HTTP, page exceptions or document overflow. The first
+full local run failed four timing checks alongside a build; all four focused
+repeats pass unchanged. **A clean full rerun and fresh CI remain required.**
+No production, server-cookie, financial, permission or revocation policy changed.
+Transport retry, competing auth writes, cross-tab and realtime boundaries are
+not certified. Evidence: `docs/audits/ADMIN-STARTUP-AUTH-OWNERSHIP-2026-09-06.md`.
+
+The complete four-worker local rerun passed 580 files / 670 tests, with 1 skipped
+file / 3 TODOs, in 302.23 seconds. No tests, timeouts or gate settings changed.
+The local rerun requirement is resolved; fresh CI and deployment are not implied.
+
+Independent verification: published startup candidate `aa653562` passed all
+four jobs in CI `34006066256` and Gates `34006066263`. Admin logs explicitly
+pass UX-1366/1367/1368 and the four supporting startup tests, with 580 passing
+files / 670 tests, 1 skipped file / 3 TODOs. Fresh CI for that checkpoint is
+resolved. Deployment and the broader authentication limitations remain open.
+
+## 80. An old admin request could replay under a newly signed-in operator
+
+UX-1369 reproduces an old provider-note HTTP 401 triggering refresh and replay
+after a different operator signs in. The real compiled Provider 360 note form
+also reproduces the old note being stored with the new synthetic operator as
+author. No production records or real credentials were involved.
+
+Candidate containment gives requests in-memory session ownership and checks it
+before fetch, after response parsing, and before refresh/replay/redirect.
+Login intent, completed login, logout and observed identity/role changes retire
+old ownership. Same-owner refresh still rotates CSRF and retries normally.
+This is **not** arbitration of server cookie-writing responses or cross-tab
+sessions, and cannot undo a server-processed mutation.
+
+Focused tests pass 3 files / 8 tests; types, changed-file lint and the unchanged
+ID gate pass. Compiled synthetic browser checks pass 18 new note/auth/refresh
+scenarios, 18 startup repeats and 24 customer/provider cache repeats across six
+widths. Their 180 captures have zero recorded page exceptions, unexpected HTTP
+or document overflow. **Final complete local rerun and fresh CI remain required;
+not deployed.** Evidence, honest failed checks and remaining auth boundaries:
+`docs/audits/ADMIN-REQUEST-SESSION-OWNERSHIP-2026-09-06.md`.
+
+The final complete four-worker local run passed **583 files / 678 tests**, with
+1 skipped file / 3 TODOs, in 332.45 seconds. The final local rerun requirement
+is resolved. Fresh CI, cookie/cross-tab containment and deployment remain open.
+
+Independent verification: request-ownership candidate `4840b276` passed all
+four jobs in CI `34008807832` and Gates `34008807831`. Actual admin logs pass
+UX-1369, its seven supporting tests and all 678 tests, with 3 TODOs. Fresh CI
+for the narrow correction is resolved; cookie/cross-tab and release limits persist.
+
+## 81. Post-refresh save failures could be misreported as authentication expiry
+
+UX-1370 reproduces the actual provider Notes form showing the original expired
+access error instead of a later save rejection. The compiled baseline also
+navigates away, losing the unfinished workspace. The API wrapper now keeps the
+retried business request outside the refresh-failure catch. It preserves the
+actual save error and keeps drafts in place for non-authentication failures.
+A second HTTP 401 still requires sign-in; password rotation still routes to the
+password screen. Server authorization and mutation semantics are unchanged.
+
+Focused tests pass 6 files / 13 tests; types, lint and the unchanged ID gate pass.
+Forty-two compiled synthetic browser scenarios pass at six widths for conflict,
+permission, server, network, rotation, second-401 and failed-refresh outcomes.
+The previous 18 request-ownership scenarios also pass. All 162 final captures
+have zero recorded page exceptions, unexpected HTTP or document overflow.
+**Complete local suite and fresh CI pending; candidate-only, not deployed.**
+See `docs/audits/ADMIN-REFRESH-RESULT-2026-09-06.md` for evidence and the retained
+baseline harness error. This does not resolve cookie ordering, cross-tab sessions,
+old logout completion, broad Stitch parity or deployment readiness.
+
+The final complete four-worker UX-1370 run passed **585 files / 682 tests**, with
+1 skipped file / 3 TODOs, in 299.75 seconds. The complete-local-suite requirement
+is resolved; fresh CI/deployment remain separate. Subsequently, local UX-1371
+reproduced the runtime rotation redirect not marking the password screen as
+mandatory. That new failing investigation is not part of the 682-test result or
+this verified candidate publication; see the audit's follow-up section.
+
+Independent verification: `a67b211c` passed all four jobs in CI `34009903130`
+and Gates `34009903135`. Actual admin logs pass UX-1370, three refresh-result
+tests and all 682 tests, with three TODOs. Fresh CI for that checkpoint is
+resolved. The rotation investigation below is newer; no deployment occurred.
+
+## 82. Admin runtime password requirements could look optional or reappear after completion
+
+UX-1371 reproduces a current requirement navigating to Change Password without
+marking the form and route guard mandatory. UX-1372 independently reproduces an
+older response sending the operator back after a successful password change.
+The candidate now reports current requirements to owned auth state, invalidates
+older startup evidence, and retires old request ownership after successful
+password replacement. Already-open drafts survive a new requirement; rejected
+passwords remain required; a fresh later requirement still takes effect.
+
+Focused real-render checks pass 6 files / 27 tests; TypeScript, lint and the
+unchanged ID gate pass. Twenty-four compiled synthetic browser scenarios pass
+at six widths with 72 captures, no unexpected HTTP, page exceptions or captured
+document overflow. The failed old-build screenshot and trace are retained.
+**Complete local suite and fresh CI remain required; candidate-only, not deployed.**
+Evidence and explicit scope: `docs/audits/ADMIN-PASSWORD-ROTATION-LIFECYCLE-2026-09-06.md`.
+Cookie-response ordering, cross-tab identity, old logout completion, broad
+screen/design acceptance and safe release integration remain open. No server
+enforcement, security hold, live credential, financial or historical row changed.
+
+Final complete local verification passed **588 files / 691 tests**, with
+1 skipped file / 3 TODOs, in 353.87 seconds. The prior browser matrices also
+pass on the same build: 42 refresh-result and 18 request-ownership scenarios.
+Together there are 84 passing synthetic browser scenarios / 234 final captures.
+This resolves the local suite/repeat requirements, not fresh CI or deployment.
+
+Independent verification: `9382ac7e` passed all four CI jobs in `34011734961`
+and Gates `34011734968`. Actual admin logs pass UX-1371/1372, seven supporting
+lifecycle tests and all 691 tests, with three TODOs. Fresh CI for this password
+checkpoint is resolved; deployment and broader authentication remain open.
+
+## 83. An obsolete admin logout completion could discard a new login
+
+UX-1373 reproduces two pending Header logout requests, the newer request
+finishing, a real new login, then the older completion clearing that operator.
+The store now limits completion cleanup to the current request lifetime. Header
+uses the existing authentication route guard instead of an unconditional delayed
+redirect. Current logout still clears local protected state on success or failure.
+
+Focused tests pass 6 files / 16 tests; types, changed-file lint and the unchanged
+ID gate pass. Eighteen new compiled synthetic browser scenarios pass across six
+widths, including current-operator verification and one correctly attributed
+provider-support note. Prior request/password matrices also pass: **60 scenarios /
+180 final captures** combined, with no page exceptions, unexpected HTTP or
+document overflow. The failed old-build evidence is retained.
+
+**Complete local suite and fresh CI pending; candidate only, not deployed.**
+This is not delayed Set-Cookie arbitration, cross-tab isolation, server revocation,
+realtime acceptance or full Stitch review. No server, live credentials, financial
+or historical record changed. Evidence and wider E79/release limitations:
+`docs/audits/ADMIN-LOGOUT-OWNERSHIP-2026-09-06.md`.
+
+Final complete four-worker local verification passed **590 files / 697 tests**,
+with 1 skipped file / 3 TODOs, in 346.56 seconds. The complete-local-suite
+requirement is resolved; fresh candidate CI and production deployment are not
+implied. The wider E79 limitations remain open.
+
+Independent logout verification: `860c8341` passed all four jobs in CI
+`34013764726` and Gates `34013764718`. Admin job `101433928259` explicitly
+passed UX-1373, the five supporting logout tests and 590 files / 697 tests,
+with one skipped file / three TODOs. Not deployed; broader E79 remains open.
+
+## 84. An older admin login's hash upgrade could overwrite a newer password
+
+Source review found that opportunistic legacy/weaker-password rehash writes
+were conditional on user ID only. A password replacement transaction's row
+lock does not prevent a waiting unconditional upgrade from subsequently
+restoring a hash of the old password. This is not a production incident claim.
+
+SEC-072 adds comparison with the exact originally verified hash, preserving a
+concurrent replacement or completed upgrade. Six new real-PostgreSQL tests
+exercise the HTTP password/login interleaving for all three admin-tier roles
+and both old hash formats, plus normal upgrades, competing logins, rejected
+passwords, upgrade failure and password-transaction rollback. They use only a
+guarded, test-owned schema, not live credentials or records.
+
+**Candidate only; database execution and fresh CI pending, not deployed.**
+Local focused results are eight passing suites / 26 tests and two skipped
+database suites / six tests. The skips are not passes or an executed failing
+baseline. API types, changed-file lint and the unchanged 1,569-regression ID
+gate pass. No migration, dependency, security hold or historical record changed.
+This does not resolve E79 cookie ordering, cross-tab authority or the wider
+session lifecycle. Details: `docs/audits/ADMIN-PASSWORD-REHASH-2026-09-06.md`.
+
+Independent database verification: `806892aa` API job `101438972334` in
+CI `34015709677` explicitly passed SEC-072 and all five supporting PostgreSQL
+tests. All 967 API suites / 3,335 tests passed. Gates `34015709675` also passed.
+The narrow correction is database-verified in candidate code; full-run
+completion, broader session work and production deployment remain separate.
+
+Final verification: all four jobs in CI `34015709677` succeeded. Admin passed
+590 files / 697 tests with three TODOs; Mobile passed 594 suites / 878 tests
+with 84 TODOs. Same-run matching artifacts were received and the API package's
+three checksums and source bundle verified. They remain rehearsal-only inputs,
+not a live rollout or completion of E79 and the broader release requirements.
+
+## 85. Invalid TOTP encryption configuration could disclose a value prefix
+
+The encryption helper's invalid-format error included the first eight supplied
+characters. If that error reached a diagnostic log, part of the configured value
+could be retained. This is a source finding, not evidence of a production leak.
+The existing production startup guard already rejects malformed keys separately.
+
+SEC-073 removes only the value prefix from the helper error. Format and length
+diagnostics remain, invalid keys still throw, and the encryption algorithm,
+stored format, existing records, key configuration and recovery policy are
+unchanged. The real regression failed before correction; afterward all three
+focused suites / 18 tests passed, including real AES-GCM round-trip and tamper
+rejection, with lint and API types passing. **Resolved in local candidate code;
+fresh CI and deployment remain pending.** No live key was inspected or rotated.
+Evidence: `docs/audits/ADMIN-TOTP-DIAGNOSTICS-2026-09-06.md`.
+
+## 86. Provider team routing, performance and private-response gaps
+
+Re-audit reproduced a team-list server error after a successful invitation:
+the literal `staff` URL was consumed as a provider UUID. It also found zero
+completed-job totals from an invalid status predicate and inflated review counts
+from a jobs-by-reviews join. OPS-506/507/508 correct the route order and shared
+read projections, with real PostgreSQL failing baselines and passing focused
+tests. No approval, payout, historical row or assignment policy changes.
+
+SEC-074 adds private/no-store response policy before authentication for provider
+and Provider 360 routes, including signed KYC links and early errors. The real
+HTTP baseline failed; focused tests pass. This is not erasure of previously
+cached data or verified browser/storage retention behavior.
+
+**Candidate only; complete final-suite checks and fresh CI still required.**
+Broader staff lifecycle, provider revision-bound review, browser/native/Stitch
+acceptance and safe release alignment remain open. Evidence and exact limits:
+`docs/audits/PROVIDER-TEAM-ROUTING-PRIVACY-2026-09-06.md`.
+
+Final local verification: 981 API suites / 3,426 tests passed, with 2 existing
+TODOs and 2 unchanged nginx tests failing solely because the local Docker engine
+was unavailable (294.835 seconds). All three new PostgreSQL regressions executed.
+Types, changed-file lint and the unchanged 1,582-ID gate passed. Fresh candidate
+CI and deployment remain separate requirements; this is not a green local suite.
+
+Independent verification: `30bc13be` passed all four jobs in CI `34037600893`
+and Gates `34037600892`. Actual API logs explicitly pass SEC-074 and
+OPS-506/507/508, including all 983 suites / 3,428 tests with two existing TODOs.
+The nginx tests also passed in CI. These corrections are verified candidate
+code, not deployed or a completion of the broader team/release audit.
+
+## 87. Concurrent support-note deletion could invent a second successful action
+
+Two simultaneous Provider 360 deletion requests both reported success for the
+same note. The service's initial read was unlocked and its soft-delete UPDATE
+did not verify that it changed a row before recording a deletion audit.
+OPS-509 locks the scoped note, checks the affected row, and preserves the
+existing transactional soft-delete and reasoned author/super-admin contract.
+No note is hard-deleted and no historical audit or live record is rewritten.
+
+The real PostgreSQL/HTTP baseline failed. After correction, six focused suites
+passed 67 tests, including competing deletes, both edit/delete orders, denied
+access, scoped IDs, audit failure rollback and a suppressed UPDATE. The old
+PHASE164-01 source/comment test is replaced by actual HTTP/database checks of
+reason boundaries and durable full rationale. A final added unrelated-note
+progress check, full local suite and fresh CI remain to be verified.
+**Candidate only, not deployed.** This is not a global audit/retention solution,
+browser acceptance, optimistic edit-version contract or completion of E37.
+
+Final verification supersedes the local-test uncertainty above: all six focused
+suites / 67 tests passed, including unrelated-note progress (2.472 seconds).
+The full final API run passed 982 suites / 3,426 tests, with two existing TODOs
+and only UX-860/UX-201 failing because the local Docker engine was stopped
+(336.759 seconds). The actual database tests executed. This is not a green
+full local suite; fresh CI and deployment remain required. Detailed evidence:
+`docs/audits/PROVIDER-SUPPORT-NOTE-CONCURRENCY-2026-09-06.md`.
+
+Independent verification: `8e755bdc` passed all four CI jobs in `34040199586`
+and Gates `34040199589`. API job `101505439412` explicitly passed OPS-509,
+the real PHASE164-01 boundary test and both nginx regressions: 984 suites /
+3,428 tests passed with two existing TODOs. This resolves fresh-CI uncertainty
+for that note fix, not deployment or the broader audit/retention requirements.
+
+## 88. Phone-code sign-in did not exclude privileged accounts
+
+SEC-075 reproduced a usable administrator session from the shared phone-code
+path without the administrator password/authenticator flow. Only synthetic
+local accounts were used; this is not evidence of production exploitation.
+Candidate containment limits phone-code sign-in to customer, provider and
+provider-staff roles, including for configured development codes. Privileged
+and unknown roles are refused before account/session writes. Valid denied
+codes remain consumed and incorrect-code attempt limits remain unchanged.
+
+The real PostgreSQL/HTTP failing baseline and subsequent focused checks are
+recorded in `docs/audits/PRIVILEGED-PHONE-SIGN-IN-2026-10-08.md`. Twelve auth
+suites / 20 tests pass, including normal marketplace sign-in/refresh, all
+three privileged roles with and without enrollment, and existing administrator
+two-factor behavior. API types, changed-file lint and the unchanged ID gate pass.
+The complete local API run passes 998 suites / 3,448 tests, with two TODOs;
+only two unchanged Nginx tests fail because the local Docker engine is
+unavailable. This is not a green full local suite. **Fresh candidate CI is
+required; this correction is not deployed.**
+
+This prospective guard does not invalidate older privileged sessions or prove
+that they were issued through the required factors. Private live-version and
+session review, a bounded containment release, verified operator recovery and
+scoped audited invalidation remain necessary before declaring this resolved
+in production. Do not bypass the accumulated release/migration gates, perform
+an ad hoc blanket reset or treat this finding as completed incident/legal review.
+
+Independent verification: `d1641c4d` passed all four jobs in CI `37784763822`
+and Gates `37784763909`. The API passed 1,000 suites / 3,450 tests with two
+TODOs, including SEC-075 and both previously unavailable Nginx checks. This
+resolves the fresh-CI requirement for that candidate, not deployment or
+previously issued privileged sessions. Optional exact release packaging was
+skipped; the live containment/release requirements remain open.
+
+## 89. Rejected phone sign-in changed deactivated account history
+
+A valid phone code for an inactive customer, provider or provider-staff account
+was denied, but first marked the account verified and changed its last-login
+and update times. OPS-523 rejects the existing inactive account before those
+writes while retaining valid-code consumption and the existing error. Existing
+sessions and historical records are not rewritten.
+
+The actual PostgreSQL/HTTP regression failed before correction and passes all
+six role/code combinations afterward. Seven selected auth suites / 19 tests,
+API types, changed-file lint and the unchanged ID gate pass. **Candidate only;
+fresh CI and deployment remain pending.** Separate account/credential issuance
+atomicity and concurrency are not resolved by this narrow pre-write check.
+Evidence: `docs/audits/INACTIVE-PHONE-SIGN-IN-2026-10-08.md`.
+
+Independent verification: exact candidate `65d53d60` passed all four jobs in
+CI `37788789344` and Gates `37788789503`. Its API job explicitly passed OPS-523
+and both Nginx checks: 1,001 suites / 3,451 tests, two TODOs. This resolves that
+candidate's fresh-CI uncertainty, not deployment. Optional release packaging
+was skipped. Subsequent account/session transaction work is tracked below.
+
+## 90. Phone sign-in could partially commit or issue from stale account state
+
+OPS-524 reproduced account metadata surviving a failed refresh-session insert.
+OPS-525 reproduced credentials returned after a concurrent account-first writer
+deactivated the account or changed it to a privileged role. This is not evidence
+of unauthorized protected access; canonical request checks remain separate.
+
+The candidate now locks the existing account and persists account/session changes
+in one transaction after independently committed OTP consumption. Failure rolls
+back the account/session work without making the used code reusable. Real SQL
+regressions cover all three marketplace roles, new-account rollback, both lock
+orders, writer rollback, unrelated-account progress and duplicate-code use.
+Focused database and existing OTP-policy tests, API types and changed-file lint
+pass. **Candidate only, not deployed; full-suite/fresh-CI verification remains
+separate.** Evidence: `docs/audits/PHONE-SIGN-IN-TRANSACTION-2026-10-08.md`.
+
+First-time registration races involving distinct accepted requests, other token
+issuers/callers and the full account-writer lock graph remain open. These fixes
+do not repair historical metadata, revoke earlier privileged sessions, complete
+production recovery or satisfy the matched-artifact release/launch requirements.
+
+Final local verification: 1,002 suites / 3,454 tests passed, two existing TODOs,
+and only unchanged UX-860/UX-201 failed because the Docker Linux engine is
+unavailable (520.089 seconds). All new database regressions executed. The
+unchanged 1,606-ID gate and whitespace checks pass. This is not a green full
+local suite; fresh exact-candidate CI and deployment remain required.
+
+Independent verification: `58477af3` passed all four jobs in CI `37792827931`
+and Gates `37792828059`. Actual API logs pass OPS-524/525, their supporting
+transaction tests and both Nginx checks: 1,004 suites / 3,456 tests, two TODOs.
+This resolves that candidate's fresh-CI uncertainty, not deployment or the
+remaining account workflows. Optional exact release packaging was skipped.
+
+## 91. Shared credential issuance trusted stale account authority
+
+OPS-526 reproduced credentials returned for an inactive synthetic account by
+`createTokenPair`. The helper now locks and checks the current account, refusing
+missing/inactive accounts or a different role/session generation before storing
+credentials. It preserves the supplied authority rather than upgrading an older
+proof to newer permissions. Credential storage and the check share a transaction.
+Canonical request authorization remains a separate boundary; this finding is not
+evidence of unauthorized protected access or production exploitation.
+
+Real PostgreSQL tests cover all six roles, 24 rejection combinations, writer
+commit/rollback, issuer-first revocation, independent-account progress and insert
+failure/retry. The full local API run passes 1,004 suites / 3,460 tests, with two
+TODOs and only the unchanged Docker-unavailable Nginx failures (386.123 seconds).
+Types, changed-file lint and the unchanged 1,607-ID gate pass. **Candidate only;
+fresh CI required, not deployed.** Evidence and limits:
+`docs/audits/TOKEN-ISSUER-AUTHORITY-2026-10-08.md`.
+
+The helper cannot validate a caller's earlier authentication proof or roll back
+already committed caller effects. Setup completion, factor state, invitation
+acceptance, password-change/session delivery, cookie ordering and the wider lock
+graph still need caller-level review. Existing privileged sessions, production
+recovery, matched-artifact release and launch requirements remain unresolved.
+
+Independent verification: exact `c09a6f5d` passed all four jobs in CI
+`37797176521` and Gates `37797176560`. API job `113379554198` explicitly passed
+OPS-526, its supporting transaction tests and both Nginx checks: 1,006 suites /
+3,462 tests, two TODOs (69.209 seconds). This resolves the issuer candidate's
+fresh-CI uncertainty, not deployment or the caller-level limits. Optional exact
+release packaging was not requested.
+
+## 92. Initial administrator setup could outlive revocation or undo enrollment
+
+OPS-527 reproduced setup accepting a request after account deactivation between
+authorization and its transaction. OPS-528 reproduced delayed setup accepting a
+request after the real enable route completed enrollment. Setup previously read
+authority and enabled state outside the key-writing transaction.
+
+The candidate rechecks exact earlier role/session authority, active state,
+applicable password rotation and enabled state under the account lock. Revoked
+requests are refused and completed enrollment is preserved. Pending-key and
+audit writes remain atomic; setup returns no full session. No schema, factor
+requirement or recovery-policy change is included.
+
+Actual HTTP/PostgreSQL tests cover 27 revoked-authority combinations, all three
+privileged roles completing enrollment before delayed setup, both account-writer
+lock orders, writer rollback, unrelated-account progress and audit-failure
+rollback/retry. MED-N82's former source-text check is replaced by that behavioral
+test. Ten focused suites / 16 tests, types, changed-file lint and the unchanged
+1,609-ID gate pass. The full local API run passes 1,007 suites / 3,465 tests, two
+TODOs, with only the unchanged Docker-unavailable Nginx failures (257.124 seconds).
+**Candidate only, not deployed; fresh exact-candidate CI remains required.**
+Evidence: `docs/audits/ADMIN-SETUP-TRANSACTION-2026-10-08.md`.
+
+Enable-route proof binding and the reverse stale-code interleaving are not fixed
+by this slice. Durable enrollment acknowledgement, response ordering, governed
+recovery and the wider account-writer graph remain open. The existing production
+recovery hold, earlier privileged sessions, matched-artifact release and all
+remaining launch requirements are unchanged.
+
+Independent verification: exact `05c6ebf8` passed all four jobs in CI
+`37800735318` and Gates `37800735101`. API job `113391930373` explicitly passed
+OPS-527/528, supporting setup transactions, MED-N82 and both Nginx checks:
+1,009 suites / 3,467 tests, two TODOs (60.626 seconds). This resolves that
+setup candidate's fresh-CI uncertainty, not deployment. Optional exact release
+packaging was not requested. Subsequent enable correction is tracked below.
+
+## 93. Administrator enrollment completion could accept revoked or stale proof
+
+OPS-529 reproduced completion accepting a request after its account session
+generation was revoked. A later authority read supplied the new generation to
+the issuer. OPS-530 reproduced the actual setup route replacing a pending key
+while completion waited, followed by completion accepting the earlier key's code.
+
+The candidate locks the account before activation and recovery-code writes,
+checks the earlier authorized role/generation and current account preconditions,
+and verifies the current key under that same lock. Login metadata now commits
+with forced-enrollment activation. Subsequent issuance uses that original proof,
+not newer authority. Existing response/cookie and recovery-policy contracts remain.
+
+Actual HTTP/PostgreSQL checks cover 27 denied-authority combinations, six
+stale-key interleavings, eligible cookie-only enrollment, usable recovery codes,
+both lock orders, competing setup/enable, unrelated-account progress, six
+post-commit revocations, and recovery/audit write rollback with retry. The full
+API run passed 1,010 suites / 3,472 tests, two TODOs, with only the unchanged
+Docker-unavailable Nginx failures (318.530 seconds). After test-only type cleanup,
+the final 13-suite / 23-test selection, types and changed-file lint passed.
+The unchanged 1,611-ID gate passed. **Candidate only; fresh exact-candidate CI
+required, not deployed.** Evidence:
+`docs/audits/ADMIN-ENABLE-TRANSACTION-2026-10-08.md`.
+
+Already committed activation/recovery codes still survive later issuance or
+delivery failure. The tests expose that boundary rather than claiming it fixed.
+Durable generation/acknowledgement, interrupted-response recovery and existing
+account rollout remain open. Earlier sessions, the wider lock/cookie/issuer
+review, production recovery and matched-artifact release requirements remain.
+
+Independent verification: exact `be6fea61` passed all four jobs in CI
+`37804191578` and Gates `37804191579`. API job `113404032661` explicitly passed
+OPS-529/530, supporting enrollment transactions, CRIT-N11 and both Nginx checks:
+1,012 suites / 3,474 tests, two TODOs (48.614 seconds). This resolves that
+candidate's fresh-CI uncertainty, not deployment or durable recovery completion.
+Optional exact release packaging was skipped.
+
+## 94. Administrator recovery code copy failures were invisible
+
+UX-1382 reproduces the real recovery screen failing to display clipboard errors.
+The candidate now shows manual-save guidance, clears stale feedback on retry,
+blocks duplicate pending copies and announces success without automatically
+acknowledging secure storage. The codes and manual-save path remain available.
+No API, schema or authentication policy changed.
+
+Four focused rendered regressions, TypeScript, production build, lint and the
+unchanged 1,612-ID gate pass. Six compiled synthetic browser widths pass copy
+failure/retry and acknowledgement-state checks. The first full local admin run
+failed eight tests plus one file-load error. The complete two-worker rerun passed
+706 tests with three existing TODOs; all originally failing checks passed
+unchanged. Fresh CI remains required. **Candidate only, not deployed.** Evidence:
+`docs/audits/ADMIN-RECOVERY-COPY-FEEDBACK-2026-10-08.md`.
+This does not resolve the browser-local acknowledgement, interrupted delivery,
+governed recovery or full Stitch/native/release limitations.
+
+## 95. Administrator verification could change state after revocation or spend a code on a failed write
+
+OPS-531 reproduced HTTP 401 after concurrent session revocation while login
+metadata still changed. OPS-532 reproduced HTTP 500 from a failed metadata
+update after recovery-code use had committed. These are synthetic database/HTTP
+findings, not evidence of production exploitation or a protected-route bypass.
+
+Verification now locks current account authority before factor/recovery rows
+and commits recovery consumption, its audit and login metadata together.
+Two fresh baseline regressions failed before correction. The corrected focused
+selection passes 5 suites / 11 tests, including 18 revoked-authority combinations,
+concurrent code use, current-factor replacement, audit/metadata rollback and retry.
+Types, changed-file lint, the unchanged 1,614-ID gate and four admin real-render
+tests pass. The full API run passes 1,013 suites / 3,481 tests with two TODOs;
+only the two unchanged Docker-unavailable Nginx tests fail. This is not a green
+full local suite. **Candidate only; fresh CI required, not deployed.** Evidence:
+`docs/audits/ADMIN-VERIFICATION-TRANSACTION-2026-10-09.md`.
+
+Session issuance still follows in a separate transaction. Actual post-commit
+revocation tests deny issuance but preserve the already committed code use,
+audit and login metadata. Durable acknowledgement, interrupted delivery,
+earlier privileged sessions and the wider lock/cookie/issuer review remain open.
+The production recovery hold, complete migration/image rehearsal, matched
+artifacts, live multi-role acceptance and remaining launch gates are unchanged.
+
+Independent verification of the administrator correction: exact
+`6799d65701321ad02e13b4d451f6f056be00fdd2` passed all four jobs in CI
+`37822769366` and Gates `37822768456`. Actual API logs pass OPS-531/532 and both
+Nginx checks: 1,015 suites / 3,483 tests, two TODOs. The CI merge and topic source
+trees match. Optional exact release packaging was skipped. This resolves the
+historical fresh-CI-pending checkpoint above, not separate session issuance,
+durable recovery acknowledgement, E68, deployment or production readiness.
+
+October 9 refund evidence continuation: the corrected guarded fixture at
+`882ff8d5` passed CI `37830757089` and Gates `37830756882`, including its four
+actual SQL checks, the connection-guard check and both Nginx regressions. New
+local coverage then exercised the mounted operator refund route, partial-key
+replay, support-note/audit/outbox rollback, canonical permissions and payment-only
+worker accounting. This is evidence of existing code, not a new runtime repair
+or closure of money/release holds. Its exact scope, verification receipts and
+remaining customer/dispute, external-source/crash and live acceptance are in
+`docs/audits/REFUND-TRANSACTION-EVIDENCE-2026-10-09.md`. Newer coverage still needs
+its own CI and is not deployed.
+
+October 9 completed wallet verification: OPS-533 candidate
+`0e96abee1dc274253d33e3955b4174aaca179db3` passed CI `37842510229` and Gates
+`37842510347`. Actual logs execute all 16 guarded refund checks and both Nginx
+checks: API 1016 suites / 3499 tests, two TODOs and no skips; admin 706 tests,
+one skipped file / three TODOs; mobile 879 tests / 84 TODOs and compiled web
+export; API Docker build and boot liveness pass. CI merge and topic source
+trees match. Optional exact API/admin release packaging was skipped and the
+retained web audit artifact is not deployment eligible. This resolves that
+wallet correction's source-verification uncertainty, not external-rail safety,
+complete caller acceptance, deployment or launch readiness.
+
+## 96. An unassigned provider could change a paid booking and trigger its refund
+
+SEC-076 reproduces the actual PostgreSQL/HTTP cancellation and en-route paths:
+both returned 200 for an unassigned provider. The cancellation credited the
+customer wallet and updated payment/ledger state; both customer notices were
+stored without an assigned provider. This uses synthetic records only, not
+evidence of production exploitation.
+
+The candidate refuses absent assignments before provider status, money or
+notification writes and retains the existing assigned-owner check. Four new
+database/HTTP cases cover unchanged denied requests, actual assigned-owner
+navigation, canonical credential rejection and the owning customer's full
+late-unassigned wallet refund. The final four-suite / 27-test repeat executes
+all 20 guarded checks without skips; three mobile rendered suites pass five
+tests. Full local API passes 1014 suites / 3501 tests with two TODOs and only
+two unchanged Docker-unavailable Nginx failures, not a green full local run.
+Types, lint, Gate A/C and seven smoke scripts pass unchanged. Fresh exact CI
+remains required. **Candidate only, not deployed.** Evidence and remaining staff,
+role, transition, timing, funding and release work:
+`docs/audits/BOOKING-PROVIDER-ASSIGNMENT-2026-10-09.md`.
+
+Completed independent source verification: `82e5558c` passed CI `37851008447`
+and Gates `37851008382`. All 20 guarded SQL/HTTP checks, both Nginx checks,
+full API/admin/mobile checks, compiled artifacts and actual API Docker
+build/boot passed. CI merge and topic trees match. Optional exact release
+packaging was skipped. This resolves the preceding fresh-CI requirement for
+SEC-076, not deployment or the remaining actor/funding/release work.
+
+## 97. Privacy officers could cancel funded bookings through an unsupported-role fall-through
+
+SEC-077 reproduces two actual HTTP 200 responses on `82e5558c`: a DPO cancelled
+a paid booking and triggered wallet/payment/ledger refund, then marked another
+paid booking en route. Both customer inbox notices persisted. Only synthetic
+accounts/funds were used, not a claimed production incident.
+
+The candidate status guard now returns only after each permitted role's checks
+and rejects the remaining roles. The first corrected run passes all 23 guarded
+checks, including unchanged denied DPO snapshots, approved staff on-site access,
+staff suspension/cancellation denial and retained admin/super-admin authority.
+Three unchanged staff rendered suites pass four tests; API types/lint pass.
+Final connected four suites / 30 tests and Gate A/C plus seven smoke scripts
+pass unchanged. Full local API is not green: 1013 suites / 3502 tests pass,
+with two Docker-unavailable Nginx failures and two unchanged token-issuer
+failures (a 5000ms timeout followed by missing signing secret), plus two TODOs.
+The unchanged token-issuer suite rerun alone passes five tests; neither tests
+nor auth code were changed, and the failed full-run receipt remains retained.
+Fresh exact CI remains required before acceptance or another function change.
+**Candidate only, not deployed.** Staff parent consistency, dedicated
+flow boundaries, wider locks, funding/crash acceptance and all release holds
+remain open. See `docs/audits/BOOKING-STATUS-ROLE-2026-10-09.md`.
+
+Completed independent source verification: `c04726e0` passed CI `37855305809`
+and Gates `37855305788`. Actual logs execute all 23 guarded checks, the unchanged
+issuer SQL suite and both Nginx checks: API 1016 suites / 3506 tests, two TODOs,
+no skips or failures; admin 706 tests with one skipped file / three TODOs;
+mobile 879 tests / 84 TODOs with compiled web; actual API Docker build/boot.
+CI merge and topic source trees match. Optional exact release packaging was
+skipped. This resolves the preceding SEC-077 fresh-CI requirement, not the
+failed full-local receipt, broader role acceptance or deployment.
+
+## 98. Staff performer attribution could authorize another provider's booking
+
+SEC-078 reproduces two HTTP 200 responses for approved staff whose retained
+performer assignment has no booking provider or a different parent provider.
+Both synthetic paid bookings moved en route and stored false customer notices;
+money remained unchanged. Individual D23 foreign keys permit these deliberately
+inconsistent historical-style rows, but the normal assignment service does not
+create them. This is not a production inventory or exploitation claim.
+
+The candidate status guard requires the booking provider to match the approved
+staff member's parent provider. Corrected requests return 403 with unchanged
+booking, money, notification and staff snapshots. Connected four suites / 31
+tests pass, all 24 guarded checks executing, alongside the existing legitimate
+staff, customer, provider and admin boundaries. Three unchanged staff rendered
+suites pass four tests with mocked APIs/native primitives, not connected-browser
+or live acceptance. Types/lint, Gate A/C and seven smoke scripts pass unchanged.
+Full local API passes 1014 suites / 3505 tests, two TODOs, with only the two
+unchanged Docker-unavailable Nginx failures in 594.512 seconds. All 24 guarded
+checks and the unchanged issuer SQL suite execute and pass, but this is not a
+green full local run. Final review and scope evidence are recorded in
+`docs/audits/BOOKING-STAFF-PARENT-2026-10-09.md`.
+
+**Candidate only, not deployed.** Fresh exact CI, separate staff readers and
+photo/checklist/support authorization, current authority under booking locks,
+concurrent assignment/suspension, dedicated-flow targets, timing, funding/crash
+acceptance and all release holds remain open. No data repair, migration or
+refund-policy change is included; full K01/K07/K08 are not complete.
+
+Completed independent source verification: `2dc18a3d` passed CI `37860308257`
+and Gates `37860308306`. All 24 guarded checks, unchanged issuer SQL and both
+Nginx checks execute/pass: API 1016 suites / 3507 tests, two TODOs, no skips or
+failures. Admin logs pass 706 tests with build/types; mobile full-suite/type/web
+export steps pass, with detailed count download incomplete rather than an
+inherited old count. Actual API image build and `/health` liveness pass. CI and
+topic source trees match. Optional exact release packaging was skipped and the
+web audit artifact is not deployment eligible or a browser journey. This
+resolves that staff-status source checkpoint, not deployment or separate readers.
+
+## 99. Staff job lists could disclose another provider's customer and address
+
+SEC-079 reproduces actual GET/SQL disclosure on verified `2dc18a3d`: a retained
+approved performer link exposed an unassigned and another provider's job, with
+customer name/address and the staff member's own provider label. Individual D23
+foreign keys permit the deliberately inconsistent fixture; ordinary assignment
+already rejects it. No production inventory, disclosure or data repair is claimed.
+
+The candidate list join now requires the booking provider to equal the approved
+staff member's parent provider, preserving valid assignments and attribution.
+The clean original run failed one test / passed 25; first corrected connected
+run passes five suites / 34 tests with all 26 guarded checks executing. Current
+membership and credential rejection, valid DTO/order and unchanged money/state
+are tested through mounted HTTP and actual SQL, including migration 131.
+Full local API is not green: 1014 suites / 3507 tests pass, two unchanged
+Docker-unavailable Nginx checks fail and two TODOs remain, in 470.145s. All 26
+guarded checks and unchanged issuer SQL execute/pass. Final reviewed connected
+five suites / 34 tests pass in 12.032s; unchanged staff renders two suites /
+three tests use mocked APIs/native primitives. Types/lint, Gate A/C and seven
+smoke scripts pass unchanged. Fresh exact CI and release acceptance remain
+required. No migration, money policy, gate or issuer changes. **Candidate only, not deployed.** Separate
+detail/evidence/support readers, cached disclosure, concurrent authority, full
+K07 and release holds remain open. See
+`docs/audits/STAFF-JOB-LIST-PARENT-2026-10-09.md`.
+
+## 100. Customer/provider email and social sign-in are not available yet
+
+Ken explicitly requested email, Google, Apple and popular social sign-in on
+October 9. The current shared customer/provider entry remains phone-only;
+administrator email/password plus TOTP is a separate privileged flow.
+Legacy `users.email` contact data does not establish verified sign-in ownership.
+
+An internal Resend code-delivery candidate now distinguishes provider acceptance,
+rejection, missing configuration and uncertain outcomes. It has no public route
+or authentication caller yet, and no email/social button or method is enabled.
+The sender uses fixed-destination HTTPS, immutable challenge idempotency, bounded
+responses, timeout cancellation and private logging. Local synthetic HTTP tests
+exercise those contracts, not a real provider inbox or completed login.
+
+Verified identity/linking, hashed purpose-bound challenges, abuse controls,
+single-use account/session verification, actual sender/provider configuration,
+safe phone-required onboarding, configured Google/Apple adapters, Facebook
+evaluation and complete web/native acceptance remain required. No account is
+auto-linked by contact email, no privileged shortcut is introduced and no
+existing migrations are replaced. See
+`docs/audits/EMAIL-CODE-DELIVERY-2026-10-09.md` for exact evidence and boundaries.
+
+Internal linking foundation, October 9: additive migration 175 and a server-only
+service now represent separate verified email ownership and a fresh phone/email
+proof operation. They do not backfill contact addresses, create accounts, issue
+sessions or expose a public endpoint. Owner export and soft anonymization include
+the new records without exporting codes/hashes. Actual PostgreSQL verification of
+this candidate is still pending; locally skipped tests are not acceptance.
+Delivery coordination, retention scheduling, public HTTP/UI, real configuration,
+email login and social adapters remain unimplemented. See
+`docs/audits/EMAIL-LINK-FOUNDATION-2026-10-09.md`. No live migration occurred.
+
+Completed foundation source verification: exact `1638b15a` passed CI
+`37912712008` and Gates `37912712014`, including all sixteen linking checks
+(fifteen actual SQL cases), affected account-session/deletion fixtures, both
+Nginx checks, complete API/admin/mobile checks, builds and API Docker boot.
+CI merge and topic trees match. This resolves the preceding foundation CI
+requirement, not email login, delivery, live deployment or a full release.
+
+The next bounded candidate adds expiry/hash clearing and ninety-day request
+metadata cleanup on the existing scheduler, with additive index migration 176.
+Verified ownership, audits and recent abuse counts are preserved. The metadata
+window is an engineering default, not E21 legal-retention approval or complete
+erasure. Its four new SQL cases still require actual exact-candidate execution;
+local skips are not acceptance. Public HTTP/UI, real sender/inbox configuration,
+session issuance and social methods remain unimplemented. Details and honest
+local failures: `docs/audits/EMAIL-LINK-CLEANUP-2026-10-09.md`. Nothing is live.
+
+Completed cleanup source verification: exact `7bb06275` passed CI `37915363720`
+and Gates `37915363736`. Actual API logs pass 1024 suites / 3566 tests, two
+TODOs, no skips/failures, all twenty-one linking checks (nineteen actual SQL),
+affected account lifecycle, issuer/refund and both Nginx checks. Admin/mobile
+regressions, types/builds and actual API Docker boot pass. Merge/topic trees
+match. Optional exact release packages were skipped; no deployed journey is
+implied. The earlier failed/skipped local receipts are retained.
+
+Next candidate, still disabled and not deployed: authenticated marketplace
+email-link request/status/confirmation routes now coordinate fresh SMS/email
+proofs, durable per-channel delivery outcomes and owner-only response recovery.
+Migration 177 is additive; earlier history is unchanged. Missing configuration
+fails closed even in development. CAPTCHA and both proofs are required, and no
+new JWT, account merge, provider approval or admin shortcut is introduced.
+The new fifteen-check HTTP suite includes thirteen actual SQL cases that must
+execute in exact-candidate CI before this stage is accepted. Local SQL skips
+are not passes. Owner exports include delivery metadata without proof secrets.
+Email login/session issuance, client UI, live sender/inbox configuration and
+social adapters remain unfinished. Full image/chain rehearsal through 177 and
+matched authenticated release acceptance remain required. Evidence:
+`docs/audits/EMAIL-LINK-DELIVERY-HTTP-2026-10-09.md`.
+
+Completed linking-HTTP source verification: `db025577` passed CI `37918764034`
+and Gates `37918764050`, including all fifteen HTTP and twenty-one foundation
+checks, API 1025 suites / 3581 tests with two TODOs and no skips/failures,
+both Nginx checks, admin/mobile tests and builds, and API Docker boot liveness.
+Merge/topic trees match. Optional exact release packages were skipped. This
+resolves the preceding source-verification requirement, not delivery or deployment.
+
+Next candidate, still not public or deployed: migration 178 and an internal
+email sign-in transaction bind a fresh one-use proof to verified identity and
+current marketplace authority, then commit session, login metadata, audit and
+proof consumption together. Owner export, partial anonymization and bounded
+cleanup cover the new records. Thirty-two actual SQL cases plus one input check
+require exact-candidate execution; local skips are not acceptance. The private
+preparation result must never become a public response or enumeration oracle.
+Neutral public HTTP/delivery, web/native screens, actual sender/provider setup,
+social adapters and full-chain matched release remain open. See
+`docs/audits/EMAIL-SIGN-IN-TRANSACTION-2026-10-09.md`.
+
+Completed internal sign-in source verification: `5deb00ae` passed CI
+`37922879922` and Gates `37922879915`. Actual API logs pass 1026 suites /
+3615 tests, two TODOs, no skips/failures, including all 33 sign-in checks,
+21 linking-foundation checks, 15 linking-HTTP checks and both Nginx checks.
+Admin/mobile tests, types/builds and actual API Docker build/boot pass;
+merge/topic trees match. Optional exact release packages were skipped.
+This resolves that internal stage's CI requirement, not deployment or delivery.
+
+Next candidate, default-disabled and not deployed: public email request and
+confirmation routes coordinate the existing verified-identity transaction and
+sender. Neutral request receipts precede account-dependent work; private
+one-attempt delivery metadata uses additive migration 179. No contact-address
+fallback, new account, merge, privilege upgrade or admin shortcut is introduced.
+The 22-check mounted HTTP suite includes 19 real SQL cases that must execute
+in exact-candidate CI; local skips are not passes. A receipt is not a durable
+queue or guaranteed email delivery. A crash may lose an unsent request, and an
+uncertain attempt is not automatically retried. Existing CAPTCHA transport,
+client linking/sign-in UI, configured inbox/social providers, full-chain image
+rehearsal through 179 and matched web/native release acceptance remain open.
+Evidence: `docs/audits/EMAIL-SIGN-IN-HTTP-2026-10-09.md`. No method is live.
+
+Completed HTTP source verification: `9c0d3759` passed CI `37926401909` and Gates
+`37926401967`, including all 22 HTTP cases and existing internal/linking SQL,
+issuer/refund/lifecycle and both Nginx checks. Actual API: 1027 suites / 3637
+tests, two TODOs, zero skips/failures. Admin/mobile tests, types/builds and API
+image build/boot pass; merge/topic trees match. Optional exact release packages
+were skipped. This completes that source stage, not enabled email, inbox,
+browser/native or full-chain release acceptance. CAPTCHA transport is separately
+reviewed below; UI and configured delivery still remain open.
+
+## 101. Phone-code transport could forward secrets, log provider text or wait without a bound
+
+Actual native HTTP tests on `7de317ee` reproduce SEC-081 redirect forwarding of
+synthetic SMS credentials/code, SEC-082 parser text exposing a synthetic key
+prefix to diagnostics and OPS-538 unresolved header/body waits plus accepted
+oversized receipts. No live key, account, SMS or production disclosure is claimed.
+
+The candidate rejects redirects, bounds headers/body to ten seconds and receipt
+consumption to 4,096 bytes, cancels unfinished responses and logs a fixed private
+error category. Seven new HTTP checks pass, including real peer closure and
+exact-byte boundaries. Final connected selection passes 34 checks with eight
+explicit SQL skips. Full local API passes 954 suites / 3,413 tests, with two
+Docker-unavailable Nginx failures, 66 suites / 128 tests skipped and two TODOs;
+this is not a green full run or actual local database acceptance. Types/lint,
+Gate A/C and seven smoke scripts pass unchanged. **Fresh exact-source CI remains
+required; not deployed.** See `docs/audits/SMS-TRANSPORT-BOUNDARIES-2026-10-09.md`.
+
+The SMS boolean still conflates rejection and uncertain external acceptance.
+Real sender/delivery, fresh verified identity/linking, email/social UI, Android
+acceptance and matched-release requirements remain open. This narrow correction
+does not change OTP policy or certify the unchanged non-production simulations.
+
+Completed source receipt: exact `f2d090e1` passed CI `37908585031` and Gates
+`37908585041`. Actual API logs pass 1022 suites / 3543 tests with two TODOs,
+no skips/failures, all seven new transport checks, existing SMS/email and SQL
+callers, and both Nginx checks. Admin/mobile tests and builds plus actual API
+Docker build/boot pass; CI merge and topic trees match. This resolves that
+candidate's CI requirement, not delivery, production or the broader sign-in work.
+
+## 102. CAPTCHA transport could forward secrets, accept error responses or wait indefinitely
+
+Actual native HTTP on `9c0d3759` reproduced redirected CAPTCHA secrets/proofs,
+success accepted from non-2xx responses, unbounded header/body waits and accepted
+oversized responses. A same-realm injected transport exception also exposed its
+private text to diagnostics. The native JSON error in Jest was cross-realm and
+reported `Unknown`; it is not claimed as an observed native JSON secret leak.
+
+Candidate SEC-083/084/085 and OPS-539 reject redirects and error HTTP status,
+bound headers/body to ten seconds and actual response bytes to 4,096, cancel
+unfinished responses and use fixed error diagnostics. Missing-secret behavior,
+OTP abuse policy, rate limits, email flags and administrator factors are unchanged.
+Actual peer-close tests and mounted phone/email denial cases cover this shared
+function. Fresh exact-source CI and live configuration/browser acceptance are
+still required. No production key, service or real account was changed. See
+`docs/audits/CAPTCHA-TRANSPORT-BOUNDARIES-2026-10-09.md` for exact receipts and scope.
+
+## 103. Booking status changes answered outsiders before checking their authority
+
+On the general status route, the arrival-distance check, the minimum
+on-site-time check and the state-machine check ran before the actor guard.
+A signed-in account that was not the booking's customer or assigned provider
+could therefore be told the distance in meters from a point it chose to the
+customer's service address, the booking's current status, or how long the job
+had been in progress. The arrival and timing checks also read the booking
+without a lock.
+
+Candidate SEC-088 and SEC-089 lock the booking, run the actor guard, then
+the state machine, then the arrival and minimum-time checks on the locked row.
+The message texts are unchanged.
+
+Because the checks now run in that order, an authorized caller who asks for a
+step that is not allowed yet sees the state-machine or guard refusal first.
+For example, completing a job that is only "paid" now says the transition is
+not allowed, instead of "wait 15 minutes". Nothing that was refused before is
+now allowed.
+
+An outsider now gets the guard's 403 and no location, status or timing text.
+A booking id that does not exist still answers 404 rather than 403. This is
+older behavior, and booking ids are random UUIDs.
+
+This is verified in source and tests in the candidate only. It is not
+deployed: the live server still answers in the old order. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 104. Simultaneous booking status changes could exhaust the database pool
+
+While a booking status change held its booking lock, its ownership lookups and
+completion checks waited for a second database connection. A burst of
+simultaneous provider status changes, roughly as many as the pool size, could
+therefore make every such request fail with an error until the pool recovered.
+Candidate OPS-555 runs those lookups on the transaction that already holds the
+lock. This is verified in source and tests in the candidate only and is not
+deployed. See `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 105. Admin accounts could move booking money through the general status route
+
+The general status route skipped its role and ownership check for admin and
+super admin accounts. Either could cancel and refund, confirm and release,
+or mark a booking paid through that route, without the reason and audit
+record that the super admin's admin booking actions require. A plain admin
+could do this even though F3 reserves money controls for the super admin.
+
+Candidate SEC-090 refuses every money-moving or flow-replacing status for a
+plain admin. Candidate SEC-091 sends a super admin to the audited admin
+actions or the booking's own flow. The parts Ken has not decided (D35 Q1) are
+unchanged: the on-site steps for both roles, and for a super admin
+"completed by provider", "payout ready", "paid out" and "resolved". This is
+verified in source and tests in the candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 106. Customers and providers could set booking statuses that belong to other steps
+
+Through the general status route a customer could mark their own booking
+"disputed" without filing a dispute, or move a requested booking to
+"payment pending". A provider could mark its own job "quoted" with no quote,
+or "matched" with no accepted offer or quote. A booking marked disputed this
+way kept its money held with no dispute record, so no dispute step could
+settle it. A booking moved to payment pending could no longer be paid from
+the wallet, only cancelled. The apps never sent these requests.
+
+Candidates SEC-092, OPS-556 and SEC-093 refuse these four statuses on the
+general route, together with the other statuses that only their own step may
+set (the repair contract K07 list). Bookings already marked disputed this way
+still rely on the super admin "resolved" step, which is held for D35 Q1b.
+Before release, a read-only count on live should show how many bookings were
+left in these states. This is verified in source and tests in the candidate
+only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 107. A cancellation could be saved while its refund failed or was skipped
+
+Through the general status route, a cancellation was saved first and its
+money was moved in a second step. If the refund was refused, for example for
+a booking paid before the payment-snapshot update, the person cancelling was
+told "cancellation recorded, refund within 48 hours". The booking showed as
+cancelled, the money stayed held, and nothing was queued. If a payment landed
+while the cancellation was waiting for the booking, that money was never
+refunded.
+
+Candidates FIN-009 and FIN-010 make the cancellation, its money and the
+provider's cancellation record one step, decided from the locked booking. A
+refused refund now leaves the booking unchanged and shows the refusal. Before
+release, the refusal needs approved customer and provider wording (D35 Q7),
+and already-paid bookings need the E50 Legacy Review. Still open: a fee-only
+refund (a 0% price refund) is not sent back through the payment provider,
+which has no effect while the customer fee is 0 and external payments are off.
+A crash just after the cancellation is saved can also leave the payment
+provider's refund unqueued, until the planned outbox (K01/K02) exists. This is
+verified in source and tests in the candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 108. A booking could be cancelled after part or all of its money had moved
+
+If support had refunded part of a booking, or released its money to the
+provider before the job, the customer or provider could still cancel it.
+After a partial refund, the cancellation left the rest of the money held with
+nothing that would ever move it. After a release, the booking was cancelled
+with no refund.
+
+Candidate FIN-011 refuses those cancellations with a message to contact
+support, and changes nothing. A fully refunded or never-paid booking still
+cancels normally. The wording is not yet approved (D35 Q4 and Q11), and the
+admin cancel follows the same rule only from step S1-8. Until then, support
+must refund or release the rest before an admin cancel. Still open, and older
+than this change: releasing money before the job is done leaves no way to
+refund that customer (D35 Q11). This is verified in source and tests in the
+candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 109. Cancelling a booking left its provider offers open
+
+When a customer or provider cancelled a booking, any job offer still waiting
+for a provider stayed "pending" until it expired, and the system then tried
+to offer the cancelled job again. No provider could actually accept it, and
+no money moved.
+
+Candidate OPS-557 closes the booking's pending offers in the same step as the
+cancellation. Still open: an offer the system sends at the very moment of the
+cancellation can still appear for up to 45 seconds (part of the planned offer
+dispatch work, K06). The provider's app is not told the offer closed. The
+admin cancel (until step S1-8) and the 72-hour expiry job do not close offers
+yet. This is verified in source and tests in the candidate only and is not
+deployed. See `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 110. The admin cancel decided its money from an unlocked read
+
+The super admin's cancel button checked the booking's status and payment
+before locking the booking. If a payment landed while the admin was
+cancelling, that money stayed held and was never refunded. If the provider
+completed the job at the same moment, the cancel overwrote the completed job
+and refunded it anyway. The admin cancel also left job offers open, and it
+never told waitlisted customers that a slot had opened.
+
+Candidates FIN-012 and OPS-558 lock the booking first and run the admin
+cancel through the same single cancellation step as customer and provider
+cancels: the refund, the status, the offers and the audit record together.
+The waitlist alert and the admin live feed follow after it is saved. A
+partially refunded booking is now refused, with a pointer to the release or
+refund actions. A booking whose money was already released still cancels
+without moving money, until Ken decides (D35 Q11). Customers and providers are
+still not notified of an admin cancel (wording in D35 Q6). This is verified in
+source and tests in the candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 111. A dispute refund could take the escrow money twice
+
+When a dispute ended in a refund (the provider accepted, the customer accepted
+a partial offer, or an admin decided), the decision was saved first and the
+refund ran afterwards. If that later refund call reported an error, a "retry
+the whole refund" job was queued. When the money had in fact already moved,
+the retry worker took the booking's escrow money and credited the customer a
+second time. Two near-simultaneous accepts of one partial offer could also both
+refund, and a provider's double tap was accepted twice. An admin decision whose
+refund could not be made was still recorded as resolved, with no money moved.
+An automatic no-show refund never marked the payment record as refunded.
+
+Candidates FIN-013 to FIN-016 and OPS-561 (MC-03) make each dispute refund
+move the escrow money inside the same database step that records the
+decision. If the refund cannot be made, the decision is not saved and the
+person sees the error. Only the payment-record update runs afterwards, and if
+it fails only that update is retried, linked to its dispute. The retry worker
+no longer re-runs a whole refund: any such queued job is set aside, keeping
+its earlier error, and shown as "Manual investigation required" in the admin
+Financials payment-operations list. This updates the 2026-09-01 note under
+section 35, which says the legacy `refund_from_escrow` action remains for a
+failure before the local escrow step commits: no code queues it any more, and
+any leftover row is set aside instead of run. A second accept of the same
+offer, or a second provider reply, is refused. The partial and full releases
+to the provider still run after the decision is saved, as before. When a
+customer accepts a partial offer, the provider is still not notified.
+
+The provider's direct accept, the provider's partial offer and the customer's
+accept-offer stay switched off on the live site by the E24 hold until Ken
+lifts it; MC-03 changes how they work, not whether they are available. Before
+this is deployed, the live queue must be checked (read-only) for whole-refund
+jobs, because they will be set aside instead of run. This is verified in
+source and tests in the candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 112. A customer could not pay for an accepted custom quote
+
+Accepting a provider's custom quote moves the booking to "waiting for
+payment", and the app then opens the pay screen. The only payment method
+available while external payments are held (E14) is the in-app wallet, and the
+wallet payment refused bookings already waiting for payment. So a customer who
+accepted a quote could never pay, and the job could never go ahead. The app
+could also show a stale "not awaiting payment" screen right after accepting.
+
+Candidate OPS-559 lets the wallet pay an accepted quote, and the app now loads
+the booking fresh after accepting and refreshes the booking and wallet after
+paying. Three cases are still refused, with nothing moving, until Ken decides:
+a booking with any earlier payment attempt, even a failed one, because it
+could still complete and charge twice (D35 Q10); a booking whose scheduled
+time has already passed, because a quote keeps the placeholder time set when
+the job was posted (D35 Q12); and a booking whose quoting provider is no
+longer approved (D35 Q12). Two taps at once still charge once. The provider
+who wrote the quote is still not told that the customer paid (true of every
+payment path today). This is verified in source and tests in the candidate
+only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 113. A former team member could still add evidence to a job
+
+Each booking remembers which team member performs it. When a booking moved to
+another provider, or lost its provider, that record stayed. The job-evidence
+screens trusted it: the team member could still tick the job's checklist,
+upload before and after photos, add a customer sign-off image and start the
+checklist, all recorded as the provider's own evidence, on a job their
+provider no longer had.
+
+Candidate SEC-094 makes every evidence writer accept the recorded team member
+only while they belong to the booking's current provider, the same rule S1-2
+applied to job status changes. The team member of the booking's own provider,
+the provider owner and the customer are unchanged. Reading another provider's
+job (details, photos, support links) is closed separately in S1-11. This is
+verified in source and tests in the candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 114. Job evidence can be faked or changed after the job (open)
+
+Found while reviewing S1-10 (2026-10-10). Not fixed.
+
+- The older provider photo upload (`POST /api/v1/bookings/:id/photos`) accepts
+  any web address as a photo. It does not check that the picture was uploaded
+  through onService. Those entries count toward the two "after" photos a
+  provider needs before marking a job complete, so a provider or their team
+  member could mark a job complete with no real photos. If the customer does
+  nothing, the job is then confirmed automatically after 24 hours. The current
+  app no longer uses this upload, but the server still accepts it.
+- None of the job-evidence screens check the booking's stage. The checklist,
+  photos and the customer sign-off image can still be added or changed after
+  the job was confirmed, or while it is under dispute, by the provider side
+  that is allowed to work on it. An admin reviewing a dispute could then see
+  evidence that was changed after the fact.
+
+Both need a decision on when evidence becomes read-only, and the old photo
+upload should accept only files onService stored itself.
+
+## 115. A former team member could still read a job and link support cases to it
+
+The same leftover record as section 113 also let a former team member read a
+job that moved to another provider, or lost its provider: the job details
+(including the customer's name and address), its photo list, change orders and
+the job's evidence summary. They could also open a support case linked to that
+job. And a team member whose membership was suspended could still link a new
+support case to their own job, although every other job screen already
+refused them.
+
+Candidates SEC-095 and SEC-096 apply the section 113 rule to these reads and
+to the support-case link, and the link now also requires an approved team
+member when the member asks for it themselves. Support can still open a case
+on a suspended member's behalf, linked to their own provider's job. The team
+member of the job's own provider, the provider owner and the customer are
+unchanged. This is verified in source and tests in the candidate only and is
+not deployed. See `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 116. Reassigning a job that was already "on the way" kept that status
+
+When support reassigned a booking to a different provider after the first
+provider had marked themselves "on the way", the booking kept that status.
+The new provider's job opened as if they were already travelling.
+
+Candidate OPS-560 returns such a booking to "paid" in the same step as the
+reassignment, and the admin record notes the reset. Reassigning a job whose
+provider already arrived is still refused until Ken answers D35 Q9. One side
+effect to know: a reassigned booking that is back at "paid" after its
+scheduled time can trigger the existing late-provider alert, whose "full
+refund" wording is already wrong (D35 Q12). This is verified in source and
+tests in the candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 117. A team member can be credited with another provider's job and review (open)
+
+Found while reviewing S1-10 to S1-12 (2026-10-10 and 2026-10-11). Not fixed.
+
+When a booking moves to another provider other than through the admin
+reassign (for example, the customer accepts a different provider's quote
+after a provider and team member were already set), it keeps the team member
+recorded from the first provider. The admin reassign clears it. That record no longer gives any access
+(sections 113 and 115), but two things still use it:
+
+- a customer's review of the job is stored against that team member;
+- the team page counts that job and that review in the team member's numbers,
+  which the first provider's owner and the admin see.
+
+These are counts, not access: no booking details are exposed. The fix is to
+store and count the team member only while they belong to the booking's
+current provider, or to clear the record whenever the booking's provider
+changes.
+
+## 118. A booking marked "provider suspended during the job" can never be paid out (open)
+
+Found while building the Slice 2 test fixture (2026-10-11). Not fixed.
+
+When an admin suspends a provider, the provider's bookings that are under way
+(on the way, arrived, in progress, or completed by the provider) are marked.
+A marked booking's money can never be released to the provider: the release,
+the partial release and the admin's manual release all refuse it. Nothing in
+the app clears the mark, although the database note on the column says an
+admin must clear it.
+
+The money can still go back to the customer through a refund, a cancellation
+or a dispute decision. But if support decides the provider should still be
+paid for work that was done, there is no way to do it. A dispute decided
+"no refund" on such a booking also leaves a release that keeps failing. This
+needs Ken's decision on who may clear the mark, then an audited admin action
+(D36 Q13).
+
+## 119. Escrow payouts are now limited to what each booking holds
+
+All customers' held money sits in one shared escrow account. Some payouts from
+it were checked only against that account's total, not against the booking
+being paid out:
+
+- a partial payout to the provider after a dispute decision, including a
+  queued retry of one;
+- the compensation and fee paid when a booking is cancelled;
+- a provider's customer no-show report;
+- the hourly unused-time refund. This one is now checked directly, but it
+  could not lose money before: the payout in the same step already refused
+  such a booking.
+
+Candidates FIN-017, FIN-018 and FIN-019 (S2-1) make each of these move exactly
+what that booking holds, or refuse with nothing moved. Each refusal is logged
+at error level for support. The wording is interim (D36 Q2):
+
+- a customer or provider who cancels, confirms or reports a no-show is asked
+  to contact support;
+- the super admin sees the amounts.
+
+Until S2-3, one interim state remains. A partial dispute decision made after
+an earlier support refund still refunds that percentage of the original total.
+The customer can therefore get back more than either answer to D36 Q1 would
+give. The provider's payout that follows is then refused, and ends in
+Financials as "manual investigation". In the same situation, a full-refund
+decision is refused outright, and a no-refund decision's payout is refused.
+
+This is verified in source and tests in the candidate only and is not
+deployed. See `docs/audits/MONEY-SLICE2-2026-10-11.md`.
+
+## 120. Two money steps can deadlock with another payment (open)
+
+Found while reviewing S2-1 (2026-10-11). Not fixed.
+
+Wallet locks are meant to be taken in one order: the customer's or provider's
+own wallet first (loading it also locks it), then the platform wallets in a
+single call. Two steps break that order:
+
+- **A cancellation that refunds to the customer's wallet.** It locks the
+  escrow account before the customer's wallet. A wallet payment, change-order
+  payment or refund by the same customer at the same moment can deadlock with
+  it.
+- **An hourly settlement.** It locks the escrow account before the provider's
+  wallet and the platform revenue and guarantee wallets. A release or a
+  cancellation compensation paying the same provider at the same moment can
+  deadlock with it.
+
+The database then aborts one of the two requests. That request fails with a
+server error and moves no money, and it can be retried.
+
+The fix is to load each step's customer and provider wallets first, as
+payments, refunds and releases already do, and then lock them together with
+the platform wallets in one call. Slice 2 does not build this; it is recorded
+for a later money step. The code comments that called the order deadlock-free
+now point here.
+
+## 121. Some bookings whose escrow status does not match their money need a decision (open)
+
+Found while reviewing S2-1 (2026-10-11). Not fixed.
+
+Older code could leave a booking's escrow status as "held" when part or all
+of its money had already been refunded or paid out. For example, filing a
+dispute relabels the money as "held". S2-2 is planned to fix that; until
+then, this candidate still does it. After S2-1 there are two cases.
+
+1. **Labelled "held" but holding nothing.**
+   - Cancel, refund and release all refuse it.
+   - The only way to close it would be a status edit that records a payout
+     that never happened. Support must not do that.
+   - It needs a one-off, reviewed data repair that relabels it to match where
+     its money went.
+2. **Labelled "held" and holding only part of its total.**
+   - Cancel and release refuse it.
+   - A super admin support refund of up to what it holds still works. It
+     relabels the booking, and a release then pays the provider the rest.
+   - That refund decides how the rest is split between customer and provider
+     (D36 Q1). Support must not use it to unblock a booking without that
+     decision.
+   - Otherwise it needs the same data repair.
+
+The repair changes production data, so it needs Ken's yes and a read-only
+export first. Support should escalate any booking that shows these refusals.

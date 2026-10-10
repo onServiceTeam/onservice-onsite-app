@@ -1,68 +1,94 @@
-// MED-N166 fix verified — wallet.routes.ts /withdraw now delegates
-// to payoutService.requestPayout instead of running its own inline
-// db.transaction with a duplicated wallet-debit + payouts INSERT.
-//
-// Pre-fix: the inline implementation:
-//   - duplicated the money path (drift risk between two code paths)
-//   - bypassed the AML threshold check (MED-N77)
-//   - bypassed the per-method destination format validation (MED-N78)
-//   - bypassed the pending-payout-already-exists guard
-//   - used a different audit pattern than payout.service
-//
-// Post-fix: single source of truth in payoutService.requestPayout.
-// Wallet endpoint becomes a thin facade that just forwards the
-// request body to the service and formats the response.
+import express from 'express';
+import request from 'supertest';
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+const requestPayoutMock = jest.fn();
+const formatPayoutMock = jest.fn();
 
-const ROUTES = readFileSync(
-  resolve(__dirname, '../src/routes/wallet.routes.ts'),
-  'utf8',
-);
+jest.mock('../src/middleware/auth.middleware', () => ({
+  authMiddleware: (
+    req: express.Request,
+    _res: express.Response,
+    next: express.NextFunction,
+  ): void => {
+    (req as express.Request & { user: unknown }).user = {
+      userId: 'provider-user-med-n166',
+      role: req.header('x-test-role') ?? 'provider',
+      iat: 0,
+      exp: 0,
+    };
+    next();
+  },
+}));
 
-describe('MED-N166 — /withdraw delegates to payoutService.requestPayout', () => {
-  it('imports payoutService', () => {
-    expect(ROUTES).toMatch(/import \* as payoutService from '\.\.\/services\/payout\.service'/);
+jest.mock('../src/services/payout.service', () => ({
+  requestPayout: (...args: unknown[]) => requestPayoutMock(...args),
+  formatPayout: (...args: unknown[]) => formatPayoutMock(...args),
+}));
+jest.mock('../src/services/wallet.service', () => ({}));
+jest.mock('../src/services/payment.service', () => ({}));
+jest.mock('../src/services/external-payment-hold.service', () => ({
+  assertExternalPaymentAuthorizationEnabled: jest.fn(),
+}));
+jest.mock('../src/models/db', () => ({ db: { query: jest.fn() } }));
+jest.mock('../src/utils/logger', () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}));
+
+import walletRouter from '../src/routes/wallet.routes';
+
+function createApp(): express.Express {
+  const app = express();
+  app.use(express.json());
+  app.use('/wallet', walletRouter);
+  app.use((
+    error: { statusCode?: number; message?: string },
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => res.status(error.statusCode ?? 500).json({ error: error.message ?? 'error' }));
+  return app;
+}
+
+it('MED-N166 - provider wallet withdrawal delegates only to the canonical payout workflow', async () => {
+  const payout = { id: 'payout-med-n166' };
+  const formatted = { id: 'payout-med-n166', amount: 12500, status: 'pending' };
+  requestPayoutMock.mockResolvedValueOnce(payout);
+  formatPayoutMock.mockReturnValueOnce(formatted);
+  const app = createApp();
+
+  const accepted = await request(app)
+    .post('/wallet/withdraw')
+    .send({ amount: 12500, method: 'gcash', destinationAccount: '09171234567' });
+
+  expect(accepted.status).toBe(201);
+  expect(accepted.body).toEqual({ success: true, data: formatted });
+  expect(requestPayoutMock).toHaveBeenCalledWith('provider-user-med-n166', {
+    amount: 12500,
+    method: 'gcash',
+    destinationAccount: '09171234567',
+    accountName: undefined,
+    notes: undefined,
   });
+  expect(formatPayoutMock).toHaveBeenCalledWith(payout);
 
-  it('the /withdraw handler calls payoutService.requestPayout with the user id and request body', () => {
-    const block = ROUTES.match(/router\.post\(\s*'\/withdraw',[\s\S]*?(?=router\.[a-z]+\(|export default|$)/);
-    expect(block).not.toBeNull();
-    expect(block![0]).toMatch(/payoutService\.requestPayout\(userId,/);
-    // The amount/method/destinationAccount must be passed through.
-    expect(block![0]).toMatch(/amount,/);
-    expect(block![0]).toMatch(/method,/);
-    expect(block![0]).toMatch(/destinationAccount,/);
-  });
+  const customerAttempt = await request(app)
+    .post('/wallet/withdraw')
+    .set('x-test-role', 'customer')
+    .send({ amount: 12500, method: 'gcash', destinationAccount: '09171234567' });
 
-  it('the /withdraw handler no longer runs its own db.transaction', () => {
-    const block = ROUTES.match(/router\.post\(\s*'\/withdraw',[\s\S]*?(?=router\.[a-z]+\(|export default|$)/);
-    expect(block).not.toBeNull();
-    expect(block![0]).not.toMatch(/db\.transaction/);
-  });
+  expect(customerAttempt.status).toBe(403);
+  expect(customerAttempt.body).toEqual({ error: 'Only providers can withdraw funds.' });
+  expect(requestPayoutMock).toHaveBeenCalledTimes(1);
 
-  it('the /withdraw handler no longer hand-writes the wallets UPDATE', () => {
-    const block = ROUTES.match(/router\.post\(\s*'\/withdraw',[\s\S]*?(?=router\.[a-z]+\(|export default|$)/);
-    expect(block).not.toBeNull();
-    expect(block![0]).not.toMatch(/UPDATE wallets/);
-  });
+  requestPayoutMock.mockRejectedValueOnce(Object.assign(
+    new Error('Withdrawal requires internal large-payout review.'),
+    { statusCode: 409 },
+  ));
+  const held = await request(app)
+    .post('/wallet/withdraw')
+    .send({ amount: 50000000, method: 'maya', destinationAccount: '09181234567' });
 
-  it('the /withdraw handler no longer hand-writes the payouts INSERT', () => {
-    const block = ROUTES.match(/router\.post\(\s*'\/withdraw',[\s\S]*?(?=router\.[a-z]+\(|export default|$)/);
-    expect(block).not.toBeNull();
-    expect(block![0]).not.toMatch(/INSERT INTO payouts/);
-  });
-
-  it('the response uses payoutService.formatPayout (not the local one)', () => {
-    const block = ROUTES.match(/router\.post\(\s*'\/withdraw',[\s\S]*?(?=router\.[a-z]+\(|export default|$)/);
-    expect(block).not.toBeNull();
-    expect(block![0]).toMatch(/payoutService\.formatPayout\(payout\)/);
-  });
-
-  it('still gates the route to providers only', () => {
-    const block = ROUTES.match(/router\.post\(\s*'\/withdraw',[\s\S]*?(?=router\.[a-z]+\(|export default|$)/);
-    expect(block![0]).toMatch(/req\.user!\.role !== 'provider'/);
-    expect(block![0]).toMatch(/Only providers can withdraw funds/);
-  });
+  expect(held.status).toBe(409);
+  expect(held.body).toEqual({ error: 'Withdrawal requires internal large-payout review.' });
+  expect(formatPayoutMock).toHaveBeenCalledTimes(1);
 });

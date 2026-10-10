@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureImageAsync, isCameraCaptureAvailable } from '@/utils/image-capture';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 import { uploadImages } from '@/services/upload.service';
-import { Button } from '@/components/ui';
+import { ProviderApplicationDraftActions } from '@/components/ProviderApplicationDraftActions';
+import { applicationFieldsFromStore } from '@/services/provider-application-draft.service';
+import { useApplicationOperation } from '@/hooks/useApplicationOperation';
+import { useApplicationSession } from '@/stores/provider-application-session.store';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Camera, Check } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -14,41 +17,42 @@ import { useResponsive } from '@/hooks/useResponsive';
 import { Routes } from '@/config/navigation';
 export default function SelfieScreen(): React.ReactElement {
   const router = useRouter();
-  const { selfieUri, setDocument } = useOnboardingStore();
+  const store = useOnboardingStore();
+  const { selfieUri, setDocument } = store;
   const { isPhone } = useResponsive();
   const [uploading, setUploading] = useState(false);
   const [localPreviewUri, setLocalPreviewUri] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const operation = useApplicationOperation(() => setUploading(false));
+  const draftBusy = useApplicationSession(state => state.busy);
 
   const takeSelfie = async (): Promise<void> => {
-    const capture = await captureImageAsync({ quality: 0.8, allowsEditing: false });
-    if (capture.status === 'denied') {
-      Alert.alert('Permission Required', 'Camera access is needed to take a selfie.');
-      return;
-    }
-
-    const { result } = capture;
-    if (result.canceled || result.assets.length === 0) return;
-
+    if (uploading) return;
+    const isCurrent = operation.begin();
+    if (!isCurrent) return;
     setUploading(true);
+    setError(null);
     try {
+      const capture = await captureImageAsync({ quality: 0.8, allowsEditing: false });
+      if (!isCurrent()) return;
+      if (capture.status === 'denied') {
+        setError('Camera access is needed to take a selfie. Allow access and try again.');
+        return;
+      }
+      const { result } = capture;
+      if (result.canceled || result.assets.length === 0) return;
       const localUri = result.assets[0]!.uri;
-      const uploaded = await uploadImages([localUri], 'onboarding');
-      setDocument('selfieUri', uploaded[0]!.url);
+      const uploaded = await uploadImages([localUri], 'onboarding', isCurrent);
+      if (!isCurrent()) return;
+      const reference = uploaded[0]?.url;
+      if (!reference) throw new Error('Upload returned no selfie');
+      setDocument('selfieUri', reference);
       setLocalPreviewUri(localUri);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Upload failed';
-      Alert.alert('Upload Error', msg);
+    } catch {
+      if (isCurrent()) setError('Your selfie could not be uploaded. Any previous selfie is unchanged. Please try again.');
     } finally {
-      setUploading(false);
+      if (isCurrent()) setUploading(false);
     }
-  };
-
-  const handleNext = (): void => {
-    if (!selfieUri) {
-      Alert.alert('Required', 'Please take a selfie to continue.');
-      return;
-    }
-    router.push(Routes.PROVIDER_ONBOARDING.TERMS);
   };
 
   const captureButtonLabel = selfieUri
@@ -72,8 +76,9 @@ export default function SelfieScreen(): React.ReactElement {
         <Text style={styles.step}>5 / 6</Text>
       </View>
 
-      <View style={[styles.body, !isPhone && styles.bodyWide]}>
+      <ScrollView style={styles.bodyScroll} contentContainerStyle={[styles.body, !isPhone && styles.bodyWide]}>
         <Text style={styles.title}>Selfie Verification</Text>
+        {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
         <Text style={styles.subtitle}>
           Take a clear selfie of your face. This will be compared with your government ID
           to verify your identity. Make sure your face is well-lit and clearly visible.
@@ -83,7 +88,7 @@ export default function SelfieScreen(): React.ReactElement {
           {uploading ? (
             <View style={styles.selfiePlaceholder}>
               <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.uploadingText}>Uploading...</Text>
+              <Text style={styles.uploadingText}>Selecting or uploading…</Text>
             </View>
           ) : localPreviewUri ? (
             <Image source={{ uri: localPreviewUri }} style={styles.selfieImage} testID="selfie-local-preview" />
@@ -105,10 +110,10 @@ export default function SelfieScreen(): React.ReactElement {
           style={styles.captureBtn}
           onPress={takeSelfie}
           activeOpacity={0.7}
-          disabled={uploading}
+          disabled={uploading || draftBusy}
           accessibilityRole="button"
           accessibilityLabel={captureButtonLabel}
-          accessibilityState={{ disabled: uploading, busy: uploading }}
+          accessibilityState={{ disabled: uploading || draftBusy, busy: uploading }}
         >
           <Text style={styles.captureBtnText}>{captureButtonLabel}</Text>
         </TouchableOpacity>
@@ -120,13 +125,13 @@ export default function SelfieScreen(): React.ReactElement {
           <Text style={styles.tipItem}>• Use good lighting (natural light works best)</Text>
           <Text style={styles.tipItem}>• Keep your face centered in the frame</Text>
         </View>
-      </View>
-
       <View style={styles.footer}>
         <View style={styles.footerInner}>
-          <Button title="Next" onPress={handleNext} disabled={!selfieUri} />
+          <ProviderApplicationDraftActions fields={applicationFieldsFromStore(store)} disabled={uploading}
+            continueDisabled={!selfieUri} onContinue={() => router.push(Routes.PROVIDER_ONBOARDING.TERMS)} />
         </View>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -148,8 +153,9 @@ const styles = StyleSheet.create({
   progressDone: { backgroundColor: colors.success },
   progressActive: { backgroundColor: colors.primary, width: 24 },
   step: { ...typography.caption, color: colors.textTertiary, marginLeft: spacing.sm },
+  bodyScroll: { flex: 1 },
   body: {
-    flex: 1,
+    flexGrow: 1,
     width: '100%',
     maxWidth: 760,
     alignSelf: 'center',
@@ -188,14 +194,17 @@ const styles = StyleSheet.create({
   selfieIcon: { marginBottom: spacing.sm },
   selfieHint: { ...typography.caption, color: colors.textTertiary },
   uploadingText: { ...typography.caption, color: colors.primary, marginTop: spacing.sm },
+  error: { ...typography.bodySmall, color: colors.error, marginBottom: spacing.sm },
   captureBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.primary,
     borderRadius: borderRadius.lg,
     paddingVertical: spacing.base,
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
-  captureBtnText: { ...typography.button, color: colors.white },
+  captureBtnText: { ...typography.button, color: colors.primary },
   tipsCard: {
     backgroundColor: colors.warningLight,
     borderRadius: borderRadius.lg,

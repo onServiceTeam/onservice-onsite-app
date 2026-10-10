@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-09-05T23:44:27.075Z",
+  "sourceRevision": "eec230147398f6bbbe128e64016daddd20f1ad8f compiled mobile before UX-1355",
+  "scope": "Compiled read-only date override labels in four real Chromium timezones and three viewport widths with synthetic HTTP. Not PostgreSQL, native, production, all accessibility requirements or full Stitch acceptance.",
+  "indexSha256": "68a0f955d927ea88dcb3070faea45e9320e75c11afd6773ce0616b91895daf8c",
+  "entrySha256": "1408c36f9811760166d50c72f90bfa1ce7747dfbe6000a468255c8098cd9508b",
+  "expected": 12,
+  "passed": 0,
+  "records": [
+    {
+      "width": 320,
+      "timezone": "Pacific/Auckland",
+      "passed": false,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [],
+      "runtimeTimezone": "Pacific/Auckland",
+      "error": "expect(locator).toBeVisible() failed\n\nLocator: getByText('Mon, Aug 31, 2099', { exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"to.be.visible\" with timeout 5000ms\n  - waiting for getByText('Mon, Aug 31, 2099', { exact: true })\n"
+    }
+  ]
+}

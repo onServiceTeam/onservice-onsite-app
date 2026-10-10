@@ -1,11 +1,23 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
-import { createTemplateSchema, updateTemplateSchema } from '../validators/notification-template.validators';
+import {
+  createTemplateSchema,
+  deleteTemplateSchema,
+  updateTemplateSchema,
+} from '../validators/notification-template.validators';
 import * as templateService from '../services/notification-template.service';
 import { createAppError } from '../middleware/error.middleware';
 
 const router = Router();
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function requireTemplateId(value: unknown): string {
+  if (typeof value !== 'string' || !UUID_REGEX.test(value)) {
+    throw createAppError('Template ID must be a valid UUID.', 400);
+  }
+  return value;
+}
 
 function requireAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') {
@@ -13,11 +25,9 @@ function requireAdmin(req: AuthenticatedRequest): void {
   }
 }
 
-// MED-N167 fix — DELETE on a notification template removes
-// customer-facing copy (OTP SMS, booking confirmations, payout
-// receipts). A junior admin shouldn't be able to do that without
-// super_admin oversight. Pairs with MED-N142 (audit row on delete)
-// for full coverage.
+// Notification-template mutations publish customer/provider-facing copy for
+// connected workflows. Keep the whole lifecycle under super-admin oversight;
+// ordinary admins retain read-only support visibility.
 function requireSuperAdmin(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'super_admin') {
     throw createAppError('Super admin access required.', 403);
@@ -57,8 +67,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const id = req.params['id'];
-      if (typeof id !== 'string' || !id) throw createAppError('Template ID is required.', 400);
+      const id = requireTemplateId(req.params['id']);
 
       const template = await templateService.getTemplateById(id);
       res.json({ success: true, data: templateService.formatTemplate(template) });
@@ -74,7 +83,7 @@ router.post(
   validationMiddleware(createTemplateSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const template = await templateService.createTemplate(req.user!.userId, req.body);
       res.status(201).json({ success: true, data: templateService.formatTemplate(template) });
     } catch (error) {
@@ -89,9 +98,8 @@ router.put(
   validationMiddleware(updateTemplateSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const id = req.params['id'];
-      if (typeof id !== 'string' || !id) throw createAppError('Template ID is required.', 400);
+      requireSuperAdmin(req);
+      const id = requireTemplateId(req.params['id']);
 
       const template = await templateService.updateTemplate(id, req.user!.userId, req.body);
       res.json({ success: true, data: templateService.formatTemplate(template) });
@@ -104,15 +112,15 @@ router.put(
 router.delete(
   '/:id',
   authMiddleware,
+  validationMiddleware(deleteTemplateSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireSuperAdmin(req); // MED-N167
-      const id = req.params['id'];
-      if (typeof id !== 'string' || !id) throw createAppError('Template ID is required.', 400);
+      requireSuperAdmin(req); // SEC-035
+      const id = requireTemplateId(req.params['id']);
 
       // MED-N142 fix — pass the actor's userId so the service can
       // record the admin_actions audit row.
-      await templateService.deleteTemplate(id, req.user!.userId);
+      await templateService.deleteTemplate(id, req.user!.userId, req.body.reason);
       res.json({ success: true, data: { message: 'Template deleted.' } });
     } catch (error) {
       next(error);

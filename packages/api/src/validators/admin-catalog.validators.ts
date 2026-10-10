@@ -27,9 +27,10 @@
 // named `price` (not `price_cents`).
 
 import { z } from 'zod';
+import { ADDON_PRICE_HARD_MAX_CENTAVOS } from '../config/catalog.config';
 
 /** Hard backstop. Admin-tunable cap is enforced at the service layer. */
-const ADDON_PRICE_MAX_CENTS = 10_000_000; // ₱100,000 hard ceiling
+const ADDON_PRICE_MAX_CENTS = ADDON_PRICE_HARD_MAX_CENTAVOS;
 const POSTGRES_INTEGER_MAX = 2_147_483_647;
 const POSTGRES_INTEGER_MIN = -2_147_483_648;
 const CUSTOMER_SERVICE_SCOPE_MIN = 30;
@@ -173,7 +174,9 @@ export async function getAddonPriceMaxCentsLive(): Promise<number> {
     const settingsService = require('../services/settings.service');
     if (typeof settingsService.getSettingNumber === 'function') {
       const value = await settingsService.getSettingNumber('addon_price_max_cents');
-      if (Number.isFinite(value) && value > 0) return Number(value);
+      if (Number.isFinite(value) && value > 0) {
+        return Math.min(Number(value), ADDON_PRICE_HARD_MAX_CENTAVOS);
+      }
     }
   } catch {
     /* fall back to hard backstop */

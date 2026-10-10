@@ -12,6 +12,10 @@ const ticketType = z.enum([
 
 const ticketPriority = z.enum(['low', 'medium', 'high', 'urgent']);
 
+function canonicalUuid(message: string): z.ZodType<string> {
+  return z.string().uuid(message).transform((value) => value.toLowerCase());
+}
+
 const ticketStatus = z.enum([
   'open',
   'in_progress',
@@ -28,15 +32,18 @@ export const supportTicketListQuerySchema = z.object({
   status: ticketStatus.optional(),
   type: ticketType.optional(),
   priority: ticketPriority.optional(),
-  assignedAgentId: z.string().uuid('Invalid assigned agent ID').optional(),
+  assignedAgentId: canonicalUuid('Invalid assigned agent ID').optional(),
   unassigned: z.enum(['1', 'true']).transform(() => true).optional(),
   active: z.enum(['1', 'true']).transform(() => true).optional(),
+  needsReply: z.enum(['1', 'true']).transform(() => true).optional(),
   search: z.string().trim().min(2).max(100).optional(),
-  bookingId: z.string().uuid('Invalid booking ID').optional(),
-  userId: z.string().uuid('Invalid user ID').optional(),
-  relatedCustomerId: z.string().uuid('Invalid related customer ID').optional(),
-  relatedProviderId: z.string().uuid('Invalid related provider ID').optional(),
-}).strict();
+  bookingId: canonicalUuid('Invalid booking ID').optional(),
+  projectId: canonicalUuid('Invalid project ID').optional(),
+  businessAccountId: canonicalUuid('Invalid business account ID').optional(),
+  userId: canonicalUuid('Invalid user ID').optional(),
+  relatedCustomerId: canonicalUuid('Invalid related customer ID').optional(),
+  relatedProviderId: canonicalUuid('Invalid related provider ID').optional(),
+}).strict().superRefine(rejectMultipleWorkContexts);
 
 export const mySupportTicketListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -44,17 +51,49 @@ export const mySupportTicketListQuerySchema = z.object({
   status: ticketStatus.optional(),
 }).strict();
 
-export const createSupportTicketSchema = z.object({
+const createSupportTicketFields = {
   type: ticketType,
-  priority: ticketPriority.default('medium'),
   subject: z.string().trim().min(3, 'Subject must be at least 3 characters').max(200),
   description: z.string().trim().min(5, 'Description must be at least 5 characters').max(5000),
-  bookingId: z.string().uuid('Invalid booking ID').optional(),
-}).strict();
+  bookingId: canonicalUuid('Invalid booking ID').optional(),
+  projectId: canonicalUuid('Invalid project ID').optional(),
+  businessAccountId: canonicalUuid('Invalid business account ID').optional(),
+};
 
-export const adminCreateSupportTicketSchema = createSupportTicketSchema.extend({
-  userId: z.string().uuid('Invalid user ID'),
-});
+function rejectMultipleWorkContexts(
+  value: { bookingId?: string; projectId?: string; businessAccountId?: string },
+  context: z.RefinementCtx,
+): void {
+  if (value.bookingId && value.projectId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['projectId'],
+      message: 'A support request can be linked to a booking or a project, not both',
+    });
+  }
+  if (value.projectId && value.businessAccountId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['businessAccountId'],
+      message: 'A planning-project support request cannot be relabelled as a business account case',
+    });
+  }
+}
+
+export const createSupportTicketSchema = z.object({
+  ...createSupportTicketFields,
+  // A participant can report a safety concern, but cannot choose queue
+  // priority. The route maps this explicit flag to urgent server-side.
+  safetyConcern: z.literal(true).optional(),
+})
+  .strict()
+  .superRefine(rejectMultipleWorkContexts);
+
+export const adminCreateSupportTicketSchema = z.object({
+  ...createSupportTicketFields,
+  priority: ticketPriority.default('medium'),
+  userId: canonicalUuid('Invalid user ID'),
+}).strict().superRefine(rejectMultipleWorkContexts);
 
 export const supportTicketMessageSchema = z.object({
   message: z.string().trim().min(1, 'Message is required').max(5000),
@@ -79,11 +118,15 @@ export const updateSupportTicketStatusSchema = z.object({
 });
 
 export const assignSupportTicketSchema = z.object({
-  agentId: z.string().uuid('Invalid agent ID'),
+  agentId: canonicalUuid('Invalid agent ID'),
 }).strict();
 
 export const supportTicketIdParamsSchema = z.object({
-  id: z.string().uuid('Invalid support ticket ID'),
+  id: canonicalUuid('Invalid support ticket ID'),
+}).strict();
+
+export const supportAccountIdParamsSchema = z.object({
+  id: canonicalUuid('Invalid support case owner ID'),
 }).strict();
 
 export const updateSupportTicketPrioritySchema = z.object({

@@ -1,7 +1,7 @@
 # E28 — Admin pricing rules lack authoritative preview and staged publication
 
 **Date:** 2026-08-25  
-**Status:** OPEN  
+**Status:** OPTION 1 IMPLEMENTED LOCALLY; PRODUCTION INVENTORY, MIGRATION, AND DEPLOYMENT HELD BY E32
 **Hard stop:** money-path behavior and customer/provider revenue allocation
 
 ## What the admin audit found
@@ -25,4 +25,16 @@ Also decide whether delete should remain a hard delete or become an audited deac
 ## Work that may continue
 
 Read-only inspection, responsive layout, accessibility, truthful labels, and tests that do not change calculation or publication behavior may continue. Do not add a client-only preview, infer overlap rules, alter priority resolution, change multipliers or revenue shares, or enable/disable production rules until this decision is answered and tested on a topic branch.
+
+## Decision update - 2026-09-02
+
+Ken approved Option 1, expanded by E54 as the draft, authoritative preview,
+explicit publish, and retirement workflow. Pricing mutation and publication
+authority is super-admin only under the existing privileged-money-action
+policy; ordinary admins retain read-only visibility. Published records are not
+edited or hard-deleted. Existing booking financial snapshots are unchanged.
+
+Implementation is proceeding on the existing money-path topic branch.
+Production inventory, migration, and deployment remain blocked by E32 until
+server access is restored.
 

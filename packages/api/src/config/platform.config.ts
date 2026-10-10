@@ -9,13 +9,9 @@ export const platformConfig = {
 
   // --- Commission Rates by Provider Tier ---
   // MED-N32 fix: 'founding' tier added (migration 073 introduced
-  // it; commission rate is admin-editable in platform_settings as
-  // commission_rate_founding=10). The values here are fallback
-  // defaults — getCommissionRate() in pricing.service routes through
-  // settingsService.getSettingNumber('commission_rate_<tier>').
-  // Keep all 5 keys here so callers like provider-tools.service.ts
-  // and admin-analytics.service.ts that index into this map don't
-  // silently fall back to 'new' for founding-tier providers.
+  // it). These values identify the canonical tier set and seed defaults.
+  // Money paths resolve immutable, effective-dated agreements from
+  // commission_rate_versions; they must never calculate from this map.
   commissionRates: {
     founding: 0.10,   // 10% — invite-only batch tier (DECISION-003)
     new: 0.15,        // 15% for new providers
@@ -48,6 +44,15 @@ export const platformConfig = {
   otpExpiryMinutes: 5,
   otpMaxAttempts: 3,
   otpCooldownSeconds: 60,
+  // Internal verified-email linking uses hard account/recipient/IP limits.
+  // No relaxed-test bypass; public enablement is a separate acceptance step.
+  emailLinkRequestsPerHour: 5,
+  emailSignInRequestsPerHour: 5,
+  // Engineering default aligned with existing login-attempt metadata, not a
+  // legal retention approval. Expired proof hashes clear on the next batch;
+  // this longer window applies only to request metadata, never usable codes.
+  emailLinkRequestRetentionDays: 90,
+  emailSignInRequestRetentionDays: 90,
 
   // --- Quotes ---
   quoteExpiryHours: 48,           // Quotes expire after 48 hours

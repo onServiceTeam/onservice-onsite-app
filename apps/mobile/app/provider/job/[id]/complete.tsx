@@ -110,13 +110,13 @@ export default function JobCompleteScreen({ staffMode = false }: { staffMode?: b
     enabled: !!id,
   });
   const providerMeQuery = useQuery<{ tier: string; commissionRate: number }>({
-    queryKey: ['providerMe'],
+    queryKey: ['providerCommissionPreview', id],
     queryFn: async () => {
-      const res = await api.get<{ data: { tier: string; commissionRate: number } }>('/api/v1/providers/me');
+      const res = await api.get<{ data: { tier: string; commissionRate: number } }>(`/api/v1/providers/me/commission-preview?bookingId=${encodeURIComponent(id!)}`);
       return { tier: res.data.data.tier, commissionRate: res.data.data.commissionRate };
     },
     staleTime: 5 * 60 * 1000,
-    enabled: !staffMode,
+    enabled: !staffMode && !!id,
   });
   const providerTier = providerMeQuery.data?.tier;
   const tierRate = providerMeQuery.data?.commissionRate;
@@ -477,7 +477,7 @@ export default function JobCompleteScreen({ staffMode = false }: { staffMode?: b
                   label: 'Platform commission',
                   amount: commissionAmount,
                   pct: tierPct,
-                  helpText: `Live rate for your ${providerTier} tier at the time this preview loaded.`,
+                  helpText: `Rate recorded for this booking under your ${providerTier} agreement.`,
                 },
               ]}
               net={netEarnings}
@@ -494,7 +494,7 @@ export default function JobCompleteScreen({ staffMode = false }: { staffMode?: b
             <ErrorState
               compact
               title="Earnings preview unavailable"
-              message="We couldn't load the live commission rate for this completion record."
+              message="We couldn't load the commission agreement recorded for this booking."
               onRetry={() => void providerMeQuery.refetch()}
             />
           </View>

@@ -18,6 +18,8 @@
 #   - article-16-closeout-exists:    when running on a phase/14-dNN-* branch,
 #                                    .ai-coder/dispatches/D<NN>-closeout.md
 #                                    must exist.
+#   - unique-regression-ids:          direct Bug IDs in it()/test() titles are
+#                                    unique across apps/ and packages/.
 #   - money-in-transaction:          money mutations (wallets, wallet_transactions,
 #                                    admin_actions writes) must be inside
 #                                    db.transaction().
@@ -131,6 +133,15 @@ if [ -n "$DISPATCH" ]; then
 else
   # Not on a dispatch branch — vacuously OK
   report_article "article-16-closeout-exists" 1
+fi
+
+# ---------------------------------------------------------------------------
+# Unique regression IDs (BLOCKING)
+# ---------------------------------------------------------------------------
+if regression_id_output=$(python3 "$GATES_DIR/c-unique-regression-ids.py" 2>&1); then
+  report_article "unique-regression-ids" 1
+else
+  report_article "unique-regression-ids" 0 "$regression_id_output"
 fi
 
 # ---------------------------------------------------------------------------

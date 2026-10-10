@@ -2,6 +2,13 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  AUDIT_CHROMIUM_ARGS,
+  AUDIT_CONTEXT_OPTIONS,
+  AUDIT_SCREENSHOT_OPTIONS,
+  installFixedBrowserTime,
+  settleBrowserEvidence,
+} from '../browser-audit-clock.mjs';
 
 const BASE_URL = process.env.AUDIT_BASE_URL ?? 'http://127.0.0.1:7390';
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -211,6 +218,36 @@ function responseFor(url) {
   if (pathname === '/api/v1/wallet/payouts') return envelope([{ id: 'payout-1', providerId: provider.id, amount: 500000, method: 'gcash', destinationAccount: '0917••••567', status: 'completed', failureReason: null, rejectionReason: null, createdAt: '2026-08-28T00:00:00.000Z', completedAt: '2026-08-29T00:00:00.000Z' }], { pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 } });
   if (pathname === '/api/v1/notifications') return envelope([], { meta: { total: 0, unread: 3, page: 1, pageSize: 1 } });
   if (pathname === '/api/v1/notifications/preferences') return envelope({ bookingUpdates: true, providerActivity: true, paymentAlerts: true, messages: true, sukiRewards: true, reminders: true, system: true, quietHoursEnabled: false, quietHoursStart: '22:00', quietHoursEnd: '07:00', quietHoursTimezone: 'Asia/Manila' });
+  if (pathname === '/api/v1/providers/me/commission-preview') return envelope({
+    providerTier: provider.tier,
+    tier: provider.tier,
+    commissionRate: provider.commissionRate,
+    commissionRateBasisPoints: 1300,
+    commissionSource: 'tier_default',
+    commissionRateVersionId: 'commission-rate-1',
+    isFixedForBooking: true,
+    termsVersion: 1,
+  });
+  if (pathname === `/api/v1/providers/me/job-requests/${booking.id}`) return envelope({
+    id: booking.id,
+    categoryId: booking.categoryId,
+    categoryName: booking.categoryName,
+    serviceName: booking.serviceName,
+    subcategoryId: booking.subcategoryId,
+    description: booking.description,
+    urgency: 'within_3_days',
+    budgetMin: 120000,
+    budgetMax: 200000,
+    jobPhotos: [],
+    jobVideoUrl: null,
+    intakeAnswers: booking.intakeAnswers,
+    barangay: booking.barangay,
+    city: booking.city,
+    province: booking.province,
+    customerName: booking.customerName,
+    distanceKm: 3.2,
+    createdAt: booking.createdAt,
+  });
   if (pathname === '/api/v1/providers/me/job-requests') return { success: true, requests: [{ id: 'lead-1', categoryName: 'Air Conditioning', description: 'Aircon is not cooling.', urgency: 'within_3_days', budgetMin: 120000, budgetMax: 200000, jobPhotos: [], jobVideoUrl: null, barangay: 'Lahug', city: 'Cebu City', distanceKm: 3.2, createdAt: '2026-08-31T04:00:00.000Z' }], total: 1 };
   if (pathname === '/api/v1/disputes/my') return envelope([dispute], { pagination: { page: 1, total: 1, totalPages: 1 } });
   if (pathname === `/api/v1/disputes/${dispute.id}`) return envelope(dispute);
@@ -244,8 +281,12 @@ async function seedSession(page, user) {
 }
 
 async function auditRoute(browser, route, expectedText, width, user) {
-  const context = await browser.newContext({ viewport: { width, height: 900 } });
+  const context = await browser.newContext({
+    ...AUDIT_CONTEXT_OPTIONS,
+    viewport: { width, height: 900 },
+  });
   const page = await context.newPage();
+  await installFixedBrowserTime(page);
   const pageErrors = [];
   const consoleErrors = [];
   const unmatchedApi = new Set();
@@ -271,7 +312,11 @@ async function auditRoute(browser, route, expectedText, width, user) {
   });
 
   await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-  await page.waitForTimeout(2_800);
+  await page.getByText(expectedText, { exact: false }).first().waitFor({
+    state: 'visible',
+    timeout: 10_000,
+  });
+  await settleBrowserEvidence(page);
   const state = await page.evaluate(() => ({
     path: `${location.pathname}${location.search}`,
     text: document.body.innerText.replace(/\s+/g, ' ').trim(),
@@ -282,7 +327,11 @@ async function auditRoute(browser, route, expectedText, width, user) {
   await mkdir(screenshotDir, { recursive: true });
   const screenshotName = `${user.role === 'provider_staff' ? 'staff-' : ''}${safeName(route)}`;
   const screenshot = path.join(screenshotDir, `${screenshotName}.png`);
-  await page.screenshot({ path: screenshot, fullPage: false });
+  await page.screenshot({
+    path: screenshot,
+    fullPage: false,
+    ...AUDIT_SCREENSHOT_OPTIONS,
+  });
 
   const globalBoundary = state.text.includes('The app ran into an unexpected problem. You can try again.');
   const markerMissing = !state.text.toLocaleLowerCase().includes(expectedText.toLocaleLowerCase());
@@ -292,15 +341,37 @@ async function auditRoute(browser, route, expectedText, width, user) {
   return { route, persona: user.role, expectedText, width, actualPath: state.path, textPreview: state.text.slice(0, 300), markerMissing, globalBoundary, overflow, pageErrors, consoleErrors, unmatchedApi: [...unmatchedApi], screenshot, failed };
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({
+  // Canonical evidence uses software rasterization and neutral font hinting so
+  // GPU/ClearType scheduling cannot move pixels between identical captures.
+  args: AUDIT_CHROMIUM_ARGS,
+});
 const results = [];
+const routeFilter = new Set(
+  (process.env.AUDIT_ROUTE_FILTER ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
+const widthFilter = new Set(
+  (process.env.AUDIT_WIDTH_FILTER ?? '')
+    .split(',')
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value) && value > 0),
+);
+// Canonical evidence is serial so CPU contention cannot change layout timing.
+// Exploratory runs may opt into up to five workers explicitly.
+const workerCount = Math.max(1, Math.min(5, Number(process.env.AUDIT_WORKERS ?? 1) || 1));
 try {
-  const jobs = [768, 1024, 1366].flatMap((width) => [
-    ...routes.map(([route, expectedText]) => ({ route, expectedText, width, user: providerUser })),
-    ...staffRoutes.map(([route, expectedText]) => ({ route, expectedText, width, user: staffUser })),
-  ]);
+  const jobs = [768, 1024, 1366]
+    .filter((width) => widthFilter.size === 0 || widthFilter.has(width))
+    .flatMap((width) => [
+      ...routes.map(([route, expectedText]) => ({ route, expectedText, width, user: providerUser })),
+      ...staffRoutes.map(([route, expectedText]) => ({ route, expectedText, width, user: staffUser })),
+    ])
+    .filter((job) => routeFilter.size === 0 || routeFilter.has(job.route));
   const pending = [...jobs];
-  const workers = Array.from({ length: 5 }, async () => {
+  const workers = Array.from({ length: workerCount }, async () => {
     while (pending.length) {
       const job = pending.shift();
       if (!job) return;
@@ -317,7 +388,9 @@ try {
 }
 
 results.sort((a, b) => a.width - b.width || a.persona.localeCompare(b.persona) || a.route.localeCompare(b.route));
-const reportPath = path.join(here, 'provider-populated-state-results.json');
+const reportPath = process.env.AUDIT_REPORT_PATH
+  ? path.resolve(process.env.AUDIT_REPORT_PATH)
+  : path.join(here, 'provider-populated-state-results.json');
 await writeFile(reportPath, `${JSON.stringify(results, null, 2)}\n`, 'utf8');
 const failures = results.filter((result) => result.failed);
 process.stdout.write(`${JSON.stringify({ audited: results.length, failed: failures.length, reportPath, failures }, null, 2)}\n`);

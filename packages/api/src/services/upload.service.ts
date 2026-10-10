@@ -15,12 +15,11 @@ const USE_S3 = !!process.env.S3_BUCKET;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
 const BASE_URL = process.env.UPLOAD_BASE_URL || `http://localhost:${process.env.PORT || 7381}/uploads`;
 
-// MED-N144 fix — admin-tunable allowlist. Pre-fix the in-memory Set
-// was built from platformConfig at module-load time; admins couldn't
-// add a new MIME type (e.g., image/avif as adoption grows) without a
-// code deploy. Post-fix `loadAllowedMime()` reads from
-// platform_settings.allowed_image_mime_types (comma-separated) with
-// the platformConfig list as fallback.
+// MED-N144 fix — admin-tunable allowlist. `loadAllowedMime()` reads the
+// selected subset of JPEG, PNG, and WebP from platform settings, with the
+// platformConfig list as fallback. Adding a new format still requires a
+// coordinated code/client/storage release because extension and magic-byte
+// validation intentionally support only these three formats.
 const FALLBACK_ALLOWED_MIME = new Set<string>(platformConfig.allowedImageTypes);
 const MAX_SIZE_BYTES = platformConfig.maxImageSizeMB * 1024 * 1024;
 
@@ -114,32 +113,6 @@ export async function validateFile(
     );
   }
 
-  const ext = path.extname(originalname).toLowerCase();
-  const allowedExts = new Set(['.jpg', '.jpeg', '.png', '.webp']);
-  if (!allowedExts.has(ext)) {
-    throw createAppError(`File extension "${ext}" is not allowed.`, 400);
-  }
-}
-
-// Sync backwards-compat shim for callers that can't easily go async.
-// Uses the in-code FALLBACK_ALLOWED_MIME list (no admin tuning).
-export function validateFileSync(
-  originalname: string,
-  mimetype: string,
-  size: number,
-): void {
-  if (!FALLBACK_ALLOWED_MIME.has(mimetype)) {
-    throw createAppError(
-      `File type "${mimetype}" is not allowed. Accepted: ${[...FALLBACK_ALLOWED_MIME].join(', ')}`,
-      400,
-    );
-  }
-  if (size > MAX_SIZE_BYTES) {
-    throw createAppError(
-      `File is too large (${(size / 1024 / 1024).toFixed(1)}MB). Maximum: ${platformConfig.maxImageSizeMB}MB.`,
-      400,
-    );
-  }
   const ext = path.extname(originalname).toLowerCase();
   const allowedExts = new Set(['.jpg', '.jpeg', '.png', '.webp']);
   if (!allowedExts.has(ext)) {

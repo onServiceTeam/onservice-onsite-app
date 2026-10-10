@@ -17,7 +17,9 @@ vi.mock('react-router-dom', async () => vi.importActual('react-router-dom'));
 import { BillingSettingsCard } from '../BusinessAccountDetailPage';
 
 it('Bug UX-555 — Business 360 identifies the current manager and links directly to staff, owned support cases, and assignment audit', async () => {
-  apiGet.mockResolvedValue({ data: { data: [] } });
+  apiGet.mockImplementation(async (url: string) => ({
+    data: { data: url.endsWith('/terms/current') ? null : [] },
+  }));
   const account = {
     id: 'business-1', companyName: 'Cebu Offices', businessType: 'corporation',
     registrationNumber: null, taxId: null, billingAddress: null, barangay: null,
@@ -30,6 +32,7 @@ it('Bug UX-555 — Business 360 identifies the current manager and links directl
     accountManagerProfileName: 'support_agent', accountManagerProfileIsActive: true,
     ownerUserId: 'owner-1', ownerName: 'Paolo Garcia', status: 'active', paymentTerms: 'net_30',
     volumeDiscountRate: 10, monthlyCreditLimit: 5000000, notes: null,
+    recordVersion: 1,
     createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z',
   };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

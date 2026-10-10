@@ -1,8 +1,8 @@
 {
   "_about": "Per-fragment / per-article mode declaration. The gate aggregators (run-gate-a.sh, c-constitution.sh) read this file to decide whether a failing fragment fails the gate (BLOCKING) or only logs (REPORT). Modes change as their owning dispatch lands. See scripts/gates/EXPECTED-FAILURES.md for the human-readable timeline and .ai-coder/governance/GATE-AMENDMENTS.md for the amendment process. This file is the machine-readable source of truth.",
   "_schema_version": 1,
-  "_updated_by_dispatch": "UX-AUDIT-2026-08-23",
-  "_updated_at_commit": "master UX audit follow-up",
+  "_updated_by_dispatch": "CONTINUOUS-AUDIT-2026-09-04",
+  "_updated_at_commit": "unique regression ID guard",
 
   "gate_a_fragments": {
     "a-cross-source-cancellation-policy": {
@@ -97,6 +97,12 @@
       "owning_dispatch": "D03",
       "promoted_in": "D03",
       "rationale": "Activates per dispatch branch. Always BLOCKING when running on a phase/14-dNN-* branch."
+    },
+    "unique-regression-ids": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "CONTINUOUS-AUDIT-2026-09-04",
+      "promoted_in": "CONTINUOUS-AUDIT-2026-09-04",
+      "rationale": "Enforces the permanent post-remediation one-bug, one-test, one-file rule by rejecting duplicate Bug IDs in direct it()/test() titles across test and spec files. Added after the continuous audit corrected ten unrelated duplicate title IDs and verified 1,377 unique regression titles."
     },
     "money-in-transaction": {
       "mode": "BLOCKING",

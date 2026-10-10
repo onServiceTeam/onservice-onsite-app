@@ -6,7 +6,7 @@ import React, { useState, type FormEvent } from 'react';
 // job-request screen renders these dynamically.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
-import { Badge, Label, Input, Textarea, useConfirmationDialog } from '@/components/ui';
+import { Badge, Button, Label, Input, Textarea, useConfirmationDialog } from '@/components/ui';
 
 export type IntakeFieldType = 'number' | 'text' | 'choice' | 'boolean';
 
@@ -77,7 +77,7 @@ export function IntakeFieldsManager({
   const [keyTouched, setKeyTouched] = useState(false);
   const [error, setError] = useState('');
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: IntakeField[] }>(
@@ -239,7 +239,12 @@ export function IntakeFieldsManager({
       {isLoading ? (
         <p className="text-xs text-[var(--color-text-secondary)]">Loading intake fields…</p>
       ) : isError ? (
-        <p role="alert" className="text-xs text-red-600">Failed to load intake fields. Please try again.</p>
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+          <span>Intake fields are unavailable. Customer question configuration cannot be verified.</span>
+          <Button type="button" size="sm" variant="outline" onClick={() => void refetch()}>
+            Retry intake fields
+          </Button>
+        </div>
       ) : fields.length === 0 ? (
         <p className="text-xs text-[var(--color-text-secondary)]">No intake fields yet.</p>
       ) : (

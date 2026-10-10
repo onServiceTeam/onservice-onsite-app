@@ -17,7 +17,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import { createPaymentIntent, getWalletBalance } from '@/services/payment.service';
 import { Button, TrustStrip } from '@/components/ui';
@@ -56,11 +56,16 @@ const PAYMENT_METHODS: PaymentOption[] = [
 
 export default function PayExistingBookingScreen(): React.ReactElement {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
   const { bookingId } = useLocalSearchParams<{ bookingId?: string }>();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [loading, setLoading] = useState(false);
+  // Set once the payment succeeded, so the screen shows its loading state
+  // while it leaves instead of "not awaiting payment" for the refetched,
+  // now paid booking.
+  const [paid, setPaid] = useState(false);
 
   const { data: booking, isLoading, isError, refetch } = useQuery({
     queryKey: ['booking', bookingId],
@@ -103,6 +108,16 @@ export default function PayExistingBookingScreen(): React.ReactElement {
     setLoading(true);
     try {
       await createPaymentIntent(bookingId, selectedMethod);
+      // OPS-559: the booking is now paid and the wallet debited; refresh the
+      // booking, the lists, the balance and the wallet history so the next
+      // screens show them.
+      setPaid(true);
+      void queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ['bookingDetail', bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      void queryClient.invalidateQueries({ queryKey: ['activeBookings'] });
+      void queryClient.invalidateQueries({ queryKey: ['wallet'] });
+      void queryClient.invalidateQueries({ queryKey: ['walletTransactions'] });
       router.replace({ pathname: Routes.CUSTOMER.BOOKING_CONFIRM, params: { bookingId } });
     } catch (err: unknown) {
       const msg = getErrorMessage(err, 'Could not start payment. Please try again.');
@@ -124,7 +139,7 @@ export default function PayExistingBookingScreen(): React.ReactElement {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || paid) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={{ padding: spacing.base }}>

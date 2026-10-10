@@ -6,7 +6,7 @@ How to read this doc:
 
 - Every target below is a starting target. Tune it after 4 to 6 weeks of real Cebu data. Targets marked "tune-able" should be reviewed in the weekly ops review.
 - Numbers come from the admin app unless noted. Money is stored in centavos and shown in PHP (₱). Timezone is Asia/Manila.
-- Provider tiers and commission rates are admin-tunable in Settings (`commission_rate_<tier>`). The tier rules below are the current defaults from the tier ladder.
+- The table below shows seeded tier-base commission rates. Prospective changes belong in Financials -> Commission Controls; the legacy direct Settings rows are held under E50. A booking's immutable financial terms are authoritative for that transaction.
 - Related docs: `06-customer-support-sop.md` (support workflow), `07-provider-support-sop.md`, `08-dispatch-and-live-operations.md`, `09-trust-safety-and-disputes.md`, `04-provider-vetting-and-filtering.md`, `11-admin-system-training-manual.md`.
 
 Money-flow note (important): onService's target is an instant-pay escrow model. A server-verified payment is held before provider matching. Customer confirmation can release it, and the worker currently auto-releases after 24 hours, but dispute filing remains open for 48 hours. E18 makes that timing pair unsafe and not launch-grade policy. Quality reporting must distinguish provider completion, confirmation, release, and later dispute state instead of treating auto-confirm as undisputed finality. E14 also blocks the external hosted PayMongo authorization entry.
@@ -55,7 +55,7 @@ Tiers are the quality ladder. The rating, job-count, and dispute thresholds belo
 
 | Tier | Commission | Min jobs | Min rating | Other gates |
 |---|---|---|---|---|
-| Founding | 10% | 0 | 0 | Invite-only launch batch. Terminal, parallel to the ladder, not a step. |
+| Founding | 10% seeded base | 0 | 0 | Invite-only parallel tier. E63 hold; do not newly offer or assign. |
 | New | 15% | 0 | 0 | Default on signup |
 | Verified | 13% | 5 | 4.0 | None |
 | Pro | 11% | 25 | 4.5 | Zero open disputes |
@@ -79,7 +79,7 @@ DROPS / suspension signals (act through the Providers page):
 - [ ] Cancellations: warn at 3 cancellations in 30 days (`providerCancellationWarningThreshold`), auto-suspend signal at 5 in 30 days (`providerCancellationSuspendThreshold`). Counts live on the providers row.
 - [ ] A `refund_with_suspension` dispute resolution suspends the provider automatically.
 - [ ] Repeated 1-star ratings trigger the `provider_consecutive_one_star` admin alert. Review and consider a tier drop or coaching.
-- [ ] NBI clearance expired (provider drops out of trust standard until renewed; the `nbi_expiring` / expired worker warns 30 days out).
+- [ ] NBI clearance expired (provider drops out of trust standard until renewed; E62 means staff must review the expiry queue manually because the shared warning/expiry worker is inconsistent).
 
 Suspending a provider immediately removes them from dispatch (matching only considers `status='approved' AND is_available=TRUE`) and flags any in-flight bookings so escrow cannot release until an admin resolves it. See `07-provider-support-sop.md`.
 
@@ -124,7 +124,7 @@ Other support quality targets:
 
 - Reopen rate: under 8% of resolved tickets reopened within 7 days.
 - Ticket statuses to watch: a ticket sitting in `waiting_on_customer` or `waiting_on_provider` does not count against resolution time. Automated reminders and five-day auto-close are not implemented; staff review and follow up manually.
-- Resolution notes are mandatory (10+ char minimum enforced) when moving a ticket to `resolved` or `closed`. No empty closes.
+- Internal resolution notes are mandatory (10+ char minimum enforced) when moving a ticket to `resolved` or `closed`. No empty closes. They remain in the Admin audit record; participant outcomes belong in a separate public reply.
 
 ### CSAT
 
@@ -207,7 +207,7 @@ Agenda:
 
 1. Pull last 7 days on the Dashboard (set range to 7d).
 2. Walk the operational KPIs in section 4. Note any red.
-3. Provider health: new approvals, suspensions, tier moves, cancellation warnings, NBI expiries due in 30 days.
+3. Provider health: new approvals, suspensions, tier moves, cancellation warnings, and the manually reviewed NBI-expiry queue (E62).
 4. Support: ticket volume, SLA hits and misses, reopen rate, the week's QA scorecard results.
 5. Disputes: open count, stale (48h+) count, resolution mix.
 6. Money: escrow aging, refunds, failed payouts, reconciliation, guarantee-fund runway.

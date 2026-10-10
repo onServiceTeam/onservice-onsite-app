@@ -36,6 +36,25 @@ reports contain every path, expected marker, overflow result, unmatched API,
 console error, and screenshot path. Contact sheets provide one-page visual
 review at each width.
 
+### Deterministic evidence refresh, 2026-09-01
+
+The populated, forced-failure, and onboarding matrices were regenerated from
+a clean production Expo web export served through the production preview path.
+The harness now pins the fixture clock without freezing timers, waits for the
+expected rendered marker, network idle, and browser fonts, disables
+visual-only motion and caret capture, and uses reduced-motion plus a consistent
+software-rendering configuration. The populated audit also supplies the real
+commission-preview and provider job-request response shapes instead of stale
+generic fixtures. The regenerated results remained 159/159, 159/159, and
+27/27 with no failures.
+
+A repeat six-capture probe isolated the last raw-pixel variance to browser
+anti-aliasing: five images were byte-identical and one 768-pixel Job Detail
+capture changed 57 of 691,200 pixels, each by one colour value on rounded card
+edges. Its path, text, API coverage, overflow result, and report were
+unchanged. This is recorded as renderer noise, not a changing application
+state or a hidden functional pass.
+
 ## Corrections made
 
 | Bug | Surface | Corrected behavior |
@@ -102,6 +121,152 @@ No horizontal overflow, blank document, global error boundary, unhandled page
 error, unexpected console error, or unmatched API path remained in the final
 browser matrices.
 
+## Checkpoint PV-01: provider availability max-length regression is behavior-tested
+
+The provider availability reason-limit regression had been checking the screen
+source for `maxLength={500}`. It now renders the actual provider availability
+screen, opens the Date Overrides form, and verifies the real browser input
+exposes `maxlength="500"`, matching the API validator. The test changes no
+availability record and does not submit an override.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
+## Checkpoint PV-06: provider onboarding document limits are behavior-tested
+
+The provider onboarding metadata regression had been reading the documents
+screen source for the NBI expiry and government-ID `maxLength` props. It now
+renders the actual tablet/browser verification-document workspace and checks
+the two mounted fields expose `maxlength="10"` and `maxlength="64"`, matching
+the server validators. The test does not upload documents or advance the
+application.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
+## Checkpoint PV-05: provider portfolio caption cap is behavior-tested
+
+The provider portfolio caption regression had been checking source text for
+`maxLength={500}`. It now renders the real portfolio workspace at tablet width,
+opens the public work-photo form, completes the browser file-picker path, and
+verifies the mounted caption input exposes `maxlength="500"`. The test stops
+before consent, upload, or publication.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
+## Checkpoint PV-02: provider withdrawal destination cap is behavior-tested
+
+The provider withdrawal destination-account regression had been checking the
+withdrawal screen source for `maxLength={255}`. It now renders the actual
+tablet/browser withdrawal workspace, selects GCash, and verifies the mounted
+payout phone input exposes `maxlength="255"`, matching the server schema. The
+test stops before a withdrawal request or confirmation dialog.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
+## Checkpoint PV-03: full mobile customer/provider regression remains green
+
+After the provider test conversions, the complete mobile Jest inventory passes
+549 suites and 926 assertions, with 84 existing device-flow todos. No new
+device or live-server claim is made by this run; native camera, GPS quality,
+push delivery, and Maestro baseline capture remain separately recorded work.
+
+This verification changes no customer, provider, booking, payment, support,
+audit, database, GitHub, master, or production record. E32, E72, and E73
+remain in force.
+
+## Checkpoint PV-04: provider completion notes are behavior-tested
+
+The provider completion-notes regression had been checking the source for a
+`maxLength` prop and counter expression. It now renders the actual completion
+workspace, waits for the verified job record, checks the mounted notes input's
+`maxlength="2000"`, enters a note, and verifies the visible character counter.
+The test stops before uploading photos, capturing a signature, or submitting
+the completion transition.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
+## Checkpoint PV-07: customer and provider help show the shared version
+
+The help-version regression had been checking both help-screen source files
+for an import and JSX expression. It now renders the customer and provider
+help workspaces at desktop width and asserts that each visible footer matches
+`platformConfig.appVersion`. This keeps the support handoff identifier the
+same for customers, providers, and the profile surfaces.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
+## Checkpoint PV-08: provider checklist renders the server-defined service scope
+
+The dead-checklist regression had been checking that an obsolete constant was
+absent from the source. It now renders a provider desktop checklist response
+with a plumbing-specific section and item, verifies those server values are
+visible, verifies the old cleaning-only task is absent, and verifies the
+canonical checklist request path. No checklist item is changed.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
+## Checkpoint PV-09: provider calendar preserves Manila boundary jobs
+
+The calendar timezone regression had been checking implementation text only.
+It now renders the provider desktop calendar with the device timezone set to
+UTC, verifies the API range is anchored to the full Manila month, selects May
+1, and verifies a 06:30 Manila appointment (April 30 UTC) appears on that
+day. This protects the schedule-to-job linkage at month boundaries without
+changing any appointment.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
+## Checkpoint PV-10: provider directions use the real job destination
+
+The dead-ETA regression had been checking that obsolete style names were
+absent from source. It now renders the provider desktop directions workspace
+with a server-shaped booking, verifies the actual customer and address, opens
+Google Maps with the canonical coordinates, verifies Waze is present, and
+confirms no fabricated ETA is shown. No arrival or booking status is changed.
+
+Focused verification passes 1 mobile test file and 1 test; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
+## Checkpoint PV-11: payout account normalization is behavior-tested
+
+The provider payout settings and withdrawal surfaces now share the same
+digits-only destination contract. A real tablet render enters a spaced bank
+account number in both surfaces and verifies that the request payload contains
+the canonical digits-only value. This protects payout setup from being saved in
+a format that a later withdrawal cannot accept.
+
+Focused verification passes 2 tests in 1 mobile test file; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. No payout
+was created or changed. E32, E72, and E73 remain in force.
+
+## Checkpoint PV-12: founding-tier treatment is consistent across provider surfaces
+
+Real renders now verify the same founding-tier label and status treatment in
+the provider dashboard, profile, and tier workspace. This keeps the provider's
+own benefit explanation aligned with the customer-facing provider detail and
+search result rather than allowing each surface to invent a different tier
+state.
+
+Focused verification passes 2 tests in 1 mobile test file; mobile TypeScript
+and targeted ESLint pass. This is local test-quality evidence only. E32, E72,
+and E73 remain in force.
+
 ## Honest residual limits
 
 - The fixture audit exercises HTTP conversation history but has no Socket.IO
@@ -118,8 +283,24 @@ browser matrices.
 
 ## Next stage
 
-The next autonomous stage is the same source-truth, populated-state,
-failure-state, and sequential-flow audit for all customer screens. After that,
-the admin/company stage must recheck every queue and 360 view against the
-customer/provider records rather than treating the existing admin surface as
-presumptively correct.
+The customer source-truth, populated-state, failure-state, fixed-price, and
+custom-quote browser audit is now complete. The next autonomous stage is the
+admin/company overhaul: recheck every queue, field, control, and 360 view
+against the customer/provider records rather than treating the existing admin
+surface as presumptively correct.
+
+## Checkpoint PV-13: provider map surfaces remain browser-safe
+
+The shared browser map fallback is used by provider active-job and
+service-area workspaces as well as the customer address picker. It now renders
+an honest map preview with coordinate/overlay context instead of a blank or
+crashing native-map import. Provider service-area actions continue to use the
+existing location-permission and reviewed request workflow; the preview does
+not approve a radius, assign coverage, fabricate a route, or create live GPS
+evidence. The provider active-job workspace continues to show the address and
+the existing Directions actions when coordinates are absent.
+
+The provider map render regressions and the customer browser address
+regression pass. This is local browser-harness evidence only. Native map
+tiles, device GPS quality, and live provider-location production remain
+separate device/server evidence. E32, E72, and E73 remain in force.

@@ -1,0 +1,2577 @@
+{
+  "sourceRevision": "9382ac7e912ce073d1bb8296e2ed857311c1b580 plus local UX-1373 logout ownership",
+  "createdAt": "2026-09-06T04:58:40.319Z",
+  "evidenceType": "compiled logout completion, current login and fresh provider note; synthetic HTTP; excludes delayed Set-Cookie",
+  "indexSha256": "503fe42ca5ae7588bb4f80ca7b93362b6dc2c23dc2d4d5ce9437f67b27e4452d",
+  "entrySha256": "1426de87dda59a9dac586619f3059aa1d63ba3f8c5f556bb0a3d00efca2333f2",
+  "checks": [
+    {
+      "width": 320,
+      "scenario": "different-login",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-different-login-signed-out.png",
+        "320-different-login-current-account.png",
+        "320-different-login-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 2,
+      "blockedRealtimeConnections": 2
+    },
+    {
+      "width": 320,
+      "scenario": "same-login",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-same-login-signed-out.png",
+        "320-same-login-current-account.png",
+        "320-same-login-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Old Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 2,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 320,
+      "scenario": "current-failure",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "320-current-failure-signed-out.png",
+        "320-current-failure-current-account.png",
+        "320-current-failure-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 1,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 390,
+      "scenario": "different-login",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-different-login-signed-out.png",
+        "390-different-login-current-account.png",
+        "390-different-login-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 2,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 390,
+      "scenario": "same-login",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-same-login-signed-out.png",
+        "390-same-login-current-account.png",
+        "390-same-login-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Old Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 2,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 390,
+      "scenario": "current-failure",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "390-current-failure-signed-out.png",
+        "390-current-failure-current-account.png",
+        "390-current-failure-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 1,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 768,
+      "scenario": "different-login",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-different-login-signed-out.png",
+        "768-different-login-current-account.png",
+        "768-different-login-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 2,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 768,
+      "scenario": "same-login",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-same-login-signed-out.png",
+        "768-same-login-current-account.png",
+        "768-same-login-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Old Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 2,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 768,
+      "scenario": "current-failure",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "768-current-failure-signed-out.png",
+        "768-current-failure-current-account.png",
+        "768-current-failure-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 1,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1024,
+      "scenario": "different-login",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-different-login-signed-out.png",
+        "1024-different-login-current-account.png",
+        "1024-different-login-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 2,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1024,
+      "scenario": "same-login",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-same-login-signed-out.png",
+        "1024-same-login-current-account.png",
+        "1024-same-login-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Old Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 2,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1024,
+      "scenario": "current-failure",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1024-current-failure-signed-out.png",
+        "1024-current-failure-current-account.png",
+        "1024-current-failure-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 1,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1366,
+      "scenario": "different-login",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-different-login-signed-out.png",
+        "1366-different-login-current-account.png",
+        "1366-different-login-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 2,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1366,
+      "scenario": "same-login",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-same-login-signed-out.png",
+        "1366-same-login-current-account.png",
+        "1366-same-login-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Old Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 2,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1366,
+      "scenario": "current-failure",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1366-current-failure-signed-out.png",
+        "1366-current-failure-current-account.png",
+        "1366-current-failure-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 1,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1920,
+      "scenario": "different-login",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-different-login-signed-out.png",
+        "1920-different-login-current-account.png",
+        "1920-different-login-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 2,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1920,
+      "scenario": "same-login",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-same-login-signed-out.png",
+        "1920-same-login-current-account.png",
+        "1920-same-login-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "authorName": "Old Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 2,
+      "blockedRealtimeConnections": 1
+    },
+    {
+      "width": 1920,
+      "scenario": "current-failure",
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "csrf": "synthetic-old-csrf"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/kpis",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/revenue-trend",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/booking-volume",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/acquisition-funnel",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/compliance/dsr-alerts",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/dashboard/cities",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/analytics/quality-watch",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/search",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "csrf": null
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": "synthetic-current-csrf",
+          "body": {
+            "body": "Synthetic fresh note after old logout",
+            "category": "general",
+            "pinned": false
+          },
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+          "csrf": null
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "captures": [
+        "1920-current-failure-signed-out.png",
+        "1920-current-failure-current-account.png",
+        "1920-current-failure-fresh-note.png"
+      ],
+      "navigations": [
+        "/",
+        "/",
+        "/login",
+        "/",
+        "/",
+        "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      ],
+      "documents": [
+        "/"
+      ],
+      "overflows": [
+        {
+          "stage": "signed-out",
+          "pixels": 0
+        },
+        {
+          "stage": "current-account",
+          "pixels": 0
+        },
+        {
+          "stage": "fresh-note",
+          "pixels": 0
+        }
+      ],
+      "storedNotes": [
+        {
+          "body": "Synthetic fresh note after old logout",
+          "category": "general",
+          "pinned": false,
+          "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          "authorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "authorName": "New Operator",
+          "createdAt": "2026-09-06T00:00:00Z"
+        }
+      ],
+      "logoutCalls": 1,
+      "blockedRealtimeConnections": 1
+    }
+  ],
+  "failure": null,
+  "failedScenario": null
+}

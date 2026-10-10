@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getBookingById, submitQuote } from '@/services/booking.service';
+import { getProviderJobRequest, submitQuote } from '@/services/booking.service';
 import { listTemplates, type QuoteTemplate } from '@/services/provider-crm.service';
 import { showToast } from '@/lib/toast';
 import api from '@/services/api';
@@ -45,14 +45,15 @@ function humanizeKey(key: string): string {
 export default function QuoteBuilderScreen(): React.ReactElement {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { isPhone } = useResponsive();
   const [description, setDescription] = useState('');
   const [notes, setNotes] = useState('');
   const [estimatedDays, setEstimatedDays] = useState('');
   const [items, setItems] = useState<LineItemDraft[]>([createEmptyItem()]);
   const bookingQuery = useQuery({
-    queryKey: ['booking', bookingId],
-    queryFn: () => getBookingById(bookingId ?? ''),
+    queryKey: ['providerJobRequest', bookingId],
+    queryFn: () => getProviderJobRequest(bookingId ?? ''),
     enabled: !!bookingId,
   });
 
@@ -125,12 +126,13 @@ export default function QuoteBuilderScreen(): React.ReactElement {
   // provider/job/[id].tsx — fetch tier, look up commission rate,
   // render the breakdown.
   const providerMeQuery = useQuery<{ tier: string; commissionRate: number }>({
-    queryKey: ['providerMe'],
+    queryKey: ['providerCommissionPreview', bookingId],
     queryFn: async () => {
-      const res = await api.get<{ data: { tier: string; commissionRate: number } }>('/api/v1/providers/me');
+      const res = await api.get<{ data: { tier: string; commissionRate: number } }>(`/api/v1/providers/me/commission-preview?bookingId=${encodeURIComponent(bookingId!)}`);
       return { tier: res.data.data.tier, commissionRate: res.data.data.commissionRate };
     },
     staleTime: 5 * 60 * 1000,
+    enabled: !!bookingId,
   });
   const providerTier = providerMeQuery.data?.tier;
   const commissionRate = providerMeQuery.data?.commissionRate;
@@ -150,6 +152,7 @@ export default function QuoteBuilderScreen(): React.ReactElement {
     onSuccess: () => {
       // A7 — non-blocking toast then return to the job; was a modal Alert.
       showToast('Your quote has been submitted. The customer will review it.', 'success');
+      void queryClient.invalidateQueries({ queryKey: ['provider-leads'] });
       router.back();
     },
     onError: (err: unknown) => {
@@ -198,7 +201,7 @@ export default function QuoteBuilderScreen(): React.ReactElement {
             </View>
           ) : (
             <>
-              <Text style={styles.contextTitle}>{bookingQuery.data.serviceName ?? bookingQuery.data.categoryName ?? 'Custom service'}</Text>
+              <Text style={styles.contextTitle}>{bookingQuery.data.serviceName || bookingQuery.data.categoryName || 'Custom service'}</Text>
               <Text style={styles.contextDescription}>{bookingQuery.data.description}</Text>
               <View style={styles.contextFacts}>
                 {bookingQuery.data.urgency ? (
@@ -442,9 +445,9 @@ export default function QuoteBuilderScreen(): React.ReactElement {
             <Text style={styles.minWarn}>Minimum quote: {formatPHP(platformConfig.minimumQuoteAmount)}</Text>
           )}
           {totalAmount > 0 && providerMeQuery.isLoading && (
-            <View style={styles.commissionLoading} accessibilityLabel="Loading live commission rate">
+            <View style={styles.commissionLoading} accessibilityLabel="Loading booking commission preview">
               <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.commissionLoadingText}>Loading live commission rate…</Text>
+              <Text style={styles.commissionLoadingText}>Loading booking commission preview…</Text>
             </View>
           )}
           {totalAmount > 0 && providerMeQuery.isError && (

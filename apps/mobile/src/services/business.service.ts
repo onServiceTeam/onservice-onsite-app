@@ -17,10 +17,18 @@ export interface BusinessAccount {
   accountManagerId: string | null;
   ownerUserId: string;
   status: 'pending' | 'active' | 'suspended' | 'closed';
-  paymentTerms: string;
-  volumeDiscountRate: number;
-  monthlyCreditLimit: number;
+  paymentTerms: string | null;
+  volumeDiscountRate: number | null;
+  monthlyCreditLimit: number | null;
   notes: string | null;
+  recordVersion: number;
+  viewerPermissions: {
+    role: 'owner' | 'manager' | 'member';
+    canBook: boolean;
+    canApprove: boolean;
+    canViewInvoices: boolean;
+    canViewFinancials: boolean;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -56,6 +64,9 @@ export interface BusinessContract {
   autoRenew: boolean;
   status: 'draft' | 'active' | 'expired' | 'cancelled';
   terms: string | null;
+  recordVersion: number;
+  publishedAt: string | null;
+  cancelledAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -75,6 +86,13 @@ export interface BusinessInvoice {
   paidAt: string | null;
   paymentReference: string | null;
   notes: string | null;
+  recordVersion: number;
+  controlState: 'legacy_unreviewed' | 'controlled';
+  settlementState: 'legacy_unreviewed' | 'open' | 'settled' | 'credit_due' | 'void';
+  documentKind: 'commercial_statement';
+  currency: 'PHP';
+  accountTermsVersionId: string | null;
+  finalizedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -91,6 +109,50 @@ export interface BusinessInvoiceItem {
   discountAmount: number;
   amount: number;
   createdAt: string;
+}
+
+export interface BusinessTerms {
+  id: string;
+  version: number;
+  paymentTerms: 'net_15' | 'net_30' | 'net_60';
+  volumeDiscountRate: number;
+  monthlyCreditLimit: number;
+  currency: 'PHP';
+  effectiveFrom: string;
+}
+
+export interface BusinessInvoiceBalance {
+  adjustmentTotal: number;
+  paymentTotal: number;
+  adjustedTotal: number;
+  balanceDue: number;
+}
+
+export interface BusinessInvoiceCustomerLedger {
+  adjustments: Array<{
+    id: string;
+    adjustmentType: 'credit' | 'debit' | 'write_off';
+    amount: number;
+    currency: 'PHP';
+    createdAt: string;
+  }>;
+  payments: Array<{
+    id: string;
+    entryType: 'payment' | 'reversal';
+    reversesPaymentId: string | null;
+    amount: number;
+    currency: 'PHP';
+    method: string;
+    effectiveAt: string;
+    externalReference: string;
+    createdAt: string;
+  }>;
+}
+
+export interface BusinessInvoiceDetail extends BusinessInvoice {
+  items: BusinessInvoiceItem[];
+  balance: BusinessInvoiceBalance;
+  ledger: BusinessInvoiceCustomerLedger;
 }
 
 export interface CreateBusinessParams {
@@ -143,6 +205,11 @@ export async function getBusinessAccounts(
 
 export async function getBusinessAccount(id: string): Promise<BusinessAccount> {
   const res = await api.get<ApiResponse<BusinessAccount>>(`/api/v1/business/${id}`);
+  return res.data.data;
+}
+
+export async function getCurrentTerms(id: string): Promise<BusinessTerms | null> {
+  const res = await api.get<ApiResponse<BusinessTerms | null>>(`/api/v1/business/${id}/terms/current`);
   return res.data.data;
 }
 
@@ -224,8 +291,8 @@ export async function getInvoices(
 export async function getInvoiceDetail(
   businessId: string,
   invoiceId: string,
-): Promise<BusinessInvoice & { items: BusinessInvoiceItem[] }> {
-  const res = await api.get<ApiResponse<BusinessInvoice & { items: BusinessInvoiceItem[] }>>(
+): Promise<BusinessInvoiceDetail> {
+  const res = await api.get<ApiResponse<BusinessInvoiceDetail>>(
     `/api/v1/business/${businessId}/invoices/${invoiceId}`,
   );
   return res.data.data;

@@ -3,6 +3,15 @@
 
 const dbQueryMock = jest.fn();
 const dbTransactionMock = jest.fn();
+const getLatestFinalTermsMock = jest.fn().mockResolvedValue({
+  serviceFeeRateBasisPoints: 1000,
+  serviceFeeMinCentavos: 2500,
+  serviceFeeMaxCentavos: 50000,
+});
+const calculateServiceFeeMock = jest.fn((servicePriceCentavos: number) =>
+  Math.round(servicePriceCentavos * 0.1));
+const appendAmendedTermsMock = jest.fn().mockResolvedValue({ id: 'terms-v2' });
+const holdInEscrowMock = jest.fn().mockResolvedValue(undefined);
 jest.mock('../src/models/db', () => ({
   db: {
     query: (...a: unknown[]) => dbQueryMock(...a),
@@ -27,6 +36,14 @@ jest.mock('../src/services/settings.service', () => ({
     return Promise.resolve(0);
   }),
 }));
+jest.mock('../src/services/booking-financial-terms.service', () => ({
+  getLatestFinalTermsInTransaction: (...args: unknown[]) => getLatestFinalTermsMock(...args),
+  calculateServiceFeeFromTerms: (...args: unknown[]) => calculateServiceFeeMock(...args),
+  appendAmendedTermsInTransaction: (...args: unknown[]) => appendAmendedTermsMock(...args),
+}));
+jest.mock('../src/services/escrow.service', () => ({
+  holdInEscrowInTransaction: (...args: unknown[]) => holdInEscrowMock(...args),
+}));
 
 import { finalizeChangeOrderPayment } from '../src/services/booking.service';
 
@@ -37,6 +54,10 @@ const CUSTOMER_ID = 'customer-1';
 beforeEach(() => {
   dbQueryMock.mockReset();
   dbTransactionMock.mockReset();
+  getLatestFinalTermsMock.mockClear();
+  calculateServiceFeeMock.mockClear();
+  appendAmendedTermsMock.mockClear();
+  holdInEscrowMock.mockClear();
   dbTransactionMock.mockImplementation(async (cb: unknown) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (cb as any)({
@@ -207,5 +228,18 @@ describe('Phase B CRIT-15 — finalizeChangeOrderPayment requires payment proof'
     expect(result.newServicePrice).toBe(55000);
     // All movement ran inside the single trx callback.
     expect(dbTransactionMock).toHaveBeenCalledTimes(1);
+    expect(appendAmendedTermsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.any(Function) }),
+      expect.objectContaining({
+        bookingId: BOOKING_ID,
+        event: 'change_order_authorized',
+        sourceEventId: CO_ID,
+      }),
+    );
+    expect(holdInEscrowMock).toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.any(Function) }),
+      BOOKING_ID,
+      5500,
+    );
   });
 });

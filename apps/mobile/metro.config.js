@@ -15,8 +15,9 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
-// On web, react-native-maps has no implementation — swap it for a stub so the
-// bundle builds and map screens render a placeholder in the browser.
+// On web, react-native-maps has no implementation - swap it for a browser-safe
+// adapter so the bundle builds and map screens render a location/status
+// preview in the browser.
 const mapsStub = path.resolve(projectRoot, 'src/web-stubs/react-native-maps.tsx');
 
 // On web, alias react-native-screens to a thin wrapper that re-exports the real

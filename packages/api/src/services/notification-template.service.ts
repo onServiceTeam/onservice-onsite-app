@@ -19,12 +19,36 @@ interface TemplateRow {
 
 interface CountRow { count: string }
 
-const RUNTIME_TEMPLATE_VARIABLES: Readonly<Record<string, readonly string[]>> = {
-  new_job_available: ['bookingId', 'serviceName', 'amount', 'city'],
-  booking_matched: ['bookingId', 'providerName'],
+export type RuntimeNotificationChannel = 'in_app' | 'push';
+
+interface RuntimeTemplateContract {
+  variables: readonly string[];
+  channels: readonly RuntimeNotificationChannel[];
+}
+
+const RUNTIME_TEMPLATE_CONTRACTS: Readonly<Record<string, RuntimeTemplateContract>> = {
+  new_job_available: {
+    variables: ['bookingId', 'serviceName', 'amount', 'city'],
+    channels: ['in_app', 'push'],
+  },
+  booking_matched: {
+    variables: ['bookingId', 'providerName'],
+    channels: ['in_app', 'push'],
+  },
 };
 
 const VALID_PLACEHOLDER = /{{([A-Za-z][A-Za-z0-9_]{0,49})}}/g;
+
+function normalizeMutationReason(reason: unknown): string {
+  if (typeof reason !== 'string') {
+    throw createAppError('Reason must be at least 10 characters.', 400);
+  }
+  const normalized = reason.trim();
+  if (normalized.length < 10 || normalized.length > 2000) {
+    throw createAppError('Reason must be between 10 and 2,000 characters.', 400);
+  }
+  return normalized;
+}
 
 /**
  * Notification copy is the source of truth for its placeholders. Keeping a
@@ -57,7 +81,7 @@ function validateTemplateContent(
   bodyTemplate: string,
 ): string[] {
   const variables = deriveTemplateVariables(titleTemplate, bodyTemplate);
-  const runtimeVariables = RUNTIME_TEMPLATE_VARIABLES[slug];
+  const runtimeVariables = RUNTIME_TEMPLATE_CONTRACTS[slug]?.variables;
   if (!runtimeVariables) return variables;
 
   const unsupported = variables.filter((variable) => !runtimeVariables.includes(variable));
@@ -71,8 +95,13 @@ function validateTemplateContent(
 }
 
 export function getRuntimeTemplateVariables(slug: string): string[] | null {
-  const variables = RUNTIME_TEMPLATE_VARIABLES[slug];
+  const variables = RUNTIME_TEMPLATE_CONTRACTS[slug]?.variables;
   return variables ? [...variables] : null;
+}
+
+export function getRuntimeTemplateChannels(slug: string): RuntimeNotificationChannel[] | null {
+  const channels = RUNTIME_TEMPLATE_CONTRACTS[slug]?.channels;
+  return channels ? [...channels] : null;
 }
 
 export async function listTemplates(
@@ -141,9 +170,22 @@ export async function createTemplate(
     channel?: string;
     isActive?: boolean;
     variables?: string[];
+    reason: string;
   },
 ): Promise<TemplateRow> {
+  const reason = normalizeMutationReason(data.reason);
   const variables = validateTemplateContent(data.slug, data.titleTemplate, data.bodyTemplate);
+  const runtimeChannels = getRuntimeTemplateChannels(data.slug);
+  if (runtimeChannels && data.channel !== undefined && data.channel !== 'all') {
+    throw createAppError(
+      `The ${data.slug} workflow delivery channels are runtime-managed as in-app and push.`,
+      409,
+    );
+  }
+  // Existing connected rows use `all` as a legacy storage marker. Runtime
+  // delivery is declared separately above and currently means in-app inbox
+  // plus best-effort push, never SMS or email.
+  const storedChannel = runtimeChannels ? 'all' : (data.channel ?? 'in_app');
 
   return db.transaction(async (client) => {
     const existing = await client.query<CountRow>(
@@ -163,7 +205,7 @@ export async function createTemplate(
         data.titleTemplate,
         data.bodyTemplate,
         data.type,
-        data.channel ?? 'in_app',
+        storedChannel,
         data.isActive ?? true,
         JSON.stringify(variables),
         adminId,
@@ -185,6 +227,7 @@ export async function createTemplate(
           channel: created.channel,
           isActive: created.is_active,
           variables,
+          reason,
         }),
       ],
     );
@@ -204,8 +247,19 @@ export async function updateTemplate(
     channel?: string;
     isActive?: boolean;
     variables?: string[];
+    reason: string;
   },
 ): Promise<TemplateRow> {
+  const reason = normalizeMutationReason(data.reason);
+  const hasChange = [
+    data.titleTemplate,
+    data.bodyTemplate,
+    data.type,
+    data.channel,
+    data.isActive,
+  ].some((value) => value !== undefined);
+  if (!hasChange) throw createAppError('At least one template change is required.', 400);
+
   return db.transaction(async (client) => {
     const before = await client.query<TemplateRow>(
       `SELECT * FROM notification_templates WHERE id = $1 FOR UPDATE`,
@@ -213,6 +267,16 @@ export async function updateTemplate(
     );
     if (before.rows.length === 0) throw createAppError('Template not found.', 404);
     const current = before.rows[0]!;
+    if (
+      getRuntimeTemplateChannels(current.slug)
+      && data.channel !== undefined
+      && data.channel !== current.channel
+    ) {
+      throw createAppError(
+        `The ${current.slug} workflow delivery channels are runtime-managed as in-app and push.`,
+        409,
+      );
+    }
     const titleTemplate = data.titleTemplate ?? current.title_template;
     const bodyTemplate = data.bodyTemplate ?? current.body_template;
     const variables = validateTemplateContent(current.slug, titleTemplate, bodyTemplate);
@@ -267,6 +331,7 @@ export async function updateTemplate(
             isActive: updated.is_active,
             variables,
           },
+          reason,
         }),
       ],
     );
@@ -276,17 +341,21 @@ export async function updateTemplate(
   });
 }
 
-// MED-N142 fix — pre-fix this did a hard DELETE with no
-// admin_actions audit. Templates power critical customer comms (OTP
-// SMS, booking confirmations); a deletion later "I didn't get the
-// confirmation SMS" report had no trail of who broke the template.
+// MED-N142 fix — pre-fix this did a hard DELETE with no admin_actions
+// audit. Connected templates can alter booking-related in-app and push copy,
+// so deletion must retain the actor, reason, and deleted state.
 //
 // Post-fix: capture the row's slug + content BEFORE deleting (for
 // the audit details so admin can restore from the audit row if
 // needed) + INSERT the admin_actions row in the same transaction.
 // The action_type 'config_changed' is the existing catch-all; we put
 // the slug + the deleted state under details so the trail is full.
-export async function deleteTemplate(templateId: string, deletedByAdminId: string): Promise<void> {
+export async function deleteTemplate(
+  templateId: string,
+  deletedByAdminId: string,
+  reason: string,
+): Promise<void> {
+  const normalizedReason = normalizeMutationReason(reason);
   return db.transaction(async (client) => {
     const before = await client.query<TemplateRow>(
       `SELECT * FROM notification_templates WHERE id = $1 FOR UPDATE`,
@@ -316,6 +385,7 @@ export async function deleteTemplate(templateId: string, deletedByAdminId: strin
           // Snapshot the content so admin can re-create from the audit log.
           deletedTitleTemplate: tpl.title_template,
           deletedBodyTemplate: tpl.body_template,
+          reason: normalizedReason,
         }),
       ],
     );
@@ -352,6 +422,7 @@ export function renderTemplate(
 
 export function formatTemplate(t: TemplateRow): Record<string, unknown> {
   const runtimeVariables = getRuntimeTemplateVariables(t.slug);
+  const runtimeChannels = getRuntimeTemplateChannels(t.slug);
   return {
     id: t.id,
     slug: t.slug,
@@ -363,6 +434,7 @@ export function formatTemplate(t: TemplateRow): Record<string, unknown> {
     variables: t.variables,
     runtimeStatus: runtimeVariables ? 'connected' : 'reference_only',
     runtimeVariables,
+    runtimeChannels,
     createdBy: t.created_by,
     updatedBy: t.updated_by,
     createdAt: t.created_at,

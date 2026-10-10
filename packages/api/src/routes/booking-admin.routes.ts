@@ -181,12 +181,20 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireSuperAdmin(req);
-      const { amount, reason } = req.body ?? {};
+      const { amount, reason, supportTicketId, idempotencyKey } = req.body ?? {};
+      if (typeof supportTicketId !== 'string' || !UUID_REGEX.test(supportTicketId)) {
+        throw createAppError('supportTicketId must be a valid UUID.', 400);
+      }
+      if (typeof idempotencyKey !== 'string' || !UUID_REGEX.test(idempotencyKey)) {
+        throw createAppError('idempotencyKey must be a valid UUID.', 400);
+      }
       const data = await bookingAdminService.refundBookingEscrow(
         (req.params.id as string),
         Number(amount),
         String(reason ?? ''),
         req.user!.userId,
+        supportTicketId,
+        idempotencyKey,
       );
       res.json({ success: true, data });
     } catch (error) { next(error); }

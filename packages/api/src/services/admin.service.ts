@@ -1,12 +1,16 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { applicationDecisionTransaction, assertCurrentApplicationRevision, recordApplicationDecision, requireExpectedApplicationRevision } from './provider-application-decision.service';
+import { lockProviderAccount } from './provider-account-lock.service';
 import {
   ACTIVE_BOOKING_STATUSES,
   ALL_BOOKING_STATUSES,
   COMPLETED_BOOKING_STATUSES,
 } from '../types/booking.types';
-import { maskEmail, maskPhilippinePhone, type ActorRole } from '../utils/pii-mask';
+import {
+  maskEmail, maskPhilippinePhone, maskPiiForRole, maskPiiInString, type ActorRole,
+} from '../utils/pii-mask';
 
 interface KpiRow {
   today_revenue: string;
@@ -141,7 +145,7 @@ interface AdminActionRow {
   action_type: string;
   target_type: string;
   target_id: string;
-  details: Record<string, unknown>;
+  details: Record<string, unknown> | null;
   reason: string | null;
   created_at: Date;
 }
@@ -234,7 +238,14 @@ export async function listProviders(
     params.push(filters.tier);
   }
   if (filters.search) {
-    conditions.push(`(p.business_name ILIKE $${paramIdx} OR u.phone ILIKE $${paramIdx} OR u.email ILIKE $${paramIdx})`);
+    conditions.push(`(
+      COALESCE(p.business_name, '') ILIKE $${paramIdx}
+      OR CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${paramIdx}
+      OR u.phone ILIKE $${paramIdx}
+      OR COALESCE(u.email, '') ILIKE $${paramIdx}
+      OR p.id::text ILIKE $${paramIdx}
+      OR u.id::text ILIKE $${paramIdx}
+    )`);
     params.push(`%${filters.search}%`);
     paramIdx++;
   }
@@ -275,10 +286,12 @@ export async function listProviders(
 const REQUIRED_KYC_FIELDS = [
   'nbi_clearance_url',
   'government_id_front_url',
+  'government_id_back_url',
   'selfie_url',
 ] as const;
 
 export interface ProviderApprovalReview {
+  expectedRevisionId?: unknown;
   reason?: unknown;
   checklistConfirmed?: unknown;
   checklistSummary?: unknown;
@@ -306,33 +319,36 @@ export async function approveProvider(
     throw createAppError('A valid provider vetting checklist summary is required.', 400);
   }
 
-  // MED-N75: pre-approval KYC check. SELECT outside the transaction
-  // so we can give a clean 400 error without rolling back any work.
-  interface KycRow {
-    nbi_clearance_url: string | null;
-    government_id_front_url: string | null;
-    selfie_url: string | null;
-  }
-  const kyc = await db.query<KycRow>(
-    `SELECT nbi_clearance_url, government_id_front_url, selfie_url FROM providers WHERE id = $1`,
-    [providerId],
-  );
-  if (kyc.rows.length === 0) {
-    throw createAppError('Provider not found.', 404);
-  }
-  const missing: string[] = [];
-  for (const field of REQUIRED_KYC_FIELDS) {
-    const v = kyc.rows[0]![field];
-    if (!v) missing.push(field);
-  }
-  if (missing.length > 0) {
-    throw createAppError(
-      `Cannot approve: missing KYC documents (${missing.join(', ')}). Provider must upload before admin can approve.`,
-      400,
+  const expectedRevisionId = requireExpectedApplicationRevision(review.expectedRevisionId);
+  await applicationDecisionTransaction(providerId, async (client) => {
+    // OPS-479 / E36: validate the current complete evidence under the same
+    // row lock as the decision. An unlocked read can approve after a concurrent
+    // document removal. Existing approved records are not silently re-decided.
+    const kyc = await client.query<{
+      status: string;
+      nbi_clearance_url: string | null;
+      government_id_front_url: string | null;
+      government_id_back_url: string | null;
+      selfie_url: string | null;
+    }>(
+      `SELECT status, nbi_clearance_url, government_id_front_url,
+              government_id_back_url, selfie_url
+         FROM providers WHERE id = $1 FOR UPDATE`,
+      [providerId],
     );
-  }
+    const application = kyc.rows[0];
+    if (!application || application.status !== 'pending') {
+      throw createAppError('Provider not found or not in pending status.', 404);
+    }
+    await assertCurrentApplicationRevision(client, providerId, expectedRevisionId, application);
+    const missing = REQUIRED_KYC_FIELDS.filter((field) => !application[field]?.trim());
+    if (missing.length > 0) {
+      throw createAppError(
+        `Cannot approve: missing KYC documents (${missing.join(', ')}). Provider must upload before admin can approve.`,
+        400,
+      );
+    }
 
-  await db.transaction(async (client) => {
     const result = await client.query<{ id: string; user_id: string }>(
       `UPDATE providers SET status = 'approved', reviewed_at = NOW(), updated_at = NOW()
         WHERE id = $1 AND status = 'pending'
@@ -342,18 +358,33 @@ export async function approveProvider(
     if (result.rowCount === 0) throw createAppError('Provider not found or not in pending status.', 404);
 
     const userId = result.rows[0]!.user_id;
-    await client.query(
-      `UPDATE users SET role = 'provider', updated_at = NOW() WHERE id = $1`,
+    // OPS-480: approval is not an account-recovery or staff-role override.
+    // The conditional UPDATE rechecks eligibility after any concurrent user
+    // update and rolls back the provider decision if the owner is ineligible.
+    // Older applicants prematurely assigned provider retain compatibility.
+    const promoted = await client.query(
+      `UPDATE users SET role = 'provider', updated_at = NOW()
+        WHERE id = $1 AND role IN ('customer', 'provider')
+          AND is_active = TRUE AND is_flagged_fraud = FALSE
+        RETURNING id`,
       [userId],
     );
+    if (promoted.rowCount !== 1) {
+      throw createAppError(
+        'Cannot approve: the application owner must be an active customer or legacy provider account with no fraud flag. Review the account separately.',
+        409,
+      );
+    }
 
+    await recordApplicationDecision(client, { providerId, revisionId: expectedRevisionId, adminId,
+      decision: 'approved', reason, checklistSummary });
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
        VALUES ($1, 'provider_approved', 'provider', $2, $3::jsonb, $4, $5)`,
       [
         adminId,
         providerId,
-        JSON.stringify({ action: 'approved', checklistConfirmed: true, checklistSummary }),
+        JSON.stringify({ action: 'approved', revisionId: expectedRevisionId, checklistConfirmed: true, checklistSummary }),
         reason.slice(0, 500),
         `Approval rationale: ${reason}\n\n${checklistSummary}`,
       ],
@@ -368,16 +399,22 @@ export async function approveProvider(
     // to the dedicated approval screen.
     await client.query(
       `INSERT INTO notifications (user_id, type, title, body, data)
-       VALUES ($1, 'provider_approved', 'Account Approved', 'Congratulations! Your provider account has been approved. You can now start accepting jobs.', $2)`,
-      [userId, JSON.stringify({ providerId })],
+       VALUES ($1, 'provider_approved', 'Account Approved', 'Your provider account has been approved. Sign in again with your verified mobile number, then review your services, pricing and availability in your provider workspace before accepting work.', $2)`,
+      [userId, JSON.stringify({ providerId, revisionId: expectedRevisionId })],
     );
   });
 
   logger.info('Provider approved', { providerId, adminId });
 }
 
-export async function rejectProvider(providerId: string, adminId: string, reason: string): Promise<void> {
-  await db.transaction(async (client) => {
+export async function rejectProvider(providerId: string, adminId: string, reason: string, revisionId?: unknown): Promise<void> {
+  reason = reason.trim();
+  if (reason.length < 10 || reason.length > 1000) throw createAppError('Rejection reason must be between 10 and 1000 characters.', 400);
+  const expectedRevisionId = requireExpectedApplicationRevision(revisionId);
+  await applicationDecisionTransaction(providerId, async (client) => {
+    const locked = await client.query<{ status: string }>('SELECT status FROM providers WHERE id=$1 FOR UPDATE', [providerId]);
+    if (locked.rows[0]?.status !== 'pending') throw createAppError('Provider not found or not in pending status.', 404);
+    await assertCurrentApplicationRevision(client, providerId, expectedRevisionId);
     const result = await client.query<{ id: string; user_id: string }>(
       `UPDATE providers SET status = 'rejected', rejection_reason = $2, reviewed_at = NOW(), updated_at = NOW()
         WHERE id = $1 AND status = 'pending'
@@ -395,10 +432,11 @@ export async function rejectProvider(providerId: string, adminId: string, reason
       [userId],
     );
 
+    await recordApplicationDecision(client, { providerId, revisionId: expectedRevisionId, adminId, decision: 'rejected', reason });
     await client.query(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-       VALUES ($1, 'provider_rejected', 'provider', $2, '{"action":"rejected"}'::jsonb, $3)`,
-      [adminId, providerId, reason],
+       VALUES ($1, 'provider_rejected', 'provider', $2, $4::jsonb, $3)`,
+      [adminId, providerId, reason, JSON.stringify({ action: 'rejected', revisionId: expectedRevisionId })],
     );
 
     await client.query(
@@ -406,11 +444,11 @@ export async function rejectProvider(providerId: string, adminId: string, reason
        VALUES ($1, 'provider_rejected', 'Application Declined', $2, $3)`,
       [userId,
        `Your provider application has been declined. Reason: ${reason}. Please contact support for more information.`,
-       JSON.stringify({ providerId, reason })],
+       JSON.stringify({ providerId, reason, revisionId: expectedRevisionId })],
     );
   });
 
-  logger.info('Provider rejected', { providerId, adminId, reason });
+  logger.info('Provider rejected', { providerId, adminId });
 }
 
 export async function suspendProvider(providerId: string, adminId: string, reason: string): Promise<void> {
@@ -429,11 +467,12 @@ export async function suspendProvider(providerId: string, adminId: string, reaso
   // flag and the status flip are atomic.
   let flaggedCount = 0;
   await db.transaction(async (client) => {
+    await lockProviderAccount(client, providerId);
     const result = await client.query<{ id: string; user_id: string }>(
-      `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1 AND status IN ('approved', 'pending') RETURNING id, user_id`,
+      `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1 AND status = 'approved' RETURNING id, user_id`,
       [providerId],
     );
-    if (result.rowCount === 0) throw createAppError('Provider not found or already suspended.', 404);
+    if (result.rowCount === 0) throw createAppError('Provider not found or not approved. Pending applications require application review.', 404);
 
     const ownerUserId = result.rows[0]!.user_id;
     await client.query(
@@ -494,6 +533,36 @@ export async function reactivateProvider(providerId: string, adminId: string, re
     throw createAppError('Reactivation reason must be between 10 and 1000 characters.', 400);
   }
   await db.transaction(async (client) => {
+    await lockProviderAccount(client, providerId);
+    // OPS-481: suspension/reactivation must never become an alternate initial
+    // approval path. Historical rows without proof need explicit review, not
+    // an inferred approval from a mutable status or account role alone.
+    const suspended = await client.query<{ user_id: string; reviewed_at: Date | null }>(
+      `SELECT user_id, reviewed_at FROM providers WHERE id = $1 AND status = 'suspended' FOR UPDATE`,
+      [providerId],
+    );
+    const provider = suspended.rows[0];
+    if (!provider) throw createAppError('Provider not found or not suspended.', 404);
+    const admission = await client.query<{ was_approved: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM admin_actions
+         WHERE target_type = 'provider' AND target_id = $1 AND action_type = 'provider_approved'
+       ) AS was_approved`,
+      [providerId],
+    );
+    if (!provider.reviewed_at || admission.rows[0]?.was_approved !== true) {
+      throw createAppError('Reactivation requires a recorded prior provider approval. This application needs a separate admission review; reactivation cannot approve it.', 409);
+    }
+    // Lock the current account through commit without changing its role,
+    // fraud flag, activation or session generation.
+    const owner = await client.query<{ id: string }>(
+      `SELECT id FROM users WHERE id = $1 AND role = 'provider'
+         AND is_active = TRUE AND is_flagged_fraud = FALSE FOR SHARE`,
+      [provider.user_id],
+    );
+    if (owner.rowCount !== 1) {
+      throw createAppError('Reactivation requires an active provider account without a fraud flag. Review the account separately; reactivation cannot override its access controls.', 409);
+    }
     const result = await client.query<{ id: string; user_id: string }>(
       `UPDATE providers SET status = 'approved', updated_at = NOW() WHERE id = $1 AND status = 'suspended' RETURNING id, user_id`,
       [providerId],
@@ -720,24 +789,30 @@ export async function listBookingsAdmin(
     }
   }
   if (filters.search) {
+    // Operator searches use two different matching expectations: names and
+    // labels should find a term anywhere, while UUIDs should match from the
+    // beginning so a copied ID prefix does not surface unrelated records that
+    // happen to contain the same characters in the middle.
+    const broadSearchParam = paramIdx;
+    const identifierPrefixParam = paramIdx + 1;
     conditions.push(`(
-      b.id::text ILIKE $${paramIdx}
-      OR b.customer_id::text ILIKE $${paramIdx}
-      OR COALESCE(b.provider_id::text, '') ILIKE $${paramIdx}
-      OR COALESCE(b.city, '') ILIKE $${paramIdx}
-      OR CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${paramIdx}
-      OR u.phone ILIKE $${paramIdx}
-      OR COALESCE(u.email, '') ILIKE $${paramIdx}
-      OR COALESCE(p.business_name, '') ILIKE $${paramIdx}
-      OR CONCAT_WS(' ', pu.first_name, pu.last_name) ILIKE $${paramIdx}
-      OR COALESCE(pu.phone, '') ILIKE $${paramIdx}
-      OR COALESCE(ss.name, '') ILIKE $${paramIdx}
-      OR COALESCE(sc.name, '') ILIKE $${paramIdx}
-      OR COALESCE(ba.company_name, '') ILIKE $${paramIdx}
-      OR COALESCE(latest_invoice.invoice_number, '') ILIKE $${paramIdx}
+      b.id::text ILIKE $${identifierPrefixParam}
+      OR b.customer_id::text ILIKE $${identifierPrefixParam}
+      OR COALESCE(b.provider_id::text, '') ILIKE $${identifierPrefixParam}
+      OR COALESCE(b.city, '') ILIKE $${broadSearchParam}
+      OR CONCAT_WS(' ', u.first_name, u.last_name) ILIKE $${broadSearchParam}
+      OR u.phone ILIKE $${broadSearchParam}
+      OR COALESCE(u.email, '') ILIKE $${broadSearchParam}
+      OR COALESCE(p.business_name, '') ILIKE $${broadSearchParam}
+      OR CONCAT_WS(' ', pu.first_name, pu.last_name) ILIKE $${broadSearchParam}
+      OR COALESCE(pu.phone, '') ILIKE $${broadSearchParam}
+      OR COALESCE(ss.name, '') ILIKE $${broadSearchParam}
+      OR COALESCE(sc.name, '') ILIKE $${broadSearchParam}
+      OR COALESCE(ba.company_name, '') ILIKE $${broadSearchParam}
+      OR COALESCE(latest_invoice.invoice_number, '') ILIKE $${broadSearchParam}
     )`);
-    params.push(`%${filters.search}%`);
-    paramIdx++;
+    params.push(`%${filters.search}%`, `${filters.search}%`);
+    paramIdx += 2;
   }
 
   if (view === 'active') {
@@ -899,7 +974,7 @@ export async function getRevenueReport(
 
 export async function getAdminActions(
   filters: { adminId?: string; actionType?: string; page: number; pageSize: number },
-  viewerRole?: string,
+  _viewerRole?: string,
 ): Promise<{ actions: AdminActionRow[]; total: number }> {
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -923,17 +998,28 @@ export async function getAdminActions(
 
   const offset = (filters.page - 1) * filters.pageSize;
   const dataResult = await db.query<AdminActionRow>(
-    `SELECT * FROM admin_actions a ${whereClause} ORDER BY a.created_at DESC
+    `SELECT a.id, a.admin_id, a.action_type, a.target_type, a.target_id,
+            a.details, a.reason, a.created_at
+       FROM admin_actions a ${whereClause} ORDER BY a.created_at DESC
      LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
     [...params, filters.pageSize, offset],
   );
 
-  // Phase 14 Dispatch 08 — Bug 66 + 75 + 76 + 81 + 311 + 331.
-  // Apply role-aware PII masking before returning. super_admin sees raw;
-  // dpo sees masked UA + raw IP; everyone else sees fully masked.
-  const { maskPiiForRole } = await import('../utils/pii-mask');
-  const role = viewerRole ?? 'admin';
-  const masked = dataResult.rows.map((row) => maskPiiForRole(row as unknown as { details?: Record<string, unknown> }, role)) as unknown as AdminActionRow[];
+  // SEC-071 / E72: this legacy list is an audit index, not a bulk reveal.
+  // Match the general Audit Log's masking for EVERY role, including super
+  // admin. D25's record-scoped operational contact policy is unchanged.
+  // Explicitly project fields so historical/full_notes or future DB columns
+  // cannot leak through a SELECT * / object-spread compatibility path.
+  const masked = dataResult.rows.map((row): AdminActionRow => ({
+    id: row.id,
+    admin_id: row.admin_id,
+    action_type: row.action_type,
+    target_type: row.target_type,
+    target_id: row.target_id,
+    details: maskPiiForRole({ details: row.details }, 'admin').details,
+    reason: row.reason === null ? null : maskPiiInString(row.reason),
+    created_at: row.created_at,
+  }));
 
   return { actions: masked, total: Number(countResult.rows[0]?.count ?? 0) };
 }

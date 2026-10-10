@@ -1,0 +1,4091 @@
+{
+  "generatedAt": "2026-09-05T23:17:17.364Z",
+  "sourceRevision": "21e7f93d9b2ce29347b822ab00ed69919733a9ae plus UX-1350 through UX-1354 working tree",
+  "scope": "Compiled weekly schedule first save, partial saved week, editing during delayed saves, submitted payloads and reloads, using synthetic HTTP. Not actual PostgreSQL, production, native, every accessibility interaction or complete Stitch acceptance.",
+  "indexSha256": "68a0f955d927ea88dcb3070faea45e9320e75c11afd6773ce0616b91895daf8c",
+  "entrySha256": "1408c36f9811760166d50c72f90bfa1ce7747dfbe6000a468255c8098cd9508b",
+  "expected": 12,
+  "passed": 12,
+  "records": [
+    {
+      "width": 320,
+      "mode": "partial-delayed",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "10:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        },
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "12:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        }
+      ],
+      "captures": [
+        {
+          "name": "initial",
+          "screenshot": "320-partial-delayed-initial.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "pending-newer-edit",
+          "screenshot": "320-partial-delayed-pending-newer-edit.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Saving...",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "newer-edit-retained",
+          "screenshot": "320-partial-delayed-newer-edit-retained.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "320-partial-delayed-saved.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "reloaded",
+          "screenshot": "320-partial-delayed-reloaded.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "saved": [
+        {
+          "id": "synthetic-0",
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-1",
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-2",
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-3",
+          "dayOfWeek": 3,
+          "startTime": "12:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-4",
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-5",
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-6",
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "mode": "empty",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        }
+      ],
+      "captures": [
+        {
+          "name": "initial",
+          "screenshot": "320-empty-initial.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "320-empty-saved.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "reloaded",
+          "screenshot": "320-empty-reloaded.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "saved": [
+        {
+          "id": "synthetic-0",
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-1",
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-2",
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-3",
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-4",
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-5",
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-6",
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "mode": "partial-delayed",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "10:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        },
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "12:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        }
+      ],
+      "captures": [
+        {
+          "name": "initial",
+          "screenshot": "390-partial-delayed-initial.png",
+          "width": 390,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 374,
+              "width": 358,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "pending-newer-edit",
+          "screenshot": "390-partial-delayed-pending-newer-edit.png",
+          "width": 390,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Saving...",
+              "left": 16,
+              "right": 374,
+              "width": 358,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "newer-edit-retained",
+          "screenshot": "390-partial-delayed-newer-edit-retained.png",
+          "width": 390,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 374,
+              "width": 358,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "390-partial-delayed-saved.png",
+          "width": 390,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 374,
+              "width": 358,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "reloaded",
+          "screenshot": "390-partial-delayed-reloaded.png",
+          "width": 390,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 374,
+              "width": 358,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "saved": [
+        {
+          "id": "synthetic-0",
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-1",
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-2",
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-3",
+          "dayOfWeek": 3,
+          "startTime": "12:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-4",
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-5",
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-6",
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "mode": "empty",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        }
+      ],
+      "captures": [
+        {
+          "name": "initial",
+          "screenshot": "390-empty-initial.png",
+          "width": 390,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 374,
+              "width": 358,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "390-empty-saved.png",
+          "width": 390,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 374,
+              "width": 358,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "reloaded",
+          "screenshot": "390-empty-reloaded.png",
+          "width": 390,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 73,
+              "right": 153,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 191.796875,
+              "right": 271.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 16,
+              "right": 374,
+              "width": 358,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "saved": [
+        {
+          "id": "synthetic-0",
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-1",
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-2",
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-3",
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-4",
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-5",
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-6",
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "mode": "partial-delayed",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "10:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        },
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "12:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        }
+      ],
+      "captures": [
+        {
+          "name": "initial",
+          "screenshot": "768-partial-delayed-initial.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 17,
+              "right": 751,
+              "width": 734,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "pending-newer-edit",
+          "screenshot": "768-partial-delayed-pending-newer-edit.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Saving...",
+              "left": 17,
+              "right": 751,
+              "width": 734,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "newer-edit-retained",
+          "screenshot": "768-partial-delayed-newer-edit-retained.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 17,
+              "right": 751,
+              "width": 734,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "768-partial-delayed-saved.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 17,
+              "right": 751,
+              "width": 734,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "reloaded",
+          "screenshot": "768-partial-delayed-reloaded.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 17,
+              "right": 751,
+              "width": 734,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "saved": [
+        {
+          "id": "synthetic-0",
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-1",
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-2",
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-3",
+          "dayOfWeek": 3,
+          "startTime": "12:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-4",
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-5",
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-6",
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "mode": "empty",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        }
+      ],
+      "captures": [
+        {
+          "name": "initial",
+          "screenshot": "768-empty-initial.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 90,
+              "right": 170,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 208.796875,
+              "right": 288.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 90,
+              "right": 170,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 208.796875,
+              "right": 288.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 17,
+              "right": 751,
+              "width": 734,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "768-empty-saved.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 90,
+              "right": 170,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 208.796875,
+              "right": 288.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 90,
+              "right": 170,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 208.796875,
+              "right": 288.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 17,
+              "right": 751,
+              "width": 734,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "reloaded",
+          "screenshot": "768-empty-reloaded.png",
+          "width": 768,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 90,
+              "right": 170,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 208.796875,
+              "right": 288.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 90,
+              "right": 170,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 208.796875,
+              "right": 288.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 447,
+              "right": 527,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 565.796875,
+              "right": 645.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 17,
+              "right": 751,
+              "width": 734,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "saved": [
+        {
+          "id": "synthetic-0",
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-1",
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-2",
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-3",
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-4",
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-5",
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-6",
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "mode": "partial-delayed",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "10:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        },
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "12:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        }
+      ],
+      "captures": [
+        {
+          "name": "initial",
+          "screenshot": "1024-partial-delayed-initial.png",
+          "width": 1024,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 687,
+              "right": 1007,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "pending-newer-edit",
+          "screenshot": "1024-partial-delayed-pending-newer-edit.png",
+          "width": 1024,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Saving...",
+              "left": 687,
+              "right": 1007,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "newer-edit-retained",
+          "screenshot": "1024-partial-delayed-newer-edit-retained.png",
+          "width": 1024,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 687,
+              "right": 1007,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "1024-partial-delayed-saved.png",
+          "width": 1024,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 687,
+              "right": 1007,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "reloaded",
+          "screenshot": "1024-partial-delayed-reloaded.png",
+          "width": 1024,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 687,
+              "right": 1007,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "saved": [
+        {
+          "id": "synthetic-0",
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-1",
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-2",
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-3",
+          "dayOfWeek": 3,
+          "startTime": "12:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-4",
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-5",
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-6",
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "mode": "empty",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        }
+      ],
+      "captures": [
+        {
+          "name": "initial",
+          "screenshot": "1024-empty-initial.png",
+          "width": 1024,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 90,
+              "right": 170,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 208.796875,
+              "right": 288.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 90,
+              "right": 170,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 208.796875,
+              "right": 288.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 687,
+              "right": 1007,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "1024-empty-saved.png",
+          "width": 1024,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 90,
+              "right": 170,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 208.796875,
+              "right": 288.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 90,
+              "right": 170,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 208.796875,
+              "right": 288.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 687,
+              "right": 1007,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "reloaded",
+          "screenshot": "1024-empty-reloaded.png",
+          "width": 1024,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 90,
+              "right": 170,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 208.796875,
+              "right": 288.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 90,
+              "right": 170,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 208.796875,
+              "right": 288.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 575,
+              "right": 655,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 693.796875,
+              "right": 773.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 687,
+              "right": 1007,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "saved": [
+        {
+          "id": "synthetic-0",
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-1",
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-2",
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-3",
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-4",
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-5",
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-6",
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "mode": "partial-delayed",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "10:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        },
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "12:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        }
+      ],
+      "captures": [
+        {
+          "name": "initial",
+          "screenshot": "1366-partial-delayed-initial.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1006,
+              "right": 1326,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "pending-newer-edit",
+          "screenshot": "1366-partial-delayed-pending-newer-edit.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Saving...",
+              "left": 1006,
+              "right": 1326,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "newer-edit-retained",
+          "screenshot": "1366-partial-delayed-newer-edit-retained.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1006,
+              "right": 1326,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "1366-partial-delayed-saved.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1006,
+              "right": 1326,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "reloaded",
+          "screenshot": "1366-partial-delayed-reloaded.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1006,
+              "right": 1326,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "saved": [
+        {
+          "id": "synthetic-0",
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-1",
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-2",
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-3",
+          "dayOfWeek": 3,
+          "startTime": "12:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-4",
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-5",
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-6",
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "width": 1366,
+      "mode": "empty",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        }
+      ],
+      "captures": [
+        {
+          "name": "initial",
+          "screenshot": "1366-empty-initial.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 345,
+              "right": 425,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 463.796875,
+              "right": 543.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 345,
+              "right": 425,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 463.796875,
+              "right": 543.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1006,
+              "right": 1326,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "1366-empty-saved.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 345,
+              "right": 425,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 463.796875,
+              "right": 543.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 345,
+              "right": 425,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 463.796875,
+              "right": 543.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1006,
+              "right": 1326,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "reloaded",
+          "screenshot": "1366-empty-reloaded.png",
+          "width": 1366,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 345,
+              "right": 425,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 463.796875,
+              "right": 543.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 345,
+              "right": 425,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 463.796875,
+              "right": 543.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 862,
+              "right": 942,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 980.796875,
+              "right": 1060.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1006,
+              "right": 1326,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "saved": [
+        {
+          "id": "synthetic-0",
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-1",
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-2",
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-3",
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-4",
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-5",
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-6",
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "mode": "partial-delayed",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "10:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        },
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "12:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        }
+      ],
+      "captures": [
+        {
+          "name": "initial",
+          "screenshot": "1920-partial-delayed-initial.png",
+          "width": 1920,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1283,
+              "right": 1603,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "pending-newer-edit",
+          "screenshot": "1920-partial-delayed-pending-newer-edit.png",
+          "width": 1920,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Saving...",
+              "left": 1283,
+              "right": 1603,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "newer-edit-retained",
+          "screenshot": "1920-partial-delayed-newer-edit-retained.png",
+          "width": 1920,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1283,
+              "right": 1603,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "1920-partial-delayed-saved.png",
+          "width": 1920,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1283,
+              "right": 1603,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "reloaded",
+          "screenshot": "1920-partial-delayed-reloaded.png",
+          "width": 1920,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1283,
+              "right": 1603,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "saved": [
+        {
+          "id": "synthetic-0",
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-1",
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-2",
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-3",
+          "dayOfWeek": 3,
+          "startTime": "12:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-4",
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-5",
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-6",
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "mode": "empty",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule",
+        "PUT /api/v1/providers/me/schedule",
+        "GET /api/v1/providers/me/schedule",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/schedule"
+      ],
+      "writes": [
+        {
+          "schedule": [
+            {
+              "dayOfWeek": 0,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            },
+            {
+              "dayOfWeek": 1,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 2,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 3,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 4,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 5,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": true
+            },
+            {
+              "dayOfWeek": 6,
+              "startTime": "08:00",
+              "endTime": "17:00",
+              "isAvailable": false
+            }
+          ]
+        }
+      ],
+      "captures": [
+        {
+          "name": "initial",
+          "screenshot": "1920-empty-initial.png",
+          "width": 1920,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 622,
+              "right": 702,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 740.796875,
+              "right": 820.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 622,
+              "right": 702,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 740.796875,
+              "right": 820.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1283,
+              "right": 1603,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "1920-empty-saved.png",
+          "width": 1920,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 622,
+              "right": 702,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 740.796875,
+              "right": 820.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 622,
+              "right": 702,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 740.796875,
+              "right": 820.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1283,
+              "right": 1603,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "reloaded",
+          "screenshot": "1920-empty-reloaded.png",
+          "width": 1920,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "Monday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Monday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday start time in HH:MM",
+              "left": 622,
+              "right": 702,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Tuesday end time in HH:MM",
+              "left": 740.796875,
+              "right": 820.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Wednesday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday start time in HH:MM",
+              "left": 622,
+              "right": 702,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Thursday end time in HH:MM",
+              "left": 740.796875,
+              "right": 820.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday start time in HH:MM",
+              "left": 1139,
+              "right": 1219,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Friday end time in HH:MM",
+              "left": 1257.796875,
+              "right": 1337.796875,
+              "width": 80,
+              "height": 42
+            },
+            {
+              "label": "Save Schedule",
+              "left": 1283,
+              "right": 1603,
+              "width": 320,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "saved": [
+        {
+          "id": "synthetic-0",
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        },
+        {
+          "id": "synthetic-1",
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-2",
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-3",
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-4",
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-5",
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": true
+        },
+        {
+          "id": "synthetic-6",
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "17:00",
+          "isAvailable": false
+        }
+      ]
+    }
+  ]
+}

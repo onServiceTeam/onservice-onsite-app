@@ -1,0 +1,6131 @@
+{
+  "generatedAt": "2026-09-05T21:12:05.651Z",
+  "sourceRevision": "6aba2062 + uncommitted UX-1339/1340; five changed runtime file SHA256s verified against temporary build",
+  "scope": "Compiled UI with synthetic HTTP, identity and OTP. Not actual PostgreSQL, SMS, production, native or complete dashboard/Stitch acceptance.",
+  "indexSha256": "3bd5e51475d8b0fd1afabb593aee3f39a2b23f81738fe307384c86ecb53a02bd",
+  "entrySha256": "e377e06575fd761134d366c879216de42bcfe9b71eb696288c081e9ac9a8ab9f",
+  "expectedFlows": 60,
+  "passed": 60,
+  "records": [
+    {
+      "width": 320,
+      "mode": "normal",
+      "otpLength": 4,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "320-normal-4digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "320-normal-4digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "320-normal-4digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "320-normal-4digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 52,
+            "right": 100,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 108,
+            "right": 156,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 164,
+            "right": 212,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 220,
+            "right": 268,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "mode": "normal",
+      "otpLength": 5,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "320-normal-5digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "320-normal-5digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "320-normal-5digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "320-normal-5digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 82.203125,
+            "width": 41.203125,
+            "height": 56
+          },
+          {
+            "left": 90.203125,
+            "right": 131.390625,
+            "width": 41.1875,
+            "height": 56
+          },
+          {
+            "left": 139.390625,
+            "right": 180.59375,
+            "width": 41.203125,
+            "height": 56
+          },
+          {
+            "left": 188.59375,
+            "right": 229.796875,
+            "width": 41.203125,
+            "height": 56
+          },
+          {
+            "left": 237.796875,
+            "right": 279,
+            "width": 41.203125,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "mode": "normal",
+      "otpLength": 6,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "320-normal-6digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "320-normal-6digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "320-normal-6digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "320-normal-6digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 74,
+            "width": 33,
+            "height": 56
+          },
+          {
+            "left": 82,
+            "right": 115,
+            "width": 33,
+            "height": 56
+          },
+          {
+            "left": 123,
+            "right": 156,
+            "width": 33,
+            "height": 56
+          },
+          {
+            "left": 164,
+            "right": 197,
+            "width": 33,
+            "height": 56
+          },
+          {
+            "left": 205,
+            "right": 238,
+            "width": 33,
+            "height": 56
+          },
+          {
+            "left": 246,
+            "right": 279,
+            "width": 33,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "mode": "normal",
+      "otpLength": 7,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "320-normal-7digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "320-normal-7digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "320-normal-7digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "320-normal-7digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 68.15625,
+            "width": 27.15625,
+            "height": 56
+          },
+          {
+            "left": 76.15625,
+            "right": 103.296875,
+            "width": 27.140625,
+            "height": 56
+          },
+          {
+            "left": 111.296875,
+            "right": 138.4375,
+            "width": 27.140625,
+            "height": 56
+          },
+          {
+            "left": 146.4375,
+            "right": 173.578125,
+            "width": 27.140625,
+            "height": 56
+          },
+          {
+            "left": 181.578125,
+            "right": 208.71875,
+            "width": 27.140625,
+            "height": 56
+          },
+          {
+            "left": 216.71875,
+            "right": 243.859375,
+            "width": 27.140625,
+            "height": 56
+          },
+          {
+            "left": 251.859375,
+            "right": 279,
+            "width": 27.140625,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "mode": "normal",
+      "otpLength": 8,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "320-normal-8digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "320-normal-8digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "320-normal-8digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "320-normal-8digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 63.75,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 71.75,
+            "right": 94.5,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 102.5,
+            "right": 125.25,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 133.25,
+            "right": 156,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 164,
+            "right": 186.75,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 194.75,
+            "right": 217.5,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 225.5,
+            "right": 248.25,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 256.25,
+            "right": 279,
+            "width": 22.75,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "mode": "explicit",
+      "otpLength": 4,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "320-explicit-4digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "320-explicit-4digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "320-explicit-4digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "320-explicit-4digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 52,
+            "right": 100,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 108,
+            "right": 156,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 164,
+            "right": 212,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 220,
+            "right": 268,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "mode": "explicit",
+      "otpLength": 5,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "320-explicit-5digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "320-explicit-5digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "320-explicit-5digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "320-explicit-5digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 82.203125,
+            "width": 41.203125,
+            "height": 56
+          },
+          {
+            "left": 90.203125,
+            "right": 131.390625,
+            "width": 41.1875,
+            "height": 56
+          },
+          {
+            "left": 139.390625,
+            "right": 180.59375,
+            "width": 41.203125,
+            "height": 56
+          },
+          {
+            "left": 188.59375,
+            "right": 229.796875,
+            "width": 41.203125,
+            "height": 56
+          },
+          {
+            "left": 237.796875,
+            "right": 279,
+            "width": 41.203125,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "mode": "explicit",
+      "otpLength": 6,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "320-explicit-6digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "320-explicit-6digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "320-explicit-6digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "320-explicit-6digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 74,
+            "width": 33,
+            "height": 56
+          },
+          {
+            "left": 82,
+            "right": 115,
+            "width": 33,
+            "height": 56
+          },
+          {
+            "left": 123,
+            "right": 156,
+            "width": 33,
+            "height": 56
+          },
+          {
+            "left": 164,
+            "right": 197,
+            "width": 33,
+            "height": 56
+          },
+          {
+            "left": 205,
+            "right": 238,
+            "width": 33,
+            "height": 56
+          },
+          {
+            "left": 246,
+            "right": 279,
+            "width": 33,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "mode": "explicit",
+      "otpLength": 7,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "320-explicit-7digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "320-explicit-7digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "320-explicit-7digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "320-explicit-7digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 68.15625,
+            "width": 27.15625,
+            "height": 56
+          },
+          {
+            "left": 76.15625,
+            "right": 103.296875,
+            "width": 27.140625,
+            "height": 56
+          },
+          {
+            "left": 111.296875,
+            "right": 138.4375,
+            "width": 27.140625,
+            "height": 56
+          },
+          {
+            "left": 146.4375,
+            "right": 173.578125,
+            "width": 27.140625,
+            "height": 56
+          },
+          {
+            "left": 181.578125,
+            "right": 208.71875,
+            "width": 27.140625,
+            "height": 56
+          },
+          {
+            "left": 216.71875,
+            "right": 243.859375,
+            "width": 27.140625,
+            "height": 56
+          },
+          {
+            "left": 251.859375,
+            "right": 279,
+            "width": 27.140625,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "mode": "explicit",
+      "otpLength": 8,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "320-explicit-8digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "320-explicit-8digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "320-explicit-8digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "320-explicit-8digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 279,
+          "width": 238,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 63.75,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 71.75,
+            "right": 94.5,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 102.5,
+            "right": 125.25,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 133.25,
+            "right": 156,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 164,
+            "right": 186.75,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 194.75,
+            "right": 217.5,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 225.5,
+            "right": 248.25,
+            "width": 22.75,
+            "height": 56
+          },
+          {
+            "left": 256.25,
+            "right": 279,
+            "width": 22.75,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "mode": "normal",
+      "otpLength": 4,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "390-normal-4digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "390-normal-4digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "390-normal-4digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "390-normal-4digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 87,
+            "right": 135,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 143,
+            "right": 191,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 199,
+            "right": 247,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 255,
+            "right": 303,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "mode": "normal",
+      "otpLength": 5,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "390-normal-5digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "390-normal-5digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "390-normal-5digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "390-normal-5digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 59,
+            "right": 107,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 115,
+            "right": 163,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 171,
+            "right": 219,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 227,
+            "right": 275,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 283,
+            "right": 331,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "mode": "normal",
+      "otpLength": 6,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "390-normal-6digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "390-normal-6digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "390-normal-6digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "390-normal-6digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 85.671875,
+            "width": 44.671875,
+            "height": 56
+          },
+          {
+            "left": 93.671875,
+            "right": 138.328125,
+            "width": 44.65625,
+            "height": 56
+          },
+          {
+            "left": 146.328125,
+            "right": 191,
+            "width": 44.671875,
+            "height": 56
+          },
+          {
+            "left": 199,
+            "right": 243.65625,
+            "width": 44.65625,
+            "height": 56
+          },
+          {
+            "left": 251.65625,
+            "right": 296.328125,
+            "width": 44.671875,
+            "height": 56
+          },
+          {
+            "left": 304.328125,
+            "right": 349,
+            "width": 44.671875,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "mode": "normal",
+      "otpLength": 7,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "390-normal-7digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "390-normal-7digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "390-normal-7digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "390-normal-7digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 78.15625,
+            "width": 37.15625,
+            "height": 56
+          },
+          {
+            "left": 86.15625,
+            "right": 123.296875,
+            "width": 37.140625,
+            "height": 56
+          },
+          {
+            "left": 131.296875,
+            "right": 168.4375,
+            "width": 37.140625,
+            "height": 56
+          },
+          {
+            "left": 176.4375,
+            "right": 213.578125,
+            "width": 37.140625,
+            "height": 56
+          },
+          {
+            "left": 221.578125,
+            "right": 258.71875,
+            "width": 37.140625,
+            "height": 56
+          },
+          {
+            "left": 266.71875,
+            "right": 303.859375,
+            "width": 37.140625,
+            "height": 56
+          },
+          {
+            "left": 311.859375,
+            "right": 349,
+            "width": 37.140625,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "mode": "normal",
+      "otpLength": 8,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "390-normal-8digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "390-normal-8digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "390-normal-8digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "390-normal-8digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 72.5,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 80.5,
+            "right": 112,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 120,
+            "right": 151.5,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 159.5,
+            "right": 191,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 199,
+            "right": 230.5,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 238.5,
+            "right": 270,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 278,
+            "right": 309.5,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 317.5,
+            "right": 349,
+            "width": 31.5,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "mode": "explicit",
+      "otpLength": 4,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "390-explicit-4digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "390-explicit-4digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "390-explicit-4digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "390-explicit-4digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 87,
+            "right": 135,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 143,
+            "right": 191,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 199,
+            "right": 247,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 255,
+            "right": 303,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "mode": "explicit",
+      "otpLength": 5,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "390-explicit-5digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "390-explicit-5digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "390-explicit-5digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "390-explicit-5digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 59,
+            "right": 107,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 115,
+            "right": 163,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 171,
+            "right": 219,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 227,
+            "right": 275,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 283,
+            "right": 331,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "mode": "explicit",
+      "otpLength": 6,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "390-explicit-6digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "390-explicit-6digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "390-explicit-6digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "390-explicit-6digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 85.671875,
+            "width": 44.671875,
+            "height": 56
+          },
+          {
+            "left": 93.671875,
+            "right": 138.328125,
+            "width": 44.65625,
+            "height": 56
+          },
+          {
+            "left": 146.328125,
+            "right": 191,
+            "width": 44.671875,
+            "height": 56
+          },
+          {
+            "left": 199,
+            "right": 243.65625,
+            "width": 44.65625,
+            "height": 56
+          },
+          {
+            "left": 251.65625,
+            "right": 296.328125,
+            "width": 44.671875,
+            "height": 56
+          },
+          {
+            "left": 304.328125,
+            "right": 349,
+            "width": 44.671875,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "mode": "explicit",
+      "otpLength": 7,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "390-explicit-7digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "390-explicit-7digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "390-explicit-7digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "390-explicit-7digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 78.15625,
+            "width": 37.15625,
+            "height": 56
+          },
+          {
+            "left": 86.15625,
+            "right": 123.296875,
+            "width": 37.140625,
+            "height": 56
+          },
+          {
+            "left": 131.296875,
+            "right": 168.4375,
+            "width": 37.140625,
+            "height": 56
+          },
+          {
+            "left": 176.4375,
+            "right": 213.578125,
+            "width": 37.140625,
+            "height": 56
+          },
+          {
+            "left": 221.578125,
+            "right": 258.71875,
+            "width": 37.140625,
+            "height": 56
+          },
+          {
+            "left": 266.71875,
+            "right": 303.859375,
+            "width": 37.140625,
+            "height": 56
+          },
+          {
+            "left": 311.859375,
+            "right": 349,
+            "width": 37.140625,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "mode": "explicit",
+      "otpLength": 8,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "390-explicit-8digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "390-explicit-8digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "390-explicit-8digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "390-explicit-8digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "input": {
+          "left": 41,
+          "right": 349,
+          "width": 308,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 41,
+            "right": 72.5,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 80.5,
+            "right": 112,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 120,
+            "right": 151.5,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 159.5,
+            "right": 191,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 199,
+            "right": 230.5,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 238.5,
+            "right": 270,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 278,
+            "right": 309.5,
+            "width": 31.5,
+            "height": 56
+          },
+          {
+            "left": 317.5,
+            "right": 349,
+            "width": 31.5,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 768,
+      "mode": "normal",
+      "otpLength": 4,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "768-normal-4digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "768-normal-4digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "768-normal-4digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "768-normal-4digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "input": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 426.359375,
+            "right": 474.359375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 482.359375,
+            "right": 530.359375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 538.359375,
+            "right": 586.359375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 594.359375,
+            "right": 642.359375,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 768,
+      "mode": "normal",
+      "otpLength": 5,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "768-normal-5digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "768-normal-5digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "768-normal-5digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "768-normal-5digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "input": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 407.71875,
+            "right": 451.984375,
+            "width": 44.265625,
+            "height": 56
+          },
+          {
+            "left": 459.984375,
+            "right": 504.234375,
+            "width": 44.25,
+            "height": 56
+          },
+          {
+            "left": 512.234375,
+            "right": 556.5,
+            "width": 44.265625,
+            "height": 56
+          },
+          {
+            "left": 564.5,
+            "right": 608.75,
+            "width": 44.25,
+            "height": 56
+          },
+          {
+            "left": 616.75,
+            "right": 661,
+            "width": 44.25,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 768,
+      "mode": "normal",
+      "otpLength": 6,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "768-normal-6digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "768-normal-6digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "768-normal-6digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "768-normal-6digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "input": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 407.71875,
+            "right": 443.265625,
+            "width": 35.546875,
+            "height": 56
+          },
+          {
+            "left": 451.265625,
+            "right": 486.8125,
+            "width": 35.546875,
+            "height": 56
+          },
+          {
+            "left": 494.8125,
+            "right": 530.359375,
+            "width": 35.546875,
+            "height": 56
+          },
+          {
+            "left": 538.359375,
+            "right": 573.90625,
+            "width": 35.546875,
+            "height": 56
+          },
+          {
+            "left": 581.90625,
+            "right": 617.453125,
+            "width": 35.546875,
+            "height": 56
+          },
+          {
+            "left": 625.453125,
+            "right": 661,
+            "width": 35.546875,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 768,
+      "mode": "normal",
+      "otpLength": 7,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "768-normal-7digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "768-normal-7digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "768-normal-7digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "768-normal-7digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "input": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 407.71875,
+            "right": 437.046875,
+            "width": 29.328125,
+            "height": 56
+          },
+          {
+            "left": 445.046875,
+            "right": 474.359375,
+            "width": 29.3125,
+            "height": 56
+          },
+          {
+            "left": 482.359375,
+            "right": 511.6875,
+            "width": 29.328125,
+            "height": 56
+          },
+          {
+            "left": 519.6875,
+            "right": 549.015625,
+            "width": 29.328125,
+            "height": 56
+          },
+          {
+            "left": 557.015625,
+            "right": 586.34375,
+            "width": 29.328125,
+            "height": 56
+          },
+          {
+            "left": 594.34375,
+            "right": 623.671875,
+            "width": 29.328125,
+            "height": 56
+          },
+          {
+            "left": 631.671875,
+            "right": 661,
+            "width": 29.328125,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 768,
+      "mode": "normal",
+      "otpLength": 8,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "768-normal-8digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "768-normal-8digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "768-normal-8digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "768-normal-8digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "input": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 407.71875,
+            "right": 432.390625,
+            "width": 24.671875,
+            "height": 56
+          },
+          {
+            "left": 440.390625,
+            "right": 465.046875,
+            "width": 24.65625,
+            "height": 56
+          },
+          {
+            "left": 473.046875,
+            "right": 497.71875,
+            "width": 24.671875,
+            "height": 56
+          },
+          {
+            "left": 505.71875,
+            "right": 530.375,
+            "width": 24.65625,
+            "height": 56
+          },
+          {
+            "left": 538.375,
+            "right": 563.03125,
+            "width": 24.65625,
+            "height": 56
+          },
+          {
+            "left": 571.03125,
+            "right": 595.6875,
+            "width": 24.65625,
+            "height": 56
+          },
+          {
+            "left": 603.6875,
+            "right": 628.34375,
+            "width": 24.65625,
+            "height": 56
+          },
+          {
+            "left": 636.34375,
+            "right": 661,
+            "width": 24.65625,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 768,
+      "mode": "explicit",
+      "otpLength": 4,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "768-explicit-4digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "768-explicit-4digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "768-explicit-4digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "768-explicit-4digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "input": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 426.359375,
+            "right": 474.359375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 482.359375,
+            "right": 530.359375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 538.359375,
+            "right": 586.359375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 594.359375,
+            "right": 642.359375,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 768,
+      "mode": "explicit",
+      "otpLength": 5,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "768-explicit-5digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "768-explicit-5digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "768-explicit-5digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "768-explicit-5digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "input": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 407.71875,
+            "right": 451.984375,
+            "width": 44.265625,
+            "height": 56
+          },
+          {
+            "left": 459.984375,
+            "right": 504.234375,
+            "width": 44.25,
+            "height": 56
+          },
+          {
+            "left": 512.234375,
+            "right": 556.5,
+            "width": 44.265625,
+            "height": 56
+          },
+          {
+            "left": 564.5,
+            "right": 608.75,
+            "width": 44.25,
+            "height": 56
+          },
+          {
+            "left": 616.75,
+            "right": 661,
+            "width": 44.25,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 768,
+      "mode": "explicit",
+      "otpLength": 6,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "768-explicit-6digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "768-explicit-6digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "768-explicit-6digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "768-explicit-6digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "input": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 407.71875,
+            "right": 443.265625,
+            "width": 35.546875,
+            "height": 56
+          },
+          {
+            "left": 451.265625,
+            "right": 486.8125,
+            "width": 35.546875,
+            "height": 56
+          },
+          {
+            "left": 494.8125,
+            "right": 530.359375,
+            "width": 35.546875,
+            "height": 56
+          },
+          {
+            "left": 538.359375,
+            "right": 573.90625,
+            "width": 35.546875,
+            "height": 56
+          },
+          {
+            "left": 581.90625,
+            "right": 617.453125,
+            "width": 35.546875,
+            "height": 56
+          },
+          {
+            "left": 625.453125,
+            "right": 661,
+            "width": 35.546875,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 768,
+      "mode": "explicit",
+      "otpLength": 7,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "768-explicit-7digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "768-explicit-7digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "768-explicit-7digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "768-explicit-7digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "input": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 407.71875,
+            "right": 437.046875,
+            "width": 29.328125,
+            "height": 56
+          },
+          {
+            "left": 445.046875,
+            "right": 474.359375,
+            "width": 29.3125,
+            "height": 56
+          },
+          {
+            "left": 482.359375,
+            "right": 511.6875,
+            "width": 29.328125,
+            "height": 56
+          },
+          {
+            "left": 519.6875,
+            "right": 549.015625,
+            "width": 29.328125,
+            "height": 56
+          },
+          {
+            "left": 557.015625,
+            "right": 586.34375,
+            "width": 29.328125,
+            "height": 56
+          },
+          {
+            "left": 594.34375,
+            "right": 623.671875,
+            "width": 29.328125,
+            "height": 56
+          },
+          {
+            "left": 631.671875,
+            "right": 661,
+            "width": 29.328125,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 768,
+      "mode": "explicit",
+      "otpLength": 8,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "768-explicit-8digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "768-explicit-8digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "768-explicit-8digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "768-explicit-8digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "input": {
+          "left": 407.71875,
+          "right": 661,
+          "width": 253.28125,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 407.71875,
+            "right": 432.390625,
+            "width": 24.671875,
+            "height": 56
+          },
+          {
+            "left": 440.390625,
+            "right": 465.046875,
+            "width": 24.65625,
+            "height": 56
+          },
+          {
+            "left": 473.046875,
+            "right": 497.71875,
+            "width": 24.671875,
+            "height": 56
+          },
+          {
+            "left": 505.71875,
+            "right": 530.375,
+            "width": 24.65625,
+            "height": 56
+          },
+          {
+            "left": 538.375,
+            "right": 563.03125,
+            "width": 24.65625,
+            "height": 56
+          },
+          {
+            "left": 571.03125,
+            "right": 595.6875,
+            "width": 24.65625,
+            "height": 56
+          },
+          {
+            "left": 603.6875,
+            "right": 628.34375,
+            "width": 24.65625,
+            "height": 56
+          },
+          {
+            "left": 636.34375,
+            "right": 661,
+            "width": 24.65625,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1024,
+      "mode": "normal",
+      "otpLength": 4,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1024-normal-4digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1024-normal-4digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1024-normal-4digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1024-normal-4digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "input": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 608.109375,
+            "right": 656.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 664.109375,
+            "right": 712.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 720.109375,
+            "right": 768.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 776.109375,
+            "right": 824.109375,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1024,
+      "mode": "normal",
+      "otpLength": 5,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1024-normal-5digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1024-normal-5digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1024-normal-5digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1024-normal-5digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "input": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 580.109375,
+            "right": 628.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 636.109375,
+            "right": 684.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 692.109375,
+            "right": 740.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 748.109375,
+            "right": 796.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 804.109375,
+            "right": 852.109375,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1024,
+      "mode": "normal",
+      "otpLength": 6,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1024-normal-6digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1024-normal-6digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1024-normal-6digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1024-normal-6digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "input": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 552.109375,
+            "right": 600.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 608.109375,
+            "right": 656.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 664.109375,
+            "right": 712.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 720.109375,
+            "right": 768.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 776.109375,
+            "right": 824.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 832.109375,
+            "right": 880.109375,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1024,
+      "mode": "normal",
+      "otpLength": 7,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1024-normal-7digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1024-normal-7digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1024-normal-7digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1024-normal-7digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "input": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 524.109375,
+            "right": 572.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 580.109375,
+            "right": 628.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 636.109375,
+            "right": 684.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 692.109375,
+            "right": 740.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 748.109375,
+            "right": 796.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 804.109375,
+            "right": 852.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 860.109375,
+            "right": 908.109375,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1024,
+      "mode": "normal",
+      "otpLength": 8,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1024-normal-8digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1024-normal-8digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1024-normal-8digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1024-normal-8digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "input": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 515.234375,
+            "right": 558.46875,
+            "width": 43.234375,
+            "height": 56
+          },
+          {
+            "left": 566.46875,
+            "right": 609.6875,
+            "width": 43.21875,
+            "height": 56
+          },
+          {
+            "left": 617.6875,
+            "right": 660.90625,
+            "width": 43.21875,
+            "height": 56
+          },
+          {
+            "left": 668.90625,
+            "right": 712.125,
+            "width": 43.21875,
+            "height": 56
+          },
+          {
+            "left": 720.125,
+            "right": 763.34375,
+            "width": 43.21875,
+            "height": 56
+          },
+          {
+            "left": 771.34375,
+            "right": 814.5625,
+            "width": 43.21875,
+            "height": 56
+          },
+          {
+            "left": 822.5625,
+            "right": 865.78125,
+            "width": 43.21875,
+            "height": 56
+          },
+          {
+            "left": 873.78125,
+            "right": 917,
+            "width": 43.21875,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1024,
+      "mode": "explicit",
+      "otpLength": 4,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1024-explicit-4digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1024-explicit-4digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1024-explicit-4digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1024-explicit-4digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "input": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 608.109375,
+            "right": 656.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 664.109375,
+            "right": 712.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 720.109375,
+            "right": 768.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 776.109375,
+            "right": 824.109375,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1024,
+      "mode": "explicit",
+      "otpLength": 5,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1024-explicit-5digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1024-explicit-5digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1024-explicit-5digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1024-explicit-5digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "input": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 580.109375,
+            "right": 628.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 636.109375,
+            "right": 684.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 692.109375,
+            "right": 740.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 748.109375,
+            "right": 796.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 804.109375,
+            "right": 852.109375,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1024,
+      "mode": "explicit",
+      "otpLength": 6,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1024-explicit-6digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1024-explicit-6digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1024-explicit-6digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1024-explicit-6digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "input": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 552.109375,
+            "right": 600.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 608.109375,
+            "right": 656.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 664.109375,
+            "right": 712.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 720.109375,
+            "right": 768.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 776.109375,
+            "right": 824.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 832.109375,
+            "right": 880.109375,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1024,
+      "mode": "explicit",
+      "otpLength": 7,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1024-explicit-7digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1024-explicit-7digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1024-explicit-7digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1024-explicit-7digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "input": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 524.109375,
+            "right": 572.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 580.109375,
+            "right": 628.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 636.109375,
+            "right": 684.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 692.109375,
+            "right": 740.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 748.109375,
+            "right": 796.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 804.109375,
+            "right": 852.109375,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 860.109375,
+            "right": 908.109375,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1024,
+      "mode": "explicit",
+      "otpLength": 8,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1024-explicit-8digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1024-explicit-8digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1024-explicit-8digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1024-explicit-8digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "input": {
+          "left": 515.234375,
+          "right": 917,
+          "width": 401.765625,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 515.234375,
+            "right": 558.46875,
+            "width": 43.234375,
+            "height": 56
+          },
+          {
+            "left": 566.46875,
+            "right": 609.6875,
+            "width": 43.21875,
+            "height": 56
+          },
+          {
+            "left": 617.6875,
+            "right": 660.90625,
+            "width": 43.21875,
+            "height": 56
+          },
+          {
+            "left": 668.90625,
+            "right": 712.125,
+            "width": 43.21875,
+            "height": 56
+          },
+          {
+            "left": 720.125,
+            "right": 763.34375,
+            "width": 43.21875,
+            "height": 56
+          },
+          {
+            "left": 771.34375,
+            "right": 814.5625,
+            "width": 43.21875,
+            "height": 56
+          },
+          {
+            "left": 822.5625,
+            "right": 865.78125,
+            "width": 43.21875,
+            "height": 56
+          },
+          {
+            "left": 873.78125,
+            "right": 917,
+            "width": 43.21875,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1366,
+      "mode": "normal",
+      "otpLength": 4,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1366-normal-4digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1366-normal-4digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1366-normal-4digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1366-normal-4digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 795.078125,
+            "right": 843.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 851.078125,
+            "right": 899.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 907.078125,
+            "right": 955.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 963.078125,
+            "right": 1011.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1366,
+      "mode": "normal",
+      "otpLength": 5,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1366-normal-5digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1366-normal-5digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1366-normal-5digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1366-normal-5digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 767.078125,
+            "right": 815.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 823.078125,
+            "right": 871.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 879.078125,
+            "right": 927.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 935.078125,
+            "right": 983.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 991.078125,
+            "right": 1039.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1366,
+      "mode": "normal",
+      "otpLength": 6,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1366-normal-6digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1366-normal-6digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1366-normal-6digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1366-normal-6digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 739.078125,
+            "right": 787.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 795.078125,
+            "right": 843.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 851.078125,
+            "right": 899.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 907.078125,
+            "right": 955.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 963.078125,
+            "right": 1011.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1019.078125,
+            "right": 1067.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1366,
+      "mode": "normal",
+      "otpLength": 7,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1366-normal-7digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1366-normal-7digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1366-normal-7digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1366-normal-7digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 711.078125,
+            "right": 759.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 767.078125,
+            "right": 815.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 823.078125,
+            "right": 871.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 879.078125,
+            "right": 927.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 935.078125,
+            "right": 983.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 991.078125,
+            "right": 1039.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1047.078125,
+            "right": 1095.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1366,
+      "mode": "normal",
+      "otpLength": 8,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1366-normal-8digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1366-normal-8digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1366-normal-8digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1366-normal-8digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 683.078125,
+            "right": 731.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 739.078125,
+            "right": 787.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 795.078125,
+            "right": 843.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 851.078125,
+            "right": 899.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 907.078125,
+            "right": 955.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 963.078125,
+            "right": 1011.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1019.078125,
+            "right": 1067.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1075.078125,
+            "right": 1123.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1366,
+      "mode": "explicit",
+      "otpLength": 4,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1366-explicit-4digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1366-explicit-4digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1366-explicit-4digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1366-explicit-4digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 795.078125,
+            "right": 843.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 851.078125,
+            "right": 899.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 907.078125,
+            "right": 955.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 963.078125,
+            "right": 1011.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1366,
+      "mode": "explicit",
+      "otpLength": 5,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1366-explicit-5digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1366-explicit-5digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1366-explicit-5digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1366-explicit-5digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 767.078125,
+            "right": 815.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 823.078125,
+            "right": 871.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 879.078125,
+            "right": 927.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 935.078125,
+            "right": 983.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 991.078125,
+            "right": 1039.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1366,
+      "mode": "explicit",
+      "otpLength": 6,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1366-explicit-6digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1366-explicit-6digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1366-explicit-6digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1366-explicit-6digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 739.078125,
+            "right": 787.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 795.078125,
+            "right": 843.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 851.078125,
+            "right": 899.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 907.078125,
+            "right": 955.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 963.078125,
+            "right": 1011.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1019.078125,
+            "right": 1067.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1366,
+      "mode": "explicit",
+      "otpLength": 7,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1366-explicit-7digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1366-explicit-7digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1366-explicit-7digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1366-explicit-7digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 711.078125,
+            "right": 759.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 767.078125,
+            "right": 815.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 823.078125,
+            "right": 871.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 879.078125,
+            "right": 927.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 935.078125,
+            "right": 983.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 991.078125,
+            "right": 1039.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1047.078125,
+            "right": 1095.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1366,
+      "mode": "explicit",
+      "otpLength": 8,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1366-explicit-8digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1366-explicit-8digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1366-explicit-8digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1366-explicit-8digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 680.15625,
+          "right": 1126,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 683.078125,
+            "right": 731.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 739.078125,
+            "right": 787.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 795.078125,
+            "right": 843.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 851.078125,
+            "right": 899.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 907.078125,
+            "right": 955.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 963.078125,
+            "right": 1011.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1019.078125,
+            "right": 1067.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1075.078125,
+            "right": 1123.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1920,
+      "mode": "normal",
+      "otpLength": 4,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1920-normal-4digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1920-normal-4digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1920-normal-4digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1920-normal-4digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 1072.078125,
+            "right": 1120.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1128.078125,
+            "right": 1176.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1184.078125,
+            "right": 1232.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1240.078125,
+            "right": 1288.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1920,
+      "mode": "normal",
+      "otpLength": 5,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1920-normal-5digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1920-normal-5digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1920-normal-5digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1920-normal-5digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 1044.078125,
+            "right": 1092.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1100.078125,
+            "right": 1148.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1156.078125,
+            "right": 1204.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1212.078125,
+            "right": 1260.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1268.078125,
+            "right": 1316.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1920,
+      "mode": "normal",
+      "otpLength": 6,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1920-normal-6digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1920-normal-6digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1920-normal-6digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1920-normal-6digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 1016.078125,
+            "right": 1064.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1072.078125,
+            "right": 1120.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1128.078125,
+            "right": 1176.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1184.078125,
+            "right": 1232.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1240.078125,
+            "right": 1288.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1296.078125,
+            "right": 1344.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1920,
+      "mode": "normal",
+      "otpLength": 7,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1920-normal-7digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1920-normal-7digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1920-normal-7digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1920-normal-7digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 988.078125,
+            "right": 1036.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1044.078125,
+            "right": 1092.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1100.078125,
+            "right": 1148.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1156.078125,
+            "right": 1204.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1212.078125,
+            "right": 1260.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1268.078125,
+            "right": 1316.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1324.078125,
+            "right": 1372.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1920,
+      "mode": "normal",
+      "otpLength": 8,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1920-normal-8digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1920-normal-8digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1920-normal-8digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1920-normal-8digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 960.078125,
+            "right": 1008.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1016.078125,
+            "right": 1064.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1072.078125,
+            "right": 1120.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1128.078125,
+            "right": 1176.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1184.078125,
+            "right": 1232.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1240.078125,
+            "right": 1288.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1296.078125,
+            "right": 1344.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1352.078125,
+            "right": 1400.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1920,
+      "mode": "explicit",
+      "otpLength": 4,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1920-explicit-4digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1920-explicit-4digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1920-explicit-4digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1920-explicit-4digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 1072.078125,
+            "right": 1120.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1128.078125,
+            "right": 1176.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1184.078125,
+            "right": 1232.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1240.078125,
+            "right": 1288.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1920,
+      "mode": "explicit",
+      "otpLength": 5,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1920-explicit-5digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1920-explicit-5digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1920-explicit-5digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1920-explicit-5digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 1044.078125,
+            "right": 1092.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1100.078125,
+            "right": 1148.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1156.078125,
+            "right": 1204.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1212.078125,
+            "right": 1260.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1268.078125,
+            "right": 1316.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1920,
+      "mode": "explicit",
+      "otpLength": 6,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1920-explicit-6digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1920-explicit-6digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1920-explicit-6digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1920-explicit-6digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 1016.078125,
+            "right": 1064.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1072.078125,
+            "right": 1120.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1128.078125,
+            "right": 1176.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1184.078125,
+            "right": 1232.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1240.078125,
+            "right": 1288.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1296.078125,
+            "right": 1344.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1920,
+      "mode": "explicit",
+      "otpLength": 7,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1920-explicit-7digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1920-explicit-7digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1920-explicit-7digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1920-explicit-7digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 988.078125,
+            "right": 1036.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1044.078125,
+            "right": 1092.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1100.078125,
+            "right": 1148.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1156.078125,
+            "right": 1204.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1212.078125,
+            "right": 1260.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1268.078125,
+            "right": 1316.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1324.078125,
+            "right": 1372.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    },
+    {
+      "width": 1920,
+      "mode": "explicit",
+      "otpLength": 8,
+      "passed": true,
+      "captures": [
+        {
+          "name": "review",
+          "path": "/provider-onboarding/background-check-status",
+          "overflow": 0,
+          "screenshot": "1920-explicit-8digits-review.png"
+        },
+        {
+          "name": "login",
+          "path": "/auth/login",
+          "overflow": 0,
+          "screenshot": "1920-explicit-8digits-login.png"
+        },
+        {
+          "name": "otp",
+          "path": "/auth/otp-verify",
+          "overflow": 0,
+          "screenshot": "1920-explicit-8digits-otp.png"
+        },
+        {
+          "name": "provider",
+          "path": "/dashboard",
+          "overflow": 0,
+          "screenshot": "1920-explicit-8digits-provider.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-status",
+        "POST /api/v1/auth/logout",
+        "POST /api/v1/auth/refresh-token",
+        "POST /api/v1/auth/send-otp",
+        "POST /api/v1/auth/verify-otp",
+        "GET /api/v1/providers/me",
+        "GET /api/v1/bookings",
+        "GET /api/v1/notifications",
+        "GET /api/v1/providers/me/nbi-status"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "digitBounds": {
+        "row": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "input": {
+          "left": 957.15625,
+          "right": 1403,
+          "width": 445.84375,
+          "height": 56
+        },
+        "cells": [
+          {
+            "left": 960.078125,
+            "right": 1008.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1016.078125,
+            "right": 1064.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1072.078125,
+            "right": 1120.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1128.078125,
+            "right": 1176.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1184.078125,
+            "right": 1232.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1240.078125,
+            "right": 1288.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1296.078125,
+            "right": 1344.078125,
+            "width": 48,
+            "height": 56
+          },
+          {
+            "left": 1352.078125,
+            "right": 1400.078125,
+            "width": 48,
+            "height": 56
+          }
+        ]
+      }
+    }
+  ]
+}

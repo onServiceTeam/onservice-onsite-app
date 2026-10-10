@@ -1,45 +1,57 @@
-// MED-N42 fix verified.
-//
-// MED-N42: compliance.recordConsent's revoke UPDATE + insert
-// were two separate db.query calls. If UPDATE succeeded but
-// INSERT failed, prior consent rows were marked revoked but the
-// new revocation event was never recorded. NPC RA 10173 §5(a)
-// requires a verifiable consent trail — broken. Now wrapped in
-// db.transaction.
-//
-// MED-N79's single-format NPC-reference assumption was later found to be
-// incorrect and is superseded by the executed UX-811/UX-812 tests.
-//
-// MED-N81's direct email-update behavior was later removed by Bug UX-654.
-// Email ownership verification does not exist yet, so /auth/me now rejects
-// that field rather than trying only to make an unsafe update unique.
+const dbQueryMock = jest.fn();
+const dbTransactionMock = jest.fn();
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+jest.mock('../src/models/db', () => ({
+  db: {
+    query: (...args: unknown[]) => dbQueryMock(...args),
+    transaction: (...args: unknown[]) => dbTransactionMock(...args),
+  },
+}));
+jest.mock('../src/utils/logger', () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}));
 
-const COMPLIANCE = readFileSync(
-  resolve(__dirname, '../src/services/compliance.service.ts'),
-  'utf8',
-);
+import { recordConsent } from '../src/services/compliance.service';
 
-describe('MED-N42 — compliance.recordConsent revoke + insert atomic', () => {
-  it('wraps both writes in db.transaction', () => {
-    expect(COMPLIANCE).toMatch(/MED-N42 fix[\s\S]*?return db\.transaction\(async \(client\) => \{/);
+it('MED-N42 - a failed revocation-history insert leaves the prior consent active', async () => {
+  const state = { priorConsentRevoked: false, revocationEventStored: false };
+  dbQueryMock.mockRejectedValue(new Error('recordConsent must not write outside its transaction'));
+  dbTransactionMock.mockImplementation(async (
+    callback: (client: { query: jest.Mock }) => Promise<unknown>,
+  ) => {
+    const snapshot = { ...state };
+    const client = {
+      query: jest.fn(async (sql: string) => {
+        if (sql.includes('UPDATE consent_records')) {
+          state.priorConsentRevoked = true;
+          return { rows: [], rowCount: 1 };
+        }
+        if (sql.includes('INSERT INTO consent_records')) {
+          throw new Error('simulated revocation history insert failure');
+        }
+        throw new Error(`Unexpected consent query: ${sql}`);
+      }),
+    };
+    try {
+      const result = await callback(client);
+      state.revocationEventStored = true;
+      return result;
+    } catch (error) {
+      Object.assign(state, snapshot);
+      throw error;
+    }
   });
 
-  it('revoke UPDATE uses client.query (same trx)', () => {
-    expect(COMPLIANCE).toMatch(/if \(!input\.granted\) \{[\s\S]{0,500}await client\.query\([\s\S]*?UPDATE consent_records/);
-  });
+  await expect(recordConsent({
+    userId: 'user-med-n42',
+    consentType: 'marketing_consent',
+    version: 'v2',
+    granted: false,
+    ipAddress: '203.0.113.42',
+    userAgent: 'onService test client',
+  })).rejects.toThrow('simulated revocation history insert failure');
 
-  it('INSERT uses client.query (same trx)', () => {
-    expect(COMPLIANCE).toMatch(/await client\.query<ConsentRow>\([\s\S]*?INSERT INTO consent_records/);
-  });
-
-  it('no top-level db.query path remains in recordConsent', () => {
-    // Anchor on the function header + the unique transaction-close
-    // shape `return mapConsent(row);\n  });\n}` (3-level indent).
-    const block = COMPLIANCE.match(/export async function recordConsent[\s\S]*?return mapConsent\(row\);\s*\}\);\s*\}/);
-    expect(block).not.toBeNull();
-    expect(block![0]).not.toMatch(/await db\.query/);
-  });
+  expect(state).toEqual({ priorConsentRevoked: false, revocationEventStored: false });
+  expect(dbTransactionMock).toHaveBeenCalledTimes(1);
+  expect(dbQueryMock).not.toHaveBeenCalled();
 });

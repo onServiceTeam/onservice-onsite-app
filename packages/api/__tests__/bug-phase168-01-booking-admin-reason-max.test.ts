@@ -1,33 +1,25 @@
-// BUG-PHASE168-01 — booking-admin.service.ts requireReason helper
-// validated reason >= minLength but had no max cap. The helper feeds
-// reason into admin_actions.full_notes (TEXT, unbounded) across 5
-// booking-admin actions (manualReleaseEscrow, refundFromEscrow,
-// reassignBookingProvider, cancelBookingAsAdmin, forceCompleteBooking).
-//
-// One-line fix in the helper caps all 5 callers at once.
-//
-// Same defense-in-depth pattern as Phase 152-167. Cap at 5000.
+const dbTransactionMock = jest.fn();
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+jest.mock('../src/models/db', () => ({
+  db: {
+    query: jest.fn(),
+    transaction: (...args: unknown[]) => dbTransactionMock(...args),
+  },
+}));
 
-const SOURCE = readFileSync(
-  resolve(__dirname, '../src/services/booking-admin.service.ts'),
-  'utf8',
-);
+import { forceCompleteBooking } from '../src/services/booking-admin.service';
 
-describe('BUG-PHASE168-01 — requireReason caps at 5000 chars', () => {
-  it('declares REASON_MAX_LENGTH = 5000', () => {
-    expect(SOURCE).toMatch(/REASON_MAX_LENGTH = 5000/);
-  });
+describe('BUG-PHASE168-01 - booking-admin reasons cap at 5000 chars', () => {
+  beforeEach(() => dbTransactionMock.mockReset());
 
-  it('requireReason rejects > REASON_MAX_LENGTH', () => {
-    expect(SOURCE).toMatch(
-      /trimmed\.length > REASON_MAX_LENGTH[\s\S]+?reason must be ≤ \$\{REASON_MAX_LENGTH\} characters/,
-    );
-  });
-
-  it('PHASE168 fix-comment is preserved', () => {
-    expect(SOURCE).toMatch(/BUG-PHASE168-01 fix/);
+  it('rejects a force-complete reason over 5000 characters before opening a transaction', async () => {
+    await expect(
+      forceCompleteBooking(
+        'b0000000-0000-0000-0000-000000000001',
+        'x'.repeat(5001),
+        'a0000000-0000-0000-0000-000000000001',
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(dbTransactionMock).not.toHaveBeenCalled();
   });
 });

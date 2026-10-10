@@ -38,7 +38,7 @@ describe('demo mode helper', () => {
     expect(isDemoRole('')).toBe(false);
   });
 
-  it('Bug SEC-011 — discards demo credentials when demo mode is disabled', () => {
+  it('Bug SEC-068 — discards demo credentials when demo mode is disabled', () => {
     expect(
       resolveDemoConfig({
         mode: '0',

@@ -248,7 +248,13 @@ export async function holdEscrowInTransaction(
  * an overlapping set of wallets takes the locks in the same global order, so
  * no two transactions can hold-and-wait in a cycle. Call this once, early in
  * the transaction (after any bookings-row lock), before reading or writing
- * balances.
+ * balances. The guarantee holds only for callers that load their user
+ * wallets (whose upsert also locks them) before taking all their other wallet
+ * locks here in one call. Two callers do not: the cancellation refund leg
+ * loads the customer wallet after locking escrow, so it can deadlock with a
+ * payment or refund by the same customer; the hourly settlement locks the
+ * provider, revenue and guarantee wallets after escrow, so it can deadlock
+ * with a payout to the same provider (LAUNCH-LIMITATIONS 120).
  */
 export async function lockWalletsForUpdate(client: PgClient, walletIds: Array<string | null | undefined>): Promise<void> {
   const unique = [...new Set(walletIds.filter((id): id is string => !!id))];

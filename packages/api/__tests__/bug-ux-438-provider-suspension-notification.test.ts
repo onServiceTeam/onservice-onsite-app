@@ -9,6 +9,7 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import { suspendProvider } from '../src/services/admin.service';
+import { mockDecisionLocks } from './helpers/provider-decision-mock';
 
 it('Bug UX-438 — provider suspension sends the reason to the affected provider in the status transaction', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
@@ -16,6 +17,8 @@ it('Bug UX-438 — provider suspension sends the reason to the affected provider
     const client = {
       query: jest.fn(async (sql: string, params: unknown[] = []) => {
         calls.push({ sql, params });
+        const lock = mockDecisionLocks(sql, 'user-1');
+        if (lock) return lock;
         if (/UPDATE providers/.test(sql)) {
           return { rows: [{ id: 'provider-1', user_id: 'user-1' }], rowCount: 1 };
         }

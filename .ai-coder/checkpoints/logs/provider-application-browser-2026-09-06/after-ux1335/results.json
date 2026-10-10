@@ -1,0 +1,42 @@
+{
+  "evidence": "Compiled browser with synthetic HTTP and identity. Not actual database, live deployment, admin acceptance, native or Stitch signoff.",
+  "sourceRevision": "0b96afe5e4af75f3b94182ce00e01c03b7c118ae plus UX-1335 working-tree overlay",
+  "indexSha256": "e1b1385cdceb4c1b49d9576cdaf47c09bebd456e53ccc1cdfc96972787569d17",
+  "generatedAt": "2026-09-05T19:19:22.622Z",
+  "expectedFlows": 6,
+  "flows": 1,
+  "passed": 0,
+  "results": [
+    {
+      "width": 320,
+      "passed": false,
+      "screens": [
+        {
+          "step": "01-role",
+          "path": "/provider-onboarding/role-select",
+          "overflow": 0,
+          "screenshot": "320-01-role.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog"
+      ],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      ],
+      "unmatched": [],
+      "assertions": [],
+      "error": "expect(locator).toBeChecked() failed\n\nLocator:  getByRole('checkbox', { name: 'Cleaning service category' })\nExpected: checked\nReceived: unchecked\nTimeout:  5000ms\n\nCall log:\n  - Expect \"to.be.checked\" with timeout 5000ms\n  - waiting for getByRole('checkbox', { name: 'Cleaning service category' })\n    14 × locator resolved to <div tabindex=\"0\" role=\"checkbox\" aria-label=\"Cleaning service category\" class=\"css-g5y9jx r-1i6wzkk r-lrvibr r-1loqt21 r-1otgn73 r-1awozwy r-1xfd6ze r-18kxxzh r-13q5f3s r-bcqeeo r-1mmae3n r-n7gxbd r-bnwqim r-14vxebn r-kibfu1 r-1qc3j8h r-d045u9\">…</div>\n       - unexpected value \"unchecked\"\n",
+      "failedPath": "/provider-onboarding/categories",
+      "failedText": "←\n1 / 6\nYour Services\nEnter your business name and select the services you offer.\nBusiness / Professional Name\nCleaning\n1 selected\nAll displayed details are saved as a draft.\nSave draft\nSave & continue\nSaving does not submit your application or accept the agreement.\nDraft details & recovery"
+    }
+  ]
+}

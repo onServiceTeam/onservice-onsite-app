@@ -2,15 +2,19 @@ import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Alert, ActivityIndicator,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMutation } from '@tanstack/react-query';
 import { useOnboardingStore } from '@/stores/onboarding.store';
 // Phase K CRIT-K10 fix — useAuthStore import dropped; we no longer
 // mutate the auth store here. Role flip is canonical via backend.
-import api, { storage } from '@/services/api';
+import { storage } from '@/services/api';
+import { applicationFieldsFromStore } from '@/services/provider-application-draft.service';
+import { prepareApplicationSubmission } from '@/services/provider-application-submit.service';
+import { captureApplicationLease, markApplicationSubmitted, saveAndSubmitApplicationSession, useApplicationSession } from '@/stores/provider-application-session.store';
+import { ProviderApplicationDraftActions } from '@/components/ProviderApplicationDraftActions';
+import { useApplicationOperation } from '@/hooks/useApplicationOperation';
 import { getErrorMessage } from '@/utils/errors';
 import { Button } from '@/components/ui';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -24,93 +28,32 @@ export default function TermsScreen(): React.ReactElement {
   const { isPhone } = useResponsive();
   // Phase K CRIT-K10 fix — setUser import removed; role flip now
   // only happens via canonical backend approval + token refresh.
-  const [agreed, setAgreed] = useState(store.icAgreed);
+  const [agreed, setAgreed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const session = useApplicationSession();
+  const operation = useApplicationOperation(() => { setSubmitting(false); setAgreed(false); });
 
-  const submitMutation = useMutation({
-    mutationFn: async () => {
-      const res = await api.post<{ success: boolean; data: unknown }>('/api/v1/providers/apply', {
-        businessName: store.businessName,
-        categoryIds: store.categoryIds,
-        serviceAreaId: store.serviceAreaId,
-        serviceRadiusKm: store.serviceRadiusKm,
-        latitude: store.latitude,
-        longitude: store.longitude,
-        city: store.city,
-        province: store.province,
-        governmentIdFrontUrl: store.governmentIdFrontUri,
-        governmentIdBackUrl: store.governmentIdBackUri,
-        nbiClearanceUrl: store.nbiClearanceUri,
-        selfieUrl: store.selfieUri,
-        icAgreementAccepted: true,
-        // Phase K MED-K07 — optional fields, dropped server-side when undefined.
-        ...(store.nbiExpiryDate ? { nbiExpiryDate: store.nbiExpiryDate } : {}),
-        ...(store.governmentIdNumber ? { governmentIdNumber: store.governmentIdNumber } : {}),
-        // Vetting questionnaire (collected on the new vetting step). The apply
-        // route forwards these and the service persists them: yearsExperience ->
-        // providers.years_experience; vettingAnswers -> providers.vetting_answers
-        // JSONB (mig 136). Empty fields are dropped so the blob stays tidy.
-        ...(store.yearsExperience != null ? { yearsExperience: store.yearsExperience } : {}),
-        vettingAnswers: ((): Record<string, unknown> => {
-          const a = store.vetting;
-          const out: Record<string, unknown> = { hasOwnTools: a.hasOwnTools };
-          const put = (k: string, val: string): void => { if (val.trim()) out[k] = val.trim(); };
-          put('mainSkills', a.mainSkills);
-          put('businessType', a.businessType);
-          put('yearStarted', a.yearStarted);
-          put('teamSize', a.teamSize);
-          put('fullAddress', a.fullAddress);
-          put('website', a.website);
-          put('facebook', a.facebook);
-          put('socialOther', a.socialOther);
-          put('credentials', a.credentials);
-          put('registrations', a.registrations);
-          put('resumeUrl', a.resumeUrl);
-          const refs = a.references
-            .filter((r) => r.name.trim() && r.contact.trim())
-            .map((r) => ({
-              name: r.name.trim(),
-              contact: r.contact.trim(),
-              ...(r.relation.trim() ? { relation: r.relation.trim() } : {}),
-            }));
-          if (refs.length) out.references = refs;
-          return out;
-        })(),
-      });
-      return res.data;
-    },
-    onSuccess: () => {
-      // Phase K CRIT-K10 fix — DO NOT flip role to 'provider' before
-      // admin approval. Pre-fix: this set role='provider' locally
-      // immediately on submit, which made any route guard reading
-      // user.role pass the user as a fully-approved provider — they
-      // could navigate to provider-tabs / provider features before
-      // KYC was reviewed. Post-fix: role stays whatever the backend
-      // assigned (typically 'customer' since onboarding starts from
-      // a customer account); the application row sits at status
-      // 'pending'. When admin approves, the backend updates
-      // users.role; the next refreshAccessToken or sign-in picks up
-      // the new role from the JWT claims. The REVIEW_PENDING screen
-      // is the appropriate landing — it polls /provider/me for
-      // status and the customer/provider tab routing follows the
-      // canonical role from the auth store.
+  const handleSubmit = async (): Promise<void> => {
+    if (!agreed || submitting) return;
+    const isCurrent = operation.begin();
+    if (!isCurrent) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const fields = prepareApplicationSubmission(applicationFieldsFromStore(store));
+      const lease = captureApplicationLease();
+      const confirmed = await saveAndSubmitApplicationSession(lease, fields, isCurrent);
+      if (!confirmed || !isCurrent()) return;
+      // Approval and role changes remain exclusively the backend's authority.
       storage.delete('isNewUser');
-      store.reset();
+      markApplicationSubmitted(lease);
       router.replace(Routes.PROVIDER_ONBOARDING.REVIEW_PENDING);
-    },
-    onError: (err: unknown) => {
-      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      const msg = getErrorMessage(err, 'Could not submit your application. Please try again.');
-      Alert.alert('Submission Failed', msg);
-    },
-  });
-
-  const handleSubmit = (): void => {
-    if (!agreed) {
-      Alert.alert('Agreement Required', 'You must accept the Independent Contractor agreement to proceed.');
-      return;
+    } catch (err) {
+      if (isCurrent()) setError(getErrorMessage(err, 'We could not confirm submission. Check application status before trying again.'));
+    } finally {
+      if (isCurrent()) setSubmitting(false);
     }
-    store.setIcAgreed(true);
-    submitMutation.mutate();
   };
 
   return (
@@ -239,6 +182,11 @@ export default function TermsScreen(): React.ReactElement {
         <TouchableOpacity
           style={styles.checkboxRow}
           onPress={() => setAgreed((v) => !v)}
+          accessibilityRole="checkbox"
+          aria-checked={agreed}
+          accessibilityLabel="Accept the Independent Contractor Agreement and Terms of Service"
+          accessibilityState={{ checked: agreed, disabled: submitting || session.busy }}
+          disabled={submitting || session.busy}
           activeOpacity={0.7}
         >
           <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
@@ -249,11 +197,16 @@ export default function TermsScreen(): React.ReactElement {
             and the onService Terms of Service.
           </Text>
         </TouchableOpacity>
-      </ScrollView>
-
       <View style={styles.footer}>
         <View style={[styles.footerInner, !isPhone && styles.footerInnerWide]}>
-          {submitMutation.isPending ? (
+          {error && <View style={{ gap: spacing.sm }}>
+            <Text style={styles.error} accessibilityRole="alert">{error}</Text>
+            <Text style={styles.submittingText}>Your details are still here. If submission may have reached the server, check its status before trying again.</Text>
+            <Button title="Check application status" variant="outline"
+              onPress={() => router.push(Routes.PROVIDER_ONBOARDING.REVIEW_PENDING)} />
+          </View>}
+          <ProviderApplicationDraftActions fields={applicationFieldsFromStore(store)} disabled={submitting} />
+          {submitting ? (
             <View style={styles.submitting}>
               <ActivityIndicator size="small" color={colors.primary} />
               <Text style={styles.submittingText}>Submitting your application...</Text>
@@ -261,12 +214,13 @@ export default function TermsScreen(): React.ReactElement {
           ) : (
             <Button
               title="Submit Application"
-              onPress={handleSubmit}
-              disabled={!agreed}
+              onPress={() => { void handleSubmit(); }}
+              disabled={!agreed || session.busy || session.conflict || session.phase !== 'ready'}
             />
           )}
         </View>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -341,7 +295,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
-  footerInner: { width: '100%' },
+  footerInner: { width: '100%', gap: spacing.md },
   footerInnerWide: { maxWidth: 900, alignSelf: 'center' },
   submitting: {
     flexDirection: 'row',
@@ -351,4 +305,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   submittingText: { ...typography.body, color: colors.primary },
+  error: { ...typography.bodySmall, color: colors.error },
 });

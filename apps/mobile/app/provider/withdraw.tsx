@@ -57,6 +57,7 @@ export default function WithdrawScreen(): React.ReactElement {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<PayoutMethod | null>(null);
   const [account, setAccount] = useState('');
+  const [accountName, setAccountName] = useState('');
   const [preferencesApplied, setPreferencesApplied] = useState(false);
 
   const walletQuery = useQuery({
@@ -122,6 +123,7 @@ export default function WithdrawScreen(): React.ReactElement {
         amount: amountCentavos,
         method,
         destinationAccount: normalizeAccount(account),
+        accountName: accountName.trim() || undefined,
       });
       return res.data;
     },
@@ -280,8 +282,8 @@ export default function WithdrawScreen(): React.ReactElement {
               {method.startsWith('bank_') ? 'Bank Account Number' : 'Phone Number'}
             </Text>
             {/* BUG-PHASE171-01 fix — pre-fix this Input had no
-                maxLength. Server's withdrawalSchema caps
-                destinationAccount at 255 (wallet.validators.ts:16).
+                maxLength. The server's shared payout request schema caps
+                destinationAccount at 255.
                 Match the cap. Same fix shape as Phase 145-150. */}
             <Input
               label={method.startsWith('bank_') ? 'Bank account number' : 'Payout phone number'}
@@ -289,6 +291,15 @@ export default function WithdrawScreen(): React.ReactElement {
               value={account}
               onChangeText={setAccount}
               keyboardType={method.startsWith('bank_') ? 'default' : 'phone-pad'}
+              maxLength={255}
+            />
+            <Text style={styles.sectionTitle}>Account Holder</Text>
+            <Input
+              label="Account holder name (optional)"
+              placeholder="Name registered to this payout account"
+              value={accountName}
+              onChangeText={setAccountName}
+              autoCapitalize="words"
               maxLength={255}
             />
           </>

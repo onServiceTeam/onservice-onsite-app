@@ -4,7 +4,13 @@ import { maskEmail, maskPhilippinePhone } from '../utils/pii-mask';
 export type AdminSearchKind =
   | 'customer'
   | 'provider'
+  | 'business'
+  | 'contract'
   | 'booking'
+  | 'statement'
+  | 'payment'
+  | 'legacy_sales_record'
+  | 'gateway_retry'
   | 'support'
   | 'dispute'
   | 'payout';
@@ -40,10 +46,16 @@ const TOTAL_LIMIT = 12;
 const KIND_ORDER: Record<AdminSearchKind, number> = {
   customer: 0,
   provider: 1,
-  booking: 2,
-  support: 3,
-  dispute: 4,
-  payout: 5,
+  business: 2,
+  contract: 3,
+  booking: 4,
+  statement: 5,
+  payment: 6,
+  legacy_sales_record: 7,
+  gateway_retry: 8,
+  support: 9,
+  dispute: 10,
+  payout: 11,
 };
 
 function shortId(id: string): string {
@@ -62,39 +74,59 @@ function normalizePhoneSearch(needle: string): string {
   return digits;
 }
 
-function formatResult(kind: AdminSearchKind, row: RawSearchRow): RankedResult {
+function resultTitle(kind: AdminSearchKind, row: RawSearchRow): string {
   const reference = shortId(row.id);
+  if (kind === 'booking') return `Booking ${reference}`;
+  if (kind === 'contract') return `Contract ${reference}`;
+  if (kind === 'payment') return `Payment ${reference}`;
+  if (kind === 'legacy_sales_record') return `Legacy record ${row.title}`;
+  if (kind === 'gateway_retry') return `Gateway retry ${reference}`;
+  if (kind === 'dispute') return `Dispute ${reference}`;
+  if (kind === 'payout') return `Payout ${reference}`;
+  return row.title;
+}
+
+function resultDestination(kind: AdminSearchKind, row: RawSearchRow): string {
+  const id = encodeURIComponent(row.id);
+  const businessId = row.related_id ? encodeURIComponent(row.related_id) : null;
+  if (kind === 'customer') return `/customers/${id}`;
+  if (kind === 'provider') return `/providers/${id}`;
+  if (kind === 'business') return `/business-accounts/${id}`;
+  if (kind === 'contract') {
+    return businessId
+      ? `/business-accounts/${businessId}?tab=contracts&contractId=${id}`
+      : '/business-accounts';
+  }
+  if (kind === 'booking') return `/bookings/${id}`;
+  if (kind === 'statement') {
+    return businessId
+      ? `/business-accounts/${businessId}?tab=invoices&invoiceId=${id}`
+      : '/business-accounts';
+  }
+  if (kind === 'payment') return `/financials?tab=payments&paymentAttemptId=${id}`;
+  if (kind === 'legacy_sales_record') {
+    return `/financials?tab=receipts&receiptOr=${encodeURIComponent(row.title)}`;
+  }
+  if (kind === 'gateway_retry') return `/financials?tab=payments&retrySearch=${id}`;
+  if (kind === 'support') return `/support-tickets?ticketId=${id}`;
+  if (kind === 'dispute') return `/disputes/${id}`;
+  return `/payouts?payoutId=${id}`;
+}
+
+function formatResult(kind: AdminSearchKind, row: RawSearchRow): RankedResult {
   const status = row.status?.replace(/_/g, ' ') ?? null;
-  const contact = kind === 'customer' || kind === 'provider' ? contactSummary(row) : [];
+  const contact = kind === 'customer' || kind === 'provider' || kind === 'business'
+    ? contactSummary(row)
+    : [];
   const subtitle = [row.context, status, ...contact].filter(Boolean).join(' · ');
-
-  const title = kind === 'booking'
-    ? `Booking ${reference}`
-    : kind === 'dispute'
-      ? `Dispute ${reference}`
-      : kind === 'payout'
-        ? `Payout ${reference}`
-        : row.title;
-
-  const to = kind === 'customer'
-    ? `/customers/${row.id}`
-    : kind === 'provider'
-      ? `/providers/${row.id}`
-      : kind === 'booking'
-        ? `/bookings/${row.id}`
-        : kind === 'support'
-          ? `/support-tickets?ticketId=${encodeURIComponent(row.id)}`
-          : kind === 'dispute'
-            ? `/disputes/${row.id}`
-            : `/payouts?payoutId=${encodeURIComponent(row.id)}`;
 
   return {
     kind,
     id: row.id,
-    title,
+    title: resultTitle(kind, row),
     subtitle,
     status,
-    to,
+    to: resultDestination(kind, row),
     rank: Number(row.rank),
     createdAt: row.created_at.getTime(),
   };
@@ -103,17 +135,20 @@ function formatResult(kind: AdminSearchKind, row: RawSearchRow): RankedResult {
 /**
  * Bounded cross-entity operator search. Raw contact may be used as an input
  * match because the existing Customer/Provider/Support queues already support
- * that workflow, but it is never returned here. Every result carries masked
- * contact at most and opens the canonical record workspace.
+ * that workflow. Exact payment evidence references and retained legacy sales
+ * identifiers may also locate their canonical review records. Raw contact and
+ * payment-reference text and gateway failure detail are never returned here;
+ * every result carries masked contact at most and opens the canonical record
+ * workspace.
  */
 export async function searchAdminRecords(query: string): Promise<AdminSearchResult[]> {
   const needle = query.trim();
   const phoneDigits = normalizePhoneSearch(needle);
   const params = [needle, phoneDigits, PER_KIND_LIMIT];
 
-  // Six fixed, bounded queries are intentionally parallel. This is not a
+  // Twelve fixed, bounded queries are intentionally parallel. This is not a
   // record-driven query loop and cannot grow with the number of matches.
-  const [customers, providers, bookings, support, disputes, payouts] = await Promise.all([
+  const [customers, businesses, providers, contracts, bookings, statements, payments, legacySalesRecords, gatewayRetries, support, disputes, payouts] = await Promise.all([
     db.query<RawSearchRow>(
       `SELECT u.id::text AS id,
               TRIM(CONCAT_WS(' ', u.first_name, u.last_name)) AS title,
@@ -141,6 +176,46 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
       params,
     ),
     db.query<RawSearchRow>(
+      `SELECT ba.id::text AS id,
+              ba.company_name AS title,
+              CONCAT_WS(' · ',
+                NULLIF(CONCAT_WS(', ', ba.city, ba.province), ''),
+                'Contact ' || ba.contact_person
+              ) AS context,
+              ba.status::text AS status,
+              ba.contact_phone AS phone, ba.contact_email AS email,
+              ba.owner_user_id::text AS related_id,
+              CASE
+                WHEN LOWER(ba.id::text) = LOWER($1) THEN 0
+                WHEN LOWER(ba.company_name) = LOWER($1)
+                  OR LOWER(COALESCE(ba.registration_number, '')) = LOWER($1)
+                  OR LOWER(COALESCE(ba.tax_id, '')) = LOWER($1) THEN 1
+                WHEN LEFT(LOWER(ba.id::text), LENGTH($1)) = LOWER($1) THEN 1
+                ELSE 2
+              END AS rank,
+              ba.updated_at AS created_at
+         FROM business_accounts ba
+         JOIN users owner ON owner.id = ba.owner_user_id
+        WHERE STRPOS(LOWER(ba.id::text), LOWER($1)) > 0
+           OR STRPOS(LOWER(ba.company_name), LOWER($1)) > 0
+           OR STRPOS(LOWER(ba.contact_person), LOWER($1)) > 0
+           OR STRPOS(LOWER(ba.contact_phone), LOWER($1)) > 0
+           OR STRPOS(LOWER(ba.contact_email), LOWER($1)) > 0
+           OR STRPOS(LOWER(COALESCE(ba.registration_number, '')), LOWER($1)) > 0
+           OR STRPOS(LOWER(COALESCE(ba.tax_id, '')), LOWER($1)) > 0
+           OR STRPOS(LOWER(owner.id::text), LOWER($1)) > 0
+           OR STRPOS(LOWER(TRIM(CONCAT_WS(' ', owner.first_name, owner.last_name))), LOWER($1)) > 0
+           OR STRPOS(LOWER(COALESCE(owner.phone, '')), LOWER($1)) > 0
+           OR STRPOS(LOWER(COALESCE(owner.email, '')), LOWER($1)) > 0
+           OR ($2 <> '' AND (
+             STRPOS(REGEXP_REPLACE(ba.contact_phone, '\\D', '', 'g'), $2) > 0
+             OR STRPOS(REGEXP_REPLACE(COALESCE(owner.phone, ''), '\\D', '', 'g'), $2) > 0
+           ))
+        ORDER BY rank, ba.updated_at DESC
+        LIMIT $3`,
+      params,
+    ),
+    db.query<RawSearchRow>(
       `SELECT p.id::text AS id,
               p.business_name AS title,
               NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS context,
@@ -163,6 +238,39 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
            OR STRPOS(LOWER(COALESCE(u.email, '')), LOWER($1)) > 0
            OR ($2 <> '' AND STRPOS(REGEXP_REPLACE(COALESCE(u.phone, ''), '\\D', '', 'g'), $2) > 0)
         ORDER BY rank, p.updated_at DESC
+        LIMIT $3`,
+      params,
+    ),
+    db.query<RawSearchRow>(
+      `SELECT bc.id::text AS id,
+              COALESCE(ss.name, sc.name, 'Contracted service') AS title,
+              CONCAT_WS(' · ',
+                ba.company_name,
+                COALESCE(ss.name, sc.name, 'Contracted service'),
+                COALESCE(p.business_name, 'Open provider pool')
+              ) AS context,
+              bc.status::text AS status,
+              NULL::text AS phone, NULL::text AS email,
+              ba.id::text AS related_id,
+              CASE
+                WHEN LOWER(bc.id::text) = LOWER($1) THEN 0
+                WHEN LOWER(ba.company_name) = LOWER($1) THEN 1
+                WHEN LEFT(LOWER(bc.id::text), LENGTH($1)) = LOWER($1) THEN 1
+                ELSE 2
+              END AS rank,
+              bc.updated_at AS created_at
+         FROM business_contracts bc
+         JOIN business_accounts ba ON ba.id = bc.business_account_id
+         JOIN service_categories sc ON sc.id = bc.category_id
+         LEFT JOIN service_subcategories ss ON ss.id = bc.subcategory_id
+         LEFT JOIN providers p ON p.id = bc.provider_id
+        WHERE STRPOS(LOWER(bc.id::text), LOWER($1)) > 0
+           OR STRPOS(LOWER(ba.id::text), LOWER($1)) > 0
+           OR STRPOS(LOWER(ba.company_name), LOWER($1)) > 0
+           OR STRPOS(LOWER(sc.name), LOWER($1)) > 0
+           OR STRPOS(LOWER(COALESCE(ss.name, '')), LOWER($1)) > 0
+           OR STRPOS(LOWER(COALESCE(p.business_name, '')), LOWER($1)) > 0
+        ORDER BY rank, bc.updated_at DESC
         LIMIT $3`,
       params,
     ),
@@ -202,6 +310,149 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
              OR STRPOS(REGEXP_REPLACE(COALESCE(pu.phone, ''), '\\D', '', 'g'), $2) > 0
            ))
         ORDER BY rank, b.updated_at DESC
+        LIMIT $3`,
+      params,
+    ),
+    db.query<RawSearchRow>(
+      `SELECT bi.id::text AS id,
+              bi.invoice_number AS title,
+              CONCAT_WS(' · ',
+                ba.company_name,
+                TO_CHAR(bi.billing_period_start, 'Mon DD, YYYY') || ' to '
+                  || TO_CHAR(bi.billing_period_end, 'Mon DD, YYYY')
+              ) AS context,
+              bi.status::text AS status,
+              NULL::text AS phone, NULL::text AS email,
+              ba.id::text AS related_id,
+              CASE
+                WHEN LOWER(bi.id::text) = LOWER($1)
+                  OR LOWER(bi.invoice_number) = LOWER($1)
+                  OR LOWER(COALESCE(bi.payment_reference, '')) = LOWER($1)
+                  OR EXISTS (
+                    SELECT 1 FROM business_invoice_payments payment
+                     WHERE payment.invoice_id = bi.id
+                       AND LOWER(payment.external_reference) = LOWER($1)
+                  ) THEN 0
+                WHEN LOWER(ba.company_name) = LOWER($1)
+                  OR LEFT(LOWER(bi.id::text), LENGTH($1)) = LOWER($1)
+                  OR LEFT(LOWER(bi.invoice_number), LENGTH($1)) = LOWER($1) THEN 1
+                ELSE 2
+              END AS rank,
+              bi.updated_at AS created_at
+         FROM business_invoices bi
+         JOIN business_accounts ba ON ba.id = bi.business_account_id
+        WHERE STRPOS(LOWER(bi.id::text), LOWER($1)) > 0
+           OR STRPOS(LOWER(bi.invoice_number), LOWER($1)) > 0
+           OR STRPOS(LOWER(ba.id::text), LOWER($1)) > 0
+           OR STRPOS(LOWER(ba.company_name), LOWER($1)) > 0
+           OR LOWER(COALESCE(bi.payment_reference, '')) = LOWER($1)
+           OR EXISTS (
+             SELECT 1 FROM business_invoice_payments payment
+              WHERE payment.invoice_id = bi.id
+                AND LOWER(payment.external_reference) = LOWER($1)
+           )
+        ORDER BY rank, bi.updated_at DESC
+        LIMIT $3`,
+      params,
+    ),
+    db.query<RawSearchRow>(
+      `SELECT pi.id::text AS id,
+              pi.id::text AS title,
+              CONCAT_WS(' · ',
+                CASE
+                  WHEN pi.booking_id IS NOT NULL THEN 'Booking ' || LEFT(pi.booking_id::text, 8)
+                  WHEN pi.topup_id IS NOT NULL THEN 'Wallet top-up'
+                  ELSE 'Unlinked payment attempt'
+                END,
+                NULLIF(TRIM(CONCAT_WS(' ', cu.first_name, cu.last_name)), ''),
+                UPPER(REPLACE(pi.payment_method, '_', ' '))
+              ) AS context,
+              pi.status::text AS status,
+              NULL::text AS phone, NULL::text AS email,
+              pi.booking_id::text AS related_id,
+              CASE
+                WHEN LOWER(pi.id::text) = LOWER($1)
+                  OR LOWER(COALESCE(pi.paymongo_intent_id, '')) = LOWER($1)
+                  OR LOWER(COALESCE(pi.paymongo_payment_id, '')) = LOWER($1) THEN 0
+                WHEN LEFT(LOWER(pi.id::text), LENGTH($1)) = LOWER($1)
+                  OR LOWER(COALESCE(pi.booking_id::text, '')) = LOWER($1)
+                  OR LOWER(COALESCE(pi.topup_id, '')) = LOWER($1) THEN 1
+                ELSE 2
+              END AS rank,
+              pi.updated_at AS created_at
+         FROM payment_intents pi
+         LEFT JOIN bookings b ON b.id = pi.booking_id
+         LEFT JOIN users cu ON cu.id = b.customer_id
+        WHERE STRPOS(LOWER(pi.id::text), LOWER($1)) > 0
+           OR LOWER(COALESCE(pi.booking_id::text, '')) = LOWER($1)
+           OR LOWER(COALESCE(pi.topup_id, '')) = LOWER($1)
+           OR LOWER(COALESCE(pi.paymongo_intent_id, '')) = LOWER($1)
+           OR LOWER(COALESCE(pi.paymongo_payment_id, '')) = LOWER($1)
+        ORDER BY rank, pi.updated_at DESC
+        LIMIT $3`,
+      params,
+    ),
+    db.query<RawSearchRow>(
+      `SELECT o.id::text AS id,
+              o.or_number AS title,
+              CONCAT_WS(' · ',
+                'Booking ' || LEFT(o.booking_id::text, 8),
+                NULLIF(TRIM(CONCAT_WS(' ', cu.first_name, cu.last_name)), ''),
+                p.business_name
+              ) AS context,
+              CASE
+                WHEN o.is_cancellation THEN 'cancellation entry'
+                ELSE 'retained for review'
+              END::text AS status,
+              NULL::text AS phone, NULL::text AS email,
+              o.booking_id::text AS related_id,
+              CASE
+                WHEN LOWER(o.id::text) = LOWER($1)
+                  OR LOWER(o.or_number) = LOWER($1) THEN 0
+                WHEN LEFT(LOWER(o.id::text), LENGTH($1)) = LOWER($1)
+                  OR LEFT(LOWER(o.or_number), LENGTH($1)) = LOWER($1) THEN 1
+                ELSE 2
+              END AS rank,
+              o.issued_at AS created_at
+         FROM official_receipts o
+         JOIN users cu ON cu.id = o.customer_id
+         LEFT JOIN providers p ON p.id = o.provider_id
+        WHERE STRPOS(LOWER(o.id::text), LOWER($1)) > 0
+           OR STRPOS(LOWER(o.or_number), LOWER($1)) > 0
+        ORDER BY rank, o.issued_at DESC
+        LIMIT $3`,
+      params,
+    ),
+    db.query<RawSearchRow>(
+      `SELECT grq.id::text AS id,
+              grq.id::text AS title,
+              CONCAT_WS(' · ',
+                INITCAP(REPLACE(grq.action_type, '_', ' ')),
+                'Booking ' || LEFT(grq.booking_id::text, 8),
+                CASE WHEN grq.dispute_id IS NOT NULL
+                  THEN 'Dispute ' || LEFT(grq.dispute_id::text, 8)
+                  ELSE NULL
+                END
+              ) AS context,
+              grq.status::text AS status,
+              NULL::text AS phone, NULL::text AS email,
+              grq.booking_id::text AS related_id,
+              CASE
+                WHEN LOWER(grq.id::text) = LOWER($1) THEN 0
+                WHEN LEFT(LOWER(grq.id::text), LENGTH($1)) = LOWER($1)
+                  OR LOWER(grq.booking_id::text) = LOWER($1)
+                  OR LOWER(COALESCE(grq.dispute_id::text, '')) = LOWER($1) THEN 1
+                ELSE 2
+              END AS rank,
+              grq.updated_at AS created_at
+         FROM gateway_retry_queue grq
+        WHERE grq.status IN ('pending', 'in_progress', 'failed_permanent')
+          AND (
+            STRPOS(LOWER(grq.id::text), LOWER($1)) > 0
+            OR LOWER(grq.booking_id::text) = LOWER($1)
+            OR LOWER(COALESCE(grq.dispute_id::text, '')) = LOWER($1)
+          )
+        ORDER BY rank, grq.updated_at DESC
         LIMIT $3`,
       params,
     ),
@@ -305,7 +556,13 @@ export async function searchAdminRecords(query: string): Promise<AdminSearchResu
   const ranked = [
     ...customers.rows.map((row) => formatResult('customer', row)),
     ...providers.rows.map((row) => formatResult('provider', row)),
+    ...businesses.rows.map((row) => formatResult('business', row)),
+    ...contracts.rows.map((row) => formatResult('contract', row)),
     ...bookings.rows.map((row) => formatResult('booking', row)),
+    ...statements.rows.map((row) => formatResult('statement', row)),
+    ...payments.rows.map((row) => formatResult('payment', row)),
+    ...legacySalesRecords.rows.map((row) => formatResult('legacy_sales_record', row)),
+    ...gatewayRetries.rows.map((row) => formatResult('gateway_retry', row)),
     ...support.rows.map((row) => formatResult('support', row)),
     ...disputes.rows.map((row) => formatResult('dispute', row)),
     ...payouts.rows.map((row) => formatResult('payout', row)),

@@ -1,5 +1,5 @@
 // Visual baseline coverage for the owned tester-feedback workspace.
-// Captures populated, loading, empty, and error states at the three desktop
+// Captures populated, loading, empty, and error states at the tablet and desktop
 // widths used by the admin baseline gate.
 
 import type { Page, Route } from '@playwright/test';
@@ -15,6 +15,7 @@ const record = {
   testerName: 'Customer tester',
   testerContact: 'c•••@example.com',
   contactMasked: true,
+  piiMasked: true,
   role: 'customer',
   device: 'Desktop Chrome',
   areas: ['customer', 'admin'],
@@ -77,6 +78,9 @@ async function mockPopulated(page: Page): Promise<void> {
   await page.route(`**/api/v1/admin/feedback/${FEEDBACK_ID}`, (route) => {
     fulfill(route, { success: true, data: record });
   });
+  await page.route(`**/api/v1/admin/feedback/${FEEDBACK_ID}/history`, (route) => {
+    fulfill(route, { success: true, data: { entries: [] } });
+  });
 }
 
 test.describe('FeedbackPage', () => {
@@ -86,7 +90,26 @@ test.describe('FeedbackPage', () => {
     await expect(page.getByRole('link', { name: 'Tester Feedback' })).toBeInViewport();
   });
 
-  for (const width of [1280, 1440, 1920]) {
+  test('Bug UX-871 — Tester Feedback stays within an 820-pixel tablet viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 820, height: 900 });
+    await mockPopulated(page);
+    await page.goto(ROUTE);
+    await expect(page.getByText('Choose QR and complete payment.')).toBeVisible();
+    const horizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(horizontalOverflow).toBeLessThanOrEqual(0);
+  });
+
+  test('Bug UX-873 — Tester Feedback keeps evidence readable at a 1024-pixel viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await mockPopulated(page);
+    await page.goto(ROUTE);
+    const detail = page.getByLabel('Original tester submission');
+    await expect(detail).toBeVisible();
+    const box = await detail.boundingBox();
+    expect(box?.width).toBeGreaterThanOrEqual(600);
+  });
+
+  for (const width of [820, 1024, 1280, 1440, 1920]) {
     test.describe(`@${width}`, () => {
       test.use({ viewport: { width, height: 800 } });
 
@@ -127,6 +150,7 @@ test.describe('FeedbackPage', () => {
         });
         await page.goto(ROUTE);
         await expect(page.getByText('Feedback queue unavailable')).toBeVisible();
+        await expect(page.getByText('No feedback selected')).toHaveCount(0);
         await expect(page).toHaveScreenshot(`feedback-error-${width}.png`, { fullPage: true, maxDiffPixelRatio: 0.01 });
       });
     });

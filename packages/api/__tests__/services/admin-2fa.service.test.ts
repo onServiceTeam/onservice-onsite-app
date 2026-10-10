@@ -27,6 +27,7 @@ beforeEach(resetDbMock);
 describe('Bug 360 — generateBackupCodes', () => {
   it('produces 8 plaintext codes + writes 8 INSERTs + audit row', async () => {
     setTxQueryImpl(makeRouter([
+      { match: /UPDATE admin_backup_codes\s+SET deleted_at = NOW/, rowCount: 0 },
       { match: /INSERT INTO admin_backup_codes/, rowCount: 1 },
       { match: /INSERT INTO admin_actions/, rowCount: 1 },
     ]));
@@ -83,6 +84,7 @@ describe('Bug 357 + 358 — consumeBackupCode (single-use)', () => {
   it('full flow: generate → consume the actual code → marks used_at + audit + remaining count', async () => {
     // First generate codes.
     setTxQueryImpl(makeRouter([
+      { match: /UPDATE admin_backup_codes\s+SET deleted_at = NOW/, rowCount: 0 },
       { match: /INSERT INTO admin_backup_codes/, rowCount: 1 },
       { match: /INSERT INTO admin_actions/, rowCount: 1 },
     ]));

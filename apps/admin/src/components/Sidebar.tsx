@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { ChevronLeft, ChevronRight, X } from '@/components/icons';
@@ -98,7 +98,7 @@ function SidebarContent({
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  end={item.to === '/'}
+                  end={item.to === '/' || item.to === '/settings'}
                   title={item.description}
                   aria-label={collapsed ? item.label : undefined}
                   onClick={onNavigate}
@@ -134,6 +134,69 @@ function SidebarContent({
 }
 
 export default function Sidebar({ mobileOpen = false, onClose, collapsed = false, onToggleCollapsed }: SidebarProps): React.ReactElement {
+  const mobileNavigationRef = useRef<HTMLElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!mobileOpen) {
+      const previouslyFocused = previouslyFocusedRef.current;
+      previouslyFocusedRef.current = null;
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+      return;
+    }
+
+    const navigation = mobileNavigationRef.current;
+    if (!navigation) return;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+
+    const focusableSelector = [
+      'a[href]',
+      'button:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+    const focusFirstControl = (): void => {
+      navigation.querySelector<HTMLElement>(focusableSelector)?.focus();
+    };
+    focusFirstControl();
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current?.();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = Array.from(navigation.querySelectorAll<HTMLElement>(focusableSelector));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        navigation.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [mobileOpen]);
+
   return (
     <>
       <aside className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-sidebar)] lg:flex ${collapsed ? 'w-20' : 'w-72'}`}>
@@ -158,7 +221,14 @@ export default function Sidebar({ mobileOpen = false, onClose, collapsed = false
             aria-label="Close navigation"
             onClick={onClose}
           />
-          <aside className="relative flex h-full w-[min(20rem,88vw)] flex-col border-r border-[var(--color-border)] bg-[var(--color-sidebar)]">
+          <aside
+            ref={mobileNavigationRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Admin workspace navigation"
+            tabIndex={-1}
+            className="relative flex h-full w-[min(20rem,88vw)] flex-col border-r border-[var(--color-border)] bg-[var(--color-sidebar)]"
+          >
             <SidebarContent onNavigate={onClose} onClose={onClose} />
           </aside>
         </div>

@@ -1,5 +1,6 @@
-// CRIT-N08 fix verified — anonymizeUser is now atomic, deletes refresh
-// tokens FIRST, and uses crypto.randomUUID() for collision-safe identifiers.
+// CRIT-N08 atomic cascade and identifier fixtures, with OPS-522's owner-first
+// lock before token deletion. Real PostgreSQL contention/rollback is covered
+// separately; SQL-shaped mocks here do not prove database isolation.
 //
 // The function is internal (not exported), so we exercise it through
 // processExpiredCoolingOff which is the only caller. We assert on the
@@ -26,7 +27,7 @@ beforeEach(() => {
   dbTransactionMock.mockReset();
 });
 
-describe('CRIT-N08 — anonymizeUser is atomic + deletes refresh tokens FIRST', () => {
+describe('CRIT-N08 — anonymizeUser uses one transaction with owner-first token revocation', () => {
   it('CRIT-N08 — all anonymization steps run on the trx client (single transaction)', async () => {
     // 1. SELECT expired cooling-off rows.
     dbQueryMock.mockResolvedValueOnce({
@@ -48,6 +49,7 @@ describe('CRIT-N08 — anonymizeUser is atomic + deletes refresh tokens FIRST', 
     dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
       const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
         txCalls.push({ sql, params });
+        if (/SELECT id FROM users/.test(sql)) return { rows: [{ id: 'user-1' }], rowCount: 1 };
         if (/SELECT id FROM providers/.test(sql)) {
           return { rows: [], rowCount: 0 }; // not a provider
         }
@@ -66,10 +68,11 @@ describe('CRIT-N08 — anonymizeUser is atomic + deletes refresh tokens FIRST', 
     // The trx ran exactly once.
     expect(dbTransactionMock).toHaveBeenCalledTimes(1);
 
-    // The FIRST trx call MUST be DELETE FROM refresh_tokens — this is the
-    // CRIT-N08 fix: invalidate sessions before touching user data.
-    expect(txCalls[0]!.sql).toMatch(/DELETE FROM refresh_tokens/);
+    // Both changes remain atomic, but account writers must take the owner
+    // lock before tokens. Nothing is externally revoked until COMMIT.
+    expect(txCalls[0]!.sql).toMatch(/SELECT id FROM users.*FOR NO KEY UPDATE/);
     expect(txCalls[0]!.params).toEqual(['user-1']);
+    expect(txCalls[1]!.sql).toMatch(/DELETE FROM refresh_tokens/);
 
     // Subsequent calls must include the standard cascade.
     const sqls = txCalls.map((c) => c.sql);
@@ -100,6 +103,7 @@ describe('CRIT-N08 — anonymizeUser is atomic + deletes refresh tokens FIRST', 
     dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
       const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
         txCalls.push({ sql, params });
+        if (/SELECT id FROM users/.test(sql)) return { rows: [{ id: 'user-1' }], rowCount: 1 };
         if (/SELECT id FROM providers/.test(sql)) {
           return { rows: [], rowCount: 0 };
         }
@@ -143,6 +147,7 @@ describe('CRIT-N08 — anonymizeUser is atomic + deletes refresh tokens FIRST', 
     dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
       const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
         txCalls.push({ sql, params });
+        if (/SELECT id FROM users/.test(sql)) return { rows: [{ id: 'user-1' }], rowCount: 1 };
         if (/SELECT id FROM providers/.test(sql)) {
           return { rows: [{ id: 'provider-1' }], rowCount: 1 };
         }

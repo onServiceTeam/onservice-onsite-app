@@ -1,0 +1,116 @@
+{
+  "sourceRevision": "4840b276da8a1604712883310c371d89f78479fb",
+  "createdAt": "2026-09-06T03:32:58.536Z",
+  "evidenceType": "compiled note errors, refresh and auth destinations; synthetic HTTP; not live acceptance",
+  "indexSha256": "31130913afa65a3ca3b4bac492a3239e4e7b1aebc18f10e38970e35fc4d5b48d",
+  "entrySha256": "c87f1f6f8fb000e6edb39ff60ed3a4d8ffd49586c00509bc3626d63b58e047d3",
+  "checks": [],
+  "failure": "Error: expect(locator).toHaveText(expected) failed\n\nLocator: getByRole('alert')\nExpected: \"Synthetic conflict: check the current provider record.\"\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"to.have.text\" with timeout 5000ms\n  - waiting for getByRole('alert')\n\n    at captureRawStack (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright-core\\lib\\coreBundle.js:3130:17)\n    at callMatcherAsStep (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright\\lib\\matchers\\expect.js:12873:57)\n    at Object.toHaveText (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright\\lib\\matchers\\expect.js:12863:23)\n    at C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\.ai-coder\\checkpoints\\logs\\admin-refresh-result-2026-09-06\\audit.mjs:142:47",
+  "failedScenario": {
+    "width": 320,
+    "outcome": "conflict",
+    "requests": [
+      {
+        "method": "GET",
+        "path": "/api/v1/auth/me",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+        "csrf": null
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+        "csrf": "synthetic-original-csrf",
+        "body": {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/auth/admin/refresh",
+        "csrf": "synthetic-original-csrf"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+        "csrf": "synthetic-refreshed-csrf",
+        "body": {
+          "body": "Synthetic support note draft",
+          "category": "quality",
+          "pinned": true
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/auth/me",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/kpis",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/revenue-trend",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/booking-volume",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/acquisition-funnel",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/alerts",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/compliance/dsr-alerts",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/dashboard/cities",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/analytics/quality-watch",
+        "csrf": null
+      }
+    ],
+    "unexpected": [],
+    "errors": [],
+    "captures": [
+      "320-conflict-draft.png"
+    ],
+    "navigations": [
+      "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "/login",
+      "/login",
+      "/"
+    ],
+    "documentNavigations": [
+      "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "/login"
+    ]
+  }
+}

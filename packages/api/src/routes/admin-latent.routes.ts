@@ -6,9 +6,9 @@
  * admin_actions CHECK constraint until migration 120 added them. With
  * the verbs allowed AND these routes wired, admins can finally:
  *
- *   - Decide pending provider applications (approve / reject / sent_back)
+ *   - Review real provider applications using the Provider 360 authority
  *   - Decide pending service-area-change requests (approve / reject)
- *   - Regenerate admin TOTP backup codes
+ *   - Contain admin TOTP backup-code regeneration pending governed recovery
  *
  * Mounted at `/api/v1/admin` via server.ts. Admin CSRF middleware applies
  * at the mount level for cookie-auth (Bearer auth bypasses per
@@ -21,9 +21,8 @@
 import { Router, type Response, type NextFunction } from 'express';
 import { authMiddleware, type AuthenticatedRequest } from '../middleware/auth.middleware';
 import { createAppError } from '../middleware/error.middleware';
-import * as providerOnboarding from '../services/provider-onboarding.service';
+import * as providerApplicationReview from '../services/provider-application-review.service';
 import * as areaChange from '../services/service-area-change.service';
-import * as admin2fa from '../services/admin-2fa.service';
 import { maskEmail, maskPhilippinePhone } from '../utils/pii-mask';
 
 const router = Router();
@@ -46,6 +45,8 @@ function requireAdmin(req: AuthenticatedRequest): void {
 // char abuse string would bloat audit storage. Same server-cap shape
 // as Phase 152-168 + Phase 179 + Phase 180.
 const DECIDE_REASON_MAX = 5000;
+const PII_REVEAL_REASON_MAX = 500;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function validateDecideReason(value: string): void {
   if (value.length > DECIDE_REASON_MAX) {
     throw createAppError(
@@ -71,8 +72,8 @@ router.get(
     try {
       requireSuperAdmin(req);
       const limit = parseQueueLimit(req.query.limit);
-      const data = await providerOnboarding.listPendingReview(limit);
-      res.json({ success: true, data });
+      const data = await providerApplicationReview.listPendingReview(limit);
+      res.json({ success: true, data, schemaVersion: 2, source: 'provider_applications' });
     } catch (error) { next(error); }
   },
 );
@@ -84,8 +85,8 @@ router.post(
     try {
       requireSuperAdmin(req);
       const userId = req.params.userId;
-      if (typeof userId !== 'string' || !userId) {
-        throw createAppError('userId required.', 400);
+      if (typeof userId !== 'string' || !UUID_REGEX.test(userId)) {
+        throw createAppError('userId must be a valid UUID.', 400);
       }
       const body = (req.body ?? {}) as Record<string, unknown>;
       const decision = body.decision;
@@ -94,11 +95,14 @@ router.post(
       if (decision !== 'approved' && decision !== 'rejected' && decision !== 'sent_back') {
         throw createAppError('decision must be approved | rejected | sent_back.', 400);
       }
-      const data = await providerOnboarding.adminDecide({
+      const data = await providerApplicationReview.decideApplication({
+        expectedRevisionId: body.expectedRevisionId,
         userId,
         adminUserId: req.user!.userId,
         decision,
         reason,
+        checklistConfirmed: body.checklistConfirmed,
+        checklistSummary: body.checklistSummary,
       });
       res.json({ success: true, data });
     } catch (error) { next(error); }
@@ -135,6 +139,34 @@ router.get(
   },
 );
 
+router.get(
+  '/service-area-changes/:changeId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const changeId = req.params.changeId;
+      if (
+        typeof changeId !== 'string'
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(changeId)
+      ) {
+        throw createAppError('changeId must be a valid UUID.', 400);
+      }
+      const request = await areaChange.getById(changeId);
+      const revealContact = req.user!.role === 'super_admin';
+      res.json({
+        success: true,
+        data: {
+          ...request,
+          providerEmail: revealContact || !request.providerEmail ? request.providerEmail : maskEmail(request.providerEmail),
+          providerPhone: revealContact || !request.providerPhone ? request.providerPhone : maskPhilippinePhone(request.providerPhone),
+          contactMasked: !revealContact,
+        },
+      });
+    } catch (error) { next(error); }
+  },
+);
+
 router.post(
   '/service-area-changes/:changeId/decide',
   authMiddleware,
@@ -163,18 +195,11 @@ router.post(
   },
 );
 
-// ─── PII reveal (super-admin only, audit-logged) ───────────────────────────
-//
-// Phase 14 D08 / Bug 81 design intent (per pii-mask.ts:11-13): super_admin
-// can request a one-row reveal of raw PII (IP, user-agent, embedded phone/
-// email in old/new_values) for a specific audit_log row. The reveal is
-// itself audit-logged with action_type='pii_reveal' so an attacker who
-// elevated to super_admin can't quietly extract PII without leaving
-// forensic evidence.
-//
-// Wired here in Phase 30b — pii_reveal verb in admin_actions CHECK since
-// migration 121 (Phase 25d) but no route ever invoked it. NPC RA 10173
-// §22 compliance: every reveal is traceable to an admin_id + timestamp.
+// ─── Legacy raw audit reveal (held pending governed evidence access) ──────
+// E72: a role and free-text reason cannot authorize releasing an arbitrary
+// historical payload. Keep the URL and validation for older clients, but
+// never fetch raw values until case scope, allowed fields and step-up are
+// enforced by the replacement investigation workflow.
 
 router.post(
   '/audit-log/:auditLogId/reveal-pii',
@@ -183,57 +208,32 @@ router.post(
     try {
       requireSuperAdmin(req);
       const auditLogId = req.params.auditLogId;
-      if (typeof auditLogId !== 'string' || !auditLogId) {
-        throw createAppError('auditLogId required.', 400);
+      if (typeof auditLogId !== 'string' || !UUID_REGEX.test(auditLogId)) {
+        throw createAppError('auditLogId must be a valid UUID.', 400);
       }
       const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
-      if (reason.trim().length < 20) {
+      const normalizedReason = reason.trim();
+      if (normalizedReason.length < 20) {
         throw createAppError('Reveal reason must be at least 20 characters.', 400);
       }
-
-      const { db } = await import('../models/db');
-
-      // Look up the audit_log row — return raw, unmasked.
-      const row = await db.query(
-        `SELECT id, user_id, action, entity_type, entity_id,
-                old_values, new_values,
-                ip_address::text AS ip_address,
-                user_agent, created_at
-           FROM audit_log
-          WHERE id = $1`,
-        [auditLogId],
-      );
-      if (row.rows.length === 0) {
-        throw createAppError('Audit log entry not found.', 404);
+      if (normalizedReason.length > PII_REVEAL_REASON_MAX) {
+        throw createAppError(
+          `Reveal reason cannot exceed ${PII_REVEAL_REASON_MAX} characters.`,
+          400,
+        );
       }
-      const raw = row.rows[0]!;
 
-      // Audit the reveal itself.
-      await db.query(
-        `INSERT INTO admin_actions
-           (admin_id, action_type, target_type, target_id, details, reason, full_notes)
-         VALUES ($1, 'pii_reveal', 'system', $2, $3::jsonb, $4, $5)`,
-        [
-          req.user!.userId,
-          auditLogId,
-          JSON.stringify({
-            audit_log_id: auditLogId,
-            audit_log_action: raw.action,
-            audit_log_entity_type: raw.entity_type,
-            ip: req.ip,
-            user_agent: req.headers['user-agent'] ?? null,
-          }),
-          reason.trim().slice(0, 500),
-          reason.trim(),
-        ],
+      const held = createAppError(
+        'Raw audit evidence is unavailable until case-scoped investigation access is enabled. The masked audit log remains available.',
+        409,
       );
-
-      res.json({ success: true, data: raw });
+      held.code = 'governed_audit_evidence_required';
+      throw held;
     } catch (error) { next(error); }
   },
 );
 
-// ─── Admin TOTP backup codes regeneration ──────────────────────────────────
+// ─── Admin TOTP backup-code regeneration (launch-held) ─────────────────────
 
 router.post(
   '/2fa/backup-codes/regenerate',
@@ -253,31 +253,15 @@ router.post(
         throw createAppError('Admin access required.', 403);
       }
 
-      // Super-admins regenerate their own backup codes — and may regen
-      // codes for other admins via :adminUserId. Self-regen is the
-      // common case (lost the old codes); cross-regen is the recovery
-      // case (e.g., admin lost both authenticator + backup codes).
-      const target = req.body?.adminUserId
-        ? String(req.body.adminUserId)
-        : req.user!.userId;
-
-      // Anyone other than the user themselves requires super_admin.
-      if (target !== req.user!.userId) {
-        requireSuperAdmin(req);
-      }
-
-      const result = await admin2fa.generateBackupCodes(target, {
-        regeneratedBy: req.user!.userId,
-      });
-
-      res.status(201).json({
-        success: true,
-        data: {
-          codes: result.codes,
-          generatedAt: result.generatedAt,
-          warning: 'These codes are shown ONCE. Store them securely; the previous set is invalidated.',
-        },
-      });
+      // SEC-044 — neither a bearer session nor a super-admin target parameter
+      // is a governed recovery case. Preserve the route as an explicit hold so
+      // older callers fail safely without rotating or disclosing any code set.
+      const held = createAppError(
+        'Administrator recovery changes are unavailable until the governed recovery workflow is enabled.',
+        409,
+      );
+      held.code = 'privileged_recovery_policy_required';
+      throw held;
     } catch (error) { next(error); }
   },
 );

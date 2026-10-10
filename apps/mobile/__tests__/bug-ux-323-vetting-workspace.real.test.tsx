@@ -23,6 +23,7 @@ jest.mock('expo-router', () => ({
 jest.mock('@/stores/onboarding.store', () => ({
   emptyVetting,
   useOnboardingStore: () => ({
+    ...jest.requireActual('@/stores/onboarding.store').useOnboardingStore.getInitialState(),
     yearsExperience: null,
     vetting: emptyVetting,
     setVetting: jest.fn(),

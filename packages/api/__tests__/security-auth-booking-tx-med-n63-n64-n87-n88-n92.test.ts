@@ -35,7 +35,9 @@ beforeEach(() => {
   dbTransactionMock.mockImplementation(async (cb: unknown) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (cb as any)({
-      query: (sql: string, params?: unknown[]) => dbQueryMock(sql, params),
+      query: (sql: string, params?: unknown[]) => sql === 'SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE'
+        ? Promise.resolve({ rows: [{ id: params?.[0] }], rowCount: 1 })
+        : dbQueryMock(sql, params),
     });
   });
 });

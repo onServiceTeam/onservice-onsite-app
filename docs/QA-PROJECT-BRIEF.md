@@ -60,18 +60,18 @@ Three front-ends + one backend + one database. You do not need to be able to mod
 
 | Surface | What it is | Tech | Scale |
 |---|---|---|---|
-| **Customer app** | What customers use | React Native + Expo (iOS, Android, web) | 45 customer-specific/tab routes plus shared auth/support/root routes |
+| **Customer app** | What customers use | React Native + Expo (iOS, Android, web) | 48 customer-specific/tab routes plus shared auth/support/root routes |
 | **Provider app** | What providers and their staff use (same app, role-gated) | React Native + Expo (iOS, Android, web) | 54 provider/onboarding/staff routes plus the same shared routes |
 | **Admin web app** | Company back office | React + Vite (web browser) | 34 routed page components |
-| **API (backend)** | The "brain" — all logic + money | Node.js + Express + PostgreSQL | 47 route modules |
-| **Database** | All data | PostgreSQL 17 + PostGIS 3.5 in the production Compose stack | 154 append-only migrations |
+| **API (backend)** | The "brain" — all logic + money | Node.js + Express + PostgreSQL | 50 route modules |
+| **Database** | All data | PostgreSQL 17 + PostGIS 3.5 in the production Compose stack | 155 migration files through migration 166 |
 | **Supporting services** | Cache, file storage, email, monitoring | Redis, S3/MinIO, MailHog, Prometheus/Grafana | — |
 
 There are also existing **automated tests** you should run, extend, and not break:
 - **API:** ~2,800 backend unit/integration tests (Jest).
 - **Admin web:** per-page render tests (Vitest).
 - **Mobile:** screen + logic tests (Jest).
-- **Mobile end-to-end:** 88 Maestro screen flows (45 customer + 43 provider), plus two login setup helpers — **screenshot baselines not yet captured** (a task for this team).
+- **Mobile end-to-end:** 92 Maestro screen flows (48 customer + 44 provider), plus two login setup helpers — **screenshot baselines not yet captured** (a task for this team).
 - **Admin end-to-end:** 29 Playwright visual specs — baselines partially captured.
 - **Load tests:** k6 scripts (auth, booking flow, catalog search, payment webhook).
 
@@ -217,8 +217,8 @@ So you dig in the right places and don't waste time re-reporting things we alrea
 - **Live provider GPS tracking** on the map (real-time moving dot) — deferred to v1.1; the map shows fixed service/provider locations and status updates.
 - **Promo code redemption** and **A/B testing** frameworks — pulled from v1.0.
 - **In-house insurance product** — deferred.
-- **Hourly-priced services** — not supported in v1.0 (fixed-price and quote-based only).
-- **B2B contract pricing** — the engine exists but is **not yet wired into the mobile checkout** (no "book for my company" button yet); it's an opt-in foundation.
+- **Hourly-priced services** — implemented with a capped estimate, server-clocked settlement, and unused-time refund. Test the full path; `LAUNCH-LIMITATIONS.md` section 24 records the approved rules.
+- **B2B contract pricing** — the read-only customer workspace and controlled admin/accounting foundation exist, but company-paid checkout remains deliberately disabled under E56 until the provider-funding, settlement, cancellation, and dispute model is approved and verified. Do not bypass the feature hold.
 - **Provider onboarding approval is manual** (admin reviews KYC) — by design for launch.
 - **Auto-dispatch** requires vetted providers in the selected service area. Demo fixtures are local/test-only and must never be treated as marketplace supply on the public server.
 

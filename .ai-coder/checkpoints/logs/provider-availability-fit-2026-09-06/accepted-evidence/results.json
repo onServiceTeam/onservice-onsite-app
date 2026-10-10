@@ -1,0 +1,266 @@
+{
+  "generatedAt": "2026-09-05T21:57:30.856Z",
+  "sourceRevision": "12c59bbb8fcfe3a1b8a4709a1d3f4c6e79048fae + local UX-1343/1344/1345 availability corrections",
+  "scope": "Compiled provider availability layout, block/custom form payload and refreshed list with synthetic HTTP. Not actual persistence, matching, production, native or complete Stitch acceptance.",
+  "indexSha256": "a789cc031e901be95de04165c384dc06b3b8bd0f819d5b0c2e061cbb854628f4",
+  "entrySha256": "744f2a65f6e0b7e36284ef02555442e26d17bb8e5d89c17b2ea43c6a8219e4e9",
+  "expected": 12,
+  "passed": 1,
+  "records": [
+    {
+      "width": 320,
+      "mode": "block",
+      "passed": true,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides",
+        "POST /api/v1/providers/me/availability/overrides",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "writes": [
+        {
+          "overrideDate": "2099-08-31",
+          "isAvailable": false,
+          "reason": "Synthetic block override"
+        }
+      ],
+      "captures": [
+        {
+          "name": "empty",
+          "screenshot": "320-block-empty.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 264.15625,
+              "right": 304,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "form",
+          "screenshot": "320-block-form.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 264.15625,
+              "right": 304,
+              "width": 39.84375,
+              "height": 20
+            },
+            {
+              "label": "Override date in YYYY-MM-DD format",
+              "left": 33,
+              "right": 287,
+              "width": 254,
+              "height": 50
+            },
+            {
+              "label": "Override reason",
+              "left": 33,
+              "right": 287,
+              "width": 254,
+              "height": 50
+            },
+            {
+              "label": "Cancel",
+              "left": 101.609375,
+              "right": 197.4375,
+              "width": 95.828125,
+              "height": 48
+            },
+            {
+              "label": "Save",
+              "left": 205.4375,
+              "right": 287,
+              "width": 81.5625,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "name": "saved",
+          "screenshot": "320-block-saved.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 264.15625,
+              "right": 304,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": []
+    },
+    {
+      "width": 320,
+      "mode": "custom",
+      "passed": false,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "writes": [],
+      "captures": [
+        {
+          "name": "empty",
+          "screenshot": "320-custom-empty.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 247,
+              "right": 287,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 16,
+              "right": 304,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 264.15625,
+              "right": 304,
+              "width": 39.84375,
+              "height": 20
+            }
+          ]
+        },
+        {
+          "name": "form",
+          "screenshot": "320-custom-form.png",
+          "width": 320,
+          "overflow": 0,
+          "controls": [
+            {
+              "label": "",
+              "left": 233,
+              "right": 273,
+              "width": 40,
+              "height": 20
+            },
+            {
+              "label": "Weekly scheduleSet your normal working days and hours→",
+              "left": 2,
+              "right": 290,
+              "width": 288,
+              "height": 92
+            },
+            {
+              "label": "+ Add",
+              "left": 250.15625,
+              "right": 290,
+              "width": 39.84375,
+              "height": 20
+            },
+            {
+              "label": "Override date in YYYY-MM-DD format",
+              "left": 19,
+              "right": 273,
+              "width": 254,
+              "height": 50
+            },
+            {
+              "label": "Override start time in HH:MM",
+              "left": 19,
+              "right": 234,
+              "width": 215,
+              "height": 50
+            },
+            {
+              "label": "Override end time in HH:MM",
+              "left": 264.796875,
+              "right": 479.796875,
+              "width": 215,
+              "height": 50
+            },
+            {
+              "label": "Override reason",
+              "left": 19,
+              "right": 273,
+              "width": 254,
+              "height": 50
+            },
+            {
+              "label": "Cancel",
+              "left": 87.609375,
+              "right": 183.4375,
+              "width": 95.828125,
+              "height": 48
+            },
+            {
+              "label": "Save",
+              "left": 191.4375,
+              "right": 273,
+              "width": 81.5625,
+              "height": 48
+            }
+          ]
+        }
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "error": "form control clipped outside viewport"
+    }
+  ]
+}

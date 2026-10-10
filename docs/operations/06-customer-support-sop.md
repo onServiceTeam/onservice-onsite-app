@@ -14,6 +14,7 @@ Two things follow from this:
 
 1. In-app cases enter the same support queue automatically. Email, Facebook Messenger, and later SMS contacts still need an agent-created ticket so the company has one record.
 2. The support case thread is asynchronous, not a real-time live-chat promise. Per-booking customer-to-provider chat remains separate. Any admin can send an audited **Support message** from Dispatch or Booking 360. It is a system message in that booking conversation, reaches only the customer before assignment, and is visible to both booking participants after a provider is assigned.
+3. The Admin Support queue and open case workspace poll for participant updates every 20 seconds while visible. This reduces missed replies but is not real-time presence, delivery, or an SLA guarantee.
 
 Also true today and worth knowing before you promise anything:
 
@@ -93,7 +94,7 @@ Ticket fields in admin (`/support-tickets`):
 Rules:
 
 - One issue, one ticket. If a customer raises two unrelated things, open two tickets so SLAs and resolution notes stay clean.
-- Resolving or closing requires a resolution note of at least 10 characters. Write what you actually did, not "resolved."
+- Resolving or closing requires an internal resolution note of at least 10 characters. Write what you actually did, not "resolved." This note is for the Admin audit record and is not shown to the customer. Send the customer a separate public reply that clearly explains the outcome before resolving when the case requires a response.
 - Internal notes are for us. Never put anything in a reply-to-user message that you meant as an internal note.
 - If the ticket is waiting on the customer or provider and that user replies, the system returns it to `in_progress` when assigned or `open` when unassigned. Resolved and closed user threads are read-only; create a new case if a genuinely new issue remains.
 - For email or Messenger intake, first open Customer 360 or Provider 360, then use **Create support case**. Do not paste an arbitrary user or booking ID. The resulting case belongs to that account and records the acting admin.
@@ -103,6 +104,8 @@ Rules:
 ## 4. Triage and priority (P1-P4)
 
 Set priority the moment you read the ticket. Priority drives SLA. The admin priority field maps to P1-P4 like this.
+
+Priority is an internal triage decision. Ordinary customer/provider intake starts at `medium`; participants cannot choose low or high. The dedicated in-app safety-report entry may flag a case `urgent`, shows the user that it is not an emergency line, and must still be confirmed or corrected by the first agent review.
 
 | Level | Admin priority | What it means | Examples |
 |---|---|---|---|
@@ -139,6 +142,8 @@ Notes:
 ## 6. Escalation matrix
 
 Support agents cannot move money or change account state. Those actions are super-admin only in the admin app and every one writes an audited reason. Know what you can do and what you must hand up.
+
+Before setting a case to `escalated`, assign an active case owner. The current owner remains accountable until another owner accepts the case. In the escalation handoff, record the destination, decision needed, evidence already checked, next action, and urgency. An escalation status without a named owner is rejected.
 
 > **Set (editable):** money actions (refund, payout, escrow release) stay with `super_admin` staff and never reach a support agent. The live API and admin UI enforce that account-role gate. The finer named `finance` role is metadata until a separate authorization decision is implemented. _Recommended default. To change it, edit here and anywhere this value is referenced._
 
@@ -354,6 +359,7 @@ Copy, then personalize. Fill the brackets. Keep these in sync with `13-policies-
 
 - [ ] Inbox zero attempt on email + FB at start, midday, and end of shift.
 - [ ] Every open contact has a ticket with a type, a priority, and an assignee.
+- [ ] Clear the Admin **Needs reply** queue. It ignores assignment, workflow changes, and internal notes; only a public agent reply clears the marker until the participant replies again.
 - [ ] No P1 ticket older than 15 minutes without a human reply.
 - [ ] No P2 ticket sitting past first-response SLA.
 - [ ] Anything money-moving or account-changing is escalated, not sat on.

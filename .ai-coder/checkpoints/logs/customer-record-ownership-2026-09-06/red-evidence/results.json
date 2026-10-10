@@ -1,0 +1,9 @@
+{
+  "sourceRevision": "306ca0ed5e5dd7afdcd58ea81e2190dc98952a9e",
+  "createdAt": "2026-09-06T00:46:53.836Z",
+  "evidenceType": "compiled admin browser with synthetic HTTP; not authenticated live acceptance",
+  "indexSha256": "bab59749b4134d1c2822c0c466a772a87e9e828a1349b55c9f936e4efe2a6d26",
+  "customerPageSha256": "a5029606481c473a8bc2b32dc9f7f3036ef908b43d6d1d03e2cad6e02102fe49",
+  "checks": [],
+  "failure": "Error: expect(locator).toHaveCount(expected) failed\n\nLocator:  getByText('+639180001111', { exact: true })\nExpected: 0\nReceived: 1\nTimeout:  5000ms\n\nCall log:\n  - Expect \"to.have.count\" with timeout 5000ms\n  - waiting for getByText('+639180001111', { exact: true })\n    13 × locator resolved to 1 element\n       - unexpected value \"1\"\n\n    at captureRawStack (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright-core\\lib\\coreBundle.js:3130:17)\n    at callMatcherAsStep (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright\\lib\\matchers\\expect.js:12873:57)\n    at Object.toHaveCount (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright\\lib\\matchers\\expect.js:12863:23)\n    at C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\.ai-coder\\checkpoints\\logs\\customer-record-ownership-2026-09-06\\audit.mjs:125:72"
+}

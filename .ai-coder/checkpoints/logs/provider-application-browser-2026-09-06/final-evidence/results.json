@@ -1,0 +1,743 @@
+{
+  "evidence": "Compiled browser with synthetic HTTP and identity. Not actual database, live deployment, admin acceptance, native or Stitch signoff.",
+  "sourceRevision": "0b96afe5e4af75f3b94182ce00e01c03b7c118ae plus UX-1335/UX-1336/UX-1337 working-tree overlay",
+  "indexSha256": "c558e64aff50a765c193703b2c54ce16923f7e80c142dc68bd03cb9303c26ccb",
+  "generatedAt": "2026-09-05T19:33:51.239Z",
+  "expectedFlows": 6,
+  "flows": 6,
+  "passed": 6,
+  "results": [
+    {
+      "width": 320,
+      "passed": true,
+      "screens": [
+        {
+          "step": "01-role",
+          "path": "/provider-onboarding/role-select",
+          "overflow": 0,
+          "screenshot": "320-01-role.png"
+        },
+        {
+          "step": "02-categories",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "320-02-categories.png"
+        },
+        {
+          "step": "02-reload-confirmation",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "320-02-reload-confirmation.png"
+        },
+        {
+          "step": "02-discard-confirmation",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "320-02-discard-confirmation.png"
+        },
+        {
+          "step": "03-area",
+          "path": "/provider-onboarding/service-area",
+          "overflow": 0,
+          "screenshot": "320-03-area.png"
+        },
+        {
+          "step": "04-vetting",
+          "path": "/provider-onboarding/vetting",
+          "overflow": 0,
+          "screenshot": "320-04-vetting.png"
+        },
+        {
+          "step": "05-documents",
+          "path": "/provider-onboarding/documents",
+          "overflow": 0,
+          "screenshot": "320-05-documents.png"
+        },
+        {
+          "step": "06-selfie",
+          "path": "/provider-onboarding/selfie",
+          "overflow": 0,
+          "screenshot": "320-06-selfie.png"
+        },
+        {
+          "step": "07-terms",
+          "path": "/provider-onboarding/terms",
+          "overflow": 0,
+          "screenshot": "320-07-terms.png"
+        },
+        {
+          "step": "08-submitted",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "320-08-submitted.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/providers/application-draft",
+        "DELETE /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/service-areas/provider-markets",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/uploads",
+        "POST /api/v1/uploads",
+        "POST /api/v1/uploads",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/uploads",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/providers/apply",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/providers/application-status"
+      ],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)"
+      ],
+      "unmatched": [],
+      "assertions": [
+        "Failed save retains fields; explicit retry and full browser reload recover the saved name/category.",
+        "Second-tab save causes conflict, cancel preserves local edits, confirmed reload restores newer data, and confirmed discard clears only the unsubmitted fixture draft.",
+        "Reload restores three private references/metadata without requesting private image URLs.",
+        "Final POST matches the saved revision and all six-step fields, including private upload references and consent.",
+        "Consent resets after reload; exactly one confirmed submission consumes the fixture draft without promoting customer access.",
+        "Reopening editing after submission returns to the canonical status screen."
+      ]
+    },
+    {
+      "width": 390,
+      "passed": true,
+      "screens": [
+        {
+          "step": "01-role",
+          "path": "/provider-onboarding/role-select",
+          "overflow": 0,
+          "screenshot": "390-01-role.png"
+        },
+        {
+          "step": "02-categories",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "390-02-categories.png"
+        },
+        {
+          "step": "02-reload-confirmation",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "390-02-reload-confirmation.png"
+        },
+        {
+          "step": "02-discard-confirmation",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "390-02-discard-confirmation.png"
+        },
+        {
+          "step": "03-area",
+          "path": "/provider-onboarding/service-area",
+          "overflow": 0,
+          "screenshot": "390-03-area.png"
+        },
+        {
+          "step": "04-vetting",
+          "path": "/provider-onboarding/vetting",
+          "overflow": 0,
+          "screenshot": "390-04-vetting.png"
+        },
+        {
+          "step": "05-documents",
+          "path": "/provider-onboarding/documents",
+          "overflow": 0,
+          "screenshot": "390-05-documents.png"
+        },
+        {
+          "step": "06-selfie",
+          "path": "/provider-onboarding/selfie",
+          "overflow": 0,
+          "screenshot": "390-06-selfie.png"
+        },
+        {
+          "step": "07-terms",
+          "path": "/provider-onboarding/terms",
+          "overflow": 0,
+          "screenshot": "390-07-terms.png"
+        },
+        {
+          "step": "08-submitted",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "390-08-submitted.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/providers/application-draft",
+        "DELETE /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/service-areas/provider-markets",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/uploads",
+        "POST /api/v1/uploads",
+        "POST /api/v1/uploads",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/uploads",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/providers/apply",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/providers/application-status"
+      ],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)"
+      ],
+      "unmatched": [],
+      "assertions": [
+        "Failed save retains fields; explicit retry and full browser reload recover the saved name/category.",
+        "Second-tab save causes conflict, cancel preserves local edits, confirmed reload restores newer data, and confirmed discard clears only the unsubmitted fixture draft.",
+        "Reload restores three private references/metadata without requesting private image URLs.",
+        "Final POST matches the saved revision and all six-step fields, including private upload references and consent.",
+        "Consent resets after reload; exactly one confirmed submission consumes the fixture draft without promoting customer access.",
+        "Reopening editing after submission returns to the canonical status screen."
+      ]
+    },
+    {
+      "width": 768,
+      "passed": true,
+      "screens": [
+        {
+          "step": "01-role",
+          "path": "/provider-onboarding/role-select",
+          "overflow": 0,
+          "screenshot": "768-01-role.png"
+        },
+        {
+          "step": "02-categories",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "768-02-categories.png"
+        },
+        {
+          "step": "02-reload-confirmation",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "768-02-reload-confirmation.png"
+        },
+        {
+          "step": "02-discard-confirmation",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "768-02-discard-confirmation.png"
+        },
+        {
+          "step": "03-area",
+          "path": "/provider-onboarding/service-area",
+          "overflow": 0,
+          "screenshot": "768-03-area.png"
+        },
+        {
+          "step": "04-vetting",
+          "path": "/provider-onboarding/vetting",
+          "overflow": 0,
+          "screenshot": "768-04-vetting.png"
+        },
+        {
+          "step": "05-documents",
+          "path": "/provider-onboarding/documents",
+          "overflow": 0,
+          "screenshot": "768-05-documents.png"
+        },
+        {
+          "step": "06-selfie",
+          "path": "/provider-onboarding/selfie",
+          "overflow": 0,
+          "screenshot": "768-06-selfie.png"
+        },
+        {
+          "step": "07-terms",
+          "path": "/provider-onboarding/terms",
+          "overflow": 0,
+          "screenshot": "768-07-terms.png"
+        },
+        {
+          "step": "08-submitted",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "768-08-submitted.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/providers/application-draft",
+        "DELETE /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/service-areas/provider-markets",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/uploads",
+        "POST /api/v1/uploads",
+        "POST /api/v1/uploads",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/uploads",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/providers/apply",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/providers/application-status"
+      ],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)"
+      ],
+      "unmatched": [],
+      "assertions": [
+        "Failed save retains fields; explicit retry and full browser reload recover the saved name/category.",
+        "Second-tab save causes conflict, cancel preserves local edits, confirmed reload restores newer data, and confirmed discard clears only the unsubmitted fixture draft.",
+        "Reload restores three private references/metadata without requesting private image URLs.",
+        "Final POST matches the saved revision and all six-step fields, including private upload references and consent.",
+        "Consent resets after reload; exactly one confirmed submission consumes the fixture draft without promoting customer access.",
+        "Reopening editing after submission returns to the canonical status screen."
+      ]
+    },
+    {
+      "width": 1024,
+      "passed": true,
+      "screens": [
+        {
+          "step": "01-role",
+          "path": "/provider-onboarding/role-select",
+          "overflow": 0,
+          "screenshot": "1024-01-role.png"
+        },
+        {
+          "step": "02-categories",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "1024-02-categories.png"
+        },
+        {
+          "step": "02-reload-confirmation",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "1024-02-reload-confirmation.png"
+        },
+        {
+          "step": "02-discard-confirmation",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "1024-02-discard-confirmation.png"
+        },
+        {
+          "step": "03-area",
+          "path": "/provider-onboarding/service-area",
+          "overflow": 0,
+          "screenshot": "1024-03-area.png"
+        },
+        {
+          "step": "04-vetting",
+          "path": "/provider-onboarding/vetting",
+          "overflow": 0,
+          "screenshot": "1024-04-vetting.png"
+        },
+        {
+          "step": "05-documents",
+          "path": "/provider-onboarding/documents",
+          "overflow": 0,
+          "screenshot": "1024-05-documents.png"
+        },
+        {
+          "step": "06-selfie",
+          "path": "/provider-onboarding/selfie",
+          "overflow": 0,
+          "screenshot": "1024-06-selfie.png"
+        },
+        {
+          "step": "07-terms",
+          "path": "/provider-onboarding/terms",
+          "overflow": 0,
+          "screenshot": "1024-07-terms.png"
+        },
+        {
+          "step": "08-submitted",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1024-08-submitted.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/providers/application-draft",
+        "DELETE /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/service-areas/provider-markets",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/uploads",
+        "POST /api/v1/uploads",
+        "POST /api/v1/uploads",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/uploads",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/providers/apply",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/providers/application-status"
+      ],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)"
+      ],
+      "unmatched": [],
+      "assertions": [
+        "Failed save retains fields; explicit retry and full browser reload recover the saved name/category.",
+        "Second-tab save causes conflict, cancel preserves local edits, confirmed reload restores newer data, and confirmed discard clears only the unsubmitted fixture draft.",
+        "Reload restores three private references/metadata without requesting private image URLs.",
+        "Final POST matches the saved revision and all six-step fields, including private upload references and consent.",
+        "Consent resets after reload; exactly one confirmed submission consumes the fixture draft without promoting customer access.",
+        "Reopening editing after submission returns to the canonical status screen."
+      ]
+    },
+    {
+      "width": 1366,
+      "passed": true,
+      "screens": [
+        {
+          "step": "01-role",
+          "path": "/provider-onboarding/role-select",
+          "overflow": 0,
+          "screenshot": "1366-01-role.png"
+        },
+        {
+          "step": "02-categories",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "1366-02-categories.png"
+        },
+        {
+          "step": "02-reload-confirmation",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "1366-02-reload-confirmation.png"
+        },
+        {
+          "step": "02-discard-confirmation",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "1366-02-discard-confirmation.png"
+        },
+        {
+          "step": "03-area",
+          "path": "/provider-onboarding/service-area",
+          "overflow": 0,
+          "screenshot": "1366-03-area.png"
+        },
+        {
+          "step": "04-vetting",
+          "path": "/provider-onboarding/vetting",
+          "overflow": 0,
+          "screenshot": "1366-04-vetting.png"
+        },
+        {
+          "step": "05-documents",
+          "path": "/provider-onboarding/documents",
+          "overflow": 0,
+          "screenshot": "1366-05-documents.png"
+        },
+        {
+          "step": "06-selfie",
+          "path": "/provider-onboarding/selfie",
+          "overflow": 0,
+          "screenshot": "1366-06-selfie.png"
+        },
+        {
+          "step": "07-terms",
+          "path": "/provider-onboarding/terms",
+          "overflow": 0,
+          "screenshot": "1366-07-terms.png"
+        },
+        {
+          "step": "08-submitted",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1366-08-submitted.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/providers/application-draft",
+        "DELETE /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/service-areas/provider-markets",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/uploads",
+        "POST /api/v1/uploads",
+        "POST /api/v1/uploads",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/uploads",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/providers/apply",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/providers/application-status"
+      ],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)"
+      ],
+      "unmatched": [],
+      "assertions": [
+        "Failed save retains fields; explicit retry and full browser reload recover the saved name/category.",
+        "Second-tab save causes conflict, cancel preserves local edits, confirmed reload restores newer data, and confirmed discard clears only the unsubmitted fixture draft.",
+        "Reload restores three private references/metadata without requesting private image URLs.",
+        "Final POST matches the saved revision and all six-step fields, including private upload references and consent.",
+        "Consent resets after reload; exactly one confirmed submission consumes the fixture draft without promoting customer access.",
+        "Reopening editing after submission returns to the canonical status screen."
+      ]
+    },
+    {
+      "width": 1920,
+      "passed": true,
+      "screens": [
+        {
+          "step": "01-role",
+          "path": "/provider-onboarding/role-select",
+          "overflow": 0,
+          "screenshot": "1920-01-role.png"
+        },
+        {
+          "step": "02-categories",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "1920-02-categories.png"
+        },
+        {
+          "step": "02-reload-confirmation",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "1920-02-reload-confirmation.png"
+        },
+        {
+          "step": "02-discard-confirmation",
+          "path": "/provider-onboarding/categories",
+          "overflow": 0,
+          "screenshot": "1920-02-discard-confirmation.png"
+        },
+        {
+          "step": "03-area",
+          "path": "/provider-onboarding/service-area",
+          "overflow": 0,
+          "screenshot": "1920-03-area.png"
+        },
+        {
+          "step": "04-vetting",
+          "path": "/provider-onboarding/vetting",
+          "overflow": 0,
+          "screenshot": "1920-04-vetting.png"
+        },
+        {
+          "step": "05-documents",
+          "path": "/provider-onboarding/documents",
+          "overflow": 0,
+          "screenshot": "1920-05-documents.png"
+        },
+        {
+          "step": "06-selfie",
+          "path": "/provider-onboarding/selfie",
+          "overflow": 0,
+          "screenshot": "1920-06-selfie.png"
+        },
+        {
+          "step": "07-terms",
+          "path": "/provider-onboarding/terms",
+          "overflow": 0,
+          "screenshot": "1920-07-terms.png"
+        },
+        {
+          "step": "08-submitted",
+          "path": "/provider-onboarding/review-pending",
+          "overflow": 0,
+          "screenshot": "1920-08-submitted.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/catalog",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/providers/application-draft",
+        "DELETE /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/service-areas/provider-markets",
+        "PUT /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/uploads",
+        "POST /api/v1/uploads",
+        "POST /api/v1/uploads",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/uploads",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "PUT /api/v1/providers/application-draft",
+        "POST /api/v1/providers/apply",
+        "GET /api/v1/providers/application-status",
+        "GET /api/v1/config",
+        "GET /api/v1/providers/application-draft",
+        "GET /api/v1/providers/application-status"
+      ],
+      "pageErrors": [],
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)",
+        "Failed to load resource: the server responded with a status of 409 (Conflict)"
+      ],
+      "unmatched": [],
+      "assertions": [
+        "Failed save retains fields; explicit retry and full browser reload recover the saved name/category.",
+        "Second-tab save causes conflict, cancel preserves local edits, confirmed reload restores newer data, and confirmed discard clears only the unsubmitted fixture draft.",
+        "Reload restores three private references/metadata without requesting private image URLs.",
+        "Final POST matches the saved revision and all six-step fields, including private upload references and consent.",
+        "Consent resets after reload; exactly one confirmed submission consumes the fixture draft without promoting customer access.",
+        "Reopening editing after submission returns to the canonical status screen."
+      ]
+    }
+  ]
+}

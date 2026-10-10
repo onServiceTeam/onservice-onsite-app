@@ -1,4 +1,5 @@
 import { Router, Response, NextFunction } from 'express';
+import { rejectProviderApplicationSchema } from '../validators/admin.validators';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import {
@@ -8,7 +9,42 @@ import {
   suspendProviderSchema,
   changeProviderTierSchema,
 } from '../validators/admin.validators';
-import { createPricingRuleSchema, updatePricingRuleSchema } from '../validators/admin-pricing-rules.validators';
+import {
+  createPricingRuleSchema,
+  pricingRuleIdParamsSchema,
+  pricingRuleListQuerySchema,
+  previewPricingRuleSchema,
+  publishPricingRuleSchema,
+  retirePricingRuleSchema,
+  updatePricingRuleSchema,
+  type CreatePricingRuleInput,
+  type PreviewPricingRuleInput,
+  type UpdatePricingRuleInput,
+} from '../validators/admin-pricing-rules.validators';
+import {
+  businessAccountParamsSchema,
+  businessContractListQuerySchema,
+  businessContractParamsSchema,
+  businessInvoiceParamsSchema,
+  businessInvoicePaymentParamsSchema,
+  businessInvoicePreviewSchema,
+  businessLifecycleDecisionSchema,
+  finalizeBusinessInvoiceSchema,
+  prepareBusinessInvoiceSchema,
+  previewBusinessTermsSchema,
+  publishBusinessContractSchema,
+  publishBusinessTermsSchema,
+  recordBusinessInvoiceAdjustmentSchema,
+  recordBusinessInvoicePaymentSchema,
+  reverseBusinessInvoicePaymentSchema,
+  voidBusinessInvoiceSchema,
+  type BusinessInvoicePreviewInput,
+  type BusinessContractListQuery,
+  type PreviewBusinessTermsInput,
+  type RecordBusinessInvoiceAdjustmentInput,
+  type RecordBusinessInvoicePaymentInput,
+  type ReverseBusinessInvoicePaymentInput,
+} from '../validators/admin-business.validators';
 import {
   createServiceAreaSchema,
   serviceAreaIdParamsSchema,
@@ -24,15 +60,35 @@ import { createAppError } from '../middleware/error.middleware';
 import { db } from '../models/db';
 import * as notificationService from '../services/notification.service';
 import { logger } from '../utils/logger';
+import { formatPHP } from '../utils/currency';
 import * as invoiceService from '../services/invoice.service';
 import * as businessService from '../services/business.service';
+import * as businessControlService from '../services/business-control.service';
+import * as businessInvoiceControlService from '../services/business-invoice-control.service';
 import * as serviceAreaService from '../services/service-area.service';
 import * as pricingService from '../services/pricing.service';
+import * as pricingPublicationService from '../services/pricing-publication.service';
 import * as slotWaitlistService from '../services/slot-waitlist.service';
 import * as dataManagementService from '../services/data-management.service';
 import * as securityService from '../services/security.service';
 import * as adminAnalyticsService from '../services/admin-analytics.service';
 import * as settingsService from '../services/settings.service';
+import * as recurringService from '../services/recurring.service';
+import {
+  adminRecurringCancelBodySchema,
+  adminRecurringListQuerySchema,
+  type AdminRecurringListQuery,
+  recurringIdParamsSchema,
+  recurringPaginationQuerySchema,
+  type RecurringPaginationQuery,
+} from '../validators/recurring.validators';
+import {
+  blockIpBodySchema,
+  blockedIpListQuerySchema,
+  blockedIpParamsSchema,
+  securityEventListQuerySchema,
+  unblockIpBodySchema,
+} from '../validators/admin-security.validators';
 import { parseAuditTimelineListQuery } from '../validators/admin-audit-log.validators';
 import {
   maskEmail,
@@ -42,6 +98,7 @@ import {
   maskUserAgent,
   type Json,
 } from '../utils/pii-mask';
+import { generalAuditVisibilityClause } from '../utils/admin-audit-visibility';
 
 const router = Router();
 const PROVIDER_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -238,6 +295,7 @@ router.put(
       if (typeof id !== 'string' || !id) throw createAppError('Provider ID is required.', 400);
 
       await adminService.approveProvider(id, req.user!.userId, {
+        expectedRevisionId: req.body?.expectedRevisionId,
         reason: req.body?.reason,
         checklistConfirmed: req.body?.checklistConfirmed,
         checklistSummary: req.body?.checklistSummary,
@@ -253,14 +311,14 @@ router.put(
   '/providers/:id/reject',
   authMiddleware,
   validateProviderId,
-  validationMiddleware(suspendProviderSchema),
+  validationMiddleware(rejectProviderApplicationSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
       const id = req.params['id'];
       if (typeof id !== 'string' || !id) throw createAppError('Provider ID is required.', 400);
 
-      await adminService.rejectProvider(id, req.user!.userId, req.body.reason);
+      await adminService.rejectProvider(id, req.user!.userId, req.body.reason, req.body.expectedRevisionId);
       res.json({ success: true, data: { message: 'Provider application rejected.' } });
     } catch (error) {
       next(error);
@@ -508,48 +566,84 @@ router.get(
 router.get(
   '/recurring',
   authMiddleware,
+  validationMiddleware({ query: adminRecurringListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
-      const status = typeof req.query.status === 'string' ? req.query.status : undefined;
-
-      const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+      const { page, pageSize, status, search = '' } = req.query as unknown as AdminRecurringListQuery;
       const offset = (page - 1) * pageSize;
       const params: unknown[] = [];
       let paramIdx = 1;
       let statusClause = '';
       let searchClause = '';
 
-      if (status && ['active', 'paused', 'cancelled'].includes(status)) {
+      if (status) {
         statusClause = `AND rb.status = $${paramIdx}`;
         params.push(status);
         paramIdx++;
       }
 
       if (search) {
-        searchClause = `AND (u.first_name ILIKE $${paramIdx} OR u.last_name ILIKE $${paramIdx} OR rb.city ILIKE $${paramIdx} OR rb.province ILIKE $${paramIdx})`;
+        // BUG-UX-913: support operators search people by the full name they
+        // see in the queue. Comparing only each name column made a query such
+        // as "Maria Santos" return nothing even when that exact customer was
+        // visible. Match the normalized display name as well as each part.
+        searchClause = `AND (TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) ILIKE $${paramIdx} OR u.first_name ILIKE $${paramIdx} OR u.last_name ILIKE $${paramIdx} OR rb.city ILIKE $${paramIdx} OR rb.province ILIKE $${paramIdx})`;
         params.push(`%${search}%`);
         paramIdx++;
       }
 
-      const countResult = await db.query<{ count: string }>(
-        `SELECT COUNT(*)::text as count FROM recurring_bookings rb
+      const countResult = await db.query<{
+        count: string;
+        active_count: string;
+        attention_count: string;
+        open_support_count: string;
+      }>(
+        `SELECT COUNT(*)::text AS count,
+                COUNT(*) FILTER (WHERE rb.status = 'active')::text AS active_count,
+                COUNT(*) FILTER (WHERE EXISTS (
+                  SELECT 1 FROM recurring_instances ri
+                   WHERE ri.recurring_booking_id = rb.id AND ri.status = 'failed'
+                ))::text AS attention_count,
+                COALESCE(SUM(recurring_support.open_count), 0)::text AS open_support_count
+         FROM recurring_bookings rb
          LEFT JOIN users u ON rb.customer_id = u.id
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS open_count
+             FROM recurring_instances ri
+             JOIN support_tickets st ON st.booking_id = ri.booking_id
+            WHERE ri.recurring_booking_id = rb.id
+              AND st.status NOT IN ('resolved', 'closed')
+         ) recurring_support ON TRUE
          WHERE 1=1 ${statusClause} ${searchClause}`,
         params,
       );
-      const total = Number(countResult.rows[0]?.count ?? 0);
+      const totals = countResult.rows[0];
+      const total = Number(totals?.count ?? 0);
 
       const dataParams = [...params, pageSize, offset];
       const result = await db.query<Record<string, unknown>>(
         `SELECT rb.*,
                 TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS customer_name,
-                sc.name AS category_name
+                sc.name AS category_name,
+                ssc.name AS subcategory_name,
+                COALESCE(
+                  NULLIF(TRIM(p.business_name), ''),
+                  NULLIF(TRIM(COALESCE(pu.first_name, '') || ' ' || COALESCE(pu.last_name, '')), '')
+                ) AS provider_name,
+                (SELECT COUNT(*)::int FROM recurring_instances ri
+                  WHERE ri.recurring_booking_id = rb.id AND ri.status = 'failed') AS failed_instances,
+                (SELECT COUNT(*)::int
+                   FROM recurring_instances ri
+                   JOIN support_tickets st ON st.booking_id = ri.booking_id
+                  WHERE ri.recurring_booking_id = rb.id
+                    AND st.status NOT IN ('resolved', 'closed')) AS open_support_tickets
          FROM recurring_bookings rb
          LEFT JOIN users u ON rb.customer_id = u.id
+         LEFT JOIN providers p ON rb.provider_id = p.id
+         LEFT JOIN users pu ON p.user_id = pu.id
          LEFT JOIN service_categories sc ON rb.category_id = sc.id
+         LEFT JOIN service_subcategories ssc ON rb.subcategory_id = ssc.id
          WHERE 1=1 ${statusClause} ${searchClause}
          ORDER BY rb.created_at DESC
          LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
@@ -575,12 +669,63 @@ router.get(
         createdAt: r.created_at,
         customerName: r.customer_name,
         categoryName: r.category_name,
+        subcategoryName: r.subcategory_name,
+        providerName: r.provider_name,
+        originalBookingId: r.original_booking_id,
+        failedInstances: Number(r.failed_instances ?? 0),
+        openSupportTickets: Number(r.open_support_tickets ?? 0),
       }));
 
       res.json({
         success: true,
         data,
+        summary: {
+          matchingSeries: total,
+          activeSeries: Number(totals?.active_count ?? 0),
+          seriesWithFailedInstances: Number(totals?.attention_count ?? 0),
+          openSupportTickets: Number(totals?.open_support_count ?? 0),
+        },
         pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/recurring/:id',
+  authMiddleware,
+  validationMiddleware({ params: recurringIdParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const id = req.params.id as string;
+      const detail = await recurringService.getAdminRecurringBooking(id);
+      res.json({ success: true, data: detail });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/recurring/:id/instances',
+  authMiddleware,
+  validationMiddleware({
+    params: recurringIdParamsSchema,
+    query: recurringPaginationQuerySchema,
+  }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const id = req.params.id as string;
+      const { page, pageSize } = req.query as unknown as RecurringPaginationQuery;
+      const result = await recurringService.getAdminRecurringInstances(id, page, pageSize);
+      res.json({
+        success: true,
+        data: result.items,
+        pagination: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
       });
     } catch (error) {
       next(error);
@@ -591,11 +736,15 @@ router.get(
 router.post(
   '/recurring/:id/cancel',
   authMiddleware,
+  validationMiddleware({
+    params: recurringIdParamsSchema,
+    body: adminRecurringCancelBodySchema,
+  }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const id = req.params.id;
-      const { reason } = req.body as { reason?: string };
+      const id = req.params.id as string;
+      const { reason: trimmedReason } = req.body as { reason: string };
 
       // Phase 200 fix — the admin UI requires a >=10-char reason and tells
       // the admin it is "recorded in audit log + sent to customer." Pre-fix
@@ -603,31 +752,29 @@ router.post(
       // no admin_actions row, and no notification — so the modal's promise
       // was false. Enforce the reason, write the audit row, notify the
       // customer.
-      if (!reason || typeof reason !== 'string' || reason.trim().length < 10) {
-        throw createAppError('A cancellation reason (min 10 characters) is required.', 400);
-      }
-      const trimmedReason = reason.trim();
-
-      const result = await db.query<{ customer_id: string; frequency: string }>(
-        `UPDATE recurring_bookings
-         SET status = 'cancelled', cancelled_at = NOW(), cancellation_reason = $1, updated_at = NOW()
-         WHERE id = $2 AND status IN ('active', 'paused')
-         RETURNING customer_id, frequency`,
-        [trimmedReason, id],
-      );
-
-      if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ success: false, message: 'Recurring booking not found or already cancelled.' });
-        return;
-      }
-
-      const cancelled = result.rows[0]!;
-
-      await db.query(
-        `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
-         VALUES ($1, 'recurring_booking_cancelled', 'recurring_booking', $2, $3, $4)`,
-        [req.user!.userId, id, JSON.stringify({ frequency: cancelled.frequency }), trimmedReason],
-      );
+      // BUG-OPS-321 — the cancellation and its admin audit evidence are one
+      // decision. Pre-fix, the UPDATE committed first; an admin_actions write
+      // failure left a cancelled series with no operator record even though
+      // the request returned an error. Commit or roll back both together.
+      const cancelled = await db.transaction(async (client) => {
+        const result = await client.query<{ customer_id: string; frequency: string }>(
+          `UPDATE recurring_bookings
+           SET status = 'cancelled', cancelled_at = NOW(), cancellation_reason = $1, updated_at = NOW()
+           WHERE id = $2 AND status IN ('active', 'paused')
+           RETURNING customer_id, frequency`,
+          [trimmedReason, id],
+        );
+        if ((result.rowCount ?? 0) === 0) {
+          throw createAppError('Recurring booking not found or already cancelled.', 404);
+        }
+        const row = result.rows[0]!;
+        await client.query(
+          `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason)
+           VALUES ($1, 'recurring_booking_cancelled', 'recurring_booking', $2, $3, $4)`,
+          [req.user!.userId, id, JSON.stringify({ frequency: row.frequency }), trimmedReason],
+        );
+        return row;
+      });
 
       try {
         await notificationService.createPushNotification({
@@ -761,12 +908,20 @@ router.get(
 router.get(
   '/business-accounts/:id/contracts',
   authMiddleware,
+  validationMiddleware({
+    params: businessAccountParamsSchema,
+    query: businessContractListQuerySchema,
+  }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
-      const { items, total } = await businessService.getContractsAdmin(req.params.id as string, page, pageSize);
+      const { page, pageSize, contractId } = req.query as unknown as BusinessContractListQuery;
+      const { items, total } = await businessService.getContractsAdmin(
+        req.params.id as string,
+        page,
+        pageSize,
+        contractId,
+      );
       res.json({
         success: true,
         data: items.map(businessService.formatContract),
@@ -794,25 +949,74 @@ router.get(
   },
 );
 
-// Phase 200 — admin "generate invoice now". Bills the just-ended month for
-// this one account on demand instead of waiting for the monthly cron.
-// Idempotent: if an invoice for the period already exists, generated = 0.
+// E55 Option A: statement preparation is previewed, stored as a draft, and
+// finalized by a separate super-admin decision. These are commercial
+// statements, not claims of BIR principal-invoice authority (E22 remains).
 router.post(
-  '/business-accounts/:id/generate-invoice',
+  '/business-accounts/:id/invoices/preview',
   authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: businessInvoicePreviewSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const generated = await invoiceService.generateInvoiceForAccount(req.params.id as string);
-      res.json({
-        success: true,
-        data: {
-          generated,
-          message: generated > 0
-            ? 'Invoice generated for last month.'
-            : 'No invoice generated — either there are no billable bookings for last month, or an invoice for that period already exists.',
-        },
+      const preview = await businessInvoiceControlService.previewInvoiceForAccount(
+        req.params.id as string,
+        req.body as BusinessInvoicePreviewInput,
+        req.user!.userId,
+      );
+      res.json({ success: true, data: preview });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/invoices/prepare',
+  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: prepareBusinessInvoiceSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const { previewId, reason } = req.body as { previewId: string; reason: string };
+      const drafts = await businessInvoiceControlService.prepareInvoiceDrafts({
+        accountId: req.params.id as string,
+        previewId,
+        actorId: req.user!.userId,
+        reason,
       });
+      res.status(201).json({
+        success: true,
+        data: drafts.map(invoiceService.formatInvoice),
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/generate-invoice',
+  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      res.status(410).json({
+        success: false,
+        message: 'Immediate invoice generation was retired. Preview candidates, prepare a draft statement, then finalize it separately.',
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/approve/preview',
+  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const preview = await businessControlService.previewAccountLifecycle(
+        req.params.id as string, 'approve', req.user!.userId,
+      );
+      res.json({ success: true, data: preview });
     } catch (error) { next(error); }
   },
 );
@@ -820,38 +1024,28 @@ router.post(
 router.post(
   '/business-accounts/:id/approve',
   authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: businessLifecycleDecisionSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const id = req.params.id;
-
-      const result = await db.query(
-        `UPDATE business_accounts SET status = 'active', updated_at = NOW()
-         WHERE id = $1 AND status = 'pending'`,
-        [id],
-      );
-
-      if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ success: false, message: 'Business account not found or not pending.' });
-        return;
-      }
-
-      const account = await db.query<{ owner_user_id: string; company_name: string }>(
-        `SELECT owner_user_id, company_name FROM business_accounts WHERE id = $1`,
-        [id],
-      );
-
-      if (account.rows[0]) {
+      requireSuperAdmin(req);
+      const id = req.params.id as string;
+      const { previewId, reason } = req.body as { previewId: string; reason: string };
+      const decision = await businessControlService.applyAccountLifecycleDecision({
+        accountId: id, action: 'approve', previewId, actorId: req.user!.userId, reason,
+      });
+      try {
         await notificationService.createPushNotification({
-          userId: account.rows[0].owner_user_id,
+          userId: decision.owner_user_id,
           type: 'business_update',
           title: 'Business Account Approved',
-          body: `Your business account "${account.rows[0].company_name}" has been approved. You can now create contracts and manage team members.`,
+          body: `Your business account "${decision.company_name}" has been approved. Contracted booking starts after onService publishes your commercial terms and contract.`,
           data: { businessAccountId: id },
         });
+      } catch (notifyError) {
+        logger.warn('Business account approval notification failed', { businessAccountId: id, notifyError });
       }
-
-      res.json({ success: true, message: 'Business account approved.' });
+      const account = await businessService.getBusinessAccountAdmin(id);
+      res.json({ success: true, data: businessService.formatBusinessAccount(account) });
     } catch (error) {
       next(error);
     }
@@ -859,26 +1053,45 @@ router.post(
 );
 
 router.post(
-  '/business-accounts/:id/suspend',
+  '/business-accounts/:id/suspend/preview',
   authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const id = req.params.id;
-      const { reason } = req.body as { reason?: string };
-
-      const result = await db.query(
-        `UPDATE business_accounts SET status = 'suspended', notes = COALESCE($1, notes), updated_at = NOW()
-         WHERE id = $2 AND status = 'active'`,
-        [reason ?? null, id],
+      requireSuperAdmin(req);
+      const preview = await businessControlService.previewAccountLifecycle(
+        req.params.id as string, 'suspend', req.user!.userId,
       );
+      res.json({ success: true, data: preview });
+    } catch (error) { next(error); }
+  },
+);
 
-      if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ success: false, message: 'Business account not found or not active.' });
-        return;
+router.post(
+  '/business-accounts/:id/suspend',
+  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: businessLifecycleDecisionSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const id = req.params.id as string;
+      const { previewId, reason } = req.body as { previewId: string; reason: string };
+      const decision = await businessControlService.applyAccountLifecycleDecision({
+        accountId: id, action: 'suspend', previewId, actorId: req.user!.userId, reason,
+      });
+      try {
+        await notificationService.createPushNotification({
+          userId: decision.owner_user_id,
+          type: 'business_update',
+          title: 'Business Account Suspended',
+          body: `Your business account "${decision.company_name}" has been suspended. Existing work remains visible; new company bookings are paused. Contact support if you need help with this decision.`,
+          data: { businessAccountId: id },
+        });
+      } catch (notifyError) {
+        logger.warn('Business account suspension notification failed', { businessAccountId: id, notifyError });
       }
-
-      res.json({ success: true, message: 'Business account suspended.' });
+      const account = await businessService.getBusinessAccountAdmin(id);
+      res.json({ success: true, data: businessService.formatBusinessAccount(account) });
     } catch (error) {
       next(error);
     }
@@ -907,53 +1120,18 @@ router.post(
 );
 
 router.post(
-  '/business-accounts/:id/set-discount',
+  '/business-accounts/:id/terms/preview',
   authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: previewBusinessTermsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const id = req.params.id;
-      const { volumeDiscountRate, monthlyCreditLimit } = req.body as {
-        volumeDiscountRate?: number;
-        monthlyCreditLimit?: number;
-      };
-
-      const setClauses: string[] = ['updated_at = NOW()'];
-      const params: unknown[] = [];
-      let paramIdx = 1;
-
-      if (volumeDiscountRate !== undefined) {
-        if (typeof volumeDiscountRate !== 'number' || volumeDiscountRate < 0 || volumeDiscountRate > 50) {
-          res.status(400).json({ success: false, message: 'volumeDiscountRate must be between 0 and 50.' });
-          return;
-        }
-        setClauses.push(`volume_discount_rate = $${paramIdx}`);
-        params.push(volumeDiscountRate);
-        paramIdx++;
-      }
-
-      if (monthlyCreditLimit !== undefined) {
-        if (typeof monthlyCreditLimit !== 'number' || monthlyCreditLimit < 0) {
-          res.status(400).json({ success: false, message: 'monthlyCreditLimit must be a non-negative number.' });
-          return;
-        }
-        setClauses.push(`monthly_credit_limit = $${paramIdx}`);
-        params.push(monthlyCreditLimit);
-        paramIdx++;
-      }
-
-      params.push(id);
-      const result = await db.query(
-        `UPDATE business_accounts SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
-        params,
+      requireSuperAdmin(req);
+      const preview = await businessControlService.previewBusinessTerms(
+        req.params.id as string,
+        req.body as PreviewBusinessTermsInput,
+        req.user!.userId,
       );
-
-      if ((result.rowCount ?? 0) === 0) {
-        res.status(404).json({ success: false, message: 'Business account not found.' });
-        return;
-      }
-
-      res.json({ success: true, message: 'Discount settings updated.' });
+      res.json({ success: true, data: preview });
     } catch (error) {
       next(error);
     }
@@ -961,22 +1139,20 @@ router.post(
 );
 
 router.post(
-  '/invoices/:id/mark-paid',
+  '/business-accounts/:id/terms/publish',
   authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema, body: publishBusinessTermsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const id = req.params.id as string;
-      const { paymentReference } = req.body as { paymentReference: string };
-
-      if (!paymentReference) {
-        res.status(400).json({ success: false, message: 'paymentReference is required.' });
-        return;
-      }
-
-      const invoice = await invoiceService.markInvoicePaid(id, paymentReference);
-
-      res.json({ success: true, data: invoiceService.formatInvoice(invoice) });
+      requireSuperAdmin(req);
+      const { previewId, reason } = req.body as { previewId: string; reason: string };
+      const terms = await businessControlService.publishBusinessTerms({
+        accountId: req.params.id as string,
+        previewId,
+        actorId: req.user!.userId,
+        reason,
+      });
+      res.json({ success: true, data: businessControlService.formatBusinessTerms(terms) });
     } catch (error) {
       next(error);
     }
@@ -984,18 +1160,292 @@ router.post(
 );
 
 router.get(
+  '/business-accounts/:id/terms/current',
+  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const terms = await businessControlService.getCurrentBusinessTerms(req.params.id as string);
+      res.json({ success: true, data: terms });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/set-discount',
+  authMiddleware,
+  validationMiddleware({ params: businessAccountParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      res.status(410).json({
+        success: false,
+        message: 'Direct discount and credit edits were retired. Preview and publish a versioned business-terms agreement.',
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/contracts/:contractId/publish/preview',
+  authMiddleware,
+  validationMiddleware({ params: businessContractParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const preview = await businessControlService.previewContractLifecycle(
+        req.params.id as string, req.params.contractId as string, 'publish', req.user!.userId,
+      );
+      res.json({ success: true, data: preview });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/contracts/:contractId/publish',
+  authMiddleware,
+  validationMiddleware({ params: businessContractParamsSchema, body: publishBusinessContractSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const { previewId, reason } = req.body as { previewId: string; reason: string };
+      const contract = await businessControlService.applyContractLifecycleDecision({
+        accountId: req.params.id as string,
+        contractId: req.params.contractId as string,
+        action: 'publish',
+        previewId,
+        actorId: req.user!.userId,
+        reason,
+      });
+      res.json({ success: true, data: businessService.formatContract(contract) });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/contracts/:contractId/cancel/preview',
+  authMiddleware,
+  validationMiddleware({ params: businessContractParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const preview = await businessControlService.previewContractLifecycle(
+        req.params.id as string, req.params.contractId as string, 'cancel', req.user!.userId,
+      );
+      res.json({ success: true, data: preview });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/business-accounts/:id/contracts/:contractId/cancel',
+  authMiddleware,
+  validationMiddleware({ params: businessContractParamsSchema, body: publishBusinessContractSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const { previewId, reason } = req.body as { previewId: string; reason: string };
+      const contract = await businessControlService.applyContractLifecycleDecision({
+        accountId: req.params.id as string,
+        contractId: req.params.contractId as string,
+        action: 'cancel',
+        previewId,
+        actorId: req.user!.userId,
+        reason,
+      });
+      res.json({ success: true, data: businessService.formatContract(contract) });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/invoices/:id/finalize',
+  authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema, body: finalizeBusinessInvoiceSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const { expectedVersion, reason } = req.body as { expectedVersion: number; reason: string };
+      const invoice = await businessInvoiceControlService.finalizeInvoice({
+        invoiceId: req.params.id as string,
+        expectedVersion,
+        actorId: req.user!.userId,
+        reason,
+      });
+      try {
+        await notificationService.createPushNotification({
+          userId: invoice.owner_user_id,
+          type: 'business_update',
+          title: 'Business statement ready',
+          body: `Statement ${invoice.invoice_number} for ${formatPHP(Number(invoice.total_amount))} is ready and due ${invoice.due_date}.`,
+          data: { invoiceId: invoice.id, invoiceNumber: invoice.invoice_number },
+        });
+      } catch (notifyError) {
+        logger.warn('Business statement finalization notification failed', { invoiceId: invoice.id, notifyError });
+      }
+      res.json({ success: true, data: invoiceService.formatInvoice(invoice) });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/invoices/:id/payments',
+  authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema, body: recordBusinessInvoicePaymentSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const result = await businessInvoiceControlService.recordInvoicePayment(
+        req.params.id as string,
+        req.body as RecordBusinessInvoicePaymentInput,
+        req.user!.userId,
+      );
+      res.status(201).json({
+        success: true,
+        data: {
+          invoice: invoiceService.formatInvoice(result.invoice),
+          balance: {
+            adjustmentTotal: result.balance.adjustment_total,
+            paymentTotal: result.balance.payment_total,
+            adjustedTotal: result.balance.adjusted_total,
+            balanceDue: result.balance.balance_due,
+          },
+          paymentId: result.paymentId,
+        },
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/invoices/:id/adjustments',
+  authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema, body: recordBusinessInvoiceAdjustmentSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const result = await businessInvoiceControlService.recordInvoiceAdjustment(
+        req.params.id as string,
+        req.body as RecordBusinessInvoiceAdjustmentInput,
+        req.user!.userId,
+      );
+      res.status(201).json({
+        success: true,
+        data: {
+          invoice: invoiceService.formatInvoice(result.invoice),
+          balance: {
+            adjustmentTotal: result.balance.adjustment_total,
+            paymentTotal: result.balance.payment_total,
+            adjustedTotal: result.balance.adjusted_total,
+            balanceDue: result.balance.balance_due,
+          },
+        },
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/invoices/:id/payments/:paymentId/reverse',
+  authMiddleware,
+  validationMiddleware({
+    params: businessInvoicePaymentParamsSchema,
+    body: reverseBusinessInvoicePaymentSchema,
+  }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const result = await businessInvoiceControlService.reverseInvoicePayment(
+        req.params.id as string,
+        req.params.paymentId as string,
+        req.body as ReverseBusinessInvoicePaymentInput,
+        req.user!.userId,
+      );
+      res.status(201).json({
+        success: true,
+        data: {
+          invoice: invoiceService.formatInvoice(result.invoice),
+          balance: {
+            adjustmentTotal: result.balance.adjustment_total,
+            paymentTotal: result.balance.payment_total,
+            adjustedTotal: result.balance.adjusted_total,
+            balanceDue: result.balance.balance_due,
+          },
+          reversalId: result.reversalId,
+        },
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/invoices/:id/void',
+  authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema, body: voidBusinessInvoiceSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const { expectedVersion, reason } = req.body as { expectedVersion: number; reason: string };
+      const invoice = await businessInvoiceControlService.voidInvoice({
+        invoiceId: req.params.id as string,
+        expectedVersion,
+        actorId: req.user!.userId,
+        reason,
+      });
+      if (invoice.status === 'void' && invoice.finalized_at) {
+        try {
+          await notificationService.createPushNotification({
+            userId: invoice.owner_user_id,
+            type: 'business_update',
+            title: 'Business statement voided',
+            body: `Statement ${invoice.invoice_number} was voided. A replacement may be issued after review.`,
+            data: { invoiceId: invoice.id, invoiceNumber: invoice.invoice_number },
+          });
+        } catch (notifyError) {
+          logger.warn('Business statement void notification failed', { invoiceId: invoice.id, notifyError });
+        }
+      }
+      res.json({ success: true, data: invoiceService.formatInvoice(invoice) });
+    } catch (error) { next(error); }
+  },
+);
+
+router.post(
+  '/invoices/:id/mark-paid',
+  authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      res.status(410).json({
+        success: false,
+        message: 'Mark paid was retired. Record amount, method, effective time, unique reference, evidence, and reason instead.',
+      });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
   '/invoices/:id',
   authMiddleware,
+  validationMiddleware({ params: businessInvoiceParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
       const id = req.params.id as string;
-      const detail = await invoiceService.getInvoiceDetailAdmin(id);
+      const [detail, balance, ledger] = await Promise.all([
+        invoiceService.getInvoiceDetailAdmin(id),
+        businessInvoiceControlService.getInvoiceBalance(id),
+        businessInvoiceControlService.getInvoiceLedger(id),
+      ]);
       res.json({
         success: true,
         data: {
           invoice: invoiceService.formatInvoice(detail.invoice),
           items: detail.items.map(invoiceService.formatInvoiceItem),
+          balance,
+          ledger,
         },
       });
     } catch (error) {
@@ -1316,21 +1766,23 @@ router.post(
   },
 );
 
-// --- Pricing Rules CRUD ---
+// --- Pricing-rule draft / preview / publish / retire workflow ---
 
 router.get(
   '/pricing-rules',
   authMiddleware,
+  validationMiddleware({ query: pricingRuleListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 20));
+      const page = typeof req.query.page === 'number' ? req.query.page : 1;
+      const pageSize = typeof req.query.pageSize === 'number' ? req.query.pageSize : 20;
       const type = typeof req.query.type === 'string' ? req.query.type : undefined;
-      const isActiveParam = req.query.isActive;
-      const isActive = isActiveParam === 'true' ? true : isActiveParam === 'false' ? false : undefined;
+      const status = typeof req.query.status === 'string'
+        ? req.query.status as pricingService.PricingRulePublicationStatus
+        : undefined;
 
-      const result = await pricingService.listPricingRules({ type, isActive, page, pageSize });
+      const result = await pricingService.listPricingRules({ type, status, page, pageSize });
 
       res.json({
         success: true,
@@ -1346,6 +1798,7 @@ router.get(
 router.get(
   '/pricing-rules/:id',
   authMiddleware,
+  validationMiddleware({ params: pricingRuleIdParamsSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -1358,37 +1811,17 @@ router.get(
   },
 );
 
-// Phase 14 Dispatch 05 — Bug 269.
-// Replaced manual validation with `validationMiddleware(createPricingRuleSchema)`.
-// The new Zod schema enforces `multiplier 1.0..5.0` AND
-// `platformSurgeShare 0..1` (the latter was previously unbounded — a
-// typo could make the platform retain 50× the surge or take a negative
-// split). `.strict()` rejects unknown keys.
 router.post(
   '/pricing-rules',
   authMiddleware,
-  validationMiddleware(createPricingRuleSchema),
+  validationMiddleware({ body: createPricingRuleSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
-      const body = req.body as {
-        name: string;
-        type: 'rush' | 'holiday' | 'peak_hours';
-        multiplier: number;
-        rushHoursThreshold?: number;
-        holidayDate?: string;
-        peakStartTime?: string;
-        peakEndTime?: string;
-        peakDaysOfWeek?: number[];
-        categoryId?: string;
-        serviceAreaId?: string;
-        priority?: number;
-        platformSurgeShare?: number;
-        description?: string;
-      };
-
-      // MED-N110 fix — pass acting admin id so service writes audit row.
-      const rule = await pricingService.createPricingRule(body, req.user!.userId);
+      requireSuperAdmin(req);
+      const rule = await pricingPublicationService.createPricingRuleDraft(
+        req.body as CreatePricingRuleInput,
+        req.user!.userId,
+      );
 
       res.status(201).json({ success: true, data: pricingService.formatPricingRule(rule) });
     } catch (error) {
@@ -1400,13 +1833,16 @@ router.post(
 router.patch(
   '/pricing-rules/:id',
   authMiddleware,
-  validationMiddleware(updatePricingRuleSchema),
+  validationMiddleware({ params: pricingRuleIdParamsSchema, body: updatePricingRuleSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const id = req.params.id as string;
-      // MED-N111 fix — pass acting admin id so service writes audit row.
-      const rule = await pricingService.updatePricingRule(id, req.body, req.user!.userId);
+      const rule = await pricingPublicationService.updatePricingRuleDraft(
+        id,
+        req.body as UpdatePricingRuleInput,
+        req.user!.userId,
+      );
       res.json({ success: true, data: pricingService.formatPricingRule(rule) });
     } catch (error) {
       next(error);
@@ -1415,16 +1851,38 @@ router.patch(
 );
 
 router.post(
-  '/pricing-rules/:id/toggle',
+  '/pricing-rules/:id/preview',
   authMiddleware,
+  validationMiddleware({ params: pricingRuleIdParamsSchema, body: previewPricingRuleSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const id = req.params.id as string;
-      const { isActive } = req.body as { isActive: boolean };
-      if (typeof isActive !== 'boolean') throw createAppError('isActive must be a boolean.', 400);
-      // MED-N111 fix — pass acting admin id so service writes audit row.
-      const rule = await pricingService.togglePricingRule(id, isActive, req.user!.userId);
+      const preview = await pricingPublicationService.previewPricingRuleDraft(
+        id,
+        req.body as PreviewPricingRuleInput,
+        req.user!.userId,
+      );
+      res.json({ success: true, data: preview });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/pricing-rules/:id/publish',
+  authMiddleware,
+  validationMiddleware({ params: pricingRuleIdParamsSchema, body: publishPricingRuleSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireSuperAdmin(req);
+      const id = req.params.id as string;
+      const rule = await pricingPublicationService.publishPricingRuleDraft(
+        id,
+        req.body as { previewId: string; reason: string },
+        req.user!.userId,
+      );
       res.json({ success: true, data: pricingService.formatPricingRule(rule) });
     } catch (error) {
       next(error);
@@ -1432,16 +1890,20 @@ router.post(
   },
 );
 
-router.delete(
-  '/pricing-rules/:id',
+router.post(
+  '/pricing-rules/:id/retire',
   authMiddleware,
+  validationMiddleware({ params: pricingRuleIdParamsSchema, body: retirePricingRuleSchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      requireAdmin(req);
+      requireSuperAdmin(req);
       const id = req.params.id as string;
-      // MED-N111 fix — pass acting admin id so service writes audit row.
-      await pricingService.deletePricingRule(id, req.user!.userId);
-      res.json({ success: true, message: 'Pricing rule deleted.' });
+      const rule = await pricingPublicationService.retirePricingRule(
+        id,
+        req.body as { reason: string },
+        req.user!.userId,
+      );
+      res.json({ success: true, data: pricingService.formatPricingRule(rule) });
     } catch (error) {
       next(error);
     }
@@ -1526,6 +1988,7 @@ router.get(
 router.get(
   '/blocked-ips',
   authMiddleware,
+  validationMiddleware({ query: blockedIpListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -1548,23 +2011,17 @@ router.get(
 router.post(
   '/blocked-ips',
   authMiddleware,
+  validationMiddleware(blockIpBodySchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
       const { ipAddress, reason, expiresInHours } = req.body;
 
-      if (typeof ipAddress !== 'string' || !ipAddress) {
-        throw createAppError('IP address is required.', 400);
-      }
-      if (typeof reason !== 'string' || !reason) {
-        throw createAppError('Reason is required.', 400);
-      }
-
       const blocked = await securityService.blockIp({
         ipAddress,
         reason,
         blockedBy: req.user!.userId,
-        expiresInHours: typeof expiresInHours === 'number' ? expiresInHours : undefined,
+        expiresInHours,
       });
 
       res.status(201).json({
@@ -1577,36 +2034,57 @@ router.post(
   },
 );
 
+async function unblockIpHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    requireAdmin(req);
+    const ipAddress = String(req.params.ipAddress);
+    const unblocked = await securityService.unblockIp(
+      ipAddress,
+      req.user!.userId,
+      req.body.reason,
+    );
+
+    if (!unblocked) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Blocked IP not found.', statusCode: 404 },
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: 'IP unblocked. Automatic detection can re-evaluate the address while recent failures remain.',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+router.post(
+  '/blocked-ips/:ipAddress/unblock',
+  authMiddleware,
+  validationMiddleware({ params: blockedIpParamsSchema, body: unblockIpBodySchema }),
+  unblockIpHandler,
+);
+
+// Backward-compatible verb for any operational client that already used the
+// original hidden endpoint. It now requires the same reasoned body.
 router.delete(
   '/blocked-ips/:ipAddress',
   authMiddleware,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    try {
-      requireAdmin(req);
-      const ipAddress = String(req.params.ipAddress ?? '');
-      const unblocked = await securityService.unblockIp(
-        ipAddress,
-        req.user!.userId,
-      );
-
-      if (!unblocked) {
-        res.status(404).json({
-          success: false,
-          error: { message: 'Blocked IP not found.', statusCode: 404 },
-        });
-        return;
-      }
-
-      res.json({ success: true, message: 'IP unblocked.' });
-    } catch (error) {
-      next(error);
-    }
-  },
+  validationMiddleware({ params: blockedIpParamsSchema, body: unblockIpBodySchema }),
+  unblockIpHandler,
 );
 
 router.get(
   '/security-events',
   authMiddleware,
+  validationMiddleware({ query: securityEventListQuerySchema }),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       requireAdmin(req);
@@ -1874,9 +2352,11 @@ router.get(
 // Backed by a UNION ALL across two tables:
 //   * audit_log     — selected explicitly recorded system events. The generic
 //                     request middleware is not mounted; E37 tracks the gap.
-//   * admin_actions — privileged actions (staff_added/removed,
+//   * admin_actions — recorded operational actions (staff_added/removed,
 //                     consent_version_published, dsr_*, service_area_*,
-//                     promotion_*, notification_template_*, etc.).
+//                     provider_application_submitted, promotion_*,
+//                     notification_template_*, etc.). The actor can be an
+//                     operator, a participant, or the system.
 //
 // Pre-fix this endpoint only read audit_log, so admin-side staff +
 // catalog + DSR mutations were invisible from the audit timeline UI
@@ -1900,6 +2380,16 @@ interface AuditLogRow {
   created_at: Date;
   user_email: string | null;
   user_role: string | null;
+  target_user_role: string | null;
+  target_provider_id: string | null;
+  target_booking_id: string | null;
+  target_tax_year: number | null;
+  target_tax_quarter: number | null;
+  target_tax_month: number | null;
+  target_category_id: string | null;
+  target_subcategory_id: string | null;
+  target_conversation_id: string | null;
+  target_message_id: string | null;
 }
 
 router.get(
@@ -1918,6 +2408,16 @@ router.get(
       const params: unknown[] = [];
       let paramIdx = 1;
 
+      // D34: ordinary operations admins must not receive DPO-owned privacy
+      // records through the general timeline, including through exact filters.
+      // Super admins retain cross-boundary governance review authority.
+      const visibilityClause = generalAuditVisibilityClause(req.user!.role);
+      if (visibilityClause) filters.push(visibilityClause);
+
+      if (parsed.entryId) {
+        filters.push(`combined.id = $${paramIdx++}`);
+        params.push(parsed.entryId);
+      }
       if (parsed.userId) {
         filters.push(`combined.user_id = $${paramIdx++}`);
         params.push(parsed.userId);
@@ -1991,9 +2491,159 @@ router.get(
       const total = Number(countResult.rows[0]?.count ?? 0);
 
       const dataResult = await db.query<AuditLogRow>(
-        `SELECT combined.*, u.email AS user_email, u.role AS user_role
+        `SELECT combined.*, u.email AS user_email, u.role AS user_role,
+                target_user.role AS target_user_role,
+                COALESCE(
+                  target_provider.id,
+                  CASE WHEN combined.entity_type = 'provider' THEN combined.entity_id END,
+                  CASE WHEN combined.entity_type = 'provider_application' THEN (
+                    SELECT application_provider.id
+                      FROM providers application_provider
+                     WHERE application_provider.user_id = combined.entity_id
+                     LIMIT 1
+                  ) END,
+                  CASE WHEN combined.entity_type = 'provider_document' THEN (
+                    SELECT document_provider.id
+                      FROM provider_documents document
+                      JOIN providers document_provider ON document_provider.user_id = document.user_id
+                     WHERE document.id = combined.entity_id
+                     LIMIT 1
+                  ) END,
+                  CASE WHEN combined.entity_type = 'provider_certification' THEN (
+                    SELECT certification.provider_id
+                      FROM provider_certifications certification
+                     WHERE certification.id = combined.entity_id
+                  ) END,
+                  CASE WHEN combined.entity_type = 'provider_staff' THEN (
+                    SELECT staff.provider_id
+                      FROM provider_staff staff
+                     WHERE staff.id = combined.entity_id
+                  ) END,
+                  CASE WHEN combined.entity_type = 'provider_note' THEN (
+                    SELECT note.provider_id
+                      FROM provider_admin_notes note
+                     WHERE note.id = combined.entity_id
+                  ) END,
+                  CASE WHEN combined.entity_type = 'review' THEN (
+                    SELECT review.provider_id
+                      FROM reviews review
+                     WHERE review.id = combined.entity_id
+                  ) END,
+                  CASE WHEN combined.entity_type = 'bir_2307_batch' THEN (
+                    SELECT batch.provider_id
+                      FROM bir_2307_batches batch
+                     WHERE batch.id = combined.entity_id
+                  ) END
+                ) AS target_provider_id,
+                CASE WHEN combined.entity_type = 'official_receipt' THEN (
+                  SELECT receipt.booking_id
+                    FROM official_receipts receipt
+                   WHERE receipt.id = combined.entity_id
+                ) END AS target_booking_id,
+                CASE
+                  WHEN combined.entity_type = 'bir_2307_batch' THEN (
+                    SELECT batch.tax_year
+                      FROM bir_2307_batches batch
+                     WHERE batch.id = combined.entity_id
+                  )
+                  WHEN combined.entity_type = 'vat_report' THEN (
+                    SELECT report.period_year
+                      FROM vat_monthly_reports report
+                     WHERE report.id = combined.entity_id
+                  )
+                END AS target_tax_year,
+                CASE WHEN combined.entity_type = 'bir_2307_batch' THEN (
+                  SELECT batch.tax_quarter
+                    FROM bir_2307_batches batch
+                   WHERE batch.id = combined.entity_id
+                ) END AS target_tax_quarter,
+                CASE WHEN combined.entity_type = 'vat_report' THEN (
+                  SELECT report.period_month
+                    FROM vat_monthly_reports report
+                   WHERE report.id = combined.entity_id
+                ) END AS target_tax_month,
+                CASE
+                  WHEN combined.entity_type = 'service_category' THEN combined.entity_id
+                  WHEN combined.entity_type = 'service_subcategory' THEN (
+                    SELECT subcategory.category_id
+                      FROM service_subcategories subcategory
+                     WHERE subcategory.id = combined.entity_id
+                  )
+                  WHEN combined.entity_type = 'service_addon' THEN (
+                    SELECT subcategory.category_id
+                      FROM service_addons addon
+                      JOIN service_subcategories subcategory ON subcategory.id = addon.subcategory_id
+                     WHERE addon.id = combined.entity_id
+                  )
+                END AS target_category_id,
+                CASE
+                  WHEN combined.entity_type = 'service_subcategory' THEN combined.entity_id
+                  WHEN combined.entity_type = 'service_addon' THEN (
+                    SELECT addon.subcategory_id
+                      FROM service_addons addon
+                     WHERE addon.id = combined.entity_id
+                  )
+                END AS target_subcategory_id,
+                CASE WHEN combined.action IN (
+                  'conversation_viewed',
+                  'message_redacted',
+                  'message_flag_reviewed',
+                  'admin_message_sent'
+                ) THEN COALESCE(
+                  (
+                    SELECT message.conversation_id
+                      FROM messages message
+                      JOIN conversations conversation ON conversation.id = message.conversation_id
+                     WHERE message.id::text = combined.new_values->>'messageId'
+                       AND (
+                         combined.entity_type <> 'booking'
+                         OR conversation.booking_id = combined.entity_id
+                       )
+                     LIMIT 1
+                  ),
+                  (
+                    SELECT conversation.id
+                      FROM conversations conversation
+                     WHERE conversation.id::text = combined.new_values->>'conversationId'
+                       AND (
+                         combined.entity_type <> 'booking'
+                         OR conversation.booking_id = combined.entity_id
+                       )
+                     LIMIT 1
+                  ),
+                  (
+                    SELECT message.conversation_id
+                      FROM messages message
+                     WHERE combined.entity_type = 'message'
+                       AND message.id = combined.entity_id
+                     LIMIT 1
+                  )
+                ) END AS target_conversation_id,
+                CASE WHEN combined.action IN (
+                  'message_redacted',
+                  'message_flag_reviewed',
+                  'admin_message_sent'
+                ) THEN COALESCE(
+                  (
+                    SELECT message.id
+                      FROM messages message
+                      JOIN conversations conversation ON conversation.id = message.conversation_id
+                     WHERE message.id::text = combined.new_values->>'messageId'
+                       AND (
+                         combined.entity_type <> 'booking'
+                         OR conversation.booking_id = combined.entity_id
+                       )
+                     LIMIT 1
+                  ),
+                  CASE WHEN combined.entity_type = 'message' THEN combined.entity_id END
+                ) END AS target_message_id
            FROM (${baseRelation}) combined
            LEFT JOIN users u ON u.id = combined.user_id
+           LEFT JOIN users target_user
+             ON combined.entity_type IN ('user', 'users')
+            AND target_user.id = combined.entity_id
+           LEFT JOIN providers target_provider
+             ON target_provider.user_id = target_user.id
          ${whereClause}
          ORDER BY combined.created_at DESC, combined.id DESC
          LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
@@ -2012,6 +2662,19 @@ router.get(
           // when raw contact is genuinely required for one record.
           userEmail: r.user_email ? maskEmail(r.user_email) : null,
           userRole: r.user_role,
+          // Keep the account being acted upon separate from the operator who
+          // performed the action. A super-admin force-logging-out a customer
+          // must lead support to Customer 360, not the staff directory.
+          targetUserRole: r.target_user_role,
+          targetProviderId: r.target_provider_id,
+          targetBookingId: r.target_booking_id,
+          targetTaxYear: r.target_tax_year,
+          targetTaxQuarter: r.target_tax_quarter,
+          targetTaxMonth: r.target_tax_month,
+          targetCategoryId: r.target_category_id,
+          targetSubcategoryId: r.target_subcategory_id,
+          targetConversationId: r.target_conversation_id,
+          targetMessageId: r.target_message_id,
           action: r.action,
           entityType: r.entity_type,
           entityId: r.entity_id,

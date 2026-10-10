@@ -1,0 +1,47 @@
+{
+  "sourceRevision": "a67b211c baseline",
+  "createdAt": "2026-09-06T04:16:56.203Z",
+  "evidenceType": "compiled mandatory rotation/draft/completion lifecycle; synthetic HTTP; not live authentication",
+  "indexSha256": "c636e51fa47c6b53565ff162c443e9eed2527eeb6a2051e35da7f0bf38cd5f63",
+  "entrySha256": "9f5d7ccc3cf7c0c998ec891506159636ebd3904600f2247a8ea39abab541493a",
+  "checks": [],
+  "failure": "Error: expect(locator).toBeVisible() failed\n\nLocator: getByText('Password rotation required', { exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"to.be.visible\" with timeout 5000ms\n  - waiting for getByText('Password rotation required', { exact: true })\n\n    at captureRawStack (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright-core\\lib\\coreBundle.js:3130:17)\n    at callMatcherAsStep (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright\\lib\\matchers\\expect.js:12873:57)\n    at Object.toBeVisible (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\node_modules\\playwright\\lib\\matchers\\expect.js:12863:23)\n    at checkRequired (C:\\Users\\kmoul\\OneDrive\\Documents\\GitHub\\onservice-onsite-app\\.ai-coder\\checkpoints\\logs\\admin-password-rotation-lifecycle-2026-09-06\\audit.mjs:130:85)\n    at async file:///C:/Users/kmoul/OneDrive/Documents/GitHub/onservice-onsite-app/.ai-coder/checkpoints/logs/admin-password-rotation-lifecycle-2026-09-06/audit.mjs:142:9",
+  "failedScenario": {
+    "width": 320,
+    "scenario": "runtime-required",
+    "requests": [
+      {
+        "method": "GET",
+        "path": "/api/v1/auth/me",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+        "csrf": null
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+        "csrf": null
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/notes",
+        "csrf": "synthetic-original-csrf",
+        "body": {
+          "body": "Synthetic pending support note",
+          "category": "general",
+          "pinned": false
+        }
+      }
+    ],
+    "unexpected": [],
+    "errors": [],
+    "captures": [],
+    "documentNavigations": [
+      "/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+    ],
+    "overflow": []
+  }
+}

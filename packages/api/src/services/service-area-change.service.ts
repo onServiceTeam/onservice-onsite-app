@@ -352,6 +352,28 @@ export async function listPending(
   return result.rows.map(format);
 }
 
+export async function getById(changeId: string): Promise<AreaChangeRequest> {
+  const result = await db.query<ChangeRow>(
+    `SELECT acr.*,
+            p.id AS provider_record_id,
+            NULLIF(CONCAT_WS(' ', u.first_name, u.last_name), '') AS provider_name,
+            u.email AS provider_email,
+            u.phone AS provider_phone,
+            current_area.name AS current_area_name,
+            requested_area.name AS requested_area_name
+       FROM service_area_change_requests acr
+       JOIN users u ON u.id = acr.provider_id
+       LEFT JOIN providers p ON p.user_id = acr.provider_id
+       LEFT JOIN service_areas current_area ON current_area.id = acr.current_area_id
+       JOIN service_areas requested_area ON requested_area.id = acr.requested_area_id
+      WHERE acr.id = $1`,
+    [changeId],
+  );
+  const row = result.rows[0];
+  if (!row) throw createAppError('Service-area change request not found.', 404);
+  return format(row);
+}
+
 export async function decide(input: {
   changeId: string;
   adminUserId: string;

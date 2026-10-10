@@ -3,7 +3,7 @@ import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator,
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createProject } from '@/services/project.service';
+import { createProject, PROJECT_ADVISORY_BUDGET_MAX_PESOS } from '@/services/project.service';
 import { getErrorMessage } from '@/utils/errors';
 import { showToast } from '@/lib/toast';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -18,6 +18,7 @@ export default function NewProjectScreen(): React.ReactElement {
   const { isPhone } = useResponsive();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [estimate, setEstimate] = useState('');
 
@@ -26,6 +27,7 @@ export default function NewProjectScreen(): React.ReactElement {
       createProject({
         title: title.trim(),
         description: description.trim() || undefined,
+        address: address.trim() || undefined,
         city: city.trim() || undefined,
         estimatedTotal: estimate ? Math.round(Number(estimate) * 100) : undefined,
       }),
@@ -38,7 +40,11 @@ export default function NewProjectScreen(): React.ReactElement {
   });
 
   const estimateValue = Number(estimate);
-  const estimateValid = estimate === '' || (Number.isFinite(estimateValue) && estimateValue >= 0 && estimateValue <= 20_000_000);
+  const estimateValid = estimate === '' || (
+    Number.isFinite(estimateValue)
+    && estimateValue >= 0
+    && estimateValue <= PROJECT_ADVISORY_BUDGET_MAX_PESOS
+  );
   const isValid = title.trim().length > 0 && estimateValid;
 
   return (
@@ -101,6 +107,20 @@ export default function NewProjectScreen(): React.ReactElement {
             maxLength={4000}
             accessibilityLabel="Project description"
           />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Project address</Text>
+          <TextInput
+            style={styles.input}
+            value={address}
+            onChangeText={setAddress}
+            placeholder="Street, building, subdivision, or site reference"
+            placeholderTextColor={colors.textTertiary}
+            maxLength={500}
+            accessibilityLabel="Project address"
+          />
+          <Text style={styles.hint}>Planning context only. A future booking still confirms its own service address.</Text>
         </View>
 
         <View style={styles.field}>

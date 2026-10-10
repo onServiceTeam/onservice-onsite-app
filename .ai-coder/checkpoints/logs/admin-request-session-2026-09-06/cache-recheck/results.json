@@ -1,0 +1,1114 @@
+{
+  "sourceRevision": "aa6535623d84dcb09dfa83b36b3f02759c2c67f1 plus local UX-1369 request ownership",
+  "createdAt": "2026-09-06T03:06:59.377Z",
+  "evidenceType": "compiled login/logout and record pages; synthetic HTTP; realtime blocked; not live acceptance",
+  "indexSha256": "31130913afa65a3ca3b4bac492a3239e4e7b1aebc18f10e38970e35fc4d5b48d",
+  "entrySha256": "c87f1f6f8fb000e6edb39ff60ed3a4d8ffd49586c00509bc3626d63b58e047d3",
+  "checks": [
+    {
+      "width": 320,
+      "area": "customer",
+      "timing": "completed",
+      "captures": [
+        "320-customer-completed-supervisor.png",
+        "320-customer-completed-signed-out.png",
+        "320-customer-completed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "area": "customer",
+      "timing": "delayed",
+      "captures": [
+        "320-customer-delayed-supervisor.png",
+        "320-customer-delayed-signed-out.png",
+        "320-customer-delayed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "area": "provider",
+      "timing": "completed",
+      "captures": [
+        "320-provider-completed-supervisor.png",
+        "320-provider-completed-signed-out.png",
+        "320-provider-completed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "area": "provider",
+      "timing": "delayed",
+      "captures": [
+        "320-provider-delayed-supervisor.png",
+        "320-provider-delayed-signed-out.png",
+        "320-provider-delayed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "area": "customer",
+      "timing": "completed",
+      "captures": [
+        "390-customer-completed-supervisor.png",
+        "390-customer-completed-signed-out.png",
+        "390-customer-completed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "area": "customer",
+      "timing": "delayed",
+      "captures": [
+        "390-customer-delayed-supervisor.png",
+        "390-customer-delayed-signed-out.png",
+        "390-customer-delayed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "area": "provider",
+      "timing": "completed",
+      "captures": [
+        "390-provider-completed-supervisor.png",
+        "390-provider-completed-signed-out.png",
+        "390-provider-completed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "area": "provider",
+      "timing": "delayed",
+      "captures": [
+        "390-provider-delayed-supervisor.png",
+        "390-provider-delayed-signed-out.png",
+        "390-provider-delayed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "area": "customer",
+      "timing": "completed",
+      "captures": [
+        "768-customer-completed-supervisor.png",
+        "768-customer-completed-signed-out.png",
+        "768-customer-completed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "area": "customer",
+      "timing": "delayed",
+      "captures": [
+        "768-customer-delayed-supervisor.png",
+        "768-customer-delayed-signed-out.png",
+        "768-customer-delayed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "area": "provider",
+      "timing": "completed",
+      "captures": [
+        "768-provider-completed-supervisor.png",
+        "768-provider-completed-signed-out.png",
+        "768-provider-completed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "area": "provider",
+      "timing": "delayed",
+      "captures": [
+        "768-provider-delayed-supervisor.png",
+        "768-provider-delayed-signed-out.png",
+        "768-provider-delayed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "area": "customer",
+      "timing": "completed",
+      "captures": [
+        "1024-customer-completed-supervisor.png",
+        "1024-customer-completed-signed-out.png",
+        "1024-customer-completed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "area": "customer",
+      "timing": "delayed",
+      "captures": [
+        "1024-customer-delayed-supervisor.png",
+        "1024-customer-delayed-signed-out.png",
+        "1024-customer-delayed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "area": "provider",
+      "timing": "completed",
+      "captures": [
+        "1024-provider-completed-supervisor.png",
+        "1024-provider-completed-signed-out.png",
+        "1024-provider-completed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "area": "provider",
+      "timing": "delayed",
+      "captures": [
+        "1024-provider-delayed-supervisor.png",
+        "1024-provider-delayed-signed-out.png",
+        "1024-provider-delayed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "area": "customer",
+      "timing": "completed",
+      "captures": [
+        "1366-customer-completed-supervisor.png",
+        "1366-customer-completed-signed-out.png",
+        "1366-customer-completed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "area": "customer",
+      "timing": "delayed",
+      "captures": [
+        "1366-customer-delayed-supervisor.png",
+        "1366-customer-delayed-signed-out.png",
+        "1366-customer-delayed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "area": "provider",
+      "timing": "completed",
+      "captures": [
+        "1366-provider-completed-supervisor.png",
+        "1366-provider-completed-signed-out.png",
+        "1366-provider-completed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "area": "provider",
+      "timing": "delayed",
+      "captures": [
+        "1366-provider-delayed-supervisor.png",
+        "1366-provider-delayed-signed-out.png",
+        "1366-provider-delayed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "area": "customer",
+      "timing": "completed",
+      "captures": [
+        "1920-customer-completed-supervisor.png",
+        "1920-customer-completed-signed-out.png",
+        "1920-customer-completed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "area": "customer",
+      "timing": "delayed",
+      "captures": [
+        "1920-customer-delayed-supervisor.png",
+        "1920-customer-delayed-signed-out.png",
+        "1920-customer-delayed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "area": "provider",
+      "timing": "completed",
+      "captures": [
+        "1920-provider-completed-supervisor.png",
+        "1920-provider-completed-signed-out.png",
+        "1920-provider-completed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "area": "provider",
+      "timing": "delayed",
+      "captures": [
+        "1920-provider-delayed-supervisor.png",
+        "1920-provider-delayed-signed-out.png",
+        "1920-provider-delayed-operator.png"
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/logout",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/admin/login",
+          "actorId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "actorRole": "super_admin"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/providers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/profile",
+          "actorId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "actorRole": "admin"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "blockedRealtimeConnections": 0,
+      "documentOverflow": 0
+    }
+  ],
+  "failure": null
+}

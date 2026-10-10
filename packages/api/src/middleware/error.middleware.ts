@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 export interface AppError extends Error {
   statusCode: number;
   isOperational: boolean;
+  code?: string;
 }
 
 export function createAppError(message: string, statusCode: number): AppError {
@@ -74,12 +75,16 @@ export function errorMiddleware(
   const clientMessage = isOperational
     ? err.message
     : 'An unexpected error occurred. Please try again later.';
+  const errorCode = isOperational && 'code' in err && typeof err.code === 'string'
+    ? err.code
+    : undefined;
 
   res.status(statusCode).json({
     success: false,
     error: {
       message: clientMessage,
       statusCode,
+      ...(errorCode ? { code: errorCode } : {}),
     },
   });
 }

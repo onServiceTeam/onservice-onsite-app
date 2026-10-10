@@ -16,7 +16,6 @@ import api from '@/lib/api';
 import PayoutsPage from '../PayoutsPage';
 
 it('Bug UX-130 — approving a payout requires and submits a specific audit reason', async () => {
-  vi.spyOn(window, 'confirm').mockReturnValue(true);
   vi.mocked(api.get).mockResolvedValueOnce({
     data: {
       success: true,
@@ -40,6 +39,7 @@ it('Bug UX-130 — approving a payout requires and submits a specific audit reas
 
   fireEvent.click(await screen.findByRole('button', { name: 'Approve payout payout-1' }));
   const dialog = screen.getByRole('dialog', { name: 'Approve Payout' });
+  expect(within(dialog).getByText(/It does not send money/)).toBeVisible();
   const confirmButton = within(dialog).getByRole('button', { name: 'Approve' });
   expect(confirmButton).toBeDisabled();
   fireEvent.change(within(dialog).getByLabelText('Audit Reason *'), {

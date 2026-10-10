@@ -51,3 +51,10 @@ fix the lack of a server-canonical customer configuration.
 
 No Suki redemption threshold, conversion rate, or wallet-credit behavior was
 changed in this audit wave. Non-financial UI defects can continue independently.
+
+## 2026-09-02 containment
+
+The live tier and conversion rows are now enforced read-only launch holds while
+E25 and E44 remain open. This prevents a new Admin change from widening the
+customer/API mismatch. It does not choose 100 versus 500 points, correct the
+peso-to-centavo conversion, change any wallet balance, or rewrite rewards.

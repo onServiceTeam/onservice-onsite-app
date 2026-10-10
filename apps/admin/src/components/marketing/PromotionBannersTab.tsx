@@ -253,6 +253,11 @@ export default function PromotionBannersTab({ isSuperAdmin }: { isSuperAdmin: bo
         <p className="mt-1 text-sm text-sky-800">
           These banners render as text cards on the customer home screen. Images are not rendered by the current app. New banners are saved as drafts and require a separate publish action.
         </p>
+        {!isSuperAdmin && (
+          <p className="mt-2 text-sm font-medium text-sky-950">
+            Your Admin role has read-only access. A Super Admin must create, edit, publish, or pause customer-facing banners.
+          </p>
+        )}
       </div>
       {(bannersQuery.data?.rows ?? []).some((promotion) => promotion.targetAudience !== 'all') && (
         <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">

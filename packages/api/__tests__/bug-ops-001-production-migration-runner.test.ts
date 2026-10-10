@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 describe('production migration runner', () => {
-  it('Bug OPS-001 — dry-runs the exact target before applying it through npm and the direct production helper', () => {
+  it('Bug OPS-001 — dry-runs the reviewed boundary before applying it through the direct production helper', () => {
     const fixtureDir = mkdtempSync(path.join(tmpdir(), 'onservice-migration-runner-'));
     const dockerStub = path.join(fixtureDir, 'docker-stub.sh');
     const callLog = path.join(fixtureDir, 'docker-calls.log');
@@ -42,10 +42,10 @@ describe('production migration runner', () => {
     expect({ status: result.status, stderr: result.stderr }).toEqual({ status: 0, stderr: '' });
     const calls = readFileSync(callLog, 'utf8').trim().split(/\r?\n/);
     expect(calls).toHaveLength(2);
-    expect(calls[0]).toContain('npm run migrate:up -- 148_provider_portfolio_consent');
-    expect(calls[0]).toContain('--migrations-dir migrations --no-check-order --dry-run');
-    expect(calls[1]).toContain('npm run migrate:up -- 148_provider_portfolio_consent');
-    expect(calls[1]).toContain('--migrations-dir migrations --no-check-order');
+    expect(calls[0]).toContain('node scripts/run-reviewed-migrations.mjs --target 148_provider_portfolio_consent');
+    expect(calls[0]).toContain('--migrations-dir migrations --dry-run');
+    expect(calls[1]).toContain('node scripts/run-reviewed-migrations.mjs --target 148_provider_portfolio_consent');
+    expect(calls[1]).toContain('--migrations-dir migrations');
     expect(calls[1]).not.toContain('--dry-run');
     expect(calls.join('\n')).not.toContain('npx node-pg-migrate');
   });

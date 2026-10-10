@@ -105,7 +105,7 @@ Do not promise insurance, a guaranteed arrival time, or a refund "no matter what
 What backs each part:
 
 - **Steady jobs** - automatic dispatch sends offers to the best-matched provider first. See `08-dispatch-and-live-operations.md`.
-- **Fair commission that drops as you grow** - commission is a flat rate per tier and gets lower as the provider levels up. Exact rates in Section 7.
+- **Fair commission that generally drops as you grow** - the seeded tier schedule gets lower as a provider levels up, while an effective-dated provider/category agreement can differ. Each booking snapshots the exact rate. See Section 7.
 - **Paid out fast** - providers request a payout (minimum ₱100) from their wallet; target is 3 business days to complete. See `07-provider-support-sop.md` and `10-money-and-compliance-ops.md`.
 - **A fair shot in disputes** - the provider sees the customer's claim and can submit a contest response within 48 hours for staff review. Direct accept and partial-offer settlement are held by E24 until the escrow-safe design is approved. See `09-trust-safety-and-disputes.md`.
 
@@ -113,11 +113,11 @@ What backs each part:
 
 ## 7. Provider tiers and commission (the real numbers)
 
-Commission is taken off the service price. The provider receives the service price minus their tier's commission. These rates are the launch defaults and are admin-tunable in Settings (category Commissions), so treat them as starting numbers, not carved in stone.
+Commission is taken off the service price. The table is the seeded base schedule, not the source for an existing transaction. Super-admin schedules prospective tier/provider/category agreements in **Financials -> Commission Controls**; the retired direct Settings rows are held under E50. Booking 360's immutable financial terms are authoritative for a priced/paid booking.
 
 | Tier | Commission | How a provider gets here |
 |---|---|---|
-| **founding** | **10%** | Invite-only launch batch. First 50 providers per city, 10% locked for 12 months. Not a step on the normal ladder, a parallel perk tier. |
+| **founding** | **10% seeded base** | Invite-only parallel tier. E63 holds the first-50/12-month promise because the app cannot yet store or enforce that entitlement; do not newly offer it. |
 | **new** | **15%** | Default tier when a provider is approved. |
 | **verified** | **13%** | 5+ completed jobs and a 4.0+ rating. |
 | **pro** | **11%** | 25+ jobs, 4.5+ rating, no open disputes. |

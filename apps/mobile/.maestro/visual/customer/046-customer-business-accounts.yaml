@@ -1,0 +1,16 @@
+appId: ph.onservice.app
+---
+# F#3 visual baseline — customer-business-accounts
+# Screen: apps/mobile/app/customer/business/index.tsx
+
+- launchApp:
+    stopApp: false
+- openLink: onservice://customer/business
+- extendedWaitUntil:
+    notVisible:
+      id: "loading"
+    timeout: 2000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: .maestro/visual/baselines/customer/customer-business-accounts/default

@@ -26,6 +26,7 @@ import {
 import { Button, SkeletonCard, EmptyState, ErrorState, SectionHeader } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { getErrorMessage } from '@/utils/errors';
+import { isRealCalendarDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Calendar, ClipboardList, X } from '@/components/icons';
 
@@ -107,6 +108,10 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(overrideDate.trim())) {
       showToast('Please use date format YYYY-MM-DD.', 'warning');
+      return;
+    }
+    if (!isRealCalendarDate(overrideDate.trim())) {
+      showToast('Enter a real calendar date in YYYY-MM-DD format.', 'warning');
       return;
     }
     // BUG-PHASE50-01 fix — pre-fix the form accepted any
@@ -201,12 +206,15 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
           style={[styles.workspace, !isPhone && styles.workspaceWide]}
           accessibilityLabel={isPhone ? 'Availability settings' : 'Tablet and desktop availability workspace'}
         >
-        <View style={styles.controlColumn}>
+        <View style={[styles.controlColumn, !isPhone && styles.controlColumnWide]}>
         <View style={styles.toggleCard}>
           <View style={styles.toggleInfo}>
             <Text style={styles.toggleTitle}>Available Now</Text>
             <Text style={styles.toggleDesc}>
-              {isAvailable ? 'You are visible to customers and can receive job offers.' : 'You are hidden from search and will not receive new job offers.'}
+              {isAvailable ? 'You are open to new job offers that match your services and working hours.' : 'Automatic job matching is paused. Your profile may still appear in search.'}
+            </Text>
+            <Text style={[styles.toggleDesc, { marginTop: spacing.sm }]}>
+              Changing availability does not cancel or reschedule existing bookings.
             </Text>
           </View>
           <Switch
@@ -232,7 +240,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
         </TouchableOpacity>
         </View>
 
-        <View style={styles.overrideColumn}>
+        <View style={[styles.overrideColumn, !isPhone && styles.overrideColumnWide]}>
         <SectionHeader
           title="Date Overrides"
           actionLabel="+ Add"
@@ -254,7 +262,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
               maxLength={10}
               accessibilityLabel="Override date in YYYY-MM-DD format"
             />
-            <Text style={styles.fieldHelp}>Example: 2026-08-31</Text>
+            <Text style={styles.fieldHelp}>Example: {todayManila} (today in Manila)</Text>
 
             <View style={styles.typeRow}>
               <TouchableOpacity
@@ -317,12 +325,13 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
             />
 
             <View style={styles.formActions}>
-              <Button title="Cancel" onPress={resetForm} variant="ghost" />
+              <Button title="Cancel" onPress={resetForm} variant="ghost" fullWidth={false} />
               <Button
                 title={isPending ? 'Saving...' : 'Save'}
                 onPress={handleAddOverride}
                 loading={isPending}
                 disabled={isPending}
+                fullWidth={false}
               />
             </View>
           </View>
@@ -332,7 +341,7 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
           <EmptyState
             icon={<Calendar size={48} color={colors.textTertiary} />}
             title="No Date Overrides"
-            description="Your weekly schedule is active. Add overrides to block specific dates or set custom hours when you need time off."
+            description="No upcoming date overrides are saved. Check Weekly schedule to review your normal working hours. Add overrides to block dates or set custom hours."
           />
         ) : (
           futureOverrides.map((o) => (
@@ -363,7 +372,8 @@ export default function AvailabilitySettingsScreen(): React.ReactElement {
 }
 
 function formatDateLabel(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
+  // UX-1355: this is a Manila calendar date, not midnight on the device.
+  const d = new Date(dateStr + 'T00:00:00+08:00');
   return d.toLocaleDateString('en-PH', {
     timeZone: 'Asia/Manila',
     weekday: 'short',
@@ -391,10 +401,12 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.base, paddingBottom: 100 },
   scrollContentWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl },
-  workspace: { width: '100%' },
+  workspace: { width: '100%', gap: spacing.lg },
   workspaceWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
-  controlColumn: { flex: 0.85, minWidth: 250 },
-  overrideColumn: { flex: 1.5, minWidth: 360 },
+  controlColumn: { minWidth: 0 },
+  controlColumnWide: { flex: 0.85, minWidth: 250 },
+  overrideColumn: { minWidth: 0 },
+  overrideColumnWide: { flex: 1.5, minWidth: 360 },
 
   toggleCard: {
     backgroundColor: colors.surface,
@@ -463,7 +475,7 @@ const styles = StyleSheet.create({
   typeBtnText: { ...typography.bodySmall, color: colors.textSecondary, fontWeight: '600' },
   typeBtnTextActive: { color: colors.white },
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  timeInput: { flex: 1 },
+  timeInput: { flex: 1, minWidth: 0 },
   timeSep: { ...typography.body, color: colors.textTertiary },
   formActions: {
     flexDirection: 'row',

@@ -1,9 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
-import RedisStore from 'rate-limit-redis';
-import { redis } from '../config/redis.config';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { authRateLimitMiddleware } from '../middleware/rate-limit.middleware';
 import { getClientIp } from '../middleware/ip-block.middleware';
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
@@ -20,6 +18,8 @@ import {
 } from '../validators/auth.validators';
 import * as authService from '../services/auth.service';
 import * as securityService from '../services/security.service';
+import * as adminTwoFactorService from '../services/admin-2fa.service';
+import { assertEmailSignInDeliveryConfigured } from '../services/email-sign-in.service';
 import { platformConfig } from '../config/platform.config';
 import { generateTotpSecret, verifyTotp, generateTotpUri, encryptSecret, decryptSecret } from '../utils/totp';
 import {
@@ -58,6 +58,27 @@ function formatUserResponse(u: UserProfileRow): Record<string, unknown> {
 }
 
 const router = Router();
+
+// Public, account-independent configuration discovery. This is not provider
+// health, inbox acceptance, account eligibility or permission to skip a proof.
+router.get('/methods', (_req: Request, res: Response) => {
+  let emailCode: { enabled: boolean; captchaSiteKey?: string } = { enabled: false };
+  try {
+    // Reuse the producer's opt-in/sender guard; never invent a second flag.
+    assertEmailSignInDeliveryConfigured();
+    const siteKey = process.env.TURNSTILE_SITE_KEY?.trim();
+    const secret = process.env.CAPTCHA_SECRET_KEY || process.env.TURNSTILE_SECRET_KEY;
+    if (siteKey && secret?.trim()) emailCode = { enabled: true, captchaSiteKey: siteKey };
+  } catch {
+    // Missing/disabled configuration has one shape, without private details.
+  }
+  res.set('Cache-Control', 'private, no-store');
+  // end(), rather than send()/json(), avoids Express-generated ETags and 304
+  // responses: callers always receive a newly evaluated configuration body.
+  res.status(200).type('application/json').end(JSON.stringify({
+    success: true, data: { phoneOtp: { supported: true }, emailCode },
+  }));
+});
 
 // Custom middleware for the 2FA enrolment flow: accepts EITHER a normal admin
 // access token OR a short-lived `pre_auth_2fa_setup` token issued by
@@ -104,8 +125,12 @@ export function adminAuthOrSetupToken(
         role: UserProfileRow['role'];
         is_active: boolean;
         session_version: number | string;
+        must_rotate_password: boolean | null;
       }>(
-        `SELECT role, is_active, session_version FROM users WHERE id = $1`,
+        `SELECT role, is_active, session_version,
+                COALESCE(must_rotate_password, FALSE) AS must_rotate_password
+           FROM users
+          WHERE id = $1`,
         [payload.userId],
       );
       const account = canonical.rows[0];
@@ -137,12 +162,25 @@ export function adminAuthOrSetupToken(
         next();
         return;
       }
-      if (payload.type === 'pre_auth_2fa' || payload.type === 'refresh') {
+      if (payload.type !== undefined && payload.type !== 'access') {
         next(createAppError('Invalid authentication token.', 401));
         return;
       }
       if (!ADMIN_TIER.has(account.role)) {
         next(createAppError('Admin role required.', 403));
+        return;
+      }
+      // SEC-042 — a normal admin session must obey the same forced-password
+      // precondition as every other API. The dedicated setup token remains
+      // allowed above because first login intentionally completes TOTP setup
+      // before issuing the rotation-flagged full session.
+      if (account.must_rotate_password === true) {
+        const rotationRequired = createAppError(
+          'Password rotation is required before continuing.',
+          428,
+        );
+        rotationRequired.code = 'password_rotation_required';
+        next(rotationRequired);
         return;
       }
       req.user = {
@@ -168,46 +206,9 @@ export function adminAuthOrSetupToken(
   })();
 }
 
-// BUG-PHASE23-04 fix: pre-fix this used the default in-memory store,
-// which (a) reset counters on every API restart (security regression
-// vs Phase 17's Redis fix for the global limiter), and (b) gave each
-// k8s/ECS replica its own counters → effective limit = N×configured
-// where N is replica count. Use the same Redis-backed store as the
-// global limiter (rate-limit.middleware.ts), with prefix `rl:auth-routes:`
-// to keep counters separate from the global `rl:global:` and the other
-// auth path's `rl:auth:`.
-type RedisStoreOpts = ConstructorParameters<typeof RedisStore>[0];
-function buildAuthRoutesStore(): InstanceType<typeof RedisStore> {
-  const opts = {
-    prefix: 'rl:auth-routes:',
-    sendCommand: (...args: string[]): Promise<unknown> =>
-      (redis as unknown as { call: (...a: string[]) => Promise<unknown> }).call(...args),
-  } as unknown as RedisStoreOpts;
-  return new RedisStore(opts);
-}
-
-const authRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  // Test-mode (staging only, never production) lifts the cap for QA testers.
-  limit: () =>
-    platformConfig.rateLimitsRelaxed
-      ? 1_000_000
-      : Number(process.env.RATE_LIMIT_AUTH_MAX_REQUESTS) || 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: buildAuthRoutesStore(),
-  message: {
-    success: false,
-    error: {
-      message: 'Too many authentication attempts. Please try again later.',
-      statusCode: 429,
-    },
-  },
-});
-
 router.post(
   '/send-otp',
-  authRateLimit,
+  authRateLimitMiddleware,
   validationMiddleware(sendOtpSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -282,7 +283,7 @@ router.post(
 
 router.post(
   '/verify-otp',
-  authRateLimit,
+  authRateLimitMiddleware,
   validationMiddleware(verifyOtpSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -448,38 +449,67 @@ router.patch(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { firstName, lastName } = req.body;
-
-      const sets: string[] = [];
-      const vals: unknown[] = [];
-      let idx = 1;
-
-      if (firstName !== undefined) {
-        sets.push(`first_name = $${idx++}`);
-        vals.push(firstName);
-      }
-      if (lastName !== undefined) {
-        sets.push(`last_name = $${idx++}`);
-        vals.push(lastName);
-      }
-      if (sets.length === 0) {
+      if (firstName === undefined && lastName === undefined) {
         res.status(400).json({ success: false, error: { message: 'No fields to update.', statusCode: 400 } });
         return;
       }
 
-      sets.push(`updated_at = NOW()`);
-      vals.push(req.user!.userId);
+      // OPS-371 — customer/provider identity edits and their before/after
+      // evidence commit together. The dormant response-after-send audit
+      // prototype cannot guarantee this, so the canonical writer owns it.
+      const updated = await db.transaction(async (client) => {
+        const beforeResult = await client.query<UserProfileRow>(
+          `SELECT id, phone, email, first_name, last_name, role, avatar_url,
+                  is_verified, is_active, session_version, created_at
+             FROM users
+            WHERE id = $1
+            FOR UPDATE`,
+          [req.user!.userId],
+        );
+        const before = beforeResult.rows[0];
+        if (!before) throw createAppError('User not found.', 404);
 
-      const result = await db.query<UserProfileRow>(
-        `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx} RETURNING id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at`,
-        vals,
-      );
+        const nextFirstName = firstName ?? before.first_name;
+        const nextLastName = lastName ?? before.last_name;
+        if (nextFirstName === before.first_name && nextLastName === before.last_name) {
+          return before;
+        }
 
-      if (result.rows.length === 0) {
-        res.status(404).json({ success: false, error: { message: 'User not found.', statusCode: 404 } });
-        return;
-      }
+        const updateResult = await client.query<UserProfileRow>(
+          `UPDATE users
+              SET first_name = $1,
+                  last_name = $2,
+                  updated_at = NOW()
+            WHERE id = $3
+          RETURNING id, phone, email, first_name, last_name, role, avatar_url,
+                    is_verified, is_active, session_version, created_at`,
+          [nextFirstName, nextLastName, req.user!.userId],
+        );
+        const row = updateResult.rows[0];
+        if (!row) throw createAppError('User not found.', 404);
 
-      res.json({ success: true, data: formatUserResponse(result.rows[0]!) });
+        const auditResult = await client.query<{ id: string }>(
+          `INSERT INTO audit_log
+             (user_id, action, entity_type, entity_id, old_values, new_values,
+              ip_address, user_agent)
+           VALUES ($1, 'user_profile_updated', 'users', $1, $2::jsonb, $3::jsonb,
+                   $4::inet, $5)
+           RETURNING id`,
+          [
+            req.user!.userId,
+            JSON.stringify({ firstName: before.first_name, lastName: before.last_name }),
+            JSON.stringify({ firstName: row.first_name, lastName: row.last_name }),
+            req.ip ?? null,
+            req.headers['user-agent'] ?? null,
+          ],
+        );
+        if (!auditResult.rows[0]?.id) {
+          throw createAppError('Unable to record the profile change.', 500);
+        }
+        return row;
+      });
+
+      res.json({ success: true, data: formatUserResponse(updated) });
     } catch (error) {
       next(error);
     }
@@ -488,7 +518,7 @@ router.patch(
 
 router.post(
   '/admin/login',
-  authRateLimit,
+  authRateLimitMiddleware,
   // MED-N84 fix — Zod schema replaces the inline manual type checks
   // for consistency with the rest of the routes.
   validationMiddleware(adminLoginSchema),
@@ -496,6 +526,7 @@ router.post(
     try {
       const clientIp = getClientIp(req);
       const { email, password } = req.body;
+      const accountEmail = email.toLowerCase().trim();
 
       // Account-scoped brute-force lockout, independent of source IP. The IP
       // limiter + IP auto-block do nothing against an attacker rotating source
@@ -506,7 +537,6 @@ router.post(
       // relaxed-test flag the same way checkOtpLockout does so QA isn't blocked.
       const ADMIN_LOGIN_LOCKOUT_THRESHOLD = 8;
       if (!platformConfig.rateLimitsRelaxed) {
-        const accountEmail = email.toLowerCase().trim();
         const failed = await db.query<{ count: string }>(
           `SELECT COUNT(*)::text AS count FROM login_attempts
            WHERE phone = $1 AND attempt_type = 'admin_login' AND success = FALSE
@@ -544,12 +574,12 @@ router.post(
                 session_version,
                 COALESCE(must_rotate_password, FALSE) AS must_rotate_password
          FROM users WHERE email = $1 AND role IN ('admin', 'super_admin', 'dpo')`,
-        [email.toLowerCase().trim()],
+        [accountEmail],
       );
 
       if (result.rows.length === 0) {
         await securityService.recordLoginAttempt({
-          phone: email,
+          phone: accountEmail,
           ipAddress: clientIp,
           attemptType: 'admin_login',
           success: false,
@@ -558,7 +588,7 @@ router.post(
         await securityService.logSecurityEvent({
           eventType: 'admin_login_failed',
           ipAddress: clientIp,
-          metadata: { email, reason: 'user_not_found' },
+          metadata: { email: accountEmail, reason: 'user_not_found' },
         });
         throw createAppError('Invalid email or password.', 401);
       }
@@ -577,7 +607,7 @@ router.post(
       const valid = verifyOutcome.valid;
       if (!valid) {
         await securityService.recordLoginAttempt({
-          phone: email,
+          phone: accountEmail,
           ipAddress: clientIp,
           attemptType: 'admin_login',
           success: false,
@@ -587,7 +617,7 @@ router.post(
           userId: user.id,
           eventType: 'admin_login_failed',
           ipAddress: clientIp,
-          metadata: { email, reason: 'invalid_password' },
+          metadata: { email: accountEmail, reason: 'invalid_password' },
         });
         throw createAppError('Invalid email or password.', 401);
       }
@@ -597,7 +627,13 @@ router.post(
       if (verifyOutcome.needsRehash) {
         try {
           const newHash = authService.hashPassword(password);
-          await db.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [newHash, user.id]);
+          // SEC-072: this is an upgrade of the hash we verified, not a new
+          // password choice. A concurrent password replacement (or another
+          // completed upgrade) owns its newer hash and must not be overwritten.
+          await db.query(
+            `UPDATE users SET password_hash = $1 WHERE id = $2 AND password_hash = $3`,
+            [newHash, user.id, user.password_hash],
+          );
         } catch (err) {
           logger.warn('opportunistic password rehash failed', { err: String(err) });
         }
@@ -613,7 +649,7 @@ router.post(
         process.env.ADMIN_DISABLE_2FA === '1' || process.env.ADMIN_DISABLE_2FA === 'true';
       if (twoFaDisabled) {
         logger.warn('ADMIN_DISABLE_2FA is active — admin login is password-only', {
-          email, nodeEnv: process.env.NODE_ENV,
+          email: accountEmail, nodeEnv: process.env.NODE_ENV,
         });
       }
 
@@ -646,7 +682,7 @@ router.post(
           userId: user.id,
           eventType: 'admin_login_2fa_required',
           ipAddress: clientIp,
-          metadata: { email },
+          metadata: { email: accountEmail },
         });
 
         res.json({
@@ -689,7 +725,7 @@ router.post(
           userId: user.id,
           eventType: 'admin_login_2fa_setup_required',
           ipAddress: clientIp,
-          metadata: { email },
+          metadata: { email: accountEmail },
         });
 
         res.json({
@@ -716,7 +752,7 @@ router.post(
       );
 
       await securityService.recordLoginAttempt({
-        phone: email,
+        phone: accountEmail,
         ipAddress: clientIp,
         attemptType: 'admin_login',
         success: true,
@@ -726,7 +762,7 @@ router.post(
         userId: user.id,
         eventType: 'admin_login',
         ipAddress: clientIp,
-        metadata: { email },
+        metadata: { email: accountEmail },
       });
 
       logger.info('Admin login', { userId: user.id, email: user.email });
@@ -763,13 +799,13 @@ router.post(
 // --- Admin 2FA: Verify TOTP code after password login ---
 router.post(
   '/admin/2fa/verify',
-  authRateLimit,
+  authRateLimitMiddleware,
   // MED-N84 fix — Zod schema replaces inline manual checks.
   validationMiddleware(adminTwoFactorVerifySchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const clientIp = getClientIp(req);
-      const { preAuthToken, totpCode } = req.body;
+      const { preAuthToken, totpCode, backupCode } = req.body;
 
       const jwt = await import('jsonwebtoken');
       const secret = process.env.JWT_SECRET;
@@ -792,51 +828,77 @@ router.post(
       // crashed with "value too long for type character varying(15)" —
       // 2FA verify always 500'd on success, blocking admin tier login
       // entirely. Now we pass the user's actual phone (PH format = 13 chars).
-      const userResult = await db.query<{
-        id: string;
-        phone: string | null;
-        totp_secret: string | null;
-        totp_enabled: boolean;
-        role: string;
-        session_version: number | string;
-      }>(
-        `SELECT id, phone, totp_secret, totp_enabled, role, session_version
-           FROM users
-          WHERE id = $1
-            AND role IN ('admin', 'super_admin', 'dpo')
-            AND is_active = TRUE`,
-        [payload.userId],
-      );
+      // OPS-531/532: serialize with account revocation before verifying the
+      // current factor. Recovery use, its audit and login metadata must commit
+      // together; otherwise a refused/failed login can spend a recovery code.
+      const { user, verificationMethod, backupCodesRemaining } = await db.transaction(async client => {
+        const userResult = await client.query<{
+          id: string;
+          phone: string | null;
+          totp_secret: string | null;
+          totp_enabled: boolean;
+          role: string;
+          is_active: boolean;
+          session_version: number | string;
+        }>(
+          `SELECT id, phone, totp_secret, totp_enabled, role, is_active, session_version
+             FROM users
+            WHERE id = $1
+            FOR NO KEY UPDATE`,
+          [payload.userId],
+        );
 
-      if (userResult.rows.length === 0 || !userResult.rows[0]!.totp_secret || !userResult.rows[0]!.totp_enabled) {
-        throw createAppError('2FA not configured for this account.', 400);
-      }
+        const user = userResult.rows[0];
+        const currentVersion = Number(user?.session_version);
+        const proofVersion = Number(payload.sessionVersion ?? 1);
+        if (!user?.is_active || !['admin', 'super_admin', 'dpo'].includes(user.role)
+            || user.role !== payload.role
+            || !Number.isSafeInteger(currentVersion) || currentVersion < 1
+            || !Number.isSafeInteger(proofVersion) || proofVersion < 1
+            || currentVersion !== proofVersion) {
+          throw createAppError('This authentication session has been revoked. Please login again.', 401);
+        }
+        if (!user.totp_secret || !user.totp_enabled) {
+          throw createAppError('2FA not configured for this account.', 400);
+        }
+        let verificationMethod: 'totp' | 'backup_code' = 'totp';
+        let backupCodesRemaining: number | undefined;
+        if (backupCode) {
+          verificationMethod = 'backup_code';
+          const consumed = await adminTwoFactorService.consumeBackupCodeInTransaction(
+            client,
+            user.id,
+            backupCode as string,
+            clientIp,
+          );
+          backupCodesRemaining = consumed.remainingCodes;
+        } else {
+          const decryptedSecret = decryptSecret(user.totp_secret!);
+          // window=2 (±60s) tolerates moderate device clock drift (common on
+          // emulators) without meaningfully weakening 2FA (lockout + rate limit
+          // still bound brute force).
+          const valid = verifyTotp(decryptedSecret, totpCode as string, 2);
+          if (!valid) {
+            await securityService.logSecurityEvent({
+              userId: user.id,
+              eventType: 'admin_2fa_failed',
+              ipAddress: clientIp,
+              metadata: { reason: 'invalid_totp' },
+            });
+            throw createAppError('Invalid verification code. Please try again.', 401);
+          }
+        }
 
-      const user = userResult.rows[0]!;
-      if (user.role !== payload.role
-          || Number(user.session_version) !== Number(payload.sessionVersion ?? 1)) {
-        throw createAppError('This authentication session has been revoked. Please login again.', 401);
-      }
-      const decryptedSecret = decryptSecret(user.totp_secret!);
-      // window=2 (±60s) tolerates moderate device clock drift (common on
-      // emulators) without meaningfully weakening 2FA (lockout + rate limit
-      // still bound brute force).
-      const valid = verifyTotp(decryptedSecret, totpCode, 2);
-      if (!valid) {
-        await securityService.logSecurityEvent({
-          userId: user.id,
-          eventType: 'admin_2fa_failed',
-          ipAddress: clientIp,
-          metadata: { reason: 'invalid_totp' },
-        });
-        throw createAppError('Invalid verification code. Please try again.', 401);
-      }
+        await client.query(
+          `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
+          [user.id],
+        );
+        return { user, verificationMethod, backupCodesRemaining };
+      });
 
-      await db.query(
-        `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
-        [user.id],
-      );
-
+      // Issuance retains its separate current-account/generation check. This
+      // boundary is not durable E68 acknowledgement or atomic cookie delivery;
+      // a later revocation/issuer failure can still follow factor consumption.
       const tokens = await authService.createTokenPair(
         user.id,
         user.role,
@@ -857,7 +919,10 @@ router.post(
         userId: user.id,
         eventType: 'admin_login_2fa_verified',
         ipAddress: clientIp,
-        metadata: {},
+        metadata: {
+          verificationMethod,
+          ...(backupCodesRemaining !== undefined ? { backupCodesRemaining } : {}),
+        },
       });
 
       // LAUNCH-LIMITATIONS #12 — pull must_rotate_password so the
@@ -891,6 +956,7 @@ router.post(
           user: formatUserResponse(fullUser.rows[0]!),
           sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
           mustRotatePassword: fullUser.rows[0]?.must_rotate_password === true,
+          ...(backupCodesRemaining !== undefined ? { backupCodesRemaining } : {}),
         },
       });
     } catch (error) {
@@ -913,31 +979,40 @@ router.post(
         throw createAppError('2FA setup is only available for admin accounts.', 403);
       }
 
-      const userResult = await db.query<{ email: string | null; totp_enabled: boolean }>(
-        `SELECT email, totp_enabled FROM users WHERE id = $1`,
-        [userId],
-      );
+      const { secret, uri } = await db.transaction(async (client) => {
+        // OPS-527/528: authorize the exact earlier proof under the account
+        // lock, then check enrollment state before replacing the pending key.
+        // A delayed request cannot upgrade its authority or undo activation.
+        const userResult = await client.query<{
+          email: string | null; totp_enabled: boolean; role: string;
+          is_active: boolean; session_version: number | string;
+          must_rotate_password: boolean;
+        }>(
+          `SELECT email, totp_enabled, role, is_active, session_version,
+                  COALESCE(must_rotate_password, FALSE) AS must_rotate_password
+             FROM users WHERE id = $1 FOR NO KEY UPDATE`,
+          [userId],
+        );
+        const user = userResult.rows[0];
+        const currentVersion = Number(user?.session_version);
+        if (!user?.is_active || user.role !== role
+            || !Number.isSafeInteger(currentVersion) || currentVersion < 1
+            || currentVersion !== req.user!.sessionVersion) {
+          throw createAppError('This authentication session has been revoked. Please login again.', 401);
+        }
+        if (!req.isSetupToken && user.must_rotate_password) {
+          const rotationRequired = createAppError('Password rotation is required before continuing.', 428);
+          rotationRequired.code = 'password_rotation_required';
+          throw rotationRequired;
+        }
+        if (user.totp_enabled) {
+          throw createAppError('2FA is already enabled. Sign in or contact support for recovery.', 409);
+        }
 
-      if (userResult.rows.length === 0) throw createAppError('User not found.', 404);
-      const user = userResult.rows[0]!;
-
-      if (user.totp_enabled) {
-        throw createAppError('2FA is already enabled. Disable it first to reconfigure.', 409);
-      }
-
-      const secret = generateTotpSecret();
-      const uri = generateTotpUri(secret, user.email ?? userId);
-
-      // MED-N82 fix — pre-fix: encryptedSecret was written via a bare
-      // db.query with no audit trail. 2FA enrollment is a security-
-      // sensitive event (the secret stored is what the admin's
-      // authenticator app will use forever after). Post-fix: UPDATE +
-      // admin_actions audit run in a single transaction. The admin_2fa
-      // CHECK constraint already accepts 'admin_2fa_enrolled' (mig
-      // 087); we re-use it here for the setup-initiated event since
-      // setup is the de-facto enrollment step (verify just confirms).
-      const encryptedSecret = encryptSecret(secret);
-      await db.transaction(async (client) => {
+        const secret = generateTotpSecret();
+        const uri = generateTotpUri(secret, user.email ?? userId);
+        const encryptedSecret = encryptSecret(secret);
+        // MED-N82: pending key and enrollment audit still commit together.
         await client.query(
           `UPDATE users SET totp_secret = $1, totp_enabled = FALSE, updated_at = NOW() WHERE id = $2`,
           [encryptedSecret, userId],
@@ -952,10 +1027,12 @@ router.post(
             JSON.stringify({ phase: 'setup', enabled: false }),
           ],
         );
+        return { secret, uri };
       });
 
       logger.info('Admin 2FA setup initiated', { userId });
 
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json({
         success: true,
         data: {
@@ -989,57 +1066,75 @@ router.post(
         throw createAppError('Verification code is required.', 400);
       }
 
-      const userResult = await db.query<{ totp_secret: string | null; totp_enabled: boolean }>(
-        `SELECT totp_secret, totp_enabled FROM users WHERE id = $1`,
-        [userId],
-      );
+      // OPS-529/530: the earlier authorized account and the key whose code
+      // is verified must remain the same through activation. Lock account
+      // before recovery rows, just as setup locks it before replacing a key.
+      const { backupBundle, canonicalUser } = await db.transaction(async (client) => {
+        const userResult = await client.query<UserProfileRow & {
+          totp_secret: string | null; totp_enabled: boolean; must_rotate_password: boolean;
+        }>(
+          `SELECT id, phone, email, first_name, last_name, role, avatar_url,
+                  is_verified, is_active, created_at, session_version,
+                  totp_secret, totp_enabled,
+                  COALESCE(must_rotate_password, FALSE) AS must_rotate_password
+             FROM users WHERE id = $1 FOR NO KEY UPDATE`,
+          [userId],
+        );
+        const user = userResult.rows[0];
+        const currentVersion = Number(user?.session_version);
+        if (!user?.is_active || user.role !== role
+            || !Number.isSafeInteger(currentVersion) || currentVersion < 1
+            || currentVersion !== req.user!.sessionVersion) {
+          throw createAppError('This authentication session has been revoked. Please login again.', 401);
+        }
+        if (!req.isSetupToken && user.must_rotate_password) {
+          const rotationRequired = createAppError('Password rotation is required before continuing.', 428);
+          rotationRequired.code = 'password_rotation_required';
+          throw rotationRequired;
+        }
+        if (user.totp_enabled) throw createAppError('2FA is already enabled.', 409);
+        if (!user.totp_secret) throw createAppError('Please call /auth/admin/2fa/setup first.', 400);
 
-      if (userResult.rows.length === 0) throw createAppError('User not found.', 404);
-      const user = userResult.rows[0]!;
+        const decryptedEnableSecret = decryptSecret(user.totp_secret);
+        // Preserve the existing ±60s enrollment clock-drift window.
+        if (!verifyTotp(decryptedEnableSecret, totpCode, 2)) {
+          throw createAppError('Invalid verification code. Please try again with a new code from your authenticator app.', 400);
+        }
 
-      if (user.totp_enabled) {
-        throw createAppError('2FA is already enabled.', 409);
-      }
-
-      if (!user.totp_secret) {
-        throw createAppError('Please call /auth/admin/2fa/setup first.', 400);
-      }
-
-      const decryptedEnableSecret = decryptSecret(user.totp_secret);
-      // window=2 (±60s) — tolerate emulator/device clock drift during enrollment.
-      const valid = verifyTotp(decryptedEnableSecret, totpCode, 2);
-      if (!valid) {
-        throw createAppError('Invalid verification code. Please try again with a new code from your authenticator app.', 400);
-      }
-
-      await db.query(
-        `UPDATE users SET totp_enabled = TRUE, updated_at = NOW() WHERE id = $1`,
-        [userId],
-      );
+        // SEC-038: activation and the eight recovery codes still commit
+        // together. A failed recovery write cannot leave an enabled factor.
+        const enabled = await client.query(
+          `UPDATE users
+              SET totp_enabled = TRUE,
+                  updated_at = NOW()
+            WHERE id = $1
+              AND totp_enabled = FALSE`,
+          [userId],
+        );
+        if ((enabled.rowCount ?? 0) !== 1) {
+          throw createAppError('2FA is already enabled.', 409);
+        }
+        const bundle = await adminTwoFactorService.generateBackupCodesInTransaction(client, userId);
+        if (req.isSetupToken) {
+          await client.query(
+            `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
+            [userId],
+          );
+        }
+        return { backupBundle: bundle, canonicalUser: user };
+      });
 
       logger.info('Admin 2FA enabled', { userId });
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
 
       // When enrolment was forced via the pre_auth_2fa_setup token, mint full
       // tokens so the admin completes login in one round-trip instead of being
       // forced to log in again and supply a code.
       if (req.isSetupToken) {
-        // Pull must_rotate_password so a forced-rotation admin is still routed
-        // to /change-password after completing 2FA enrollment in one shot
-        // (matches the /admin/login and /admin/2fa/verify responses; without it
-        // the mandatory rotation was silently skipped on the enroll-then-login
-        // path).
-        const fullUser = await db.query<UserProfileRow & { must_rotate_password: boolean | null }>(
-          `SELECT id, phone, email, first_name, last_name, role, avatar_url, is_verified, is_active, created_at,
-                  session_version,
-                  COALESCE(must_rotate_password, FALSE) AS must_rotate_password
-             FROM users WHERE id = $1`,
-          [userId],
-        );
-        await db.query(
-          `UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`,
-          [userId],
-        );
-        const canonicalUser = fullUser.rows[0]!;
+        // Bind issuance to the account authorized above, not a later read
+        // that could upgrade an old proof to a new role/session generation.
+        // Issuance still independently rejects revocation after activation.
+        // Interrupted delivery/acknowledgement remains the E68 workflow.
         const tokens = await authService.createTokenPair(
           userId,
           canonicalUser.role,
@@ -1059,9 +1154,11 @@ router.post(
           success: true,
           data: {
             message: 'Two-factor authentication is now enabled.',
-            user: formatUserResponse(fullUser.rows[0]!),
-            mustRotatePassword: fullUser.rows[0]?.must_rotate_password === true,
+            user: formatUserResponse(canonicalUser),
+            mustRotatePassword: canonicalUser.must_rotate_password === true,
             sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
+            backupCodes: backupBundle.codes,
+            backupCodesGeneratedAt: backupBundle.generatedAt,
           },
         });
         return;
@@ -1069,7 +1166,11 @@ router.post(
 
       res.json({
         success: true,
-        data: { message: 'Two-factor authentication is now enabled.' },
+        data: {
+          message: 'Two-factor authentication is now enabled.',
+          backupCodes: backupBundle.codes,
+          backupCodesGeneratedAt: backupBundle.generatedAt,
+        },
       });
     } catch (error) {
       next(error);
@@ -1164,7 +1265,7 @@ router.post(
   },
 );
 
-// --- Admin 2FA: Disable ---
+// --- Admin 2FA: Disable (launch-held) ---
 router.post(
   '/admin/2fa/disable',
   authMiddleware,
@@ -1172,44 +1273,23 @@ router.post(
   validationMiddleware(adminTwoFactorDisableSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const userId = req.user!.userId;
       const role = req.user!.role;
-      const { totpCode } = req.body;
 
       // E01 / D15 — admin tier (admin, super_admin, dpo) all manage 2FA.
       if (role !== 'admin' && role !== 'super_admin' && role !== 'dpo') {
         throw createAppError('2FA is only available for admin accounts.', 403);
       }
 
-      const userResult = await db.query<{ totp_secret: string | null; totp_enabled: boolean }>(
-        `SELECT totp_secret, totp_enabled FROM users WHERE id = $1`,
-        [userId],
+      // SEC-043 — factor removal is a privileged-account recovery transition,
+      // not a profile toggle. Keep the public route fail-closed until the
+      // governed recovery authority, audit, session revocation, and last-seat
+      // invariants are approved. No account or factor state is read or written.
+      const held = createAppError(
+        'Administrator recovery changes are unavailable until the governed recovery workflow is enabled.',
+        409,
       );
-
-      if (userResult.rows.length === 0) throw createAppError('User not found.', 404);
-      const user = userResult.rows[0]!;
-
-      if (!user.totp_enabled || !user.totp_secret) {
-        throw createAppError('2FA is not currently enabled.', 400);
-      }
-
-      const decryptedDisableSecret = decryptSecret(user.totp_secret);
-      const valid = verifyTotp(decryptedDisableSecret, totpCode);
-      if (!valid) {
-        throw createAppError('Invalid verification code.', 401);
-      }
-
-      await db.query(
-        `UPDATE users SET totp_secret = NULL, totp_enabled = FALSE, updated_at = NOW() WHERE id = $1`,
-        [userId],
-      );
-
-      logger.info('Admin 2FA disabled', { userId });
-
-      res.json({
-        success: true,
-        data: { message: 'Two-factor authentication has been disabled.' },
-      });
+      held.code = 'privileged_recovery_policy_required';
+      throw held;
     } catch (error) {
       next(error);
     }

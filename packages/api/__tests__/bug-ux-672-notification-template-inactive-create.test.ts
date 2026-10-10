@@ -41,6 +41,7 @@ it('Bug UX-672 — creating an inactive notification template persists the inact
     type: 'system',
     channel: 'in_app',
     isActive: false,
+    reason: 'Creating reviewed reference notification copy.',
   });
 
   const insertCall = clientQueryMock.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO notification_templates'));

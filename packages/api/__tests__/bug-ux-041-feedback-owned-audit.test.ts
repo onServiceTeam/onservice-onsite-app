@@ -19,7 +19,12 @@ import { updateFeedbackTriage } from '../src/services/feedback-admin.service';
 
 it('Bug UX-041 — assigns and audit-logs tester feedback triage in one transaction', async () => {
   clientQueryMock
-    .mockResolvedValueOnce({ rows: [{ status: 'new', assigned_admin_id: null, triage_note: null }] })
+    .mockResolvedValueOnce({ rows: [{
+      status: 'new',
+      assigned_admin_id: null,
+      triage_note: null,
+      updated_at: '2026-08-24T00:00:00.000Z',
+    }] })
     .mockResolvedValueOnce({ rows: [{ id: '22222222-2222-2222-2222-222222222222' }] })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 });
@@ -52,12 +57,14 @@ it('Bug UX-041 — assigns and audit-logs tester feedback triage in one transact
     status: 'triaged',
     assignedAdminId: '22222222-2222-2222-2222-222222222222',
     note: 'Verified and linked to provider checklist work.',
+    expectedUpdatedAt: '2026-08-24T00:00:00.000Z',
   });
 
   expect(result.assignedAdminName).toBe('Ana Reyes');
   expect(transactionMock).toHaveBeenCalledTimes(1);
   expect(clientQueryMock.mock.calls[1]?.[0]).toMatch(/role IN \('admin', 'super_admin'\)/);
   expect(clientQueryMock.mock.calls[2]?.[0]).toMatch(/UPDATE feedback_submissions/);
+  expect(clientQueryMock.mock.calls[2]?.[0]).toMatch(/GREATEST\(clock_timestamp\(\), updated_at \+ INTERVAL '1 millisecond'\)/);
   expect(clientQueryMock.mock.calls[3]?.[0]).toMatch(/INSERT INTO audit_log/);
   expect(clientQueryMock.mock.calls[3]?.[1]).toEqual([
     '33333333-3333-3333-3333-333333333333',

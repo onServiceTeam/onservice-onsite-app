@@ -13,6 +13,7 @@ import {
   providerServiceAreaChangeSchema,
 } from '../validators/provider.validators';
 import * as providerService from '../services/provider.service';
+import * as applicationDraftService from '../services/provider-application-draft.service';
 import * as uploadService from '../services/upload.service';
 import * as providerCrmService from '../services/provider-crm.service';
 import { addClientNoteSchema, addReminderSchema, createTemplateSchema } from '../validators/provider-crm.validators';
@@ -22,10 +23,36 @@ import * as providerToolsService from '../services/provider-tools.service';
 import * as providerStaffService from '../services/provider-staff.service';
 import * as kycDocumentService from '../services/kyc-document.service';
 import * as settingsService from '../services/settings.service';
+import * as financialTermsService from '../services/booking-financial-terms.service';
 import * as serviceAreaChangeService from '../services/service-area-change.service';
 import { createAppError } from '../middleware/error.middleware';
+import { privateResponse } from '../middleware/private-response.middleware';
 
 const router = Router();
+// Every provider route currently requires an account, including profile reads.
+// Set policy before auth so signed-link, metadata and error responses agree.
+router.use(privateResponse);
+
+// Self-scoped draft access, deliberately before /:id. No operator override:
+// draft data is not submitted review evidence and must not enter the queue.
+router.route('/application-draft')
+  .all(authMiddleware)
+  .get(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      res.json({ success: true, data: await applicationDraftService.getApplicationDraft(req.user!.userId) });
+    } catch (error) { next(error); }
+  })
+  .put(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      res.json({ success: true, data: await applicationDraftService.saveApplicationDraft(req.user!.userId, req.body) });
+    } catch (error) { next(error); }
+  })
+  .delete(async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      await applicationDraftService.deleteApplicationDraft(req.user!.userId, req.body);
+      res.status(204).send();
+    } catch (error) { next(error); }
+  });
 
 function requireProvider(req: AuthenticatedRequest): void {
   if (req.user!.role !== 'provider' && req.user!.role !== 'admin') {
@@ -50,6 +77,7 @@ router.post(
         );
       }
       const provider = await providerService.createProviderApplication(req.user!.userId, {
+        draftRevision: req.body.draftRevision,
         businessName: req.body.businessName,
         categoryIds: req.body.categoryIds,
         serviceAreaId: req.body.serviceAreaId,
@@ -155,22 +183,25 @@ router.get(
     try {
       requireProvider(req);
       const provider = await providerService.getProviderByUserId(req.user!.userId);
-      const [services, schedule, ratings, portfolio, certifications, commissionRate] = await Promise.all([
+      const [services, schedule, ratings, portfolio, certifications, commissionPreview] = await Promise.all([
         providerService.getProviderServices(provider.id),
         providerService.getSchedule(provider.id),
         reviewService.getProviderAggregateRating(provider.id),
         providerService.getPortfolio(provider.id),
         providerService.getCertifications(provider.id),
-        settingsService.getCommissionRate(provider.tier),
+        financialTermsService.getCurrentProviderCommissionPreview(provider.id),
       ]);
 
       res.json({
         success: true,
         data: {
           ...providerService.formatProvider(provider),
-          // UX-128 — provider money previews use the same live, admin-tunable
-          // rate as escrow release instead of a mobile fallback table.
-          commissionRate,
+          // UX-128 — provider money previews use the current effective
+          // agreement instead of a mobile fallback table. Booking-specific
+          // previews use immutable terms once that booking is fixed.
+          commissionRate: commissionPreview.commissionRate,
+          commissionRateBasisPoints: commissionPreview.commissionRateBasisPoints,
+          commissionSource: commissionPreview.commissionSource,
           services: services.map(providerService.formatProviderService),
           schedule: schedule.map(providerService.formatScheduleSlot),
           ratings,
@@ -178,6 +209,40 @@ router.get(
           certifications: certifications.map(providerService.formatCertification),
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/me/commission-preview',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const bookingId = typeof req.query.bookingId === 'string' ? req.query.bookingId : '';
+      if (!bookingId) throw createAppError('bookingId is required.', 400);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const preview = await financialTermsService.getBookingCommissionPreview(provider.id, bookingId);
+      res.json({ success: true, data: { ...preview, tier: preview.providerTier } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// D23 team management uses a literal single-segment URL. Keep this before
+// /:id so the provider profile reader cannot consume "staff" as a UUID.
+router.get(
+  '/staff',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const provider = await providerService.getProviderByUserId(req.user!.userId);
+      const data = await providerStaffService.listStaffWithPerformance(provider.id);
+      res.json({ success: true, data });
     } catch (error) {
       next(error);
     }
@@ -1055,6 +1120,27 @@ router.get(
   },
 );
 
+router.get(
+  '/me/job-requests/:bookingId',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      const bookingId = req.params['bookingId'];
+      if (!bookingId || typeof bookingId !== 'string') {
+        throw createAppError('bookingId is required.', 400);
+      }
+      const request = await jobLeadsService.getOpenJobRequestForProvider(
+        req.user!.userId,
+        bookingId,
+      );
+      res.json({ success: true, data: request });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 // --- Provider Tools: Materials List Generator ---
 
 router.get(
@@ -1128,21 +1214,6 @@ router.get(
 // ─── Team / staff (D23) ───────────────────────────────────────────────────────
 // The provider owner manages their own team. Members go to back-office review
 // (admin Staff tab) before they can be assigned jobs.
-
-router.get(
-  '/staff',
-  authMiddleware,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    try {
-      requireProvider(req);
-      const provider = await providerService.getProviderByUserId(req.user!.userId);
-      const data = await providerStaffService.listStaffWithPerformance(provider.id);
-      res.json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
 
 router.post(
   '/staff',

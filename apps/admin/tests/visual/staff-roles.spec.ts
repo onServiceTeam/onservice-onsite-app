@@ -94,7 +94,7 @@ async function mockStaffDirectory(page: Page, mode: DirectoryMode): Promise<void
 }
 
 test.describe('StaffRolesPage', () => {
-  for (const width of [1280, 1440, 1920]) {
+  for (const width of [820, 1024, 1280, 1440, 1920]) {
     test.describe(`@${width}`, () => {
       test.use({ viewport: { width, height: 800 } });
 
@@ -132,7 +132,8 @@ test.describe('StaffRolesPage', () => {
       test('error state', async ({ page }) => {
         await mockStaffDirectory(page, 'error');
         await page.goto(ROUTE);
-        await expect(page.getByText('Failed to load staff members. Please try again.')).toBeVisible();
+        await expect(page.getByText('Staff directory data is unavailable. Do not rely on the counts or results until this source recovers.')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Retry staff directory' })).toBeVisible();
         await expect(page.getByText('Loading staff directory...')).toHaveCount(0);
         await expect(page).toHaveScreenshot(`staff-roles-error-${width}.png`, {
           fullPage: true,

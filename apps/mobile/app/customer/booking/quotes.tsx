@@ -149,6 +149,13 @@ export default function QuotesScreen(): React.ReactElement {
     mutationFn: (quoteId: string) => acceptQuote(bookingId ?? '', quoteId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['bookingQuotes', bookingId] });
+      // OPS-559: the booking is now payment_pending. Reset the cached copy
+      // (still 'quoted'): the pay screen then loads it fresh instead of
+      // showing "not awaiting payment", and the booking screen still open
+      // underneath refetches it too. Refresh the booking lists as well.
+      void queryClient.resetQueries({ queryKey: ['booking', bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      void queryClient.invalidateQueries({ queryKey: ['activeBookings'] });
       // BUG-PHASE86-01 — pre-fix this routed to /customer/booking/[id]
       // but that screen had no payment action for status='payment_
       // pending', so the customer was stuck. Now route directly to

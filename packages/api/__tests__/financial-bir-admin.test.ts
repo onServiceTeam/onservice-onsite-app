@@ -1583,13 +1583,24 @@ describe('escrow → orService.issueOR hook', () => {
     jest.doMock('../src/utils/logger', () => ({ logger: loggerMock }));
     jest.doMock('../src/services/wallet.service', () => ({
       getPlatformWallet: jest.fn().mockResolvedValue({ id: 'plat-w' }),
-      getUserWallet: jest.fn().mockResolvedValue({ id: 'user-w' }),
+      getUserWalletInTransaction: jest.fn().mockResolvedValue({ id: 'user-w' }),
       // A5 — releaseEscrow now row-locks the wallets up front (no-op here).
       lockWalletsForUpdate: jest.fn(),
     }));
-    jest.doMock('../src/services/settings.service', () => ({
-      getCommissionRate: jest.fn().mockResolvedValue(0.1),
-      getSettingPercent: jest.fn().mockResolvedValue(0.5),
+    jest.doMock('../src/services/booking-financial-terms.service', () => ({
+      getLatestTermsInTransaction: jest.fn().mockResolvedValue({
+        version: 1,
+        providerId: PROVIDER_ID,
+        servicePriceCentavos: 10000,
+        serviceFeeAmountCentavos: 1200,
+        totalAmountCentavos: 11200,
+        commissionRateBasisPoints: 1000,
+        commissionAmountCentavos: 1000,
+        providerReceivesCentavos: 9000,
+        platformRetainsCentavos: 1600,
+        serviceFeeRateBasisPoints: 1000,
+        guaranteeFundAmountCentavos: 600,
+      }),
     }));
     jest.doMock('../src/services/or.service', () => ({
       issueOR: opts.issueORImpl,
@@ -1599,9 +1610,11 @@ describe('escrow → orService.issueOR hook', () => {
   }
 
   function setupReleaseQueries(): void {
-    dbQueryMock
-      .mockResolvedValueOnce(
-        rows([
+    dbTransactionMock.mockImplementationOnce(async (cb: TxCallback<unknown>) => {
+      const client = {
+        query: jest.fn(async (sql: string) => {
+          if (/FROM bookings b WHERE b\.id = \$1 FOR UPDATE/.test(sql)) {
+            return rows([
           {
             id: BOOKING_ID,
             customer_id: CUSTOMER_ID,
@@ -1610,15 +1623,22 @@ describe('escrow → orService.issueOR hook', () => {
             service_fee: '1200',
             total_amount: '11200',
             status: 'confirmed',
+            escrow_status: 'held',
             scheduled_at: new Date('2026-04-15T05:00:00Z'),
           },
-        ]),
-      )
-      .mockResolvedValueOnce(rows([{ user_id: 'u1', tier: 'verified' }]));
-    dbTransactionMock.mockImplementationOnce(async (cb: TxCallback<unknown>) => {
-      const client = {
-        query: jest.fn(async (sql: string) => {
+            ]);
+          }
+          if (/SELECT user_id FROM providers/.test(sql)) return rows([{ user_id: 'u1' }]);
+          if (/FROM wallets[\s\S]*type = ANY/.test(sql)) {
+            return rows([
+              { id: 'plat-w', type: 'platform_escrow' },
+              { id: 'revenue-w', type: 'platform_revenue' },
+              { id: 'guarantee-w', type: 'guarantee_fund' },
+            ]);
+          }
           if (/UPDATE bookings/.test(sql)) return rows([{ id: BOOKING_ID }]);
+          if (/SELECT pending_balance/.test(sql)) return rows([{ pending_balance: '11200' }]);
+          if (/COALESCE\(SUM\(amount\), 0\)/.test(sql)) return rows([{ remaining: '11200' }]);
           return rows([]);
         }),
       };

@@ -1,0 +1,35 @@
+{
+  "evidence": "Compiled browser with synthetic HTTP and identity. Not actual database, live deployment, admin acceptance, native or Stitch signoff.",
+  "sourceRevision": "0b96afe5e4af75f3b94182ce00e01c03b7c118ae",
+  "indexSha256": "553b7c91f2b9bf6c9406949fb3ef9b1e21b8e0626c8ce6c04c494916c92e5481",
+  "generatedAt": "2026-09-05T19:13:16.512Z",
+  "expectedFlows": 6,
+  "flows": 1,
+  "passed": 0,
+  "results": [
+    {
+      "width": 320,
+      "passed": false,
+      "screens": [
+        {
+          "step": "01-role",
+          "path": "/provider-onboarding/role-select",
+          "overflow": 0,
+          "screenshot": "320-01-role.png"
+        }
+      ],
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/catalog",
+        "GET /api/v1/providers/application-draft"
+      ],
+      "pageErrors": [],
+      "consoleErrors": [],
+      "unmatched": [],
+      "assertions": [],
+      "error": "locator.fill: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('e.g. Juan\\'s Plumbing')\u001b[22m\n",
+      "failedPath": "/provider-onboarding/role-select",
+      "failedText": "CHOOSE YOUR WORKSPACE\nHow would you like to use onService?\nBook services now, or begin the reviewed provider application while keeping customer access during review.\nI need services\nBook trusted professionals for cleaning, plumbing, electrical, and more.\n→\nI provide services\nRegister as a service provider and start earning. NBI clearance and ID required.\n→"
+    }
+  ]
+}

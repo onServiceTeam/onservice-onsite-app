@@ -22,6 +22,7 @@ it('Bug UX-686 — campaigns use configured channels and cannot masquerade as a 
       totalSpendCentavos: 0, totalSignups: 0, totalRevenueCentavos: 0,
       aggregateCpaCentavos: 0, aggregateRoiPercent: 0, channelBreakdown: [],
     } } });
+    if (url.endsWith('/campaigns/channels')) return Promise.resolve({ data: { data: ['tiktok_ads', 'community_partnership'] } });
     if (url.endsWith('/channels')) return Promise.resolve({ data: { data: ['tiktok_ads', 'community_partnership'] } });
     if (url.endsWith('/campaigns')) return Promise.resolve({ data: { data: { rows: [{
       id: 'campaign-1', name: 'Cebu launch', channel: 'tiktok_ads',

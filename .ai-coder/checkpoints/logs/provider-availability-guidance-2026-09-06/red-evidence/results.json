@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-09-05T22:42:05.355Z",
+  "sourceRevision": "39f5c78ba683c537c38842700978da11123420d0 mobile source, before UX-1347 through UX-1349",
+  "guidanceChecks": true,
+  "scope": "Compiled provider availability layout, block/custom form payload and refreshed list with synthetic HTTP. Not actual persistence, matching, production, native or complete Stitch acceptance.",
+  "indexSha256": "c0516400689d471b9fed4825a684d883ca3ae5805225ed568e10ac58d808121b",
+  "entrySha256": "309311ab64556bd61ced089814325d8a9ed1f97ebd6bac982ef57e9579dc3194",
+  "expected": 12,
+  "passed": 0,
+  "records": [
+    {
+      "width": 320,
+      "mode": "block",
+      "passed": false,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/providers/me/availability/status",
+        "GET /api/v1/providers/me/availability/overrides"
+      ],
+      "writes": [],
+      "captures": [],
+      "unexpected": [],
+      "pageErrors": [],
+      "error": "expect(locator).toBeVisible() failed\n\nLocator: getByText('Automatic job matching is paused. Your profile may still appear in search.', { exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"to.be.visible\" with timeout 5000ms\n  - waiting for getByText('Automatic job matching is paused. Your profile may still appear in search.', { exact: true })\n"
+    }
+  ]
+}

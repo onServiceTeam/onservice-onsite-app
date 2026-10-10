@@ -1,0 +1,1174 @@
+{
+  "sourceRevision": "306ca0ed5e5dd7afdcd58ea81e2190dc98952a9e plus customer-root identity isolation",
+  "createdAt": "2026-09-06T00:48:16.649Z",
+  "evidenceType": "compiled admin browser with synthetic HTTP; not authenticated live acceptance",
+  "indexSha256": "26c66db2b40a9b633792f12936f4415a2c12cde620497d41ef683b95f8e6123b",
+  "customerPageSha256": "ffc211d6b4a9ead04bdd2f68fa69ec81c3f6ac949f0a19fa342571fa82772894",
+  "checks": [
+    {
+      "width": 320,
+      "scenario": "reveal",
+      "captures": [
+        "320-reveal-alpha.png",
+        "320-reveal-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "scenario": "delayed-reveal",
+      "captures": [
+        "320-delayed-reveal-alpha.png",
+        "320-delayed-reveal-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "scenario": "wallet",
+      "captures": [
+        "320-wallet-alpha.png",
+        "320-wallet-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/payments"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/payments"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "scenario": "status",
+      "captures": [
+        "320-status-alpha.png",
+        "320-status-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "scenario": "session",
+      "captures": [
+        "320-session-alpha.png",
+        "320-session-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 320,
+      "scenario": "fraud",
+      "captures": [
+        "320-fraud-alpha.png",
+        "320-fraud-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/disputes"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/disputes"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "scenario": "reveal",
+      "captures": [
+        "390-reveal-alpha.png",
+        "390-reveal-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "scenario": "delayed-reveal",
+      "captures": [
+        "390-delayed-reveal-alpha.png",
+        "390-delayed-reveal-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "scenario": "wallet",
+      "captures": [
+        "390-wallet-alpha.png",
+        "390-wallet-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/payments"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/payments"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "scenario": "status",
+      "captures": [
+        "390-status-alpha.png",
+        "390-status-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "scenario": "session",
+      "captures": [
+        "390-session-alpha.png",
+        "390-session-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 390,
+      "scenario": "fraud",
+      "captures": [
+        "390-fraud-alpha.png",
+        "390-fraud-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/disputes"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/disputes"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "scenario": "reveal",
+      "captures": [
+        "768-reveal-alpha.png",
+        "768-reveal-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "scenario": "delayed-reveal",
+      "captures": [
+        "768-delayed-reveal-alpha.png",
+        "768-delayed-reveal-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "scenario": "wallet",
+      "captures": [
+        "768-wallet-alpha.png",
+        "768-wallet-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/payments"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/payments"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "scenario": "status",
+      "captures": [
+        "768-status-alpha.png",
+        "768-status-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "scenario": "session",
+      "captures": [
+        "768-session-alpha.png",
+        "768-session-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 768,
+      "scenario": "fraud",
+      "captures": [
+        "768-fraud-alpha.png",
+        "768-fraud-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/disputes"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/disputes"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "reveal",
+      "captures": [
+        "1024-reveal-alpha.png",
+        "1024-reveal-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "delayed-reveal",
+      "captures": [
+        "1024-delayed-reveal-alpha.png",
+        "1024-delayed-reveal-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "wallet",
+      "captures": [
+        "1024-wallet-alpha.png",
+        "1024-wallet-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/payments"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/payments"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "status",
+      "captures": [
+        "1024-status-alpha.png",
+        "1024-status-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "session",
+      "captures": [
+        "1024-session-alpha.png",
+        "1024-session-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1024,
+      "scenario": "fraud",
+      "captures": [
+        "1024-fraud-alpha.png",
+        "1024-fraud-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/disputes"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/disputes"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "reveal",
+      "captures": [
+        "1366-reveal-alpha.png",
+        "1366-reveal-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "delayed-reveal",
+      "captures": [
+        "1366-delayed-reveal-alpha.png",
+        "1366-delayed-reveal-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "wallet",
+      "captures": [
+        "1366-wallet-alpha.png",
+        "1366-wallet-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/payments"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/payments"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "status",
+      "captures": [
+        "1366-status-alpha.png",
+        "1366-status-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "session",
+      "captures": [
+        "1366-session-alpha.png",
+        "1366-session-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1366,
+      "scenario": "fraud",
+      "captures": [
+        "1366-fraud-alpha.png",
+        "1366-fraud-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/disputes"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/disputes"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "reveal",
+      "captures": [
+        "1920-reveal-alpha.png",
+        "1920-reveal-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "delayed-reveal",
+      "captures": [
+        "1920-delayed-reveal-alpha.png",
+        "1920-delayed-reveal-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/reveal-contact"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/reveal-contact"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "wallet",
+      "captures": [
+        "1920-wallet-alpha.png",
+        "1920-wallet-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/payments"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/payments"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "status",
+      "captures": [
+        "1920-status-alpha.png",
+        "1920-status-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "session",
+      "captures": [
+        "1920-session-alpha.png",
+        "1920-session-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    },
+    {
+      "width": 1920,
+      "scenario": "fraud",
+      "captures": [
+        "1920-fraud-alpha.png",
+        "1920-fraud-beta.png"
+      ],
+      "readsBefore": 1,
+      "readsAfter": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/me"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/dddddddd-dddd-4ddd-8ddd-dddddddddddd/disputes"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/customers/cccccccc-cccc-4ccc-8ccc-cccccccccccc/disputes"
+        }
+      ],
+      "unexpected": [],
+      "errors": [],
+      "documentOverflow": 0
+    }
+  ],
+  "failure": null
+}

@@ -2,6 +2,7 @@
 //
 // MED-N75: approveProvider now refuses approval if any of nbi_clearance_url,
 // government_id_front_url, selfie_url is null on the providers row.
+// OPS-479 extends this to ID back and checks inside the decision transaction.
 // MED-N74: changeProviderTier now whitelists the 5 valid tiers
 // (founding | new | verified | pro | elite) matching the migration 073
 // CHECK constraint.
@@ -12,6 +13,7 @@
 
 const dbQueryMock = jest.fn();
 const dbTransactionMock = jest.fn();
+const approvalClientQueryMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({
   db: {
@@ -27,8 +29,11 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 import * as adminService from '../src/services/admin.service';
+import { mockDecisionLocks, mockRevision, mockRevisionId } from './helpers/provider-decision-mock';
+import * as escrowService from '../src/services/escrow.service';
 
 const APPROVAL_REVIEW = {
+  expectedRevisionId: mockRevisionId,
   reason: 'All provider identity and qualification checks passed.',
   checklistConfirmed: true,
   checklistSummary: 'Vetting checklist confirmed (10/10): all required review items passed.',
@@ -38,13 +43,20 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
   beforeEach(() => {
     dbQueryMock.mockReset();
     dbTransactionMock.mockReset();
+    approvalClientQueryMock.mockReset();
+    approvalClientQueryMock.mockImplementation(async (sql: string) => sql.includes('FROM provider_application_revisions r')
+      ? mockRevision('id-front.png', 'id-back.png', 'nbi.pdf', 'selfie.png') : { rows: [], rowCount: 1 });
+    dbTransactionMock.mockImplementation(async (callback: (client: { query: (sql: string, params?: unknown[]) => unknown }) => Promise<unknown>) =>
+      callback({ query: (sql, params) => mockDecisionLocks(sql, 'u-1') ?? approvalClientQueryMock(sql, params) }));
   });
 
   it('refuses approval when nbi_clearance_url is null', async () => {
-    dbQueryMock.mockResolvedValueOnce({
+    approvalClientQueryMock.mockResolvedValueOnce({
       rows: [{
+        status: 'pending',
         nbi_clearance_url: null,
         government_id_front_url: 'https://s3/id-front.png',
+        government_id_back_url: 'https://s3/id-back.png',
         selfie_url: 'https://s3/selfie.png',
       }],
     });
@@ -53,49 +65,49 @@ describe('MED-N75 — approveProvider refuses approval when KYC docs are missing
         statusCode: 400,
         message: expect.stringMatching(/missing KYC documents.*nbi_clearance_url/),
       });
-    // Transaction must NOT have run.
-    expect(dbTransactionMock).not.toHaveBeenCalled();
+    // After the two lock-fixture reads, only KYC/revision validation runs;
+    // no writes may follow it. Real lock behavior is covered by OPS-518/519.
+    expect(approvalClientQueryMock).toHaveBeenCalledTimes(2);
+    expect(dbQueryMock).not.toHaveBeenCalled();
   });
 
   it('refuses approval when multiple KYC fields are null and lists all of them', async () => {
-    dbQueryMock.mockResolvedValueOnce({
+    approvalClientQueryMock.mockResolvedValueOnce({
       rows: [{
+        status: 'pending',
         nbi_clearance_url: null,
         government_id_front_url: null,
+        government_id_back_url: null,
         selfie_url: null,
       }],
     });
     await expect(adminService.approveProvider('p-1', 'admin-1', APPROVAL_REVIEW))
       .rejects.toMatchObject({
         statusCode: 400,
-        message: expect.stringContaining('nbi_clearance_url, government_id_front_url, selfie_url'),
+        message: expect.stringContaining('nbi_clearance_url, government_id_front_url, government_id_back_url, selfie_url'),
       });
   });
 
-  it('proceeds with approval when all 3 KYC fields are present', async () => {
+  it('proceeds with approval when all 4 KYC fields are present', async () => {
     // KYC SELECT returns all-present.
-    dbQueryMock.mockResolvedValueOnce({
+    approvalClientQueryMock.mockResolvedValueOnce({
       rows: [{
+        status: 'pending',
         nbi_clearance_url: 'https://s3/nbi.pdf',
         government_id_front_url: 'https://s3/id-front.png',
+        government_id_back_url: 'https://s3/id-back.png',
         selfie_url: 'https://s3/selfie.png',
       }],
     });
-    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
-      const clientQuery = jest.fn(async (sql: string) => {
-        if (/UPDATE providers/.test(sql)) return { rows: [{ id: 'p-1', user_id: 'u-1' }], rowCount: 1 };
-        return { rows: [{ user_id: 'u-1' }], rowCount: 1 };
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (cb as any)({ query: clientQuery });
-    });
+    approvalClientQueryMock.mockResolvedValueOnce(mockRevision('id-front.png', 'id-back.png', 'nbi.pdf', 'selfie.png'));
+    approvalClientQueryMock.mockResolvedValueOnce({ rows: [{ id: 'p-1', user_id: 'u-1' }], rowCount: 1 });
 
     await expect(adminService.approveProvider('p-1', 'admin-1', APPROVAL_REVIEW)).resolves.toBeUndefined();
     expect(dbTransactionMock).toHaveBeenCalled();
   });
 
   it('throws 404 when provider does not exist', async () => {
-    dbQueryMock.mockResolvedValueOnce({ rows: [] });
+    approvalClientQueryMock.mockResolvedValueOnce({ rows: [] });
     await expect(adminService.approveProvider('does-not-exist', 'admin-1', APPROVAL_REVIEW))
       .rejects.toMatchObject({ statusCode: 404 });
   });
@@ -154,6 +166,8 @@ describe('MED-N73 — suspendProvider flags in-flight bookings', () => {
     dbTransactionMock.mockImplementationOnce(async (cb: unknown) => {
       const clientQuery = jest.fn(async (sql: string, params: unknown[] = []) => {
         txCalls.push({ sql, params });
+        const lock = mockDecisionLocks(sql, 'u-1');
+        if (lock) return lock;
         if (/UPDATE providers/.test(sql)) return { rows: [{ id: 'p-1', user_id: 'u-1' }], rowCount: 1 };
         if (/UPDATE bookings/.test(sql)) return { rows: [{ id: 'b-1' }, { id: 'b-2' }], rowCount: 2 };
         return { rows: [], rowCount: 1 };
@@ -180,30 +194,43 @@ describe('MED-N73 — suspendProvider flags in-flight bookings', () => {
 });
 
 describe('MED-N73 — escrow.service refuses to release when the booking flag is set', () => {
+  it('blocks both standalone and composed releases before any wallet or terms work', async () => {
+    const suspendedBooking = {
+      id: 'booking-med-n73',
+      customer_id: 'customer-med-n73',
+      provider_id: 'provider-med-n73',
+      service_price: '10000',
+      service_fee: '1000',
+      total_amount: '11000',
+      status: 'confirmed',
+      escrow_status: 'held',
+      scheduled_at: new Date(),
+      provider_suspended_during_booking_at: new Date(),
+    };
+    const standaloneClient = {
+      query: jest.fn().mockResolvedValue({ rows: [suspendedBooking], rowCount: 1 }),
+    };
+    dbTransactionMock.mockImplementationOnce(async (cb: unknown) => (
+      cb as (client: typeof standaloneClient) => Promise<unknown>
+    )(standaloneClient));
 
-  const { readFileSync } = require('fs');
+    await expect(escrowService.releaseEscrow('booking-med-n73')).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringMatching(/provider was suspended/i),
+    });
+    expect(standaloneClient.query).toHaveBeenCalledTimes(1);
+    expect(standaloneClient.query.mock.calls[0]![0]).toContain('provider_suspended_during_booking_at');
 
-  const { resolve } = require('path');
-  const ESCROW = readFileSync(
-    resolve(__dirname, '../src/services/escrow.service.ts'),
-    'utf8',
-  );
-
-  it('releaseEscrow SELECTs the suspension flag column', () => {
-    expect(ESCROW).toMatch(/provider_suspended_during_booking_at/);
-  });
-
-  it('releaseEscrow throws 409 when the flag is non-null', () => {
-    // Find the guard block.
-    expect(ESCROW).toMatch(
-      /provider_suspended_during_booking_at != null[\s\S]{0,300}'Cannot release escrow.*?provider was suspended/,
-    );
-  });
-
-  it('releaseEscrowInTransaction has the same guard (covers booking-confirmation path)', () => {
-    // Both functions must guard, since confirmation flow uses the
-    // transactional variant.
-    const guardOccurrences = (ESCROW.match(/provider_suspended_during_booking_at != null/g) ?? []).length;
-    expect(guardOccurrences).toBeGreaterThanOrEqual(2);
+    const composedClient = {
+      query: jest.fn().mockResolvedValue({ rows: [suspendedBooking], rowCount: 1 }),
+    };
+    await expect(
+      escrowService.releaseEscrowInTransaction(composedClient, 'booking-med-n73'),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringMatching(/provider was suspended/i),
+    });
+    expect(composedClient.query).toHaveBeenCalledTimes(1);
+    expect(composedClient.query.mock.calls[0]![0]).toContain('provider_suspended_during_booking_at');
   });
 });

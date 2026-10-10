@@ -16,6 +16,9 @@ import * as bookingService from '../services/booking.service';
 import * as bookingOfferService from '../services/booking-offer.service';
 import * as providerCrmService from '../services/provider-crm.service';
 import * as settingsService from '../services/settings.service';
+import * as providerApplicationDraftService from '../services/provider-application-draft.service';
+import * as emailLinkCleanupService from '../services/email-link-cleanup.service';
+import * as emailSignInCleanupService from '../services/email-sign-in-cleanup.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -127,15 +130,16 @@ async function autoConfirmBookings(): Promise<number> {
 }
 
 async function expireStaleQuotes(): Promise<number> {
-  const { expiryHours: quoteExpiryHours } = await settingsService.getQuotePolicy();
-
+  // Quote lifetime is fixed when the provider submits: submitQuote stores the
+  // resolved setting in booking_quotes.expires_at and clients display that
+  // exact deadline. Re-reading today's setting here would retroactively move
+  // older deadlines, so the worker consumes only the per-quote snapshot.
   const expired = await db.query<ExpiredQuoteRow>(
     `UPDATE booking_quotes
      SET status = 'expired', updated_at = NOW()
      WHERE status = 'submitted'
-       AND created_at < NOW() - INTERVAL '1 hour' * $1
+       AND expires_at < NOW()
      RETURNING id, booking_id, provider_id`,
-    [quoteExpiryHours],
   );
 
   for (const quote of expired.rows) {
@@ -207,14 +211,16 @@ async function expireUnmatchedBookings(): Promise<number> {
 }
 
 async function checkNbiExpiry(): Promise<number> {
+  const warningDays = await settingsService.getNbiExpiryWarningDays();
   const expiringProviders = await db.query<ExpiringNbiRow>(
     `SELECT p.user_id, p.business_name, p.nbi_expiry_date,
             EXTRACT(DAY FROM p.nbi_expiry_date - NOW())::int AS days_until
      FROM providers p
      WHERE p.nbi_expiry_date IS NOT NULL
-       AND p.nbi_expiry_date < NOW() + INTERVAL '30 days'
+       AND p.nbi_expiry_date < NOW() + INTERVAL '1 day' * $1
        AND p.nbi_expiry_notified = FALSE
        AND p.status = 'approved'`,
+    [warningDays],
   );
 
   for (const provider of expiringProviders.rows) {
@@ -461,6 +467,12 @@ const schedulerWorker = new Worker(
         results.exportsExpired = await dataManagementService.expireOldExports();
         break;
       }
+      case 'provider-application-draft-expiry':
+        // One bounded attempt, using each row's saved expiry. Never accept a
+        // queued cutoff/limit or drain indefinitely beside money-related jobs.
+        // This removes draft rows only, not submitted evidence or upload files.
+        results.applicationDraftsPurged = await providerApplicationDraftService.purgeExpiredApplicationDrafts(100);
+        break;
       case 'account-deletion-process':
         results.deletionsProcessed = await dataManagementService.processExpiredCoolingOff();
         break;
@@ -470,6 +482,12 @@ const schedulerWorker = new Worker(
         break;
       case 'security-cleanup':
         results.loginAttemptsDeleted = await securityService.cleanupOldLoginAttempts();
+        break;
+      case 'email-link-cleanup':
+        // Fixed, bounded work on the existing scheduler. Never trust a job's
+        // cutoff/limit, log identifiers or suppress a failed SQL transaction.
+        results.emailLinkCleanup = await emailLinkCleanupService.cleanupEmailLinkChallenges(100);
+        results.emailSignInCleanup = await emailSignInCleanupService.cleanupEmailSignInChallenges(100);
         break;
       case 'quality-score-compute':
         // Bug UX-830 / E47: retain the processor branch so already queued
@@ -582,6 +600,14 @@ export async function initScheduledJobs(): Promise<void> {
     removeOnFail: 30,
   });
 
+  await schedulerQueue.add('provider-application-draft-expiry', {}, {
+    repeat: { pattern: '*/5 * * * *' },
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 60_000 },
+    removeOnComplete: 30,
+    removeOnFail: 100,
+  });
+
   await schedulerQueue.add('account-deletion-process', {}, {
     repeat: { pattern: '0 18 * * *' },
     removeOnComplete: 10,
@@ -598,6 +624,14 @@ export async function initScheduledJobs(): Promise<void> {
     repeat: { pattern: '0 19 1 * *' },
     removeOnComplete: 10,
     removeOnFail: 10,
+  });
+
+  await schedulerQueue.add('email-link-cleanup', {}, {
+    repeat: { pattern: '*/5 * * * *' },
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 60_000 },
+    removeOnComplete: 30,
+    removeOnFail: 100,
   });
 
   await schedulerQueue.add('dispute-escalate', {}, {
@@ -634,6 +668,9 @@ export async function initScheduledJobs(): Promise<void> {
   });
 
   logger.info('Scheduled jobs initialized: auto-confirm/expire-quotes/no-show/dispute-escalate every 5 min (all), booking offer sweep every 5 seconds, NBI check daily midnight PHT, bypass detection weekly Sunday midnight PHT, recurring bookings daily 6AM PHT, invoice generation 1st of month midnight PHT, overdue check daily midnight PHT, slot waitlist expiry daily 1AM PHT, data export processing every 10 min, account deletion processing daily 2AM PHT, suspicious IP detection every 5 min, security cleanup monthly 3AM PHT, quality score compute weekly 4AM PHT Monday, dispute escalation every 6 hours');
+  logger.info('Provider application draft expiry scheduled every 5 minutes, at most 100 expired rows per attempt; uploaded objects and submitted evidence are not removed');
+  logger.info('Email-link cleanup scheduled every 5 minutes: at most 100 proof expiries and 100 old request removals per attempt; verified identities and audits are retained');
+  logger.info('The same email cleanup job also expires at most 100 sign-in proofs and removes at most 100 old sign-in requests; no new queue or process');
 }
 
 export { schedulerWorker };

@@ -5,6 +5,7 @@ import * as escrowService from './escrow.service';
 import * as socketService from './socket.service';
 import * as settingsService from './settings.service';
 import * as gatewayRetryService from './gateway-retry.service';
+import * as notificationService from './notification.service';
 
 interface DisputeRow {
   id: string;
@@ -27,6 +28,9 @@ interface DisputeRow {
   resolved_by: string | null;
   created_at: Date;
   updated_at: Date;
+  // Returned by audited mutation helpers after their canonical admin_actions
+  // row commits in the same transaction. It is not a disputes table column.
+  adminActionId?: string;
   // BUG-PHASE40-03 — populated only by listDisputes (LEFT JOIN
   // bookings + users + providers). Other dispute queries return
   // null/undefined for these. The admin DisputesPage list column
@@ -64,9 +68,87 @@ interface ProviderLookupRow {
 
 interface CountRow { count: string }
 
+type PgClient = { query: typeof db.query };
+
+interface DisputeParticipantPushRequest {
+  notificationId: string;
+  userId: string;
+  type: 'dispute_update';
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+}
+
+async function insertDisputeParticipantNotification(
+  client: PgClient,
+  params: {
+    userId: string;
+    title: string;
+    body: string;
+    data: Record<string, unknown>;
+  },
+): Promise<DisputeParticipantPushRequest> {
+  const result = await client.query<{ id: string }>(
+    `INSERT INTO notifications (user_id, type, title, body, data)
+     VALUES ($1, 'dispute_update', $2, $3, $4::jsonb)
+     RETURNING id`,
+    [
+      params.userId,
+      params.title,
+      params.body,
+      JSON.stringify({
+        type: 'dispute_update',
+        notificationType: 'dispute_update',
+        ...params.data,
+      }),
+    ],
+  );
+  const notificationId = result.rows[0]?.id;
+  if (!notificationId) {
+    throw createAppError('Failed to record dispute participant notification.', 500);
+  }
+  return {
+    notificationId,
+    userId: params.userId,
+    type: 'dispute_update',
+    title: params.title,
+    body: params.body,
+    data: params.data,
+  };
+}
+
+async function deliverDisputeParticipantPushes(
+  requests: DisputeParticipantPushRequest[],
+  disputeId: string,
+): Promise<void> {
+  if (requests.length === 0) return;
+  const results = await Promise.allSettled(
+    requests.map((request) => notificationService.deliverStoredNotificationPush(request)),
+  );
+  if (results.some((result) => result.status === 'rejected')) {
+    logger.warn('Dispute participant push failed after durable inbox delivery', {
+      disputeId,
+      notificationIds: requests.map((request) => request.notificationId),
+    });
+  }
+}
+
 type DisputeType = 'no_show' | 'incomplete' | 'substandard' | 'damage' | 'theft' | 'overcharge' | 'other';
 type ResolutionType = 'full_refund' | 'partial_refund' | 'no_refund' | 'free_redo'
   | 'refund_with_warning' | 'refund_with_suspension' | 'split_decision';
+
+const HELD_RESOLUTION_TYPES = new Set<ResolutionType>(['free_redo', 'refund_with_warning']);
+
+export function assertDisputeResolutionAvailable(resolutionType: ResolutionType): void {
+  if (HELD_RESOLUTION_TYPES.has(resolutionType)) {
+    throw createAppError(
+      resolutionType === 'free_redo'
+        ? 'Free redo is temporarily unavailable because it does not yet create a replacement work order. Use a linked support case.'
+        : 'Refund with warning is temporarily unavailable because it does not yet record a provider warning. Use Provider 360 and a linked support case.',
+      409,
+    );
+  }
+}
 
 import { platformConfig } from '../config/platform.config';
 
@@ -119,7 +201,10 @@ export async function fileDispute(
     });
   }
 
-  const dispute = await db.transaction(async (client) => {
+  // MC-03 — the auto no-show refund commits inside the filing transaction
+  // (MED-N19); its payment-record step runs after the commit (R-MON-09).
+  const result = await db.transaction(async (client) => {
+    const pushRequests: DisputeParticipantPushRequest[] = [];
     const result = await client.query<DisputeRow>(
       `INSERT INTO disputes (booking_id, filed_by, type, description)
        VALUES ($1, $2, $3, $4) RETURNING *`,
@@ -150,7 +235,27 @@ export async function fileDispute(
         `SELECT * FROM disputes WHERE id = $1`,
         [d.id],
       );
-      return resolved.rows[0]!;
+      pushRequests.push(await insertDisputeParticipantNotification(client, {
+        userId: bk.customer_id,
+        title: 'Dispute Decision Recorded',
+        body: 'A full refund decision was recorded for your dispute. Open the case and booking payment history for processing status.',
+        data: { disputeId: d.id, bookingId, disputeStatus: 'resolved', resolution: 'full_refund' },
+      }));
+      if (bk.provider_id) {
+        const provider = await client.query<ProviderLookupRow>(
+          `SELECT user_id FROM providers WHERE id = $1`,
+          [bk.provider_id],
+        );
+        if (provider.rows[0]) {
+          pushRequests.push(await insertDisputeParticipantNotification(client, {
+            userId: provider.rows[0].user_id,
+            title: 'Dispute Decision Recorded',
+            body: 'A full refund decision was recorded for a dispute on your booking. Open the case and booking payment history for processing status.',
+            data: { disputeId: d.id, bookingId, disputeStatus: 'resolved', resolution: 'full_refund' },
+          }));
+        }
+      }
+      return { dispute: resolved.rows[0]!, pushRequests, autoRefund: autoResult };
     }
 
     if (bk.provider_id) {
@@ -159,20 +264,19 @@ export async function fileDispute(
         [bk.provider_id],
       );
       if (provider.rows[0]) {
-        await client.query(
-          `INSERT INTO notifications (user_id, type, title, body, data)
-           VALUES ($1, 'dispute_update', 'Dispute Filed', $2, $3)`,
-          [
-            provider.rows[0].user_id,
-            'A customer has filed a dispute for one of your completed jobs. You have 48 hours to respond.',
-            JSON.stringify({ disputeId: d.id, bookingId, disputeType: data.type }),
-          ],
-        );
+        pushRequests.push(await insertDisputeParticipantNotification(client, {
+          userId: provider.rows[0].user_id,
+          title: 'Dispute Filed',
+          body: 'A customer has filed a dispute for one of your completed jobs. You have 48 hours to respond.',
+          data: { disputeId: d.id, bookingId, disputeType: data.type, disputeStatus: d.status },
+        }));
       }
     }
 
-    return d;
+    return { dispute: d, pushRequests, autoRefund: null };
   });
+  const dispute = result.dispute;
+  const autoRefund = result.autoRefund;
 
   // MED-N19 fix: post-commit refund block REMOVED.
   // refundFromEscrowInTransaction is now called inside attemptAutoResolution
@@ -194,6 +298,16 @@ export async function fileDispute(
     });
   }
 
+  await deliverDisputeParticipantPushes(result.pushRequests, dispute.id);
+
+  // MC-03 — the committed automatic refund's payment-record step runs last,
+  // after the admin event and the pushes, as on the other dispute paths: a
+  // slow payment provider must not hold back the notices.
+  if (autoRefund) {
+    await disputeRefundPaymentStep(dispute.id, bookingId, autoRefund.refundAmount,
+      'Auto-resolved dispute refund', autoRefund.paymentMethod);
+  }
+
   return dispute;
 }
 
@@ -201,7 +315,7 @@ async function attemptAutoResolution(
   client: { query: <R extends import('pg').QueryResultRow>(text: string, params?: unknown[]) => Promise<import('pg').QueryResult<R>> },
   dispute: DisputeRow,
   booking: BookingContextRow,
-): Promise<boolean> {
+): Promise<{ refundAmount: number; paymentMethod: string | null } | null> {
   if (dispute.type === 'no_show') {
     interface BookingTimingRow { scheduled_at: Date; completed_at: Date | null }
     const timingResult = await client.query<BookingTimingRow>(
@@ -246,7 +360,7 @@ async function attemptAutoResolution(
           // their money back. Now: refundFromEscrowInTransaction reuses
           // the same pg client, so any failure rolls back the whole
           // auto-resolution.
-          await escrowService.refundFromEscrowInTransaction(
+          const movement = await escrowService.refundFromEscrowInTransaction(
             client as unknown as Parameters<typeof escrowService.refundFromEscrowInTransaction>[0],
             booking.id,
             totalAmount,
@@ -254,13 +368,33 @@ async function attemptAutoResolution(
           );
 
           logger.info('Dispute auto-resolved (no-show — suspicious timing)', { disputeId: dispute.id, bookingId: booking.id });
-          return true;
+          return { refundAmount: totalAmount, paymentMethod: movement.paymentMethod };
         }
       }
     }
   }
 
-  return false;
+  return null;
+}
+
+// MC-03 — the post-commit payment-record step of a dispute refund whose local
+// escrow debit already committed inside its resolution transaction. It
+// queues only a payment-only retry on failure (never a whole-refund replay)
+// and never throws: the committed resolution stands.
+async function disputeRefundPaymentStep(
+  disputeId: string,
+  bookingId: string,
+  refundAmount: number,
+  reason: string,
+  paymentMethod: string | null,
+): Promise<void> {
+  try {
+    await escrowService.processEscrowRefundPaymentStep(bookingId, refundAmount, reason, paymentMethod, disputeId);
+  } catch (err) {
+    logger.error('Dispute refund payment step failed after commit; reconcile the payment record manually', {
+      disputeId, bookingId, refundAmount, error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 export async function resolveNoShowAutoResolutionWindowMinutes(): Promise<number> {
@@ -320,25 +454,57 @@ export async function addProviderResponse(
   }
 
   const result = await db.transaction(async (client) => {
+    const pushRequests: DisputeParticipantPushRequest[] = [];
+    // MC-03 — set when the provider accepts: the full refund commits inside
+    // this transaction, and only its payment-record step runs after commit.
+    let acceptRefund: { refundAmount: number; paymentMethod: string | null } | null = null;
     if (action === 'accept') {
       const totalAmount = Number(bk.total_amount);
-      await client.query(
+      // MC-03 — accept only a dispute that is still open with no provider
+      // response: a concurrent second response (a double tap) gets 409
+      // instead of a second refund. This guarded write locks the dispute
+      // row first, then the booking is locked before any money moves: the
+      // same dispute-then-booking order as resolveDisputeInTransaction and
+      // acceptPartialOffer, so these paths cannot deadlock each other.
+      const acceptUpdate = await client.query(
         `UPDATE disputes SET
            status = 'resolved', resolution_type = 'full_refund',
            refund_amount = $1, refund_percent = 100.00,
            provider_response = $2, provider_responded_at = NOW(),
            decision_notes = 'Provider accepted the dispute claim',
            auto_resolved = FALSE, resolved_at = NOW(), updated_at = NOW()
-         WHERE id = $3`,
+         WHERE id = $3
+           AND status = 'open'
+           AND provider_response IS NULL
+         RETURNING id`,
         [totalAmount, response, disputeId],
       );
+      if (acceptUpdate.rowCount !== 1) {
+        throw createAppError('This dispute already has a provider response or is no longer open.', 409);
+      }
+      await client.query(`SELECT id FROM bookings WHERE id = $1 FOR UPDATE`, [bk.id]);
 
       await client.query(
         `UPDATE bookings SET status = 'resolved', escrow_status = 'refunded', updated_at = NOW() WHERE id = $1`,
         [bk.id],
       );
 
-      logger.info('Dispute resolved — provider accepted', { disputeId });
+      const movement = await escrowService.refundFromEscrowInTransaction(
+        client as unknown as Parameters<typeof escrowService.refundFromEscrowInTransaction>[0],
+        bk.id,
+        totalAmount,
+        'Provider accepted dispute — full refund',
+      );
+      acceptRefund = { refundAmount: totalAmount, paymentMethod: movement.paymentMethod };
+
+      pushRequests.push(await insertDisputeParticipantNotification(client, {
+        userId: bk.customer_id,
+        title: 'Provider Accepted Your Dispute',
+        body: 'The provider accepted your dispute. A full refund is being processed. Open the dispute and booking payment history for status.',
+        data: { disputeId, bookingId: bk.id, disputeStatus: 'resolved', resolution: 'full_refund' },
+      }));
+
+      logger.info('Dispute resolved - provider accepted', { disputeId });
     } else if (action === 'contest') {
       const contestUpdate = await client.query(
         `UPDATE disputes SET
@@ -353,34 +519,44 @@ export async function addProviderResponse(
       if (contestUpdate.rowCount !== 1) {
         throw createAppError('This dispute already has a provider response or is no longer open.', 409);
       }
-      await client.query(
-        `INSERT INTO notifications (user_id, type, title, body, data)
-         VALUES ($1, 'dispute_update', 'Provider Responded to Dispute', $2, $3)`,
-        [
-          bk.customer_id,
-          'The provider contested your dispute. The case is now in the onService support review queue.',
-          JSON.stringify({ disputeId, bookingId: bk.id, disputeStatus: 'under_review' }),
-        ],
-      );
-      logger.info('Dispute escalated to Tier 2 — provider contested', { disputeId });
+      pushRequests.push(await insertDisputeParticipantNotification(client, {
+        userId: bk.customer_id,
+        title: 'Provider Responded to Dispute',
+        body: 'The provider contested your dispute. The case is now in the onService support review queue.',
+        data: { disputeId, bookingId: bk.id, disputeStatus: 'under_review' },
+      }));
+      logger.info('Dispute escalated to Tier 2 - provider contested', { disputeId });
     } else if (action === 'partial_offer') {
       if (!partialOfferAmount || partialOfferAmount <= 0) {
         throw createAppError('Partial offer amount must be positive.', 400);
       }
       // A partial refund can never exceed what the customer paid. Without this
-      // cap an oversized offer, once accepted, issues a real refund larger than
-      // the booking total and drains the shared escrow pool (refundFromEscrow
-      // only guards the platform-wide balance, not per-booking).
+      // cap an oversized offer, once accepted, would ask for a refund larger
+      // than the booking total. (The escrow refund helper now also refuses
+      // more than the booking's own escrow holds.)
       if (partialOfferAmount > Number(bk.total_amount)) {
         throw createAppError('Partial offer cannot exceed the booking total.', 400);
       }
-      await client.query(
+      // MC-03 — a partial offer is a single write, as the contest path is.
+      const offerUpdate = await client.query(
         `UPDATE disputes SET
            provider_response = $1, provider_responded_at = NOW(),
            refund_amount = $2, updated_at = NOW()
-         WHERE id = $3`,
+         WHERE id = $3
+           AND status = 'open'
+           AND provider_response IS NULL
+         RETURNING id`,
         [response, partialOfferAmount, disputeId],
       );
+      if (offerUpdate.rowCount !== 1) {
+        throw createAppError('This dispute already has a provider response or is no longer open.', 409);
+      }
+      pushRequests.push(await insertDisputeParticipantNotification(client, {
+        userId: bk.customer_id,
+        title: 'Provider Offered a Partial Refund',
+        body: 'The provider offered a partial refund. Open the dispute to review the offer and decide whether to accept it.',
+        data: { disputeId, bookingId: bk.id, disputeStatus: 'open', resolution: 'partial_refund_offer' },
+      }));
       logger.info('Provider offered partial refund', { disputeId, partialOfferAmount });
     }
 
@@ -388,14 +564,15 @@ export async function addProviderResponse(
       `SELECT * FROM disputes WHERE id = $1`,
       [disputeId],
     );
-    return updated.rows[0]!;
+    return { dispute: updated.rows[0]!, pushRequests, acceptRefund };
   });
+  const acceptRefund = result.acceptRefund;
 
   try {
     socketService.emitAdminEvent(socketService.ADMIN_EVENTS.DISPUTE_UPDATED, {
       id: disputeId,
       bookingId: bk.id,
-      status: result.status,
+      status: result.dispute.status,
     });
   } catch (e) {
     logger.warn('Admin dispute update socket emit failed', {
@@ -404,111 +581,112 @@ export async function addProviderResponse(
     });
   }
 
-  if (action === 'accept') {
-    const totalAmount = Number(bk.total_amount);
-    try {
-      await escrowService.refundFromEscrow(d.booking_id, totalAmount, 'Provider accepted dispute — full refund');
-    } catch (err) {
-      // §35b fix — pre-fix this failure was logged and SWALLOWED, so the
-      // dispute read 'resolved' while no money moved and nothing retried.
-      // Now we enqueue the gateway-retry worker (matching the canonical
-      // admin-resolve path, MED-N28) so the refund eventually completes.
-      const errMsg = err instanceof Error ? err.message : String(err);
-      logger.error('Failed to process dispute refund after provider accept; enqueueing retry', { disputeId, error: errMsg });
-      await gatewayRetryService.enqueueRetry({
-        actionType: 'refund_from_escrow',
-        bookingId: d.booking_id,
-        disputeId,
-        amountCentavos: totalAmount,
-        description: 'Provider accepted dispute — full refund',
-        initialError: errMsg,
-      });
-    }
+  await deliverDisputeParticipantPushes(result.pushRequests ?? [], disputeId);
+
+  // MC-03 — the refund committed with the resolution above (before MC-03 it
+  // ran here, after commit, and a failure queued a whole-refund replay).
+  if (acceptRefund) {
+    await disputeRefundPaymentStep(disputeId, d.booking_id, acceptRefund.refundAmount,
+      'Provider accepted dispute — full refund', acceptRefund.paymentMethod);
   }
 
-  return result;
+  return result.dispute;
 }
 
 export async function acceptPartialOffer(disputeId: string, customerId: string): Promise<DisputeRow> {
-  const dispute = await db.query<DisputeRow>(
-    `SELECT * FROM disputes WHERE id = $1`,
-    [disputeId],
-  );
-  if (dispute.rows.length === 0) throw createAppError('Dispute not found.', 404);
-  const d = dispute.rows[0]!;
+  // MC-03 / FIN-014 — one transaction that locks the dispute, then the
+  // booking, re-checks the offer on the locked row, and refunds inside it.
+  // Before MC-03 nothing here was locked or transactional: two accepts in
+  // flight together both read the offer as open and both refunded.
+  const accepted = await db.transaction(async (client) => {
+    const dispute = await client.query<DisputeRow>(
+      `SELECT * FROM disputes WHERE id = $1 FOR UPDATE`,
+      [disputeId],
+    );
+    if (dispute.rows.length === 0) throw createAppError('Dispute not found.', 404);
+    const d = dispute.rows[0]!;
 
-  if (d.filed_by !== customerId) {
-    throw createAppError('Only the dispute filer can accept a partial offer.', 403);
-  }
+    if (d.filed_by !== customerId) {
+      throw createAppError('Only the dispute filer can accept a partial offer.', 403);
+    }
 
-  if (d.status !== 'open' || !d.refund_amount || Number(d.refund_amount) <= 0) {
-    throw createAppError('No partial offer to accept.', 409);
-  }
+    if (d.status !== 'open' || !d.refund_amount || Number(d.refund_amount) <= 0) {
+      throw createAppError('No partial offer to accept.', 409);
+    }
 
-  const booking = await db.query<BookingContextRow>(
-    `SELECT id, customer_id, provider_id, status, escrow_status, total_amount, scheduled_at, completed_at, confirmed_at
-     FROM bookings WHERE id = $1`,
-    [d.booking_id],
-  );
-  if (booking.rows.length === 0) throw createAppError('Associated booking not found.', 404);
-  const bk = booking.rows[0]!;
-  const totalAmount = Number(bk.total_amount);
-  // Defense-in-depth: never refund more than the booking total, even if a
-  // stale/oversized refund_amount was somehow stored on the dispute.
-  const refundAmount = Math.min(Number(d.refund_amount), totalAmount);
-  const refundPercent = totalAmount > 0 ? Math.round((refundAmount / totalAmount) * 10000) / 100 : 0;
+    const booking = await client.query<BookingContextRow>(
+      `SELECT id, customer_id, provider_id, status, escrow_status, total_amount, scheduled_at, completed_at, confirmed_at
+       FROM bookings WHERE id = $1 FOR UPDATE`,
+      [d.booking_id],
+    );
+    if (booking.rows.length === 0) throw createAppError('Associated booking not found.', 404);
+    const bk = booking.rows[0]!;
+    const totalAmount = Number(bk.total_amount);
+    // Defense-in-depth: never refund more than the booking total, even if a
+    // stale/oversized refund_amount was somehow stored on the dispute.
+    const refundAmount = Math.min(Number(d.refund_amount), totalAmount);
+    const refundPercent = totalAmount > 0 ? Math.round((refundAmount / totalAmount) * 10000) / 100 : 0;
 
-  const result = await db.query<DisputeRow>(
-    `UPDATE disputes SET
-       status = 'resolved', resolution_type = 'partial_refund',
-       refund_percent = $1,
-       decision_notes = 'Customer accepted provider partial offer',
-       auto_resolved = FALSE, resolved_at = NOW(), updated_at = NOW()
-     WHERE id = $2 RETURNING *`,
-    [refundPercent, disputeId],
-  );
+    const result = await client.query<DisputeRow>(
+      `UPDATE disputes SET
+         status = 'resolved', resolution_type = 'partial_refund',
+         refund_percent = $1,
+         decision_notes = 'Customer accepted provider partial offer',
+         auto_resolved = FALSE, resolved_at = NOW(), updated_at = NOW()
+       WHERE id = $2 AND status = 'open' RETURNING *`,
+      [refundPercent, disputeId],
+    );
+    if (result.rows.length === 0) throw createAppError('Failed to update dispute — concurrent modification.', 409);
 
-  const escrowStatus = refundAmount >= totalAmount ? 'refunded' : 'partially_refunded';
-  await db.query(
-    `UPDATE bookings SET status = 'resolved', escrow_status = $1, updated_at = NOW() WHERE id = $2`,
-    [escrowStatus, d.booking_id],
-  );
+    const escrowStatus = refundAmount >= totalAmount ? 'refunded' : 'partially_refunded';
+    await client.query(
+      `UPDATE bookings SET status = 'resolved', escrow_status = $1, updated_at = NOW() WHERE id = $2`,
+      [escrowStatus, d.booking_id],
+    );
 
-  if (result.rows.length === 0) throw createAppError('Failed to update dispute — concurrent modification.', 409);
+    let paymentMethod: string | null = null;
+    if (refundAmount > 0) {
+      const movement = await escrowService.refundFromEscrowInTransaction(
+        client as unknown as Parameters<typeof escrowService.refundFromEscrowInTransaction>[0],
+        d.booking_id,
+        refundAmount,
+        'Partial offer accepted — dispute refund',
+      );
+      paymentMethod = movement.paymentMethod;
+    }
 
+    return {
+      dispute: result.rows[0]!,
+      bookingId: d.booking_id,
+      providerId: bk.provider_id,
+      totalAmount,
+      refundAmount,
+      refundPercent,
+      paymentMethod,
+    };
+  });
+
+  const { bookingId, providerId, totalAmount, refundAmount, refundPercent } = accepted;
   logger.info('Dispute resolved — partial offer accepted', { disputeId, refundAmount, refundPercent });
 
   if (refundAmount > 0) {
-    let refundSucceeded = false;
-    try {
-      await escrowService.refundFromEscrow(d.booking_id, refundAmount, 'Partial offer accepted — dispute refund');
-      refundSucceeded = true;
-    } catch (err) {
-      // §35b fix — enqueue instead of swallowing (see addProviderResponse).
-      const errMsg = err instanceof Error ? err.message : String(err);
-      logger.error('Failed to process partial offer refund; enqueueing retry', { disputeId, refundAmount, error: errMsg });
-      await gatewayRetryService.enqueueRetry({
-        actionType: 'refund_from_escrow',
-        bookingId: d.booking_id,
-        disputeId,
-        amountCentavos: refundAmount,
-        description: 'Partial offer accepted — dispute refund',
-        initialError: errMsg,
-      });
-    }
+    await disputeRefundPaymentStep(disputeId, bookingId, refundAmount,
+      'Partial offer accepted — dispute refund', accepted.paymentMethod);
 
     const remainingAmount = totalAmount - refundAmount;
-    if (refundSucceeded && remainingAmount > 0 && bk.provider_id) {
+    if (remainingAmount > 0 && providerId) {
       try {
-        await escrowService.releasePartialEscrow(d.booking_id, remainingAmount);
+        await escrowService.releasePartialEscrow(bookingId, remainingAmount);
       } catch (err) {
         // §35b fix — the provider's split must release even if this call
         // fails now; enqueue the release for retry instead of swallowing.
+        // A replay is refused once the escrow is released, so it cannot pay
+        // twice.
         const errMsg = err instanceof Error ? err.message : String(err);
         logger.error('Failed to release remaining escrow after partial offer acceptance; enqueueing retry', { disputeId, remainingAmount, error: errMsg });
         await gatewayRetryService.enqueueRetry({
           actionType: 'release_partial_escrow',
-          bookingId: d.booking_id,
+          bookingId,
           disputeId,
           amountCentavos: remainingAmount,
           description: 'Release remaining escrow after partial offer acceptance',
@@ -518,21 +696,21 @@ export async function acceptPartialOffer(disputeId: string, customerId: string):
     }
   }
 
-  return result.rows[0]!;
+  return accepted.dispute;
 }
 
 /**
  * Phase 14 Dispatch 06 — Bug 83.
  * Trx-aware helper for dispute resolution writes (UPDATE disputes + UPDATE
- * bookings + UPDATE providers if suspension + INSERT notifications).
- * Caller owns the outer transaction AND the admin_actions audit row.
+ * bookings + escrow refund + UPDATE providers if suspension + INSERT
+ * notifications). Caller owns the outer transaction AND the admin_actions
+ * audit row.
  *
- * Returns the resolved dispute + refund amount so the caller can run the
- * post-commit escrow refund/release calls (which target an external
- * gateway and tolerate eventual consistency per the documented pattern).
+ * MC-03: the escrow refund runs here, on the caller's client. Returns the
+ * resolved dispute, the refund amount and the refunded booking's payment
+ * method, so the caller can run the post-commit payment-record step
+ * (processEscrowRefundPaymentStep) and the post-commit releases.
  */
-type PgClient = { query: typeof db.query };
-
 export async function resolveDisputeInTransaction(
   client: PgClient,
   disputeId: string,
@@ -543,7 +721,19 @@ export async function resolveDisputeInTransaction(
     decisionNotes: string;
     internalNotes?: string;
   },
-): Promise<{ dispute: DisputeRow; refundAmount: number; refundPercent: number; bookingId: string; bookingTotalAmount: number; providerId: string | null }> {
+): Promise<{
+  dispute: DisputeRow;
+  refundAmount: number;
+  refundPercent: number;
+  bookingId: string;
+  bookingTotalAmount: number;
+  providerId: string | null;
+  pushRequests: DisputeParticipantPushRequest[];
+  // MC-03: how the refunded booking was paid, for the post-commit
+  // payment-record step. null when no refund was made.
+  refundPaymentMethod: string | null;
+}> {
+  assertDisputeResolutionAvailable(data.resolutionType);
   const dispute = await client.query<DisputeRow>(
     `SELECT * FROM disputes WHERE id = $1 FOR UPDATE`,
     [disputeId],
@@ -555,9 +745,10 @@ export async function resolveDisputeInTransaction(
     throw createAppError('This dispute is already resolved.', 409);
   }
 
+  // MC-03 — lock the booking (after the dispute) before any money moves.
   const booking = await client.query<BookingContextRow>(
     `SELECT id, customer_id, provider_id, status, escrow_status, total_amount, scheduled_at, completed_at, confirmed_at
-     FROM bookings WHERE id = $1`,
+     FROM bookings WHERE id = $1 FOR UPDATE`,
     [d.booking_id],
   );
   if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
@@ -601,6 +792,21 @@ export async function resolveDisputeInTransaction(
     );
   }
 
+  // MC-03 / FIN-015 — the refund commits with the resolution. A refund that
+  // cannot be made (for example more than the booking still holds) rolls the
+  // whole resolution back instead of recording "resolved" with no money
+  // moved and queueing a whole-refund retry.
+  let refundPaymentMethod: string | null = null;
+  if (refundAmount > 0) {
+    const movement = await escrowService.refundFromEscrowInTransaction(
+      client as unknown as Parameters<typeof escrowService.refundFromEscrowInTransaction>[0],
+      d.booking_id,
+      refundAmount,
+      `Admin dispute resolution: ${data.resolutionType}`,
+    );
+    refundPaymentMethod = movement.paymentMethod;
+  }
+
   if (data.resolutionType === 'refund_with_suspension' && bk.provider_id) {
     await client.query(
       `UPDATE providers SET status = 'suspended', updated_at = NOW() WHERE id = $1`,
@@ -608,15 +814,14 @@ export async function resolveDisputeInTransaction(
     );
   }
 
-  await client.query(
-    `INSERT INTO notifications (user_id, type, title, body, data)
-     VALUES ($1, 'dispute_update', 'Dispute Resolved', $2, $3)`,
-    [
-      bk.customer_id,
-      `Your dispute has been resolved: ${formatResolutionType(data.resolutionType)}.`,
-      JSON.stringify({ disputeId, bookingId: d.booking_id, resolution: data.resolutionType }),
-    ],
-  );
+  const pushRequests: DisputeParticipantPushRequest[] = [];
+  const decisionBody = `A decision was recorded for your dispute: ${formatResolutionType(data.resolutionType)}. Open the case and booking payment history for processing status.`;
+  pushRequests.push(await insertDisputeParticipantNotification(client, {
+    userId: bk.customer_id,
+    title: 'Dispute Decision Recorded',
+    body: decisionBody,
+    data: { disputeId, bookingId: d.booking_id, resolution: data.resolutionType },
+  }));
 
   if (bk.provider_id) {
     const provider = await client.query<ProviderLookupRow>(
@@ -624,15 +829,12 @@ export async function resolveDisputeInTransaction(
       [bk.provider_id],
     );
     if (provider.rows[0]) {
-      await client.query(
-        `INSERT INTO notifications (user_id, type, title, body, data)
-         VALUES ($1, 'dispute_update', 'Dispute Resolved', $2, $3)`,
-        [
-          provider.rows[0].user_id,
-          `A dispute for your booking has been resolved: ${formatResolutionType(data.resolutionType)}.`,
-          JSON.stringify({ disputeId, bookingId: d.booking_id, resolution: data.resolutionType }),
-        ],
-      );
+      pushRequests.push(await insertDisputeParticipantNotification(client, {
+        userId: provider.rows[0].user_id,
+        title: 'Dispute Decision Recorded',
+        body: `A decision was recorded for a dispute on your booking: ${formatResolutionType(data.resolutionType)}. Open the case and booking payment history for processing status.`,
+        data: { disputeId, bookingId: d.booking_id, resolution: data.resolutionType },
+      }));
     }
   }
 
@@ -648,6 +850,8 @@ export async function resolveDisputeInTransaction(
     bookingId: d.booking_id,
     bookingTotalAmount: totalAmount,
     providerId: bk.provider_id,
+    pushRequests,
+    refundPaymentMethod,
   };
 }
 
@@ -675,6 +879,8 @@ export async function resolveDispute(
     return helper;
   });
 
+  await deliverDisputeParticipantPushes(result.pushRequests, disputeId);
+
   const refundAmount = result.refundAmount;
   const totalAmount = result.bookingTotalAmount;
   const bookingId = result.bookingId;
@@ -683,26 +889,13 @@ export async function resolveDispute(
   const resolved = result.dispute;
 
   if (refundAmount > 0) {
-    let refundSucceeded = false;
-    try {
-      await escrowService.refundFromEscrow(bookingId, refundAmount, `Admin dispute resolution: ${data.resolutionType}`);
-      refundSucceeded = true;
-    } catch (err) {
-      // §35b fix — enqueue instead of swallowing (see addProviderResponse).
-      const errMsg = err instanceof Error ? err.message : String(err);
-      logger.error('Failed to process admin dispute refund; enqueueing retry', { disputeId, refundAmount, error: errMsg });
-      await gatewayRetryService.enqueueRetry({
-        actionType: 'refund_from_escrow',
-        bookingId,
-        disputeId,
-        amountCentavos: refundAmount,
-        description: `Admin dispute resolution: ${data.resolutionType}`,
-        initialError: errMsg,
-      });
-    }
+    // MC-03 — the refund committed with the resolution; only its
+    // payment-record step runs here.
+    await disputeRefundPaymentStep(disputeId, bookingId, refundAmount,
+      `Admin dispute resolution: ${data.resolutionType}`, result.refundPaymentMethod);
 
     const remainingAmount = totalAmount - refundAmount;
-    if (refundSucceeded && remainingAmount > 0 && result.providerId) {
+    if (remainingAmount > 0 && result.providerId) {
       try {
         await escrowService.releasePartialEscrow(bookingId, remainingAmount);
       } catch (err) {
@@ -766,9 +959,10 @@ export async function escalateDispute(disputeId: string, adminId: string, reason
       [newTier, disputeId],
     );
 
-    await client.query(
+    const auditResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
-       VALUES ($1, 'dispute_escalated', 'dispute', $2, $3, $4, $5)`,
+       VALUES ($1, 'dispute_escalated', 'dispute', $2, $3, $4, $5)
+       RETURNING id`,
       [adminId, disputeId,
        JSON.stringify({ previousTier: d.tier, newTier }),
        reason.slice(0, 500),
@@ -776,8 +970,10 @@ export async function escalateDispute(disputeId: string, adminId: string, reason
     );
 
     if (result.rows.length === 0) throw createAppError('Failed to escalate dispute — concurrent modification.', 409);
+    const adminActionId = auditResult.rows[0]?.id;
+    if (!adminActionId) throw createAppError('Failed to record dispute escalation audit.', 500);
     logger.info('Dispute escalated', { disputeId, fromTier: d.tier, toTier: newTier });
-    return result.rows[0]!;
+    return { ...result.rows[0]!, adminActionId };
   });
 }
 
@@ -795,14 +991,17 @@ export async function assignDispute(disputeId: string, adminId: string, assignee
     );
     if (result.rows.length === 0) throw createAppError('Dispute not found or already resolved.', 404);
 
-    await client.query(
+    const auditResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, 'dispute_assigned', 'dispute', $2, $3)`,
+       VALUES ($1, 'dispute_assigned', 'dispute', $2, $3)
+       RETURNING id`,
       [adminId, disputeId, JSON.stringify({ assignedTo: assigneeId })],
     );
 
+    const adminActionId = auditResult.rows[0]?.id;
+    if (!adminActionId) throw createAppError('Failed to record dispute assignment audit.', 500);
     logger.info('Dispute assigned', { disputeId, assigneeId });
-    return result.rows[0]!;
+    return { ...result.rows[0]!, adminActionId };
   });
 }
 
@@ -987,13 +1186,13 @@ export async function autoEscalateStaleDisputes(): Promise<number> {
 
 function formatResolutionType(type: string): string {
   const labels: Record<string, string> = {
-    full_refund: 'Full refund issued',
-    partial_refund: 'Partial refund issued',
+    full_refund: 'Full refund approved',
+    partial_refund: 'Partial refund approved',
     no_refund: 'No refund — claim denied',
-    free_redo: 'Free service redo offered',
-    refund_with_warning: 'Refund issued, provider warned',
-    refund_with_suspension: 'Refund issued, provider suspended',
-    split_decision: 'Split decision — partial refund and compensation',
+    free_redo: 'Free service redo selected',
+    refund_with_warning: 'Full refund approved, provider warning selected',
+    refund_with_suspension: 'Full refund approved, provider suspended',
+    split_decision: 'Split decision — partial refund approved',
   };
   return labels[type] ?? type;
 }

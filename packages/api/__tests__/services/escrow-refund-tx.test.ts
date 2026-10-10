@@ -30,6 +30,11 @@ jest.mock('../../src/services/payment.service', () => ({
   processRefund: jest.fn(),
 }));
 
+const enqueueRetryMock = jest.fn();
+jest.mock('../../src/services/gateway-retry.service', () => ({
+  enqueueRetry: (...args: unknown[]) => enqueueRetryMock(...args),
+}));
+
 jest.mock('../../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
@@ -43,27 +48,40 @@ import {
   getTopCalls,
   getTransactionInvocations,
   setTxQueryImpl,
+  setTopQueryImpl,
   makeRouter,
 } from '../helpers/d06-tx-mock';
 
 const BOOKING_ID = '11111111-1111-1111-1111-111111111111';
 const ADMIN_ID = '22222222-2222-2222-2222-222222222222';
+const SUPPORT_TICKET_ID = '33333333-3333-4333-8333-333333333333';
+const REFUND_REQUEST_ID = '44444444-4444-4444-8444-444444444444';
 const VALID_REASON = 'super-admin partial refund after dispute resolution';
 
 beforeEach(() => {
   resetDbMock();
   (escrowService.refundFromEscrowInTransaction as jest.Mock).mockReset();
   (paymentService.processRefund as jest.Mock).mockReset();
+  enqueueRetryMock.mockReset();
+  enqueueRetryMock.mockResolvedValue(undefined);
 });
 
 describe('Bug 71 — refundBookingEscrow transactional', () => {
   it('opens exactly one transaction containing escrow helper + admin_actions', async () => {
-    (escrowService.refundFromEscrowInTransaction as jest.Mock).mockResolvedValue(undefined);
+    (escrowService.refundFromEscrowInTransaction as jest.Mock).mockResolvedValue({
+      remainingEscrowCentavos: 5000,
+      paymentMethod: 'gcash',
+      customerWalletCredited: false,
+    });
     setTxQueryImpl(makeRouter([
+      { match: /FROM support_tickets/, rows: [{ id: SUPPORT_TICKET_ID, ticket_number: 'SUP-1001' }], rowCount: 1 },
+      { match: /INSERT INTO gateway_retry_queue/, rows: [{ id: 'retry-ref' }], rowCount: 1 },
       { match: /INSERT INTO admin_actions/, rows: [{ id: 'aaaa-ref' }], rowCount: 1 },
     ]));
 
-    const result = await refundBookingEscrow(BOOKING_ID, 5000, VALID_REASON, ADMIN_ID);
+    const result = await refundBookingEscrow(
+      BOOKING_ID, 5000, VALID_REASON, ADMIN_ID, SUPPORT_TICKET_ID, REFUND_REQUEST_ID,
+    );
 
     expect(getTransactionInvocations()).toBe(1);
     expect(escrowService.refundFromEscrowInTransaction).toHaveBeenCalledTimes(1);
@@ -83,14 +101,22 @@ describe('Bug 71 — refundBookingEscrow transactional', () => {
   });
 
   it('rolls back when admin_actions INSERT throws (audit-failure on status update Bug 71 scenario)', async () => {
-    (escrowService.refundFromEscrowInTransaction as jest.Mock).mockResolvedValue(undefined);
+    (escrowService.refundFromEscrowInTransaction as jest.Mock).mockResolvedValue({
+      remainingEscrowCentavos: 5000,
+      paymentMethod: 'gcash',
+      customerWalletCredited: false,
+    });
     const auditErr = new Error('simulated audit failure');
     setTxQueryImpl(makeRouter([
+      { match: /FROM support_tickets/, rows: [{ id: SUPPORT_TICKET_ID, ticket_number: 'SUP-1001' }], rowCount: 1 },
+      { match: /INSERT INTO gateway_retry_queue/, rows: [{ id: 'retry-ref' }], rowCount: 1 },
       { match: /INSERT INTO admin_actions/, throwError: auditErr },
     ]));
 
     await expect(
-      refundBookingEscrow(BOOKING_ID, 5000, VALID_REASON, ADMIN_ID),
+      refundBookingEscrow(
+        BOOKING_ID, 5000, VALID_REASON, ADMIN_ID, SUPPORT_TICKET_ID, REFUND_REQUEST_ID,
+      ),
     ).rejects.toThrow(/simulated audit failure/);
 
     // Audit attempt was inside the transaction (not the legacy top-level path).
@@ -105,10 +131,14 @@ describe('Bug 71 — refundBookingEscrow transactional', () => {
     (escrowService.refundFromEscrowInTransaction as jest.Mock).mockRejectedValue(
       new Error('insufficient escrow balance'),
     );
-    setTxQueryImpl(makeRouter([]));
+    setTxQueryImpl(makeRouter([
+      { match: /FROM support_tickets/, rows: [{ id: SUPPORT_TICKET_ID, ticket_number: 'SUP-1001' }], rowCount: 1 },
+    ]));
 
     await expect(
-      refundBookingEscrow(BOOKING_ID, 999999, VALID_REASON, ADMIN_ID),
+      refundBookingEscrow(
+        BOOKING_ID, 999999, VALID_REASON, ADMIN_ID, SUPPORT_TICKET_ID, REFUND_REQUEST_ID,
+      ),
     ).rejects.toThrow(/insufficient escrow balance/);
 
     const txCalls = getTxCalls();
@@ -117,35 +147,59 @@ describe('Bug 71 — refundBookingEscrow transactional', () => {
   });
 
   it('does not abort the request when post-commit gateway refund fails', async () => {
-    (escrowService.refundFromEscrowInTransaction as jest.Mock).mockResolvedValue(undefined);
+    (escrowService.refundFromEscrowInTransaction as jest.Mock).mockResolvedValue({
+      remainingEscrowCentavos: 5000,
+      paymentMethod: 'gcash',
+      customerWalletCredited: false,
+    });
     (paymentService.processRefund as jest.Mock).mockRejectedValue(new Error('gateway timeout'));
+    // The transaction below creates the pending outbox row. Model its
+    // post-commit error UPDATE as affecting that existing row, not a missing
+    // operation requiring manual reconciliation.
+    setTopQueryImpl(makeRouter([
+      { match: /UPDATE gateway_retry_queue/, rows: [], rowCount: 1 },
+    ]));
     setTxQueryImpl(makeRouter([
+      { match: /FROM support_tickets/, rows: [{ id: SUPPORT_TICKET_ID, ticket_number: 'SUP-1001' }], rowCount: 1 },
+      { match: /INSERT INTO gateway_retry_queue/, rows: [{ id: 'retry-ref' }], rowCount: 1 },
       { match: /INSERT INTO admin_actions/, rows: [{ id: 'aaaa-ref' }], rowCount: 1 },
     ]));
 
-    const result = await refundBookingEscrow(BOOKING_ID, 5000, VALID_REASON, ADMIN_ID);
+    const result = await refundBookingEscrow(
+      BOOKING_ID, 5000, VALID_REASON, ADMIN_ID, SUPPORT_TICKET_ID, REFUND_REQUEST_ID,
+    );
     expect(result.adminActionId).toBe('aaaa-ref');
     // Money + audit are durable; gateway retry happens out of band.
     expect(paymentService.processRefund).toHaveBeenCalledTimes(1);
+    expect(enqueueRetryMock).not.toHaveBeenCalled();
+    expect(getTopCalls().find((call) => /UPDATE gateway_retry_queue/.test(call.sql)))
+      .toBeDefined();
+    expect(result.paymentProcessingQueued).toBe(true);
   });
 
   it('rejects refundAmount <= 0 with 400', async () => {
     await expect(
-      refundBookingEscrow(BOOKING_ID, 0, VALID_REASON, ADMIN_ID),
+      refundBookingEscrow(
+        BOOKING_ID, 0, VALID_REASON, ADMIN_ID, SUPPORT_TICKET_ID, REFUND_REQUEST_ID,
+      ),
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(getTransactionInvocations()).toBe(0);
   });
 
   it('rejects non-integer refundAmount with 400', async () => {
     await expect(
-      refundBookingEscrow(BOOKING_ID, 12.5, VALID_REASON, ADMIN_ID),
+      refundBookingEscrow(
+        BOOKING_ID, 12.5, VALID_REASON, ADMIN_ID, SUPPORT_TICKET_ID, REFUND_REQUEST_ID,
+      ),
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(getTransactionInvocations()).toBe(0);
   });
 
   it('rejects reason shorter than 10 chars with 400', async () => {
     await expect(
-      refundBookingEscrow(BOOKING_ID, 5000, 'short', ADMIN_ID),
+      refundBookingEscrow(
+        BOOKING_ID, 5000, 'short', ADMIN_ID, SUPPORT_TICKET_ID, REFUND_REQUEST_ID,
+      ),
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(getTransactionInvocations()).toBe(0);
   });

@@ -160,6 +160,15 @@ Every report is downloadable as PDF or CSV.
 - Send test message
 - Versioning (track template changes)
 
+Current implementation boundary (2026-09-02): the list above remains the target,
+not a statement of deployed capability. Only `new_job_available` and
+`booking_matched` consume Admin-managed copy, and each uses one title/body for
+an in-app record plus best-effort push. The stored channel marker does not send
+SMS or email. Other rows are reference-only. Mutation is super-admin-only and
+reasoned; inactive or missing connected rows use built-in fallback copy. E66
+holds per-channel/locale publication, test-send, immutable versions, outbox
+delivery evidence, migration, and new provider activation.
+
 ## Module 12 — Recurring (existing, 219 lines)
 
 - All recurring booking schedules

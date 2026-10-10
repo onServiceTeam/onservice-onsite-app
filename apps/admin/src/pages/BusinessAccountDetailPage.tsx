@@ -1,7 +1,7 @@
 /**
  * Business Account 360 admin detail page.
  *
- * 4 tabs: Overview, Members, Contracts, Invoices.
+ * 5 tabs: Overview, Members, Contracts, Bookings, Invoices.
  * Mirrors the structure of CustomerDetailPage.tsx (Phase 06):
  * useParams id, react-query data fetch, tabbed layout, Card/KpiCard,
  * loading/error/empty states, super-admin gating via useAuthStore.
@@ -12,13 +12,14 @@
  *   GET  /api/v1/admin/business-accounts/:id/members
  *   GET  /api/v1/admin/business-accounts/:id/contracts?page&pageSize
  *   GET  /api/v1/admin/business-accounts/:id/invoices?page&pageSize
- *   POST /api/v1/admin/business-accounts/:id/set-discount
+ *   POST /api/v1/admin/business-accounts/:id/terms/preview + /terms/publish
  *   POST /api/v1/admin/business-accounts/:id/assign-manager
- *   POST /api/v1/admin/invoices/:id/mark-paid
+ *   POST /api/v1/admin/business-accounts/:id/invoices/preview + /prepare
+ *   POST /api/v1/admin/invoices/:id/finalize + /payments + /adjustments
  */
 
-import React, { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -88,6 +89,7 @@ interface BusinessAccount {
   volumeDiscountRate: number; // percent number
   monthlyCreditLimit: number | null; // centavos
   notes: string | null;
+  recordVersion: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -114,7 +116,7 @@ interface BusinessContract {
   providerId: string | null;
   providerName: string | null;
   contractType: string;
-  frequency: string;
+  frequency: string | null;
   agreedRate: number | null; // centavos
   discountPercentage: number; // percent
   estimatedMonthlyValue: number | null; // centavos
@@ -122,6 +124,10 @@ interface BusinessContract {
   endDate: string | null;
   autoRenew: boolean;
   status: string;
+  recordVersion: number;
+  publishedAt: string | null;
+  publishedBy: string | null;
+  publishReason: string | null;
   createdAt: string;
 }
 
@@ -138,7 +144,93 @@ interface BusinessInvoice {
   dueDate: string | null;
   paidAt: string | null;
   paymentReference: string | null;
+  recordVersion: number;
+  controlState: string;
+  settlementState?: string;
+  documentKind: string;
+  currency: string;
+  accountTermsVersionId: string | null;
+  preparationPreviewId: string | null;
+  preparedAt: string | null;
+  finalizedAt: string | null;
   createdAt: string;
+}
+
+interface BusinessControlPreview {
+  id: string;
+  action: string;
+  impact: Record<string, number>;
+  proposedTerms?: {
+    paymentTerms: string;
+    volumeDiscountRate: number;
+    monthlyCreditLimit: number;
+    currency: string;
+    effectiveFrom: string;
+  };
+  expiresAt: string;
+  createdAt: string;
+}
+
+interface CurrentBusinessTerms {
+  id: string;
+  version: number;
+  paymentTerms: string;
+  volumeDiscountRate: number;
+  monthlyCreditLimit: number;
+  currency: string;
+  effectiveFrom: string;
+  reason: string;
+}
+
+interface InvoiceBalance {
+  adjustmentTotal: number;
+  paymentTotal: number;
+  adjustedTotal: number;
+  balanceDue: number;
+}
+
+interface InvoiceAdjustmentEvidence {
+  id: string;
+  adjustmentType: string;
+  amount: number;
+  currency: string;
+  reason: string;
+  evidenceReference: string;
+  createdAt: string;
+}
+
+interface InvoicePaymentEvidence {
+  id: string;
+  entryType: 'payment' | 'reversal';
+  reversesPaymentId: string | null;
+  amount: number;
+  currency: string;
+  method: string;
+  effectiveAt: string;
+  externalReference: string;
+  evidenceReference: string;
+  reason: string;
+  classification: string;
+  createdAt: string;
+}
+
+interface InvoicePreview {
+  id: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  groups: Array<{
+    accountTermsVersionId: string;
+    paymentTerms: string;
+    volumeDiscountBasisPoints: number;
+    subtotal: number;
+    discountAmount: number;
+    taxAmount: number;
+    totalAmount: number;
+    manifestHash: string;
+    items: Array<{ bookingId: string; description: string; amount: number }>;
+  }>;
+  exceptions: Array<{ bookingId: string; code: string; message: string; blocking: true }>;
+  expiresAt: string;
 }
 
 interface BusinessBooking {
@@ -209,6 +301,15 @@ interface AdminStaffOption {
 
 type TabId = 'overview' | 'members' | 'contracts' | 'bookings' | 'invoices';
 
+const BUSINESS_ACCOUNT_TABS: readonly TabId[] = [
+  'overview', 'members', 'contracts', 'bookings', 'invoices',
+];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parseTab(value: string | null): TabId {
+  return BUSINESS_ACCOUNT_TABS.includes(value as TabId) ? value as TabId : 'overview';
+}
+
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'default' | 'info'> = {
   active: 'success',
   pending: 'warning',
@@ -230,7 +331,10 @@ function statusVariant(s: string): 'success' | 'warning' | 'danger' | 'default' 
 }
 
 function fmtLabel(s: string): string {
-  return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return s
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function fmtPercent(pct: number): string {
@@ -260,7 +364,49 @@ function memberName(m: BusinessMember): string {
 export default function BusinessAccountDetailPage(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const accountId = id ?? '';
-  const [tab, setTab] = useState<TabId>('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = parseTab(searchParams.get('tab'));
+  const requestedContractId = searchParams.get('contractId');
+  const requestedInvoiceId = searchParams.get('invoiceId');
+  const selectedContractId = tab === 'contracts' && requestedContractId && UUID_PATTERN.test(requestedContractId)
+    ? requestedContractId
+    : null;
+  const selectedInvoiceId = tab === 'invoices' && requestedInvoiceId && UUID_PATTERN.test(requestedInvoiceId)
+    ? requestedInvoiceId
+    : null;
+
+  function setTab(nextTab: TabId): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (nextTab === 'overview') params.delete('tab');
+      else params.set('tab', nextTab);
+      if (nextTab !== 'contracts') params.delete('contractId');
+      if (nextTab !== 'invoices') params.delete('invoiceId');
+      return params;
+    });
+  }
+
+  function setSelectedContractId(contractId: string | null): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'contracts');
+      params.delete('invoiceId');
+      if (contractId) params.set('contractId', contractId);
+      else params.delete('contractId');
+      return params;
+    });
+  }
+
+  function setSelectedInvoiceId(invoiceId: string | null): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.set('tab', 'invoices');
+      params.delete('contractId');
+      if (invoiceId) params.set('invoiceId', invoiceId);
+      else params.delete('invoiceId');
+      return params;
+    });
+  }
 
   const accountQuery = useQuery({
     queryKey: ['admin-business-account', accountId],
@@ -284,11 +430,14 @@ export default function BusinessAccountDetailPage(): React.ReactElement {
         title="Failed to load business account"
         description={getErrorMessage(accountQuery.error)}
         action={
-          <Link to="/business-accounts">
-            <Button variant="secondary" size="sm">
-              <ArrowLeft size={14} /> Back to business accounts
-            </Button>
-          </Link>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void accountQuery.refetch()}>Retry account</Button>
+            <Link to="/business-accounts">
+              <Button variant="secondary" size="sm">
+                <ArrowLeft size={14} /> Back to business accounts
+              </Button>
+            </Link>
+          </div>
         }
       />
     );
@@ -308,6 +457,7 @@ export default function BusinessAccountDetailPage(): React.ReactElement {
       </div>
 
       <AccountHeader account={account} />
+      <AccountLifecycleControl account={account} />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabId)}>
         <TabsList className="h-auto max-w-full flex-wrap justify-start gap-1">
@@ -325,13 +475,25 @@ export default function BusinessAccountDetailPage(): React.ReactElement {
           <MembersTab accountId={accountId} />
         </TabsContent>
         <TabsContent value="contracts">
-          <ContractsTab accountId={accountId} />
+          <ContractsTab
+            accountId={accountId}
+            selectedContractId={selectedContractId}
+            onSelectedContractChange={setSelectedContractId}
+          />
         </TabsContent>
         <TabsContent value="bookings">
-          <BusinessBookingsTab accountId={accountId} />
+          <BusinessBookingsTab
+            accountId={accountId}
+            accountName={account.companyName}
+            ownerUserId={account.ownerUserId}
+          />
         </TabsContent>
         <TabsContent value="invoices">
-          <InvoicesTab accountId={accountId} />
+          <InvoicesTab
+            accountId={accountId}
+            selectedInvoiceId={selectedInvoiceId}
+            onSelectedInvoiceChange={setSelectedInvoiceId}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -371,22 +533,145 @@ function AccountHeader({ account }: { account: BusinessAccount }): React.ReactEl
           </div>
         </div>
       </div>
+
+    </Card>
+  );
+}
+
+function ImpactSummary({ impact }: { impact: Record<string, number> }): React.ReactElement {
+  const entries = Object.entries(impact);
+  if (entries.length === 0) return <p className="text-sm text-[var(--color-text-secondary)]">No linked records are affected.</p>;
+  return (
+    <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {entries.map(([key, value]) => (
+        <div key={key} className="rounded-lg border border-[var(--color-border)] bg-slate-50 p-3">
+          <dt className="text-[11px] font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">{fmtLabel(key)}</dt>
+          <dd className="mt-1 text-lg font-semibold text-[var(--color-text)]">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export function AccountLifecycleControl({ account }: { account: BusinessAccount }): React.ReactElement {
+  const role = useAuthStore((state) => state.user?.role);
+  const isSuperAdmin = role === 'super_admin';
+  const queryClient = useQueryClient();
+  const [preview, setPreview] = useState<BusinessControlPreview | null>(null);
+  const [action, setAction] = useState<'approve' | 'suspend' | null>(null);
+  const [reason, setReason] = useState('');
+
+  const previewMutation = useMutation({
+    mutationFn: async (nextAction: 'approve' | 'suspend') => {
+      const response = await api.post<{ success: boolean; data: BusinessControlPreview }>(
+        `/api/v1/admin/business-accounts/${account.id}/${nextAction}/preview`,
+      );
+      return { nextAction, preview: response.data.data };
+    },
+    onSuccess: ({ nextAction, preview: nextPreview }) => {
+      setAction(nextAction);
+      setPreview(nextPreview);
+      setReason('');
+    },
+  });
+
+  const applyMutation = useMutation({
+    mutationFn: async () => {
+      if (!action || !preview) throw new Error('Run the impact preview first.');
+      await api.post(`/api/v1/admin/business-accounts/${account.id}/${action}`, {
+        previewId: preview.id,
+        reason: reason.trim(),
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-business-account', account.id] });
+      void queryClient.invalidateQueries({ queryKey: ['adminBusinessAccounts'] });
+      setPreview(null);
+      setAction(null);
+      setReason('');
+    },
+  });
+
+  if (!['pending', 'active'].includes(account.status)) return <></>;
+
+  return (
+    <Card className="border-l-4 border-l-[var(--color-primary)] p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">Lifecycle control</p>
+          <h2 className="mt-1 text-sm font-semibold text-[var(--color-text)]">
+            {account.status === 'pending' ? 'Account approval is waiting for impact review' : 'Account is active'}
+          </h2>
+          <p className="mt-1 max-w-3xl text-xs text-[var(--color-text-secondary)]">
+            The preview snapshots linked contracts, work orders, and statements. The final decision requires a reason and fails if anything changes before approval.
+          </p>
+        </div>
+        {isSuperAdmin ? (
+          <Button
+            variant={account.status === 'active' ? 'destructive' : 'default'}
+            size="sm"
+            onClick={() => previewMutation.mutate(account.status === 'pending' ? 'approve' : 'suspend')}
+            disabled={previewMutation.isPending}
+          >
+            {previewMutation.isPending ? 'Reviewing…' : account.status === 'pending' ? 'Review approval' : 'Review suspension'}
+          </Button>
+        ) : (
+          <Badge label="Super admin decision" variant="warning" />
+        )}
+      </div>
+      {previewMutation.isError ? <p role="alert" className="mt-3 text-sm text-red-600">{getErrorMessage(previewMutation.error)}</p> : null}
+
+      <Dialog open={preview !== null} onOpenChange={(open) => !open && !applyMutation.isPending && setPreview(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{action === 'approve' ? 'Approve business account' : 'Suspend business account'}</DialogTitle>
+            <DialogDescription>
+              Review the current impact snapshot. Historical work and statements remain unchanged.
+            </DialogDescription>
+          </DialogHeader>
+          {preview ? <ImpactSummary impact={preview.impact} /> : null}
+          <div className="space-y-2">
+            <Label htmlFor="business-lifecycle-reason">Decision reason</Label>
+            <textarea
+              id="business-lifecycle-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              className="min-h-24 w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
+              placeholder="Explain the reviewed business reason (minimum 10 characters)"
+            />
+          </div>
+          {applyMutation.isError ? <p role="alert" className="text-sm text-red-600">{getErrorMessage(applyMutation.error)}</p> : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreview(null)} disabled={applyMutation.isPending}>Cancel</Button>
+            <Button
+              variant={action === 'suspend' ? 'destructive' : 'default'}
+              onClick={() => applyMutation.mutate()}
+              disabled={applyMutation.isPending || reason.trim().length < 10}
+            >
+              {applyMutation.isPending ? 'Applying…' : action === 'approve' ? 'Approve account' : 'Suspend account'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
 
 // ─── OverviewTab ──────────────────────────────────────────────────────────
 
-function OverviewTab({ account }: { account: BusinessAccount }): React.ReactElement {
+export function OverviewTab({ account }: { account: BusinessAccount }): React.ReactElement {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 md:col-span-2">
+        Account projection values are intake/current mirror fields, not approval evidence. The versioned commercial terms panel below is the authority for future company bookings.
+      </div>
       <KpiCard
-        title="Volume discount"
+        title="Account projection: volume discount"
         value={account.volumeDiscountRate > 0 ? fmtPercent(account.volumeDiscountRate) : '—'}
         icon={<Coins size={16} />}
       />
       <KpiCard
-        title="Monthly credit limit"
+        title="Account projection: billing credit"
         value={account.monthlyCreditLimit && account.monthlyCreditLimit > 0 ? formatCurrency(account.monthlyCreditLimit) : '—'}
         icon={<CreditCard size={16} />}
       />
@@ -395,7 +680,7 @@ function OverviewTab({ account }: { account: BusinessAccount }): React.ReactElem
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Account information</h3>
         <dl className="space-y-2 text-sm">
           <InfoRow label="Business type" value={fmtLabel(account.businessType)} />
-          <InfoRow label="Payment terms" value={fmtLabel(account.paymentTerms)} />
+          <InfoRow label="Projected payment terms" value={fmtLabel(account.paymentTerms)} />
           <InfoRow label="Registration #" value={account.registrationNumber ?? '—'} />
           <InfoRow label="Tax ID" value={account.taxId ?? '—'} />
           <InfoRow label="Business owner" value={account.ownerName ?? account.ownerUserId ?? '—'} />
@@ -446,14 +731,33 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
   const isSuperAdmin = role === 'super_admin';
   const queryClient = useQueryClient();
 
-  // volumeDiscountRate is a percent (0..50). monthlyCreditLimit is entered
-  // by the user in PESOS and converted to centavos before POST.
+  // The account projection is display-only. Every commercial change is first
+  // previewed, then published as a new immutable terms version.
+  const [paymentTerms, setPaymentTerms] = useState(account.paymentTerms);
   const [discountPct, setDiscountPct] = useState(String(account.volumeDiscountRate ?? ''));
   const [creditLimitPesos, setCreditLimitPesos] = useState(
     account.monthlyCreditLimit != null ? String(account.monthlyCreditLimit / 100) : '',
   );
   const [managerId, setManagerId] = useState(account.accountManagerId ?? '');
   const [managerReason, setManagerReason] = useState('');
+  const [termsPreview, setTermsPreview] = useState<BusinessControlPreview | null>(null);
+  const [termsReason, setTermsReason] = useState('');
+
+  useEffect(() => {
+    setPaymentTerms(account.paymentTerms);
+    setDiscountPct(String(account.volumeDiscountRate ?? ''));
+    setCreditLimitPesos(account.monthlyCreditLimit != null ? String(account.monthlyCreditLimit / 100) : '');
+  }, [account.paymentTerms, account.volumeDiscountRate, account.monthlyCreditLimit]);
+
+  const termsQuery = useQuery({
+    queryKey: ['admin-business-account-current-terms', account.id],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: CurrentBusinessTerms | null }>(
+        `/api/v1/admin/business-accounts/${account.id}/terms/current`,
+      );
+      return response.data.data;
+    },
+  });
 
   const managersQuery = useQuery({
     queryKey: ['adminStaff', 'active-manager-options'],
@@ -464,16 +768,38 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
     enabled: isSuperAdmin,
   });
 
-  const setDiscount = useMutation({
-    mutationFn: async (input: { volumeDiscountRate?: number; monthlyCreditLimit?: number }) => {
-      const res = await api.post<{ success: boolean; data: BusinessAccount }>(
-        `/api/v1/admin/business-accounts/${account.id}/set-discount`,
+  const previewTerms = useMutation({
+    mutationFn: async (input: {
+      expectedVersion: number;
+      paymentTerms: string;
+      volumeDiscountRate: number;
+      monthlyCreditLimit: number;
+    }) => {
+      const response = await api.post<{ success: boolean; data: BusinessControlPreview }>(
+        `/api/v1/admin/business-accounts/${account.id}/terms/preview`,
         input,
       );
-      return res.data.data;
+      return response.data.data;
+    },
+    onSuccess: (nextPreview) => {
+      setTermsPreview(nextPreview);
+      setTermsReason('');
+    },
+  });
+
+  const publishTerms = useMutation({
+    mutationFn: async () => {
+      if (!termsPreview) throw new Error('Run the terms preview first.');
+      await api.post(`/api/v1/admin/business-accounts/${account.id}/terms/publish`, {
+        previewId: termsPreview.id,
+        reason: termsReason.trim(),
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-business-account', account.id] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-business-account', account.id] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-business-account-current-terms', account.id] });
+      setTermsPreview(null);
+      setTermsReason('');
     },
   });
 
@@ -493,31 +819,48 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
   });
 
   const parsedPct = Number(discountPct);
-  const pctValid =
-    discountPct.trim() !== '' && Number.isFinite(parsedPct) && parsedPct >= 0 && parsedPct <= 50;
+  const pctValid = discountPct.trim() !== ''
+    && Number.isFinite(parsedPct)
+    && parsedPct >= 0
+    && parsedPct <= 50
+    && Math.abs(Math.round(parsedPct * 100) / 100 - parsedPct) < 0.000001;
 
   const parsedPesos = Number(creditLimitPesos);
   const creditValid =
     creditLimitPesos.trim() === '' ||
-    (Number.isFinite(parsedPesos) && parsedPesos >= 0);
+    (Number.isFinite(parsedPesos)
+      && parsedPesos >= 0
+      && Number.isSafeInteger(Math.round(parsedPesos * 100)));
 
   function submitBilling(): void {
-    const input: { volumeDiscountRate?: number; monthlyCreditLimit?: number } = {};
-    if (pctValid) input.volumeDiscountRate = parsedPct;
-    if (creditLimitPesos.trim() !== '' && Number.isFinite(parsedPesos) && parsedPesos >= 0) {
-      input.monthlyCreditLimit = Math.round(parsedPesos * 100);
-    }
-    if (input.volumeDiscountRate === undefined && input.monthlyCreditLimit === undefined) return;
-    setDiscount.mutate(input);
+    if (!pctValid || !creditValid || creditLimitPesos.trim() === '') return;
+    previewTerms.mutate({
+      expectedVersion: account.recordVersion,
+      paymentTerms,
+      volumeDiscountRate: parsedPct,
+      monthlyCreditLimit: Math.round(parsedPesos * 100),
+    });
   }
 
   if (!isSuperAdmin) {
     return (
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-1">Billing settings</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-1">Billing settings, read-only</h3>
         <p className="text-xs text-[var(--color-text-secondary)]">
-          Volume discount and account manager changes require a super admin.
+          Commercial terms publication and account-manager changes require a super admin. The approved terms below are the authority for future company bookings.
         </p>
+        <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-slate-50 p-3 text-sm">
+          {termsQuery.isLoading ? <span>Loading approved terms...</span> : termsQuery.isError ? (
+            <span role="alert" className="text-xs text-red-700">Approved terms could not be loaded. Do not treat this as no approved terms.</span>
+          ) : termsQuery.data ? (
+            <div className="grid gap-2 sm:grid-cols-4">
+              <InfoRow label="Terms version" value={`v${termsQuery.data.version}`} />
+              <InfoRow label="Payment terms" value={fmtLabel(termsQuery.data.paymentTerms)} />
+              <InfoRow label="Discount" value={fmtPercent(termsQuery.data.volumeDiscountRate)} />
+              <InfoRow label="Approved billing credit" value={formatCurrency(termsQuery.data.monthlyCreditLimit)} />
+            </div>
+          ) : <span className="font-medium text-amber-700">No approved terms version is published.</span>}
+        </div>
       </Card>
     );
   }
@@ -525,16 +868,49 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
   return (
     <Card className="p-5 space-y-5">
       <div>
-        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Billing settings</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-1">Versioned commercial terms</h3>
+        <p className="mb-3 text-xs text-[var(--color-text-secondary)]">
+          New terms affect only future company bookings. Existing bookings, statements, payments, and adjustments keep their original snapshots.
+        </p>
+        <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-slate-50 p-3 text-sm">
+          {termsQuery.isLoading ? <span>Loading approved terms…</span> : termsQuery.isError ? (
+            <span role="alert" className="inline-flex flex-wrap items-center gap-2 text-xs text-red-700">
+              Approved terms could not be loaded. Do not treat this as no approved terms.
+              <Button type="button" size="sm" variant="outline" onClick={() => void termsQuery.refetch()}>
+                Retry terms
+              </Button>
+            </span>
+          ) : termsQuery.data ? (
+            <div className="grid gap-2 sm:grid-cols-4">
+              <InfoRow label="Terms version" value={`v${termsQuery.data.version}`} />
+              <InfoRow label="Payment terms" value={fmtLabel(termsQuery.data.paymentTerms)} />
+              <InfoRow label="Discount" value={fmtPercent(termsQuery.data.volumeDiscountRate)} />
+              <InfoRow label="Approved billing credit" value={formatCurrency(termsQuery.data.monthlyCreditLimit)} />
+            </div>
+          ) : <span className="font-medium text-amber-700">No approved terms version. Publish terms before publishing a contract.</span>}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label htmlFor="ba-payment-terms" className="text-xs text-[var(--color-text-secondary)]">Payment terms</label>
+            <select
+              id="ba-payment-terms"
+              value={paymentTerms}
+              onChange={(event) => setPaymentTerms(event.target.value)}
+              className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
+            >
+              <option value="net_15">Net 15</option>
+              <option value="net_30">Net 30</option>
+              <option value="net_60">Net 60</option>
+            </select>
+          </div>
           <div>
             <label htmlFor="ba-discount-pct" className="text-xs text-[var(--color-text-secondary)]">
-              Volume discount (%) — 0 to 50
+              Volume discount (%) — 0 to 50, up to 2 decimals
             </label>
             <input
               id="ba-discount-pct"
               type="number"
-              step="1"
+              step="0.01"
               min="0"
               max="50"
               value={discountPct}
@@ -545,7 +921,7 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
           </div>
           <div>
             <label htmlFor="ba-credit-limit" className="text-xs text-[var(--color-text-secondary)]">
-              Monthly credit limit (PHP)
+              Approved billing credit (PHP)
             </label>
             <input
               id="ba-credit-limit"
@@ -562,23 +938,26 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
         <div className="mt-3 flex items-center gap-2 flex-wrap">
           <Button
             size="sm"
-            disabled={setDiscount.isPending || (!pctValid && creditLimitPesos.trim() === '') || !creditValid}
+            disabled={
+              previewTerms.isPending
+              || account.status !== 'active'
+              || !pctValid
+              || !creditValid
+              || creditLimitPesos.trim() === ''
+            }
             onClick={submitBilling}
           >
-            Save billing settings
+            {previewTerms.isPending ? 'Preparing preview…' : 'Preview new terms'}
           </Button>
           {!pctValid && discountPct.trim() !== '' && (
-            <span className="text-xs text-amber-600">Discount must be 0–50%.</span>
+            <span className="text-xs text-amber-600">Discount must be 0–50% with at most two decimals.</span>
           )}
           {!creditValid && (
-            <span className="text-xs text-amber-600">Credit limit must be a non-negative amount.</span>
+            <span className="text-xs text-amber-600">Billing credit must be a non-negative amount.</span>
           )}
-          {setDiscount.isError && (
-            <span role="alert" className="text-xs text-red-600">{getErrorMessage(setDiscount.error)}</span>
-          )}
-          {setDiscount.isSuccess && (
-            <span className="text-xs text-green-600">Billing settings updated.</span>
-          )}
+          {account.status !== 'active' ? <span className="text-xs text-amber-700">Activate the account before publishing terms.</span> : null}
+          {previewTerms.isError ? <span role="alert" className="text-xs text-red-600">{getErrorMessage(previewTerms.error)}</span> : null}
+          {publishTerms.isSuccess ? <span className="text-xs text-green-600">A new immutable terms version was published.</span> : null}
         </div>
       </div>
 
@@ -669,7 +1048,12 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
             <span className="text-xs text-amber-700">Reason must be at least 10 characters.</span>
           )}
           {managersQuery.isError && (
-            <span role="alert" className="text-xs text-red-600">Could not load active staff members.</span>
+            <span role="alert" className="inline-flex flex-wrap items-center gap-2 text-xs text-red-600">
+              Could not load active staff members. Do not assign an owner until the directory is available.
+              <Button type="button" size="sm" variant="outline" onClick={() => void managersQuery.refetch()}>
+                Retry staff
+              </Button>
+            </span>
           )}
           {assignManager.isError && (
             <span role="alert" className="text-xs text-red-600">{getErrorMessage(assignManager.error)}</span>
@@ -679,6 +1063,42 @@ export function BillingSettingsCard({ account }: { account: BusinessAccount }): 
           )}
         </div>
       </div>
+
+      <Dialog open={termsPreview !== null} onOpenChange={(open) => !open && !publishTerms.isPending && setTermsPreview(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Publish new commercial terms</DialogTitle>
+            <DialogDescription>
+              This creates a new immutable version for future company bookings. It does not reprice existing work or statements.
+            </DialogDescription>
+          </DialogHeader>
+          {termsPreview?.proposedTerms ? (
+            <div className="grid gap-2 rounded-lg border border-[var(--color-border)] bg-slate-50 p-3 sm:grid-cols-3">
+              <InfoRow label="Payment terms" value={fmtLabel(termsPreview.proposedTerms.paymentTerms)} />
+              <InfoRow label="Discount" value={fmtPercent(termsPreview.proposedTerms.volumeDiscountRate)} />
+              <InfoRow label="Approved billing credit" value={formatCurrency(termsPreview.proposedTerms.monthlyCreditLimit)} />
+            </div>
+          ) : null}
+          {termsPreview ? <ImpactSummary impact={termsPreview.impact} /> : null}
+          <div className="space-y-2">
+            <Label htmlFor="business-terms-reason">Publication reason</Label>
+            <textarea
+              id="business-terms-reason"
+              value={termsReason}
+              onChange={(event) => setTermsReason(event.target.value)}
+              className="min-h-24 w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
+              placeholder="Explain why these prospective terms were approved"
+            />
+          </div>
+          {publishTerms.isError ? <p role="alert" className="text-sm text-red-600">{getErrorMessage(publishTerms.error)}</p> : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTermsPreview(null)} disabled={publishTerms.isPending}>Cancel</Button>
+            <Button onClick={() => publishTerms.mutate()} disabled={publishTerms.isPending || termsReason.trim().length < 10}>
+              {publishTerms.isPending ? 'Publishing…' : 'Publish terms version'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -705,7 +1125,7 @@ export function MembersTab({ accountId }: { accountId: string }): React.ReactEle
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} action={<Button variant="outline" onClick={() => void q.refetch()}>Retry members</Button>} />;
   const members = q.data ?? [];
 
   const columns: Column<BusinessMember>[] = [
@@ -764,23 +1184,80 @@ export function MembersTab({ accountId }: { accountId: string }): React.ReactEle
 
 // ─── ContractsTab ────────────────────────────────────────────────────────────
 
-export function ContractsTab({ accountId }: { accountId: string }): React.ReactElement {
+export function ContractsTab({
+  accountId,
+  selectedContractId,
+  onSelectedContractChange,
+}: {
+  accountId: string;
+  selectedContractId?: string | null;
+  onSelectedContractChange?: (contractId: string | null) => void;
+}): React.ReactElement {
   const [page, setPage] = useState(1);
   const pageSize = 20;
+  const role = useAuthStore((state) => state.user?.role);
+  const isSuperAdmin = role === 'super_admin';
+  const queryClient = useQueryClient();
+  const [decision, setDecision] = useState<{
+    contract: BusinessContract;
+    action: 'publish' | 'cancel';
+    preview: BusinessControlPreview;
+  } | null>(null);
+  const [decisionReason, setDecisionReason] = useState('');
 
   const q = useQuery({
-    queryKey: ['admin-business-account-contracts', accountId, page],
+    queryKey: ['admin-business-account-contracts', accountId, page, selectedContractId],
     queryFn: async () => {
       const res = await api.get<PaginatedResult<BusinessContract>>(
         `/api/v1/admin/business-accounts/${accountId}/contracts`,
-        { params: { page, pageSize } },
+        { params: {
+          page: selectedContractId ? 1 : page,
+          pageSize,
+          ...(selectedContractId ? { contractId: selectedContractId } : {}),
+        } },
       );
       return res.data;
     },
   });
 
+  const previewDecision = useMutation({
+    mutationFn: async ({ contract, action }: { contract: BusinessContract; action: 'publish' | 'cancel' }) => {
+      const response = await api.post<{ success: boolean; data: BusinessControlPreview }>(
+        `/api/v1/admin/business-accounts/${accountId}/contracts/${contract.id}/${action}/preview`,
+      );
+      return { contract, action, preview: response.data.data };
+    },
+    onSuccess: (nextDecision) => {
+      setDecision(nextDecision);
+      setDecisionReason('');
+    },
+  });
+
+  const applyDecision = useMutation({
+    mutationFn: async () => {
+      if (!decision) throw new Error('Run the contract impact preview first.');
+      await api.post(
+        `/api/v1/admin/business-accounts/${accountId}/contracts/${decision.contract.id}/${decision.action}`,
+        { previewId: decision.preview.id, reason: decisionReason.trim() },
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-business-account-contracts', accountId] });
+      setDecision(null);
+      setDecisionReason('');
+    },
+  });
+
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Business contracts unavailable"
+        description="The contract list could not be read. Do not treat it as an empty or safe-to-publish queue."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry contracts</Button>}
+      />
+    );
+  }
   const result = q.data!;
   const contracts = result.data ?? [];
   const pagination = result.pagination;
@@ -818,7 +1295,11 @@ export function ContractsTab({ accountId }: { accountId: string }): React.ReactE
     {
       key: 'frequency',
       header: 'Frequency',
-      render: (c) => <span className="text-sm">{fmtLabel(c.frequency)}</span>,
+      render: (c) => (
+        <span className="text-sm">
+          {c.frequency ? fmtLabel(c.frequency) : c.contractType === 'on_demand' ? 'As needed' : 'Not set'}
+        </span>
+      ),
     },
     {
       key: 'agreedRate',
@@ -827,8 +1308,13 @@ export function ContractsTab({ accountId }: { accountId: string }): React.ReactE
     },
     {
       key: 'discountPercentage',
-      header: 'Discount',
-      render: (c) => <span className="text-sm">{fmtPercent(c.discountPercentage)}</span>,
+      header: 'Contract discount',
+      render: (c) => (
+        <div>
+          <span className="block text-sm">{fmtPercent(c.discountPercentage)}</span>
+          {c.discountPercentage > 0 || c.providerId ? <span className="text-xs font-semibold text-amber-700">Publication held</span> : null}
+        </div>
+      ),
     },
     {
       key: 'estimatedMonthlyValue',
@@ -851,21 +1337,62 @@ export function ContractsTab({ accountId }: { accountId: string }): React.ReactE
         </span>
       ),
     },
+    {
+      key: 'actions',
+      header: '',
+      render: (contract) => {
+        if (!isSuperAdmin) return <span className="text-xs text-[var(--color-text-secondary)]">View only</span>;
+        const action = contract.status === 'draft' && !contract.publishedAt
+          ? 'publish'
+          : contract.status === 'active' && contract.publishedAt
+            ? 'cancel'
+            : null;
+        return action ? (
+          <Button
+            size="sm"
+            variant={action === 'cancel' ? 'destructive' : 'outline'}
+            onClick={() => previewDecision.mutate({ contract, action })}
+            disabled={previewDecision.isPending || (action === 'publish' && (contract.discountPercentage > 0 || Boolean(contract.providerId)))}
+          >
+            Review {action}
+          </Button>
+        ) : <span className="text-xs text-[var(--color-text-secondary)]">No action</span>;
+      },
+    },
   ];
 
   if (contracts.length === 0) {
-    return <EmptyState title="No contracts for this account." />;
+    return selectedContractId ? (
+      <EmptyState
+        title="Exact contract not found for this account."
+        description="The contract may have been removed from this account or the handoff may be stale."
+        action={<Button variant="outline" onClick={() => onSelectedContractChange?.(null)}>Show all account contracts</Button>}
+      />
+    ) : <EmptyState title="No contracts for this account." />;
   }
 
   return (
     <div className="space-y-3">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        Contract-level discounts and provider-specific drafts remain visible for review, but neither can be published yet. Discount authority is unresolved, and provider-specific assignment/funding remains held under E56. The billing engine never silently combines or infers those terms.
+      </div>
+      {selectedContractId ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            Showing exact contract <span className="font-mono font-semibold">{selectedContractId.slice(0, 8).toUpperCase()}</span> from an operator handoff.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => onSelectedContractChange?.(null)}>
+            Show all contracts
+          </Button>
+        </div>
+      ) : null}
       <DataTable
         columns={columns}
         data={contracts}
         keyExtractor={(c) => c.id}
         emptyMessage="No contracts for this account."
       />
-      {pagination && pagination.totalPages > 1 && (
+      {!selectedContractId && pagination && pagination.totalPages > 1 && (
         <Pagination
           page={pagination.page}
           totalPages={pagination.totalPages}
@@ -874,13 +1401,54 @@ export function ContractsTab({ accountId }: { accountId: string }): React.ReactE
           onPageChange={setPage}
         />
       )}
+      {previewDecision.isError ? <p role="alert" className="text-sm text-red-600">{getErrorMessage(previewDecision.error)}</p> : null}
+      <Dialog open={decision !== null} onOpenChange={(open) => !open && !applyDecision.isPending && setDecision(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{decision?.action === 'publish' ? 'Publish contract' : 'Cancel contract'}</DialogTitle>
+            <DialogDescription>
+              Contract lifecycle events are append-only. Existing booking price snapshots and statement lines do not change.
+            </DialogDescription>
+          </DialogHeader>
+          {decision ? <ImpactSummary impact={decision.preview.impact} /> : null}
+          <div className="space-y-2">
+            <Label htmlFor="contract-decision-reason">Decision reason</Label>
+            <textarea
+              id="contract-decision-reason"
+              value={decisionReason}
+              onChange={(event) => setDecisionReason(event.target.value)}
+              className="min-h-24 w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
+              placeholder="Explain the reviewed commercial decision"
+            />
+          </div>
+          {applyDecision.isError ? <p role="alert" className="text-sm text-red-600">{getErrorMessage(applyDecision.error)}</p> : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDecision(null)} disabled={applyDecision.isPending}>Cancel</Button>
+            <Button
+              variant={decision?.action === 'cancel' ? 'destructive' : 'default'}
+              onClick={() => applyDecision.mutate()}
+              disabled={applyDecision.isPending || decisionReason.trim().length < 10}
+            >
+              {applyDecision.isPending ? 'Applying…' : decision?.action === 'publish' ? 'Publish contract' : 'Cancel contract'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 // ─── Bookings and support ────────────────────────────────────────────────────
 
-export function BusinessBookingsTab({ accountId }: { accountId: string }): React.ReactElement {
+export function BusinessBookingsTab({
+  accountId,
+  accountName,
+  ownerUserId,
+}: {
+  accountId: string;
+  accountName: string;
+  ownerUserId: string | null;
+}): React.ReactElement {
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const q = useQuery({
@@ -894,7 +1462,15 @@ export function BusinessBookingsTab({ accountId }: { accountId: string }): React
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState title="Failed to load business bookings" description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Business bookings unavailable"
+        description="The account's work-order and support linkage could not be read. Do not treat it as having no bookings."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry business bookings</Button>}
+      />
+    );
+  }
 
   const result = q.data!;
   const bookings = result.data ?? [];
@@ -905,12 +1481,28 @@ export function BusinessBookingsTab({ accountId }: { accountId: string }): React
           <h3 className="text-sm font-semibold text-[var(--color-text)]">Commercial work and case linkage</h3>
           <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Only bookings explicitly placed under this business account appear here. Payment and refund authority remains in Booking 360.</p>
         </div>
-        <Link
-          to={`/bookings?businessAccountId=${encodeURIComponent(accountId)}`}
-          className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-slate-50"
-        >
-          Open full booking queue
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to={`/support-tickets?businessAccountId=${encodeURIComponent(accountId)}&businessName=${encodeURIComponent(accountName)}`}
+            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-slate-50"
+          >
+            Open account support
+          </Link>
+          {ownerUserId && (
+            <Link
+              to={`/support-tickets?businessAccountId=${encodeURIComponent(accountId)}&businessName=${encodeURIComponent(accountName)}&userId=${encodeURIComponent(ownerUserId)}&userName=${encodeURIComponent(accountName)}&userRole=customer&new=1`}
+              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-slate-50"
+            >
+              Create account case
+            </Link>
+          )}
+          <Link
+            to={`/bookings?businessAccountId=${encodeURIComponent(accountId)}`}
+            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-slate-50"
+          >
+            Open full booking queue
+          </Link>
+        </div>
       </div>
 
       {bookings.length === 0 ? <EmptyState title="No bookings are linked to this business account." /> : (
@@ -964,15 +1556,36 @@ export function BusinessBookingsTab({ accountId }: { accountId: string }): React
 
 // ─── InvoicesTab ─────────────────────────────────────────────────────────────
 
-export function InvoicesTab({ accountId }: { accountId: string }): React.ReactElement {
+export function InvoicesTab({
+  accountId,
+  selectedInvoiceId,
+  onSelectedInvoiceChange,
+}: {
+  accountId: string;
+  selectedInvoiceId?: string | null;
+  onSelectedInvoiceChange?: (invoiceId: string | null) => void;
+}): React.ReactElement {
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const queryClient = useQueryClient();
+  const role = useAuthStore((state) => state.user?.role);
+  const isSuperAdmin = role === 'super_admin';
   const [actionError, setActionError] = useState('');
   const [actionInfo, setActionInfo] = useState('');
-  const [markPaidTarget, setMarkPaidTarget] = useState<BusinessInvoice | null>(null);
-  const [paymentReference, setPaymentReference] = useState('');
-  const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
+  const [invoicePreview, setInvoicePreview] = useState<InvoicePreview | null>(null);
+  const [preparationReason, setPreparationReason] = useState('');
+  const [localExpandedInvoiceId, setLocalExpandedInvoiceId] = useState<string | null>(null);
+  const expandedInvoiceId = selectedInvoiceId === undefined
+    ? localExpandedInvoiceId
+    : selectedInvoiceId;
+
+  function setExpandedInvoiceId(invoiceId: string | null | ((current: string | null) => string | null)): void {
+    const nextInvoiceId = typeof invoiceId === 'function'
+      ? invoiceId(expandedInvoiceId)
+      : invoiceId;
+    if (selectedInvoiceId === undefined) setLocalExpandedInvoiceId(nextInvoiceId);
+    onSelectedInvoiceChange?.(nextInvoiceId);
+  }
 
   const q = useQuery({
     queryKey: ['admin-business-account-invoices', accountId, page],
@@ -985,55 +1598,52 @@ export function InvoicesTab({ accountId }: { accountId: string }): React.ReactEl
     },
   });
 
-  const markPaid = useMutation({
-    mutationFn: async ({ invoiceId, paymentReference }: { invoiceId: string; paymentReference: string }) => {
-      await api.post(`/api/v1/admin/invoices/${invoiceId}/mark-paid`, { paymentReference });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-business-account-invoices', accountId] });
-      setActionError('');
-      setActionInfo('Invoice marked paid with the recorded payment reference.');
-      setMarkPaidTarget(null);
-      setPaymentReference('');
-    },
-    onError: (e) => setActionError(getErrorMessage(e)),
-  });
-
-  // Phase 200 — generate last month's invoice for this account on demand.
-  const generate = useMutation({
+  const previewStatements = useMutation({
     mutationFn: async () => {
-      const res = await api.post<{ success: boolean; data: { generated: number; message: string } }>(
-        `/api/v1/admin/business-accounts/${accountId}/generate-invoice`,
+      const response = await api.post<{ success: boolean; data: InvoicePreview }>(
+        `/api/v1/admin/business-accounts/${accountId}/invoices/preview`,
+        {},
       );
-      return res.data.data;
+      return response.data.data;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['admin-business-account-invoices', accountId] });
+    onSuccess: (nextPreview) => {
+      setInvoicePreview(nextPreview);
+      setPreparationReason('');
       setActionError('');
-      setActionInfo(data.message);
+      setActionInfo('Candidate work was previewed. Review every exception and statement group before preparing drafts.');
     },
     onError: (e) => { setActionInfo(''); setActionError(getErrorMessage(e)); },
   });
 
-  function handleMarkPaid(invoice: BusinessInvoice): void {
-    setActionError('');
-    setActionInfo('');
-    setPaymentReference('');
-    setMarkPaidTarget(invoice);
-  }
-
-  function submitMarkPaid(): void {
-    if (!markPaidTarget) return;
-    const trimmed = paymentReference.trim();
-    if (trimmed.length === 0) {
-      setActionError('Payment reference is required.');
-      return;
-    }
-    markPaid.mutate({ invoiceId: markPaidTarget.id, paymentReference: trimmed });
-  }
+  const prepareDrafts = useMutation({
+    mutationFn: async () => {
+      if (!invoicePreview) throw new Error('Run the statement preview first.');
+      const response = await api.post<{ success: boolean; data: BusinessInvoice[] }>(
+        `/api/v1/admin/business-accounts/${accountId}/invoices/prepare`,
+        { previewId: invoicePreview.id, reason: preparationReason.trim() },
+      );
+      return response.data.data;
+    },
+    onSuccess: (drafts) => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-business-account-invoices', accountId] });
+      setInvoicePreview(null);
+      setPreparationReason('');
+      setActionError('');
+      setActionInfo(`${drafts.length} controlled draft statement${drafts.length === 1 ? '' : 's'} prepared. A super admin must finalize each draft separately.`);
+    },
+    onError: (error) => setActionError(getErrorMessage(error)),
+  });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Business invoices unavailable"
+        description="The statement list could not be read. Do not treat it as having no invoices or as clear for billing action."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry invoices</Button>}
+      />
+    );
+  }
   const result = q.data!;
   const invoices = result.data ?? [];
   const pagination = result.pagination;
@@ -1069,8 +1679,15 @@ export function InvoicesTab({ accountId }: { accountId: string }): React.ReactEl
     },
     {
       key: 'status',
-      header: 'Status',
-      render: (inv) => <Badge label={fmtLabel(inv.status)} variant={INVOICE_STATUS_VARIANT[inv.status] ?? 'info'} />,
+      header: 'Status / settlement',
+      render: (inv) => (
+        <div className="flex flex-wrap gap-1.5">
+          <Badge label={fmtLabel(inv.status)} variant={INVOICE_STATUS_VARIANT[inv.status] ?? 'info'} />
+          {inv.controlState === 'controlled' && inv.settlementState
+            ? <Badge label={fmtLabel(inv.settlementState)} variant={INVOICE_STATUS_VARIANT[inv.settlementState] ?? 'info'} />
+            : null}
+        </div>
+      ),
     },
     {
       key: 'dueDate',
@@ -1090,38 +1707,101 @@ export function InvoicesTab({ accountId }: { accountId: string }): React.ReactEl
     {
       key: 'actions',
       header: '',
-      render: (inv) =>
-        inv.status !== 'paid' && inv.paidAt === null ? (
-          <button
-            type="button"
-            aria-label={`Mark invoice ${inv.invoiceNumber} paid`}
-            onClick={() => handleMarkPaid(inv)}
-            disabled={markPaid.isPending}
-            className="text-xs text-[var(--color-primary)] hover:underline disabled:opacity-50"
-          >
-            Mark paid
-          </button>
-        ) : (
-          <span className="text-xs text-[var(--color-text-secondary)]">—</span>
-        ),
+      render: (invoice) => (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setExpandedInvoiceId(invoice.id)}
+        >
+          {invoice.status === 'draft' && isSuperAdmin ? 'Review draft' : 'Open evidence'}
+        </Button>
+      ),
     },
   ];
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-[var(--color-text-secondary)]">
-          Invoices bill the just-ended month. Pressing Generate is safe to repeat — it won&apos;t duplicate an existing one.
-        </p>
+        <div>
+          <h3 className="text-sm font-semibold text-[var(--color-text)]">Controlled commercial statements</h3>
+          <p className="mt-1 max-w-3xl text-xs text-[var(--color-text-secondary)]">
+            Preview exact-account booking candidates first. Preparation creates internal drafts grouped by the terms version captured on each booking. Finalization is a separate super-admin decision.
+          </p>
+        </div>
         <button
           type="button"
-          onClick={() => generate.mutate()}
-          disabled={generate.isPending}
+          onClick={() => previewStatements.mutate()}
+          disabled={previewStatements.isPending}
           className="shrink-0 rounded-lg bg-[var(--color-primary)] px-3 py-2 text-xs font-medium text-white hover:bg-[var(--color-primary-dark)] disabled:opacity-50"
         >
-          {generate.isPending ? 'Generating...' : 'Generate invoice (last month)'}
+          {previewStatements.isPending ? 'Previewing…' : 'Preview previous month'}
         </button>
       </div>
+      {invoicePreview ? (
+        <Card className="space-y-4 border-l-4 border-l-[var(--color-primary)] p-4">
+          <div>
+            <h4 className="text-sm font-semibold text-[var(--color-text)]">
+              Preview {fmtDate(invoicePreview.billingPeriodStart)} to {fmtDate(invoicePreview.billingPeriodEnd)}
+            </h4>
+            <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+              {invoicePreview.groups.length} statement group{invoicePreview.groups.length === 1 ? '' : 's'} and {invoicePreview.exceptions.length} blocking exception{invoicePreview.exceptions.length === 1 ? '' : 's'}.
+            </p>
+          </div>
+          {invoicePreview.exceptions.length > 0 ? (
+            <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-red-800">Resolve before preparation</p>
+              {invoicePreview.exceptions.map((exception) => (
+                <div key={`${exception.bookingId}-${exception.code}`} className="text-sm text-red-800">
+                  <Link to={`/bookings/${exception.bookingId}`} className="font-mono text-xs font-semibold underline">{exception.bookingId.slice(0, 8)}</Link>
+                  <span className="ml-2 font-semibold">{fmtLabel(exception.code)}:</span> {exception.message}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div className="grid gap-3 lg:grid-cols-2">
+            {invoicePreview.groups.map((group) => (
+              <div key={group.accountTermsVersionId} className="rounded-lg border border-[var(--color-border)] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">{fmtLabel(group.paymentTerms)} · {group.items.length} work order{group.items.length === 1 ? '' : 's'}</p>
+                    <p className="mt-1 font-mono text-[11px] text-[var(--color-text-secondary)]">Terms {group.accountTermsVersionId.slice(0, 8)}</p>
+                  </div>
+                  <p className="font-semibold text-[var(--color-text)]">{formatCurrency(group.totalAmount)}</p>
+                </div>
+                <dl className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <InfoRow label="Subtotal" value={formatCurrency(group.subtotal)} />
+                  <InfoRow label="Discount" value={formatCurrency(group.discountAmount)} />
+                  <InfoRow label="Tax" value={formatCurrency(group.taxAmount)} />
+                </dl>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="statement-preparation-reason">Preparation reason</Label>
+            <textarea
+              id="statement-preparation-reason"
+              value={preparationReason}
+              onChange={(event) => setPreparationReason(event.target.value)}
+              className="min-h-20 w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
+              placeholder="Explain why this candidate set is ready for draft preparation"
+            />
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" onClick={() => setInvoicePreview(null)} disabled={prepareDrafts.isPending}>Discard preview</Button>
+            <Button
+              onClick={() => prepareDrafts.mutate()}
+              disabled={
+                prepareDrafts.isPending
+                || invoicePreview.exceptions.length > 0
+                || invoicePreview.groups.length === 0
+                || preparationReason.trim().length < 10
+              }
+            >
+              {prepareDrafts.isPending ? 'Preparing…' : 'Prepare controlled drafts'}
+            </Button>
+          </div>
+        </Card>
+      ) : null}
       {actionInfo && <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">{actionInfo}</p>}
       {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
       {invoices.length === 0 ? (
@@ -1144,52 +1824,6 @@ export function InvoicesTab({ accountId }: { accountId: string }): React.ReactEl
           onPageChange={setPage}
         />
       )}
-      <Dialog
-        open={markPaidTarget !== null}
-        onOpenChange={(open) => {
-          if (!open && !markPaid.isPending) {
-            setMarkPaidTarget(null);
-            setPaymentReference('');
-            setActionError('');
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Mark invoice paid</DialogTitle>
-            <DialogDescription>
-              Record the external payment reference for invoice{' '}
-              {markPaidTarget?.invoiceNumber ?? ''}. This becomes part of the account&apos;s audit trail.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="invoice-payment-reference">Payment reference</Label>
-            <Input
-              id="invoice-payment-reference"
-              value={paymentReference}
-              onChange={(event) => setPaymentReference(event.target.value)}
-              placeholder="Bank transfer, deposit, or external payment reference"
-              autoComplete="off"
-            />
-            {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setMarkPaidTarget(null)}
-              disabled={markPaid.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={submitMarkPaid}
-              disabled={markPaid.isPending || paymentReference.trim().length === 0}
-            >
-              {markPaid.isPending ? 'Saving…' : 'Confirm paid'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -1198,7 +1832,15 @@ export function InvoiceDetailPanel({ invoiceId, onClose }: { invoiceId: string; 
   const q = useQuery({
     queryKey: ['admin-business-invoice-detail', invoiceId],
     queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: { invoice: BusinessInvoice; items: BusinessInvoiceItem[] } }>(`/api/v1/admin/invoices/${invoiceId}`);
+      const res = await api.get<{
+        success: boolean;
+        data: {
+          invoice: BusinessInvoice;
+          items: BusinessInvoiceItem[];
+          balance: InvoiceBalance;
+          ledger: { adjustments: InvoiceAdjustmentEvidence[]; payments: InvoicePaymentEvidence[] };
+        };
+      }>(`/api/v1/admin/invoices/${invoiceId}`);
       return res.data.data;
     },
   });
@@ -1207,20 +1849,41 @@ export function InvoiceDetailPanel({ invoiceId, onClose }: { invoiceId: string; 
     <Card className="p-4" aria-label="Invoice booking detail">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-[var(--color-text)]">Invoice line items and work orders</h3>
-          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">The invoice is a billing record. Open Booking 360 for payment, refund, escrow, dispute, and proof evidence.</p>
+          <h3 className="text-sm font-semibold text-[var(--color-text)]">Statement evidence and linked work orders</h3>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">This is a commercial statement, not a claim of BIR principal-invoice authority. Booking 360 remains the source for work, proof, dispute, and provider context.</p>
         </div>
         <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
       </div>
       {q.isLoading ? <div className="mt-4"><LoadingState /></div> : null}
-      {q.isError ? <div className="mt-4"><ErrorState title="Failed to load invoice line items" description={getErrorMessage(q.error)} /></div> : null}
+      {q.isError ? (
+        <div className="mt-4">
+          <ErrorState
+            title="Invoice evidence unavailable"
+            description="The invoice, linked work orders, ledger, and balance could not be read. Do not treat missing evidence as a zero balance."
+            action={<Button variant="outline" onClick={() => void q.refetch()}>Retry invoice evidence</Button>}
+          />
+        </div>
+      ) : null}
       {q.data ? (
         <div className="mt-4 space-y-3">
-          <div className="grid gap-3 rounded-lg border border-[var(--color-border)] bg-slate-50/70 p-3 sm:grid-cols-3">
+          <div className="grid gap-3 rounded-lg border border-[var(--color-border)] bg-slate-50/70 p-3 sm:grid-cols-4">
             <InfoRow label="Invoice" value={q.data.invoice.invoiceNumber} mono />
             <InfoRow label="Status" value={fmtLabel(q.data.invoice.status)} />
-            <InfoRow label="External reference" value={q.data.invoice.paymentReference ?? 'Not recorded'} mono />
+            <InfoRow label="Control state" value={fmtLabel(q.data.invoice.controlState)} />
+            <InfoRow label="Settlement state" value={fmtLabel(q.data.invoice.settlementState ?? 'legacy_unreviewed')} />
           </div>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <KpiCard title="Original total" value={formatCurrency(q.data.invoice.totalAmount)} icon={null} />
+            <KpiCard title="Adjustments" value={formatCurrency(q.data.balance.adjustmentTotal)} icon={null} />
+            <KpiCard title="Payment evidence" value={formatCurrency(q.data.balance.paymentTotal)} icon={null} />
+            <KpiCard title={q.data.balance.balanceDue < 0 ? 'Credit due' : 'Balance due'} value={formatCurrency(Math.abs(q.data.balance.balanceDue))} icon={null} />
+          </div>
+          <InvoiceOperatorActions
+            invoice={q.data.invoice}
+            balance={q.data.balance}
+            adjustments={q.data.ledger.adjustments}
+            payments={q.data.ledger.payments}
+          />
           {q.data.items.length === 0 ? <EmptyState title="This invoice has no line items." /> : (
             <section aria-label="Invoice line items" className="overflow-hidden rounded-lg border border-[var(--color-border)]">
               {q.data.items.map((item) => (
@@ -1248,5 +1911,296 @@ export function InvoiceDetailPanel({ invoiceId, onClose }: { invoiceId: string; 
         </div>
       ) : null}
     </Card>
+  );
+}
+
+type InvoiceOperatorAction =
+  | { kind: 'finalize' }
+  | { kind: 'void' }
+  | { kind: 'payment'; maxAmount: number }
+  | { kind: 'adjustment' }
+  | { kind: 'reversal'; paymentId: string; maxAmount: number };
+
+export function manilaDateTimeInputNow(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes): string => (
+    parts.find((candidate) => candidate.type === type)?.value ?? ''
+  );
+  return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`;
+}
+
+export function manilaDateTimeInputToIso(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
+    throw new Error('Enter a valid Philippine date and time.');
+  }
+  const parsed = new Date(`${value}:00+08:00`);
+  if (Number.isNaN(parsed.getTime())) throw new Error('Enter a valid Philippine date and time.');
+  return parsed.toISOString();
+}
+
+function InvoiceOperatorActions({
+  invoice,
+  balance,
+  adjustments,
+  payments,
+}: {
+  invoice: BusinessInvoice;
+  balance: InvoiceBalance;
+  adjustments: InvoiceAdjustmentEvidence[];
+  payments: InvoicePaymentEvidence[];
+}): React.ReactElement {
+  const role = useAuthStore((state) => state.user?.role);
+  const isSuperAdmin = role === 'super_admin';
+  const queryClient = useQueryClient();
+  const [action, setAction] = useState<InvoiceOperatorAction | null>(null);
+  const [reason, setReason] = useState('');
+  const [amountPesos, setAmountPesos] = useState('');
+  const [method, setMethod] = useState('bank_transfer');
+  const [externalReference, setExternalReference] = useState('');
+  const [evidenceReference, setEvidenceReference] = useState('');
+  const [effectiveAt, setEffectiveAt] = useState(manilaDateTimeInputNow());
+  const [adjustmentType, setAdjustmentType] = useState('credit');
+
+  function resetAction(): void {
+    setAction(null);
+    setReason('');
+    setAmountPesos('');
+    setMethod('bank_transfer');
+    setExternalReference('');
+    setEvidenceReference('');
+    setEffectiveAt(manilaDateTimeInputNow());
+    setAdjustmentType('credit');
+  }
+
+  function openAction(nextAction: InvoiceOperatorAction): void {
+    resetAction();
+    setAction(nextAction);
+    if ('maxAmount' in nextAction) setAmountPesos(String(nextAction.maxAmount / 100));
+  }
+
+  const parsedAmount = Number(amountPesos);
+  const amountCentavos = Math.round(parsedAmount * 100);
+  const amountValid = Number.isFinite(parsedAmount)
+    && parsedAmount > 0
+    && Number.isSafeInteger(amountCentavos)
+    && (!action || !('maxAmount' in action) || amountCentavos <= action.maxAmount)
+    && (action?.kind !== 'adjustment'
+      || adjustmentType === 'debit'
+      || (adjustmentType === 'write_off'
+        ? amountCentavos <= Math.max(balance.balanceDue, 0)
+        : amountCentavos <= balance.adjustedTotal));
+  const needsAmount = action?.kind === 'payment' || action?.kind === 'adjustment' || action?.kind === 'reversal';
+  const needsExternalEvidence = action?.kind === 'payment' || action?.kind === 'reversal';
+  const formValid = reason.trim().length >= 10
+    && (!needsAmount || amountValid)
+    && (!needsExternalEvidence || (
+      externalReference.trim().length >= 3
+      && evidenceReference.trim().length >= 3
+      && effectiveAt.length > 0
+    ))
+    && (action?.kind !== 'adjustment' || evidenceReference.trim().length >= 3);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      if (!action) throw new Error('Choose a statement action.');
+      if (action.kind === 'finalize' || action.kind === 'void') {
+        await api.post(`/api/v1/admin/invoices/${invoice.id}/${action.kind}`, {
+          expectedVersion: invoice.recordVersion,
+          reason: reason.trim(),
+        });
+        return;
+      }
+      if (action.kind === 'adjustment') {
+        await api.post(`/api/v1/admin/invoices/${invoice.id}/adjustments`, {
+          expectedVersion: invoice.recordVersion,
+          adjustmentType,
+          amount: amountCentavos,
+          currency: 'PHP',
+          evidenceReference: evidenceReference.trim(),
+          reason: reason.trim(),
+        });
+        return;
+      }
+      const externalPayload = {
+        expectedVersion: invoice.recordVersion,
+        amount: amountCentavos,
+        currency: 'PHP',
+        effectiveAt: manilaDateTimeInputToIso(effectiveAt),
+        externalReference: externalReference.trim(),
+        evidenceReference: evidenceReference.trim(),
+        reason: reason.trim(),
+      };
+      if (action.kind === 'payment') {
+        await api.post(`/api/v1/admin/invoices/${invoice.id}/payments`, {
+          ...externalPayload,
+          method,
+        });
+      } else {
+        await api.post(`/api/v1/admin/invoices/${invoice.id}/payments/${action.paymentId}/reverse`, externalPayload);
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-business-invoice-detail', invoice.id] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-business-account-invoices'] });
+      resetAction();
+    },
+  });
+
+  const reversalByPayment = new Map<string, number>();
+  for (const entry of payments) {
+    if (entry.entryType === 'reversal' && entry.reversesPaymentId) {
+      reversalByPayment.set(
+        entry.reversesPaymentId,
+        (reversalByPayment.get(entry.reversesPaymentId) ?? 0) + entry.amount,
+      );
+    }
+  }
+
+  const actionTitle = action?.kind === 'finalize' ? 'Finalize controlled statement'
+    : action?.kind === 'void' ? 'Void statement'
+      : action?.kind === 'payment' ? 'Record external payment evidence'
+        : action?.kind === 'adjustment' ? 'Record statement adjustment'
+          : 'Record payment reversal or refund evidence';
+
+  return (
+    <div className="space-y-4">
+      {invoice.controlState !== 'controlled' ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          This is a legacy unreviewed record. It remains readable, but controlled payment, adjustment, finalization, and void actions are disabled until production history is reconciled.
+        </div>
+      ) : null}
+
+      {invoice.controlState === 'controlled' ? (
+        <div className="flex flex-wrap gap-2 rounded-lg border border-[var(--color-border)] p-3">
+          {invoice.status === 'draft' && isSuperAdmin ? <Button size="sm" onClick={() => openAction({ kind: 'finalize' })}>Finalize draft</Button> : null}
+          {['sent', 'overdue'].includes(invoice.status) && balance.balanceDue > 0 && isSuperAdmin ? (
+            <Button size="sm" onClick={() => openAction({ kind: 'payment', maxAmount: balance.balanceDue })}>Record payment evidence</Button>
+          ) : null}
+          {['sent', 'overdue', 'paid'].includes(invoice.status) && isSuperAdmin ? (
+            <Button size="sm" variant="outline" onClick={() => openAction({ kind: 'adjustment' })}>Add credit, debit, or write-off</Button>
+          ) : null}
+          {['draft', 'sent', 'overdue'].includes(invoice.status)
+            && adjustments.length === 0
+            && payments.length === 0
+            && isSuperAdmin ? (
+              <Button size="sm" variant="destructive" onClick={() => openAction({ kind: 'void' })}>Review void</Button>
+            ) : null}
+          {!isSuperAdmin ? <Badge label="Financial actions require super admin" variant="warning" /> : null}
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card className="p-3">
+          <h4 className="text-sm font-semibold text-[var(--color-text)]">Adjustments</h4>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Credits reduce the statement, debits increase it, and write-offs settle an approved amount without claiming cash moved.</p>
+          {adjustments.length === 0 ? <p className="mt-3 text-sm text-[var(--color-text-secondary)]">No adjustments recorded.</p> : (
+            <div className="mt-3 space-y-2">
+              {adjustments.map((entry) => (
+                <div key={entry.id} className="rounded-lg border border-[var(--color-border)] p-3 text-sm">
+                  <div className="flex justify-between gap-3"><Badge label={fmtLabel(entry.adjustmentType)} variant="info" /><strong>{formatCurrency(entry.amount)}</strong></div>
+                  <p className="mt-2 text-xs text-[var(--color-text-secondary)]">{entry.evidenceReference}</p>
+                  <p className="mt-1 text-xs text-[var(--color-text)]">{entry.reason}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+        <Card className="p-3">
+          <h4 className="text-sm font-semibold text-[var(--color-text)]">External payment evidence</h4>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Operator-recorded evidence is not PayMongo or bank verification. Each reversal links to the original payment instead of deleting it.</p>
+          {payments.length === 0 ? <p className="mt-3 text-sm text-[var(--color-text-secondary)]">No payment evidence recorded.</p> : (
+            <div className="mt-3 space-y-2">
+              {payments.map((entry) => {
+                const available = entry.entryType === 'payment'
+                  ? entry.amount - (reversalByPayment.get(entry.id) ?? 0)
+                  : 0;
+                return (
+                  <div key={entry.id} className="rounded-lg border border-[var(--color-border)] p-3 text-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div><Badge label={fmtLabel(entry.entryType)} variant={entry.entryType === 'payment' ? 'success' : 'warning'} /><p className="mt-1 font-mono text-xs">{entry.externalReference}</p></div>
+                      <strong>{entry.entryType === 'reversal' ? '+' : '−'}{formatCurrency(entry.amount)}</strong>
+                    </div>
+                    <p className="mt-2 text-xs text-[var(--color-text-secondary)]">{fmtLabel(entry.method)} · effective {fmtDateTime(entry.effectiveAt, entry.createdAt)} PHT</p>
+                    <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Evidence: {entry.evidenceReference}</p>
+                    {isSuperAdmin && entry.entryType === 'payment' && available > 0 ? (
+                      <Button className="mt-2" size="sm" variant="outline" onClick={() => openAction({ kind: 'reversal', paymentId: entry.id, maxAmount: available })}>
+                        Record reversal/refund evidence
+                      </Button>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <Dialog open={action !== null} onOpenChange={(open) => !open && !mutation.isPending && resetAction()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{actionTitle}</DialogTitle>
+            <DialogDescription>
+              This appends controlled evidence and uses record version {invoice.recordVersion}. It never rewrites existing booking prices, line items, payments, or adjustments.
+            </DialogDescription>
+          </DialogHeader>
+          {needsAmount ? (
+            <div className="space-y-2">
+              <Label htmlFor="invoice-action-amount">Amount (PHP)</Label>
+              <Input id="invoice-action-amount" type="number" min="0.01" step="0.01" value={amountPesos} onChange={(event) => setAmountPesos(event.target.value)} />
+              {!amountValid && amountPesos ? <p className="text-xs text-amber-700">Enter a positive amount within the available statement total, balance, or unreversed payment amount for this action.</p> : null}
+            </div>
+          ) : null}
+          {action?.kind === 'adjustment' ? (
+            <div className="space-y-2">
+              <Label htmlFor="invoice-adjustment-type">Adjustment type</Label>
+              <select id="invoice-adjustment-type" value={adjustmentType} onChange={(event) => setAdjustmentType(event.target.value)} className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm">
+                <option value="credit">Credit or rate reduction</option>
+                <option value="debit">Debit or approved additional charge</option>
+                <option value="write_off">Write-off</option>
+              </select>
+            </div>
+          ) : null}
+          {action?.kind === 'payment' ? (
+            <div className="space-y-2">
+              <Label htmlFor="invoice-payment-method">External method</Label>
+              <select id="invoice-payment-method" value={method} onChange={(event) => setMethod(event.target.value)} className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm">
+                <option value="bank_transfer">Bank transfer</option>
+                <option value="cash_deposit">Cash deposit</option>
+                <option value="check">Check</option>
+                <option value="other_external">Other external</option>
+              </select>
+            </div>
+          ) : null}
+          {needsExternalEvidence ? (
+            <>
+              <div className="space-y-2"><Label htmlFor="invoice-effective-at">Effective date and time (Philippine time, UTC+8)</Label><Input id="invoice-effective-at" type="datetime-local" value={effectiveAt} onChange={(event) => setEffectiveAt(event.target.value)} /></div>
+              <div className="space-y-2"><Label htmlFor="invoice-external-reference">Unique external reference</Label><Input id="invoice-external-reference" value={externalReference} onChange={(event) => setExternalReference(event.target.value)} autoComplete="off" /></div>
+            </>
+          ) : null}
+          {(needsExternalEvidence || action?.kind === 'adjustment') ? (
+            <div className="space-y-2"><Label htmlFor="invoice-evidence-reference">Evidence reference</Label><Input id="invoice-evidence-reference" value={evidenceReference} onChange={(event) => setEvidenceReference(event.target.value)} placeholder="Private receipt, bank line, support case, or approval record" autoComplete="off" /></div>
+          ) : null}
+          <div className="space-y-2">
+            <Label htmlFor="invoice-action-reason">Operator reason</Label>
+            <textarea id="invoice-action-reason" value={reason} onChange={(event) => setReason(event.target.value)} className="min-h-24 w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm" placeholder="Explain why this action is correct (minimum 10 characters)" />
+          </div>
+          {mutation.isError ? <p role="alert" className="text-sm text-red-600">{getErrorMessage(mutation.error)}</p> : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={resetAction} disabled={mutation.isPending}>Cancel</Button>
+            <Button variant={action?.kind === 'void' ? 'destructive' : 'default'} onClick={() => mutation.mutate()} disabled={mutation.isPending || !formValid}>
+              {mutation.isPending ? 'Recording…' : 'Confirm and append evidence'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

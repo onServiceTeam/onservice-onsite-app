@@ -12,6 +12,9 @@ const validInput = {
   peakStartTime: '18:00',
   peakEndTime: '22:00',
   peakDaysOfWeek: [5, 6],
+  categoryScope: { mode: 'global' as const },
+  serviceAreaScope: { mode: 'global' as const },
+  reason: 'Creating a draft for controlled pricing review.',
 };
 
 describe('Bug 269 — createPricingRuleSchema platformSurgeShare 0..1', () => {
@@ -122,23 +125,40 @@ describe('createPricingRuleSchema — type + name + peak fields', () => {
 });
 
 describe('updatePricingRuleSchema — partial patches honor bounds', () => {
-  it('accepts empty patch', () => {
-    expect(updatePricingRuleSchema.safeParse({}).success).toBe(true);
+  it('rejects an empty or reason-only patch', () => {
+    expect(updatePricingRuleSchema.safeParse({}).success).toBe(false);
+    expect(updatePricingRuleSchema.safeParse({
+      expectedUpdatedAt: '2026-09-02T00:00:00.000Z',
+      reason: 'No actual draft field was changed.',
+    }).success).toBe(false);
   });
 
   it('rejects platformSurgeShare > 1 in patch', () => {
     expect(
-      updatePricingRuleSchema.safeParse({ platformSurgeShare: 1.2 }).success,
+      updatePricingRuleSchema.safeParse({
+        platformSurgeShare: 1.2,
+        expectedUpdatedAt: '2026-09-02T00:00:00.000Z',
+        reason: 'Reviewing the platform surge allocation.',
+      }).success,
     ).toBe(false);
   });
 
   it('rejects multiplier > 5 in patch', () => {
-    expect(updatePricingRuleSchema.safeParse({ multiplier: 6 }).success).toBe(false);
+    expect(updatePricingRuleSchema.safeParse({
+      multiplier: 6,
+      expectedUpdatedAt: '2026-09-02T00:00:00.000Z',
+      reason: 'Reviewing the customer price multiplier.',
+    }).success).toBe(false);
   });
 
   it('rejects unknown keys via .strict()', () => {
     expect(
-      updatePricingRuleSchema.safeParse({ multiplier: 2, evil: 'x' } as unknown).success,
+      updatePricingRuleSchema.safeParse({
+        multiplier: 2,
+        expectedUpdatedAt: '2026-09-02T00:00:00.000Z',
+        reason: 'Reviewing the customer price multiplier.',
+        evil: 'x',
+      } as unknown).success,
     ).toBe(false);
   });
 });

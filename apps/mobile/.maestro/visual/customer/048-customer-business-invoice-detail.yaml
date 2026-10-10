@@ -1,0 +1,16 @@
+appId: ph.onservice.app
+---
+# F#3 visual baseline — customer-business-invoice-detail
+# Screen: apps/mobile/app/customer/business/[id]/invoices/[invoiceId].tsx
+
+- launchApp:
+    stopApp: false
+- openLink: onservice://customer/business/${MAESTRO_BUSINESS_ACCOUNT_ID}/invoices/${MAESTRO_BUSINESS_INVOICE_ID}
+- extendedWaitUntil:
+    notVisible:
+      id: "loading"
+    timeout: 2000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: .maestro/visual/baselines/customer/customer-business-invoice-detail/default

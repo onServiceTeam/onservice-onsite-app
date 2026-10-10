@@ -13,6 +13,11 @@ import * as businessService from './business.service';
 import * as serviceAreaService from './service-area.service';
 import * as settingsService from './settings.service';
 import { formatPHP } from '../utils/currency';
+import { haversineDistanceMeters } from '../utils/geo';
+import * as financialTermsService from './booking-financial-terms.service';
+import * as escrowService from './escrow.service';
+import * as bookingCancelService from './booking-cancel.service';
+import * as businessInvoiceControlService from './business-invoice-control.service';
 
 interface BookingRow {
   id: string;
@@ -49,6 +54,11 @@ interface BookingRow {
   contract_id: string | null;
   created_at: Date;
   updated_at: Date;
+  // Server-clocked work start marker (D27 Phase 4b). Optional only because the
+  // route's separate BookingRow casts must keep overlapping; the status lock
+  // query reads SELECT *, and the UX-302 tests fail if the timer falls back
+  // to updated_at while the marker is set.
+  work_started_at?: Date | null;
 }
 
 interface CountRow {
@@ -139,6 +149,26 @@ export async function calculateServiceFee(servicePrice: number): Promise<number>
 
 export async function createBooking(params: CreateBookingParams): Promise<BookingRow> {
   await assertBookableLocation(params.latitude, params.longitude);
+  if (params.businessAccountId && params.bookingType !== 'fixed_price') {
+    throw createAppError(
+      'Business-account billing currently supports fixed-price contracted services only.',
+      400,
+    );
+  }
+  if (params.businessAccountId && params.promoCode) {
+    throw createAppError('Promo codes cannot be combined with a contracted business booking.', 400);
+  }
+  if (params.businessAccountId) {
+    const businessBookingEnabled = await settingsService.getSettingBoolean(
+      'feature_flag.business_contract_booking_enabled',
+    );
+    if (!businessBookingEnabled) {
+      throw createAppError(
+        'Company booking is temporarily held while onService completes the controlled provider-settlement and dispute workflow. Personal booking remains available.',
+        409,
+      );
+    }
+  }
   // Phase 14 Dispatch 05 — Bug 175.
   // Fixed-price bookings now REQUIRE subcategoryId AND a non-null
   // base_price in service_subcategories. There is no fallback to a
@@ -207,18 +237,25 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
   // Inert for normal bookings (businessAccountId is never set by them).
   let businessAccountId: string | null = null;
   let contractId: string | null = null;
+  let businessAccountTermsVersionId: string | null = null;
   if (params.bookingType === 'fixed_price' && params.businessAccountId) {
     const contract = await businessService.resolveBookingContract(
       params.customerId,
       params.businessAccountId,
       params.categoryId,
       params.subcategoryId ?? null,
+      params.scheduledAt,
     );
-    if (contract) {
-      baseServicePrice = contract.agreedRate;
-      businessAccountId = params.businessAccountId;
-      contractId = contract.contractId;
+    if (!contract) {
+      throw createAppError(
+        'This company booking is not eligible. Confirm your booking permission and ask onService to publish matching account terms and a contract.',
+        409,
+      );
     }
+    baseServicePrice = contract.agreedRate;
+    businessAccountId = params.businessAccountId;
+    contractId = contract.contractId;
+    businessAccountTermsVersionId = contract.accountTermsVersionId;
   }
 
   if (params.bookingType === 'fixed_price' && baseServicePrice <= 0) {
@@ -325,6 +362,19 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
   // Also converts the per-addon INSERT loop to a single multi-row INSERT
   // for performance (was 1 round-trip per addon).
   const newBooking = await db.transaction(async (client) => {
+    if (businessAccountId && businessAccountTermsVersionId) {
+      await businessInvoiceControlService.assertBusinessCreditAvailableInTransaction(
+        client,
+        {
+          accountId: businessAccountId,
+          contractId: contractId!,
+          termsVersionId: businessAccountTermsVersionId,
+          customerId: params.customerId,
+          scheduledAt: params.scheduledAt,
+          newBookingAmount: totalAmount,
+        },
+      );
+    }
     const result = await client.query<BookingRow>(
       `INSERT INTO bookings (
         customer_id, category_id, subcategory_id, booking_type,
@@ -333,8 +383,9 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
         service_price, service_fee, total_amount,
         surge_multiplier, surge_amount, pricing_rule_id, rebooked_from_id,
         status, business_account_id, contract_id,
+        business_account_terms_version_id, billing_mode,
         is_hourly, estimated_hours, hourly_rate
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       RETURNING *`,
       [
         params.customerId,
@@ -359,6 +410,8 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
         initialStatus,
         businessAccountId,
         contractId,
+        businessAccountTermsVersionId,
+        businessAccountId ? 'business_terms' : 'consumer_prepay',
         isHourly,
         estimatedHoursCapped,
         hourlyRateSnapshot,
@@ -409,6 +462,22 @@ export async function createBooking(params: CreateBookingParams): Promise<Bookin
          VALUES ${placeholders.join(', ')}`,
         values,
       );
+    }
+
+    if (params.bookingType === 'fixed_price') {
+      await financialTermsService.appendPricingTermsInTransaction(client, {
+        bookingId: booking.id,
+        event: 'booking_priced',
+        sourceEventId: booking.id,
+        createdBy: params.customerId,
+        metadata: {
+          priceSource: contractId ? 'business_contract' : isHourly ? 'hourly_catalog' : 'catalog',
+          contractId,
+          pricingRuleId,
+          promoApplied: promoDiscountCents > 0,
+          addonsCount: resolvedAddons.length,
+        },
+      });
     }
 
     return booking;
@@ -476,8 +545,11 @@ export async function getBookingById(bookingId: string, userId: string): Promise
      JOIN users cu ON cu.id = b.customer_id
      LEFT JOIN service_categories c ON b.category_id = c.id
      LEFT JOIN service_subcategories sc ON b.subcategory_id = sc.id
-     -- D23: the assigned approved team member (performer) can also read their job.
+     -- D23: the assigned approved team member (performer) can also read their
+     -- job. SEC-095: only while they are staff of the booking's current
+     -- provider; a retained performer of another provider reads nothing.
      LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+                                AND ps.provider_id = b.provider_id
      WHERE b.id = $1 AND (
        b.customer_id = $2
        OR p.user_id = $2
@@ -624,8 +696,11 @@ export async function transitionBookingStatus(
   // newStatus='completed_by_provider'; ignored for other transitions
   // since the column has no semantics for non-completion states.
   completionNotes?: string,
+  // SEC-088 — the caller's current position, required only for
+  // newStatus='provider_arrived'. Checked after the actor guard.
+  providerLocation?: { latitude?: number; longitude?: number },
 ): Promise<BookingRow> {
-  return db.transaction(async (client) => {
+  const { updated, currentStatus, cancellation } = await db.transaction(async (client) => {
     const lockResult = await client.query<BookingRow>(
       `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
       [bookingId],
@@ -638,6 +713,13 @@ export async function transitionBookingStatus(
     const booking = lockResult.rows[0]!;
     const currentStatus = booking.status as BookingStatus;
 
+    // SEC-088/SEC-089 — authority first. A caller who is not allowed to act on
+    // this booking must not learn its current status (the transition error
+    // names it), the service location (the arrival distance) or the on-site
+    // timing. Order: lock, actor guard, state machine, then the arrival and
+    // minimum-time checks on the locked row, then the completion gates.
+    await validateRoleForTransition(client, role, currentStatus, newStatus, booking, userId);
+
     if (!canTransition(currentStatus, newStatus)) {
       const allowed = VALID_TRANSITIONS[currentStatus] ?? [];
       throw createAppError(
@@ -647,7 +729,13 @@ export async function transitionBookingStatus(
       );
     }
 
-    await validateRoleForTransition(role, currentStatus, newStatus, booking, userId);
+    if (newStatus === 'provider_arrived') {
+      assertArrivalWithinRadius(booking, providerLocation);
+    }
+
+    if (newStatus === 'completed_by_provider') {
+      assertMinimumTimeOnSite(booking);
+    }
 
     // Phase 14 Dispatch 07 — Bug 463 + 1220.
     // Provider-driven completion requires (a) the checklist was opened
@@ -657,7 +745,9 @@ export async function transitionBookingStatus(
     if (newStatus === 'completed_by_provider') {
       const { getChecklistCompletionStatus } = await import('./checklist.service');
       const { countAfterPhotos } = await import('./booking-photo.service');
-      const checklistStatus = await getChecklistCompletionStatus(bookingId);
+      // OPS-555 — read the gates on this transaction client, never a second
+      // pool connection, while the booking row lock is held.
+      const checklistStatus = await getChecklistCompletionStatus(bookingId, client);
       if (!checklistStatus.checklistShown) {
         throw createAppError(
           'Open the checklist before marking the job complete. The customer needs the work documented.',
@@ -671,13 +761,27 @@ export async function transitionBookingStatus(
           400,
         );
       }
-      const afterPhotoCount = await countAfterPhotos(bookingId);
+      const afterPhotoCount = await countAfterPhotos(bookingId, client);
       if (afterPhotoCount < 2) {
         throw createAppError(
           `Upload at least 2 "after" photos before marking complete (you have ${afterPhotoCount}).`,
           400,
         );
       }
+    }
+
+    // S1-5 (FIN-009, FIN-010) — a cancellation runs the cancellation core on
+    // this transaction: the money (decided from the locked escrow_status),
+    // the status fields and the provider counters commit or roll back
+    // together. Its gateway step runs after the commit, below.
+    if (bookingCancelService.isCancellationTarget(newStatus)) {
+      const outcome = await bookingCancelService.cancelBookingInTransaction<BookingRow>(client, {
+        lockedBooking: booking,
+        targetStatus: newStatus,
+        reason: cancellationReason,
+        moneyInputs: bookingCancelService.participantCancellationMoneyInputs(booking),
+      });
+      return { updated: outcome.booking, currentStatus, cancellation: outcome };
     }
 
     const updates: string[] = [`status = $2`, `updated_at = NOW()`];
@@ -701,12 +805,6 @@ export async function transitionBookingStatus(
       updates.push(`work_started_at = COALESCE(work_started_at, NOW())`);
     } else if (newStatus === 'confirmed') {
       updates.push(`confirmed_at = NOW()`);
-    } else if (newStatus.startsWith('cancelled_')) {
-      updates.push(`cancelled_at = NOW()`);
-      if (cancellationReason) {
-        updates.push(`cancellation_reason = $${paramIdx}`);
-        params.push(cancellationReason);
-      }
     } else if (newStatus === 'paid') {
       updates.push(`escrow_status = 'held'`);
     } else if (newStatus === 'disputed') {
@@ -718,7 +816,7 @@ export async function transitionBookingStatus(
       params,
     );
 
-    const updated = result.rows[0]!;
+    const updatedRow = result.rows[0]!;
 
     // Phase 200 — keep the provider's completed-jobs counter live. Pre-fix
     // providers.total_jobs was never incremented anywhere, so the "X jobs
@@ -726,147 +824,272 @@ export async function transitionBookingStatus(
     // never grew past the seed value. We count a job as completed when the
     // CUSTOMER confirms it (status -> 'confirmed'); a provider-only
     // 'completed_by_provider' that later gets disputed should not count.
-    if (newStatus === 'confirmed' && updated.provider_id) {
+    if (newStatus === 'confirmed' && updatedRow.provider_id) {
       await client.query(
         `UPDATE providers SET total_jobs = total_jobs + 1, updated_at = NOW() WHERE id = $1`,
-        [updated.provider_id],
+        [updatedRow.provider_id],
       );
     }
 
-    logger.info('Booking status transitioned', {
-      bookingId,
-      from: currentStatus,
-      to: newStatus,
-      userId,
-    });
-
-    try {
-      socketService.emitAdminEvent(socketService.ADMIN_EVENTS.BOOKING_STATUS_CHANGED, {
-        id: bookingId,
-        oldStatus: currentStatus,
-        newStatus,
-      });
-    } catch (e) {
-      logger.warn('Admin socket emit failed', {
-        event: 'booking:status_changed',
-        error: e instanceof Error ? e.message : String(e),
-      });
-    }
-
-    if (newStatus === 'cancelled_by_provider' || newStatus === 'cancelled_by_admin') {
-      // BUG-PHASE117-01 fix — pre-fix this used the UTC date of
-      // scheduled_at via .toISOString().split('T')[0]. But
-      // slot_waitlist.preferred_date is a Manila YYYY-MM-DD (the date
-      // the customer asked for in their local context), so an early-
-      // morning Manila booking cancellation (e.g. 06:00 Manila May 5
-      // = 22:00 UTC May 4) sent waitlist notifications to customers
-      // waitlisted for May 4 instead of May 5 — the wrong day.
-      // Convert the cancelled booking's scheduled_at to the Manila
-      // day so the lookup matches the waitlist's storage convention.
-      // Same Manila-tz pattern as Phase 105/113/115/116.
-      const dateStr = updated.scheduled_at.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
-      slotWaitlistService.processSlotAvailability(
-        updated.category_id,
-        updated.city,
-        dateStr,
-      ).catch((err: unknown) => {
-        logger.error('Slot waitlist notification failed after cancellation', {
-          bookingId,
-          error: err instanceof Error ? err.message : 'Unknown',
-        });
-      });
-    }
-
-    // MED-N68 fix — pre-fix code ran this UPDATE OUTSIDE the parent
-    // transaction (`db.query` not `client.query`) and added `+ 1` to
-    // the COUNT subquery. After the parent trx committed the just-
-    // cancelled booking was already visible in the subquery, so the
-    // `+ 1` produced double-count.
-    //
-    // Post-fix: UPDATE runs INSIDE the parent trx via `client.query`
-    // (atomic with the booking state change). The COUNT subquery sees
-    // the freshly-UPDATE'd bookings row in this same transaction
-    // (READ COMMITTED + same client) so no `+ 1` is needed and the
-    // count is exactly right. Errors throw and roll back the booking
-    // status flip too.
-    if (newStatus === 'cancelled_by_provider' && updated.provider_id) {
-      try {
-        await client.query(
-          `UPDATE providers
-           SET total_cancellations = total_cancellations + 1,
-               cancellations_last_30d = (
-                 SELECT COUNT(*) FROM bookings
-                 WHERE provider_id = $1
-                   AND status = 'cancelled_by_provider'
-                   AND cancelled_at > NOW() - INTERVAL '30 days'
-               ),
-               last_cancellation_at = NOW(),
-               updated_at = NOW()
-           WHERE id = $1`,
-          [updated.provider_id],
-        );
-      } catch (err: unknown) {
-        // Re-throw — we want the booking transition to ROLL BACK if
-        // we cannot record the penalty (provider count must always
-        // match the bookings table).
-        logger.error('Provider cancellation tracking update failed', {
-          bookingId,
-          providerId: updated.provider_id,
-          error: err instanceof Error ? err.message : 'Unknown',
-        });
-        throw err;
-      }
-    }
-
-    return updated;
+    return { updated: updatedRow, currentStatus, cancellation: null };
   });
+
+  // S1-5 — everything below runs only after the commit, so a change that
+  // rolled back is never announced and never refunded at the gateway.
+
+  // S1-5 (C-19) — the gateway step runs first, before any announcement, so
+  // nothing after the commit can skip it. The committed cancellation stands
+  // whatever happens here: the gateway step queues a payment-only retry when
+  // the refund call fails, and the queueing logs its own failure. This catch
+  // is the last guard: nothing after the commit may turn the committed
+  // cancellation into an error.
+  if (cancellation?.refund) {
+    try {
+      await escrowService.processCancellationGatewayRefund(
+        bookingId,
+        cancellation.refund,
+        cancellation.serviceFeeCentavos,
+        cancellation.customerNoShow,
+      );
+    } catch (err: unknown) {
+      logger.error('Cancellation payment refund step failed after commit; reconcile the payment refund manually', {
+        bookingId,
+        customerRefundAmount: cancellation.refund.customerRefundAmount,
+        serviceFeeCentavos: cancellation.serviceFeeCentavos,
+        error: err instanceof Error ? err.message : 'Unknown',
+      });
+    }
+  }
+
+  logger.info('Booking status transitioned', {
+    bookingId,
+    from: currentStatus,
+    to: newStatus,
+    userId,
+  });
+
+  try {
+    socketService.emitAdminEvent(socketService.ADMIN_EVENTS.BOOKING_STATUS_CHANGED, {
+      id: bookingId,
+      oldStatus: currentStatus,
+      newStatus,
+    });
+  } catch (e) {
+    logger.warn('Admin socket emit failed', {
+      event: 'booking:status_changed',
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+
+  kickSlotWaitlistAfterCancellation(updated, bookingId, newStatus);
+
+  return updated;
+}
+
+// Post-commit only. S1-8 shares it with the admin dedicated cancel, which
+// before S1-8 never told waitlisted customers that a slot had opened.
+export function kickSlotWaitlistAfterCancellation(
+  updated: { scheduled_at: Date; category_id: string; city: string },
+  bookingId: string,
+  newStatus: BookingStatus,
+): void {
+  if (newStatus === 'cancelled_by_provider' || newStatus === 'cancelled_by_admin') {
+    // BUG-PHASE117-01 fix — pre-fix this used the UTC date of
+    // scheduled_at via .toISOString().split('T')[0]. But
+    // slot_waitlist.preferred_date is a Manila YYYY-MM-DD (the date
+    // the customer asked for in their local context), so an early-
+    // morning Manila booking cancellation (e.g. 06:00 Manila May 5
+    // = 22:00 UTC May 4) sent waitlist notifications to customers
+    // waitlisted for May 4 instead of May 5 — the wrong day.
+    // Convert the cancelled booking's scheduled_at to the Manila
+    // day so the lookup matches the waitlist's storage convention.
+    // Same Manila-tz pattern as Phase 105/113/115/116.
+    const dateStr = updated.scheduled_at.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+    slotWaitlistService.processSlotAvailability(
+      updated.category_id,
+      updated.city,
+      dateStr,
+    ).catch((err: unknown) => {
+      logger.error('Slot waitlist notification failed after cancellation', {
+        bookingId,
+        error: err instanceof Error ? err.message : 'Unknown',
+      });
+    });
+  }
+
+}
+
+// SEC-088 — moved from the PATCH route, which ran it before any authorization
+// and from an unlocked read. Messages are unchanged; they now reach only a
+// caller who passed the actor guard, and the coordinates come from the locked row.
+function assertArrivalWithinRadius(
+  booking: BookingRow,
+  providerLocation: { latitude?: number; longitude?: number } | undefined,
+): void {
+  const providerLatitude = providerLocation?.latitude;
+  const providerLongitude = providerLocation?.longitude;
+
+  if (providerLatitude === undefined || providerLongitude === undefined) {
+    throw createAppError('Current provider location is required to mark arrival.', 400);
+  }
+
+  if (!booking.latitude || !booking.longitude) {
+    throw createAppError('Booking does not have service coordinates. Arrival cannot be verified.', 409);
+  }
+
+  const distanceMeters = haversineDistanceMeters(
+    providerLatitude,
+    providerLongitude,
+    Number(booking.latitude),
+    Number(booking.longitude),
+  );
+
+  if (distanceMeters > platformConfig.providerArrivalRadiusMeters) {
+    throw createAppError(
+      `You must be within ${platformConfig.providerArrivalRadiusMeters} meters of the job location to mark arrival. Current distance: ${Math.round(distanceMeters)} meters.`,
+      409,
+    );
+  }
+}
+
+// SEC-089 — moved from the PATCH route (same reason as above). Enforce minimum
+// time on site from the immutable server-clocked start marker. `updated_at`
+// changes when photos or other booking evidence is saved, so using it here
+// incorrectly restarted the wait after proof was uploaded (UX-302). Five
+// production in-progress rows created before the marker was wired have it
+// NULL, so they retain the prior updated_at fallback; every current transition
+// stamps work_started_at and uses that stable value.
+function assertMinimumTimeOnSite(booking: BookingRow): void {
+  const startedAt = booking.work_started_at ?? booking.updated_at;
+  if (!startedAt) {
+    throw createAppError('Work start time is missing. Contact support before completing this job.', 409);
+  }
+  const elapsedMs = Date.now() - new Date(startedAt).getTime();
+  const minimumMs = platformConfig.minimumTimeOnSiteMinutes * 60 * 1000;
+  if (elapsedMs < minimumMs) {
+    const remainingMin = Math.ceil((minimumMs - elapsedMs) / 60000);
+    throw createAppError(
+      `You must be on-site for at least ${platformConfig.minimumTimeOnSiteMinutes} minutes before marking the job complete. Please wait ${remainingMin} more minute(s).`,
+      409,
+    );
+  }
+}
+
+// SEC-090 / SEC-091 — status targets admin roles keep on PATCH /status while
+// D35 Q1 is open. Plain admin keeps only on-site steps. Super admin also keeps:
+// completed_by_provider, payout_ready and paid_out (today the only way to
+// advance a booking after a manual escrow release), and resolved (today the
+// only way out for a booking marked disputed without a dispute record, since
+// every dispute resolution path needs that record).
+const ADMIN_PATCH_HELD_PENDING_D35: readonly BookingStatus[] = [
+  'provider_en_route', 'provider_arrived', 'in_progress',
+];
+const SUPER_ADMIN_PATCH_HELD_PENDING_D35: readonly BookingStatus[] = [
+  ...ADMIN_PATCH_HELD_PENDING_D35, 'completed_by_provider', 'payout_ready', 'paid_out', 'resolved',
+];
+
+// SEC-092 / OPS-556 / SEC-093 — statuses that only a dedicated flow may set
+// (the repair contract K07 TRANSITION_ACTORS 'flow_only' list): booking
+// creation, quote submission, offer or quote acceptance and admin assignment,
+// payment, dispute filing, dispute resolution, payout and the admin cancel.
+// A customer or provider who asks for one through PATCH /status gets 409
+// BOOKING_TRANSITION_FLOW_ONLY once the ownership or assignment check passes.
+const PARTICIPANT_FLOW_ONLY_TARGETS: readonly BookingStatus[] = [
+  'requested', 'quoted', 'matched', 'payment_pending', 'paid',
+  'disputed', 'resolved', 'payout_ready', 'paid_out', 'cancelled_by_admin',
+];
+
+function participantFlowOnlyError(): Error {
+  const error = createAppError('This booking change can\'t be made from here.', 409);
+  error.code = 'BOOKING_TRANSITION_FLOW_ONLY';
+  return error;
 }
 
 async function validateRoleForTransition(
+  // OPS-555 — the booking transaction client. Authority lookups must not ask
+  // the shared pool for a second connection while the booking lock is held.
+  client: QueryClient,
   role: string,
   _currentStatus: BookingStatus,
   newStatus: BookingStatus,
   booking: BookingRow,
   userId: string,
 ): Promise<void> {
-  if (role === 'admin' || role === 'super_admin') return;
-
-  if (newStatus === 'cancelled_by_admin') {
-    throw createAppError('Only admins can cancel bookings as admin.', 403);
+  // SEC-090 / SEC-091 — admin roles no longer skip this guard entirely.
+  // F3: money actions belong to the super admin's audited admin actions
+  // (cancel, force complete, release, refund), which require a reason and
+  // write an admin_actions row. This route writes neither, so it refuses
+  // every target that moves or starts money, ends a booking, or replaces a
+  // dedicated flow (payment, dispute, quote, offer). The held targets are
+  // the parts D35 Q1 has not decided; they behave exactly as before. Any
+  // status not listed is refused by default.
+  if (role === 'admin' || role === 'super_admin') {
+    const held = role === 'super_admin' ? SUPER_ADMIN_PATCH_HELD_PENDING_D35 : ADMIN_PATCH_HELD_PENDING_D35;
+    if (held.includes(newStatus)) return;
+    if (role === 'admin') {
+      throw createAppError('Your admin role cannot make this booking change.', 403);
+    }
+    const flowOnly = createAppError(
+      'Use the admin booking actions (cancel, force complete, release or refund) or the booking\'s own flow for this change.',
+      409,
+    );
+    flowOnly.code = 'BOOKING_TRANSITION_FLOW_ONLY';
+    throw flowOnly;
   }
 
   if (role === 'customer') {
     if (booking.customer_id !== userId) {
       throw createAppError('You can only manage your own bookings.', 403);
     }
-
-    const customerAllowed: BookingStatus[] = [
-      'cancelled_by_customer', 'confirmed', 'disputed', 'payment_pending',
-    ];
+    // SEC-092: "disputed" without POST /disputes left escrow held with no
+    // dispute record, which every resolution path needs. OPS-556:
+    // "payment_pending" left a booking the wallet payment refuses.
+    if (PARTICIPANT_FLOW_ONLY_TARGETS.includes(newStatus)) {
+      throw participantFlowOnlyError();
+    }
+    // The remaining statuses are the provider's steps.
+    const customerAllowed: BookingStatus[] = ['cancelled_by_customer', 'confirmed'];
     if (!customerAllowed.includes(newStatus)) {
       throw createAppError('Customers cannot perform this action.', 403);
     }
+    return;
   }
 
   if (role === 'provider') {
+    // Flow-only statuses pass this filter so that the assignment check below
+    // answers first. The rest of the refused statuses are the customer's steps.
     const providerAllowed: BookingStatus[] = [
-      'quoted', 'matched', 'provider_en_route', 'provider_arrived',
+      'provider_en_route', 'provider_arrived',
       'in_progress', 'completed_by_provider', 'cancelled_by_provider',
     ];
-    if (!providerAllowed.includes(newStatus)) {
+    if (!providerAllowed.includes(newStatus) && !PARTICIPANT_FLOW_ONLY_TARGETS.includes(newStatus)) {
       throw createAppError('Providers cannot perform this action.', 403);
     }
 
-    if (booking.provider_id) {
-      interface ProviderRow { user_id: string }
-      const providerResult = await db.query<ProviderRow>(
-        `SELECT user_id FROM providers WHERE id = $1`,
-        [booking.provider_id],
-      );
-      if (providerResult.rows[0]?.user_id !== userId) {
-        throw createAppError('You are not assigned to this booking.', 403);
-      }
+    // SEC-076: an unassigned booking is not an invitation for any provider
+    // to change its status. Reject before any state, money or notification
+    // work; assignment remains the dedicated offer/quote/admin workflow.
+    if (!booking.provider_id) {
+      throw createAppError('You are not assigned to this booking.', 403);
     }
+    interface ProviderRow { user_id: string }
+    const providerResult = await client.query<ProviderRow>(
+      `SELECT user_id FROM providers WHERE id = $1`,
+      [booking.provider_id],
+    );
+    if (providerResult.rows[0]?.user_id !== userId) {
+      throw createAppError('You are not assigned to this booking.', 403);
+    }
+    // SEC-093: "quoted" with no quote row and "matched" with no accepted
+    // offer or quote, along with the other flow-only statuses.
+    if (PARTICIPANT_FLOW_ONLY_TARGETS.includes(newStatus)) {
+      throw participantFlowOnlyError();
+    }
+    return;
+  }
+
+  if (newStatus === 'cancelled_by_admin') {
+    throw createAppError('Only the admin cancel action can cancel a booking as admin.', 403);
   }
 
   // D23 + D15 — the assigned, approved team member drives the on-site steps of
@@ -883,17 +1106,27 @@ async function validateRoleForTransition(
       throw createAppError('Team members can update on-site status (en route, arrived, started) and mark the job complete. Other actions are provider-owner only.', 403);
     }
     const performerStaffId = (booking as { performer_staff_id?: string | null }).performer_staff_id;
-    if (!performerStaffId) {
+    if (!performerStaffId || !booking.provider_id) {
       throw createAppError('This job is not assigned to you.', 403);
     }
-    const staffResult = await db.query<{ id: string }>(
-      `SELECT id FROM provider_staff WHERE id = $1 AND user_id = $2 AND status = 'approved'`,
-      [performerStaffId, userId],
+    const staffResult = await client.query<{ id: string }>(
+      // SEC-078: retained performer attribution is not authority when the
+      // booking belongs to a different provider account. D23 approval and
+      // the staff user's identity must match this booking's current parent.
+      `SELECT id FROM provider_staff
+       WHERE id = $1 AND user_id = $2 AND provider_id = $3 AND status = 'approved'`,
+      [performerStaffId, userId, booking.provider_id],
     );
     if (staffResult.rows.length === 0) {
       throw createAppError('This job is not assigned to you.', 403);
     }
+    return;
   }
+
+  // SEC-077: authentication does not grant booking-operation authority.
+  // DPO and any other unsupported role must not fall through to state,
+  // cancellation money movement or counterpart notifications.
+  throw createAppError('Your role cannot change booking status.', 403);
 }
 
 interface QuoteRow {
@@ -1216,33 +1449,40 @@ export async function getBookingQuotes(bookingId: string): Promise<Record<string
 }
 
 export async function acceptQuote(bookingId: string, quoteId: string, customerId: string): Promise<Record<string, unknown>> {
-  const booking = await getBookingByIdAdmin(bookingId);
-  if (booking.customer_id !== customerId) {
-    throw createAppError('Not authorized.', 403);
-  }
-  if (booking.status !== 'quoted' && booking.status !== 'requested') {
-    throw createAppError('Booking is not in a state to accept quotes.', 409);
-  }
-
-  interface QuoteAcceptRow { id: string; provider_id: string; quoted_price: number }
-  const quoteResult = await db.query<QuoteAcceptRow>(
-    `SELECT id, provider_id, quoted_price FROM booking_quotes
-     WHERE id = $1 AND booking_id = $2 AND expires_at > NOW()`,
-    [quoteId, bookingId],
-  );
-  if (quoteResult.rows.length === 0) {
-    throw createAppError('Quote not found or expired.', 404);
-  }
-
-  const quote = quoteResult.rows[0]!;
-  const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
-    customerId, quote.provider_id, quote.quoted_price,
-  );
-  const discountedPrice = quote.quoted_price - discountAmount;
-  const serviceFee = await calculateServiceFee(discountedPrice);
-  const totalAmount = discountedPrice + serviceFee;
-
   return db.transaction(async (client) => {
+    const bookingResult = await client.query<BookingRow>(
+      `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
+      [bookingId],
+    );
+    const booking = bookingResult.rows[0];
+    if (!booking) throw createAppError('Booking not found.', 404);
+    if (booking.customer_id !== customerId) throw createAppError('Not authorized.', 403);
+    if (booking.status !== 'quoted' && booking.status !== 'requested') {
+      throw createAppError('Booking is not in a state to accept quotes.', 409);
+    }
+
+    interface QuoteAcceptRow { id: string; provider_id: string; quoted_price: number }
+    const quoteResult = await client.query<QuoteAcceptRow>(
+      `SELECT id, provider_id, quoted_price
+         FROM booking_quotes
+        WHERE id = $1
+          AND booking_id = $2
+          AND expires_at > NOW()
+          AND COALESCE(status, 'submitted') = 'submitted'
+          AND is_accepted = FALSE
+        FOR UPDATE`,
+      [quoteId, bookingId],
+    );
+    const quote = quoteResult.rows[0];
+    if (!quote) throw createAppError('Quote not found, expired, or already resolved.', 404);
+
+    const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
+      customerId, quote.provider_id, quote.quoted_price,
+    );
+    const discountedPrice = quote.quoted_price - discountAmount;
+    const serviceFee = await calculateServiceFee(discountedPrice);
+    const totalAmount = discountedPrice + serviceFee;
+
     await client.query(
       `UPDATE booking_quotes SET is_accepted = TRUE, status = 'accepted', updated_at = NOW()
        WHERE id = $1`,
@@ -1267,6 +1507,18 @@ export async function acceptQuote(bookingId: string, quoteId: string, customerId
        WHERE id = $1`,
       [bookingId, quote.provider_id, discountedPrice, serviceFee, totalAmount, discountAmount],
     );
+
+    await financialTermsService.appendPricingTermsInTransaction(client, {
+      bookingId,
+      event: 'quote_accepted',
+      sourceEventId: quoteId,
+      createdBy: customerId,
+      metadata: {
+        quoteId,
+        quotedPriceCentavos: quote.quoted_price,
+        sukiDiscountCentavos: discountAmount,
+      },
+    });
 
     logger.info('Quote accepted', {
       bookingId, quoteId, providerId: quote.provider_id,
@@ -1514,20 +1766,21 @@ export async function respondToChangeOrder(
   customerId: string,
   approved: boolean,
 ): Promise<Record<string, unknown>> {
-  const coResult = await db.query<ChangeOrderRow>(
-    `SELECT co.* FROM change_orders co
-     JOIN bookings b ON b.id = co.booking_id
-     WHERE co.id = $1 AND b.customer_id = $2 AND co.status = 'pending'`,
-    [changeOrderId, customerId],
-  );
-  if (coResult.rows.length === 0) {
-    throw createAppError('Change order not found or already resolved.', 404);
-  }
-
-  const co = coResult.rows[0]!;
   const newStatus = approved ? 'approved' : 'declined';
 
-  await db.transaction(async (client) => {
+  return db.transaction(async (client) => {
+    const coResult = await client.query<ChangeOrderRow>(
+      `SELECT co.* FROM change_orders co
+       JOIN bookings b ON b.id = co.booking_id
+       WHERE co.id = $1 AND b.customer_id = $2 AND co.status = 'pending'
+       FOR UPDATE OF co, b`,
+      [changeOrderId, customerId],
+    );
+    if (coResult.rows.length === 0) {
+      throw createAppError('Change order not found or already resolved.', 404);
+    }
+    const co = coResult.rows[0]!;
+
     const updateResult = await client.query(
       `UPDATE change_orders SET status = $2, customer_responded_at = NOW(), updated_at = NOW()
        WHERE id = $1 AND status = 'pending' RETURNING id`,
@@ -1539,19 +1792,19 @@ export async function respondToChangeOrder(
 
     if (!approved) {
       logger.info('Change order declined', { changeOrderId });
+      return { id: changeOrderId, status: newStatus, paymentRequired: false };
     }
-  });
 
-  if (approved) {
-    const bookingResult = await db.query<{ service_price: number; service_fee: number; total_amount: number }>(
-      `SELECT service_price, service_fee, total_amount FROM bookings WHERE id = $1`,
+    const bookingResult = await client.query<{ service_price: number; service_fee: number; total_amount: number }>(
+      `SELECT service_price, service_fee, total_amount FROM bookings WHERE id = $1 FOR UPDATE`,
       [co.booking_id],
     );
     const current = bookingResult.rows[0];
     if (!current) throw createAppError('Booking not found.', 404);
 
+    const terms = await financialTermsService.getLatestFinalTermsInTransaction(client, co.booking_id);
     const newServicePrice = current.service_price + co.additional_amount;
-    const newServiceFee = await calculateServiceFee(newServicePrice);
+    const newServiceFee = financialTermsService.calculateServiceFeeFromTerms(newServicePrice, terms);
     const newTotalAmount = newServicePrice + newServiceFee;
     const additionalTotal = newTotalAmount - current.total_amount;
     const additionalServiceFee = additionalTotal - co.additional_amount;
@@ -1572,9 +1825,7 @@ export async function respondToChangeOrder(
       additionalServiceFee,
       additionalTotal,
     };
-  }
-
-  return { id: changeOrderId, status: newStatus, paymentRequired: false };
+  });
 }
 
 /**
@@ -1755,8 +2006,9 @@ export async function finalizeChangeOrderPayment(
       );
     }
 
+    const currentTerms = await financialTermsService.getLatestFinalTermsInTransaction(client, co.booking_id);
     const newServicePrice = current.service_price + co.additional_amount;
-    const newServiceFee = await calculateServiceFee(newServicePrice);
+    const newServiceFee = financialTermsService.calculateServiceFeeFromTerms(newServicePrice, currentTerms);
     const newTotalAmount = newServicePrice + newServiceFee;
     const additionalTotal = newTotalAmount - current.total_amount;
 
@@ -1848,6 +2100,26 @@ export async function finalizeChangeOrderPayment(
       [co.booking_id, newServicePrice, newServiceFee, newTotalAmount],
     );
 
+    // E50: an authorized change order appends a new immutable terms version
+    // using the booking's original commission and fee agreement. The added
+    // escrow hold is part of this same transaction, so price, customer debit,
+    // financial evidence, and held funds cannot diverge.
+    await financialTermsService.appendAmendedTermsInTransaction(
+      client,
+      {
+        bookingId: co.booking_id,
+        event: 'change_order_authorized',
+        sourceEventId: changeOrderId,
+        createdBy: customerId,
+        metadata: {
+          paymentKind: paymentProof.kind,
+          additionalServiceAmountCentavos: co.additional_amount,
+          additionalTotalCentavos: additionalTotal,
+        },
+      },
+    );
+    await escrowService.holdInEscrowInTransaction(client, co.booking_id, additionalTotal);
+
     logger.info('Change order payment finalized — booking amounts updated', {
       changeOrderId,
       bookingId: co.booking_id,
@@ -1921,18 +2193,27 @@ export async function getChangeOrders(bookingId: string): Promise<Record<string,
     [bookingId],
   );
   const baseline = bookingRow.rows[0];
+  const latestTerms = baseline ? await financialTermsService.getLatestTermsOrNull(bookingId) : null;
+  const terms = latestTerms?.termsState === 'final' ? latestTerms : null;
+  const financialTermsReviewRequired = baseline !== undefined && terms === null;
 
   return Promise.all(
     result.rows.map(async (co) => {
       let additionalServiceFee: number | null = null;
       let additionalTotal: number | null = null;
-      if (baseline) {
+      if (baseline && terms) {
         const newServicePrice = baseline.service_price + co.additional_amount;
-        const newServiceFee = await calculateServiceFee(newServicePrice);
+        const newServiceFee = financialTermsService.calculateServiceFeeFromTerms(newServicePrice, terms);
         additionalTotal = (newServicePrice + newServiceFee) - baseline.total_amount;
         additionalServiceFee = additionalTotal - co.additional_amount;
       }
-      return formatChangeOrder(co, additionalServiceFee, additionalTotal, lineItemsMap[co.id] ?? []);
+      return formatChangeOrder(
+        co,
+        additionalServiceFee,
+        additionalTotal,
+        lineItemsMap[co.id] ?? [],
+        financialTermsReviewRequired,
+      );
     }),
   );
 }
@@ -1942,6 +2223,7 @@ function formatChangeOrder(
   additionalServiceFee: number | null = null,
   additionalTotal: number | null = null,
   lineItems: Record<string, unknown>[] = [],
+  financialTermsReviewRequired = false,
 ): Record<string, unknown> {
   return {
     id: co.id,
@@ -1951,6 +2233,7 @@ function formatChangeOrder(
     additionalAmount: co.additional_amount,
     additionalServiceFee,
     additionalTotal,
+    financialTermsReviewRequired,
     lineItems,
     photos: co.photos ?? [],
     status: co.status,

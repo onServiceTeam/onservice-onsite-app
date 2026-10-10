@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -220,8 +220,12 @@ interface ActivityRow {
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 const TABS = ['profile', 'bookings', 'payments', 'disputes', 'referrals', 'activity'] as const;
-void TABS;
 type TabId = (typeof TABS)[number];
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseCustomerTab(value: string | null): TabId {
+  return TABS.includes(value as TabId) ? value as TabId : 'profile';
+}
 
 function fmtCentavos(centavos: number): string {
   const pesos = centavos / 100;
@@ -238,7 +242,37 @@ function fmtDate(iso: string | null): string {
 export default function CustomerDetailPage(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const customerId = id ?? '';
-  const [tab, setTab] = useState<TabId>('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = parseCustomerTab(searchParams.get('tab'));
+  const transactionIdFilter = searchParams.get('transactionId')?.trim() ?? '';
+  const adminActionIdFilter = searchParams.get('adminActionId')?.trim() ?? '';
+
+  const selectTab = (tab: TabId): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (tab === 'profile') next.delete('tab');
+      else next.set('tab', tab);
+      if (tab !== 'payments') next.delete('transactionId');
+      if (tab !== 'activity') next.delete('adminActionId');
+      return next;
+    });
+  };
+
+  const clearTransactionFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('transactionId');
+      return next;
+    });
+  };
+
+  const clearAdminActionFilter = (): void => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('adminActionId');
+      return next;
+    });
+  };
 
   const profileQuery = useQuery({
     queryKey: ['admin-customer-profile', customerId],
@@ -260,11 +294,14 @@ export default function CustomerDetailPage(): React.ReactElement {
     return (
       <ErrorState title="Failed to load customer" description={getErrorMessage(profileQuery.error)}
         action={
-          <Link to="/customers">
-            <Button variant="secondary" size="sm">
-              <ArrowLeft size={14} /> Back to customers
-            </Button>
-          </Link>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void profileQuery.refetch()}>Retry customer</Button>
+            <Link to="/customers">
+              <Button variant="secondary" size="sm">
+                <ArrowLeft size={14} /> Back to customers
+              </Button>
+            </Link>
+          </div>
         }
       />
     );
@@ -273,7 +310,9 @@ export default function CustomerDetailPage(): React.ReactElement {
   const profile = profileQuery.data;
 
   return (
-    <div className="space-y-6">
+    // Private reveals, wallet drafts, and pending decisions are record-owned.
+    // Keep same-customer refreshes stable, but remount on a different customer.
+    <div key={profile.id} className="space-y-6">
       <div>
         <Link
           to="/customers"
@@ -285,7 +324,7 @@ export default function CustomerDetailPage(): React.ReactElement {
 
       <CustomerHeader profile={profile} />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabId)}>
+      <Tabs value={activeTab} onValueChange={(v) => selectTab(v as TabId)}>
         <TabsList className="flex h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto rounded-xl p-1">
           <TabsTrigger className="min-h-11 shrink-0" value="profile">Profile</TabsTrigger>
           <TabsTrigger className="min-h-11 shrink-0" value="bookings">Bookings</TabsTrigger>
@@ -302,7 +341,11 @@ export default function CustomerDetailPage(): React.ReactElement {
           <BookingsTab customerId={customerId} />
         </TabsContent>
         <TabsContent value="payments">
-          <PaymentsTab customerId={customerId} />
+          <PaymentsTab
+            customerId={customerId}
+            exactTransactionId={transactionIdFilter}
+            onClearExactTransaction={clearTransactionFilter}
+          />
         </TabsContent>
         <TabsContent value="disputes">
           <DisputesTab customerId={customerId} />
@@ -311,7 +354,11 @@ export default function CustomerDetailPage(): React.ReactElement {
           <ReferralsTab customerId={customerId} />
         </TabsContent>
         <TabsContent value="activity">
-          <ActivityTab customerId={customerId} />
+          <ActivityTab
+            customerId={customerId}
+            exactAdminActionId={adminActionIdFilter}
+            onClearExactAdminAction={clearAdminActionFilter}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -741,7 +788,15 @@ export function BookingsTab({ customerId }: { customerId: string }): React.React
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Customer bookings unavailable"
+        description="The customer's booking history could not be read. Do not treat this as no bookings."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry customer bookings</Button>}
+      />
+    );
+  }
   const data = q.data!;
 
   return (
@@ -869,25 +924,44 @@ export function BookingsTab({ customerId }: { customerId: string }): React.React
 
 // ─── PaymentsTab ──────────────────────────────────────────────────────────
 
-export function PaymentsTab({ customerId }: { customerId: string }): React.ReactElement {
+export function PaymentsTab({
+  customerId,
+  exactTransactionId = '',
+  onClearExactTransaction,
+}: {
+  customerId: string;
+  exactTransactionId?: string;
+  onClearExactTransaction?: () => void;
+}): React.ReactElement {
   const role = useAuthStore((s) => s.user?.role);
   const isSuperAdmin = role === 'super_admin';
   const queryClient = useQueryClient();
   const [amountPesos, setAmountPesos] = useState('');
   const [reason, setReason] = useState('');
+  const rawTransactionId = exactTransactionId.trim();
+  const hasExactTransaction = rawTransactionId.length > 0;
+  const hasValidExactTransaction = UUID_REGEX.test(rawTransactionId);
+  const requestedTransactionId = hasValidExactTransaction
+    ? rawTransactionId.toLowerCase()
+    : rawTransactionId;
   const parsedAmount = Number(amountPesos);
   const adjustmentCentavos = Number.isFinite(parsedAmount) && parsedAmount !== 0
     ? Math.round(parsedAmount * 100)
     : null;
 
   const q = useQuery({
-    queryKey: ['admin-customer-payments', customerId],
+    queryKey: ['admin-customer-payments', customerId, requestedTransactionId],
     queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: Payments }>(
-        `/api/v1/admin/customers/${customerId}/payments`,
-      );
+      const path = `/api/v1/admin/customers/${customerId}/payments`;
+      const res = hasExactTransaction
+        ? await api.get<{ success: boolean; data: Payments }>(
+            path,
+            { params: { transactionId: requestedTransactionId } },
+          )
+        : await api.get<{ success: boolean; data: Payments }>(path);
       return res.data.data;
     },
+    enabled: !hasExactTransaction || hasValidExactTransaction,
   });
 
   const credit = useMutation({
@@ -906,12 +980,69 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
     },
   });
 
+  if (hasExactTransaction && !hasValidExactTransaction) {
+    return (
+      <ErrorState
+        title="Invalid wallet transaction link"
+        description="Wallet transaction ID must be a complete UUID. No payment records were requested."
+        action={onClearExactTransaction ? (
+          <Button variant="secondary" size="sm" onClick={onClearExactTransaction}>
+            Clear transaction selection
+          </Button>
+        ) : undefined}
+      />
+    );
+  }
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Customer payment history unavailable"
+        description="The customer's wallet and payment history could not be read. Do not treat missing data as a zero balance."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry customer payments</Button>}
+      />
+    );
+  }
   const data = q.data!;
+  const exactTransaction = hasExactTransaction
+    ? data.recentTransactions.find((transaction) => transaction.id === requestedTransactionId) ?? null
+    : null;
+  const visibleTransactions = hasExactTransaction
+    ? exactTransaction ? [exactTransaction] : []
+    : data.recentTransactions;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {hasExactTransaction && exactTransaction && (
+        <Card className="border-2 border-[var(--color-secondary)] bg-[var(--color-secondary)]/5 p-4 md:col-span-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-[var(--color-text)]">Exact customer wallet transaction</p>
+              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                This row is scoped by both the customer account and transaction ID retained by the audit decision.
+              </p>
+            </div>
+            {onClearExactTransaction && (
+              <Button variant="secondary" size="sm" onClick={onClearExactTransaction}>
+                Show recent payment history
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+      {hasExactTransaction && !exactTransaction && (
+        <Card className="border-2 border-[var(--color-warning)] bg-[var(--color-warning)]/5 p-4 md:col-span-3" role="alert">
+          <p className="text-sm font-semibold text-[var(--color-text)]">Wallet transaction is not in this customer ledger</p>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+            The requested transaction was deleted, never belonged to this customer, or is unavailable. No substitute transaction is shown; return to the Audit Log for the durable decision record.
+          </p>
+          {onClearExactTransaction && (
+            <Button className="mt-3" variant="secondary" size="sm" onClick={onClearExactTransaction}>
+              Show recent payment history
+            </Button>
+          )}
+        </Card>
+      )}
       <KpiCard
         title="Wallet available"
         value={fmtCentavos(data.walletAvailable)}
@@ -928,7 +1059,7 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
         icon={<CreditCard size={16} />}
       />
 
-      {isSuperAdmin && (
+      {isSuperAdmin && !hasExactTransaction && (
         <Card className="p-5 md:col-span-3">
           <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Adjust customer wallet</h3>
           <p className="text-xs text-[var(--color-text-secondary)] mb-3">
@@ -990,9 +1121,11 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
       )}
 
       <Card className="p-5 md:col-span-3">
-        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Recent wallet transactions</h3>
-        {data.recentTransactions.length === 0 ? (
-          <EmptyState title="No wallet transactions yet." />
+        <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">
+          {hasExactTransaction ? 'Wallet transaction evidence' : 'Recent wallet transactions'}
+        </h3>
+        {visibleTransactions.length === 0 ? (
+          !hasExactTransaction ? <EmptyState title="No wallet transactions yet." /> : null
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -1007,8 +1140,14 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
                 </tr>
               </thead>
               <tbody>
-                {data.recentTransactions.map((t) => (
-                  <tr key={t.id} className="border-t border-[var(--color-border)]">
+                {visibleTransactions.map((t) => (
+                  <tr
+                    key={t.id}
+                    aria-current={hasExactTransaction ? 'true' : undefined}
+                    className={hasExactTransaction
+                      ? 'border-t border-[var(--color-secondary)] bg-[var(--color-secondary)]/5'
+                      : 'border-t border-[var(--color-border)]'}
+                  >
                     <td className="px-3 py-2">
                       <Badge label={t.type} variant="info" />
                     </td>
@@ -1045,7 +1184,7 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
         )}
       </Card>
 
-      <Card className="p-5 md:col-span-3">
+      {!hasExactTransaction && <Card className="p-5 md:col-span-3">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">Recent payment intents</h3>
         {data.recentPaymentIntents.length === 0 ? (
           <EmptyState title="No payment intents yet." />
@@ -1054,6 +1193,7 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
             <table className="min-w-full text-sm">
               <thead className="text-xs text-[var(--color-text-secondary)] uppercase">
                 <tr>
+                  <th className="px-3 py-2 text-left">Attempt</th>
                   <th className="px-3 py-2 text-left">Booking</th>
                   <th className="px-3 py-2 text-left">Provider</th>
                   <th className="px-3 py-2 text-left">Method</th>
@@ -1065,6 +1205,15 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
               <tbody>
                 {data.recentPaymentIntents.map((p) => (
                   <tr key={p.id} className="border-t border-[var(--color-border)]">
+                    <td className="px-3 py-2">
+                      <Link
+                        to={`/financials?tab=payments&paymentAttemptId=${encodeURIComponent(p.id)}`}
+                        aria-label={`Open payment attempt ${p.id}`}
+                        className="font-mono text-xs text-[var(--color-secondary)] hover:underline"
+                      >
+                        {p.id.slice(0, 8)}…
+                      </Link>
+                    </td>
                     <td className="px-3 py-2">
                       <Link
                         to={`/bookings/${p.bookingId}`}
@@ -1104,7 +1253,7 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
             </table>
           </div>
         )}
-      </Card>
+      </Card>}
     </div>
   );
 }
@@ -1112,6 +1261,12 @@ export function PaymentsTab({ customerId }: { customerId: string }): React.React
 // ─── DisputesTab ──────────────────────────────────────────────────────────
 
 export function DisputesTab({ customerId }: { customerId: string }): React.ReactElement {
+  const role = useAuthStore((s) => s.user?.role);
+  const isSuperAdmin = role === 'super_admin';
+  const queryClient = useQueryClient();
+  const { requestReason, reasonDialog } = useReasonDialog();
+  const [fraudActionMessage, setFraudActionMessage] = useState('');
+  const [fraudActionError, setFraudActionError] = useState('');
   const [page, setPage] = useState(1);
   const q = useQuery({
     queryKey: ['admin-customer-disputes', customerId, page],
@@ -1123,8 +1278,51 @@ export function DisputesTab({ customerId }: { customerId: string }): React.React
     },
   });
 
+  const flagFraudMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      await api.put(`/api/v1/admin/customers/${customerId}/status`, {
+        action: 'flag_fraud',
+        reason,
+      });
+    },
+    onSuccess: () => {
+      setFraudActionError('');
+      setFraudActionMessage('Customer added to the internal fraud-review queue.');
+      void queryClient.invalidateQueries({ queryKey: ['admin-customer-profile', customerId] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-customer-disputes', customerId] });
+    },
+    onError: (error) => {
+      setFraudActionMessage('');
+      setFraudActionError(getErrorMessage(error));
+    },
+  });
+
+  async function flagFraudFromDisputes(): Promise<void> {
+    setFraudActionMessage('');
+    setFraudActionError('');
+    const reason = await requestReason({
+      title: 'Flag customer for fraud review?',
+      description: 'This adds an internal account flag. It does not cancel bookings, move money, resolve disputes, or suspend access. Record the observable pattern and linked evidence.',
+      confirmLabel: 'Flag for review',
+      reasonLabel: 'Fraud-review reason',
+      placeholder: 'Record the observable pattern, linked cases, and evidence to review.',
+      minLength: 10,
+      maxLength: 1000,
+      tone: 'default',
+    });
+    if (reason) flagFraudMutation.mutate(reason);
+  }
+
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Customer disputes unavailable"
+        description="The customer's dispute history and fraud signals could not be read. Do not treat this as no disputes or a clear review."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry customer disputes</Button>}
+      />
+    );
+  }
   const data = q.data!;
   const fraudWindowDays = data.fraudPattern.windowDays ?? 30;
   const disputesInWindow = data.fraudPattern.disputesInWindow ?? 0;
@@ -1133,17 +1331,36 @@ export function DisputesTab({ customerId }: { customerId: string }): React.React
     <div className="space-y-4">
       {data.fraudPattern.flagged && (
         <Card className="p-4 border-2 border-[var(--color-warning)] bg-[var(--color-warning)]/5">
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-3">
             <AlertTriangle size={18} className="text-[var(--color-warning)] mt-0.5" />
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-[var(--color-text)]">Possible fraud pattern</p>
               <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
                 {data.fraudPattern.reason}
               </p>
+              {isSuperAdmin ? (
+                <Button
+                  className="mt-3 min-h-11"
+                  size="sm"
+                  variant="secondary"
+                  disabled={flagFraudMutation.isPending}
+                  onClick={() => void flagFraudFromDisputes()}
+                >
+                  {flagFraudMutation.isPending ? 'Flagging.' : 'Flag for fraud review'}
+                </Button>
+              ) : (
+                <p className="mt-3 text-xs text-[var(--color-text-secondary)]">
+                  Super-admin access is required to add the account flag. Use Manage status in the customer header.
+                </p>
+              )}
+              {fraudActionMessage && <p role="status" className="mt-2 text-xs text-[var(--color-success)]">{fraudActionMessage}</p>}
+              {fraudActionError && <p role="alert" className="mt-2 text-xs text-[var(--color-danger)]">{fraudActionError}</p>}
             </div>
           </div>
         </Card>
       )}
+
+      {reasonDialog}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <KpiCard
@@ -1263,7 +1480,15 @@ export function ReferralsTab({ customerId }: { customerId: string }): React.Reac
   });
 
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Customer referrals unavailable"
+        description="The customer's referral ledger could not be read. Do not treat this as no referral activity."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry customer referrals</Button>}
+      />
+    );
+  }
   const data = q.data!;
 
   return (
@@ -1415,26 +1640,100 @@ export function ReferralsTab({ customerId }: { customerId: string }): React.Reac
 
 // ─── ActivityTab ──────────────────────────────────────────────────────────
 
-export function ActivityTab({ customerId }: { customerId: string }): React.ReactElement {
+export function ActivityTab({
+  customerId,
+  exactAdminActionId = '',
+  onClearExactAdminAction,
+}: {
+  customerId: string;
+  exactAdminActionId?: string;
+  onClearExactAdminAction?: () => void;
+}): React.ReactElement {
   const [limit, setLimit] = useState(50);
+  const rawAdminActionId = exactAdminActionId.trim();
+  const hasExactAdminAction = rawAdminActionId.length > 0;
+  const hasValidExactAdminAction = UUID_REGEX.test(rawAdminActionId);
+  const requestedAdminActionId = hasValidExactAdminAction
+    ? rawAdminActionId.toLowerCase()
+    : rawAdminActionId;
   const q = useQuery({
-    queryKey: ['admin-customer-activity', customerId, limit],
+    queryKey: ['admin-customer-activity', customerId, limit, requestedAdminActionId],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: ActivityRow[] }>(
         `/api/v1/admin/customers/${customerId}/activity`,
-        { params: { limit } },
+        {
+          params: hasExactAdminAction
+            ? { limit: 1, adminActionId: requestedAdminActionId }
+            : { limit },
+        },
       );
       return res.data.data;
     },
+    enabled: !hasExactAdminAction || hasValidExactAdminAction,
   });
 
+  if (hasExactAdminAction && !hasValidExactAdminAction) {
+    return (
+      <ErrorState
+        title="Invalid customer activity link"
+        description="Admin action ID must be a complete UUID. No activity records were requested."
+        action={onClearExactAdminAction ? (
+          <Button variant="secondary" size="sm" onClick={onClearExactAdminAction}>
+            Clear activity selection
+          </Button>
+        ) : undefined}
+      />
+    );
+  }
   if (q.isLoading) return <LoadingState />;
-  if (q.isError) return <ErrorState description={getErrorMessage(q.error)} />;
+  if (q.isError) {
+    return (
+      <ErrorState
+        title="Customer activity unavailable"
+        description="The customer's activity history could not be read. Do not treat this as no recorded activity."
+        action={<Button variant="outline" onClick={() => void q.refetch()}>Retry customer activity</Button>}
+      />
+    );
+  }
   const rows = q.data!;
+  const exactActivity = hasExactAdminAction
+    ? rows.find((row) => row.id === `admin_action:${requestedAdminActionId}`) ?? null
+    : null;
+  const visibleRows = hasExactAdminAction ? exactActivity ? [exactActivity] : [] : rows;
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      {hasExactAdminAction && exactActivity && (
+        <Card className="border-2 border-[var(--color-secondary)] bg-[var(--color-secondary)]/5 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-[var(--color-text)]">Exact customer account decision</p>
+              <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                This activity row is scoped by both the customer account and admin-action ID retained by the Audit Log.
+              </p>
+            </div>
+            {onClearExactAdminAction && (
+              <Button variant="secondary" size="sm" onClick={onClearExactAdminAction}>
+                Show recent customer activity
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+      {hasExactAdminAction && !exactActivity && (
+        <Card className="border-2 border-[var(--color-warning)] bg-[var(--color-warning)]/5 p-4" role="alert">
+          <p className="text-sm font-semibold text-[var(--color-text)]">Admin decision is not in this customer activity file</p>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+            The requested decision never belonged to this customer or is unavailable. No substitute activity is shown; return to the Audit Log for the durable event record.
+          </p>
+          {onClearExactAdminAction && (
+            <Button className="mt-3" variant="secondary" size="sm" onClick={onClearExactAdminAction}>
+              Show recent customer activity
+            </Button>
+          )}
+        </Card>
+      )}
+      {!hasExactAdminAction && <div className="flex items-center gap-2">
         <select
           aria-label="Activity row limit"
           value={limit}
@@ -1445,9 +1744,9 @@ export function ActivityTab({ customerId }: { customerId: string }): React.React
           <option value={100}>Last 100</option>
           <option value={200}>Last 200</option>
         </select>
-      </div>
-      {rows.length === 0 ? (
-        <EmptyState title="No activity recorded." />
+      </div>}
+      {visibleRows.length === 0 ? (
+        !hasExactAdminAction ? <EmptyState title="No activity recorded." /> : null
       ) : (
         <Card>
           <div className="overflow-x-auto">
@@ -1464,8 +1763,14 @@ export function ActivityTab({ customerId }: { customerId: string }): React.React
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-t border-[var(--color-border)]">
+                {visibleRows.map((r) => (
+                  <tr
+                    key={r.id}
+                    aria-current={hasExactAdminAction ? 'true' : undefined}
+                    className={hasExactAdminAction
+                      ? 'border-t border-[var(--color-secondary)] bg-[var(--color-secondary)]/5'
+                      : 'border-t border-[var(--color-border)]'}
+                  >
                     <td className="px-3 py-2">
                       <Badge
                         label={r.source}

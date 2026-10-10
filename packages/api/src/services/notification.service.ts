@@ -66,7 +66,7 @@ export type NotificationType =
   // Provider credential review in Provider 360.
   | 'provider_certification_verified' | 'provider_certification_unverified'
   // Chat / messaging
-  | 'new_message' | 'chat_started' | 'chat_last_message'
+  | 'new_message' | 'chat_started' | 'chat_last_message' | 'support_update'
   // Quotes
   | 'new_quote' | 'quote_accepted' | 'quote_expired'
   // D27 Phase 1 — provider is notified when a custom-quote job request lands in
@@ -459,6 +459,33 @@ async function deliverPushToDevice(
   }
 }
 
+/**
+ * Wake a device for a notification row that another service already inserted
+ * transactionally. This avoids creating a duplicate inbox row while preserving
+ * the same preference, quiet-hours, stale-token, and retry behavior used by
+ * createPushNotification.
+ */
+export async function deliverStoredNotificationPush(params: {
+  notificationId: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+}): Promise<void> {
+  await deliverPushToDevice(
+    params.userId,
+    params.title,
+    params.body,
+    {
+      ...params.data,
+      notificationId: params.notificationId,
+      type: params.type,
+      notificationType: params.type,
+    },
+  );
+}
+
 type PushPreferenceKey =
   | 'bookingUpdates'
   | 'providerActivity'
@@ -474,7 +501,7 @@ function pushPreferenceForType(
   data?: Record<string, unknown>,
 ): PushPreferenceKey {
   if (!type) return 'system';
-  if (['new_message', 'chat_started', 'chat_last_message'].includes(type)) return 'messages';
+  if (['new_message', 'chat_started', 'chat_last_message', 'support_update'].includes(type)) return 'messages';
   if (['refund_processed', 'payment_released', 'payout', 'recurring_auto_charge_succeeded', 'recurring_auto_charge_failed', 'recurring_auto_charge_suspended'].includes(type)) return 'paymentAlerts';
   if (['provider_assigned', 'provider_en_route', 'provider_arrived'].includes(type)) return 'providerActivity';
   if (['provider_reminder', 'nbi_expiring', 'change_order_expired'].includes(type)) return 'reminders';

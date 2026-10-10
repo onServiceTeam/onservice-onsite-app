@@ -15,11 +15,15 @@ import { createAppError } from '../middleware/error.middleware';
 import * as providerAdminService from '../services/provider-admin.service';
 import * as providerStaffService from '../services/provider-staff.service';
 import * as kycDocumentService from '../services/kyc-document.service';
+import * as applicationEvidenceService from '../services/provider-application-evidence.service';
 import { validationMiddleware } from '../middleware/validation.middleware';
 import { providerCertificationReviewSchema } from '../validators/provider.validators';
 import { ALL_BOOKING_STATUSES } from '../types/booking.types';
+import { privateResponse } from '../middleware/private-response.middleware';
 
 const router = Router();
+// Provider 360 includes identity documents, support notes and operational data.
+router.use(privateResponse);
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function validateUuidParam(name: string, label: string) {
@@ -38,6 +42,7 @@ const validateReviewId = validateUuidParam('reviewId', 'Review ID');
 const validateNoteId = validateUuidParam('noteId', 'Note ID');
 const validateStaffId = validateUuidParam('staffId', 'Staff ID');
 const validateCertificationId = validateUuidParam('certId', 'Certification ID');
+const validateRevisionId = validateUuidParam('revisionId', 'Application revision ID');
 
 function positiveIntegerQuery(
   value: unknown,
@@ -86,6 +91,63 @@ router.get(
     } catch (error) {
       next(error);
     }
+  },
+);
+
+// E35/E74: private submitted evidence, separate from the mutable profile.
+// These reads neither approve an application nor infer historical admission.
+router.get(
+  '/:id/application-revisions', authMiddleware, validateProviderId,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      if (Object.keys(req.query).some(key => key !== 'limit' && key !== 'beforeRevision')) {
+        throw createAppError('Only limit and beforeRevision are supported for application history.', 400);
+      }
+      const data = await applicationEvidenceService.listApplicationRevisions({
+        providerId: req.params.id as string, requesterRole: req.user!.role,
+        limit: positiveIntegerQuery(req.query.limit, 'limit', 20, 100),
+        beforeRevision: req.query.beforeRevision === undefined ? undefined
+          : positiveIntegerQuery(req.query.beforeRevision, 'beforeRevision', 1, 2_147_483_647),
+      });
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
+  '/:id/application-revisions/:revisionId', authMiddleware, validateProviderId, validateRevisionId,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const data = await applicationEvidenceService.getApplicationRevision({
+        providerId: req.params.id as string, revisionId: req.params.revisionId as string,
+        requesterRole: req.user!.role,
+      });
+      res.json({ success: true, data });
+    } catch (error) { next(error); }
+  },
+);
+
+router.get(
+  '/:id/application-revisions/:revisionId/kyc/:docType', authMiddleware, validateProviderId, validateRevisionId,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireAdmin(req);
+      const docType = req.params.docType;
+      if (!kycDocumentService.isKycDocType(docType)) throw createAppError('Invalid document type.', 400);
+      // No mode=link alternative: historical identity files stay behind the
+      // current-session authenticated proxy, not a new shareable bearer URL.
+      const stream = await applicationEvidenceService.getApplicationRevisionDocument({
+        providerId: req.params.id as string, revisionId: req.params.revisionId as string,
+        docType, requesterRole: req.user!.role,
+      });
+      res.setHeader('Content-Type', stream.contentType);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      if (stream.contentLength != null) res.setHeader('Content-Length', String(stream.contentLength));
+      stream.body.on('error', (error: Error) => next(error));
+      stream.body.pipe(res);
+    } catch (error) { next(error); }
   },
 );
 
@@ -220,12 +282,20 @@ router.get(
       requireAdmin(req);
       // MED-N13 fix — accept pagination query params; service returns
       // { rows, total, page, pageSize } so admin UI can paginate.
-      const page = positiveIntegerQuery(req.query.page, 'page', 1, 100_000);
-      const pageSize = positiveIntegerQuery(req.query.pageSize, 'pageSize', 50, 200);
+      let reviewId: string | undefined;
+      if (req.query.reviewId !== undefined) {
+        if (typeof req.query.reviewId !== 'string' || !UUID_REGEX.test(req.query.reviewId)) {
+          throw createAppError('reviewId must be a valid UUID.', 400);
+        }
+        reviewId = req.query.reviewId;
+      }
+      const page = reviewId ? 1 : positiveIntegerQuery(req.query.page, 'page', 1, 100_000);
+      const pageSize = reviewId ? 1 : positiveIntegerQuery(req.query.pageSize, 'pageSize', 50, 200);
       const data = await providerAdminService.getProviderReviews(
         req.params.id as string,
         page,
         pageSize,
+        reviewId,
       );
       res.json({ success: true, data });
     } catch (error) {
@@ -324,8 +394,18 @@ router.get(
       // intended forensic view while plain admin remains masked. DPO is
       // rejected by requireAdmin above and is never upgraded here.
       const role = req.user?.role === 'super_admin' ? 'super_admin' : 'admin';
+      const adminActionId = req.query.adminActionId;
+      if (
+        adminActionId !== undefined
+        && (typeof adminActionId !== 'string' || !UUID_REGEX.test(adminActionId))
+      ) {
+        throw createAppError('adminActionId must be a valid UUID.', 400);
+      }
       const data = await providerAdminService.getProviderActivity(
-        (req.params.id as string), limit, role,
+        req.params.id as string,
+        adminActionId ? 1 : limit,
+        role,
+        adminActionId,
       );
       res.json({ success: true, data });
     } catch (error) {

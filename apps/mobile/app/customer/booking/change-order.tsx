@@ -464,7 +464,19 @@ export default function ChangeOrderScreen(): React.ReactElement {
                       </View>
                     )}
 
-                    {order.status === 'approved' && (
+                    {order.status === 'approved' && order.financialTermsReviewRequired && (
+                      <View
+                        style={styles.walletError}
+                        accessibilityLabel="Change order payment requires support review"
+                      >
+                        <Text style={styles.walletErrorText}>
+                          Payment is paused while onService support verifies the original booking terms.
+                          You will not be charged until the total is confirmed.
+                        </Text>
+                      </View>
+                    )}
+
+                    {order.status === 'approved' && !order.financialTermsReviewRequired && (
                   <TouchableOpacity
                     accessibilityRole="button"
                     accessibilityLabel={`Pay approved change order ${formatPHP(order.additionalTotal ?? order.additionalAmount)}`}

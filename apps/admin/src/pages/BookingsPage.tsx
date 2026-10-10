@@ -255,13 +255,13 @@ export default function BookingsPage(): React.ReactElement {
         </p>
       </section>
 
-      <BookingRows bookings={data?.data ?? []} isLoading={isLoading} isError={isError} />
+      {!isError && <BookingRows bookings={data?.data ?? []} isLoading={isLoading} />}
       {data && data.pagination.totalPages > 1 && <Pagination {...data.pagination} onPageChange={setPage} />}
     </div>
   );
 }
 
-function BookingRows({ bookings, isLoading, isError }: { bookings: Booking[]; isLoading: boolean; isError: boolean }): React.ReactElement {
+function BookingRows({ bookings, isLoading }: { bookings: Booking[]; isLoading: boolean }): React.ReactElement {
   if (isLoading) {
     return (
       <div role="status" aria-live="polite" className="rounded-xl border border-[var(--color-border)] bg-white p-12 text-center">
@@ -269,9 +269,6 @@ function BookingRows({ bookings, isLoading, isError }: { bookings: Booking[]; is
         <p className="mt-3 text-sm text-[var(--color-text-secondary)]">Loading booking operations...</p>
       </div>
     );
-  }
-  if (isError) {
-    return <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">Failed to load bookings. Refresh the page before making an operational decision.</div>;
   }
   if (bookings.length === 0) {
     return <div className="rounded-xl border border-[var(--color-border)] bg-white p-12 text-center text-sm text-[var(--color-text-secondary)]">No bookings match this operational view.</div>;

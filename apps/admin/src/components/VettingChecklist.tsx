@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useState } from 'react';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Textarea } from '@/components/ui/Textarea';
 
@@ -19,7 +19,7 @@ export interface VettingItem {
 // optional application data say "or noted as none" so an admin can still confirm
 // they reviewed it for a legit solo worker who has no website/registration.
 export const VETTING_ITEMS: VettingItem[] = [
-  { key: 'gov_id', label: 'Government ID reviewed and legible' },
+  { key: 'gov_id', label: 'Government ID front and back reviewed and legible' },
   { key: 'selfie_match', label: 'Selfie matches the ID' },
   { key: 'nbi', label: 'NBI clearance present and not expired' },
   { key: 'address', label: 'Business / home address looks real and local' },
@@ -32,6 +32,7 @@ export const VETTING_ITEMS: VettingItem[] = [
 ];
 
 export const RATIONALE_MIN_LENGTH = 10;
+export const RATIONALE_MAX_LENGTH = 2000;
 
 /** One-line summary recorded in the quality note alongside the rationale. */
 export function buildChecklistSummary(): string {
@@ -39,7 +40,9 @@ export function buildChecklistSummary(): string {
 }
 
 export interface VettingState {
-  /** True only when every item is ticked AND the rationale meets the minimum. */
+  /** Added only by the preserved-submission review, never by the checklist. */
+  expectedRevisionId?: string;
+  /** True only when every item is ticked AND the rationale meets the API bounds. */
   isComplete: boolean;
   rationale: string;
 }
@@ -50,14 +53,18 @@ interface VettingChecklistProps {
 }
 
 export function VettingChecklist({ onChange }: VettingChecklistProps): React.ReactElement {
+  const rationaleId = useId();
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [rationale, setRationale] = useState('');
+  const [rationaleTouched, setRationaleTouched] = useState(false);
 
   const allChecked = useMemo(
     () => VETTING_ITEMS.every((i) => checked[i.key]),
     [checked],
   );
-  const rationaleOk = rationale.trim().length >= RATIONALE_MIN_LENGTH;
+  const rationaleLength = rationale.trim().length;
+  const rationaleOk = rationaleLength >= RATIONALE_MIN_LENGTH && rationaleLength <= RATIONALE_MAX_LENGTH;
+  const showRationaleError = rationaleTouched && !rationaleOk;
   const isComplete = allChecked && rationaleOk;
 
   useEffect(() => {
@@ -91,24 +98,35 @@ export function VettingChecklist({ onChange }: VettingChecklistProps): React.Rea
 
       <div>
         <label
-          htmlFor="vetting-rationale"
+          htmlFor={rationaleId}
           className="block text-sm font-medium text-[var(--color-text)] mb-1.5"
         >
-          Approval rationale
+          Approval rationale <span aria-hidden="true">*</span>
         </label>
         <Textarea
-          id="vetting-rationale"
+          id={rationaleId}
           rows={3}
           aria-label="Approval rationale"
+          aria-required="true"
+          aria-invalid={showRationaleError}
+          aria-describedby={`${rationaleId}-guidance${showRationaleError ? ` ${rationaleId}-error` : ''}`}
+          minLength={RATIONALE_MIN_LENGTH}
+          maxLength={RATIONALE_MAX_LENGTH}
           placeholder="Why is this provider being approved? (min 10 characters)"
           value={rationale}
           onChange={(e) => setRationale(e.target.value)}
+          onBlur={() => setRationaleTouched(true)}
         />
-        <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
-          {rationaleOk
-            ? 'Rationale looks good.'
-            : `At least ${RATIONALE_MIN_LENGTH} characters required.`}
+        <p id={`${rationaleId}-guidance`} className="mt-1 text-xs text-[var(--color-text-secondary)]">
+          Use {RATIONALE_MIN_LENGTH} to {RATIONALE_MAX_LENGTH} characters. {rationaleLength}/{RATIONALE_MAX_LENGTH}
         </p>
+        {showRationaleError && (
+          <p id={`${rationaleId}-error`} role="alert" className="mt-1 text-xs text-[var(--color-text)]">
+            {rationaleLength > RATIONALE_MAX_LENGTH
+              ? `Shorten the rationale to ${RATIONALE_MAX_LENGTH} characters or fewer.`
+              : `At least ${RATIONALE_MIN_LENGTH} characters required, excluding surrounding spaces.`}
+          </p>
+        )}
       </div>
     </div>
   );

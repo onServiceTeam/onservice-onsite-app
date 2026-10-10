@@ -81,7 +81,7 @@ wave someone through to hit a recruiting number.
 
 ## 1. The eligibility bar (must-haves)
 
-A provider does not get approved unless every line below is true. The first three are enforced in the admin app itself: the Approve button refuses to fire unless `nbi_clearance_url`, `government_id_front_url`, and `selfie_url` are all on file. The rest are policy we enforce by eye in the review queue.
+A provider does not get approved unless every line below is true. The OPS-479 development candidate checks all four document references (NBI, government ID front and back, selfie) under the server's approval-transaction lock. This correction is not yet live. Document authenticity, identity match and the remaining policy checks still require human review; an enabled button is not proof that they passed.
 
 Hard requirements:
 
@@ -93,10 +93,12 @@ Hard requirements:
 - [ ] Independent Contractor agreement accepted (`icAgreementAccepted: true` at submission, timestamped server-side).
 - [ ] Service radius between 1 km and the live **Max Service Radius** in Admin Settings (50 km at the time of this audit, hard-bounded to 5-100 km). The application, provider change request, approval, and direct admin override all enforce the same saved maximum.
 
-**Current enforcement warning:** Provider 360 shows both ID sides, but the API
-approval prerequisite checks only NBI, government ID front, and selfie. Until
-E36 is resolved, the reviewer must manually stop approval when the ID back is
-missing; the enabled approval action is not proof that all four files exist.
+**Current enforcement warning:** the older live API still checks only NBI,
+government ID front, and selfie. OPS-479 adds the back-image prerequisite, but
+its deployment and the Admin incomplete-state follow-up remain open under E36.
+Stop approval whenever any of the four files is absent. Existing approved
+records without references need a separate evidence review; do not invent
+documents, silently demote historical accounts, or call them fully vetted.
 
 Policy requirements from DECISION-003 (not all enforced in code, enforce them here):
 
@@ -115,11 +117,11 @@ Optional at application (nice to have, not blocking):
 
 ### Documents and checks required before you click Approve (the full list in one place)
 
-Use this as the pre-approval checklist. The first three are enforced by the app (the Approve button refuses without them). The rest you enforce by eye and by note.
+Use this as the pre-approval checklist. The candidate server requires all four document references; the older live gate still omits ID back. Review all four files by eye, and record the remaining checks in the rationale and notes.
 
 | Item | Required? | What good looks like | What disqualifies |
 |---|---|---|---|
-| Government ID, front and back | Yes (app-enforced front) | National ID, Passport, Driver's License, or UMID. Readable, not expired, name matches the application | Unreadable, expired, name mismatch, only one side |
+| Government ID, front and back | Yes (both references enforced in OPS-479 candidate; front only on older live API) | National ID, Passport, Driver's License, or UMID. Readable, not expired, name matches the application | Unreadable, expired, name mismatch, only one side |
 | Selfie / face check | Yes (app-enforced) | Clear face that matches the ID by eye. A live video selfie in the interview if the upload was poor | Different person from the ID, hidden face, refusal to do a live check when the upload was unclear |
 | NBI clearance | Yes (app-enforced) | Issued within the last 6 months, name matches, no disqualifying hit | Older than 6 months, name mismatch, theft/violence/sexual-offense hit, forged |
 | Proof of skill / certification | Where the trade needs it | Photos or short video of past work for all trades; a TESDA or PRC certificate for electrical work and for Elite tier | No evidence of any past work; a claimed cert that cannot be verified |
@@ -313,11 +315,11 @@ A reference who hesitates on question 3 or 4, or who turns out to be a relative 
 
 ## 5. Provider tiers and commission rates
 
-Five tiers. Commission is flat per tier (it does not change inside a tier) and is taken off the service price. The provider receives service price minus commission. These are the canonical defaults; they are admin-tunable in **Settings -> Commissions** (`commission_rate_<tier>`), so always confirm the live value there before quoting a provider.
+Five tiers. Commission is taken off the service price, but it can vary within a tier through effective-dated provider/category/service agreements. The table is the seeded base schedule. Use **Financials -> Commission Controls** for prospective terms and Booking 360's immutable financial terms for an existing booking. The legacy direct Settings rows are read-only under E50.
 
 | Tier | Commission | What it means | Requirements to reach it |
 |---|---|---|---|
-| **Founding** | **10%** | Invite-only launch-batch tier. First 50 providers per city, 10% locked for 12 months. Parallel tier, not a rung on the normal ladder. | Admin-assigned at invite. Never an automatic promotion or a downgrade target. |
+| **Founding** | **10% seeded base** | Invite-only parallel tier. E63 holds the unsupported first-50/12-month entitlement claim. | Do not newly assign while E63 is open. Never an automatic promotion or downgrade target. |
 | **New** | **15%** | Default tier on signup. | None. Everyone starts here unless invited as Founding. |
 | **Verified** | **13%** | Proven on the platform. | 5+ completed jobs, 4.0+ rating. |
 | **Pro** | **11%** | Reliable, dispute-free. | 25+ jobs, 4.5+ rating, no open disputes. |
@@ -341,7 +343,7 @@ Lifecycle: application -> `pending` -> Approve to `approved` OR Reject to `rejec
 
 Decision rule:
 
-- **APPROVE** when the scorecard is 80+, all four KYC evidence files are on file and reviewed, and no auto-fail triggered. E36 means the ID back is temporarily a manual gate even when the button is enabled.
+- **APPROVE** when the scorecard is 80+, all four KYC evidence files are on file and reviewed, and no auto-fail triggered. Until OPS-479 is deployed and the E36 interface follow-up is verified, the ID back still needs a manual stop even when the button is enabled.
 - **HOLD** when the scorecard is 60 to 79 or a document is unclear. Holding is not a status in the app. In practice you leave the provider at `pending` and message them for the missing item. Log the hold reason in Notes so the next admin knows where it stands.
 - **REJECT** when the scorecard is below 60 or any auto-fail triggered.
 
@@ -356,7 +358,9 @@ Decision rule:
 7. Confirm service categories and service area look right.
 8. Score the scorecard (Section 3). Write the score and notes in the **Notes** tab (category `general` or `quality`).
 9. If it passes, go back to the **Providers** list (or use the detail action) and click **Approve**.
-   - The system refuses approval if any of `nbi_clearance_url`, `government_id_front_url`, or `selfie_url` is missing, and returns a clean message listing what is missing. It does not yet include `government_id_back_url` in that check. Stop manually if the back image is absent, record the hold in Notes, and follow E36 rather than treating the enabled button as clearance.
+   - The UX-1311 candidate checks the current application when either approval screen opens. It lists ID front, ID back, selfie and NBI as **On file** or **Missing**. Loading, a failed check, incomplete evidence or a no-longer-pending record blocks confirmation. Use **Retry document check** or **Recheck application** after resolving the issue. Rechecking resets the checklist. On file is not a verification result; open the full application and inspect the private documents before confirming. This UI is not yet deployed to the older live build.
+   - The OPS-479 candidate refuses missing/blank NBI, ID front, ID back or selfie references inside the decision transaction and names what is missing. The older live API still omits ID back. Stop manually for incomplete evidence and record the hold in Notes. No secure correction/resubmission path is implied by this prerequisite fix.
+   - OPS-480 also refuses approval when the owner is inactive, fraud-flagged, or has a staff/admin/DPO/other role. Review that account separately; provider approval is not an account recovery or role-override tool. A refusal leaves the provider decision, role, audit and approval notification unchanged.
    - On success the status flips `pending -> approved`, `reviewed_at` is stamped, an audit row `provider_approved` is written, and the provider gets an "Account Approved" notification.
 10. Set the tier if needed. New approvals default to **New** (15%). If this is one of the founding batch, use **Change Tier** to set Founding (reason required, 10+ chars).
 
@@ -375,16 +379,16 @@ A rejected provider cannot currently resubmit through the app because the canoni
 The one that expires on a clock is the NBI clearance.
 
 - The provider row carries `nbi_expiry_date` and `nbi_expiry_notified`.
-- A background worker (`checkNbiExpiry`) finds approved providers whose NBI expires within the warning window (default 30 days, tunable as `provider.nbi_expiry_warning_days`) and have not been notified yet, sends them "NBI Clearance Expiring Soon" (or "...Expired"), then marks them notified.
+- A background worker (`checkNbiExpiry`) finds approved providers inside the stored 30-day warning window and marks one shared `nbi_expiry_notified` flag. E62 holds this setting because an early warning prevents the same row from being selected at expiry, while a provider first selected after expiry can be auto-suspended contrary to the manual launch policy.
 - In the mobile app the provider sees an NbiStatusBanner that classifies their status as `missing`, `expired`, `expiring`, or `valid`.
 
 Re-verification SOP:
 
-- [ ] When a provider's NBI shows `expiring`, they should upload a fresh clearance before it lapses.
+- [ ] When a provider's NBI shows `expiring`, open a support case and request renewal. The approved-provider app does not currently provide a secure NBI renewal submission, so do not promise an in-app upload or collect KYC through chat/email; escalate under E62/E35.
 - [ ] When it shows `expired`, the provider should not be taking new jobs. See the auto-suspend decision below.
-- [ ] Re-verify the new NBI the same way you did at application (name match, issued within 6 months), then update `nbi_expiry_date`.
+- [ ] Re-verify a replacement only through the future approved renewal workflow. Provider 360 currently displays the date read-only; do not make an off-platform or direct database update.
 
-> **Set (editable):** the app does not auto-suspend on NBI expiry. At launch we run a manual chase, then manual suspend. Support contacts the provider when the NBI shows `expired`, holds them off dispatch by toggling availability, and suspends them only if they ignore the chase. _Recommended default. To change it, edit here and anywhere this value is referenced._
+> **E62 launch hold:** the intended launch policy is manual chase followed by reasoned manual suspension, but the worker is inconsistent and must not be relied on. Staff review the provider and active-work context manually, open a support case, and escalate suspension. The warning-window setting is read-only until warning, expiry, renewal, and enforcement use separate auditable states.
 
 Other documents (proof of address, business permit, tax certificate, certifications) can also carry an `expires_at` in the document store. Re-check any that are expiry-dated on the same monthly pass you use for tier promotions.
 
@@ -440,7 +444,7 @@ When to suspend (starting targets, tune after launch):
 
 What the Suspend action does (important, read this before you click it):
 
-- Flips `approved` (or `pending`) -> `suspended`.
+- Flips `approved` -> `suspended` in the OPS-481 candidate. The older live API also accepts `pending`; do not use suspension/reactivation as an application-review shortcut. Pending applicants remain on the admission-review path.
 - In the SAME transaction, it flags every in-flight booking for that provider (statuses `provider_en_route`, `provider_arrived`, `in_progress`, `completed_by_provider`) by stamping `provider_suspended_during_booking_at`. That stamp makes the escrow release path refuse to pay out until an admin resolves the booking. So suspending mid-job freezes that job's money on purpose. Resolve those bookings (force-complete, reassign, or dispute path) deliberately; do not leave a customer's money stuck.
 - Writes an audit row `provider_suspended` with the count of flagged bookings.
 
@@ -453,7 +457,8 @@ How to suspend (admin steps):
 How to reactivate:
 
 1. **Providers**, filter to `suspended`, open the provider, click **Reactivate**.
-2. Status flips `suspended -> approved`, audited as `provider_reactivated`. Confirm the reason for suspension is actually resolved first (new NBI uploaded, incident closed, etc.).
+2. Status flips `suspended -> approved`, audited as `provider_reactivated`. Confirm the reason for suspension is actually resolved first. For NBI cases, do not reactivate from an emailed/chat document or direct database update; E62 requires an approved renewal and verification workflow first. Other examples include a closed incident with recorded evidence.
+3. The OPS-481 candidate requires a retained `provider_approved` event, a review timestamp, and a currently active provider-role owner without a fraud flag. It does not change the owner's role, activation, fraud flag or session generation. Missing historical admission evidence produces a refusal, not a guessed approval. A governed legacy-admission review remains E74 work; do not fabricate an audit event or change database state to bypass this check. These safeguards are not yet deployed. Existing booking holds remain in place after reactivation.
 
 Removal: there is no hard delete in the admin UI and we do not delete provider records (they carry financial and audit history). To take someone off the platform for good, suspend them and leave them suspended. The `deactivated` status exists as a terminal state and is filterable, but no current admin button sets it.
 
@@ -518,7 +523,7 @@ Every newly approved provider is on probation for their first 3 jobs. This is po
 | Cancellations (rolling 30 days) | 0 to 1 | 3 (the warning threshold) | 5 (the auto-suspend signal) |
 | Disputes | 0 open | 1 open, or a `free_redo` resolution | A `refund_with_suspension` resolution (auto-suspends) |
 | Repeated 1-star ratings | none | the `provider_consecutive_one_star` alert fires | a pattern with confirmed cause |
-| NBI clearance | `valid` | `expiring` (30-day warning) | `expired` and ignoring the chase |
+| NBI clearance | `valid` | `expiring` in the manual queue (worker notice is unreliable under E62) | `expired`; reasoned manual suspension review required |
 | On-time arrival | 90%+ | 75 to 89% | under 75% with complaints |
 
 The numbers above are the same ones used by the app's config and by `12-quality-standards-and-kpis.md`. The dispatch rating floor (`total_reviews >= 5` AND `rating < 2.5`) is automatic and silently drops a provider from offers; treat it as a trigger to review for a manual suspension, not as the whole response.
@@ -571,7 +576,7 @@ A provider who is genuinely skilled but slipping is worth saving; recruiting and
 - **Per-category skills question bank:** yes, a fixed bank per category, maintained as a real section in `13-policies-codes-and-templates.md`. (editable)
 - **Probation (Section 12.1):** first 3 completed jobs, mandatory before/after photos, buddy on standby. (editable)
 - **Strike rule (Section 12.3):** 3 strikes in a rolling 90 days = suspension review; safety/trust incidents skip the count. (editable)
-- **NBI expiry handling:** no auto-suspend; manual chase by support, then manual suspend if ignored. (editable)
+- **NBI expiry handling:** intended policy is manual chase then manual suspend, but E62 holds the inconsistent worker and missing renewal workflow. (held)
 - **Rejection reason codes:** adopt the R01-R10 taxonomy in Section 8. (editable)
 
 Each item above is the working default so the team is never blocked. To change one, edit it here and anywhere this doc references it.

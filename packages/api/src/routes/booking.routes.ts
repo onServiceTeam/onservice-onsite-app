@@ -19,14 +19,14 @@ import * as escrowService from '../services/escrow.service';
 import * as orService from '../services/or.service';
 import * as referralService from '../services/referral.service';
 import * as sukiService from '../services/suki.service';
-import { BookingStatus, canTransition } from '../types/booking.types';
+import { BookingStatus } from '../types/booking.types';
 import { logger } from '../utils/logger';
 import * as pricingService from '../services/pricing.service';
 import * as settingsService from '../services/settings.service';
 import * as rebookingService from '../services/rebooking.service';
 import * as slotWaitlistService from '../services/slot-waitlist.service';
 import * as bookingProofService from '../services/booking-proof.service';
-import { platformConfig } from '../config/platform.config';
+import * as financialTermsService from '../services/booking-financial-terms.service';
 
 function getParamId(req: AuthenticatedRequest): string {
   const id = req.params.id;
@@ -46,38 +46,20 @@ interface BookingOwnerRow {
 interface PreTransitionRow {
   status: string;
   escrow_status: string;
-  latitude: string | null;
-  longitude: string | null;
   is_hourly?: boolean;
-  work_started_at: Date | null;
-  updated_at: Date;
-}
-
-function haversineDistanceMeters(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const toRad = (deg: number): number => deg * (Math.PI / 180);
-  const earthRadiusMeters = 6371000;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-
-  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 async function verifyBookingAccess(bookingId: string, userId: string, role: string): Promise<void> {
   if (role === 'admin' || role === 'super_admin') return;
   const result = await db.query<BookingOwnerRow>(
+    // SEC-095 (as SEC-094 for writers): the recorded performer counts only
+    // while they are staff of the booking's current provider.
     `SELECT b.customer_id, p.user_id AS provider_user_id,
             ps.user_id AS staff_user_id, ps.status AS staff_status
        FROM bookings b
        LEFT JOIN providers p ON p.id = b.provider_id
        LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+                                  AND ps.provider_id = b.provider_id
       WHERE b.id = $1`,
     [bookingId],
   );
@@ -108,11 +90,15 @@ async function verifyProviderPhotoWriteAccess(
   role: string,
 ): Promise<'provider' | 'admin'> {
   const result = await db.query<ProviderPhotoActorRow>(
+    // SEC-094 (as SEC-078 for status): the recorded performer counts only
+    // while they are staff of the booking's current provider. A booking with
+    // no provider, or a different one, gives them no evidence authority.
     `SELECT b.id, p.user_id AS provider_user_id,
             ps.user_id AS staff_user_id, ps.status AS staff_status
        FROM bookings b
        LEFT JOIN providers p ON p.id = b.provider_id
        LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+                                  AND ps.provider_id = b.provider_id
       WHERE b.id = $1`,
     [bookingId],
   );
@@ -132,6 +118,22 @@ async function verifyProviderPhotoWriteAccess(
 }
 
 const router = Router();
+
+// Direct assignment is a provider-selection operation, not always a booking
+// status transition. Instant-pay bookings can already be payment_pending or
+// paid before a provider is selected. Those states must keep their payment
+// status while the provider is attached. Requested/quoted bookings advance to
+// matched in the normal match-first flow.
+const DIRECT_ASSIGNMENT_STATUSES = new Set<BookingStatus>([
+  'requested',
+  'quoted',
+  'payment_pending',
+  'paid',
+]);
+
+function canDirectlyAssignProvider(status: string): status is BookingStatus {
+  return DIRECT_ASSIGNMENT_STATUSES.has(status as BookingStatus);
+}
 
 interface BookingRow {
   id: string;
@@ -394,7 +396,6 @@ router.post(
         userId,
         { kind: 'wallet' },
       );
-      await escrowService.holdInEscrow(result.bookingId, result.additionalTotal);
 
       res.json({
         success: true,
@@ -553,67 +554,17 @@ router.patch(
       const id = getParamId(req);
       const newStatus = req.body.status as BookingStatus;
 
+      // Read only what the confirm path's release step needs. The arrival
+      // radius and minimum on-site checks now run inside the service, after
+      // the actor guard and on the locked row (SEC-088, SEC-089), and so does
+      // the cancellation money, from the locked escrow_status (S1-5). The SQL
+      // text is pinned by the CRIT-N10 test's pool mock.
       const preTransitionRow = await db.query<PreTransitionRow>(
-        `SELECT status, escrow_status, latitude, longitude, is_hourly, work_started_at, updated_at FROM bookings WHERE id = $1`,
+        `SELECT status, escrow_status, is_hourly FROM bookings WHERE id = $1`,
         [id],
       );
-      const oldStatus = preTransitionRow.rows[0]?.status;
       const oldEscrowStatus = preTransitionRow.rows[0]?.escrow_status;
       const isHourlyBooking = preTransitionRow.rows[0]?.is_hourly === true;
-
-      if (newStatus === 'provider_arrived') {
-        const bookingCoordinates = preTransitionRow.rows[0];
-        const providerLatitude = req.body.latitude as number | undefined;
-        const providerLongitude = req.body.longitude as number | undefined;
-
-        if (providerLatitude === undefined || providerLongitude === undefined) {
-          throw createAppError('Current provider location is required to mark arrival.', 400);
-        }
-
-        if (!bookingCoordinates?.latitude || !bookingCoordinates.longitude) {
-          throw createAppError('Booking does not have service coordinates. Arrival cannot be verified.', 409);
-        }
-
-        const distanceMeters = haversineDistanceMeters(
-          providerLatitude,
-          providerLongitude,
-          Number(bookingCoordinates.latitude),
-          Number(bookingCoordinates.longitude),
-        );
-
-        if (distanceMeters > platformConfig.providerArrivalRadiusMeters) {
-          throw createAppError(
-            `You must be within ${platformConfig.providerArrivalRadiusMeters} meters of the job location to mark arrival. Current distance: ${Math.round(distanceMeters)} meters.`,
-            409,
-          );
-        }
-      }
-
-      if (newStatus === 'completed_by_provider') {
-        // Enforce minimum time on site from the immutable server-clocked start
-        // marker. `updated_at` changes when photos or other booking evidence is
-        // saved, so using it here incorrectly restarted the wait after proof was
-        // uploaded. Five production in-progress rows created before the marker
-        // was wired have it NULL, so they retain the prior updated_at fallback;
-        // every current transition stamps work_started_at and uses that stable
-        // value even when later evidence updates the booking row.
-        const startedAt = preTransitionRow.rows[0]?.work_started_at
-          ?? preTransitionRow.rows[0]?.updated_at;
-        if (!startedAt) {
-          throw createAppError('Work start time is missing. Contact support before completing this job.', 409);
-        }
-        {
-          const elapsedMs = Date.now() - new Date(startedAt).getTime();
-          const minimumMs = platformConfig.minimumTimeOnSiteMinutes * 60 * 1000;
-          if (elapsedMs < minimumMs) {
-            const remainingMin = Math.ceil((minimumMs - elapsedMs) / 60000);
-            throw createAppError(
-              `You must be on-site for at least ${platformConfig.minimumTimeOnSiteMinutes} minutes before marking the job complete. Please wait ${remainingMin} more minute(s).`,
-              409,
-            );
-          }
-        }
-      }
 
       const booking = await bookingService.transitionBookingStatus(
         id,
@@ -625,6 +576,7 @@ router.patch(
         // completion notes from the mobile complete screen actually
         // land on bookings.completion_notes.
         req.body.completionNotes,
+        { latitude: req.body.latitude as number | undefined, longitude: req.body.longitude as number | undefined },
       );
 
       if (newStatus === 'confirmed' && oldEscrowStatus === 'held') {
@@ -666,6 +618,18 @@ router.patch(
             bookingId: id,
             error: escrowErr instanceof Error ? escrowErr.message : 'Unknown',
           });
+          // S2-1 — a payout refused because the booking's escrow does not
+          // match is for support (logged in full when raised); the customer
+          // is asked to contact support (D36 Q2 wording).
+          const refusalCode = (escrowErr as { code?: string }).code;
+          if (refusalCode === 'HOURLY_REFUND_EXCEEDS_BOOKING_ESCROW' || refusalCode === 'ESCROW_RELEASE_AMOUNT_MISMATCH') {
+            const refusal = createAppError(
+              "This booking's payment needs a check by our support team before it can be completed. Please contact support.",
+              409,
+            );
+            refusal.code = refusalCode;
+            throw refusal;
+          }
           throw escrowErr;
         }
 
@@ -711,50 +675,38 @@ router.patch(
         }
       }
 
-      if (
-        (newStatus === 'cancelled_by_customer' || newStatus === 'cancelled_by_provider' || newStatus === 'cancelled_by_admin') &&
-        oldEscrowStatus === 'held'
-      ) {
-        try {
-          const scheduledAt = booking.scheduled_at ? new Date(booking.scheduled_at).getTime() : Date.now();
-          const hoursUntil = (scheduledAt - Date.now()) / (1000 * 60 * 60);
-          const arrivedStatuses = new Set(['provider_arrived', 'in_progress', 'completed_by_provider']);
-          const wasProviderArrived = arrivedStatuses.has(oldStatus ?? '');
-          await escrowService.handleCancellation(id, hoursUntil, wasProviderArrived);
-        } catch (escrowErr) {
-          logger.error('Cancellation escrow handling failed', {
-            bookingId: id,
-            error: escrowErr instanceof Error ? escrowErr.message : 'Unknown',
-          });
-          res.status(207).json({
-            success: true,
-            data: formatBookingResponse(booking as BookingRow),
-            warning: {
-              code: 'ESCROW_PROCESSING_DELAYED',
-              message: 'Your cancellation was recorded but the refund could not be processed automatically. Our team has been notified and will process it within 48 hours.',
-            },
-          });
-          return;
-        }
-      }
+      // S1-5 (FIN-009) — the cancellation money now commits with the status
+      // inside transitionBookingStatus. There is no partial-success "recorded but
+      // refund delayed" answer any more: a refused refund rolls the
+      // cancellation back and answers its own error.
 
       const notifyTarget = booking.customer_id === req.user!.userId
         ? booking.provider_id
         : booking.customer_id;
 
+      // S1-5 (C-19) — the status change has committed. A notification failure
+      // is logged and must not turn that committed change into an error.
       if (notifyTarget) {
-        const providerUserRow = booking.provider_id
-          ? await db.query<{ user_id: string }>(
-              `SELECT user_id FROM providers WHERE id = $1`, [booking.provider_id],
-            )
-          : null;
-        const providerUserId = providerUserRow?.rows[0]?.user_id;
-        const recipientUserId = booking.customer_id === req.user!.userId
-          ? providerUserId
-          : booking.customer_id;
+        try {
+          const providerUserRow = booking.provider_id
+            ? await db.query<{ user_id: string }>(
+                `SELECT user_id FROM providers WHERE id = $1`, [booking.provider_id],
+              )
+            : null;
+          const providerUserId = providerUserRow?.rows[0]?.user_id;
+          const recipientUserId = booking.customer_id === req.user!.userId
+            ? providerUserId
+            : booking.customer_id;
 
-        if (recipientUserId) {
-          await notificationService.notifyBookingStatusChange(recipientUserId, id, newStatus);
+          if (recipientUserId) {
+            await notificationService.notifyBookingStatusChange(recipientUserId, id, newStatus);
+          }
+        } catch (notifyErr) {
+          logger.error('Booking status notification failed after commit', {
+            bookingId: id,
+            newStatus,
+            error: notifyErr instanceof Error ? notifyErr.message : 'Unknown',
+          });
         }
       }
 
@@ -872,11 +824,14 @@ router.post(
       }
 
       const currentStatus = booking.status as BookingStatus;
-      if (!canTransition(currentStatus, 'matched')) {
+      if (!canDirectlyAssignProvider(currentStatus)) {
         throw createAppError(
           `Cannot assign provider — booking status "${currentStatus}" does not allow matching.`,
           409,
         );
+      }
+      if (booking.provider_id) {
+        throw createAppError('This booking has already been assigned to a provider.', 409);
       }
 
       interface ProviderLookup { id: string; user_id: string; business_name: string }
@@ -912,19 +867,64 @@ router.post(
       // customer got a "your provider is on the way" notification while
       // the provider had no idea they had a new job.
       //
-      // Post-fix: the UPDATE is atomic with the suki record write
-      // (calculateSukiDiscountForBooking is read-only so it's safe
-      // outside the trx). Notifications fire AFTER COMMIT — they're
+      // Post-fix: the UPDATE and financial evidence are atomic.
+      // calculateSukiDiscountForBooking is read-only and runs while the
+      // booking row is locked. Notifications fire AFTER COMMIT — they're
       // best-effort and never roll back the booking. Each notify is
       // wrapped in its own try/catch so one failure can't strand the
       // other.
-      const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
-        booking.customer_id, providerId, booking.service_price,
-      );
+      const assignmentSource = isAdmin ? 'admin_direct_assignment' : 'customer_direct_assignment';
+      const assignmentEventId = `direct-assignment:${providerId}`;
       let notificationAmount = booking.total_amount;
       await db.transaction(async (client) => {
+        const lockedResult = await client.query<{
+          customer_id: string;
+          provider_id: string | null;
+          status: string;
+          escrow_status: string | null;
+          service_price: string;
+          total_amount: string;
+        }>(
+          `SELECT customer_id, provider_id, status, escrow_status,
+                  service_price::text, total_amount::text
+             FROM bookings
+            WHERE id = $1
+            FOR UPDATE`,
+          [id],
+        );
+        const lockedBooking = lockedResult.rows[0];
+        if (!lockedBooking) throw createAppError('Booking not found.', 404);
+        if (!canDirectlyAssignProvider(lockedBooking.status)) {
+          throw createAppError(
+            `Cannot assign provider — booking status "${lockedBooking.status}" does not allow matching.`,
+            409,
+          );
+        }
+        if (lockedBooking.provider_id) {
+          throw createAppError('This booking has already been assigned to a provider.', 409);
+        }
+
+        const lockedServicePrice = Number(lockedBooking.service_price);
+        const { discountAmount: calculatedDiscountAmount } = await sukiService.calculateSukiDiscountForBooking(
+          lockedBooking.customer_id,
+          providerId,
+          lockedServicePrice,
+        );
+        const hasHeldFunds = lockedBooking.escrow_status === 'held'
+          || lockedBooking.escrow_status === 'partially_refunded';
+        const hasPaymentInFlight = lockedBooking.status === 'payment_pending';
+        const isPaid = lockedBooking.status === 'paid';
+        // A provider assignment is not authority to change an amount the
+        // customer already authorized or is actively authorizing. Preserve the
+        // existing totals for payment_pending/paid states as well as held
+        // escrow. The approved E50 terms record below fixes the provider
+        // agreement against held authorization evidence.
+        const mustPreserveCustomerAmount = hasHeldFunds || hasPaymentInFlight || isPaid;
+        const discountAmount = mustPreserveCustomerAmount ? 0 : calculatedDiscountAmount;
+        notificationAmount = Number(lockedBooking.total_amount);
+
         if (discountAmount > 0) {
-          const newPrice = booking.service_price - discountAmount;
+          const newPrice = lockedServicePrice - discountAmount;
           const newFee = await bookingService.calculateServiceFee(newPrice);
           const newTotal = newPrice + newFee;
           notificationAmount = newTotal;
@@ -938,9 +938,47 @@ router.post(
           );
         } else {
           await client.query(
-            `UPDATE bookings SET provider_id = $1, status = 'matched', updated_at = NOW() WHERE id = $2`,
+            `UPDATE bookings
+                SET provider_id = $1,
+                    status = CASE
+                      WHEN status IN ('requested', 'quoted') THEN 'matched'
+                      ELSE status
+                    END,
+                    updated_at = NOW()
+              WHERE id = $2`,
             [providerId, id],
           );
+        }
+
+        if (hasHeldFunds) {
+          await financialTermsService.appendProviderAssignmentTermsInTransaction(client, {
+            bookingId: id,
+            providerId,
+            event: 'provider_assigned',
+            sourceEventId: assignmentEventId,
+            createdBy: userId,
+            metadata: {
+              assignmentSource,
+              preservedAuthorizedAmounts: true,
+              skippedSukiDiscountCentavos: calculatedDiscountAmount,
+            },
+          });
+        } else if (discountAmount > 0) {
+          // The assignment changed the customer-visible pre-payment total.
+          // Record a new pricing version so payment authorization can carry
+          // this exact price forward instead of rejecting stale evidence.
+          await financialTermsService.appendPricingTermsInTransaction(client, {
+            bookingId: id,
+            event: 'booking_priced',
+            sourceEventId: assignmentEventId,
+            createdBy: userId,
+            metadata: {
+              priceSource: 'provider_assignment_suki_discount',
+              assignmentSource,
+              providerId,
+              sukiDiscountCentavos: discountAmount,
+            },
+          });
         }
       });
 
@@ -1416,13 +1454,27 @@ router.post(
           `UPDATE bookings SET status = 'cancelled_by_customer', cancellation_reason = $1, cancelled_at = NOW(), updated_at = NOW() WHERE id = $2`,
           [`Customer no-show — provider was on-site for ${noShowMinutes}+ minutes`, id],
         );
-        await escrowService.handleCancellationInTransaction(
-          client,
-          id,
-          hoursUntil,
-          true /* providerArrived */,
-          true /* customerNoShow */,
-        );
+        try {
+          await escrowService.handleCancellationInTransaction(
+            client,
+            id,
+            hoursUntil,
+            true /* providerArrived */,
+            true /* customerNoShow */,
+          );
+        } catch (error) {
+          // S2-1 — the escrow detail is for support (logged when raised); the
+          // provider is asked to contact support (D36 Q2 wording).
+          if ((error as { code?: string }).code === 'CANCELLATION_ESCROW_MISMATCH') {
+            const refusal = createAppError(
+              "This booking's payment needs a check by our support team before the no-show can be recorded. Please contact support.",
+              409,
+            );
+            refusal.code = 'CANCELLATION_ESCROW_MISMATCH';
+            throw refusal;
+          }
+          throw error;
+        }
       });
 
       // Post-commit notification — best-effort only.

@@ -78,7 +78,7 @@ onservice-onsite-app/
 │   └── MONEY-HANDLING.md
 ├── .ai-coder/                # Phase governance + verify-*.sh checkpoints
 ├── docker-compose.yml        # Legacy minimal compose; use scripts/dev/up.*
-├── LAUNCH-LIMITATIONS.md     # Intentional v1 caveats
+├── LAUNCH-LIMITATIONS.md     # Open blockers, limitations and historical findings
 ├── INFRA-CHECKLIST.md        # Pre-launch infra gate
 ├── CONTRIBUTING.md
 ├── CHANGELOG.md
@@ -99,7 +99,7 @@ onservice-onsite-app/
 - Security posture: [docs/SECURITY-POSTURE.md](docs/SECURITY-POSTURE.md)
 - Deployment runbook: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 - Pre-launch infra checklist: [INFRA-CHECKLIST.md](INFRA-CHECKLIST.md)
-- Intentional v1 limitations: [LAUNCH-LIMITATIONS.md](LAUNCH-LIMITATIONS.md)
+- Launch blockers and limitations: [LAUNCH-LIMITATIONS.md](LAUNCH-LIMITATIONS.md)
 - Phase-by-phase changelog: [CHANGELOG.md](CHANGELOG.md)
 
 ## Repo rules (non-negotiable)

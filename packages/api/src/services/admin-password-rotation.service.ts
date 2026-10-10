@@ -36,6 +36,7 @@ import {
   SCRYPT_N,
 } from './auth.service';
 import { logger } from '../utils/logger';
+import { disconnectUserSockets } from './socket.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -123,7 +124,7 @@ export async function flagLegacyHashesForRotation(
     throw createAppError('adminUserId is required.', 400);
   }
 
-  return db.transaction(async (client) => {
+  const transactionResult = await db.transaction(async (client) => {
     // Two updates: one for counting "newly flagged" (rows that flipped
     // false→true) and one for counting "already flagged" (rows that
     // were true and would have been hit again). UPDATE ... RETURNING
@@ -179,18 +180,28 @@ export async function flagLegacyHashesForRotation(
       ],
     );
 
-    logger.info('Legacy password hashes flagged for rotation', {
-      adminUserId,
-      newlyFlagged: newlyCount,
-      alreadyFlagged: Math.max(0, alreadyCount),
-    });
-
     return {
-      affected: newlyCount + Math.max(0, alreadyCount),
-      newlyFlagged: newlyCount,
-      alreadyFlagged: Math.max(0, alreadyCount),
+      result: {
+        affected: newlyCount + Math.max(0, alreadyCount),
+        newlyFlagged: newlyCount,
+        alreadyFlagged: Math.max(0, alreadyCount),
+      },
+      newlyFlaggedUserIds: newly.rows.map((row) => row.id),
     };
   });
+
+  // The canonical HTTP and socket checks block every subsequent request and
+  // handshake. Disconnect realtime channels immediately as well so a newly
+  // flagged operator cannot keep using an already-open support chat.
+  for (const userId of transactionResult.newlyFlaggedUserIds) {
+    disconnectUserSockets(userId);
+  }
+
+  logger.info('Legacy password hashes flagged for rotation', {
+    adminUserId,
+    ...transactionResult.result,
+  });
+  return transactionResult.result;
 }
 
 export interface ChangePasswordInput {
@@ -199,7 +210,16 @@ export interface ChangePasswordInput {
   newPassword: string;
 }
 
-export async function changeOwnAdminPassword(input: ChangePasswordInput): Promise<void> {
+export interface ChangePasswordResult {
+  role: 'admin' | 'super_admin' | 'dpo';
+  sessionVersion: number;
+  revokedRefreshSessions: number;
+  revokedCsrfTokens: number;
+}
+
+export async function changeOwnAdminPassword(
+  input: ChangePasswordInput,
+): Promise<ChangePasswordResult> {
   if (!input.userId) throw createAppError('userId is required.', 400);
   if (typeof input.oldPassword !== 'string' || input.oldPassword.length === 0) {
     throw createAppError('oldPassword is required.', 400);
@@ -218,7 +238,7 @@ export async function changeOwnAdminPassword(input: ChangePasswordInput): Promis
     throw createAppError('New password must differ from the current password.', 400);
   }
 
-  return db.transaction(async (client) => {
+  const result = await db.transaction(async (client) => {
     const lookup = await client.query<{
       id: string; role: string; password_hash: string | null;
     }>(
@@ -240,14 +260,41 @@ export async function changeOwnAdminPassword(input: ChangePasswordInput): Promis
     }
 
     const newHash = hashPassword(input.newPassword);
-    await client.query(
+    const updated = await client.query<{
+      role: 'admin' | 'super_admin' | 'dpo';
+      session_version: number | string;
+    }>(
       `UPDATE users
           SET password_hash = $1,
               must_rotate_password = FALSE,
+              session_version = session_version + 1,
               updated_at = NOW()
-        WHERE id = $2`,
+        WHERE id = $2
+        RETURNING role, session_version`,
       [newHash, input.userId],
     );
+    const canonical = updated.rows[0];
+    if (!canonical) {
+      // Keep this guard even though the row is locked above. It prevents a
+      // future SQL edit from silently issuing an undefined session generation.
+      throw createAppError('Unable to rotate the administrator session.', 500);
+    }
+
+    const revokedRefresh = await client.query(
+      `DELETE FROM refresh_tokens WHERE user_id = $1`,
+      [input.userId],
+    );
+    const revokedCsrf = await client.query(
+      `UPDATE admin_csrf_tokens
+          SET revoked_at = NOW()
+        WHERE admin_user_id = $1
+          AND revoked_at IS NULL`,
+      [input.userId],
+    );
+    const sessionVersion = Number(canonical.session_version);
+    if (!Number.isSafeInteger(sessionVersion) || sessionVersion < 1) {
+      throw createAppError('Unable to rotate the administrator session.', 500);
+    }
 
     await client.query(
       `INSERT INTO admin_actions
@@ -258,14 +305,27 @@ export async function changeOwnAdminPassword(input: ChangePasswordInput): Promis
         JSON.stringify({
           previousHashUpgraded: verify.needsRehash,
           scryptN: SCRYPT_N,
+          sessionVersion,
+          revokedRefreshSessions: revokedRefresh.rowCount ?? 0,
+          revokedCsrfTokens: revokedCsrf.rowCount ?? 0,
         }),
         'LAUNCH-LIMITATIONS #12 — admin self-rotated password.',
       ],
     );
 
-    logger.info('Admin password rotated', {
-      userId: input.userId,
-      previousHashUpgraded: verify.needsRehash,
-    });
+    return {
+      role: canonical.role,
+      sessionVersion,
+      revokedRefreshSessions: revokedRefresh.rowCount ?? 0,
+      revokedCsrfTokens: revokedCsrf.rowCount ?? 0,
+    };
   });
+  disconnectUserSockets(input.userId);
+  logger.info('Admin password rotated', {
+    userId: input.userId,
+    sessionVersion: result.sessionVersion,
+    revokedRefreshSessions: result.revokedRefreshSessions,
+    revokedCsrfTokens: result.revokedCsrfTokens,
+  });
+  return result;
 }

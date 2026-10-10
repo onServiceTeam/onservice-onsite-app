@@ -59,6 +59,8 @@ export default function AddressPickerScreen(): React.ReactElement {
   const [searchResults, setSearchResults] = useState<GeoResult[]>([]);
   const [searchMessage, setSearchMessage] = useState('');
   const [barangayText, setBarangayText] = useState('');
+  const [latitudeText, setLatitudeText] = useState('');
+  const [longitudeText, setLongitudeText] = useState('');
   const [hasExactCoordinates, setHasExactCoordinates] = useState(false);
   const [checkingCoverage, setCheckingCoverage] = useState(false);
 
@@ -171,6 +173,37 @@ export default function AddressPickerScreen(): React.ReactElement {
     setHasExactCoordinates(true);
     setSearchMessage('');
   }, [areas, areasError, barangayText, searchText]);
+
+  const handleUseEnteredCoordinates = useCallback(() => {
+    if (areasError) {
+      setSearchMessage('Active service areas are unavailable. Retry before entering booking coordinates.');
+      return;
+    }
+    const latitude = Number(latitudeText.trim());
+    const longitude = Number(longitudeText.trim());
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      setSearchMessage('Enter valid decimal latitude and longitude values.');
+      return;
+    }
+    if (latitude < 4.5 || latitude > 21.5 || longitude < 116 || longitude > 127.5) {
+      setSearchMessage('Please enter coordinates within the Philippines.');
+      return;
+    }
+    const nearestArea = findNearestConfiguredArea(latitude, longitude, areas);
+    setPin({ latitude, longitude });
+    setSelectedAddress({
+      address: searchText.trim() || `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+      barangay: barangayText.trim(),
+      city: nearestArea?.city ?? '',
+      province: nearestArea?.province ?? '',
+      latitude,
+      longitude,
+    });
+    setSearchResults([]);
+    setHasExactCoordinates(true);
+    setSearchMessage('Exact coordinates entered. Verify the barangay and service coverage before confirming.');
+    mapRef.current?.animateToRegion({ latitude, longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+  }, [areas, areasError, barangayText, latitudeText, longitudeText, searchText]);
 
   const handleSearch = useCallback(() => {
     if (!searchText.trim()) return;
@@ -474,8 +507,37 @@ export default function AddressPickerScreen(): React.ReactElement {
         <View style={styles.browserNotice}>
           <Text style={styles.browserNoticeTitle}>Booking in a browser</Text>
           <Text style={styles.browserNoticeText}>
-            Search for the address, enter its barangay, then use this device&apos;s location while you are at the service property. For another property, set the exact pin in the mobile app.
+            Search for the address, enter its barangay, then use this device&apos;s location while you are at the service property. For another property, enter exact coordinates below or set the pin in the mobile app. The area center shown on the preview is not an exact property location.
           </Text>
+        </View>
+      )}
+      {Platform.OS === 'web' && (
+        <View style={styles.browserCoordinates} accessibilityLabel="Browser exact coordinate entry">
+          <Text style={styles.browserCoordinatesTitle}>Exact property coordinates</Text>
+          <Text style={styles.browserCoordinatesHint}>Use decimal latitude and longitude from a trusted property source. An area center cannot be used as the exact pin.</Text>
+          <View style={styles.browserCoordinatesRow}>
+            <TextInput
+              style={styles.browserCoordinateInput}
+              placeholder="Latitude"
+              placeholderTextColor={colors.textTertiary}
+              value={latitudeText}
+              onChangeText={setLatitudeText}
+              keyboardType="decimal-pad"
+              maxLength={20}
+              accessibilityLabel="Exact latitude"
+            />
+            <TextInput
+              style={styles.browserCoordinateInput}
+              placeholder="Longitude"
+              placeholderTextColor={colors.textTertiary}
+              value={longitudeText}
+              onChangeText={setLongitudeText}
+              keyboardType="decimal-pad"
+              maxLength={20}
+              accessibilityLabel="Exact longitude"
+            />
+          </View>
+          <Button title="Use exact coordinates" onPress={handleUseEnteredCoordinates} />
         </View>
       )}
       {!isPhone && renderConfirmPanel()}
@@ -654,6 +716,11 @@ const styles = StyleSheet.create({
   },
   browserNoticeTitle: { ...typography.bodySmall, color: colors.primary, fontWeight: '700', marginBottom: 2 },
   browserNoticeText: { ...typography.caption, color: colors.textSecondary, lineHeight: 18 },
+  browserCoordinates: { marginHorizontal: spacing.base, marginBottom: spacing.sm, padding: spacing.sm, borderRadius: borderRadius.md, backgroundColor: colors.surfaceMuted, gap: spacing.xs },
+  browserCoordinatesTitle: { ...typography.bodySmall, color: colors.text, fontWeight: '700' },
+  browserCoordinatesHint: { ...typography.caption, color: colors.textSecondary, lineHeight: 16 },
+  browserCoordinatesRow: { flexDirection: 'row', gap: spacing.xs },
+  browserCoordinateInput: { flex: 1, minHeight: 42, borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.sm, paddingHorizontal: spacing.sm, backgroundColor: colors.background, color: colors.text, fontSize: 13 },
   bottomBar: {
     backgroundColor: colors.background,
     paddingHorizontal: spacing.base,

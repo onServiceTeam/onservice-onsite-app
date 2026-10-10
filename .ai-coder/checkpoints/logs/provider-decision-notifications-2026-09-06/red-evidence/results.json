@@ -1,0 +1,37 @@
+{
+  "generatedAt": "2026-09-05T21:33:31.457Z",
+  "sourceRevision": "9ec0078185c3e8761c9b405ad46cac4267d1f5e1 mobile runtime before notification fixes",
+  "scope": "Compiled notification inbox, full admission text and destination routes with synthetic local HTTP. Not production, actual SMS/PG, native or full inbox/Stitch acceptance.",
+  "indexSha256": "3bd5e51475d8b0fd1afabb593aee3f39a2b23f81738fe307384c86ecb53a02bd",
+  "entrySha256": "e377e06575fd761134d366c879216de42bcfe9b71eb696288c081e9ac9a8ab9f",
+  "expected": 18,
+  "passed": 0,
+  "records": [
+    {
+      "width": 320,
+      "scenario": "customer-rejected",
+      "passed": false,
+      "requests": [
+        "GET /api/v1/config",
+        "GET /api/v1/notifications"
+      ],
+      "unexpected": [],
+      "pageErrors": [],
+      "captures": [
+        {
+          "name": "inbox",
+          "path": "/customer/notifications",
+          "screenshot": "320-customer-rejected-inbox.png",
+          "overflow": 0
+        }
+      ],
+      "bodyLayout": {
+        "height": 40,
+        "scrollHeight": 180,
+        "clamp": "2"
+      },
+      "error": "Admission text must not be clamped",
+      "failedPath": "/customer/notifications"
+    }
+  ]
+}

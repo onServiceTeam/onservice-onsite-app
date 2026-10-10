@@ -69,3 +69,54 @@ Before lifting the hold:
 Keep the current contest-to-admin-review path for launch until E18 and E24 are
 resolved together. This preserves the provider's right to respond without
 exposing an unproven direct refund path.
+
+## Progress, 2026-10-10 (MC-03 candidate, not deployed)
+
+The hold is unchanged and stays in place. Status remains OPEN.
+
+MC-03 on the PR81 topic branch changes the three held paths as follows. This is in source and tests only.
+
+**Provider accepts the whole claim.** One transaction, in this order:
+
+1. a guarded dispute write: still open, no provider response;
+2. the booking lock;
+3. the booking update and the escrow refund;
+4. the customer's inbox row.
+
+Only the payment-record update runs after commit, and only it is retried, linked to the dispute. A second accept is refused before it writes (OPS-561).
+
+**Provider sends a partial offer.** One guarded dispute write with no money movement. A second offer is refused before it writes (OPS-561).
+
+**Customer accepts a partial offer.** One transaction (FIN-014):
+
+1. the dispute lock and the re-checks;
+2. the booking lock;
+3. the guarded dispute update;
+4. the booking update and the escrow refund.
+
+After commit, two steps run:
+
+- the payment-record update;
+- the provider-share release, through `releasePartialEscrow`.
+
+A failed release is queued as `release_partial_escrow`, and the worker retries it. A replay is refused once the escrow is released, so it cannot pay twice, but the release is still a post-commit step.
+
+This path writes **no participant notification and no audit row**. The provider is not told that the offer was accepted.
+
+**Against "Required replacement":**
+
+- **Item 2 is met for all three paths:** dispute, then booking, then wallets. Real-database race tests show no deadlock and one refund.
+- **Item 3 is met only in part.** Duplicate responses and accepts are refused, and the per-booking escrow cap stops any refund beyond what the booking holds. There is no idempotency key per settlement operation.
+- **Item 4 is met for the provider accept.** For the customer accept-offer, the money and the states commit together, but the participant notification and the audit record do not exist yet.
+- **Item 5 is met only in part.** The payment-record update is the only retried refund step, but the accept-offer release still runs after commit.
+- **Item 6:** FIN-014, OPS-561 and the race tests in `dispute-refund-commits-with-resolution-postgres.test.ts`.
+
+**Still open before the hold can be lifted:**
+
+- item 1 (E18);
+- the idempotency key;
+- the accept-offer notification and audit row;
+- a release inside the settlement, or durably tied to it;
+- item 7: Ken approves lifting the hold through a reviewed code change.
+
+See the MC-03 section of `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.

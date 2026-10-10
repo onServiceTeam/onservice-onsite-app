@@ -47,6 +47,9 @@ it('Bug UX-677 — editing a template locks its routing slug and omits the slug 
   expect(screen.getByLabelText('Slug *')).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Title template *'), { target: { value: 'Provider ready' } });
   fireEvent.click(screen.getByRole('button', { name: 'Update template' }));
+  fireEvent.change(await screen.findByLabelText('Change reason'), {
+    target: { value: 'Clarifying provider assignment copy for customers.' },
+  });
   fireEvent.click(await screen.findByRole('button', { name: 'Update' }));
 
   await waitFor(() => expect(apiMocks.put).toHaveBeenCalledWith(
@@ -55,8 +58,8 @@ it('Bug UX-677 — editing a template locks its routing slug and omits the slug 
       titleTemplate: 'Provider ready',
       bodyTemplate: '{{providerName}} accepted booking {{bookingId}}.',
       type: 'booking_update',
-      channel: 'all',
       isActive: true,
+      reason: 'Clarifying provider assignment copy for customers.',
     },
   ));
 });

@@ -10,6 +10,7 @@ const hasBookingConflictMock = jest.fn();
 const calculateSukiDiscountMock = jest.fn();
 const notifyProviderMock = jest.fn();
 const notifyCustomerMock = jest.fn();
+const appendPricingTermsMock = jest.fn();
 const mockEventOrder: string[] = [];
 
 jest.mock('../src/middleware/auth.middleware', () => ({
@@ -53,6 +54,11 @@ jest.mock('../src/services/notification.service', () => ({
   notifyCustomerProviderAssigned: (...args: unknown[]) => notifyCustomerMock(...args),
 }));
 
+jest.mock('../src/services/booking-financial-terms.service', () => ({
+  appendPricingTermsInTransaction: (...args: unknown[]) => appendPricingTermsMock(...args),
+  appendProviderAssignmentTermsInTransaction: jest.fn(),
+}));
+
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
@@ -65,6 +71,7 @@ it('MED-N87 — provider assignment commits its price update before either linke
     customer_id: 'customer-1',
     provider_id: null,
     status: 'requested',
+    escrow_status: null,
     service_price: 100_000,
     service_fee: 10_000,
     total_amount: 110_000,
@@ -82,7 +89,13 @@ it('MED-N87 — provider assignment commits its price update before either linke
   hasBookingConflictMock.mockResolvedValue(false);
   calculateSukiDiscountMock.mockResolvedValue({ discountAmount: 5_000 });
   calculateServiceFeeMock.mockResolvedValue(9_500);
-  transactionQueryMock.mockImplementation(async () => {
+  appendPricingTermsMock.mockImplementation(async () => {
+    mockEventOrder.push('financial-terms');
+  });
+  transactionQueryMock.mockImplementation(async (sql: string) => {
+    if (sql.includes('FOR UPDATE')) {
+      return { rows: [booking], rowCount: 1 };
+    }
     mockEventOrder.push('booking-update');
     return { rows: [], rowCount: 1 };
   });
@@ -124,6 +137,15 @@ it('MED-N87 — provider assignment commits its price update before either linke
     expect.stringMatching(/UPDATE bookings/),
     expect.anything(),
   );
+  expect(appendPricingTermsMock).toHaveBeenCalledWith(
+    expect.objectContaining({ query: transactionQueryMock }),
+    expect.objectContaining({
+      bookingId: 'booking-1',
+      event: 'booking_priced',
+      sourceEventId: 'direct-assignment:provider-1',
+      metadata: expect.objectContaining({ sukiDiscountCentavos: 5_000 }),
+    }),
+  );
   expect(notifyProviderMock).toHaveBeenCalledWith(
     'provider-user-1',
     'booking-1',
@@ -139,6 +161,7 @@ it('MED-N87 — provider assignment commits its price update before either linke
   expect(mockEventOrder).toEqual([
     'transaction-start',
     'booking-update',
+    'financial-terms',
     'transaction-commit',
     'provider-notification',
     'customer-notification',

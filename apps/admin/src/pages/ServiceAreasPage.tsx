@@ -68,7 +68,12 @@ interface ServiceAreaChangeRequest {
   requestedLatitude: number | null;
   requestedLongitude: number | null;
   reason: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  decisionReason: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 interface CreateAreaForm {
@@ -92,11 +97,19 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'default
   retired: 'default',
 };
 
+const CHANGE_STATUS_VARIANT: Record<ServiceAreaChangeRequest['status'], 'success' | 'warning' | 'danger' | 'default'> = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'danger',
+  cancelled: 'default',
+};
+
 function formatStatus(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 const STATUS_OPTIONS = new Set(['planned', 'recruiting', 'soft_launch', 'active', 'paused', 'retired']);
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function parsePage(value: string | null): number {
   const parsed = Number(value);
@@ -121,6 +134,13 @@ export default function ServiceAreasPage(): React.ReactElement {
   const statusFilter = parseStatus(searchParams.get('status'));
   const search = searchParams.get('search')?.trim() ?? '';
   const providerFilter = searchParams.get('providerId')?.trim() ?? '';
+  const rawAreaId = searchParams.get('areaId')?.trim() ?? '';
+  const rawChangeRequestId = searchParams.get('changeRequestId')?.trim() ?? '';
+  const hasAmbiguousExactSelection = Boolean(rawAreaId && rawChangeRequestId);
+  const requestedAreaId = !hasAmbiguousExactSelection && UUID_REGEX.test(rawAreaId) ? rawAreaId.toLowerCase() : '';
+  const requestedChangeRequestId = !hasAmbiguousExactSelection && UUID_REGEX.test(rawChangeRequestId)
+    ? rawChangeRequestId.toLowerCase()
+    : '';
   const [searchInput, setSearchInput] = useState(search);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [form, setForm] = useState<CreateAreaForm>({ ...EMPTY_FORM });
@@ -169,6 +189,36 @@ export default function ServiceAreasPage(): React.ReactElement {
       );
       return res.data.data;
     },
+  });
+
+  const exactAreaQuery = useQuery({
+    queryKey: ['adminServiceAreas', 'exact', requestedAreaId],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: ServiceArea }>(
+        `/api/v1/admin/service-areas/${requestedAreaId}`,
+      );
+      if (res.data.data.id !== requestedAreaId) {
+        throw new Error('The service-area response did not match the selected audit record.');
+      }
+      return res.data.data;
+    },
+    enabled: Boolean(requestedAreaId),
+    retry: false,
+  });
+
+  const exactChangeRequestQuery = useQuery({
+    queryKey: ['adminServiceAreaChanges', 'exact', requestedChangeRequestId],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: ServiceAreaChangeRequest }>(
+        `/api/v1/admin/service-area-changes/${requestedChangeRequestId}`,
+      );
+      if (res.data.data.id !== requestedChangeRequestId) {
+        throw new Error('The area-change response did not match the selected audit record.');
+      }
+      return res.data.data;
+    },
+    enabled: Boolean(requestedChangeRequestId),
+    retry: false,
   });
 
   const decideChangeMutation = useMutation({
@@ -348,6 +398,15 @@ export default function ServiceAreasPage(): React.ReactElement {
       else params.delete('status');
       return params;
     });
+  }
+
+  function clearExactSelection(): void {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('areaId');
+      params.delete('changeRequestId');
+      return params;
+    }, { replace: true });
   }
 
   function validateCreateForm(formData: CreateAreaForm): string | null {
@@ -641,6 +700,67 @@ export default function ServiceAreasPage(): React.ReactElement {
         </div>
       )}
 
+      {(rawAreaId || rawChangeRequestId) && (
+        <section aria-labelledby="selected-market-evidence-title" className="rounded-xl border border-sky-200 bg-sky-50 p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Selected audit evidence</p>
+              <h2 id="selected-market-evidence-title" className="mt-1 text-lg font-semibold text-[var(--color-text)]">Exact market operations record</h2>
+            </div>
+            <button type="button" onClick={clearExactSelection} className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">Clear selection</button>
+          </div>
+
+          {hasAmbiguousExactSelection || (rawAreaId && !requestedAreaId) || (rawChangeRequestId && !requestedChangeRequestId) ? (
+            <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-white p-3 text-sm text-red-800">
+              The audit link must contain one valid service-area or change-request ID. No market record was loaded.
+            </p>
+          ) : requestedAreaId ? (
+            exactAreaQuery.isLoading ? (
+              <div className="mt-4 h-24 animate-pulse rounded-lg bg-white" aria-label="Loading selected service area" />
+            ) : exactAreaQuery.isError || !exactAreaQuery.data ? (
+              <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-white p-3 text-sm text-red-800">The exact service area could not be loaded. No other market was substituted.</p>
+            ) : (
+              <div className="mt-4 rounded-lg border border-sky-200 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div><p className="font-semibold text-[var(--color-text)]">{exactAreaQuery.data.name}</p><p className="mt-1 break-all font-mono text-xs text-[var(--color-text-secondary)]">{exactAreaQuery.data.id}</p></div>
+                  <Badge variant={STATUS_VARIANT[exactAreaQuery.data.status] ?? 'default'} label={formatStatus(exactAreaQuery.data.status)} />
+                </div>
+                <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                  <div><dt className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Location</dt><dd className="mt-1">{exactAreaQuery.data.city}, {exactAreaQuery.data.province} · {exactAreaQuery.data.region}</dd></div>
+                  <div><dt className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Coverage</dt><dd className="mt-1">{exactAreaQuery.data.radiusKm} km radius</dd></div>
+                  <div><dt className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Approved supply</dt><dd className="mt-1">{exactAreaQuery.data.activeProviderCount} / {exactAreaQuery.data.minProvidersToLaunch} minimum</dd></div>
+                  <div><dt className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Recorded activity</dt><dd className="mt-1">{exactAreaQuery.data.activeCustomerCount} customers · {exactAreaQuery.data.totalBookings} bookings</dd></div>
+                </dl>
+              </div>
+            )
+          ) : requestedChangeRequestId ? (
+            exactChangeRequestQuery.isLoading ? (
+              <div className="mt-4 h-32 animate-pulse rounded-lg bg-white" aria-label="Loading selected provider area-change request" />
+            ) : exactChangeRequestQuery.isError || !exactChangeRequestQuery.data ? (
+              <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-white p-3 text-sm text-red-800">The exact provider area-change decision could not be loaded. No pending request was substituted.</p>
+            ) : (
+              <div className="mt-4 rounded-lg border border-sky-200 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    {exactChangeRequestQuery.data.providerRecordId ? (
+                      <Link className="font-semibold text-[var(--color-primary)] hover:underline" to={`/providers/${exactChangeRequestQuery.data.providerRecordId}`}>{exactChangeRequestQuery.data.providerName || 'Open Provider 360'}</Link>
+                    ) : <p className="font-semibold text-[var(--color-text)]">{exactChangeRequestQuery.data.providerName || 'Provider account unavailable'}</p>}
+                    <p className="mt-1 break-all font-mono text-xs text-[var(--color-text-secondary)]">{exactChangeRequestQuery.data.id}</p>
+                  </div>
+                  <Badge variant={CHANGE_STATUS_VARIANT[exactChangeRequestQuery.data.status]} label={formatStatus(exactChangeRequestQuery.data.status)} />
+                </div>
+                <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                  <div className="rounded-lg bg-[var(--color-surface-muted)] p-3"><dt className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Requested change</dt><dd className="mt-1">{exactChangeRequestQuery.data.currentAreaName || 'No primary area'} → {exactChangeRequestQuery.data.requestedAreaName || 'Unknown area'} · {exactChangeRequestQuery.data.requestedRadiusKm} km</dd></div>
+                  <div className="rounded-lg bg-[var(--color-surface-muted)] p-3"><dt className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Reviewed pin</dt><dd className="mt-1 font-mono text-xs">{exactChangeRequestQuery.data.requestedLatitude != null && exactChangeRequestQuery.data.requestedLongitude != null ? `${exactChangeRequestQuery.data.requestedLatitude.toFixed(5)}, ${exactChangeRequestQuery.data.requestedLongitude.toFixed(5)}` : 'Missing'}</dd></div>
+                  <div><dt className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Provider context</dt><dd className="mt-1 whitespace-pre-wrap">{exactChangeRequestQuery.data.reason || 'No reason supplied.'}</dd></div>
+                  <div><dt className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Decision evidence</dt><dd className="mt-1 whitespace-pre-wrap">{exactChangeRequestQuery.data.decisionReason || 'No decision recorded.'}{exactChangeRequestQuery.data.reviewedAt ? ` · ${new Date(exactChangeRequestQuery.data.reviewedAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}` : ''}</dd></div>
+                </dl>
+              </div>
+            )
+          ) : null}
+        </section>
+      )}
+
       {isStatsError && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
         <span>Failed to load area statistics.</span>
         <button type="button" onClick={() => { void refetchStats(); }} className="min-h-11 rounded-md border border-red-300 bg-white px-3 py-2 font-semibold">Retry statistics</button>
@@ -886,16 +1006,20 @@ export default function ServiceAreasPage(): React.ReactElement {
       {actionError && <p role="alert" className="text-sm text-red-600 mb-4">{actionError}</p>}
       {actionNotice && <p role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{actionNotice}</p>}
 
-      <DataTable columns={columns} data={areas} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No service areas found." />
+      {!isError && (
+        <>
+          <DataTable columns={columns} data={areas} keyExtractor={(r) => r.id} isLoading={isLoading} emptyMessage="No service areas found." />
 
-      {pagination && pagination.totalPages > 1 && (
-        <Pagination
-          page={pagination.page}
-          totalPages={pagination.totalPages}
-          total={pagination.total}
-          pageSize={pagination.pageSize}
-          onPageChange={setPage}
-        />
+          {pagination && pagination.totalPages > 1 && (
+            <Pagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              total={pagination.total}
+              pageSize={pagination.pageSize}
+              onPageChange={setPage}
+            />
+          )}
+        </>
       )}
 
       {decisionTarget && (

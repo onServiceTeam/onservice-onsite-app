@@ -12,6 +12,8 @@
 // and replays the original request. If refresh also fails, redirects to
 // /login.
 
+import { assertAdminRequestSession, captureAdminRequestSession, reportAdminPasswordRotationRequired, retireAdminRequestSession } from './admin-request-session';
+
 interface ApiSuccess<T> {
   success: true;
   data: T;
@@ -133,10 +135,54 @@ async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosL
   return { data: parsed as T, status: res.status, ok: true };
 }
 
-async function request<T>(url: string, init: ApiRequestInit, isRetry = false): Promise<ApiAxiosLikeResponse<T>> {
+async function request<T>(
+  url: string,
+  init: ApiRequestInit,
+  isRetry = false,
+  session?: object,
+): Promise<ApiAxiosLikeResponse<T>> {
+  if (!session) {
+    // An explicit sign-in is newer intent than an outstanding startup check
+    // or request. Retire those before sending, not only after login completes.
+    if (!isRetry && init.method === 'POST' && url.split('?')[0] === '/api/v1/auth/admin/login') {
+      retireAdminRequestSession();
+    }
+    session = captureAdminRequestSession();
+  }
   try {
-    return await rawFetch<T>(url, init);
+    assertAdminRequestSession(session, init.signal);
+    const response = await rawFetch<T>(url, init);
+    assertAdminRequestSession(session, init.signal);
+    return response;
   } catch (err) {
+    // An obsolete result must not refresh/replay a write or redirect another
+    // operator. Check again after response parsing, not only before fetch.
+    assertAdminRequestSession(session, init.signal);
+    if (
+      err instanceof ApiError
+      && err.body?.error?.code === 'password_rotation_required'
+    ) {
+      // Mark the route guard and form even if the operator is already editing
+      // their password. Navigation alone leaves this looking voluntary.
+      reportAdminPasswordRotationRequired(session);
+      if (typeof window !== 'undefined' && window.location.pathname !== '/change-password') {
+        window.history.replaceState(null, '', '/change-password');
+        // React Router only needs the event type after the URL has changed.
+        window.dispatchEvent(new Event('popstate'));
+      }
+      throw err;
+    }
+    if (
+      err instanceof ApiError
+      && err.status === 401
+      && isRetry
+      && typeof window !== 'undefined'
+      && window.location.pathname !== '/login'
+    ) {
+      // A freshly retried request can still reject the session. Preserve that
+      // sign-in boundary without treating non-authentication errors as expiry.
+      window.location.href = '/login';
+    }
     if (
       err instanceof ApiError
       && err.status === 401
@@ -146,8 +192,8 @@ async function request<T>(url: string, init: ApiRequestInit, isRetry = false): P
     ) {
       try {
         await rawFetch('/api/v1/auth/admin/refresh', { method: 'POST', body: {} });
-        return await request<T>(url, init, true);
       } catch {
+        assertAdminRequestSession(session, init.signal);
         // Redirect to the login screen when a session genuinely expired — but
         // NOT if we are already on /login. Pre-fix, the auth bootstrap's
         // /auth/me probe on the login page 401'd, the refresh below 401'd too,
@@ -163,6 +209,11 @@ async function request<T>(url: string, init: ApiRequestInit, isRetry = false): P
         }
         throw err;
       }
+      assertAdminRequestSession(session, init.signal);
+      // Refresh succeeded. A subsequent permission/conflict/network failure
+      // belongs to the business request, not to the refresh catch above.
+      // In particular, preserve its real error and any rotation redirect.
+      return request<T>(url, init, true, session);
     }
     throw err;
   }

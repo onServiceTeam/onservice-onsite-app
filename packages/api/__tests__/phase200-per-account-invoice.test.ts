@@ -1,8 +1,5 @@
-// Phase 200 — per-account "generate invoice now" shares the monthly
-// generator. generateInvoiceForAccount(id) must scope the eligible-accounts
-// query to that one account (3rd query param = accountId); the monthly cron
-// passes null (= all accounts). Both bill the just-ended month and return 0
-// when there is nothing eligible.
+// E55 Option A — legacy immediate generation is retired and the unattended
+// monthly worker is held. Controlled preview/draft/finalize endpoints replace it.
 
 const dbQueryMock = jest.fn();
 const dbTransactionMock = jest.fn();
@@ -27,21 +24,15 @@ beforeEach(() => {
   dbQueryMock.mockResolvedValue({ rows: [], rowCount: 0 });
 });
 
-describe('Phase 200 — per-account invoice generation', () => {
-  it('generateInvoiceForAccount scopes the aggregate query to the given account id', async () => {
-    const count = await generateInvoiceForAccount('ba-123');
-    expect(count).toBe(0);
-    expect(dbQueryMock).toHaveBeenCalledTimes(1);
-    const [sql, params] = dbQueryMock.mock.calls[0]! as [string, unknown[]];
-    expect(sql).toMatch(/\$3::uuid IS NULL OR ba\.id = \$3::uuid/);
-    expect(params[2]).toBe('ba-123'); // accountId threaded as $3
+describe('E55 — legacy business invoice generation containment', () => {
+  it('rejects immediate per-account generation before database work', async () => {
+    await expect(generateInvoiceForAccount('ba-123')).rejects.toMatchObject({ statusCode: 410 });
+    expect(dbQueryMock).not.toHaveBeenCalled();
   });
 
-  it('generateMonthlyInvoices passes null (= every eligible account)', async () => {
+  it('holds unattended monthly generation before database work', async () => {
     const count = await generateMonthlyInvoices();
     expect(count).toBe(0);
-    expect(dbQueryMock).toHaveBeenCalledTimes(1);
-    const params = dbQueryMock.mock.calls[0]![1] as unknown[];
-    expect(params[2]).toBeNull();
+    expect(dbQueryMock).not.toHaveBeenCalled();
   });
 });

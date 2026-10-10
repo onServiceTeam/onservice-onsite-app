@@ -777,29 +777,32 @@ export async function getCommissionEvidence(): Promise<Array<{
     return [];
   }
 
-  // Phase 13 Dispatch E — was one metrics query per tier. MED-N06 later
-  // added one settings lookup per tier. Keep both the operational sample
-  // and the authoritative live commission rates in this single read-only
-  // round-trip so the evidence panel cannot regress into an N+1 query.
+  // Keep both the operational sample and the current effective tier-base
+  // agreements in one read-only round-trip. Booking-only historical evidence
+  // and provider-specific agreements must never alter this tier comparison.
   const aggregated = await db.query<{
     tier: string;
     provider_count: string;
     quality_sample_count: string;
     avg_booking_value: string;
     avg_bookings: string;
-    current_rate: string;
+    current_rate: string | null;
   }>(
     `WITH tier_list AS (
-       SELECT *
-       FROM UNNEST($1::text[], $2::numeric[])
-         AS configured(tier, fallback_rate)
+       SELECT * FROM UNNEST($1::text[]) AS configured(tier)
      ), active_rates AS (
-       SELECT SUBSTRING(key FROM LENGTH('commission_rate_') + 1) AS tier,
-              MAX(value) AS value
-       FROM platform_settings
-       WHERE is_active = TRUE
-         AND key = ANY($3::text[])
-       GROUP BY key
+       SELECT DISTINCT ON (crv.tier)
+              crv.tier, crv.rate_basis_points
+         FROM commission_rate_versions crv
+         LEFT JOIN commission_rate_version_cancellations cancelled
+           ON cancelled.commission_rate_version_id = crv.id
+        WHERE cancelled.id IS NULL
+          AND crv.scope_type = 'tier'
+          AND crv.tier = ANY($1::text[])
+          AND crv.service_category_id IS NULL
+          AND crv.service_subcategory_id IS NULL
+          AND crv.effective_from <= clock_timestamp()
+        ORDER BY crv.tier, crv.effective_from DESC, crv.created_at DESC
      )
      SELECT
        tl.tier,
@@ -811,10 +814,7 @@ export async function getCommissionEvidence(): Promise<Array<{
            / NULLIF(SUM(COALESCE(bm.booking_count, 0)), 0),
          0
        )::text AS avg_booking_value,
-       (CASE
-          WHEN ar.value ~ '^[0-9]+([.][0-9]+)?$' THEN ar.value::numeric / 100
-          ELSE tl.fallback_rate
-        END)::text AS current_rate
+       (ar.rate_basis_points::numeric / 10000)::text AS current_rate
      FROM tier_list tl
      LEFT JOIN providers p
        ON p.tier = tl.tier AND p.status = 'approved'
@@ -834,12 +834,8 @@ export async function getCommissionEvidence(): Promise<Array<{
        GROUP BY provider_id
      ) bm ON bm.provider_id = p.id
      LEFT JOIN active_rates ar ON ar.tier = tl.tier
-     GROUP BY tl.tier, tl.fallback_rate, ar.value`,
-    [
-      tiers,
-      tiers.map((tier) => platformConfig.commissionRates[tier]!),
-      tiers.map((tier) => `commission_rate_${tier}`),
-    ],
+     GROUP BY tl.tier, ar.rate_basis_points`,
+    [tiers],
   );
 
   const byTier = new Map<string, {
@@ -847,7 +843,7 @@ export async function getCommissionEvidence(): Promise<Array<{
     quality_sample_count: string;
     avg_booking_value: string;
     avg_bookings: string;
-    current_rate: string;
+    current_rate: string | null;
   }>();
   for (const row of aggregated.rows) {
     byTier.set(row.tier, row);
@@ -864,13 +860,10 @@ export async function getCommissionEvidence(): Promise<Array<{
   }> = [];
 
   for (const tier of tiers) {
-    const row = byTier.get(tier) ?? {
-      provider_count: '0',
-      quality_sample_count: '0',
-      avg_booking_value: '0',
-      avg_bookings: '0',
-      current_rate: String(platformConfig.commissionRates[tier]!),
-    };
+    const row = byTier.get(tier);
+    if (!row || row.current_rate === null) {
+      throw createAppError(`No effective base commission agreement exists for provider tier: ${tier}.`, 409);
+    }
 
     const providerCount = Number(row.provider_count);
     const qualitySampleCount = Number(row.quality_sample_count);

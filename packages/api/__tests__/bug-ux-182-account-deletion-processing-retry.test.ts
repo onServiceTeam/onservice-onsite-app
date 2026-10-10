@@ -26,7 +26,9 @@ it('BUG-UX-182 — an interrupted processing deletion is selected and completed 
     .mockResolvedValueOnce({ rows: [{ has_active_bookings: false, has_active_disputes: false, available_balance: '0', pending_balance: '0' }] })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 });
   transactionMock.mockImplementationOnce(async (cb: unknown) => {
-    const client = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 1 }) };
+    const client = { query: jest.fn(async (sql: string) => ({
+      rows: sql === 'SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE' ? [{ id: 'user-1' }] : [], rowCount: 1,
+    })) };
     return (cb as (value: typeof client) => Promise<unknown>)(client);
   });
 
