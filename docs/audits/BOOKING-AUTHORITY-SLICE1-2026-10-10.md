@@ -1255,6 +1255,15 @@ The new helper `__tests__/helpers/dispute-postgres.ts` adds the exact migration-
   - Gate A passes.
 - **Full API runs (4 workers):** 1,051/1,053 suites after the first build, 1,053/1,055 after the first review's fixes, and 1,054/1,056 (3,704 tests passed, 2 todo) after the second review's. Only the two Docker-only nginx suites failed each time; nothing timed out.
 
+### Exact-commit CI (commit `736420a8`)
+
+CI `38056665352` and Gates `38056665346` both succeeded, including all six Gates jobs.
+
+- API job `114226459059`: 1,056/1,056 suites; 3,706 passed, 2 todo, 0 skipped.
+- FIN-013 to FIN-016, OPS-561, the supporting real-database file and the supporting unit test passed.
+- The two Docker-only nginx suites and the sign-in suites passed on CI's Linux runner.
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 **Three read-only reviewers**, each with one lens: money and concurrency, callers and contracts, and tests. A skeptic then tried to refute each serious finding. The result: **no money defects**. Three findings were kept, each downgraded from medium to low, plus several low findings and notes. **A second review of the fixes** (code and tests, two read-only reviewers) found no code defects, only wording and test-placement issues, all applied below.
@@ -1306,3 +1315,172 @@ The new helper `__tests__/helpers/dispute-postgres.ts` adds the exact migration-
   - `releasePartialEscrow` trusts the caller's amount (R-MON-03 remainder);
   - the card path has no once-only key (R-MON-08);
   - stuck `in_progress` retry rows (R-MON-10).
+
+## S1-9: an accepted custom quote can be paid from the wallet (OPS-559)
+
+### Defect, reproduced before the fix
+
+A customer who accepts a provider's custom quote cannot pay for it.
+
+- `acceptQuote` assigns the quoting provider, records the quote's pricing terms and sets the booking to `payment_pending`, with no payment record.
+- The app then opens the pay screen (BUG-PHASE86-01). That screen requires `payment_pending`. Its "Wallet Balance" option calls `POST /api/v1/payments/intent`.
+- The wallet branch of that route accepted only statuses that can still move to `payment_pending` (`requested`, `matched`). For `payment_pending` itself it answered 409 'Cannot pay for a booking in "payment_pending" status.'
+- External payments are held by E14, so the wallet was the only way to pay, and it refused. The quote flow could not finish.
+
+Captured against `736420a8` on the guarded participant fixture through the real payment route: 409 with that message, and nothing moved.
+
+**In the app as well:** after accepting a quote, the pay screen could show the cached booking, still `quoted`, and say "This booking is not awaiting payment" for up to five minutes. After paying, neither the booking nor the wallet was refreshed.
+
+### Fix
+
+**`routes/payment.routes.ts`, wallet branch only.** Under the booking lock the route already took, a `payment_pending` booking is now payable, with three refusals (409, nothing moves):
+
+- **Any earlier payment record**, a failed one included (D35 Q10 interim): "This booking already has a payment attempt. Please contact support to complete it."
+  - A failed card or GCash attempt can still complete at the payment company.
+  - If the wallet then paid too, the customer would be charged twice. The late success would be silently absorbed, because the payment.paid handler looks at the newest record.
+- **Its scheduled time has passed** (D35 Q12 interim): "The scheduled time for this booking has passed. Please contact support before paying."
+  - A quote booking keeps the placeholder time set when the job was posted, while quotes stay open 48 hours by default.
+  - Paid after that time, the no-show alert would fire on its next check, promising a full refund. A cancellation would then use the under-30-minutes bracket: 70% back, 30% to the provider.
+- **The assigned provider is not approved** (D35 Q12 interim): "The provider for this booking is not available right now. Please contact support before paying."
+  - The provider's status is read once, at payment time. The other two checks run under the booking lock.
+
+**Unchanged:**
+
+- Everything after these checks:
+  1. the wallet debit;
+  2. the succeeded wallet payment record;
+  3. `paid` with escrow `held`;
+  4. the authorization terms (final, because the quoting provider is already assigned);
+  5. the escrow hold;
+  6. the post-commit dispatch, which does nothing for an assigned booking.
+- The external branch (held by E14).
+- Instant-pay from `requested`, and payment from `matched`.
+
+**The app (`apps/mobile`).**
+
+- **Accepting a quote** resets the cached booking and refreshes the booking lists. The pay screen loads the booking fresh, and the booking screen still open underneath refetches it.
+- **After paying,** the pay screen shows its loading state while it leaves. It refreshes:
+  - the booking (both caches);
+  - the lists;
+  - the wallet balance and the wallet history.
+
+### Tests
+
+**Bug test `bug-ops-559-accepted-quote-unpayable.test.ts`.** It runs on the guarded fixture through the real payment route, on a quote-accepted booking:
+
+- provider A assigned, and the quote's pricing terms recorded;
+- scheduled two days out;
+- 100,000 due, with customer A holding 150,000.
+
+It expects:
+
+- 201;
+- one succeeded wallet payment record;
+- the booking `paid`, escrow `held`, paid by wallet, provider unchanged;
+- the wallet at 50,000;
+- one debit and one escrow hold;
+- authorization terms appended after the quote terms, both final.
+
+It was red against `736420a8`, with the 409 above.
+
+**Supporting tests** (no Bug title), 18 in `quote-payment-postgres.test.ts`:
+
+1. **Earlier payment records** (7 tests). One record in each status: `pending`, `awaiting_payment`, `processing`, `succeeded`, `failed`, `refunded`, `partially_refunded`. Each gets 409 with the payment-attempt message, and nothing changes.
+2. **A record written during the lock wait.** It is seen: 409, and nothing moves.
+3. **Two near-simultaneous wallet payments.** One 201, and one 409 'Cannot pay for a booking in "paid" status.' The customer is charged once.
+4. **A passed scheduled time** (2 tests: 2 hours past and 1 minute past). 409, and nothing changes.
+5. **A quoting provider that is not approved** (4 tests: `pending`, `rejected`, `suspended`, `deactivated`). 409, and nothing changes.
+6. **No provider and no payment record.** Only older data reaches this state. It is paid as before, with no provider check: 201.
+7. **A quote accepted before quote terms were recorded** (before `34549ec5`). 201, with final authorization terms resolved at payment.
+8. **Another customer.** 403, and nothing changes.
+
+**The new helper `__tests__/helpers/quote-payment-postgres.ts`:**
+
+- gives the fixture's `payment_intents` its production shape: every status from migration 012, the `topup_id` and `client_key` columns, and the booking-or-top-up rule from migration 122 (C-13);
+- mounts the real payment route;
+- writes the quote-accepted state directly, mirroring `acceptQuote` as of `736420a8`, because the fixture has no quote tables.
+
+**App supporting test `apps/mobile/__tests__/ops-559-quote-to-payment-refresh.real.test.tsx`.** It uses the app's 5-minute cache lifetime.
+
+- **Accepting a quote:** a booking screen left open underneath moves from `quoted` to `payment_pending`, and the lists are refreshed.
+- **A wallet payment:**
+  - the booking and balance are fetched again;
+  - the lists, the second booking cache and the wallet history are refreshed;
+  - the leaving screen never says the now-paid booking is "not awaiting payment".
+
+**Mutations.** Each was reverted, and the files were confirmed byte-identical afterwards.
+
+**On the route (9):**
+
+| Mutation | Failed |
+|---|---|
+| The pre-S1-9 payment route | 18 of 22, including OPS-559 |
+| Drop the earlier-payment check | the 7 status tests and the lock-wait test |
+| Let a failed payment through | the `failed` test |
+| Drop the scheduled-time check | both schedule tests |
+| Allow 10 minutes of grace | the 1-minute test |
+| Drop the provider check | the 4 provider tests |
+| Refuse only `suspended` providers | the `pending`, `rejected` and `deactivated` tests |
+| Read the earlier payments before taking the booking lock | the lock-wait test, and OPS-212 |
+| Drop the existing status check for other statuses | the double-tap test (a second charge) |
+
+**In the app (6):**
+
+| Mutation | Failed |
+|---|---|
+| The quotes screen at `736420a8` | the accept test |
+| Remove the cached booking instead of resetting it | the accept test |
+| The pay screen at `736420a8` | the payment test |
+| Drop the leaving state | the payment test |
+| Drop the wallet-history refresh | the payment test |
+| Drop the bookings-list refresh | the payment test |
+
+### Verification
+
+- **Focused tests.**
+  - The payment and quote suites: 19 suites, 78 tests, before the review fixes.
+  - The 22 S1-9 and payment-route tests after them.
+  - The app's quotes and pay tests.
+- **API `tsc` and eslint** on the changed files: clean. **App `tsc`:** clean.
+- **Full app suite:** 615/615 suites before the second review's fixes. After them: 615/615 again (909 passed, 84 todo).
+- **Gates:**
+  - gate smoke 7/7;
+  - Gate C passes. The unique regression ids went from 1,659 to 1,660;
+  - Gate A passes.
+- **Full API runs (4 workers):** 1,056/1,058 suites after the build, after the first review's fixes and after the second review's (finally 3,723 tests passed, 2 todo). Only the two Docker-only nginx suites failed; nothing timed out.
+
+### Independent review
+
+**First review.** Three read-only reviewers, each with one lens: money and concurrency, callers and the app, and tests. A skeptic then tried to refute each serious finding. **No money defect in the code as reviewed, but one serious rule error:**
+
+- **The first draft let a failed payment attempt through.** That contradicted the recorded D35 Q10 interim, and a supporting test pinned the wrong rule. A late success of that attempt would have charged the customer twice. **Fixed:** any earlier record now blocks, and each status has its own test.
+- **Paying after the placeholder schedule, or with a suspended quoting provider, moved money wrongly** (the no-show alert, the late bracket, a provider who cannot work). **Interim refusals built**, recorded as D35 Q12.
+- **Applied:**
+  - the app's stale pay screen;
+  - the tests for every payment status and for the lock;
+  - a quote accepted without quote terms.
+
+**Second review of the fixes:** two read-only reviewers. **No money defect.** Applied:
+
+- the booking screen underneath was frozen by the first app fix: reset instead of remove;
+- the leaving flash;
+- the wallet-history refresh;
+- wider provider and schedule tests;
+- D35 Q3, Q10 and Q12 now match the code. Q12 now says what support can actually do.
+
+**Recorded, not changed:**
+
+- **The provider is not told when a booking becomes paid,** on any path. After a quote is paid, the confirmation screen also says onService is still "finding the best provider". Both go with the notifications work (K02).
+- **"Contact support" has little behind it.** No tool changes a booking's time, so a late-accepted quote can only be cancelled and posted again. Accepting the quote has already declined the other quotes (D35 Q12, option 5).
+- **The no-show alert's "full refund" wording** is wrong for any late booking (D35 Q12).
+- **A failed external attempt that later succeeds** is absorbed silently by the payment.paid handler. The wallet now refuses such bookings, but the E14 replacement must not mark a booking paid twice without an alert.
+- **`matched` bookings keep the earlier rules** (no schedule or provider check).
+
+### Scope and limits
+
+- **Not deployed.**
+- **Release precondition: read-only counts on live** of `payment_pending` bookings with:
+  - any payment record;
+  - a scheduled time that has passed;
+  - no quote terms.
+- **Wording waiting on Ken:** the three refusal messages (D35 Q10 and Q12).

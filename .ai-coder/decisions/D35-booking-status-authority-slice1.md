@@ -58,7 +58,7 @@ This is already asked as D-03 in the repair folder and is hold-linked to E09. Th
 
 This is related to D31 and E29, which cover a suspended *team member*, but it is a separate question. D31 keeps its own answer.
 
-**Held until answered:** suspension behavior does not change.
+**Held until answered:** suspension behavior does not change. One addition since S1-9: an accepted quote whose provider is not approved cannot be paid (Q12).
 
 ## Q4. Cancellation when escrow shows a partial refund
 
@@ -142,7 +142,9 @@ Some bookings are stuck at "payment pending" because a card or GCash attempt was
 
 The risk: if the abandoned attempt somehow completes later, the customer could be charged twice.
 
-**Interim (built in Slice 1):** wallet payment is allowed for "payment pending" bookings that have no payment attempt at all. That covers every accepted custom quote. Bookings with an abandoned attempt stay refused until Ken answers.
+**Interim (built in Slice 1):** wallet payment is allowed for "payment pending" bookings that have no payment attempt at all. That covers accepted custom quotes, subject to the Q12 refusals. Bookings with an abandoned attempt stay refused until Ken answers.
+
+Built in S1-9 (candidate, not deployed). Any earlier payment record blocks the wallet, a failed one included. The refusal wording, which needs your approval, is: "This booking already has a payment attempt. Please contact support to complete it."
 
 ## Q11. Wording for refused cancellations
 
@@ -175,3 +177,47 @@ How the released case happens: a super admin releases the money before the job i
 
    **Interim (built in step S1-8):** until you answer, an admin cancel of a booking whose money was already released still goes through and moves no money, as before. Customers and providers are refused. The choice is passed to the shared cancellation code on purpose and has its own test, so your answer is a one-line change either way.
 2. **Release before the job is done (a money question, older than Slice 1).** Releasing the money while the booking is still "paid" leaves no path to refund that customer if the provider never comes. Should manual release be limited to completed or resolved bookings, or should a refund path from the platform be added?
+
+## Q12. Paying an accepted quote late, or after its provider was suspended
+
+Accepting a custom quote does not set a time. The booking keeps the placeholder time set when the job was posted, from its urgency: same day is 4 hours later, "within 3 days" is 2 days later. A quote stays open for 48 hours by default; admins can set 12 to 168 hours. So a customer can reach the pay step after the booking's time has passed.
+
+**If such a booking were paid, two things would go wrong:**
+
+- **The no-show alert.** Once paid, the alert fires on its next scheduled check. It tells the customer they can "cancel for a full refund".
+- **The refund bracket.** If the customer then cancels, the "less than 30 minutes before" bracket applies: 70% back by default, with 30% of the price going to the quoting provider.
+
+**A suspended provider.** The quoting provider can also have been suspended (or deactivated) between quoting and payment. Nothing then re-offers the paid job.
+
+**Interim (built in S1-9, candidate, not deployed):** the wallet refuses an accepted quote once its scheduled time has passed, or while its provider is not approved. When refused, nothing moves. That is the same as before S1-9, when no accepted quote could be paid at all.
+
+**The interim wording, which needs your approval:**
+
+- "The scheduled time for this booking has passed. Please contact support before paying."
+- "The provider for this booking is not available right now. Please contact support before paying."
+
+**What you should know before approving that wording.** By the time the pay step refuses, accepting the quote has already succeeded and declined the other providers' quotes. Support has these tools:
+
+- **A passed time:** no tool changes a booking's time, so support can only cancel. The customer then posts the job again.
+- **An unavailable provider:** support can cancel, or reassign the booking to another provider at the accepted price.
+
+Bookings matched through a job offer ("matched") keep the earlier rules: no schedule or provider check at payment. The provider's status is read once, at payment time. A suspension a moment later is the Q3 case.
+
+**Options:**
+
+1. Keep refusing, and add a way for the customer to pick a new time (at the accept-quote or pay step).
+2. Set the booking's time when the quote is accepted, from a date the customer or provider chooses.
+3. Refuse payment within a minimum lead time (for example 2 hours), not only after the time has passed.
+4. For a suspended provider: send the job back out for new quotes instead of refusing.
+5. Make the same two checks when the quote is accepted, so the other quotes are not declined for a booking that cannot be paid.
+
+**Recommended:**
+
+- option 2, with option 1's refusal as the safety net, because a quote without a real time is the cause;
+- option 5 either way;
+- wording that tells the customer what will actually happen, for example "Please cancel this booking and post the job again".
+
+**Related:**
+
+- The no-show alert promises "a full refund" while a cancellation after the scheduled time refunds by the late bracket. That message is wrong for any late booking, not only quotes.
+- After a quote is paid, the confirmation screen still says onService is "finding the best provider" and will notify the customer when one accepts. The provider is already assigned, so that notice never comes. This goes with the known gap that the provider is not told the booking was paid.

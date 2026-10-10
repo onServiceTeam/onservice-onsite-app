@@ -3647,3 +3647,25 @@ this is deployed, the live queue must be checked (read-only) for whole-refund
 jobs, because they will be set aside instead of run. This is verified in
 source and tests in the candidate only and is not deployed. See
 `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 112. A customer could not pay for an accepted custom quote
+
+Accepting a provider's custom quote moves the booking to "waiting for
+payment", and the app then opens the pay screen. The only payment method
+available while external payments are held (E14) is the in-app wallet, and the
+wallet payment refused bookings already waiting for payment. So a customer who
+accepted a quote could never pay, and the job could never go ahead. The app
+could also show a stale "not awaiting payment" screen right after accepting.
+
+Candidate OPS-559 lets the wallet pay an accepted quote, and the app now loads
+the booking fresh after accepting and refreshes the booking and wallet after
+paying. Three cases are still refused, with nothing moving, until Ken decides:
+a booking with any earlier payment attempt, even a failed one, because it
+could still complete and charge twice (D35 Q10); a booking whose scheduled
+time has already passed, because a quote keeps the placeholder time set when
+the job was posted (D35 Q12); and a booking whose quoting provider is no
+longer approved (D35 Q12). Two taps at once still charge once. The provider
+who wrote the quote is still not told that the customer paid (true of every
+payment path today). This is verified in source and tests in the candidate
+only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
