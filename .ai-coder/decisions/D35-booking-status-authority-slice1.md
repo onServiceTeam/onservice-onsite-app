@@ -27,12 +27,16 @@ A money issue found in the same review is filed separately as a private escalati
 **Built in Slice 1 (backed by F3 and the audited admin routes):**
 
 - **Plain admin:** refused on every money-moving or money-starting status. Those are cancel (any kind), confirm, paid, disputed, resolved, payout ready, paid out, completed by provider (which starts the 24-hour automatic release), requested, quoted, matched and payment pending.
-- **Super admin:** refused on cancel (any kind), confirm, paid, disputed, resolved, requested, quoted, matched and payment pending through this route. The super admin keeps the dedicated, audited admin actions for these: cancel, force complete, release and refund.
+- **Super admin:** refused on cancel (any kind), confirm, paid, disputed, requested, quoted, matched and payment pending through this route. The super admin keeps the dedicated, audited admin actions for cancel, force complete, release and refund. The payment, dispute, quote and offer statuses come only from their own flows.
 
 **Not decided (unchanged until you answer):**
 
 - **(a)** May either admin role move a job's on-site steps for a provider ("en route", "arrived", "in progress")? K07 gives these to the provider and their team only.
-- **(b)** May a super admin set "completed by provider", "payout ready" and "paid out" through this route? Today this route is the only way to mark a booking payout ready or paid out after a manual escrow release, because manual release does not change the booking status. K07 marks these as dedicated-flow-only.
+- **(b)** May a super admin set "completed by provider", "payout ready", "paid out" and "resolved" through this route?
+  - Today this route is the only way to mark a booking payout ready or paid out after a manual escrow release, because manual release does not change the booking status.
+  - It is also the only way out for a booking that was marked "disputed" without a dispute record. Customers can do that through this route until Slice 1 step S1-4. Every dispute resolution path needs the dispute record, and cancel, force complete and release do not accept "disputed".
+  - **A related existing gap.** If a super admin marks a "confirmed" booking "payout ready" while its escrow is still held, the money stays held. Nothing releases it.
+  - K07 marks these statuses as dedicated-flow-only.
 
 **Options:**
 

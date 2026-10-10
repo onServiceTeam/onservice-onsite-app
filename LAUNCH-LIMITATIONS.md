@@ -3502,3 +3502,19 @@ therefore make every such request fail with an error until the pool recovered.
 Candidate OPS-555 runs those lookups on the transaction that already holds the
 lock. This is verified in source and tests in the candidate only and is not
 deployed. See `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 105. Admin accounts could move booking money through the general status route
+
+The general status route skipped its role and ownership check for admin and
+super admin accounts. Either could cancel and refund, confirm and release,
+or mark a booking paid through that route, without the reason and audit
+record that the super admin's admin booking actions require. A plain admin
+could do this even though F3 reserves money controls for the super admin.
+
+Candidate SEC-090 refuses every money-moving or flow-replacing status for a
+plain admin. Candidate SEC-091 sends a super admin to the audited admin
+actions or the booking's own flow. The parts Ken has not decided (D35 Q1) are
+unchanged: the on-site steps for both roles, and for a super admin
+"completed by provider", "payout ready", "paid out" and "resolved". This is
+verified in source and tests in the candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.

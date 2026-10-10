@@ -964,6 +964,19 @@ function assertMinimumTimeOnSite(booking: BookingRow): void {
   }
 }
 
+// SEC-090 / SEC-091 — status targets admin roles keep on PATCH /status while
+// D35 Q1 is open. Plain admin keeps only on-site steps. Super admin also keeps:
+// completed_by_provider, payout_ready and paid_out (today the only way to
+// advance a booking after a manual escrow release), and resolved (today the
+// only way out for a booking marked disputed without a dispute record, since
+// every dispute resolution path needs that record).
+const ADMIN_PATCH_HELD_PENDING_D35: readonly BookingStatus[] = [
+  'provider_en_route', 'provider_arrived', 'in_progress',
+];
+const SUPER_ADMIN_PATCH_HELD_PENDING_D35: readonly BookingStatus[] = [
+  ...ADMIN_PATCH_HELD_PENDING_D35, 'completed_by_provider', 'payout_ready', 'paid_out', 'resolved',
+];
+
 async function validateRoleForTransition(
   // OPS-555 — the booking transaction client. Authority lookups must not ask
   // the shared pool for a second connection while the booking lock is held.
@@ -974,10 +987,30 @@ async function validateRoleForTransition(
   booking: BookingRow,
   userId: string,
 ): Promise<void> {
-  if (role === 'admin' || role === 'super_admin') return;
+  // SEC-090 / SEC-091 — admin roles no longer skip this guard entirely.
+  // F3: money actions belong to the super admin's audited admin actions
+  // (cancel, force complete, release, refund), which require a reason and
+  // write an admin_actions row. This route writes neither, so it refuses
+  // every target that moves or starts money, ends a booking, or replaces a
+  // dedicated flow (payment, dispute, quote, offer). The held targets are
+  // the parts D35 Q1 has not decided; they behave exactly as before. Any
+  // status not listed is refused by default.
+  if (role === 'admin' || role === 'super_admin') {
+    const held = role === 'super_admin' ? SUPER_ADMIN_PATCH_HELD_PENDING_D35 : ADMIN_PATCH_HELD_PENDING_D35;
+    if (held.includes(newStatus)) return;
+    if (role === 'admin') {
+      throw createAppError('Your admin role cannot make this booking change.', 403);
+    }
+    const flowOnly = createAppError(
+      'Use the admin booking actions (cancel, force complete, release or refund) or the booking\'s own flow for this change.',
+      409,
+    );
+    flowOnly.code = 'BOOKING_TRANSITION_FLOW_ONLY';
+    throw flowOnly;
+  }
 
   if (newStatus === 'cancelled_by_admin') {
-    throw createAppError('Only admins can cancel bookings as admin.', 403);
+    throw createAppError('Only the admin cancel action can cancel a booking as admin.', 403);
   }
 
   if (role === 'customer') {

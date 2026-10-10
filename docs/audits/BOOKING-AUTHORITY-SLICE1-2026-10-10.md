@@ -229,6 +229,14 @@ The independent reviewer also moved each gate onto the pool separately: either o
   - Gate A passes.
 - **Full API run:** 1,028/1,035 suites passed and 3,645 tests passed. The failures were the two Docker-only nginx suites and the five load-timeout SQL suites. Serial re-run: 5/5 suites, 79/79 tests passed.
 
+### Exact-commit CI (commit `810d62ca`)
+
+CI `38013291302` and Gates `38013291258` both succeeded.
+
+- API job `114097935320`: 1,035/1,035 suites; 3,661 passed, 2 todo, 0 skipped. `bug-ops-555-guard-pool-starvation` passed against the CI PostGIS service with its one-second connection timeout. So did `services/booking-completion`, `bug-ux-302-completion-clock`, `booking-provider-cancellation-accounting-med-n68` and `refund-transaction-postgres`.
+- The first log download failed with a transient GitHub TLS timeout. The retry succeeded.
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 No blockers.
@@ -243,3 +251,121 @@ No blockers.
 
 - **Waitlist notice before commit.** The slot-waitlist notification (`processSlotAvailability`) is started inside the booking transaction, before the provider-cancellation counter update and before COMMIT, and nothing waits for it. If that later update fails, the cancellation rolls back, but waitlisted customers may already have been told a slot opened. This only affects `cancelled_by_provider` and `cancelled_by_admin`. Moving it after commit is in S1-5, which restructures the cancellation path.
 - **Gate default executor.** The gates default to `db`. A future caller that holds a booking lock must pass its client; OPS-555 covers only the status transition.
+
+## S1-3: admin roles on the general status route (SEC-090, SEC-091)
+
+### Defect, reproduced before the fix
+
+`validateRoleForTransition` returned immediately for `admin` and `super_admin`. Through `PATCH /api/v1/bookings/:id/status` either admin role could therefore request any transition the state machine allowed:
+
+- a cancellation, which runs the cancellation refund;
+- `confirmed`, which releases escrow;
+- `paid`, which marks escrow held with no money received;
+- `disputed`, `payout_ready`, `paid_out` and the others.
+
+None of this needed the reason and `admin_actions` audit row that the super-admin-only admin routes require.
+
+Captured against the S1-2 code (`810d62ca`):
+
+| Role | Request on a paid, unassigned wallet booking | Result |
+|---|---|---|
+| plain admin | PATCH `cancelled_by_admin` | `200`; status `cancelled_by_admin`, escrow `refunded`, customer wallet back to 250,000 centavos (a full ₱1,000 refund), **0 admin_actions rows** |
+| super admin | PATCH `cancelled_by_admin` | the same, with no reason and no audit row |
+
+No admin web page calls this route. Every admin money action in the admin app uses the dedicated routes.
+
+### This supersedes an earlier audit statement
+
+`docs/audits/BOOKING-STATUS-ROLE-2026-10-09.md` (lines 15 and 47-48) recorded that the admin and super admin exemption was preserved. That statement no longer holds. The exemption is now limited to the targets D35 Q1 has not decided. The 2026-10-09 file is left unchanged, as history.
+
+### Fix
+
+The basis is F3 (`docs/operations/00-DECISIONS-FOR-KEN.md`): money controls belong to the super admin's audited admin actions. The open parts are listed in `.ai-coder/decisions/D35-booking-status-authority-slice1.md` Q1.
+
+**Plain admin.** Refused with `403 Your admin role cannot make this booking change.` on 14 statuses:
+
+- every cancel kind, `confirmed`, `paid`, `disputed`, `resolved`;
+- `payout_ready`, `paid_out`;
+- `completed_by_provider`, which starts the 24-hour automatic release;
+- `requested`, `quoted`, `matched`, `payment_pending`.
+
+It keeps the on-site steps `provider_en_route`, `provider_arrived` and `in_progress` (held, D35 Q1a).
+
+**Super admin.** Refused with `409`, code `BOOKING_TRANSITION_FLOW_ONLY`, on every cancel kind, `confirmed`, `paid`, `disputed`, `requested`, `quoted`, `matched` and `payment_pending`. Those have audited admin actions (cancel, force complete) or their own participant flows.
+
+It keeps these, held for D35 Q1b:
+
+- the on-site steps;
+- `completed_by_provider`;
+- `payout_ready` and `paid_out` (today the only way to advance a booking after a manual escrow release);
+- `resolved`.
+
+**Why `resolved` is held.** The first version of S1-3 refused it. The independent review showed that would remove the only way out for a booking a customer marked `disputed` without a dispute record, which customers can do through this route until S1-4:
+
+- every dispute resolution path needs the dispute record;
+- cancel, force complete and release do not accept `disputed`.
+
+It is held until Ken answers D35 Q1b.
+
+**Other changes:**
+
+- Any status not listed is refused by default.
+- The held lists are module-level constants.
+- The non-admin `cancelled_by_admin` message now reads "Only the admin cancel action can cancel a booking as admin."
+
+### Tests
+
+**New:**
+
+- `bug-sec-090-plain-admin-status-money.test.ts`: the plain admin `cancelled_by_admin` on a paid booking gets 403 with the snapshot unchanged. All 14 refused targets get 403 from two different starting states.
+- `bug-sec-091-super-admin-patch-bypasses-audited-flows.test.ts`:
+  - **the regression:** a super admin `cancelled_by_admin` gets 409 FLOW_ONLY; `paid` on an unfunded `payment_pending` booking gets 409; all 10 refused targets get 409 FLOW_ONLY; the snapshot is unchanged;
+  - **the audited cancel still works:** POST `/admin/bookings/:id/cancel` with a 10+ character reason gives 200, the full unassigned refund to the wallet, the reason on the booking, and one `booking_cancelled` audit row;
+  - **held targets unchanged:** super admin `payout_ready`, `paid_out` and `in_progress` get 200; super admin `completed_by_provider` reaches the ordinary on-site time 409 (no FLOW_ONLY code); super admin `resolved` from `disputed` gets 200; plain admin `in_progress` gets 200; no wallet, ledger or payment-intent change.
+
+**Renamed:** in `refund-transaction-postgres.test.ts`, "canonical admin and super-admin roles retain the existing explicit booking-operation exemption" is now "admin and super admin keep the on-site en-route step on the status route while D35 Q1 is open". The body is unchanged and still asserts both roles get 200 for en route.
+
+**Pinned seam BUG-PHASE117-01.** The source-text test still finds the `cancelled_by_provider || cancelled_by_admin` waitlist block in `booking.service.ts`. After S1-3 the `cancelled_by_admin` arm is unreachable through PATCH. The dedicated admin cancel has never kicked the waitlist or emitted the admin socket event, so admin cancellations do not notify waitlisted customers. This is older behavior, left unchanged here and recorded for S1-8, where the admin cancel moves onto the shared cancellation core.
+
+**Mutation checks.** Each one was reverted, and the file was confirmed byte-identical afterwards.
+
+| Mutation | Tests that failed |
+|---|---|
+| Restore the old early return | SEC-090 and SEC-091 |
+| Let plain admin request `cancelled_by_admin` | SEC-090 |
+| Drop `payout_ready` from the super admin held list | the held-targets test |
+| Drop `resolved` from the super admin held list | the held-targets test |
+| Drop `completed_by_provider` from the super admin held list | the held-targets test |
+| Drop `in_progress` from the shared held list | the held-targets test |
+
+### Verification
+
+Final numbers are recorded in the commit message of this step.
+
+- **Focused tests:** SEC-090, SEC-091, SEC-088, the refund suite and BUG-PHASE117-01 pass 40/40.
+- **Gates:**
+  - gate smoke 7/7;
+  - Gate C passes, including money-in-transaction. The unique regression ids went from 1,643 to 1,645;
+  - Gate A passes.
+- **Full API run (before the review fixes):** it matched the baseline, with only the Docker-only and load-timeout suites failing. The serial re-run passed 6/6 suites and 80/80 tests.
+
+### Independent review
+
+No blockers.
+
+**Applied:**
+
+- `resolved` held for the super admin, as above;
+- the super admin `in_progress` and `completed_by_provider` held behavior is now pinned by a test;
+- the BUG-PHASE117-01 seam is recorded;
+- the plain admin message no longer claims a super admin action exists for every target;
+- the stale non-admin message is corrected;
+- the "today" comments are now "before SEC-090/091";
+- the redundant role update is removed;
+- SEC-090 now uses two starting states;
+- the held lists are module-level.
+
+**Recorded, not changed here:**
+
+- the D35 Q1b note on `payout_ready` set while escrow is still held;
+- the uppercase error code, which follows the plan; other codes in the codebase are lowercase.

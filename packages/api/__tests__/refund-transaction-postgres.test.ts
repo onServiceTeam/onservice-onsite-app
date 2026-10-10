@@ -200,7 +200,7 @@ refundIt('staff job list preserves approved same-provider ordering and rejects r
   });
 }, 30000);
 
-refundIt('canonical admin and super-admin roles retain the existing explicit booking-operation exemption', async () => {
+refundIt('admin and super admin keep the on-site en-route step on the status route while D35 Q1 is open', async () => {
   for (const role of ['admin', 'super_admin']) {
     await withParticipantRefundDatabase(async database => {
       await database.query('UPDATE users SET role=$1 WHERE id=$2', [role, operatorId]);
