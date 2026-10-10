@@ -67,6 +67,8 @@ function setupTransactionMock(captureBookingRow: {
   category_id: string;
   city: string;
   scheduled_at: Date;
+  work_started_at: Date;
+  updated_at: Date;
 }, finalRow?: Record<string, unknown>) {
   dbTransactionMock.mockImplementation(async (cb: (client: { query: jest.Mock }) => unknown) => {
     const clientQuery = jest.fn(async (sql: string) => {
@@ -91,6 +93,11 @@ describe('Bug 463 + 1220 — completed_by_provider enforcement', () => {
     category_id: 'cat-1',
     city: 'Boracay',
     scheduled_at: new Date('2026-04-30T08:00:00Z'),
+    // SEC-089 moved the minimum on-site time check into the service, ahead of
+    // these gates. Work started an hour ago, so that check passes and each
+    // test still exercises the checklist and photo gates it names.
+    work_started_at: new Date(Date.now() - 60 * 60 * 1000),
+    updated_at: new Date(),
   };
 
   it('rejects 400 when checklist was never opened (Bug 463)', async () => {

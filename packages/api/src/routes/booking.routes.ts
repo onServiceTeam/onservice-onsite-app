@@ -27,7 +27,6 @@ import * as rebookingService from '../services/rebooking.service';
 import * as slotWaitlistService from '../services/slot-waitlist.service';
 import * as bookingProofService from '../services/booking-proof.service';
 import * as financialTermsService from '../services/booking-financial-terms.service';
-import { platformConfig } from '../config/platform.config';
 
 function getParamId(req: AuthenticatedRequest): string {
   const id = req.params.id;
@@ -47,28 +46,7 @@ interface BookingOwnerRow {
 interface PreTransitionRow {
   status: string;
   escrow_status: string;
-  latitude: string | null;
-  longitude: string | null;
   is_hourly?: boolean;
-  work_started_at: Date | null;
-  updated_at: Date;
-}
-
-function haversineDistanceMeters(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const toRad = (deg: number): number => deg * (Math.PI / 180);
-  const earthRadiusMeters = 6371000;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-
-  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 async function verifyBookingAccess(bookingId: string, userId: string, role: string): Promise<void> {
@@ -569,67 +547,16 @@ router.patch(
       const id = getParamId(req);
       const newStatus = req.body.status as BookingStatus;
 
+      // Read only what the post-transition money steps need. The arrival
+      // radius and minimum on-site checks now run inside the service, after
+      // the actor guard and on the locked row (SEC-088, SEC-089).
       const preTransitionRow = await db.query<PreTransitionRow>(
-        `SELECT status, escrow_status, latitude, longitude, is_hourly, work_started_at, updated_at FROM bookings WHERE id = $1`,
+        `SELECT status, escrow_status, is_hourly FROM bookings WHERE id = $1`,
         [id],
       );
       const oldStatus = preTransitionRow.rows[0]?.status;
       const oldEscrowStatus = preTransitionRow.rows[0]?.escrow_status;
       const isHourlyBooking = preTransitionRow.rows[0]?.is_hourly === true;
-
-      if (newStatus === 'provider_arrived') {
-        const bookingCoordinates = preTransitionRow.rows[0];
-        const providerLatitude = req.body.latitude as number | undefined;
-        const providerLongitude = req.body.longitude as number | undefined;
-
-        if (providerLatitude === undefined || providerLongitude === undefined) {
-          throw createAppError('Current provider location is required to mark arrival.', 400);
-        }
-
-        if (!bookingCoordinates?.latitude || !bookingCoordinates.longitude) {
-          throw createAppError('Booking does not have service coordinates. Arrival cannot be verified.', 409);
-        }
-
-        const distanceMeters = haversineDistanceMeters(
-          providerLatitude,
-          providerLongitude,
-          Number(bookingCoordinates.latitude),
-          Number(bookingCoordinates.longitude),
-        );
-
-        if (distanceMeters > platformConfig.providerArrivalRadiusMeters) {
-          throw createAppError(
-            `You must be within ${platformConfig.providerArrivalRadiusMeters} meters of the job location to mark arrival. Current distance: ${Math.round(distanceMeters)} meters.`,
-            409,
-          );
-        }
-      }
-
-      if (newStatus === 'completed_by_provider') {
-        // Enforce minimum time on site from the immutable server-clocked start
-        // marker. `updated_at` changes when photos or other booking evidence is
-        // saved, so using it here incorrectly restarted the wait after proof was
-        // uploaded. Five production in-progress rows created before the marker
-        // was wired have it NULL, so they retain the prior updated_at fallback;
-        // every current transition stamps work_started_at and uses that stable
-        // value even when later evidence updates the booking row.
-        const startedAt = preTransitionRow.rows[0]?.work_started_at
-          ?? preTransitionRow.rows[0]?.updated_at;
-        if (!startedAt) {
-          throw createAppError('Work start time is missing. Contact support before completing this job.', 409);
-        }
-        {
-          const elapsedMs = Date.now() - new Date(startedAt).getTime();
-          const minimumMs = platformConfig.minimumTimeOnSiteMinutes * 60 * 1000;
-          if (elapsedMs < minimumMs) {
-            const remainingMin = Math.ceil((minimumMs - elapsedMs) / 60000);
-            throw createAppError(
-              `You must be on-site for at least ${platformConfig.minimumTimeOnSiteMinutes} minutes before marking the job complete. Please wait ${remainingMin} more minute(s).`,
-              409,
-            );
-          }
-        }
-      }
 
       const booking = await bookingService.transitionBookingStatus(
         id,
@@ -641,6 +568,7 @@ router.patch(
         // completion notes from the mobile complete screen actually
         // land on bookings.completion_notes.
         req.body.completionNotes,
+        { latitude: req.body.latitude as number | undefined, longitude: req.body.longitude as number | undefined },
       );
 
       if (newStatus === 'confirmed' && oldEscrowStatus === 'held') {

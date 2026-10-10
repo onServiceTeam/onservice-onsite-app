@@ -13,6 +13,7 @@ import * as businessService from './business.service';
 import * as serviceAreaService from './service-area.service';
 import * as settingsService from './settings.service';
 import { formatPHP } from '../utils/currency';
+import { haversineDistanceMeters } from '../utils/geo';
 import * as financialTermsService from './booking-financial-terms.service';
 import * as escrowService from './escrow.service';
 import * as businessInvoiceControlService from './business-invoice-control.service';
@@ -52,6 +53,11 @@ interface BookingRow {
   contract_id: string | null;
   created_at: Date;
   updated_at: Date;
+  // Server-clocked work start marker (D27 Phase 4b). Optional only because the
+  // route's separate BookingRow casts must keep overlapping; the status lock
+  // query reads SELECT *, and the UX-302 tests fail if the timer falls back
+  // to updated_at while the marker is set.
+  work_started_at?: Date | null;
 }
 
 interface CountRow {
@@ -686,6 +692,9 @@ export async function transitionBookingStatus(
   // newStatus='completed_by_provider'; ignored for other transitions
   // since the column has no semantics for non-completion states.
   completionNotes?: string,
+  // SEC-088 — the caller's current position, required only for
+  // newStatus='provider_arrived'. Checked after the actor guard.
+  providerLocation?: { latitude?: number; longitude?: number },
 ): Promise<BookingRow> {
   return db.transaction(async (client) => {
     const lockResult = await client.query<BookingRow>(
@@ -700,6 +709,13 @@ export async function transitionBookingStatus(
     const booking = lockResult.rows[0]!;
     const currentStatus = booking.status as BookingStatus;
 
+    // SEC-088/SEC-089 — authority first. A caller who is not allowed to act on
+    // this booking must not learn its current status (the transition error
+    // names it), the service location (the arrival distance) or the on-site
+    // timing. Order: lock, actor guard, state machine, then the arrival and
+    // minimum-time checks on the locked row, then the completion gates.
+    await validateRoleForTransition(role, currentStatus, newStatus, booking, userId);
+
     if (!canTransition(currentStatus, newStatus)) {
       const allowed = VALID_TRANSITIONS[currentStatus] ?? [];
       throw createAppError(
@@ -709,7 +725,13 @@ export async function transitionBookingStatus(
       );
     }
 
-    await validateRoleForTransition(role, currentStatus, newStatus, booking, userId);
+    if (newStatus === 'provider_arrived') {
+      assertArrivalWithinRadius(booking, providerLocation);
+    }
+
+    if (newStatus === 'completed_by_provider') {
+      assertMinimumTimeOnSite(booking);
+    }
 
     // Phase 14 Dispatch 07 — Bug 463 + 1220.
     // Provider-driven completion requires (a) the checklist was opened
@@ -882,6 +904,62 @@ export async function transitionBookingStatus(
 
     return updated;
   });
+}
+
+// SEC-088 — moved from the PATCH route, which ran it before any authorization
+// and from an unlocked read. Messages are unchanged; they now reach only a
+// caller who passed the actor guard, and the coordinates come from the locked row.
+function assertArrivalWithinRadius(
+  booking: BookingRow,
+  providerLocation: { latitude?: number; longitude?: number } | undefined,
+): void {
+  const providerLatitude = providerLocation?.latitude;
+  const providerLongitude = providerLocation?.longitude;
+
+  if (providerLatitude === undefined || providerLongitude === undefined) {
+    throw createAppError('Current provider location is required to mark arrival.', 400);
+  }
+
+  if (!booking.latitude || !booking.longitude) {
+    throw createAppError('Booking does not have service coordinates. Arrival cannot be verified.', 409);
+  }
+
+  const distanceMeters = haversineDistanceMeters(
+    providerLatitude,
+    providerLongitude,
+    Number(booking.latitude),
+    Number(booking.longitude),
+  );
+
+  if (distanceMeters > platformConfig.providerArrivalRadiusMeters) {
+    throw createAppError(
+      `You must be within ${platformConfig.providerArrivalRadiusMeters} meters of the job location to mark arrival. Current distance: ${Math.round(distanceMeters)} meters.`,
+      409,
+    );
+  }
+}
+
+// SEC-089 — moved from the PATCH route (same reason as above). Enforce minimum
+// time on site from the immutable server-clocked start marker. `updated_at`
+// changes when photos or other booking evidence is saved, so using it here
+// incorrectly restarted the wait after proof was uploaded (UX-302). Five
+// production in-progress rows created before the marker was wired have it
+// NULL, so they retain the prior updated_at fallback; every current transition
+// stamps work_started_at and uses that stable value.
+function assertMinimumTimeOnSite(booking: BookingRow): void {
+  const startedAt = booking.work_started_at ?? booking.updated_at;
+  if (!startedAt) {
+    throw createAppError('Work start time is missing. Contact support before completing this job.', 409);
+  }
+  const elapsedMs = Date.now() - new Date(startedAt).getTime();
+  const minimumMs = platformConfig.minimumTimeOnSiteMinutes * 60 * 1000;
+  if (elapsedMs < minimumMs) {
+    const remainingMin = Math.ceil((minimumMs - elapsedMs) / 60000);
+    throw createAppError(
+      `You must be on-site for at least ${platformConfig.minimumTimeOnSiteMinutes} minutes before marking the job complete. Please wait ${remainingMin} more minute(s).`,
+      409,
+    );
+  }
 }
 
 async function validateRoleForTransition(

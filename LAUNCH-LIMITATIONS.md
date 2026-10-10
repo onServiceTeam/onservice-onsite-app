@@ -3464,3 +3464,31 @@ Actual peer-close tests and mounted phone/email denial cases cover this shared
 function. Fresh exact-source CI and live configuration/browser acceptance are
 still required. No production key, service or real account was changed. See
 `docs/audits/CAPTCHA-TRANSPORT-BOUNDARIES-2026-10-09.md` for exact receipts and scope.
+
+## 103. Booking status changes answered outsiders before checking their authority
+
+On the general status route, the arrival-distance check, the minimum
+on-site-time check and the state-machine check ran before the actor guard.
+A signed-in account that was not the booking's customer or assigned provider
+could therefore be told the distance in meters from a point it chose to the
+customer's service address, the booking's current status, or how long the job
+had been in progress. The arrival and timing checks also read the booking
+without a lock.
+
+Candidate SEC-088 and SEC-089 lock the booking, run the actor guard, then
+the state machine, then the arrival and minimum-time checks on the locked row.
+The message texts are unchanged.
+
+Because the checks now run in that order, an authorized caller who asks for a
+step that is not allowed yet sees the state-machine or guard refusal first.
+For example, completing a job that is only "paid" now says the transition is
+not allowed, instead of "wait 15 minutes". Nothing that was refused before is
+now allowed.
+
+An outsider now gets the guard's 403 and no location, status or timing text.
+A booking id that does not exist still answers 404 rather than 403. This is
+older behavior, and booking ids are random UUIDs.
+
+This is verified in source and tests in the candidate only. It is not
+deployed: the live server still answers in the old order. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.

@@ -331,10 +331,12 @@ export function participantHttp(userId: string, role: string, claims: Record<str
   app.use(errorMiddleware);
   const token = jwt.sign({ userId, role, sessionVersion: 1, type: 'access', ...claims },
     syntheticSecret, { expiresIn: '5m' });
-  return (bookingId: string, status: string) => request(app)
+  // extraBody adds request fields such as the provider's arrival coordinates.
+  // Existing callers pass two arguments and send exactly the original body.
+  return (bookingId: string, status: string, extraBody: Record<string, unknown> = {}) => request(app)
     .patch(`/api/v1/bookings/${bookingId}/status`)
     .set('Authorization', `Bearer ${token}`)
-    .send({ status, cancellationReason: 'Synthetic participant cancellation' });
+    .send({ status, cancellationReason: 'Synthetic participant cancellation', ...extraBody });
 }
 
 export async function withStaffJobListDatabase(run: (database: Pool, staffUserId: string, staffId: string) => Promise<void>) {
