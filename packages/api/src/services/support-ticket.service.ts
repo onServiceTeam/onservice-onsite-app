@@ -688,17 +688,22 @@ export async function createTicket(params: {
       allowed: boolean;
       business_account_id: string | null;
     }>(
+      // SEC-095: a team member may link a case to a booking only while they
+      // are its performer and staff of its current provider. SEC-096: on
+      // their own request, also only while approved; an admin opening a case
+      // on their behalf (for example after a suspension) may still link it.
       `SELECT (
                 b.customer_id = $2
                 OR p.user_id = $2
-                OR ps.user_id = $2
+                OR (ps.user_id = $2 AND (ps.status = 'approved' OR $3::boolean))
               ) AS allowed,
               b.business_account_id
          FROM bookings b
          LEFT JOIN providers p ON p.id = b.provider_id
          LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+                                    AND ps.provider_id = b.provider_id
         WHERE b.id = $1`,
-      [params.bookingId, params.userId],
+      [params.bookingId, params.userId, Boolean(params.createdByAdminId)],
     );
     const booking = bookingResult.rows[0];
     if (booking?.allowed !== true) {

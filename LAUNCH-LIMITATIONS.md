@@ -3706,3 +3706,21 @@ Found while reviewing S1-10 (2026-10-10). Not fixed.
 
 Both need a decision on when evidence becomes read-only, and the old photo
 upload should accept only files onService stored itself.
+
+## 115. A former team member could still read a job and link support cases to it
+
+The same leftover record as section 113 also let a former team member read a
+job that moved to another provider, or lost its provider: the job details
+(including the customer's name and address), its photo list, change orders and
+the job's evidence summary. They could also open a support case linked to that
+job. And a team member whose membership was suspended could still link a new
+support case to their own job, although every other job screen already
+refused them.
+
+Candidates SEC-095 and SEC-096 apply the section 113 rule to these reads and
+to the support-case link, and the link now also requires an approved team
+member when the member asks for it themselves. Support can still open a case
+on a suspended member's behalf, linked to their own provider's job. The team
+member of the job's own provider, the provider owner and the customer are
+unchanged. This is verified in source and tests in the candidate only and is
+not deployed. See `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.

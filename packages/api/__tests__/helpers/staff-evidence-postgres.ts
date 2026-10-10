@@ -14,8 +14,11 @@ import type { Pool } from 'pg';
 import checklistRouter from '../../src/routes/checklist.routes';
 import uploadRouter from '../../src/routes/upload.routes';
 import bookingRouter from '../../src/routes/booking.routes';
+import supportTicketRouter from '../../src/routes/support-ticket.routes';
 import { errorMiddleware } from '../../src/middleware/error.middleware';
-import { withStaffJobListDatabase, bookingA, bookingB, syntheticSecret } from './booking-participant-postgres';
+import {
+  withStaffJobListDatabase, bookingA, bookingB, syntheticSecret, operatorId, providerUserB,
+} from './booking-participant-postgres';
 
 export interface StaffEvidenceFixture {
   staffUserId: string;
@@ -57,6 +60,70 @@ export async function withStaffEvidenceDatabase(
     }
     await run(database, { staffUserId, staffId, itemOnA: items[0]!, itemOnB: items[1]! });
   });
+}
+
+// S1-11 (SEC-095, SEC-096): the same fixture plus what the read paths and the
+// support-case link need. change_orders is a bare stand-in with the columns
+// the change-order list reads (it stays empty); the support-case columns are
+// bare stand-ins for those of migrations 164 and 170, without their foreign
+// keys and constraints. Each booking gets one provider photo, and the admin
+// audit verb that an on-behalf case writes is allowed.
+export async function withStaffReadDatabase(
+  run: (database: Pool, fixture: StaffEvidenceFixture) => Promise<void>,
+): Promise<void> {
+  await withStaffEvidenceDatabase(async (database, fixture) => {
+    await database.query(`ALTER TABLE bookings ADD COLUMN business_account_id uuid;
+      ALTER TABLE support_tickets ADD COLUMN project_id uuid, ADD COLUMN business_account_id uuid;
+      CREATE TABLE change_orders (id uuid PRIMARY KEY, booking_id uuid NOT NULL REFERENCES bookings(id),
+        created_at timestamptz NOT NULL DEFAULT NOW());
+      ALTER TABLE admin_actions DROP CONSTRAINT admin_actions_action_type_check;
+      ALTER TABLE admin_actions ADD CONSTRAINT admin_actions_action_type_check
+        CHECK (action_type IN ('refund_issued','config_changed'));
+      ALTER TABLE admin_actions DROP CONSTRAINT admin_actions_target_type_check;
+      ALTER TABLE admin_actions ADD CONSTRAINT admin_actions_target_type_check
+        CHECK (target_type IN ('booking','support_ticket'));`);
+    for (const bookingId of [bookingA, bookingB]) {
+      await database.query(`INSERT INTO booking_photos(booking_id,uploaded_by,uploaded_by_role,photo_type,storage_key,mime_type)
+        VALUES ($1,$2,'provider','before',$3,'image/jpeg')`, [bookingId, providerUserB, `bookings/${bookingId}/before.jpg`]);
+    }
+    await run(database, fixture);
+  });
+}
+
+export function staffReadHttp(userId: string, role: string) {
+  const app = express();
+  app.use(express.json(), cookieParser());
+  app.use('/api/v1/uploads', uploadRouter);
+  app.use('/api/v1/bookings', bookingRouter);
+  app.use('/api/v1/support-tickets', supportTicketRouter);
+  app.use(errorMiddleware);
+  const token = jwt.sign({ userId, role, sessionVersion: 1, type: 'access' }, syntheticSecret, { expiresIn: '5m' });
+  const auth = (r: request.Test) => r.set('Authorization', `Bearer ${token}`);
+  return {
+    detail: (bookingId: string) => auth(request(app).get(`/api/v1/bookings/${bookingId}`)),
+    photoList: (bookingId: string) => auth(request(app).get(`/api/v1/uploads/booking-photo/${bookingId}`)),
+    changeOrders: (bookingId: string) => auth(request(app).get(`/api/v1/bookings/${bookingId}/change-orders`)),
+    proofSummary: (bookingId: string) => auth(request(app).get(`/api/v1/bookings/${bookingId}/proof-summary`)),
+    openCase: (bookingId: string) => auth(request(app).post('/api/v1/support-tickets')).send({
+      type: 'booking_issue', subject: 'Synthetic job question', description: 'Synthetic question about this job.', bookingId,
+    }),
+  };
+}
+
+// The super admin opening a case on a member's behalf (POST /support-tickets/admin).
+export function adminCaseHttp() {
+  const app = express();
+  app.use(express.json(), cookieParser());
+  app.use('/api/v1/support-tickets', supportTicketRouter);
+  app.use(errorMiddleware);
+  const token = jwt.sign({ userId: operatorId, role: 'super_admin', sessionVersion: 1, type: 'access' },
+    syntheticSecret, { expiresIn: '5m' });
+  return (forUserId: string, bookingId: string) => request(app).post('/api/v1/support-tickets/admin')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      userId: forUserId, type: 'booking_issue', subject: 'Synthetic incident record',
+      description: 'Synthetic case opened by support on behalf of the member.', bookingId,
+    });
 }
 
 export async function evidenceSnapshot(database: Pool) {

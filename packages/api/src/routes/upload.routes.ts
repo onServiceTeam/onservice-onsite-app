@@ -168,10 +168,12 @@ router.get(
         const { db } = await import('../models/db');
         const access = await db.query(
           // Mirror bookingService.getBookingById's access check: the approved
-          // staff performer (provider_staff) can read photos for their own job.
+          // staff performer (provider_staff) can read photos for their own job,
+          // and (SEC-095) only while they are staff of its current provider.
           `SELECT 1 FROM bookings b
            LEFT JOIN providers p ON p.id = b.provider_id
            LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+                                      AND ps.provider_id = b.provider_id
            WHERE b.id = $1 AND (
              b.customer_id = $2
              OR p.user_id = $2

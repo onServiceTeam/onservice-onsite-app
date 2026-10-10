@@ -545,8 +545,11 @@ export async function getBookingById(bookingId: string, userId: string): Promise
      JOIN users cu ON cu.id = b.customer_id
      LEFT JOIN service_categories c ON b.category_id = c.id
      LEFT JOIN service_subcategories sc ON b.subcategory_id = sc.id
-     -- D23: the assigned approved team member (performer) can also read their job.
+     -- D23: the assigned approved team member (performer) can also read their
+     -- job. SEC-095: only while they are staff of the booking's current
+     -- provider; a retained performer of another provider reads nothing.
      LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+                                AND ps.provider_id = b.provider_id
      WHERE b.id = $1 AND (
        b.customer_id = $2
        OR p.user_id = $2

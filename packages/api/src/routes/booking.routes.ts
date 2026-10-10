@@ -52,11 +52,14 @@ interface PreTransitionRow {
 async function verifyBookingAccess(bookingId: string, userId: string, role: string): Promise<void> {
   if (role === 'admin' || role === 'super_admin') return;
   const result = await db.query<BookingOwnerRow>(
+    // SEC-095 (as SEC-094 for writers): the recorded performer counts only
+    // while they are staff of the booking's current provider.
     `SELECT b.customer_id, p.user_id AS provider_user_id,
             ps.user_id AS staff_user_id, ps.status AS staff_status
        FROM bookings b
        LEFT JOIN providers p ON p.id = b.provider_id
        LEFT JOIN provider_staff ps ON ps.id = b.performer_staff_id
+                                  AND ps.provider_id = b.provider_id
       WHERE b.id = $1`,
     [bookingId],
   );

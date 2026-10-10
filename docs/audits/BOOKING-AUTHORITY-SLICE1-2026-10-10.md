@@ -1586,6 +1586,13 @@ The new helper `__tests__/helpers/staff-evidence-postgres.ts` adds:
   - Gate A passes.
 - **Full API runs (4 workers):** 1,058/1,060 suites before and after the review additions (finally 3,728 tests passed, 2 todo). Each time, only the two Docker-only nginx suites (`bug-ux-201`, `bug-ux-860`) failed.
 
+### Exact-commit CI (commit `efc3e85d`)
+
+CI `38063705309` and Gates `38063705317` both succeeded, including all six Gates jobs.
+
+- API job `114246961288`: 1,060/1,060 suites; 3,730 passed, 2 todo, 0 skipped. SEC-094 and `staff-evidence-writers-postgres` passed.
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 **Two read-only reviewers**, each with one lens: authorization across the whole API, and the tests. A skeptic then tried to refute each serious finding.
@@ -1618,3 +1625,134 @@ The new helper `__tests__/helpers/staff-evidence-postgres.ts` adds:
 
 - **Not deployed.**
 - **The four readers** with the same old join are S1-11 (SEC-095).
+
+## S1-11: a retained performer cannot read another provider's job (SEC-095, SEC-096)
+
+### Defect, reproduced before the fix
+
+The same retained-performer record as S1-10. Four access checks still admitted an approved team member recorded on a booking that has no provider, or another provider:
+
+| Check | What it guards |
+|---|---|
+| `bookingService.getBookingById` | `GET /api/v1/bookings/:id` (the job detail, with the customer's name and address), `GET /:id/match`, and the review and tip lookups |
+| `verifyBookingAccess` in `booking.routes.ts` | the proof summary, the quotes list and the change-order list |
+| The photo-list check in `upload.routes.ts` | `GET /api/v1/uploads/booking-photo/:bookingId` |
+| `createTicket` in `support-ticket.service.ts` | linking a new support case to the booking (a writer) |
+
+Captured against `efc3e85d`, with provider B's approved team member recorded on booking B (no provider, then provider A):
+
+- the job detail answered 200, with customer B's name and address;
+- the photo list and the change-order list answered 200;
+- the proof summary passed its access check (it then failed only on the fixture's missing tables);
+- a support case was created and linked to booking B.
+
+**SEC-096.** The support-case link also never checked that the team member was still approved, unlike every other job read. A suspended team member could still open a case linked to their job.
+
+### Fix
+
+**SEC-095.** Each of the four staff joins now requires `ps.provider_id = b.provider_id`, as in S1-10.
+
+**SEC-096.** On a team member's own request, the support-case link also requires `ps.status = 'approved'`.
+
+- A super admin opening a case on the member's behalf (`POST /api/v1/support-tickets/admin`, for example after a suspension) may still link it.
+- This is only the member's own provider's job. The provider check above still applies to the admin.
+
+Unchanged:
+
+- the provider owner;
+- the customer;
+- admins' own reads;
+- the team member's own job list (SEC-079 already had the check).
+
+### Tests
+
+**Bug tests**, on the guarded staff fixture. The fixture is extended with:
+
+- one provider photo per booking;
+- bare stand-in support-case columns for migrations 164 and 170;
+- a stand-in change-order table;
+- the admin audit verb an on-behalf case writes.
+
+**`bug-sec-095-retained-performer-booking-reads.test.ts`.** In both cases (no provider, and provider A):
+
+- the job detail answers 404;
+- the photo list, the change-order list and the proof summary answer 403;
+- the support case answers 404 "Booking not found for this account.", and no case is created.
+
+It was red against `efc3e85d`.
+
+**`bug-sec-096-unapproved-member-support-link.test.ts`.** A suspended team member of the right provider gets 404 on their own job's case link, and no case is created. It was red against `efc3e85d` (201).
+
+**Supporting tests** (no Bug title), in `staff-booking-reads-postgres.test.ts`:
+
+1. **The team member of the booking's own provider** still:
+   - reads the job detail (with the address);
+   - reads the photo list, and gets exactly that booking's photo;
+   - reads the change-order list;
+   - links a case to the job.
+2. **A booking the owner performs** (no team member recorded): the owner and the customer still read it, and the customer links a case.
+3. **A booking now of provider A that still records provider B's team member:** its current owner and customer still read it, and the owner links a case.
+4. **A non-approved team member of the right provider** still cannot read the job.
+5. **An admin can still open a case on behalf of a suspended team member,** linked to their own provider's job. The admin action is recorded.
+6. **An admin cannot link a team member's case to a booking of no or another provider** that still records them.
+
+**Mutations:** 11 mutations. Each was reverted, and the four files were confirmed byte-identical afterwards.
+
+| Mutation | Failed |
+|---|---|
+| The four files at `efc3e85d` | SEC-095, SEC-096, supporting test 6 |
+| Drop the check from the job detail | SEC-095 |
+| Drop it from `verifyBookingAccess` | SEC-095 |
+| Drop it from the photo list | SEC-095 |
+| Drop it from the support-case link | SEC-095, supporting test 6 |
+| Drop the approval check for the member's own request | SEC-096 |
+| Remove the admin exception | supporting test 5 |
+| Make the job detail's staff join an inner join | supporting tests 2 and 3 |
+| The same in `verifyBookingAccess` | SEC-095, supporting tests 2 and 3 |
+| The same in the photo list | supporting tests 2 and 3 |
+| The same in the support-case link | supporting tests 2 and 3 |
+
+### Verification
+
+- **Focused tests.** Every API suite that touches booking detail, booking routes, uploads, support cases or team members: 119 suites, 470 tests, after the review changes.
+- **API `tsc` and eslint** on the changed files: clean.
+- **Gates:**
+  - gate smoke 7/7;
+  - Gate C passes. The unique regression ids went from 1,661 to 1,663;
+  - Gate A passes.
+- **Full API runs (4 workers):** 1,060/1,062 suites before the review changes, and 1,061/1,063 after them (finally 3,736 tests passed, 2 todo). Each time, only the two Docker-only nginx suites (`bug-ux-201`, `bug-ux-860`) failed.
+
+### Independent review
+
+**First review.** Two read-only reviewers, each with one lens: authorization across the API and apps, and the tests. A skeptic then tried to refute each serious finding.
+
+**The result: no serious problem.**
+
+- Every join that grants access through `performer_staff_id` now has the provider check. Chat, sockets, disputes, quotes, no-show reports, change-order writes, notifications and listings check the provider owner or the conversation's participants.
+- No legitimate caller is locked out. This includes customers through the review and tip lookups, admins, and every endpoint the staff mobile screens call.
+
+**Applied:**
+
+- **The new approval check also blocked an admin** opening a case on behalf of a suspended team member, which worked before. The admin path is kept (SEC-096), with a test each way.
+- **The approval check is now its own bug test** (SEC-096), under the one-bug-one-test rule.
+- **Two assertions that could never fail were removed.** They checked that an error response did not contain the address.
+- **Real photos now back the "still reads" test,** and the helper comment no longer overstates the fixture.
+
+**A second review of these changes** found no defect. It confirmed:
+
+- only the admin route can set the admin flag;
+- the provider check still applies to the admin;
+- the query parameter types are correct.
+
+It also added one check: the on-behalf case records which admin linked it (supporting test 5).
+
+**Recorded, not changed:**
+
+- **`verifyBookingAccess` still answers 404 for a missing booking and 403 for another's booking.** This is older behaviour. The ids are UUIDs, and the stale performer already knows the id. It is a separate cleanup to answer 404 in both cases.
+- **The legitimate team member's proof-summary read** is covered only through the shared `verifyBookingAccess` (via the change-order list) and by mock tests. The proof summary reads about fifteen tables this fixture does not have.
+- **Review attribution and the per-member team stats still count a retained performer.** This is counts only, with no access. It goes with S1-12's reassignment reset.
+
+### Scope and limits
+
+- **Not deployed.**
+- **SEC-096 changes behaviour.** A suspended team member can no longer link a new support case to their job themselves. An admin can do it for them.
