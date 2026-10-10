@@ -19,12 +19,13 @@ import * as escrowService from './escrow.service';
 import * as notificationService from './notification.service';
 import * as orService from './or.service';
 import * as paymentService from './payment.service';
-import * as gatewayRetryService from './gateway-retry.service';
 import * as socketService from './socket.service';
 import * as matchingService from './matching.service';
 import * as financialTermsService from './booking-financial-terms.service';
 import { maskEmail, maskPhilippinePhone, type ActorRole } from '../utils/pii-mask';
 import { canTransition, type BookingStatus } from '../types/booking.types';
+import * as bookingCancelService from './booking-cancel.service';
+import { kickSlotWaitlistAfterCancellation } from './booking.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -1612,66 +1613,58 @@ export async function cancelBookingAsAdmin(
   if (customerNoShow !== undefined && typeof customerNoShow !== 'boolean') {
     throw createAppError('customerNoShow must be a boolean when provided.', 400);
   }
-  // Pre-flight read (read-only, fast-fail outside any transaction).
-  const bookingResult = await db.query<{
-    id: string;
-    status: string;
-    escrow_status: string | null;
-  }>(
-    `SELECT id, status, escrow_status FROM bookings WHERE id = $1`,
-    [bookingId],
-  );
-  const booking = bookingResult.rows[0];
-  if (!booking) throw createAppError('Booking not found.', 404);
-  if (!canTransition(booking.status as BookingStatus, 'cancelled_by_admin')) {
-    throw createAppError(
-      `Cannot cancel booking in status "${booking.status}". Use the canonical dispute or settlement workflow for completed money states.`,
-      409,
-    );
-  }
-
   const hoursValue = hoursUntilScheduled ?? 0;
   const arrivedValue = providerArrived ?? false;
   const noShowValue = customerNoShow ?? false;
 
-  // Phase 14 Dispatch 06 — Bug 69. Pre-D06 the escrow refund ran in a
-  // separate transaction from the booking status update + admin_actions
-  // audit. If the audit insert failed after escrow money had moved, the
-  // money/audit pair was inconsistent. Now: ONE transaction wraps the
-  // escrow handling (via trx-aware helper), booking status update, and
-  // admin_actions insert. If the audit insert throws, the escrow money
-  // movement and the booking status flip both roll back.
-  // BUG-PHASE26-01 fix: capture serviceFee BEFORE the trx so we can
-  // post-commit issue the PayMongo refund with the same total amount
-  // that refundFromEscrowInTransaction debited.
-  const feeRow = await db.query<{ service_fee: string | number }>(
-    `SELECT service_fee FROM bookings WHERE id = $1`, [bookingId]);
-  const serviceFee = feeRow.rows[0] ? Number(feeRow.rows[0].service_fee) : 0;
-
+  // S1-8 (FIN-012, OPS-558) — one transaction that locks the booking first,
+  // re-checks the state on the locked row, then runs the shared cancellation
+  // core (money decided from the locked escrow_status, the status fields and
+  // the booking's open offers) and writes the audit row. Before S1-8 an
+  // unlocked pre-read decided both: a payment that committed after it was
+  // never refunded (FIN-012), and a booking that moved to a status admin
+  // may not cancel from was overwritten (OPS-558). The admin's money inputs
+  // pass through unchanged (E75, C-20).
   const trxResult = await db.transaction(async (client) => {
-    let refundAmount = 0;
-    let customerRefundAmount = 0;
-    if (booking.escrow_status === 'held') {
-      const refund = await escrowService.handleCancellationInTransaction(
-        client,
-        bookingId,
-        hoursValue,
-        arrivedValue,
-        noShowValue,
+    const lockResult = await client.query<{
+      id: string;
+      status: string;
+      escrow_status: string | null;
+      provider_id: string | null;
+      service_fee: string | number;
+      scheduled_at: Date;
+      category_id: string;
+      city: string;
+    }>(
+      `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
+      [bookingId],
+    );
+    const booking = lockResult.rows[0];
+    if (!booking) throw createAppError('Booking not found.', 404);
+    if (!canTransition(booking.status as BookingStatus, 'cancelled_by_admin')) {
+      throw createAppError(
+        `Cannot cancel booking in status "${booking.status}". Use the canonical dispute or settlement workflow for completed money states.`,
+        409,
       );
-      refundAmount = Number(refund.customerRefundAmount ?? 0);
-      customerRefundAmount = Number(refund.customerRefundAmount ?? 0);
     }
 
-    await client.query(
-      `UPDATE bookings
-          SET status = 'cancelled_by_admin',
-              cancelled_at = NOW(),
-              cancellation_reason = $2,
-              updated_at = NOW()
-        WHERE id = $1`,
-      [bookingId, trimmedReason],
-    );
+    const outcome = await bookingCancelService.cancelBookingInTransaction<{
+      provider_id: string | null;
+      scheduled_at: Date;
+      category_id: string;
+      city: string;
+    }>(client, {
+      lockedBooking: booking,
+      targetStatus: 'cancelled_by_admin',
+      reason: trimmedReason,
+      moneyInputs: {
+        hoursUntilScheduled: hoursValue,
+        providerArrived: arrivedValue,
+        customerNoShow: noShowValue,
+      },
+      allowReleasedEscrow: true,
+    });
+    const refundAmount = Number(outcome.refund?.customerRefundAmount ?? 0);
 
     const actionResult = await client.query<{ id: string }>(
       `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details, reason, full_notes)
@@ -1705,45 +1698,56 @@ export async function cancelBookingAsAdmin(
       customerNoShow: noShowValue,
     });
 
-    return { bookingId, refundAmount, adminActionId, customerRefundAmount };
+    return {
+      result: { bookingId, refundAmount, adminActionId, customerRefundAmount: refundAmount },
+      outcome,
+      oldStatus: booking.status,
+    };
   });
 
-  // BUG-PHASE26-01 fix: post-commit PayMongo refund. Without this,
-  // admin force-cancel debited platform_escrow but never returned
-  // the customer's money to their bank. Mirrors the dispute-resolve
-  // pattern (escrow.service.ts lines ~564-572) — failure enqueues to
-  // gateway_retry_queue rather than blocking the cancellation.
-  if (!noShowValue && trxResult.customerRefundAmount > 0) {
-    const totalCustomerRefund = trxResult.customerRefundAmount + serviceFee;
-    // gate-c-allowed: post-commit-gateway-refund
+  // After the commit. The gateway step runs first (BUG-PHASE26-01, C-19);
+  // nothing after the commit turns the committed cancellation into an error.
+  const { outcome } = trxResult;
+  if (outcome.refund) {
     try {
-      await paymentService.processRefund(
+      await escrowService.processCancellationGatewayRefund(
         bookingId,
-        totalCustomerRefund,
-        `Admin cancellation: ${trimmedReason.slice(0, 100)}`,
+        outcome.refund,
+        outcome.serviceFeeCentavos,
+        outcome.customerNoShow,
+        {
+          refundReason: `Admin cancellation: ${trimmedReason.slice(0, 100)}`,
+          retryDescription: 'Admin cancellation refund',
+        },
       );
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      if (/no payment found/i.test(errMsg)) {
-        logger.info('Admin-cancel refund skipped — no PayMongo intent for booking', {
-          bookingId, totalCustomerRefund,
-        });
-      } else {
-        logger.error('PayMongo admin-cancel refund failed (post-commit); enqueueing retry', {
-          bookingId, totalCustomerRefund, error: errMsg,
-        });
-        await gatewayRetryService.enqueueRetry({
-          actionType: 'process_payment_refund',
-          bookingId,
-          amountCentavos: totalCustomerRefund,
-          description: 'Admin cancellation refund',
-          initialError: errMsg,
-        });
-      }
+      logger.error('Admin cancellation payment refund step failed after commit; reconcile the payment refund manually', {
+        bookingId,
+        customerRefundAmount: outcome.refund.customerRefundAmount,
+        serviceFeeCentavos: outcome.serviceFeeCentavos,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
-  return trxResult;
+  // S1-8 — before this, an admin cancel never emitted the admin event or
+  // told waitlisted customers that the slot had opened. The customer and
+  // provider are still not notified: that wording waits for D35 Q6.
+  try {
+    socketService.emitAdminEvent(socketService.ADMIN_EVENTS.BOOKING_STATUS_CHANGED, {
+      id: bookingId,
+      oldStatus: trxResult.oldStatus,
+      newStatus: 'cancelled_by_admin',
+    });
+  } catch (e) {
+    logger.warn('Admin socket emit failed', {
+      event: 'booking:status_changed',
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+  kickSlotWaitlistAfterCancellation(outcome.booking, bookingId, 'cancelled_by_admin');
+
+  return trxResult.result;
 }
 
 // ─────────────────────────────────────────────────────────────────

@@ -70,7 +70,7 @@ When a booking's escrow already shows a partial refund and it is then cancelled,
 **Interim (built in Slice 1, step S1-6):**
 
 - A customer's or assigned provider's cancellation is refused with a clear message while escrow shows a partial refund. No money moves on its own.
-- The admin cancel joins this rule in step S1-8. Until then, the admin cancel of such a booking still goes through and leaves the rest in escrow. Support should refund or release the rest before cancelling.
+- Since step S1-8 the admin cancel follows the same rule. An admin who cancels such a booking sees: "Escrow shows a partial refund. For a resolved dispute, use Release instead of cancelling. Otherwise use Refund for the rest, then cancel." (this admin wording also needs your yes). (Before S1-8 the admin cancel went through and left the rest in escrow.)
 - For a resolved dispute, the admin uses the release action instead.
 
 **Proposed wording:**
@@ -169,9 +169,9 @@ How the released case happens: a super admin releases the money before the job i
 
 **Two decisions this raises:**
 
-1. **Admin cancel of a released booking (needed before step S1-8).** S1-8 moves the admin cancel onto the same cancellation code. Should an admin cancel of a booking whose money was already released:
+1. **Admin cancel of a released booking.** S1-8 moves the admin cancel onto the same cancellation code. Should an admin cancel of a booking whose money was already released:
    - stay allowed, moving no money, as today; or
    - be refused like the customer's cancel?
 
-   S1-8 will not pick either by default.
+   **Interim (built in step S1-8):** until you answer, an admin cancel of a booking whose money was already released still goes through and moves no money, as before. Customers and providers are refused. The choice is passed to the shared cancellation code on purpose and has its own test, so your answer is a one-line change either way.
 2. **Release before the job is done (a money question, older than Slice 1).** Releasing the money while the booking is still "paid" leaves no path to refund that customer if the provider never comes. Should manual release be limited to completed or resolved bookings, or should a refund path from the platform be added?

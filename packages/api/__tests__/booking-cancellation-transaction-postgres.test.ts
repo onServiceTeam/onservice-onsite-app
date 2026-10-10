@@ -97,8 +97,9 @@ it('a failed payment refund call after the commit queues the payment-only retry 
         .toEqual([{ available_balance: '1800000' }]);
       expect((await database.query('SELECT status,refunded_amount::text FROM payment_intents WHERE booking_id=$1', [bookingB])).rows)
         .toEqual([{ status: 'succeeded', refunded_amount: '0' }]);
-      expect((await database.query(`SELECT action_type,booking_id,amount_centavos::text,status FROM gateway_retry_queue`)).rows)
-        .toEqual([{ action_type: 'process_payment_refund', booking_id: bookingB, amount_centavos: '800000', status: 'pending' }]);
+      expect((await database.query(`SELECT action_type,booking_id,amount_centavos::text,description,status FROM gateway_retry_queue`)).rows)
+        .toEqual([{ action_type: 'process_payment_refund', booking_id: bookingB, amount_centavos: '800000',
+          description: 'Customer cancellation refund', status: 'pending' }]);
     } finally {
       gateway.mockRestore();
     }

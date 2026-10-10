@@ -892,6 +892,15 @@ Captured against `a590b020`, with the real offers table (migration 125): a custo
   - With a 60-second per-test limit the same three still failed, for the same environmental reasons.
   - None of the three imports any file S1-7 changed, directly or through a fixture. GitHub CI on Linux is the authority for them; see the exact-commit CI receipt.
 
+### Exact-commit CI (commit `572ae3c5`)
+
+CI `38040394447` and Gates `38040394446` both succeeded, including all six Gates jobs.
+
+- API job `114179309695`: 1,046/1,046 suites; 3,680 passed, 2 todo, 0 skipped.
+- `bug-ops-557-cancel-leaves-offers-open` and the changed `booking-provider-cancellation-accounting-med-n68` passed.
+- The three suites that could not run locally also passed on CI's Linux runner: `email-sign-in-postgres`, `email-link-postgres` and `bug-ops-475-complete-backup-required`. This confirms the local failures were environmental.
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 **Two read-only reviewers**, each with one lens: behaviour and concurrency, and tests and plan alignment. A skeptic then tried to refute the serious finding. The result: **no code defects**.
@@ -917,3 +926,159 @@ Captured against `a590b020`, with the real offers table (migration 125): a custo
 
 - **Not deployed.**
 - **The four open items above.**
+
+## S1-8: the admin dedicated cancel runs on the cancellation core (FIN-012, OPS-558)
+
+### Defect, reproduced before the fix
+
+`cancelBookingAsAdmin` (`POST /api/v1/admin/bookings/:id/cancel`, super admin only) decided everything from an **unlocked pre-read**, made before its transaction:
+
+- whether the booking could be cancelled from its status;
+- whether its escrow was `held`.
+
+Captured against `572ae3c5`. In both cases a blocker connection holds the booking lock while the admin cancel waits on it.
+
+| Case | Result before S1-8 |
+|---|---|
+| **FIN-012.** An unfunded `requested` wallet booking. The blocker funds it with the real money helpers and terms, then commits. | `200`, `cancelled_by_admin`. Escrow stayed `held`, the customer's wallet stayed debited, and the audit row recorded a 0 refund. |
+| **OPS-558.** An assigned, held booking at `in_progress`. The blocker marks it `completed_by_provider` and commits; this is direct SQL standing in for the completion route. | `200`. A cancellation refund ran, and `cancelled_by_admin` was written over `completed_by_provider`, which is not a valid edge. |
+
+**Also before S1-8:**
+
+- the admin cancel left the booking's open offers pending;
+- it never emitted the admin socket event;
+- it never told waitlisted customers that a slot had opened. The PATCH arm pinned by BUG-PHASE117-01 has been unreachable since S1-3.
+
+### Fix
+
+**`cancelBookingAsAdmin`.** One transaction, in this order:
+
+1. lock the booking (`SELECT * ... FOR UPDATE`);
+2. re-check `canTransition` on the locked status, with the same message as before;
+3. run the shared `cancelBookingInTransaction` core: money from the locked `escrow_status`, the status fields, and the booking's open offers;
+4. write the `admin_actions` row.
+
+**Unchanged:**
+
+- the request body and its validation: reason, `hoursUntilScheduled`, `providerArrived`, `customerNoShow` (UX-479 still rejects bad inputs before any read);
+- the E75 timing behaviour, since the admin's money inputs pass straight through (C-20);
+- the `CancelResult` shape.
+
+**After the commit**, in this order:
+
+1. the shared gateway step (`processCancellationGatewayRefund`), with the admin's existing payment-record and retry labels;
+2. the admin socket event;
+3. the shared slot-waitlist kick. It is now `kickSlotWaitlistAfterCancellation` in `booking.service.ts`, with the BUG-PHASE117-01 text unchanged.
+
+Nothing after the commit can turn the committed cancellation into an error (C-19).
+
+**Escrow states for the admin cancel:**
+
+| State | Result |
+|---|---|
+| `held` | refund |
+| `pending`, `refunded` | cancel without money |
+| `partially_refunded` | refused (T13 change, C-05). New admin text: "Escrow shows a partial refund. For a resolved dispute, use Release instead of cancelling. Otherwise use Refund for the rest, then cancel." (worded after the review; see below) |
+| `released` | still cancels without moving money, exactly as before. This is held for D35 Q11 decision 1, through an explicit `allowReleasedEscrow` input to the core. It is not inherited from the participant refusal. |
+
+**Not built: customer and provider notices of an admin cancel.** They still send nothing. That wording waits for D35 Q6.
+
+### Tests
+
+**Bug tests**, both using the real admin route on the guarded fixture with a real blocker connection:
+
+- **`bug-fin-012-admin-cancel-after-concurrent-payment.test.ts`:** 200, `refunded`, the wallet restored to 150,000, 0 left in the booking's escrow, and an audit row recording an 80,000 refund. Red against `572ae3c5`: escrow stayed `held`.
+- **`bug-ops-558-admin-cancel-overwrites-advanced-status.test.ts`:** 409 with the unchanged "Cannot cancel booking in status" message. The booking stays `completed_by_provider` with escrow `held`, and everything except the booking row is unchanged. Red against `572ae3c5`: it answered 200.
+
+**Supporting tests** (no Bug title), in `booking-admin-cancel-core-postgres.test.ts`:
+
+1. Admin cancel of a partially refunded booking: 409 with the admin text, and the snapshot unchanged.
+2. Admin cancel of a released booking: 200, with no wallet, ledger, payment or retry change (held behaviour).
+3. The audit insert fails after the refund and status were written: 500, and the whole snapshot is unchanged, including the booking's pending offer.
+4. A successful admin cancel:
+   - the full unassigned refund;
+   - the offer closed;
+   - the audit row;
+   - the admin socket event `{ id, oldStatus: 'paid', newStatus: 'cancelled_by_admin' }`;
+   - one slot-waitlist kick.
+
+**Pinned tests updated to the lock-first order**, with no assertion weakened:
+
+- **`services/booking-cancel-admin-tx.test.ts` (Bug 69).** It now asserts:
+  - the lock is the first statement in the transaction;
+  - there is no top-level booking read;
+  - a refused cancel writes nothing;
+  - the gateway step runs after the commit, with the admin labels, and never for a rolled-back cancel.
+
+  One rollback check had matched only a literal `'cancelled_by_admin'` in the UPDATE text. The status is now a parameter, so the check matches any `UPDATE bookings SET`; the old pattern could no longer fail.
+- **`booking-dispute-admin.test.ts`:** its three admin-cancel cases now read the locked row inside the transaction instead of a pre-read and a fee read.
+- **`bug-ux-713-admin-cancellation-state-guard.test.ts`:** the paid-out refusal is now decided on the locked row. Only the lock statement runs; there is no update, money or audit.
+
+**Mutations:** 12 mutations. Each was reverted, and the files were confirmed byte-identical afterwards.
+
+| Mutation | Failed |
+|---|---|
+| The whole pre-S1-8 `booking-admin.service.ts` | 15 tests, including FIN-012, OPS-558 and supporting tests 1 and 4 |
+| Drop the locked `canTransition` re-check | OPS-558, UX-713, two 409 cases |
+| Read the booking without `FOR UPDATE` | 13 tests, including FIN-012 and OPS-558 |
+| Refuse released escrow for the admin (`allowReleasedEscrow: false`) | supporting test 2 |
+| Use the participant wording for the admin | supporting test 1 |
+| Skip the post-commit gateway step | supporting test 4 (the payment record stays unrefunded), Bug 69 labels case |
+| Drop the admin socket event | supporting test 4 |
+| Drop the waitlist kick | supporting test 4 |
+| Write the audit row on a pool connection instead of the transaction | 7 Bug 69 and dispute-admin cases |
+| Re-throw from the post-commit catch | the new C-19 case |
+| Kick the waitlist inside the transaction | supporting tests 3 and 4 |
+| Restore the misleading first admin wording | supporting test 1 |
+
+### Verification
+
+- **Focused tests:**
+  - the S1-8 real-database set (FIN-012, OPS-558, the 4 supporting tests, SEC-091): 9/9 passed;
+  - every S1-1 to S1-7 suite plus CRIT-N10, booking-completion and UX-302: 17 suites, 60/60;
+  - the mock-based admin-cancel, waitlist, MED-N68 and escrow suites: 99/99;
+  - after the review fixes, the affected 7 suites: 72/72.
+- **API `tsc` and eslint** on the changed files: clean. The now-unused gateway-retry import was removed from `booking-admin.service.ts`.
+- **Gates:**
+  - gate smoke 7/7;
+  - Gate C passes, including money-in-transaction. The unique regression ids went from 1,652 to 1,654;
+  - Gate A passes.
+- **Full API run (4 workers), before and after the review fixes:** 1,047/1,049 suites both times. Only the two Docker-only nginx suites failed; nothing timed out.
+- **An earlier attempt was invalid, not counted.** It ran while the 124-finding audit workflow was also running, and its real-database tests failed at fixture connection timeouts before reaching any test code.
+
+### Independent review
+
+**Three read-only reviewers**, each with one lens: money and concurrency, callers and contracts, and tests. A skeptic then tried to refute each serious finding. The result: **no money defects**; 4 findings confirmed, two of them downgraded to notes, plus 6 notes.
+
+**Applied:**
+
+- **The admin refusal text could lead to a wrong cancel.** It read "Use Release for a resolved dispute, or Refund for the rest, before cancelling", which an admin could read as "Release, then cancel". Release leaves a resolved dispute `resolved`, and a later admin cancel of it would then succeed, marking a finished, paid job as cancelled. The text now says: "For a resolved dispute, use Release instead of cancelling. Otherwise use Refund for the rest, then cancel." D35 Q4 quotes it and asks Ken to approve it.
+- **D35 Q11 decision 1 now records the interim.** S1-8 keeps today's behaviour for a released booking until Ken answers. The choice is passed into the core explicitly and has its own test.
+- **New checks:**
+  - a gateway-step and socket failure after the commit still returns the `CancelResult` and is logged (C-19);
+  - a rolled-back admin cancel emits nothing and does not kick the waitlist;
+  - the waitlist kick gets the booking's category, city and Manila date;
+  - the admin's `customerNoShow` reaches the after-commit gateway step;
+  - the S1-5 retry row's description is pinned.
+
+**Recorded, not changed:**
+
+- **Pre-existing: a 0% refund bracket or a customer no-show sends no gateway refund for the fee.** The local ledger does refund it. The gateway call depends on the price refund only. This is the same as the S1-5 note, now also on the admin path. There is no exposure while the customer fee is 0 and external payments are off.
+- **Pre-existing wallet lock order.** A cancellation locks the escrow wallet before the customer wallet; the wallet payment and the admin refund lock the customer wallet first. This goes into the lock-graph item with C-02.
+- **Two writers of a cancelled status remain outside the core:**
+  - the 72-hour unmatched expiry job (`jobs/workers.ts:181`);
+  - the customer no-show report (`routes/booking.routes.ts:1435`).
+
+  K07 wants one cancellation entry, so these are open.
+- **K07 gaps:**
+  - no customer or provider notice of an admin cancel (D35 Q6);
+  - no `responsibleParty`;
+  - the audit row is written by the caller, not the core.
+
+### Scope and limits
+
+- **Not deployed.**
+- **T13 (the admin web cancel button) changes for partially refunded bookings.** They are now refused with a pointer to the release and refund actions. This includes a resolved dispute with a partial refund, whose remainder goes to the provider through the release (C-05).
+- **Held, unchanged:** the admin cancel of a released booking (D35 Q11 decision 1).
+- **Not built:** customer and provider notices of an admin cancel (D35 Q6).
+- **The admin-supplied hours still decide the refund bracket**, and the server does not check them against the booking time. This is E75 behaviour, recorded in the answers file, and is unchanged here.

@@ -471,6 +471,11 @@ export async function processCancellationGatewayRefund(
   refund: commissionService.CancellationRefund,
   serviceFee: number,
   customerNoShow: boolean,
+  // S1-8 — the admin cancel keeps its own payment-record and retry labels.
+  labels: { refundReason: string; retryDescription: string } = {
+    refundReason: 'Customer-initiated cancellation',
+    retryDescription: 'Customer cancellation refund',
+  },
 ): Promise<void> {
   // BUG-PHASE26-01 fix: trigger the PayMongo refund post-commit so the
   // money debited from escrow actually returns to the customer's bank.
@@ -489,7 +494,7 @@ export async function processCancellationGatewayRefund(
       await paymentService.processRefund(
         bookingId,
         totalCustomerRefund,
-        'Customer-initiated cancellation',
+        labels.refundReason,
       );
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -512,7 +517,7 @@ export async function processCancellationGatewayRefund(
           actionType: 'process_payment_refund',
           bookingId,
           amountCentavos: totalCustomerRefund,
-          description: 'Customer cancellation refund',
+          description: labels.retryDescription,
           initialError: errMsg,
         });
       }

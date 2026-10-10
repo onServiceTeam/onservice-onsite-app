@@ -3592,3 +3592,23 @@ dispatch work, K06). The provider's app is not told the offer closed. The
 admin cancel (until step S1-8) and the 72-hour expiry job do not close offers
 yet. This is verified in source and tests in the candidate only and is not
 deployed. See `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 110. The admin cancel decided its money from an unlocked read
+
+The super admin's cancel button checked the booking's status and payment
+before locking the booking. If a payment landed while the admin was
+cancelling, that money stayed held and was never refunded. If the provider
+completed the job at the same moment, the cancel overwrote the completed job
+and refunded it anyway. The admin cancel also left job offers open, and it
+never told waitlisted customers that a slot had opened.
+
+Candidates FIN-012 and OPS-558 lock the booking first and run the admin
+cancel through the same single cancellation step as customer and provider
+cancels: the refund, the status, the offers and the audit record together.
+The waitlist alert and the admin live feed follow after it is saved. A
+partially refunded booking is now refused, with a pointer to the release or
+refund actions. A booking whose money was already released still cancels
+without moving money, until Ken decides (D35 Q11). Customers and providers are
+still not notified of an admin cancel (wording in D35 Q6). This is verified in
+source and tests in the candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.

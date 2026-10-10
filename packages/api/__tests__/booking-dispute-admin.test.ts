@@ -38,6 +38,13 @@ jest.mock('../src/services/escrow.service', () => ({
   releaseEscrowInTransaction: jest.fn(),
   refundFromEscrowInTransaction: jest.fn(),
   handleCancellationInTransaction: jest.fn(),
+  processCancellationGatewayRefund: jest.fn(),
+}));
+
+// S1-8: the admin cancel kicks the slot waitlist after its commit; keep that
+// away from the mocked database here.
+jest.mock('../src/services/slot-waitlist.service', () => ({
+  processSlotAvailability: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../src/services/dispute.service', () => ({
@@ -65,7 +72,7 @@ jest.mock('../src/services/notification.service', () => ({
 
 const emitAdminEventMock = jest.fn();
 jest.mock('../src/services/socket.service', () => ({
-  ADMIN_EVENTS: { BOOKING_PROVIDER_ASSIGNED: 'booking:provider_assigned' },
+  ADMIN_EVENTS: { BOOKING_PROVIDER_ASSIGNED: 'booking:provider_assigned', BOOKING_STATUS_CHANGED: 'booking:status_changed' },
   emitAdminEvent: (...args: unknown[]) => emitAdminEventMock(...args),
   emitToConversation: jest.fn(),
   emitToUser: jest.fn(),
@@ -640,28 +647,31 @@ describe('cancelBookingAsAdmin', () => {
   });
 
   it('throws 409 when already cancelled', async () => {
-    dbQueryMock.mockResolvedValueOnce(
-      rows([{ id: BOOKING_ID, status: 'cancelled_by_admin', escrow_status: null }]),
-    );
+    // S1-8: decided on the locked row inside the transaction.
+    const calls = setupTxRecorder(async (sql) => {
+      if (/FOR UPDATE/.test(sql)) return rows([{ id: BOOKING_ID, status: 'cancelled_by_admin', escrow_status: null }]);
+      return rows([]);
+    });
     await expect(
       bookingSvc.cancelBookingAsAdmin(BOOKING_ID, 'A solid cancellation reason', ADMIN_ID),
     ).rejects.toMatchObject({ statusCode: 409 });
+    // Only the lock ran: nothing was written.
+    expect(calls).toHaveLength(1);
   });
 
   it('escrow held → calls handleCancellationInTransaction with passed args + records refundAmount (Bug 69)', async () => {
-    dbQueryMock.mockResolvedValueOnce(
-      rows([{ id: BOOKING_ID, status: 'paid', escrow_status: 'held' }]),
-    );
-    // BUG-PHASE78-01 test maintenance — cancelBookingAsAdmin in
-    // booking-admin.service.ts:873 SELECTs service_fee right after
-    // the pre-flight read so it can issue the PayMongo refund with
-    // the same total post-commit (BUG-PHASE26-01). Mock the second
-    // SELECT here so feeRow.rows[0] is defined.
-    dbQueryMock.mockResolvedValueOnce(rows([{ service_fee: 0 }]));
+    // S1-8: the booking (including its service fee) is read from the locked
+    // row inside the transaction; there is no top-level pre-read any more.
+    const locked = {
+      id: BOOKING_ID, status: 'paid', escrow_status: 'held', provider_id: null, service_fee: 0,
+      scheduled_at: new Date('2026-10-20T02:00:00.000Z'), category_id: 'category-1', city: 'Cebu City',
+    };
     escrowMocks.handleCancellationInTransaction.mockResolvedValueOnce({
       customerRefundAmount: 4242,
     } as unknown as Awaited<ReturnType<typeof escrowMocks.handleCancellationInTransaction>>);
     const calls = setupTxRecorder(async (sql) => {
+      if (/FOR UPDATE/.test(sql)) return rows([locked]);
+      if (/UPDATE bookings SET/.test(sql)) return rows([{ ...locked, status: 'cancelled_by_admin' }]);
       if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-can' }]);
       return rows([]);
     });
@@ -689,18 +699,25 @@ describe('cancelBookingAsAdmin', () => {
     // separate transactions).
     expect(escrowMocks.handleCancellation).not.toHaveBeenCalled();
     expect(out.refundAmount).toBe(4242);
+    // The admin's customerNoShow choice reaches the after-commit refund step.
+    expect(escrowMocks.processCancellationGatewayRefund).toHaveBeenCalledWith(
+      BOOKING_ID, expect.objectContaining({ customerRefundAmount: 4242 }), 0, true,
+      expect.objectContaining({ retryDescription: 'Admin cancellation refund' }),
+    );
     const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
     expect(insert?.sql).toContain("'booking_cancelled'");
+    expect(calls[0]?.sql).toMatch(/SELECT \* FROM bookings WHERE id = \$1 FOR UPDATE/);
+    expect(dbQueryMock).not.toHaveBeenCalled();
   });
 
   it('escrow not held → no escrow call, still UPDATE + audit', async () => {
-    dbQueryMock.mockResolvedValueOnce(
-      rows([{ id: BOOKING_ID, status: 'requested', escrow_status: 'pending' }]),
-    );
-    // BUG-PHASE78-01 — second SELECT for service_fee (see comment
-    // on the held-escrow test above).
-    dbQueryMock.mockResolvedValueOnce(rows([{ service_fee: 0 }]));
+    const locked = {
+      id: BOOKING_ID, status: 'requested', escrow_status: 'pending', provider_id: null, service_fee: 0,
+      scheduled_at: new Date('2026-10-20T02:00:00.000Z'), category_id: 'category-1', city: 'Cebu City',
+    };
     const calls = setupTxRecorder(async (sql) => {
+      if (/FOR UPDATE/.test(sql)) return rows([locked]);
+      if (/UPDATE bookings SET/.test(sql)) return rows([{ ...locked, status: 'cancelled_by_admin' }]);
       if (/INSERT INTO admin_actions/.test(sql)) return rows([{ id: 'aa-can2' }]);
       return rows([]);
     });

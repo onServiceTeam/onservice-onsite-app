@@ -89,6 +89,10 @@ export async function cancelBookingInTransaction<TRow extends QueryResultRow & {
     targetStatus: CancellationTarget;
     reason?: string;
     moneyInputs: CancellationMoneyInputs;
+    // S1-8 — the admin cancel keeps today's behaviour for escrow already
+    // released to the provider (it cancels and moves no money) until Ken
+    // answers D35 Q11 decision 1. Customers and providers are refused.
+    allowReleasedEscrow?: boolean;
   },
 ): Promise<CancellationOutcome<TRow>> {
   const { lockedBooking, targetStatus, reason, moneyInputs } = input;
@@ -104,10 +108,13 @@ export async function cancelBookingInTransaction<TRow extends QueryResultRow & {
   if (lockedBooking.escrow_status === 'partially_refunded') {
     throw cancellationRefusal(
       'BOOKING_CANCEL_PARTIALLY_REFUNDED',
-      'This booking already had a partial refund. Please contact support to finish cancelling it.',
+      targetStatus === 'cancelled_by_admin'
+        // S1-8 — the admin's own text points at the tools that finish it.
+        ? 'Escrow shows a partial refund. For a resolved dispute, use Release instead of cancelling. Otherwise use Refund for the rest, then cancel.'
+        : 'This booking already had a partial refund. Please contact support to finish cancelling it.',
     );
   }
-  if (lockedBooking.escrow_status === 'released') {
+  if (lockedBooking.escrow_status === 'released' && !input.allowReleasedEscrow) {
     throw cancellationRefusal(
       'BOOKING_CANCEL_ESCROW_RELEASED',
       'Payment for this booking was already released. Please contact support.',

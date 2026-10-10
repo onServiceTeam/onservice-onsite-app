@@ -878,6 +878,18 @@ export async function transitionBookingStatus(
     });
   }
 
+  kickSlotWaitlistAfterCancellation(updated, bookingId, newStatus);
+
+  return updated;
+}
+
+// Post-commit only. S1-8 shares it with the admin dedicated cancel, which
+// before S1-8 never told waitlisted customers that a slot had opened.
+export function kickSlotWaitlistAfterCancellation(
+  updated: { scheduled_at: Date; category_id: string; city: string },
+  bookingId: string,
+  newStatus: BookingStatus,
+): void {
   if (newStatus === 'cancelled_by_provider' || newStatus === 'cancelled_by_admin') {
     // BUG-PHASE117-01 fix — pre-fix this used the UTC date of
     // scheduled_at via .toISOString().split('T')[0]. But
@@ -902,7 +914,6 @@ export async function transitionBookingStatus(
     });
   }
 
-  return updated;
 }
 
 // SEC-088 — moved from the PATCH route, which ran it before any authorization
