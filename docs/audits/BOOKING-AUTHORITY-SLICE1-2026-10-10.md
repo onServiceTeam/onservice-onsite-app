@@ -684,6 +684,20 @@ The reason and `cancelled_at` breaks were each run twice, before and after the n
 - **Full API run, before the review fixes:** 1,038/1,044 suites. The failures were the two Docker-only nginx suites and four load-timeout suites. The serial re-run passed 4/4 suites and 74/74 tests.
 - **Full API run, final:** 1,036/1,044 suites. The failures were the two Docker-only suites, the five load-timeout suites and the paired web release suite. The serial re-run passed 6/6 suites and 80/80 tests.
 
+### Exact-commit CI (commit `9b75d593`)
+
+CI `38029471364` and Gates `38029471381` both succeeded, including all six Gates jobs.
+
+- API job `114147178510`: 1,044/1,044 suites; 3,678 passed, 2 todo, 0 skipped. These passed against the CI PostGIS service:
+  - `bug-fin-009-cancel-money-failure-207`
+  - `bug-fin-010-cancel-after-concurrent-payment` (the real blocker-connection race)
+  - `booking-cancellation-transaction-postgres`
+  - `booking-provider-cancellation-accounting-med-n68`
+  - `refund-transaction-postgres`
+  - `booking-confirmation-tx-crit-n10`
+  - `bug-phase117-01-slot-waitlist-manila-date`
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 **Five read-only reviewers**, each with one lens: money, concurrency, callers and clients, test quality, and plan/contract alignment. A skeptic then tried to refute each serious finding. The result: **no code defects**, and 3 findings that the skeptics confirmed but downgraded to notes, plus 10 notes.
@@ -714,3 +728,104 @@ The reason and `cancelled_at` breaks were each run twice, before and after the n
 - **The notification wrap and the post-commit admin event apply to every PATCH status, not only cancellations.** This partly addresses SS-13 for the PATCH path. It stays open for the admin cancel (S1-8) and for durability (K02).
 - **`handleCancellation` has no production caller.** It is kept as a wrapper for its tests and as the shared shape S1-8 can reuse.
 - **Partially refunded and released escrow are not refused yet.** Cancellations of these are refused in S1-6.
+
+## S1-6: cancellations of bookings whose escrow already moved (FIN-011)
+
+### Defect, reproduced before the fix
+
+The cancellation core from S1-5 moved money only when the locked escrow was `held`. For any other escrow state it cancelled and moved nothing. Two of the five escrow states the database allows mean money has already moved.
+
+Captured against `9b75d593`, with both states produced through the real super-admin routes:
+
+| State | How it happens | Result before S1-6 |
+|---|---|---|
+| `partially_refunded` | A support partial refund: `POST /api/v1/admin/bookings/:id/escrow/refund`, 25,000 of booking A's 100,000 | The customer's cancel answered `200`. The booking became cancelled with 75,000 still in its escrow ledger, and no step left that would ever move it. |
+| `released` | A manual release: `POST /:id/escrow/release` on a `paid` booking. The status stays `paid` (PL-01). | The cancel answered `200`. The booking became cancelled with no refund, after the money had been paid out. |
+
+### Fix
+
+In `cancelBookingInTransaction`, before the money step, two refusals:
+
+- **`partially_refunded`:** `409 BOOKING_CANCEL_PARTIALLY_REFUNDED`, "This booking already had a partial refund. Please contact support to finish cancelling it."
+- **`released`:** `409 BOOKING_CANCEL_ESCROW_RELEASED`, "Payment for this booking was already released. Please contact support."
+
+Both refusals change nothing.
+
+**All five escrow states (C-21):**
+
+- `pending` (never funded) and `refunded` (nothing left) still cancel without moving money;
+- `held` runs the refund;
+- the two moved states are refused.
+
+**Wording.** It is the interim proposal in D35 Q4 and Q11, and Ken has not approved it. Error codes are included, so the apps can map approved wording later.
+
+**Scope.** The plan's FIN-011 named only the partial refund. Challenge item C-21 asked for `released` to be refused the same way, so FIN-011 covers both: a cancellation that treats already-moved money as if it were still held.
+
+### Tests
+
+**`bug-fin-011-partially-refunded-cancel-strand.test.ts`.** Booking A goes to `partially_refunded` through the real refund route, and booking B goes to `released` through the real release route. The release needs the production `provider_suspended_during_booking_at` column and the `manual_escrow_release` audit verb, which the test adds to the shared fixture. The test checks:
+
+- the customer's cancel of A gets 409 with code and message;
+- the customer's cancel of B gets 409 with code and message;
+- provider B's cancel of B gets the same 409, because providers reach these refusals too;
+- the whole snapshot is unchanged.
+
+Then support refunds the remaining 75,000 of A, so its escrow is `refunded` with 0 left. The customer's cancel then answers 200, with no wallet, ledger, payment or retry change, and the wallet is back at 250,000.
+
+**Red against `9b75d593`:** the first refusal answered 200 (line 74).
+
+**Mutations.** Each was reverted, and the file was confirmed byte-identical afterwards.
+
+| Mutation | Failed |
+|---|---|
+| Drop the partial-refund refusal | FIN-011 (customer cancel of A) |
+| Drop the released refusal | FIN-011 (customer cancel of B) |
+| Also refuse `refunded` | FIN-011 (the final cancel of A) |
+| Also refuse `pending` | the S1-5 unpaid no-reason cancel test |
+| Swap the two codes | FIN-011 |
+| Refuse `released` for customers only | FIN-011 (provider cancel of B, line 88) |
+
+**Must-stay-green, all passing:**
+
+- FIN-009 and FIN-010;
+- the S1-5 supporting tests;
+- `refund-transaction-postgres`;
+- MED-N68.
+
+### Verification
+
+- **Focused tests:** 6 suites, 39/39.
+- **API `tsc` and eslint** on the changed files: clean.
+- **Gates:**
+  - gate smoke 7/7;
+  - Gate C passes, including money-in-transaction. The unique regression ids went from 1,650 to 1,651;
+  - Gate A passes.
+- **Full API run:** 1,037/1,045 suites. The failures were the two Docker-only suites and six load-timeout suites. The serial re-run passed 6/6 suites and 80/80 tests.
+
+### Independent review
+
+**Three read-only reviewers**, each with one lens: money and state coverage, callers and wording, and tests and plan alignment. A skeptic then tried to refute each serious finding. The result: **no code defects**.
+
+**Applied:**
+
+- **The provider path is now pinned in FIN-011**, with a mutation to match.
+- **D35 Q4 is rewritten.**
+  - It splits support partial refunds (the open question) from dispute partial refunds, whose remainder the dispute design already sends to the provider (C-05).
+  - It says who reaches the refusal now (customer and provider) and from S1-8 (admin).
+  - It adds provider wording.
+- **D35 Q11 is corrected.** It had said a released booking "can be disputed". It cannot: the refusal fires only at `paid` or `provider_en_route`, and disputes open only after completion, while no admin refund is possible on an empty escrow. Q11 now asks for customer and provider wording, plus two decisions:
+  - whether an admin cancel of a released booking stays allowed (moving no money) or is refused, needed before S1-8;
+  - the pre-existing money question that releasing before the job leaves no refund path.
+- **The S1-8 plan row now carries:**
+  - the T13 change (admin cancel of `resolved` or `paid` bookings whose escrow is `partially_refunded` or `released`);
+  - that the released-booking choice must be passed into the core explicitly, with its own test, rather than inherited;
+  - an admin-specific refusal text.
+
+**Refuted:** that the T13 / S1-8 carry-forward was never written. It is tracked in the slice order, and is now written there in full.
+
+### Scope and limits
+
+- **Not deployed.**
+- **The admin cancel is not on the core until S1-8.** Until then, an admin cancel of a partially refunded booking still cancels and leaves the rest in escrow. "Please contact support" therefore depends on support refunding or releasing the rest first. Ship S1-6 only together with S1-8, or brief support.
+- **Release precondition.** Approved customer and provider wording (D35 Q4 and Q11).
+- **Raised, not changed.** A manual release before the job is done leaves no refund path for that booking (D35 Q11 decision 2). This is older than Slice 1.

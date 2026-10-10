@@ -57,6 +57,12 @@ export interface CancellationOutcome<TRow> {
 // provider had arrived.
 const PROVIDER_ARRIVED_STATUSES = new Set(['provider_arrived', 'in_progress', 'completed_by_provider']);
 
+function cancellationRefusal(code: string, message: string): Error {
+  const error = createAppError(message, 409);
+  error.code = code;
+  return error;
+}
+
 export function isCancellationTarget(status: string): status is CancellationTarget {
   return status === 'cancelled_by_customer' || status === 'cancelled_by_provider' || status === 'cancelled_by_admin';
 }
@@ -84,6 +90,26 @@ export async function cancelBookingInTransaction<TRow extends QueryResultRow & {
 ): Promise<CancellationOutcome<TRow>> {
   const { lockedBooking, targetStatus, reason, moneyInputs } = input;
   const bookingId = lockedBooking.id;
+
+  // S1-6 (FIN-011) — escrow that has already moved. After a partial refund
+  // the rest is still held for a decision nobody has made (D35 Q4). After a
+  // release the provider has been paid. Cancelling either as if the money
+  // were still held stranded the rest, or cancelled with no refund. The
+  // wording is the interim proposal in D35 Q4 and Q11. Of the five escrow
+  // states, 'pending' (never funded) and 'refunded' (nothing left) still
+  // cancel without moving money, and 'held' runs the refund below.
+  if (lockedBooking.escrow_status === 'partially_refunded') {
+    throw cancellationRefusal(
+      'BOOKING_CANCEL_PARTIALLY_REFUNDED',
+      'This booking already had a partial refund. Please contact support to finish cancelling it.',
+    );
+  }
+  if (lockedBooking.escrow_status === 'released') {
+    throw cancellationRefusal(
+      'BOOKING_CANCEL_ESCROW_RELEASED',
+      'Payment for this booking was already released. Please contact support.',
+    );
+  }
 
   // Money first, from the locked row. Its own refusals (missing E50 terms,
   // terms mismatch, already processed, insufficient escrow) throw here and

@@ -3559,3 +3559,21 @@ A crash just after the cancellation is saved can also leave the payment
 provider's refund unqueued, until the planned outbox (K01/K02) exists. This is
 verified in source and tests in the candidate only and is not deployed. See
 `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 108. A booking could be cancelled after part or all of its money had moved
+
+If support had refunded part of a booking, or released its money to the
+provider before the job, the customer or provider could still cancel it.
+After a partial refund, the cancellation left the rest of the money held with
+nothing that would ever move it. After a release, the booking was cancelled
+with no refund.
+
+Candidate FIN-011 refuses those cancellations with a message to contact
+support, and changes nothing. A fully refunded or never-paid booking still
+cancels normally. The wording is not yet approved (D35 Q4 and Q11), and the
+admin cancel follows the same rule only from step S1-8. Until then, support
+must refund or release the rest before an admin cancel. Still open, and older
+than this change: releasing money before the job is done leaves no way to
+refund that customer (D35 Q11). This is verified in source and tests in the
+candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.

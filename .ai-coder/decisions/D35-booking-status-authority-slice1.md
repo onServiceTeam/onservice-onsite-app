@@ -62,12 +62,23 @@ This is related to D31 and E29, which cover a suspended *team member*, but it is
 
 ## Q4. Cancellation when escrow shows a partial refund
 
-When a booking's escrow already shows a partial refund and it is then cancelled, who gets what is left? Today:
+When a booking's escrow already shows a partial refund and it is then cancelled, who gets what is left? There are two ways a booking ends up there:
 
-- A support partial refund through the admin escrow refund route leaves the booking's escrow marked as partially refunded.
-- A dispute partial refund also shows "partially refunded" until its remaining release to the provider completes.
+- **A support partial refund.** A super admin refunds part of the money through the admin escrow refund route, usually before the job is done. The rest stays held. This case is the open question.
+- **A dispute partial refund.** It leaves the booking "resolved", with escrow "partially refunded", until the rest is released. The dispute design already sends the rest to the provider through the release action. So for disputes this question is largely answered.
 
-**Interim (built in Slice 1):** a cancellation is refused with a clear message while escrow shows a partial refund, whether the customer or an admin cancels. No money moves on its own. For a resolved dispute, the admin uses the release action instead. Proposed customer message: "This booking already had a partial refund. Please contact support to finish cancelling it."
+**Interim (built in Slice 1, step S1-6):**
+
+- A customer's or assigned provider's cancellation is refused with a clear message while escrow shows a partial refund. No money moves on its own.
+- The admin cancel joins this rule in step S1-8. Until then, the admin cancel of such a booking still goes through and leaves the rest in escrow. Support should refund or release the rest before cancelling.
+- For a resolved dispute, the admin uses the release action instead.
+
+**Proposed wording:**
+
+- **Customer:** "This booking already had a partial refund. Please contact support to finish cancelling it."
+- **Provider:** "Part of this job's payment was already refunded. Please contact support about this job."
+
+The same server text currently appears on both the customer's booking screen and the provider's job screen.
 
 **Needs your yes on the wording** (see Q11).
 
@@ -135,7 +146,32 @@ The risk: if the abandoned attempt somehow completes later, the customer could b
 
 ## Q11. Wording for refused cancellations
 
-Please approve one customer message for each case where Slice 1 refuses a cancellation instead of silently stranding money:
+Please approve a customer message and a provider message for each case where Slice 1 refuses a cancellation instead of silently stranding money. The same refusal reaches the customer's booking screen and the assigned provider's job screen.
 
-- **After a partial refund (Q4).**
-- **After the money was already released to the provider.** The booking can no longer be cancelled. It can be disputed or handled by support. Proposed: "Payment for this booking was already released. Please contact support."
+**After a partial refund (Q4).**
+
+- Customer: "This booking already had a partial refund. Please contact support to finish cancelling it."
+- Provider: "Part of this job's payment was already refunded. Please contact support about this job."
+
+**After the money was already released to the provider.**
+
+- Customer: "Payment for this booking was already released. Please contact support."
+- Provider: "This job's payment was already released. Please contact support about this job."
+
+How the released case happens: a super admin releases the money before the job is done, and the booking stays "paid". At that point:
+
+- The customer cannot cancel it in the app (S1-6).
+- It cannot be disputed either, because disputes open only after the provider marks the job complete.
+- No admin refund is possible, because the escrow is empty.
+- Support's only tool today is the admin cancel, which ends the booking with no refund.
+
+**Recommended:** as in Q7, show the approved wording from the server, or through one error code that both apps translate.
+
+**Two decisions this raises:**
+
+1. **Admin cancel of a released booking (needed before step S1-8).** S1-8 moves the admin cancel onto the same cancellation code. Should an admin cancel of a booking whose money was already released:
+   - stay allowed, moving no money, as today; or
+   - be refused like the customer's cancel?
+
+   S1-8 will not pick either by default.
+2. **Release before the job is done (a money question, older than Slice 1).** Releasing the money while the booking is still "paid" leaves no path to refund that customer if the provider never comes. Should manual release be limited to completed or resolved bookings, or should a refund path from the platform be added?
