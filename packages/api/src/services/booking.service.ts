@@ -714,7 +714,7 @@ export async function transitionBookingStatus(
     // names it), the service location (the arrival distance) or the on-site
     // timing. Order: lock, actor guard, state machine, then the arrival and
     // minimum-time checks on the locked row, then the completion gates.
-    await validateRoleForTransition(role, currentStatus, newStatus, booking, userId);
+    await validateRoleForTransition(client, role, currentStatus, newStatus, booking, userId);
 
     if (!canTransition(currentStatus, newStatus)) {
       const allowed = VALID_TRANSITIONS[currentStatus] ?? [];
@@ -741,7 +741,9 @@ export async function transitionBookingStatus(
     if (newStatus === 'completed_by_provider') {
       const { getChecklistCompletionStatus } = await import('./checklist.service');
       const { countAfterPhotos } = await import('./booking-photo.service');
-      const checklistStatus = await getChecklistCompletionStatus(bookingId);
+      // OPS-555 — read the gates on this transaction client, never a second
+      // pool connection, while the booking row lock is held.
+      const checklistStatus = await getChecklistCompletionStatus(bookingId, client);
       if (!checklistStatus.checklistShown) {
         throw createAppError(
           'Open the checklist before marking the job complete. The customer needs the work documented.',
@@ -755,7 +757,7 @@ export async function transitionBookingStatus(
           400,
         );
       }
-      const afterPhotoCount = await countAfterPhotos(bookingId);
+      const afterPhotoCount = await countAfterPhotos(bookingId, client);
       if (afterPhotoCount < 2) {
         throw createAppError(
           `Upload at least 2 "after" photos before marking complete (you have ${afterPhotoCount}).`,
@@ -963,6 +965,9 @@ function assertMinimumTimeOnSite(booking: BookingRow): void {
 }
 
 async function validateRoleForTransition(
+  // OPS-555 — the booking transaction client. Authority lookups must not ask
+  // the shared pool for a second connection while the booking lock is held.
+  client: QueryClient,
   role: string,
   _currentStatus: BookingStatus,
   newStatus: BookingStatus,
@@ -1005,7 +1010,7 @@ async function validateRoleForTransition(
       throw createAppError('You are not assigned to this booking.', 403);
     }
     interface ProviderRow { user_id: string }
-    const providerResult = await db.query<ProviderRow>(
+    const providerResult = await client.query<ProviderRow>(
       `SELECT user_id FROM providers WHERE id = $1`,
       [booking.provider_id],
     );
@@ -1032,7 +1037,7 @@ async function validateRoleForTransition(
     if (!performerStaffId || !booking.provider_id) {
       throw createAppError('This job is not assigned to you.', 403);
     }
-    const staffResult = await db.query<{ id: string }>(
+    const staffResult = await client.query<{ id: string }>(
       // SEC-078: retained performer attribution is not authority when the
       // booking belongs to a different provider account. D23 approval and
       // the staff user's identity must match this booking's current parent.

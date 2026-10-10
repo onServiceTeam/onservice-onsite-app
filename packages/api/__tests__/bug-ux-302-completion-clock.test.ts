@@ -77,11 +77,15 @@ function lockedBooking(workStartedAt: Date, updatedAt: Date) {
 function useLockedBooking(row: ReturnType<typeof lockedBooking>): jest.Mock {
   const clientQuery = jest.fn(async (sql: string) => {
     if (sql.includes('SELECT * FROM bookings WHERE id = $1 FOR UPDATE')) return { rows: [row], rowCount: 1 };
+    // OPS-555: the actor guard reads the assigned provider on this client.
+    if (sql.includes('SELECT user_id FROM providers WHERE id')) return { rows: [{ user_id: PROVIDER_USER_ID }], rowCount: 1 };
     if (sql.startsWith('UPDATE bookings')) return { rows: [{ ...row, status: 'completed_by_provider' }], rowCount: 1 };
     return { rows: [], rowCount: 0 };
   });
   dbTransactionMock.mockImplementation(async (cb: (client: { query: jest.Mock }) => unknown) => cb({ query: clientQuery }));
   dbQueryMock.mockImplementation(async (sql: string) => {
+    // Pool use by the PATCH route only, outside the booking transaction: the
+    // post-commit notification recipient lookup and the pre-read below.
     if (sql.includes('SELECT user_id FROM providers WHERE id')) return { rows: [{ user_id: PROVIDER_USER_ID }], rowCount: 1 };
     // The PATCH route's pre-read for its post-transition money steps.
     if (sql.includes('SELECT status, escrow_status, is_hourly FROM bookings')) {
@@ -113,8 +117,9 @@ it('Bug UX-302 — saving proof does not restart the server-clocked minimum on-s
 
   expect(result.status).toBe('completed_by_provider');
   expect(clientQuery.mock.calls.some(([sql]) => String(sql).startsWith('UPDATE bookings'))).toBe(true);
-  expect(checklistStatusMock).toHaveBeenCalledWith(BOOKING_ID);
-  expect(countAfterPhotosMock).toHaveBeenCalledWith(BOOKING_ID);
+  expect(checklistStatusMock).toHaveBeenCalledWith(BOOKING_ID, expect.objectContaining({ query: clientQuery }));
+  expect(countAfterPhotosMock).toHaveBeenCalledWith(BOOKING_ID, expect.objectContaining({ query: clientQuery }));
+  expect(dbQueryMock).not.toHaveBeenCalled();
 });
 
 it('the minimum on-site timer reads the work start marker, not the last evidence update', async () => {
@@ -136,6 +141,7 @@ it('the minimum on-site timer reads the work start marker, not the last evidence
   expect(clientQuery.mock.calls.some(([sql]) => String(sql).startsWith('UPDATE bookings'))).toBe(false);
   expect(checklistStatusMock).not.toHaveBeenCalled();
   expect(countAfterPhotosMock).not.toHaveBeenCalled();
+  expect(dbQueryMock).not.toHaveBeenCalled();
 });
 
 it('the PATCH route completes a job whose proof upload just changed updated_at', async () => {

@@ -3492,3 +3492,13 @@ older behavior, and booking ids are random UUIDs.
 This is verified in source and tests in the candidate only. It is not
 deployed: the live server still answers in the old order. See
 `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 104. Simultaneous booking status changes could exhaust the database pool
+
+While a booking status change held its booking lock, its ownership lookups and
+completion checks waited for a second database connection. A burst of
+simultaneous provider status changes, roughly as many as the pool size, could
+therefore make every such request fail with an error until the pool recovered.
+Candidate OPS-555 runs those lookups on the transaction that already holds the
+lock. This is verified in source and tests in the candidate only and is not
+deployed. See `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.

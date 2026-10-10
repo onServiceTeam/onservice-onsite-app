@@ -433,11 +433,15 @@ export async function toggleChecklistItem(
  * Returns checklist completion status for booking-completion gating.
  * Bug 463: provider can NOT mark a job complete unless ALL required
  * checklist items are completed.
+ *
+ * OPS-555: callers that hold the booking lock pass their transaction client
+ * so the gate never waits for a second pool connection under that lock.
  */
 export async function getChecklistCompletionStatus(
   bookingId: string,
+  executor: { query: typeof db.query } = db,
 ): Promise<{ totalRequired: number; completedRequired: number; isFullyComplete: boolean; checklistShown: boolean }> {
-  const result = await db.query<{
+  const result = await executor.query<{
     total_required: string;
     completed_required: string;
     checklist_count: string;
@@ -464,7 +468,8 @@ export async function getChecklistCompletionStatus(
   // case is the SUCCESSFUL path: provider opened the checklist, the
   // template has nothing they must check off, completion can proceed.
   // The provider still needs the >=2 after-photos gate to actually
-  // mark complete (see booking.service.ts line ~549).
+  // mark complete (see the completion gates in booking.service.ts
+  // transitionBookingStatus).
   return {
     totalRequired,
     completedRequired,

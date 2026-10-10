@@ -66,13 +66,13 @@ it('MED-N68 - provider cancellation count is updated on the booking transaction 
     cancelled_at: new Date('2026-09-01T01:00:00.000Z'),
     cancellation_reason: 'Provider vehicle breakdown',
   };
-  mockDbQuery.mockResolvedValue({
-    rows: [{ user_id: 'provider-user-med-n68' }],
-    rowCount: 1,
-  });
+  // OPS-555: the actor guard resolves the assigned provider on the booking
+  // transaction client (step 2), so the shared pool is never used here.
+  const providerOwner = { rows: [{ user_id: 'provider-user-med-n68' }], rowCount: 1 };
   mockProcessSlotAvailability.mockResolvedValue(undefined);
   mockTransactionQuery
     .mockResolvedValueOnce({ rows: [lockedBooking], rowCount: 1 })
+    .mockResolvedValueOnce(providerOwner)
     .mockResolvedValueOnce({ rows: [updatedBooking], rowCount: 1 })
     .mockResolvedValueOnce({ rows: [], rowCount: 1 });
   let committed = false;
@@ -101,11 +101,13 @@ it('MED-N68 - provider cancellation count is updated on the booking transaction 
   expect(providerUpdate![0]).toMatch(/cancellations_last_30d = \([\s\S]*SELECT COUNT\(\*\) FROM bookings/);
   expect(providerUpdate![0]).not.toMatch(/INTERVAL '30 days'[\s\S]*\+\s*1/);
   expect(providerUpdate![1]).toEqual(['provider-med-n68']);
-  expect(mockDbQuery).toHaveBeenCalledTimes(1);
+  expect(mockTransactionQuery.mock.calls[1]![0]).toMatch(/SELECT user_id FROM providers WHERE id = \$1/);
+  expect(mockDbQuery).not.toHaveBeenCalled();
 
   mockTransactionQuery.mockReset();
   mockTransactionQuery
     .mockResolvedValueOnce({ rows: [lockedBooking], rowCount: 1 })
+    .mockResolvedValueOnce(providerOwner)
     .mockResolvedValueOnce({ rows: [updatedBooking], rowCount: 1 })
     .mockRejectedValueOnce(new Error('provider cancellation counter unavailable'));
   let failedTransactionCommitted = false;

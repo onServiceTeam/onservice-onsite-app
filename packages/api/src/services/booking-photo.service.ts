@@ -247,8 +247,13 @@ export async function listBookingPhotos(
   }));
 }
 
-export async function countAfterPhotos(bookingId: string): Promise<number> {
-  const result = await db.query<{ count: string }>(
+// OPS-555: callers that hold the booking lock pass their transaction client
+// so the gate never waits for a second pool connection under that lock.
+export async function countAfterPhotos(
+  bookingId: string,
+  executor: { query: typeof db.query } = db,
+): Promise<number> {
+  const result = await executor.query<{ count: string }>(
     `SELECT COUNT(*)::text AS count FROM booking_photos
      WHERE booking_id = $1
        AND photo_type = 'after'

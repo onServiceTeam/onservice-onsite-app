@@ -124,6 +124,18 @@ All results below are from the final tree, after the independent-review fixes.
 - **Full API run (final tree):** 1,027/1,034 suites passed and 3,643 tests passed. The failures were the two Docker-only nginx suites and load timeouts in the five SQL suites listed above. Serial re-run: 5/5 suites, 79/79 tests passed.
 - **Earlier run.** An earlier full run on this slice, before the review fixes, also timed out `paired-web-release`: its child test run hit its spawn timeout while every subtest was passing. Its serial re-run passed.
 
+### Exact-commit CI (commit `5b65a0c2`)
+
+CI `38011724059` and Gates `38011724064` both succeeded.
+
+- API job `114093012031`: 1,034/1,034 suites; 3,660 passed, 2 todo, 0 skipped. These suites passed against the CI PostGIS service:
+  - `bug-sec-088-arrival-distance-before-authority`
+  - `bug-sec-089-state-before-authority`
+  - `bug-ux-302-completion-clock`
+  - `services/booking-completion`
+  - `refund-transaction-postgres`
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 No blockers. The review's should-fix items were applied:
@@ -144,4 +156,90 @@ One suggestion was not applied: making `BookingRow.work_started_at` required bre
   - the guard skips its provider lookup for unassigned bookings, so response time hints whether a booking has a provider.
 - **Unlocked pre-read** (older behavior, not changed here). The route's pre-read is still unlocked, and it still feeds the post-transition release and cancellation decisions. S1-5 replaces it for cancellation.
 - **What is not yet tightened.** Which targets each role may request (admin exemption, flow-only targets) is S1-3 and S1-4. This step changes only the order of checks.
-- **Authority lookups.** The guard's provider and staff lookups still use the shared pool while the booking lock is held. S1-2 moves them onto the transaction client.
+- **Authority lookups.** After S1-1 the guard's provider and staff lookups, and the completion gates, still used the shared pool while the booking lock was held. S1-2 moves them onto the transaction client.
+
+## S1-2: authority and gates on the booking transaction (OPS-555)
+
+### Defect, reproduced before the fix
+
+`transitionBookingStatus` holds the booking row lock on one transaction connection. While holding it, four awaited lookups asked the shared pool for a second connection:
+
+- the guard's provider ownership lookup;
+- the guard's staff ownership lookup;
+- the checklist completion gate;
+- the after-photo gate.
+
+When the pool has no free connection, every status change waits for one, times out and returns 500. With a one-connection pool (`max: 1`, `connectionTimeoutMillis: 1000`) on the fixture schema, these two legitimate requests both got `500 An unexpected error occurred`, and the server logged `timeout exceeded when trying to connect`:
+
+- the approved staff performer moving booking A to `provider_en_route`;
+- the assigned provider completing booking B (an hour on site, complete checklist, two after-photos).
+
+The production pool has 10 connections by default (20 in the production env example; the live value is not verified). So roughly that many simultaneous provider status changes could make every request fail.
+
+### Fix
+
+- `validateRoleForTransition` now takes the transaction client as its first parameter and runs both ownership lookups on it.
+- `getChecklistCompletionStatus` (checklist.service) and `countAfterPhotos` (booking-photo.service) accept an optional executor (default `db`), and the transition passes its client.
+- Their other callers keep the default, so their behavior is unchanged.
+- The lookups are plain SELECTs, so no row locks were added and the lock order is unchanged.
+
+### Tests
+
+**New file: `bug-ops-555-guard-pool-starvation.test.ts`.** It uses guarded real SQL, the mounted router and a temporary one-connection pool, which is restored in `finally`.
+
+- Both requests above now return 200 and the statuses change.
+- Wallets and the ledger are unchanged.
+- The customer notices are written after commit, on the same single connection.
+- The focused gate tables hold only what the gates read, plus ids and the uploader reference. The completion columns `completed_at` and `work_completed_at` were added because the completion write stamps them.
+
+**Fixture error found and fixed.** The first run after the fix failed with `column "work_completed_at" does not exist`. This was a gap in the test fixture, not a product bug. After adding the columns:
+
+- the test passes with the fix;
+- against the S1-1 code (`5b65a0c2`) it fails 500/500 again, on the connection timeout.
+
+**Pinned tests updated.** All three mocked the provider lookup on the pool. The lookup is now answered by the transaction client, and each assertion is stronger than before:
+
+- `services/booking-completion.test.ts`:
+  - the stale pool stubs and their outdated comment were removed;
+  - the happy path asserts both gates receive the transaction client and that the pool is never used.
+- `bug-ux-302-completion-clock.test.ts`:
+  - the service-level tests assert the pool is never used;
+  - the route test keeps a pool stub only for the route's after-commit lookup.
+- `booking-provider-cancellation-accounting-med-n68.test.ts`:
+  - the client step order gains the provider lookup;
+  - the pool assertion changed from one call to none.
+
+**Mutation checks.** Each one was reverted, and the file was confirmed byte-identical afterwards.
+
+| Mutation | Tests that failed |
+|---|---|
+| Gates back on the pool | OPS-555 provider completion; booking-completion happy path |
+| Provider lookup back on the pool | OPS-555, MED-N68 and booking-completion (7/7 in those files) |
+| Staff lookup back on the pool | OPS-555 |
+
+The independent reviewer also moved each gate onto the pool separately: either one alone fails the provider completion.
+
+### Verification
+
+- **Focused tests:** 10 suites, 67/67, zero skips, on PostgreSQL 17.9. They are OPS-555, SEC-088, SEC-089, the refund suite, UX-302, booking completion, CRIT-N10, BUG-PHASE151-01, MED-N68 and the checklist service.
+- **Static checks:** API `tsc` passes, and eslint is clean on the changed files.
+- **Gates:**
+  - gate smoke 7/7;
+  - Gate C passes, including money-in-transaction. The unique regression ids went from 1,642 to 1,643;
+  - Gate A passes.
+- **Full API run:** 1,028/1,035 suites passed and 3,645 tests passed. The failures were the two Docker-only nginx suites and the five load-timeout SQL suites. Serial re-run: 5/5 suites, 79/79 tests passed.
+
+### Independent review
+
+No blockers.
+
+**Applied:**
+
+- this audit section;
+- a fixture comment correction;
+- a stale line-number comment in `checklist.service.ts`.
+
+**Recorded, not changed here:**
+
+- **Waitlist notice before commit.** The slot-waitlist notification (`processSlotAvailability`) is started inside the booking transaction, before the provider-cancellation counter update and before COMMIT, and nothing waits for it. If that later update fails, the cancellation rolls back, but waitlisted customers may already have been told a slot opened. This only affects `cancelled_by_provider` and `cancelled_by_admin`. Moving it after commit is in S1-5, which restructures the cancellation path.
+- **Gate default executor.** The gates default to `db`. A future caller that holds a booking lock must pass its client; OPS-555 covers only the status transition.
