@@ -3537,3 +3537,25 @@ Before release, a read-only count on live should show how many bookings were
 left in these states. This is verified in source and tests in the candidate
 only and is not deployed. See
 `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 107. A cancellation could be saved while its refund failed or was skipped
+
+Through the general status route, a cancellation was saved first and its
+money was moved in a second step. If the refund was refused, for example for
+a booking paid before the payment-snapshot update, the person cancelling was
+told "cancellation recorded, refund within 48 hours". The booking showed as
+cancelled, the money stayed held, and nothing was queued. If a payment landed
+while the cancellation was waiting for the booking, that money was never
+refunded.
+
+Candidates FIN-009 and FIN-010 make the cancellation, its money and the
+provider's cancellation record one step, decided from the locked booking. A
+refused refund now leaves the booking unchanged and shows the refusal. Before
+release, the refusal needs approved customer and provider wording (D35 Q7),
+and already-paid bookings need the E50 Legacy Review. Still open: a fee-only
+refund (a 0% price refund) is not sent back through the payment provider,
+which has no effect while the customer fee is 0 and external payments are off.
+A crash just after the cancellation is saved can also leave the payment
+provider's refund unqueued, until the planned outbox (K01/K02) exists. This is
+verified in source and tests in the candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.

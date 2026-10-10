@@ -21,6 +21,7 @@ jest.mock('../src/services/socket.service', () => ({
 }));
 
 import { transitionBookingStatus } from '../src/services/booking.service';
+import * as socketService from '../src/services/socket.service';
 
 const lockedBooking = {
   id: 'booking-med-n68',
@@ -103,7 +104,12 @@ it('MED-N68 - provider cancellation count is updated on the booking transaction 
   expect(providerUpdate![1]).toEqual(['provider-med-n68']);
   expect(mockTransactionQuery.mock.calls[1]![0]).toMatch(/SELECT user_id FROM providers WHERE id = \$1/);
   expect(mockDbQuery).not.toHaveBeenCalled();
+  // S1-5: the committed cancellation is announced once, after the commit.
+  expect(socketService.emitAdminEvent).toHaveBeenCalledTimes(1);
+  expect(mockProcessSlotAvailability).toHaveBeenCalledTimes(1);
 
+  (socketService.emitAdminEvent as jest.Mock).mockClear();
+  mockProcessSlotAvailability.mockClear();
   mockTransactionQuery.mockReset();
   mockTransactionQuery
     .mockResolvedValueOnce({ rows: [lockedBooking], rowCount: 1 })
@@ -127,4 +133,7 @@ it('MED-N68 - provider cancellation count is updated on the booking transaction 
     'Provider vehicle breakdown',
   )).rejects.toThrow('provider cancellation counter unavailable');
   expect(failedTransactionCommitted).toBe(false);
+  // S1-5: a cancellation that rolled back is never announced.
+  expect(socketService.emitAdminEvent).not.toHaveBeenCalled();
+  expect(mockProcessSlotAvailability).not.toHaveBeenCalled();
 });

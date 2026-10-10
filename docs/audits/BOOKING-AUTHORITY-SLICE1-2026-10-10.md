@@ -501,6 +501,17 @@ The S1-3 section above ("Other changes") says the non-admin `cancelled_by_admin`
 - **Full API run, first version:** 1,034/1,040 suites. The failures were the two Docker-only nginx suites and four load-timeout suites. In the serial re-run, three of the four passed. `token-issuer-transaction-postgres` timed out on two tests while the reviewer was also using the test database. It then passed 5/5 on two further solo runs. It does not touch booking code.
 - **Full API run, K07 version:** 1,034/1,041 suites. The failures were the two Docker-only suites and the five load-timeout suites (admin enable, token issuer, email link HTTP, email link, email sign-in). The serial re-run passed 5/5 suites and 79/79 tests.
 
+### Exact-commit CI (commit `c8f54e0a`)
+
+CI `38018420218` and Gates `38018420161` both succeeded, including all six Gates jobs.
+
+- API job `114113813081`: 1,041/1,041 suites; 3,669 passed, 2 todo, 0 skipped. These passed against the CI PostGIS service:
+  - `booking-participant-status-targets-postgres`
+  - `bug-sec-092-customer-dispute-bypass`
+  - `bug-ops-556-customer-payment-pending-strand`
+  - `bug-sec-093-provider-flow-only-targets`
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 Two passes, read-only. No blockers and no code defects in either.
@@ -542,3 +553,164 @@ Two passes, read-only. No blockers and no code defects in either.
 - **K07 also makes the ten statuses flow-only for every role.** Team members and other roles still get 403 for them (team members are unchanged by the Slice 1 plan), and so does a plain admin (SEC-090, F3).
 - **An old manual audit script expects the old behavior.** `.ai-coder/phase-15-real-audit/test-phase21-money-flow.mjs:151` expects a customer PATCH from `matched` to `payment_pending` to succeed. CI does not run it. It is left unchanged, as history.
 - **Ken has not reviewed the message wording.** No app shows it.
+
+## S1-5: one-transaction PATCH cancellation (FIN-009, FIN-010)
+
+### Defect, reproduced before the fix
+
+Through `PATCH /api/v1/bookings/:id/status`, a cancellation ran in two separate transactions:
+
+1. `transitionBookingStatus` committed the status, `cancelled_at`, `cancellation_reason` and the provider counters.
+2. The route then ran the cancellation money in a second transaction through `escrowService.handleCancellation`. It did so only when an **unlocked pre-read** had seen `escrow_status = 'held'`.
+
+Captured against `c8f54e0a`:
+
+| Case | Result before S1-5 |
+|---|---|
+| **FIN-009.** Customer cancels a paid wallet booking with no immutable terms row (paid before migration 162, not yet through the E50 Legacy Review) | `207` "cancellation recorded, refund within 48 hours". The booking was `cancelled_by_customer`, escrow stayed `held`, and nothing was queued. |
+| **FIN-009, second case.** Customer cancels a booking whose provider does not match its terms | The same `207`, with the same stranded money |
+| **FIN-010.** Customer cancels an unfunded booking while a wallet payment holds its lock; the payment commits first | `200`. The booking was cancelled with escrow `held` and the wallet still debited: the money step trusted the `pending` it had read before the lock. |
+
+Also before S1-5:
+
+- **Announcements before commit.** The admin socket event and the slot-waitlist kick were sent inside the transaction, before the commit.
+- **Notification errors.** The route's notification was not wrapped, so a notification error answered 500 for a status change that had committed.
+
+### Fix
+
+**New `services/booking-cancel.service.ts`.** Its shape follows the repair contract K07 `cancelBooking`, without the K01 ledger, K02 outbox and K08 idempotency parts, which do not exist yet. It runs on the caller's transaction, after the booking lock, the actor guard and the state machine:
+
+1. When the **locked** row's `escrow_status` is `held`, it runs `escrowService.handleCancellationInTransaction`. Its refusals throw and roll everything back: missing terms, terms mismatch, already processed, or insufficient escrow.
+2. It writes `status`, `updated_at`, `cancelled_at` and, when given, `cancellation_reason`. It returns the updated row, which already carries the new `escrow_status` because the money step ran first.
+3. For `cancelled_by_provider`, it updates the MED-N68 provider counters, moved here unchanged.
+
+**Money inputs (C-20).** `participantCancellationMoneyInputs` derives the hours from the locked `scheduled_at` and the app clock, as the route did. "Provider arrived" comes from the locked status, using the route's old set. The admin cancel (S1-8) will pass its own audited inputs.
+
+**`transitionBookingStatus`.**
+
+- Cancel targets go to the core.
+- After the commit, in this order:
+  1. the gateway step;
+  2. the log line;
+  3. the admin socket event;
+  4. the slot-waitlist kick.
+
+  So a rolled-back change is never announced or refunded at the gateway, and nothing after the commit can skip the gateway step (C-19).
+- A gateway-step failure is logged and never turns the committed cancellation into an error.
+- The return type is unchanged.
+
+**`escrow.service.ts`.** The post-commit part of `handleCancellation` is extracted unchanged as `processCancellationGatewayRefund`. `handleCancellation` stays as a thin wrapper with unchanged behavior: three unit-test files cover it, but it has no production caller now.
+
+**`booking.routes.ts`.**
+
+- The cancel-money block and the 207 response are deleted; `grep 207` on the route returns nothing.
+- The pre-read SQL text stays, because the confirm path and the CRIT-N10 mock need it (C-17).
+- The notification is wrapped, so a committed change answers 200 (C-19).
+
+**Deliberately left out of the core: the `actor`.** The plan's signature named one. For customers and providers the target status already says who cancelled. An actor or responsible party will be added with the E81 / D-03 decision or in S1-8.
+
+### Tests
+
+**Bug tests**, red against `c8f54e0a`, then green:
+
+- `bug-fin-009-cancel-money-failure-207.test.ts`:
+  - a third booking funded with the fixture's real money helpers and no terms row gets `409` with the missing-terms message, and the participant snapshot is unchanged;
+  - the second assertion, the provider/terms mismatch, gets `409` with the mismatch message, also unchanged.
+  - Red: 207.
+- `bug-fin-010-cancel-after-concurrent-payment.test.ts`:
+  - a blocker connection holds the booking lock;
+  - the cancel waits, observed through `pg_blocking_pids`;
+  - the blocker funds the booking with the real helpers and terms, then commits;
+  - expected: 200, `refunded`, the wallet restored to 150,000, the booking's escrow ledger summing to 0, and the payment record refunded.
+  - Red: escrow stayed `held`.
+  - The concurrent payment uses the real money helpers on a blocker connection, not the HTTP payment route.
+
+**Supporting tests** (no Bug title) in `booking-cancellation-transaction-postgres.test.ts`, on booking B (price 800,000, fee 200,000, scheduled 10 hours ahead, so the snapshotted 75% bracket applies):
+
+1. A customer cancel commits a 600,000 refund plus the 200,000 fee to the wallet, 200,000 compensation to the provider, escrow `partially_refunded` with 0 left, and the payment record `partially_refunded` 800,000. It saves the reason and time and notifies the provider.
+2. A provider cancel commits the same money, the counters (1 and 1, stamped), and notifies the customer.
+3. A failed payment refund call after the commit still answers 200 and queues one `process_payment_refund` retry of 800,000.
+4. A failure of the whole post-commit refund step still answers 200 and is logged for manual reconciliation.
+5. A notification failure after the commit still answers 200 with the money done. Before S1-5 the unwrapped notification error went to the error handler, which answers 500 (read from the code). The matching mutation, re-throwing from the new catch, fails this test.
+6. **Added after the review.** When a later step in the same transaction fails (a check constraint on the provider counter, after the refund and compensation were written), the response is 500 and the whole snapshot is unchanged.
+7. **Added after the review.** An unpaid `requested` booking cancels with no reason: 200, `cancelled_at` set, reason NULL, and no money, payment, retry or notification change.
+
+**What proves the one-transaction behavior.** Tests 1, 2 and 3 pin the final money state and would also pass against the old two-transaction code; test 1 differs only in the response's `escrowStatus`. The proof that money and status commit or roll back together is FIN-009, FIN-010 and test 6.
+
+**Strengthened.** `booking-provider-cancellation-accounting-med-n68.test.ts` now asserts that a committed cancellation is announced once (socket event and waitlist kick), and that a rolled-back one is never announced. Against the old code, the new assertion failed: the event was emitted inside the failed transaction.
+
+**Must-stay-green, all passing:**
+
+- the `refund-transaction-postgres` owner-cancel test (100% including the fee, payment record refunded, no notice);
+- the SEC-076, SEC-077 and SEC-078 snapshots;
+- BUG-PHASE117-01 (the waitlist source text is unchanged);
+- BUG-PHASE151-01;
+- CRIT-N10;
+- `escrow-async-integration` `handleCancellation`;
+- `booking-cancel-admin-tx`;
+- `booking-dispute-admin`.
+
+**Mutation checks.** 15 distinct mutations in 17 runs, each reverted, with the files confirmed byte-identical afterwards. Every one failed at least one test:
+
+- skip the money step;
+- write the status before the money step;
+- swallow money refusals;
+- skip the post-commit gateway step;
+- drop the counters;
+- re-throw from the notification catch;
+- re-throw from the gateway catch;
+- pass a zero fee to the gateway step;
+- force "provider arrived";
+- force 48 hours;
+- never save the reason;
+- never stamp `cancelled_at`;
+- swallow a counter failure;
+- move money for unfunded bookings;
+- run the old `booking.service.ts` against the strengthened MED-N68.
+
+The reason and `cancelled_at` breaks were each run twice, before and after the new tests, which makes 17 runs. The table of which tests failed is in the private session record (`claude-slice1/S1-5-MUTATIONS.md`).
+
+**One process note.** A mutation run was interrupted when the session restarted. One mutated file (the reason never saved) was found and restored, and checked byte for byte, before anything else. The local test database had crashed at the same moment. It was restarted with its original settings and recovered cleanly; every result after that was re-run.
+
+### Verification
+
+- **Focused tests:** the S1-5 set (FIN-009, FIN-010, the supporting file, `refund-transaction-postgres`, MED-N68) passes 5 suites, 38/38, with zero skips. Before the review fixes, a wider set of 21 suites (159 tests) also passed. The full runs below include all of them.
+- **API `tsc` and eslint** on the changed files: clean.
+- **Gates:**
+  - gate smoke 7/7;
+  - Gate C passes, including money-in-transaction. The unique regression ids went from 1,648 to 1,650;
+  - Gate A passes;
+  - `grep -n 207` on the route returns nothing.
+- **Full API run, before the review fixes:** 1,038/1,044 suites. The failures were the two Docker-only nginx suites and four load-timeout suites. The serial re-run passed 4/4 suites and 74/74 tests.
+- **Full API run, final:** 1,036/1,044 suites. The failures were the two Docker-only suites, the five load-timeout suites and the paired web release suite. The serial re-run passed 6/6 suites and 80/80 tests.
+
+### Independent review
+
+**Five read-only reviewers**, each with one lens: money, concurrency, callers and clients, test quality, and plan/contract alignment. A skeptic then tried to refute each serious finding. The result: **no code defects**, and 3 findings that the skeptics confirmed but downgraded to notes, plus 10 notes.
+
+**Applied:**
+
+- The gateway step now runs first after the commit, as the design and C-19 require. Before, it ran after the announcements; that was safe in practice, because `scheduled_at` is NOT NULL and the waitlist kick is asynchronous, but now it is guaranteed.
+- Supporting tests 6 and 7.
+- D35 Q7 is widened. The refusal of legacy or mismatched bookings reaches the **provider's** job screen as well as the customer's booking screen. Both server messages are internal text. Q7 now asks for customer and provider wording, and asks how support handles a provider who cannot attend such a job.
+
+**Recorded, not changed (see Scope and limits):**
+
+- tests 1 to 3 also pass against the old code;
+- the C-02 lock note;
+- the crash window;
+- the 0% fee gap;
+- notifications and events for all statuses;
+- the omitted actor.
+
+### Scope and limits
+
+- **Not deployed.** Live still cancels in two steps and can answer 207.
+- **Release precondition (C-22, D35 Q7).** Customer and provider cancels of unreviewed legacy bookings, and of mismatched ones, are now refused with internal server text. Approved wording for both roles is needed before release. The admin cancel already refused these bookings.
+- **Release precondition (C-04, E50).** The Legacy Review of already-paid bookings is already a release gate. After S1-5, the remaining exposure is bookings paid on live between the inventory and the cutover.
+- **Pre-existing, not introduced here: the fee leaves escrow but is never sent back through the gateway.** This happens when a cancellation's price refund is 0%. The service fee is still taken out of escrow as a refund (and credited to a wallet payer), but the gateway step runs only when the price refund is above 0. So a card or PayMongo payer would not get the fee back, and the payment record would not show it. The same pattern is in `booking-admin.service.ts` (admin cancel). There is no exposure today, because the customer fee is 0 and external payments are off (E14). Follow-up: gate the gateway call on the amount actually refunded.
+- **A crash or lost acknowledgement between COMMIT and the gateway step leaves no retry row.** If both the gateway refund and its retry queueing fail, the only trace is a log line. Both are as before S1-5. The admin refund path already writes its payment-only row inside its transaction. The K01/K02 outbox closes this for cancellations.
+- **C-02.** The existing lock inversion with a provider suspension (booking, then providers, against users, providers, bookings) now waits on the providers row while the cancel holds the platform escrow wallet lock. Other money operations can therefore stall up to the deadlock timeout (about 1 second) before PostgreSQL aborts one side. Atomicity holds: the loser rolls back fully. The lock order is kept as planned; the lock-graph item covers this path.
+- **The notification wrap and the post-commit admin event apply to every PATCH status, not only cancellations.** This partly addresses SS-13 for the PATCH path. It stays open for the admin cancel (S1-8) and for durability (K02).
+- **`handleCancellation` has no production caller.** It is kept as a wrapper for its tests and as the shared shape S1-8 can reuse.
+- **Partially refunded and released escrow are not refused yet.** Cancellations of these are refused in S1-6.

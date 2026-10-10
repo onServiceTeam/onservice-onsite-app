@@ -91,15 +91,27 @@ When an admin cancels a booking today, nobody is told, and no message text exist
 
 **Today:**
 
-- A customer who cancels a booking paid before the financial-snapshot update has the cancellation saved.
-- The customer is told the refund will be processed within 48 hours.
+- A customer, or the assigned provider, who cancels a booking paid before the financial-snapshot update has the cancellation saved.
+- The person cancelling is told the refund will be processed within 48 hours.
 - The money stays in escrow, and nothing is queued.
 
-**After Slice 1:** that cancellation is refused instead, so nothing is half-done. The server's message for this case is internal text about the "E50 legacy snapshot", and it would reach customers.
+**After Slice 1 (step S1-5):** that cancellation is refused instead, so nothing is half-done. This covers both the customer's cancel and the provider's cancel. The admin cancel already refused these bookings before Slice 1.
 
-**Proposed customer wording:** "We're finishing a review of this booking's payment. Please contact support to cancel it."
+The server has two refusal messages for this. Both are internal text, and both would appear as an error on the customer's booking screen and on the provider's job screen:
 
-**Release precondition:** releasing Slice 1 waits for this wording. It also waits for the Legacy Review of already-paid bookings that E50 already requires.
+- **No payment snapshot yet:** "Financial terms are missing for this booking. Money movement is blocked until operations completes the reviewed E50 legacy snapshot."
+- **Snapshot does not match the booking:** "Booking does not match its immutable financial terms. Cancellation money movement is blocked for operations review."
+
+**Proposed wording:**
+
+- **Customer:** "We're finishing a review of this booking's payment. Please contact support to cancel it."
+- **Provider:** "This job's payment is under review. Please contact support about this job."
+
+**Recommended:** show the approved wording from the server, or through one error code that both apps translate, so that a fix on one screen cannot leave the other showing the internal text.
+
+**Also your decision:** what support does when a provider cannot attend one of these jobs before its review is done. Either support reassigns the job, or the review is completed first.
+
+**Release precondition:** releasing Slice 1 waits for this wording. It also waits for the Legacy Review of already-paid bookings that E50 already requires. That review is what removes the "no payment snapshot" case for both roles.
 
 ## Q8. Idempotency keys
 

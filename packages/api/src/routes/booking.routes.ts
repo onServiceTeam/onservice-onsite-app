@@ -547,14 +547,15 @@ router.patch(
       const id = getParamId(req);
       const newStatus = req.body.status as BookingStatus;
 
-      // Read only what the post-transition money steps need. The arrival
+      // Read only what the confirm path's release step needs. The arrival
       // radius and minimum on-site checks now run inside the service, after
-      // the actor guard and on the locked row (SEC-088, SEC-089).
+      // the actor guard and on the locked row (SEC-088, SEC-089), and so does
+      // the cancellation money, from the locked escrow_status (S1-5). The SQL
+      // text is pinned by the CRIT-N10 test's pool mock.
       const preTransitionRow = await db.query<PreTransitionRow>(
         `SELECT status, escrow_status, is_hourly FROM bookings WHERE id = $1`,
         [id],
       );
-      const oldStatus = preTransitionRow.rows[0]?.status;
       const oldEscrowStatus = preTransitionRow.rows[0]?.escrow_status;
       const isHourlyBooking = preTransitionRow.rows[0]?.is_hourly === true;
 
@@ -655,50 +656,38 @@ router.patch(
         }
       }
 
-      if (
-        (newStatus === 'cancelled_by_customer' || newStatus === 'cancelled_by_provider' || newStatus === 'cancelled_by_admin') &&
-        oldEscrowStatus === 'held'
-      ) {
-        try {
-          const scheduledAt = booking.scheduled_at ? new Date(booking.scheduled_at).getTime() : Date.now();
-          const hoursUntil = (scheduledAt - Date.now()) / (1000 * 60 * 60);
-          const arrivedStatuses = new Set(['provider_arrived', 'in_progress', 'completed_by_provider']);
-          const wasProviderArrived = arrivedStatuses.has(oldStatus ?? '');
-          await escrowService.handleCancellation(id, hoursUntil, wasProviderArrived);
-        } catch (escrowErr) {
-          logger.error('Cancellation escrow handling failed', {
-            bookingId: id,
-            error: escrowErr instanceof Error ? escrowErr.message : 'Unknown',
-          });
-          res.status(207).json({
-            success: true,
-            data: formatBookingResponse(booking as BookingRow),
-            warning: {
-              code: 'ESCROW_PROCESSING_DELAYED',
-              message: 'Your cancellation was recorded but the refund could not be processed automatically. Our team has been notified and will process it within 48 hours.',
-            },
-          });
-          return;
-        }
-      }
+      // S1-5 (FIN-009) — the cancellation money now commits with the status
+      // inside transitionBookingStatus. There is no partial-success "recorded but
+      // refund delayed" answer any more: a refused refund rolls the
+      // cancellation back and answers its own error.
 
       const notifyTarget = booking.customer_id === req.user!.userId
         ? booking.provider_id
         : booking.customer_id;
 
+      // S1-5 (C-19) — the status change has committed. A notification failure
+      // is logged and must not turn that committed change into an error.
       if (notifyTarget) {
-        const providerUserRow = booking.provider_id
-          ? await db.query<{ user_id: string }>(
-              `SELECT user_id FROM providers WHERE id = $1`, [booking.provider_id],
-            )
-          : null;
-        const providerUserId = providerUserRow?.rows[0]?.user_id;
-        const recipientUserId = booking.customer_id === req.user!.userId
-          ? providerUserId
-          : booking.customer_id;
+        try {
+          const providerUserRow = booking.provider_id
+            ? await db.query<{ user_id: string }>(
+                `SELECT user_id FROM providers WHERE id = $1`, [booking.provider_id],
+              )
+            : null;
+          const providerUserId = providerUserRow?.rows[0]?.user_id;
+          const recipientUserId = booking.customer_id === req.user!.userId
+            ? providerUserId
+            : booking.customer_id;
 
-        if (recipientUserId) {
-          await notificationService.notifyBookingStatusChange(recipientUserId, id, newStatus);
+          if (recipientUserId) {
+            await notificationService.notifyBookingStatusChange(recipientUserId, id, newStatus);
+          }
+        } catch (notifyErr) {
+          logger.error('Booking status notification failed after commit', {
+            bookingId: id,
+            newStatus,
+            error: notifyErr instanceof Error ? notifyErr.message : 'Unknown',
+          });
         }
       }
 

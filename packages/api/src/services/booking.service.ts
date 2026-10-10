@@ -16,6 +16,7 @@ import { formatPHP } from '../utils/currency';
 import { haversineDistanceMeters } from '../utils/geo';
 import * as financialTermsService from './booking-financial-terms.service';
 import * as escrowService from './escrow.service';
+import * as bookingCancelService from './booking-cancel.service';
 import * as businessInvoiceControlService from './business-invoice-control.service';
 
 interface BookingRow {
@@ -696,7 +697,7 @@ export async function transitionBookingStatus(
   // newStatus='provider_arrived'. Checked after the actor guard.
   providerLocation?: { latitude?: number; longitude?: number },
 ): Promise<BookingRow> {
-  return db.transaction(async (client) => {
+  const { updated, currentStatus, cancellation } = await db.transaction(async (client) => {
     const lockResult = await client.query<BookingRow>(
       `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
       [bookingId],
@@ -766,6 +767,20 @@ export async function transitionBookingStatus(
       }
     }
 
+    // S1-5 (FIN-009, FIN-010) — a cancellation runs the cancellation core on
+    // this transaction: the money (decided from the locked escrow_status),
+    // the status fields and the provider counters commit or roll back
+    // together. Its gateway step runs after the commit, below.
+    if (bookingCancelService.isCancellationTarget(newStatus)) {
+      const outcome = await bookingCancelService.cancelBookingInTransaction<BookingRow>(client, {
+        lockedBooking: booking,
+        targetStatus: newStatus,
+        reason: cancellationReason,
+        moneyInputs: bookingCancelService.participantCancellationMoneyInputs(booking),
+      });
+      return { updated: outcome.booking, currentStatus, cancellation: outcome };
+    }
+
     const updates: string[] = [`status = $2`, `updated_at = NOW()`];
     const params: unknown[] = [bookingId, newStatus];
     let paramIdx = 3;
@@ -787,12 +802,6 @@ export async function transitionBookingStatus(
       updates.push(`work_started_at = COALESCE(work_started_at, NOW())`);
     } else if (newStatus === 'confirmed') {
       updates.push(`confirmed_at = NOW()`);
-    } else if (newStatus.startsWith('cancelled_')) {
-      updates.push(`cancelled_at = NOW()`);
-      if (cancellationReason) {
-        updates.push(`cancellation_reason = $${paramIdx}`);
-        params.push(cancellationReason);
-      }
     } else if (newStatus === 'paid') {
       updates.push(`escrow_status = 'held'`);
     } else if (newStatus === 'disputed') {
@@ -804,7 +813,7 @@ export async function transitionBookingStatus(
       params,
     );
 
-    const updated = result.rows[0]!;
+    const updatedRow = result.rows[0]!;
 
     // Phase 200 — keep the provider's completed-jobs counter live. Pre-fix
     // providers.total_jobs was never incremented anywhere, so the "X jobs
@@ -812,100 +821,88 @@ export async function transitionBookingStatus(
     // never grew past the seed value. We count a job as completed when the
     // CUSTOMER confirms it (status -> 'confirmed'); a provider-only
     // 'completed_by_provider' that later gets disputed should not count.
-    if (newStatus === 'confirmed' && updated.provider_id) {
+    if (newStatus === 'confirmed' && updatedRow.provider_id) {
       await client.query(
         `UPDATE providers SET total_jobs = total_jobs + 1, updated_at = NOW() WHERE id = $1`,
-        [updated.provider_id],
+        [updatedRow.provider_id],
       );
     }
 
-    logger.info('Booking status transitioned', {
-      bookingId,
-      from: currentStatus,
-      to: newStatus,
-      userId,
-    });
-
-    try {
-      socketService.emitAdminEvent(socketService.ADMIN_EVENTS.BOOKING_STATUS_CHANGED, {
-        id: bookingId,
-        oldStatus: currentStatus,
-        newStatus,
-      });
-    } catch (e) {
-      logger.warn('Admin socket emit failed', {
-        event: 'booking:status_changed',
-        error: e instanceof Error ? e.message : String(e),
-      });
-    }
-
-    if (newStatus === 'cancelled_by_provider' || newStatus === 'cancelled_by_admin') {
-      // BUG-PHASE117-01 fix — pre-fix this used the UTC date of
-      // scheduled_at via .toISOString().split('T')[0]. But
-      // slot_waitlist.preferred_date is a Manila YYYY-MM-DD (the date
-      // the customer asked for in their local context), so an early-
-      // morning Manila booking cancellation (e.g. 06:00 Manila May 5
-      // = 22:00 UTC May 4) sent waitlist notifications to customers
-      // waitlisted for May 4 instead of May 5 — the wrong day.
-      // Convert the cancelled booking's scheduled_at to the Manila
-      // day so the lookup matches the waitlist's storage convention.
-      // Same Manila-tz pattern as Phase 105/113/115/116.
-      const dateStr = updated.scheduled_at.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
-      slotWaitlistService.processSlotAvailability(
-        updated.category_id,
-        updated.city,
-        dateStr,
-      ).catch((err: unknown) => {
-        logger.error('Slot waitlist notification failed after cancellation', {
-          bookingId,
-          error: err instanceof Error ? err.message : 'Unknown',
-        });
-      });
-    }
-
-    // MED-N68 fix — pre-fix code ran this UPDATE OUTSIDE the parent
-    // transaction (`db.query` not `client.query`) and added `+ 1` to
-    // the COUNT subquery. After the parent trx committed the just-
-    // cancelled booking was already visible in the subquery, so the
-    // `+ 1` produced double-count.
-    //
-    // Post-fix: UPDATE runs INSIDE the parent trx via `client.query`
-    // (atomic with the booking state change). The COUNT subquery sees
-    // the freshly-UPDATE'd bookings row in this same transaction
-    // (READ COMMITTED + same client) so no `+ 1` is needed and the
-    // count is exactly right. Errors throw and roll back the booking
-    // status flip too.
-    if (newStatus === 'cancelled_by_provider' && updated.provider_id) {
-      try {
-        await client.query(
-          `UPDATE providers
-           SET total_cancellations = total_cancellations + 1,
-               cancellations_last_30d = (
-                 SELECT COUNT(*) FROM bookings
-                 WHERE provider_id = $1
-                   AND status = 'cancelled_by_provider'
-                   AND cancelled_at > NOW() - INTERVAL '30 days'
-               ),
-               last_cancellation_at = NOW(),
-               updated_at = NOW()
-           WHERE id = $1`,
-          [updated.provider_id],
-        );
-      } catch (err: unknown) {
-        // Re-throw — we want the booking transition to ROLL BACK if
-        // we cannot record the penalty (provider count must always
-        // match the bookings table).
-        logger.error('Provider cancellation tracking update failed', {
-          bookingId,
-          providerId: updated.provider_id,
-          error: err instanceof Error ? err.message : 'Unknown',
-        });
-        throw err;
-      }
-    }
-
-    return updated;
+    return { updated: updatedRow, currentStatus, cancellation: null };
   });
+
+  // S1-5 — everything below runs only after the commit, so a change that
+  // rolled back is never announced and never refunded at the gateway.
+
+  // S1-5 (C-19) — the gateway step runs first, before any announcement, so
+  // nothing after the commit can skip it. The committed cancellation stands
+  // whatever happens here: the gateway step queues a payment-only retry when
+  // the refund call fails, and the queueing logs its own failure. This catch
+  // is the last guard: nothing after the commit may turn the committed
+  // cancellation into an error.
+  if (cancellation?.refund) {
+    try {
+      await escrowService.processCancellationGatewayRefund(
+        bookingId,
+        cancellation.refund,
+        cancellation.serviceFeeCentavos,
+        cancellation.customerNoShow,
+      );
+    } catch (err: unknown) {
+      logger.error('Cancellation payment refund step failed after commit; reconcile the payment refund manually', {
+        bookingId,
+        customerRefundAmount: cancellation.refund.customerRefundAmount,
+        serviceFeeCentavos: cancellation.serviceFeeCentavos,
+        error: err instanceof Error ? err.message : 'Unknown',
+      });
+    }
+  }
+
+  logger.info('Booking status transitioned', {
+    bookingId,
+    from: currentStatus,
+    to: newStatus,
+    userId,
+  });
+
+  try {
+    socketService.emitAdminEvent(socketService.ADMIN_EVENTS.BOOKING_STATUS_CHANGED, {
+      id: bookingId,
+      oldStatus: currentStatus,
+      newStatus,
+    });
+  } catch (e) {
+    logger.warn('Admin socket emit failed', {
+      event: 'booking:status_changed',
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+
+  if (newStatus === 'cancelled_by_provider' || newStatus === 'cancelled_by_admin') {
+    // BUG-PHASE117-01 fix — pre-fix this used the UTC date of
+    // scheduled_at via .toISOString().split('T')[0]. But
+    // slot_waitlist.preferred_date is a Manila YYYY-MM-DD (the date
+    // the customer asked for in their local context), so an early-
+    // morning Manila booking cancellation (e.g. 06:00 Manila May 5
+    // = 22:00 UTC May 4) sent waitlist notifications to customers
+    // waitlisted for May 4 instead of May 5 — the wrong day.
+    // Convert the cancelled booking's scheduled_at to the Manila
+    // day so the lookup matches the waitlist's storage convention.
+    // Same Manila-tz pattern as Phase 105/113/115/116.
+    const dateStr = updated.scheduled_at.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+    slotWaitlistService.processSlotAvailability(
+      updated.category_id,
+      updated.city,
+      dateStr,
+    ).catch((err: unknown) => {
+      logger.error('Slot waitlist notification failed after cancellation', {
+        bookingId,
+        error: err instanceof Error ? err.message : 'Unknown',
+      });
+    });
+  }
+
+  return updated;
 }
 
 // SEC-088 — moved from the PATCH route, which ran it before any authorization

@@ -455,7 +455,23 @@ export async function handleCancellation(
     };
   });
   const { refund, serviceFee } = outcome;
+  await processCancellationGatewayRefund(bookingId, refund, serviceFee, customerNoShow);
+  return refund;
+}
 
+/**
+ * The post-commit gateway step of a cancellation. Call it only after the
+ * transaction that ran handleCancellationInTransaction has committed.
+ * S1-5: extracted unchanged from handleCancellation so that the status-route
+ * cancellation (booking-cancel.service via transitionBookingStatus) runs the
+ * same step after its single transaction commits.
+ */
+export async function processCancellationGatewayRefund(
+  bookingId: string,
+  refund: commissionService.CancellationRefund,
+  serviceFee: number,
+  customerNoShow: boolean,
+): Promise<void> {
   // BUG-PHASE26-01 fix: trigger the PayMongo refund post-commit so the
   // money debited from escrow actually returns to the customer's bank.
   // Pre-fix (MED-N27 regression): refundFromEscrowInTransaction debited
@@ -502,8 +518,6 @@ export async function handleCancellation(
       }
     }
   }
-
-  return refund;
 }
 
 // ─────────────────────────────────────────────────────────────────
