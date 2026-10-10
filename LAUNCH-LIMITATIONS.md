@@ -3518,3 +3518,22 @@ unchanged: the on-site steps for both roles, and for a super admin
 "completed by provider", "payout ready", "paid out" and "resolved". This is
 verified in source and tests in the candidate only and is not deployed. See
 `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 106. Customers and providers could set booking statuses that belong to other steps
+
+Through the general status route a customer could mark their own booking
+"disputed" without filing a dispute, or move a requested booking to
+"payment pending". A provider could mark its own job "quoted" with no quote,
+or "matched" with no accepted offer or quote. A booking marked disputed this
+way kept its money held with no dispute record, so no dispute step could
+settle it. A booking moved to payment pending could no longer be paid from
+the wallet, only cancelled. The apps never sent these requests.
+
+Candidates SEC-092, OPS-556 and SEC-093 refuse these four statuses on the
+general route, together with the other statuses that only their own step may
+set (the repair contract K07 list). Bookings already marked disputed this way
+still rely on the super admin "resolved" step, which is held for D35 Q1b.
+Before release, a read-only count on live should show how many bookings were
+left in these states. This is verified in source and tests in the candidate
+only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.

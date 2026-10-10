@@ -977,6 +977,23 @@ const SUPER_ADMIN_PATCH_HELD_PENDING_D35: readonly BookingStatus[] = [
   ...ADMIN_PATCH_HELD_PENDING_D35, 'completed_by_provider', 'payout_ready', 'paid_out', 'resolved',
 ];
 
+// SEC-092 / OPS-556 / SEC-093 — statuses that only a dedicated flow may set
+// (the repair contract K07 TRANSITION_ACTORS 'flow_only' list): booking
+// creation, quote submission, offer or quote acceptance and admin assignment,
+// payment, dispute filing, dispute resolution, payout and the admin cancel.
+// A customer or provider who asks for one through PATCH /status gets 409
+// BOOKING_TRANSITION_FLOW_ONLY once the ownership or assignment check passes.
+const PARTICIPANT_FLOW_ONLY_TARGETS: readonly BookingStatus[] = [
+  'requested', 'quoted', 'matched', 'payment_pending', 'paid',
+  'disputed', 'resolved', 'payout_ready', 'paid_out', 'cancelled_by_admin',
+];
+
+function participantFlowOnlyError(): Error {
+  const error = createAppError('This booking change can\'t be made from here.', 409);
+  error.code = 'BOOKING_TRANSITION_FLOW_ONLY';
+  return error;
+}
+
 async function validateRoleForTransition(
   // OPS-555 — the booking transaction client. Authority lookups must not ask
   // the shared pool for a second connection while the booking lock is held.
@@ -1009,18 +1026,18 @@ async function validateRoleForTransition(
     throw flowOnly;
   }
 
-  if (newStatus === 'cancelled_by_admin') {
-    throw createAppError('Only the admin cancel action can cancel a booking as admin.', 403);
-  }
-
   if (role === 'customer') {
     if (booking.customer_id !== userId) {
       throw createAppError('You can only manage your own bookings.', 403);
     }
-
-    const customerAllowed: BookingStatus[] = [
-      'cancelled_by_customer', 'confirmed', 'disputed', 'payment_pending',
-    ];
+    // SEC-092: "disputed" without POST /disputes left escrow held with no
+    // dispute record, which every resolution path needs. OPS-556:
+    // "payment_pending" left a booking the wallet payment refuses.
+    if (PARTICIPANT_FLOW_ONLY_TARGETS.includes(newStatus)) {
+      throw participantFlowOnlyError();
+    }
+    // The remaining statuses are the provider's steps.
+    const customerAllowed: BookingStatus[] = ['cancelled_by_customer', 'confirmed'];
     if (!customerAllowed.includes(newStatus)) {
       throw createAppError('Customers cannot perform this action.', 403);
     }
@@ -1028,11 +1045,13 @@ async function validateRoleForTransition(
   }
 
   if (role === 'provider') {
+    // Flow-only statuses pass this filter so that the assignment check below
+    // answers first. The rest of the refused statuses are the customer's steps.
     const providerAllowed: BookingStatus[] = [
-      'quoted', 'matched', 'provider_en_route', 'provider_arrived',
+      'provider_en_route', 'provider_arrived',
       'in_progress', 'completed_by_provider', 'cancelled_by_provider',
     ];
-    if (!providerAllowed.includes(newStatus)) {
+    if (!providerAllowed.includes(newStatus) && !PARTICIPANT_FLOW_ONLY_TARGETS.includes(newStatus)) {
       throw createAppError('Providers cannot perform this action.', 403);
     }
 
@@ -1050,7 +1069,16 @@ async function validateRoleForTransition(
     if (providerResult.rows[0]?.user_id !== userId) {
       throw createAppError('You are not assigned to this booking.', 403);
     }
+    // SEC-093: "quoted" with no quote row and "matched" with no accepted
+    // offer or quote, along with the other flow-only statuses.
+    if (PARTICIPANT_FLOW_ONLY_TARGETS.includes(newStatus)) {
+      throw participantFlowOnlyError();
+    }
     return;
+  }
+
+  if (newStatus === 'cancelled_by_admin') {
+    throw createAppError('Only the admin cancel action can cancel a booking as admin.', 403);
   }
 
   // D23 + D15 — the assigned, approved team member drives the on-site steps of

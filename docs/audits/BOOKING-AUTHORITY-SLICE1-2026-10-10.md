@@ -349,6 +349,13 @@ Final numbers are recorded in the commit message of this step.
   - Gate A passes.
 - **Full API run (before the review fixes):** it matched the baseline, with only the Docker-only and load-timeout suites failing. The serial re-run passed 6/6 suites and 80/80 tests.
 
+### Exact-commit CI (commit `f9f62950`)
+
+CI `38015573010` and Gates `38015573084` both succeeded. All six Gates jobs (A to E and "All gates passed") succeeded.
+
+- API job `114104958361`: 1,037/1,037 suites; 3,665 passed, 2 todo, 0 skipped. `bug-sec-090-plain-admin-status-money`, `bug-sec-091-super-admin-patch-bypasses-audited-flows` and `refund-transaction-postgres` passed against the CI PostGIS service.
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 No blockers.
@@ -369,3 +376,169 @@ No blockers.
 
 - the D35 Q1b note on `payout_ready` set while escrow is still held;
 - the uppercase error code, which follows the plan; other codes in the codebase are lowercase.
+
+## S1-4: participant statuses that belong to dedicated flows (SEC-092, OPS-556, SEC-093)
+
+### Defect, reproduced before the fix
+
+Through `PATCH /api/v1/bookings/:id/status` a customer or provider could request four statuses that only a dedicated flow should set. Each request was a valid step in the state machine, so the route accepted it.
+
+Captured against the S1-3 code (`f9f62950`):
+
+| Who | Request | Result before S1-4 | Why it matters |
+|---|---|---|---|
+| the booking's customer | `disputed` on a `completed_by_provider` booking | `200`; status `disputed`, escrow still held, no dispute record | every dispute resolution path needs the dispute record that POST `/api/v1/disputes` creates, so no dispute flow could resolve it |
+| the booking's customer | `payment_pending` on a `requested` booking | `200`; status `payment_pending` | the wallet payment then refuses the booking (`payment.routes.ts:51`: it pays only bookings that can still move to `payment_pending`), so it can only be cancelled |
+| the assigned provider | `quoted` on a `requested` booking | `200`; no quote row | quotes are created by quote submission |
+| the assigned provider | `matched` on a `requested` booking | `200`; no accepted offer or quote | `matched` comes from offer or quote acceptance or admin assignment |
+
+No app sends these statuses to this route:
+
+- the customer app sends only `confirmed` and `cancelled_by_customer`;
+- the provider and team-member apps send only the on-site steps, completion and cancel;
+- disputes use POST `/api/v1/disputes`.
+
+`transitionBookingStatus` has one caller, the PATCH route. The dedicated flows set their own statuses:
+
+- `fileDispute` sets `disputed`;
+- `submitQuote` sets `quoted`;
+- offer acceptance and admin assignment set `matched`;
+- `acceptQuote` sets `payment_pending`.
+
+### Fix
+
+The basis is the repair contract K07 `TRANSITION_ACTORS`. That contract is in the private repair folder, not in this repository. It marks ten statuses as set only by a dedicated flow:
+
+- `requested`, `quoted`, `matched`;
+- `payment_pending`, `paid`;
+- `disputed`, `resolved`;
+- `payout_ready`, `paid_out`;
+- `cancelled_by_admin`.
+
+In `validateRoleForTransition` (`booking.service.ts`) these are now the module constant `PARTICIPANT_FLOW_ONLY_TARGETS`.
+
+**Customer.**
+
+- The ownership check runs first.
+- A flow-only status then gets `409`, code `BOOKING_TRANSITION_FLOW_ONLY`, message "This booking change can't be made from here."
+- The customer keeps `cancelled_by_customer` and `confirmed`.
+- The provider's steps stay `403 Customers cannot perform this action.`
+
+**Provider.**
+
+- The role filter lets flow-only statuses through, so that the SEC-076 assignment checks answer first.
+- After the assignment checks, a flow-only status gets the same `409` FLOW_ONLY.
+- The provider keeps the on-site steps, completion and `cancelled_by_provider`.
+- `confirmed` and `cancelled_by_customer` stay `403 Providers cannot perform this action.`
+
+**The admin-cancel check moved.** The non-admin `cancelled_by_admin` refusal ran before every role branch. It now runs after the customer and provider branches, so it applies to team members and other roles exactly as before. For a customer or provider, `cancelled_by_admin` is a K07 flow-only status like the others.
+
+**Team members are unchanged**, as the Slice 1 plan requires. K07 also gives them the flow-only answer for these statuses. Their refusals stay `403` for now.
+
+**Two changes after the self-check and the review:**
+
+1. **Assignment check first.** The first version refused `quoted` and `matched` before the assignment check. A provider not on the job therefore got the new 409 instead of "You are not assigned to this booking." The refusal now comes after that check, matching the customer branch, and both bug tests pin the order.
+2. **The whole K07 set.** The second version refused only the four statuses that used to slip through. The other flow-only statuses kept the old 403: six for customers and eight for providers. The review pointed out that the plan asked for the K07 answer and for a 17-status check, which did not exist. Both are now built.
+
+Refused statuses still change nothing. For the flow-only statuses that were already refused, only the status code and message change (from 403 to 409), and no app sends them. Another customer, or a provider not on the job, still gets a 403; it is now the "your own bookings" or "not assigned" message.
+
+### Tests
+
+**New bug tests.** Each runs the real router on the guarded PostgreSQL fixture and asserts that the whole participant snapshot is unchanged.
+
+- `bug-sec-092-customer-dispute-bypass.test.ts`:
+  - the customer gets the 409 FLOW_ONLY code and message on `disputed`;
+  - another customer gets `403 You can only manage your own bookings.`
+- `bug-ops-556-customer-payment-pending-strand.test.ts`:
+  - the customer gets 409 FLOW_ONLY on `payment_pending`;
+  - the booking stays `requested`.
+- `bug-sec-093-provider-flow-only-targets.test.ts`:
+  - the assigned provider gets 409 FLOW_ONLY on `quoted` and `matched`;
+  - a provider not on the job gets `403 You are not assigned to this booking.`
+
+All four requests are valid next steps in the state machine from the states the tests use, and the role check runs before the state check. So the refusal comes from the new code, and each test also asserts its code.
+
+**New acceptance check** (no Bug title). `booking-participant-status-targets-postgres.test.ts` sends all 17 statuses for both a customer and a provider on their own `paid_out` booking, which has no next step. It classifies each answer by its exact status code, error code and message:
+
+- **allowed:** the state machine's own 409, with no code;
+- **flow-only:** the 409 FLOW_ONLY;
+- **other role:** the 403.
+
+The status list is checked against `VALID_TRANSITIONS`, so a new status fails the test until someone classifies it. The snapshot is unchanged.
+
+**Mutation checks.** Each one was reverted, and the file was confirmed byte-identical afterwards.
+
+| Mutation | Tests that failed |
+|---|---|
+| Remove `paid` from the flow-only list | acceptance check |
+| Remove `cancelled_by_admin` from the flow-only list | acceptance check |
+| Let the provider role filter refuse flow-only statuses with 403 | acceptance check, SEC-093 |
+| Allow providers to request `confirmed` | acceptance check |
+| Remove the customer flow-only refusal | acceptance check, SEC-092, OPS-556 |
+| Remove the provider flow-only refusal | acceptance check, SEC-093 |
+| Move the provider refusal before the assignment check | SEC-093 |
+| Move the customer refusal before the ownership check | SEC-092 |
+| Allow customers to request `provider_arrived` | acceptance check |
+
+Against the S1-3 code, the three bug tests failed with 200 where 409 was expected. A first round of six mutations on the earlier version was also caught.
+
+### This supersedes an S1-3 statement
+
+The S1-3 section above ("Other changes") says the non-admin `cancelled_by_admin` refusal reads "Only the admin cancel action can cancel a booking as admin." After S1-4, only team members and other roles get that message. Customers and providers get the flow-only 409. The S1-3 text is left unchanged, as history.
+
+### Verification
+
+- **Focused tests:** 14 suites, 56/56 passed, with zero skips. They are:
+  - the acceptance check, SEC-088 to SEC-093, OPS-555, OPS-556;
+  - `refund-transaction-postgres` and BUG-PHASE117-01;
+  - `services/booking-completion`, `bug-ux-302-completion-clock` and `booking-provider-cancellation-accounting-med-n68`.
+  - Re-run on the final wording: 14/14 suites, 56/56 passed.
+- **API `tsc` and eslint** on the changed files: clean.
+- **Gates:**
+  - gate smoke 7/7;
+  - Gate C passes, including money-in-transaction. The unique regression ids went from 1,645 to 1,648. The acceptance check has no Bug title, so it adds none;
+  - Gate A passes.
+- **Full API run, first version:** 1,034/1,040 suites. The failures were the two Docker-only nginx suites and four load-timeout suites. In the serial re-run, three of the four passed. `token-issuer-transaction-postgres` timed out on two tests while the reviewer was also using the test database. It then passed 5/5 on two further solo runs. It does not touch booking code.
+- **Full API run, K07 version:** 1,034/1,041 suites. The failures were the two Docker-only suites and the five load-timeout suites (admin enable, token issuer, email link HTTP, email link, email sign-in). The serial re-run passed 5/5 suites and 79/79 tests.
+
+### Independent review
+
+Two passes, read-only. No blockers and no code defects in either.
+
+**First pass, applied:**
+
+- The plan asked for the K07 answer and a check of all 17 statuses for each participant role. Both are now built, as above.
+- The OPS-556 comment wrongly said the wallet route pays quote-matched bookings. It now says it pays requested and matched bookings.
+- The OPS-556 comment now says its fixture booking is already paid, and only its status is reset.
+
+**First pass, confirmed:**
+
+- No app, Maestro flow, script or seed sends the removed statuses.
+- Each dedicated flow sets its own status.
+- No existing test asserted the old behavior.
+- No booking is left without a way forward.
+
+**Second pass, applied:**
+
+- The message no longer suggests the person has a step to take. Some flow-only statuses are set only by support or the system.
+- The supersession of the S1-3 statement is recorded above.
+
+**Second pass, confirmed:**
+
+- Moving the admin-cancel check does not change team-member, other-role or admin behavior.
+- Nothing new is disclosed to a stranger.
+- No acceptance-check row can pass for the wrong reason.
+- The code matches K07 `TRANSITION_ACTORS` exactly for customers and providers.
+
+### Scope and limits
+
+- **Not deployed.** Live still accepts these four requests.
+- **Before release, count on live with a read-only query** the bookings that may have been created through the old shortcut:
+  - `disputed` with no dispute record;
+  - `payment_pending` with no payment intent;
+  - `quoted` with no quote.
+  The super admin `resolved` step held for D35 Q1b remains the way out for the first kind.
+- **K07 error codes not sent yet:** `BOOKING_NOT_OWNER`, `BOOKING_NOT_ASSIGNED_TO_ACTOR` and `BOOKING_INVALID_TRANSITION`. They belong to the later K07 guard replacement. When they land, the acceptance check's "allowed" and "other role" rows, which require no error code, must be updated.
+- **K07 also makes the ten statuses flow-only for every role.** Team members and other roles still get 403 for them (team members are unchanged by the Slice 1 plan), and so does a plain admin (SEC-090, F3).
+- **An old manual audit script expects the old behavior.** `.ai-coder/phase-15-real-audit/test-phase21-money-flow.mjs:151` expects a customer PATCH from `matched` to `payment_pending` to succeed. CI does not run it. It is left unchanged, as history.
+- **Ken has not reviewed the message wording.** No app shows it.
