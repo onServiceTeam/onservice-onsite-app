@@ -3,6 +3,7 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import type { CancellationRefund } from './commission.service';
 import * as escrowService from './escrow.service';
+import * as bookingOfferService from './booking-offer.service';
 
 // S1-5 (FIN-009, FIN-010) — the cancellation core. Its shape follows the
 // repair contract K07 cancelBooking, without the K01 ledger, K02 outbox and
@@ -49,6 +50,8 @@ export interface CancellationOutcome<TRow> {
   booking: TRow;
   // null when the locked escrow was not held, so no money moved.
   refund: CancellationRefund | null;
+  // S1-7 (OPS-557): pending provider offers closed with the booking.
+  offersCancelled: number;
   serviceFeeCentavos: number;
   customerNoShow: boolean;
 }
@@ -180,9 +183,19 @@ export async function cancelBookingInTransaction<TRow extends QueryResultRow & {
     }
   }
 
+  // S1-7 (OPS-557) — the booking's pending offer rows close in this
+  // transaction. Before, nothing closed them: the row stayed 'pending' until
+  // it expired, and the expiry sweep then tried to restart the offer cycle
+  // for a cancelled booking. Not covered here (recorded in the S1-7 audit):
+  // no live signal tells the provider's app the offer closed, and an offer
+  // cycle that races this cancellation (kickOfferCycle, K06) can still add
+  // one pending offer, which acceptOffer refuses and the sweep expires.
+  const offersCancelled = await bookingOfferService.cancelOpenOffersInTransaction(client, bookingId);
+
   return {
     booking,
     refund,
+    offersCancelled,
     serviceFeeCentavos: Number(lockedBooking.service_fee),
     customerNoShow: moneyInputs.customerNoShow,
   };

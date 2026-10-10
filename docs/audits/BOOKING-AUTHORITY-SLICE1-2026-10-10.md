@@ -802,6 +802,13 @@ Then support refunds the remaining 75,000 of A, so its escrow is `refunded` with
   - Gate A passes.
 - **Full API run:** 1,037/1,045 suites. The failures were the two Docker-only suites and six load-timeout suites. The serial re-run passed 6/6 suites and 80/80 tests.
 
+### Exact-commit CI (commit `a590b020`)
+
+CI `38033638427` and Gates `38033638412` both succeeded, including all six Gates jobs.
+
+- API job `114159487204`: 1,045/1,045 suites; 3,679 passed, 2 todo, 0 skipped. `bug-fin-011-partially-refunded-cancel-strand`, with the real refund and release routes, passed against the CI PostGIS service.
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 **Three read-only reviewers**, each with one lens: money and state coverage, callers and wording, and tests and plan alignment. A skeptic then tried to refute each serious finding. The result: **no code defects**.
@@ -829,3 +836,84 @@ Then support refunds the remaining 75,000 of A, so its escrow is `refunded` with
 - **The admin cancel is not on the core until S1-8.** Until then, an admin cancel of a partially refunded booking still cancels and leaves the rest in escrow. "Please contact support" therefore depends on support refunding or releasing the rest first. Ship S1-6 only together with S1-8, or brief support.
 - **Release precondition.** Approved customer and provider wording (D35 Q4 and Q11).
 - **Raised, not changed.** A manual release before the job is done leaves no refund path for that booking (D35 Q11 decision 2). This is older than Slice 1.
+
+## S1-7: a cancellation closes the booking's open offers (OPS-557)
+
+### Defect, reproduced before the fix
+
+Nothing closed a booking's provider offers when it was cancelled. `cancelOpenOffers` existed, but no code called it.
+
+Captured against `a590b020`, with the real offers table (migration 125): a customer cancels booking A, which has a pending offer to provider A. The cancel answers `200`, and the offer row stays `pending`. It stayed that way until it expired; the expiry sweep then marked it expired and tried to restart the offer cycle for a cancelled booking, which the cycle refused.
+
+`acceptOffer` re-checks the locked booking and refuses `cancelled_*`, so no provider could actually take the job, and no money moved.
+
+### Fix
+
+**`booking-offer.service.ts`.** New `cancelOpenOffersInTransaction(client, bookingId)` closes the booking's `pending` offers: `cancelled`, with `responded_at`. `cancelOpenOffers` now delegates to it.
+
+**`booking-cancel.service.ts`.** The cancellation core calls it as its last step, on the booking's transaction, and returns `offersCancelled`. The lock order is booking, then offers, the same as `acceptOffer`.
+
+### Tests
+
+**`bug-ops-557-cancel-leaves-offers-open.test.ts`:**
+
+- A refused cancellation (the FIN-009 no-terms booking, asserted by its exact message) leaves its pending offer pending, with the whole snapshot unchanged.
+- A customer cancel of booking A closes A's pending offer.
+- A's already-declined offer and booking B's pending offer are untouched.
+- **Red against `a590b020`:** the offer stayed `pending` (line 56).
+
+**Shared fixture.** `withParticipantRefundDatabase` now runs migration 125, and `participantSnapshot` includes `booking_offers`. Every snapshot-based refusal test therefore also proves no offer changed.
+
+**Pinned test changed (C-18).** In `booking-provider-cancellation-accounting-med-n68.test.ts`, the mocked client sequence gains the offers UPDATE as the fifth step. The test now asserts the step runs on the transaction client with the booking id, and that the rollback case never reaches it.
+
+**Mutations.** Each was reverted, and the files were confirmed byte-identical afterwards.
+
+| Mutation | Failed |
+|---|---|
+| Never call the offers step | OPS-557, MED-N68 |
+| Close every offer on the booking, not only pending ones | OPS-557, MED-N68 |
+| Close the offers on a pool connection instead of the transaction | MED-N68 |
+| Close every pending offer on every booking | OPS-557 |
+
+### Verification
+
+- **Focused tests.** 16 suites, 55/55 passed: OPS-557, MED-N68, every S1-1 to S1-6 suite and `refund-transaction-postgres`. After the review fixes, OPS-557 and MED-N68 were re-run and passed.
+- **API `tsc` and eslint** on the changed files: clean.
+- **Gates:**
+  - gate smoke 7/7;
+  - Gate C passes, including money-in-transaction. The unique regression ids went from 1,651 to 1,652;
+  - Gate A passes.
+- **First full API run: invalid, not counted.** After the computer restarted, OneDrive syncing this repository and two antivirus scanners slowed every new database connection to about 1 second. In that run, 95 suites failed at fixture setup with "connection timeout", before reaching any test code.
+- **Full API run, 4 workers:** 1,032/1,046 suites. The failures were the two Docker-only suites, eleven sign-in and admin-auth SQL suites that timed out, and the backup suite (OPS-475).
+  - In the serial re-run, 9 of those 12 passed.
+  - Three still failed locally:
+    - `email-sign-in-postgres` and `email-link-postgres`, at fixture connection timeouts;
+    - OPS-475, when Windows refused to delete its temporary folder ("EPERM").
+  - With a 60-second per-test limit the same three still failed, for the same environmental reasons.
+  - None of the three imports any file S1-7 changed, directly or through a fixture. GitHub CI on Linux is the authority for them; see the exact-commit CI receipt.
+
+### Independent review
+
+**Two read-only reviewers**, each with one lens: behaviour and concurrency, and tests and plan alignment. A skeptic then tried to refute the serious finding. The result: **no code defects**.
+
+**Applied:**
+
+- The OPS-557 refused case now asserts the FIN-009 message, so it cannot pass for another 409.
+- The code comment no longer suggests that the provider's app stops showing the offer.
+
+**Recorded (open, not built in S1-7):**
+
+1. **The offer-cycle race (K06 step 2).** `kickOfferCycle` checks the booking status from an unlocked read and inserts the offer later, with no re-check. It is called from the decline route, the expiry sweep's re-kick and `dispatchPaidBookingIfNeeded`. An offer cycle that overlaps a cancellation can still add one pending offer to the cancelled booking, and push "New job available" to that provider. `acceptOffer` refuses it, and the sweep expires it within 45 seconds; nothing is assigned and no money moves. OPS-557 is therefore closed for **the cancellation's own offers**, not for a racing offer cycle. The plan scopes `kickOfferCycle` to the K06 work.
+2. **The provider's app is not told the offer closed.** No `offer:cancelled` event exists. The offer sheet runs its 45-second countdown, and Accept answers the same 409 as before. Closing it in the app is K02/K06 work.
+3. **Other cancellation paths do not close offers yet:**
+   - the admin cancel, which S1-8 moves onto this core;
+   - the 72-hour unmatched-expiry worker;
+   - any other direct `cancelled_*` writer outside the core.
+
+   K07 says the single cancellation entry should be the only writer of a cancelled status.
+4. **Repeat offers after a direct assignment.** `kickOfferCycle` has no `provider_id` check. This stays out of scope, as the plan says.
+
+### Scope and limits
+
+- **Not deployed.**
+- **The four open items above.**

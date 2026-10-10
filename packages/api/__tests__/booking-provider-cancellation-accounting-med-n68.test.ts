@@ -75,7 +75,9 @@ it('MED-N68 - provider cancellation count is updated on the booking transaction 
     .mockResolvedValueOnce({ rows: [lockedBooking], rowCount: 1 })
     .mockResolvedValueOnce(providerOwner)
     .mockResolvedValueOnce({ rows: [updatedBooking], rowCount: 1 })
-    .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+    // S1-7 (OPS-557): open offers close in the same transaction.
+    .mockResolvedValueOnce({ rows: [], rowCount: 0 });
   let committed = false;
   mockTransaction.mockImplementationOnce(async (
     callback: (client: { query: typeof mockTransactionQuery }) => Promise<unknown>,
@@ -103,6 +105,10 @@ it('MED-N68 - provider cancellation count is updated on the booking transaction 
   expect(providerUpdate![0]).not.toMatch(/INTERVAL '30 days'[\s\S]*\+\s*1/);
   expect(providerUpdate![1]).toEqual(['provider-med-n68']);
   expect(mockTransactionQuery.mock.calls[1]![0]).toMatch(/SELECT user_id FROM providers WHERE id = \$1/);
+  // S1-7: the offers UPDATE is the last step on the same client.
+  expect(mockTransactionQuery.mock.calls).toHaveLength(5);
+  expect(mockTransactionQuery.mock.calls[4]![0]).toMatch(/UPDATE booking_offers[\s\S]*status='cancelled'[\s\S]*status='pending'/);
+  expect(mockTransactionQuery.mock.calls[4]![1]).toEqual(['booking-med-n68']);
   expect(mockDbQuery).not.toHaveBeenCalled();
   // S1-5: the committed cancellation is announced once, after the commit.
   expect(socketService.emitAdminEvent).toHaveBeenCalledTimes(1);
@@ -133,6 +139,8 @@ it('MED-N68 - provider cancellation count is updated on the booking transaction 
     'Provider vehicle breakdown',
   )).rejects.toThrow('provider cancellation counter unavailable');
   expect(failedTransactionCommitted).toBe(false);
+  // The counter failure aborts before the offers step.
+  expect(mockTransactionQuery.mock.calls.some(([sql]) => /booking_offers/.test(sql as string))).toBe(false);
   // S1-5: a cancellation that rolled back is never announced.
   expect(socketService.emitAdminEvent).not.toHaveBeenCalled();
   expect(mockProcessSlotAvailability).not.toHaveBeenCalled();

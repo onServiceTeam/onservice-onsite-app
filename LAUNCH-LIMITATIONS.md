@@ -3577,3 +3577,18 @@ than this change: releasing money before the job is done leaves no way to
 refund that customer (D35 Q11). This is verified in source and tests in the
 candidate only and is not deployed. See
 `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 109. Cancelling a booking left its provider offers open
+
+When a customer or provider cancelled a booking, any job offer still waiting
+for a provider stayed "pending" until it expired, and the system then tried
+to offer the cancelled job again. No provider could actually accept it, and
+no money moved.
+
+Candidate OPS-557 closes the booking's pending offers in the same step as the
+cancellation. Still open: an offer the system sends at the very moment of the
+cancellation can still appear for up to 45 seconds (part of the planned offer
+dispatch work, K06). The provider's app is not told the offer closed. The
+admin cancel (until step S1-8) and the 72-hour expiry job do not close offers
+yet. This is verified in source and tests in the candidate only and is not
+deployed. See `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.

@@ -429,7 +429,20 @@ export async function sweepExpiredOffers(): Promise<{ expiredCount: number; reKi
  * the booking entirely). Idempotent.
  */
 export async function cancelOpenOffers(bookingId: string): Promise<number> {
-  const result = await db.query(
+  return cancelOpenOffersInTransaction(db, bookingId);
+}
+
+/**
+ * S1-7 (OPS-557) — the same, on the caller's booking transaction, so a
+ * booking's open offers close together with its cancellation
+ * (booking-cancel.service). The caller already holds the booking row lock;
+ * the offers are locked after it, the same order acceptOffer uses.
+ */
+export async function cancelOpenOffersInTransaction(
+  client: { query: typeof db.query },
+  bookingId: string,
+): Promise<number> {
+  const result = await client.query(
     `UPDATE booking_offers
         SET status='cancelled', responded_at=NOW()
       WHERE booking_id=$1 AND status='pending'`,

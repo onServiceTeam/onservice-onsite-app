@@ -315,6 +315,9 @@ export async function withParticipantRefundDatabase(run: (database: Pool) => Pro
       INSERT INTO wallets(type) VALUES ('platform_revenue'),('guarantee_fund');
     `);
     await database.query(fs.readFileSync(path.join(__dirname, '../../migrations/162_immutable_booking_financial_terms.sql'), 'utf8'));
+    // S1-7 (OPS-557): every cancellation now closes the booking's open offers,
+    // so the participant fixture runs the real offers table (migration 125).
+    await database.query(fs.readFileSync(path.join(__dirname, '../../migrations/125_phase36_booking_offers.sql'), 'utf8'));
     for (const bookingId of [bookingA, bookingB]) {
       await db.transaction(client => appendAuthorizationTermsInTransaction(client, {
         bookingId, event: 'wallet_payment_authorized', sourceEventId: bookingId,
@@ -391,5 +394,6 @@ export async function participantSnapshot(database: Pool) {
     terms: (await database.query('SELECT * FROM booking_financial_terms ORDER BY id')).rows,
     notifications: (await database.query('SELECT * FROM notifications ORDER BY id')).rows,
     waitlist: (await database.query('SELECT * FROM booking_slot_waitlist ORDER BY id')).rows,
+    offers: (await database.query('SELECT * FROM booking_offers ORDER BY id')).rows,
   };
 }
