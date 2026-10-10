@@ -1841,6 +1841,13 @@ It was red against `d97cbfdb`.
   - Gate A passes.
 - **Full API run (4 workers) on the final code:** 1,063/1,065 suites; 3,742 tests passed, 2 todo. Only the two Docker-only nginx suites (`bug-ux-201`, `bug-ux-860`) failed.
 
+### Exact-commit CI (commit `f81391bf`)
+
+CI `38069200688` and Gates `38069200497` both succeeded, including all six Gates jobs.
+
+- API job `114262978930`: 1,065/1,065 suites; 3,744 passed, 2 todo, 0 skipped. OPS-560 and `reassign-status-reset-postgres` passed.
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 **One read-only reviewer**, then a skeptic on each serious finding.

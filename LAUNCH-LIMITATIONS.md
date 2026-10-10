@@ -3758,3 +3758,21 @@ These are counts, not access: no booking details are exposed. The fix is to
 store and count the team member only while they belong to the booking's
 current provider, or to clear the record whenever the booking's provider
 changes.
+
+## 118. A booking marked "provider suspended during the job" can never be paid out (open)
+
+Found while building the Slice 2 test fixture (2026-10-11). Not fixed.
+
+When an admin suspends a provider, the provider's bookings that are under way
+(on the way, arrived, in progress, or completed by the provider) are marked.
+A marked booking's money can never be released to the provider: the release,
+the partial release and the admin's manual release all refuse it. Nothing in
+the app clears the mark, although the database note on the column says an
+admin must clear it.
+
+The money can still go back to the customer through a refund, a cancellation
+or a dispute decision. But if support decides the provider should still be
+paid for work that was done, there is no way to do it. A dispute decided
+"no refund" on such a booking also leaves a release that keeps failing. This
+needs Ken's decision on who may clear the mark, then an audited admin action
+(D36 Q13).
