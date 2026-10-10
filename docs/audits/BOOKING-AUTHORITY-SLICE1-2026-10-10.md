@@ -1722,6 +1722,13 @@ It was red against `efc3e85d`.
   - Gate A passes.
 - **Full API runs (4 workers):** 1,060/1,062 suites before the review changes, and 1,061/1,063 after them (finally 3,736 tests passed, 2 todo). Each time, only the two Docker-only nginx suites (`bug-ux-201`, `bug-ux-860`) failed.
 
+### Exact-commit CI (commit `d97cbfdb`)
+
+CI `38066544536` and Gates `38066544491` both succeeded, including all six Gates jobs.
+
+- API job `114255237167`: 1,063/1,063 suites; 3,738 passed, 2 todo, 0 skipped. SEC-095, SEC-096 and `staff-booking-reads-postgres` passed.
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 **First review.** Two read-only reviewers, each with one lens: authorization across the API and apps, and the tests. A skeptic then tried to refute each serious finding.
@@ -1756,3 +1763,114 @@ It also added one check: the on-behalf case records which admin linked it (suppo
 
 - **Not deployed.**
 - **SEC-096 changes behaviour.** A suspended team member can no longer link a new support case to their job themselves. An admin can do it for them.
+
+## S1-12: reassigning an en-route booking returns it to paid (OPS-560)
+
+### Defect, reproduced before the fix
+
+`reassignBookingProvider`, the super admin's reassign at `POST /api/v1/admin/bookings/:id/reassign`, allows bookings from `requested` through `provider_en_route`. It changed the provider and cleared the performer, but kept the status. A booking whose old provider was already travelling reached the new provider as `provider_en_route`: their job opened as already on the way, before they had set off.
+
+Captured against `d97cbfdb` on the guarded participant fixture. Booking B was paid, assigned to provider B with real terms, and `provider_en_route`. Provider A was eligible. The reassign answered 200, and the status stayed `provider_en_route`.
+
+### Fix
+
+In the same transaction and the same update as the reassignment, a `provider_en_route` booking returns to `paid`. This follows repair contract K07 `REASSIGN_STATUS_RESET`.
+
+The `admin_actions` details now always carry `statusReset`:
+
+- `{ from: 'provider_en_route', to: 'paid' }` when the status was reset;
+- `null` otherwise.
+
+The other half of that contract (`provider_arrived` back to `paid`) is not built. Reassigning an arrived booking stays refused until D35 Q9 is answered.
+
+After commit, a reset also sends the admin status-change event (`provider_en_route` to `paid`), so the admin Bookings list refreshes.
+
+Unchanged:
+
+- the eligibility checks;
+- the conversation and offer updates;
+- the E50 terms;
+- the notices;
+- the provider-assigned event;
+- the set of statuses the reassign allows.
+
+### Tests
+
+**Bug test `bug-ops-560-reassign-keeps-en-route.test.ts`.** It runs on the guarded participant fixture through the real admin route. Provider A is made eligible:
+
+- approved and available;
+- offering the booking's service;
+- within range of the booking.
+
+The time-overlap check is stubbed to "no overlap", because it reads quote tables this fixture does not have.
+
+It expects:
+
+- 200;
+- `paid`, with provider A and no performer;
+- the recorded reset;
+- that provider A can then mark themselves "on the way" (200).
+
+It was red against `d97cbfdb`.
+
+**Supporting tests** (no Bug title), in `reassign-status-reset-postgres.test.ts`:
+
+1. **A paid booking stays paid**, and the details record `statusReset: null`.
+2. **A matched booking stays matched.**
+3. **The admin live feed** gets a status-change event for a reset, and none when the status is kept.
+4. **A `provider_arrived` booking is still refused** with the unchanged 409 message, and nothing changes (D35 Q9).
+5. **A refused reassignment of an en-route booking** (the new provider is not accepting work) leaves it en route with its provider, and nothing changes.
+
+**Mutations:** 5 mutations. Each was reverted, and the file was confirmed byte-identical afterwards.
+
+| Mutation | Failed |
+|---|---|
+| `booking-admin.service.ts` at `d97cbfdb` | OPS-560, supporting tests 1 and 3 |
+| Never reset the status | OPS-560 |
+| Drop the reset from the admin action | OPS-560, supporting test 1 |
+| Allow reassigning an arrived booking | supporting test 4 |
+| Do not send the status-change event | supporting test 3 |
+
+### Verification
+
+- **Focused tests.** The 6 S1-12 tests, plus every API suite that touches the admin booking service or the reassign route: 31 suites, 103 tests before the review additions.
+- **API `tsc` and eslint** on the changed files: clean, rerun on the final code.
+- **Gates**, rerun on the final code:
+  - gate smoke 7/7;
+  - Gate C passes. The unique regression ids went from 1,663 to 1,664;
+  - Gate A passes.
+- **Full API run (4 workers) on the final code:** 1,063/1,065 suites; 3,742 tests passed, 2 todo. Only the two Docker-only nginx suites (`bug-ux-201`, `bug-ux-860`) failed.
+
+### Independent review
+
+**One read-only reviewer**, then a skeptic on each serious finding.
+
+**The result: no defect in the reset.**
+
+- The update is atomic under the booking lock, and the null parameter types correctly.
+- The new admin-record detail breaks no reader of it: the audit log page, the CSV export and the booking timeline.
+- Nothing else depends on the en-route state. There are no en-route columns or location records, and change orders need `in_progress`.
+- Only the late-provider alert reads `paid`.
+- `matched`, `payment_pending` and `paid` correctly keep their status.
+- One finding, that a reset booking keeps an old suspension flag so the new provider could never be paid, was refuted by the skeptic.
+
+**Applied:**
+
+- **The admin status-change event** for a reset.
+- **The bug test now shows** that the new provider can set off.
+- **A "matched" booking test.**
+
+**Recorded, not changed:**
+
+- **D35 Q9** (Ken), from older behaviour next to the reset:
+  - the customer tracker's wording after a reset (the contract's "assigned, not yet on the way" needs approved wording), and that the admin confirmation does not mention the reset;
+  - reassigning a "requested" or "quoted" job request leaves its other quotes open, so a later quote acceptance can silently replace the provider support chose;
+  - a reassigned accepted quote keeps the first provider's loyalty discount.
+- **Review attribution and the per-member team stats** still count a retained performer. The S1-10 and S1-11 sections said this would go with S1-12, but S1-12 does not change it. It is now LAUNCH-LIMITATIONS 117 (open).
+
+### Scope and limits
+
+- **Not deployed.**
+- **The late-provider alert now also covers more bookings.** A reassigned booking that returns to `paid` after its scheduled time is picked up by that alert. The alert's "cancel for a full refund" wording does not match the refund a late cancellation actually pays (D35 Q12, "Related"). S1-12 widens that existing exposure but does not create it. It is recorded for Ken with the provider-cancellation question.
+- **Reassigning an arrived booking stays refused** (D35 Q9).
+- **The customer and providers are notified as before.** The notices do not mention the status reset.

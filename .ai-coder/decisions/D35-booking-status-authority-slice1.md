@@ -138,6 +138,14 @@ The repair contract says reassigning a job resets it to "paid", so the new provi
 
 Should reassignment from "arrived" be allowed, with the same reset?
 
+**Built in S1-12 (candidate, not deployed):** reassigning an "en route" job returns it to "paid" in the same step, and the admin record notes the reset. "Arrived" stays blocked.
+
+**Related reassignment questions (found while reviewing S1-12):**
+
+- **The customer's tracker after a reset.** It changes from "Provider is on the way" to "Payment confirmed", with only the generic "Your service provider changed" notice. The repair contract wants it to say "assigned, not yet on the way". That needs approved wording. The admin's reassign confirmation also does not say that an en-route job goes back to "paid".
+- **Reassigning a job request that still has open quotes.** Support can reassign a booking that is still "requested" or "quoted". The open quotes stay open, and if the customer then accepts another provider's quote, that quietly replaces the provider support chose. Should reassignment decline the open quotes and move the booking to "matched", or be blocked until a quote is accepted?
+- **A reassigned accepted quote keeps the first provider's loyalty discount.** The price was fixed when the quote was accepted, including any "suki" discount the customer had with that provider. After reassignment, the new provider works at that discounted price. Should a reassignment re-price, or keep the accepted price (today's behaviour)?
+
 ## Q10. Paying by wallet after an abandoned card or GCash attempt
 
 Some bookings are stuck at "payment pending" because a card or GCash attempt was started and abandoned. External payments are switched off (E14). May the customer then pay that booking from their wallet?

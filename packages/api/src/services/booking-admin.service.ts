@@ -1463,13 +1463,21 @@ export async function reassignBookingProvider(
       }
     }
 
+    // OPS-560 (repair contract K07 REASSIGN_STATUS_RESET): the old
+    // provider's "on the way" status does not carry over to the new
+    // provider; the booking returns to paid in the same step. The
+    // provider_arrived half of the reset stays blocked above until D35 Q9.
+    const statusReset = booking.status === 'provider_en_route'
+      ? { from: 'provider_en_route', to: 'paid' }
+      : null;
     await client.query(
       `UPDATE bookings
           SET provider_id = $1,
               performer_staff_id = NULL,
+              status = COALESCE($3, status),
               updated_at = NOW()
         WHERE id = $2`,
-      [newProviderId, bookingId],
+      [newProviderId, bookingId, statusReset?.to ?? null],
     );
 
     const conversationResult = await client.query(
@@ -1499,6 +1507,7 @@ export async function reassignBookingProvider(
           clearedPerformerStaffId: booking.performer_staff_id,
           conversationParticipantUpdated: (conversationResult.rowCount ?? 0) > 0,
           pendingOffersCancelled: offersResult.rowCount ?? 0,
+          statusReset,
         }),
         trimmedReason.slice(0, 500),
         trimmedReason,
@@ -1540,6 +1549,7 @@ export async function reassignBookingProvider(
       oldProviderId: booking.provider_id,
       newProviderId,
       adminActionId,
+      statusReset,
       customerId: booking.customer_id,
       oldProviderUserId: booking.old_provider_user_id,
       newProviderUserId: provider.user_id,
@@ -1580,6 +1590,15 @@ export async function reassignBookingProvider(
     oldProviderId: result.oldProviderId,
     newProviderId,
   });
+  // OPS-560: the reset is a status change too; the admin Bookings list
+  // refreshes only on status-change events.
+  if (result.statusReset) {
+    socketService.emitAdminEvent(socketService.ADMIN_EVENTS.BOOKING_STATUS_CHANGED, {
+      id: bookingId,
+      oldStatus: result.statusReset.from,
+      newStatus: result.statusReset.to,
+    });
+  }
 
   return {
     bookingId: result.bookingId,

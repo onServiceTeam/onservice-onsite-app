@@ -3724,3 +3724,37 @@ on a suspended member's behalf, linked to their own provider's job. The team
 member of the job's own provider, the provider owner and the customer are
 unchanged. This is verified in source and tests in the candidate only and is
 not deployed. See `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 116. Reassigning a job that was already "on the way" kept that status
+
+When support reassigned a booking to a different provider after the first
+provider had marked themselves "on the way", the booking kept that status.
+The new provider's job opened as if they were already travelling.
+
+Candidate OPS-560 returns such a booking to "paid" in the same step as the
+reassignment, and the admin record notes the reset. Reassigning a job whose
+provider already arrived is still refused until Ken answers D35 Q9. One side
+effect to know: a reassigned booking that is back at "paid" after its
+scheduled time can trigger the existing late-provider alert, whose "full
+refund" wording is already wrong (D35 Q12). This is verified in source and
+tests in the candidate only and is not deployed. See
+`docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## 117. A team member can be credited with another provider's job and review (open)
+
+Found while reviewing S1-10 to S1-12 (2026-10-10 and 2026-10-11). Not fixed.
+
+When a booking moves to another provider other than through the admin
+reassign (for example, the customer accepts a different provider's quote
+after a provider and team member were already set), it keeps the team member
+recorded from the first provider. The admin reassign clears it. That record no longer gives any access
+(sections 113 and 115), but two things still use it:
+
+- a customer's review of the job is stored against that team member;
+- the team page counts that job and that review in the team member's numbers,
+  which the first provider's owner and the admin see.
+
+These are counts, not access: no booking details are exposed. The fix is to
+store and count the team member only while they belong to the booking's
+current provider, or to clear the record whenever the booking's provider
+changes.
