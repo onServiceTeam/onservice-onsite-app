@@ -557,7 +557,10 @@ Every refusal test except the race test (refusals test 11, which checks the resp
 
 ### Exact-commit CI
 
-Recorded in the next commit, as for S2-2 (the run starts on the push).
+CI `38142455973` and Gates `38142456150` both succeeded on `b75985b2`.
+
+- API job `114478920798`: 1,081/1,081 suites; 3,804 passed, 2 todo, 0 failed. FIN-022 to FIN-026 and both supporting files passed. This is the clean full run the local timeouts above could not give.
+- The admin, mobile and Docker jobs succeeded.
 
 ### Independent reviews
 
@@ -596,3 +599,18 @@ Two read-only reviews, each with three lenses (code and money safety, tests, rec
   - a support refund between a partial or "no refund" decision and its post-commit payout leaves that payout refused and queued (LAUNCH-LIMITATIONS 124); the fix belongs with S2-9b;
   - a super admin's manual release and an admin force-complete pay hourly bookings for the estimate (LAUNCH-LIMITATIONS 125);
   - a ledger sum below zero is not produced by any code path; the refusals treat it as nothing held or a mismatch, and no test builds one.
+
+## Live deploy (2026-10-11)
+
+At Ken's request (about 18:40), PR81 was deployed to the live tester server (46.62.207.225) the same evening. This is a deploy to the tester box, not a production launch.
+
+- **What is live:**
+  - **About 20:30:** the API, the customer and provider web app and the admin web app at `28850c62`, with database migrations 157 to 179.
+  - **About 22:13:** the API at `b75985b2` (S2-3; no migration, no web change).
+- **How it was done:**
+  - backups first;
+  - a rehearsal of the migrations on a copy of the live database (deleted afterwards);
+  - the reviewed release helpers for migrations and activation;
+  - new web files added beside the old ones, with each entry page swapped last.
+  - Each step was verified from outside: served files equal the builds, new endpoints answer, protected routes still need sign-in.
+- **What changed for live users:** see LAUNCH-LIMITATIONS 126.

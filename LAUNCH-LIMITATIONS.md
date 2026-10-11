@@ -4024,3 +4024,42 @@ estimate.
 Until this is fixed, admins should not manually release or force-complete an
 hourly booking; escalate it instead. The fix (settle hourly bookings first,
 or refuse them, on those paths) is a later money step and is tied to D36 Q10.
+
+## 126. The fixes through S2-3 are live on the tester server (2026-10-11)
+
+On Ken's request, PR81 was deployed to the live tester server on the evening
+of 2026-10-11:
+
+- about 20:30, commit `28850c62`: the API, both web apps, and database
+  migrations 157 to 179;
+- about 22:13, commit `b75985b2`: the API for S2-3.
+
+So every fix that earlier sections describe as "in the candidate" or "not
+deployed" from Slice 1, MC-03 and Slice 2 through S2-3 is now live on the
+tester server. The server is still not a production launch.
+
+What changed for people using it:
+
+- **About 11 older bookings are frozen for money moves.** These are bookings
+  paid before the per-booking money terms existed. Releasing or cancelling
+  their money is refused until the E50 legacy review. Nothing moves wrongly;
+  they just wait. New bookings work normally.
+- **Dispute decisions follow section 123.**
+- **The server's test-fixture endpoints are switched off.** They were only
+  reachable from Ken's test network.
+
+Still true on the tester server, and to change before a real launch:
+
+- it runs in staging mode;
+- phone sign-in accepts a shared developer code;
+- admin two-factor is off;
+- the anti-bot check has no keys, so a phone locked out after repeated wrong
+  codes stays locked for the lockout period;
+- the payment key is a real-money key, so testers must not pay.
+
+The web-server rule that hides tester feedback screenshots (the UX-860 fix)
+is not applied yet. Applying it means restarting the web container that
+other businesses share, so it waits for a planned window.
+
+Backups taken before each step, and the previous app image, are kept on the
+server for rollback.
