@@ -56,6 +56,8 @@ const HAPPY_HELPER = {
   providerId: PROVIDER_ID,
   pushRequests: [],
   refundPaymentMethod: 'wallet',
+  // S2-3: a refund decision never releases the whole booking afterwards.
+  releaseAfterDecision: false,
 };
 
 beforeEach(() => {
@@ -97,6 +99,7 @@ describe('Bug 83 — adminResolveDispute transactional', () => {
 
     expect(result.adminActionId).toBe('audit-res');
     expect(result.refundAmount).toBe(50000);
+    expect(escrowService.releaseEscrow).not.toHaveBeenCalled();
   });
 
   it('passes the same client to resolveDisputeInTransaction', async () => {
@@ -183,6 +186,7 @@ describe('Bug 83 — adminResolveDispute transactional', () => {
       BOOKING_ID, 30000, 'Admin dispute resolution: partial_refund', 'wallet', DISPUTE_ID,
     );
     expect(escrowService.releasePartialEscrow).toHaveBeenCalledWith(BOOKING_ID, 20000);
+    expect(escrowService.releaseEscrow).not.toHaveBeenCalled();
   });
 
   it('runs post-commit releaseEscrow on no_refund', async () => {
@@ -190,6 +194,8 @@ describe('Bug 83 — adminResolveDispute transactional', () => {
       ...HAPPY_HELPER,
       refundAmount: 0,
       refundPercent: 0,
+      // S2-3: the core reports that the booking still holds money to release.
+      releaseAfterDecision: true,
     });
     setTxQueryImpl(makeRouter([
       { match: /INSERT INTO admin_actions/, rows: [{ id: 'audit-res' }], rowCount: 1 },

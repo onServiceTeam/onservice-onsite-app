@@ -328,6 +328,7 @@ it('MED-N28 - every failed post-commit admin dispute release creates the matchin
       providerId: 'provider-1',
       bookingTotalAmount: 10000,
       refundPaymentMethod: 'wallet',
+      releaseAfterDecision: false,
     })
     .mockResolvedValueOnce({
       refundAmount: 4000,
@@ -335,6 +336,7 @@ it('MED-N28 - every failed post-commit admin dispute release creates the matchin
       providerId: 'provider-1',
       bookingTotalAmount: 10000,
       refundPaymentMethod: 'wallet',
+      releaseAfterDecision: false,
     })
     .mockResolvedValueOnce({
       refundAmount: 0,
@@ -342,6 +344,8 @@ it('MED-N28 - every failed post-commit admin dispute release creates the matchin
       providerId: 'provider-1',
       bookingTotalAmount: 10000,
       refundPaymentMethod: null,
+      // S2-3: the core reports that the booking still holds money to release.
+      releaseAfterDecision: true,
     });
   // MC-03: the escrow refund commits inside resolveDisputeInTransaction; after
   // commit only the payment-record step runs (it queues its own payment-only

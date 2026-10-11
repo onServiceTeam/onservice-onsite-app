@@ -39,13 +39,8 @@ function refusalLogs() {
     .map(([, details]) => details);
 }
 
-// The production hourly columns (migration 145).
-async function addHourlyColumns(database: Pool): Promise<void> {
-  await database.query(`ALTER TABLE bookings ADD COLUMN estimated_hours numeric(5,2),
-      ADD COLUMN work_completed_at timestamptz, ADD COLUMN billed_hours numeric(5,2);
-    ALTER TABLE service_subcategories ADD COLUMN min_billable_minutes integer NOT NULL DEFAULT 60,
-      ADD COLUMN billing_increment_minutes integer NOT NULL DEFAULT 30`);
-}
+// The production hourly columns (migration 145) are in the dispute fixture
+// (moved there in S2-3).
 
 // One hour worked of a two-hour estimate on booking B: the settlement bills
 // 500,000 and refunds the other 500,000 of unused time.
@@ -243,7 +238,6 @@ it('a partial release that waits on another escrow movement for the booking refu
 
 it('an hourly settlement refuses an unused-time refund larger than what the booking holds', async () => {
   await withMoneyDisputeDatabase(async database => {
-    await addHourlyColumns(database);
     // Support refunded 800,000, so B holds 200,000; the settlement would
     // refund 500,000 of unused time.
     expect((await supportRefundB(800000, requestKey)).status).toBe(200);
@@ -268,7 +262,6 @@ it('an hourly settlement refuses an unused-time refund larger than what the book
 
 it('a customer confirming a fully held hourly booking settles the hours and releases the rest', async () => {
   await withMoneyDisputeDatabase(async database => {
-    await addHourlyColumns(database);
     await makeBHourly(database);
     const customerBefore = await walletAvailable(database, 'customer', customerB);
 
@@ -289,7 +282,6 @@ it('a customer confirming a fully held hourly booking settles the hours and rele
 
 it('a customer confirming an hourly booking that holds too little is asked to contact support and nothing moves', async () => {
   await withMoneyDisputeDatabase(async database => {
-    await addHourlyColumns(database);
     expect((await supportRefundB(800000, requestKey)).status).toBe(200);
     // The label older code could leave: "held", holding 200,000.
     await database.query("UPDATE bookings SET escrow_status='held' WHERE id=$1", [bookingB]);

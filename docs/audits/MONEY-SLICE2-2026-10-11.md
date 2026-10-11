@@ -134,6 +134,8 @@ The comments on the wallet lock order (`escrow.service.ts`, `wallet.service.ts`)
 
 A partial dispute decision made after an earlier support refund still refunds that percentage of the original total, so the customer can get back more than either answer to D36 Q1 would give. The provider's partial release that follows is refused (before, it was paid from other bookings' money) and ends as "manual investigation" in Financials. In the same situation a full-refund decision is refused outright, and a no-refund decision's release is refused.
 
+Update (S2-3, 2026-10-11): this interim state is closed in the candidate; see S2-3.
+
 ### Tests
 
 **Bug tests**, each red against `f5faa5a4` for the stated reason (log in the private records):
@@ -313,6 +315,8 @@ Captured against `f3e53f56`:
 
 is refused by the refund cap ("Refund exceeds this booking's remaining escrow"). A partial or no-refund decision works.
 
+Update (S2-3, 2026-10-11): an admin's partial or full refund decision on such a dispute is now refused before anything is recorded (`DISPUTE_DECISION_AFTER_EARLIER_REFUND`, D36 Q1). The provider's accept is still refused by the refund cap. A no-refund decision still pays the provider what the booking holds.
+
 **Correction to E18, E59 and LAUNCH-LIMITATIONS 42** (dated notes added to each, nothing deleted):
 
 - **No dispute after the automatic release.** The automatic 24-hour confirmation, and a customer's own confirmation, move the booking to "payout ready", and a dispute cannot be filed after that. So the automatic path never sends released money into a dispute.
@@ -368,6 +372,13 @@ is refused by the refund cap ("Refund exceeds this booking's remaining escrow").
 - **Gates:** gate smoke 7/7; Gate A passes; Gate C passes. The unique regression ids went from 1,667 to 1,670.
 - **Full API run (4 workers), final code:** 1,072/1,074 suites; 3,770 tests passed, 2 todo. Only the two Docker-only nginx suites (`bug-ux-201`, `bug-ux-860`) failed. The machine had recovered from the morning's slowness, and no suite timed out.
 
+### Exact-commit CI (commit `28850c62`)
+
+CI `38104214808` and Gates `38104214802` both succeeded, including all six Gates jobs.
+
+- API job `114366160188`: 1,074/1,074 suites; 3,772 passed, 2 todo, 0 skipped. FIN-020, FIN-021, OPS-562, `dispute-filing-locks-postgres` and the three updated mocked suites passed.
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent review
 
 Three read-only lenses: code and concurrency, tests, and records and behaviour. Each serious finding was checked by two skeptics.
@@ -400,3 +411,188 @@ Three read-only lenses: code and concurrency, tests, and records and behaviour. 
 - **Bookings already wrongly labelled** by older code still need the data repair in LAUNCH-LIMITATIONS 121 (Ken's decision).
 - **Refund decisions after an earlier refund** are S2-3 (D36 Q1).
 - **Recorded, not changed:** a tip locks the customer's wallet before the booking, so a tip and a no-show filing on the same wallet-paid booking at the same moment can deadlock. One request then fails, and no money moves (LAUNCH-LIMITATIONS 120 update).
+
+## S2-3: dispute decisions refuse what they cannot honestly carry out (FIN-022 to FIN-026)
+
+### Defect, reproduced before the fix
+
+An admin's dispute decision (`resolveDisputeInTransaction`, used by the admin console route and by the older dispute route) worked out its refund from the booking's total. It never looked at what the booking still held, or whether an hourly booking had been settled. Captured against `28850c62`:
+
+- **FIN-022: a partial decision after an earlier refund refunds too much.** Support refunded ₱2,500 of booking B's ₱10,000. A "60%" decision then refunded a further ₱6,000, 60% of the original total, so the customer got ₱8,500 back in all. The booking was left holding ₱1,500, and the provider's ₱4,000 share was refused and queued for a retry that can never succeed. The decision answered success.
+- **FIN-023: a "no refund" decision on a wrongly labelled booking.** The booking was labelled "held" but held ₱7,500 of its ₱10,000, the state older code left behind (LAUNCH-LIMITATIONS 121). The decision was recorded as resolved, and a release retry was queued that can never succeed.
+- **FIN-024: a "no refund" decision on money already paid out.** After a super admin's manual release, the decision tried to release the money again. That was refused and left a release retry that can never succeed. Such a retry ends in Financials as "manual investigation".
+- **FIN-025: a refund decision on a wrongly labelled booking.** On the same "held" booking holding ₱7,500, a "50%" decision refunded ₱5,000, which the booking's own refund cap allowed, and was recorded as resolved. The provider's ₱5,000 share could then not be paid from the ₱2,500 left, so it was queued for a retry that can never succeed.
+- **FIN-026: a "no refund" decision on an hourly booking.** An hourly booking is settled to the hours worked only when the customer confirms, and a dispute always comes before that. With two hours estimated and one worked, a "no refund" decision paid the provider ₱6,800 for both hours, and the customer's unused hour was never refunded. Partial decisions also worked from the estimate. This was in the code before Slice 2; the first S2-3 review found it.
+
+### Fix
+
+`packages/api/src/services/dispute.service.ts`, `resolveDisputeInTransaction`. After the dispute and booking locks, and before anything is written, it reads what the booking still holds (`bookingEscrowHeldForLockedBookingInTransaction`, under the booking lock, as in S2-2), and whether the booking is hourly and settled. Then, in this order:
+
+1. **A refund decision with nothing to pay it from** (any refund above zero while the booking holds nothing) is refused (`DISPUTE_NOTHING_HELD`). There is no clawback (D36 Q12).
+2. **Any decision on a booking whose escrow label does not match its money** is refused (`DISPUTE_ESCROW_MISMATCH`). "Held" must hold the whole total, "partly refunded" less than the total, and every other label nothing. Older code could leave them apart (LAUNCH-LIMITATIONS 121).
+3. **A refund decision after an earlier refund** is refused (`DISPUTE_DECISION_AFTER_EARLIER_REFUND`). What a percentage or a "full refund" means then is Ken's decision (D36 Q1).
+4. **On an hourly booking not yet settled, a decision that would pay the provider from money still held** is refused (`DISPUTE_HOURLY_UNSETTLED`). Every disputed hourly booking is unsettled, because settlement happens only when the customer confirms. A full refund returns exactly what the customer paid, and a decision on a booking that holds nothing moves nothing, so both go ahead. If the booking was also partly refunded, the text says no decision can be made until both questions are answered. What the rest should mean is Ken's decision (D36 Q10).
+
+"Settles by the hour" (marked hourly, with estimated hours and a price above zero) is now one test, `hourlySettlementApplies` in `packages/api/src/services/booking/pricing.service.ts`. The decision and the hourly settlement in `escrow.service.ts` both use it; the settlement's behaviour is unchanged.
+
+Each refusal answers 409 with a plain message (wording D36 Q2). The nothing-held and mismatch messages name the escrow label; the mismatch and earlier-refund messages also give the amounts. Nothing is recorded and nothing moves: no dispute update, no provider suspension, no notification, no audit row, no retry. The first two (a money anomaly support must see) are logged at error, as S2-1's payout refusals are; the last two (policy holds) at warn.
+
+**The release after a decision that refunds nothing** ("no refund", or a 0% partial or split) now happens only while the booking still holds money. Money already released or refunded stays where it is, and no retry is queued. The decision core returns this as `releaseAfterDecision`, and both callers (`adminResolveDispute` in `dispute-admin.service.ts`, and the older `resolveDispute`) use it instead of their own rule.
+
+**Why the release still follows "the refund is zero".** The plan said to choose the release by decision type, never by "the refund is zero". That rule came from an earlier draft in which a refund would have been worked out from what is held, so a "full refund" on released money would have looked like a zero refund. In the build, the refund is still worked out from the booking's total, and every refund decision on released money is refused above. A zero refund comes only from "no refund", a 0% split, a 0% partial on the older dispute route (the admin route refuses a 0% partial, and the console asks for 1 to 100), or a fractional percentage that rounds to zero centavos. Each of these releases what the booking still holds, as before; the plan's type-only rule would have left the money stuck in the last two cases. The release is also limited to those three decision types. A full-refund decision can only refund zero on a booking whose total is zero, and the mismatch check already requires such a booking to hold nothing, so nothing is released there either way.
+
+**Unchanged:**
+
+- **Decisions on a fully held, non-hourly booking with no earlier refund:** full, partial, split, refund with suspension, and no refund. A partial decision still releases exactly the remainder (`escrow-payout-limits-postgres`, from S2-1), and a 0% split still releases the whole booking (releases test 5).
+- **The provider's "accept" and the customer's acceptance of a partial offer.** They do not use the decision core and keep their own math. Both stay held for launch under E24 (they answer 503 outside tests). The cases where they would now differ from an admin decision are added to E24's conditions for lifting the hold (dated note in E24).
+- **The automatic no-show refund** (S2-2). Its internal note still says "Decide this dispute manually"; after S2-3 such a dispute can only be decided "no refund" or left open (LAUNCH-LIMITATIONS 122 update, D36 Q1 and Q2).
+- **The notification texts and the audit row** of every decision that goes through.
+
+**What admins now see.** A refused decision shows its message under the decision form in the admin console, and the dispute stays open. The customer and the provider are not told. The admin should send a case update to both (Send message) saying the decision is on hold, and must not use a support refund to get round the refusal (LAUNCH-LIMITATIONS 121). The refund preview on that screen is still right for every decision that is allowed. It moves to a server-side amount once D36 Q1 is answered.
+
+**FIN-015 now tests what it names again.** After S2-3, a refund above zero only runs on a booking labelled "held" that holds its whole total, so the booking's refund cap can no longer be the thing that fails. FIN-015 therefore injects a fault: the shared escrow account is set by direct SQL to hold less than the booking's ledger, as if its balance had drifted, so the refund itself fails inside the decision, and the test checks that nothing is recorded. Its earlier setup, an 80% decision after a support refund on a booking still labelled "held", is now refused by the mismatch check and is kept as a supporting test.
+
+### Tests
+
+**Bug tests**, each red against `28850c62` for the stated reason, with the final test text (the "old code" mutation run below):
+
+- `bug-fin-022-partial-decision-after-earlier-refund.test.ts`: before the fix, the decision answered 200, the dispute was resolved, the booking held ₱1,500 instead of ₱7,500, and the provider's share was queued. Now it is refused with the earlier-refund message, the dispute stays open, nothing moved or was queued, and the refusal is logged at warn with its amounts.
+- `bug-fin-023-no-refund-decision-on-short-held-booking.test.ts`: before the fix, the decision answered 200, the dispute was resolved, and a retry was queued. Now it is refused with the mismatch message, nothing moved, and the refusal is logged at error.
+- `bug-fin-024-no-refund-decision-on-released-money.test.ts`: before the fix, a release retry was left pending. Now the decision is recorded, and no retry exists.
+- `bug-fin-025-refund-decision-on-short-held-booking.test.ts`: before the fix, the decision answered 200, ₱5,000 was refunded and the provider's share was queued for a retry that cannot succeed. Now it is refused with the mismatch message, and nothing moved.
+- `bug-fin-026-no-refund-decision-on-unsettled-hourly-booking.test.ts`: before the fix, the decision answered 200 and the provider was paid ₱6,800 for the estimated hours. Now it is refused with the hourly message, and nothing moved.
+
+Every refusal test except the race test (refusals test 11, which checks the response, the held amount, the dispute and booking rows, the retry queue and the notifications) compares a whole decision snapshot before and after: the participant snapshot (wallets, ledger, bookings, payment records, support cases, audit rows, retries, providers, terms, notifications, waitlist, offers) plus the dispute and dispute evidence rows.
+
+**Supporting tests: refusals** (`dispute-decisions-postgres.test.ts`):
+
+1. A full-refund decision after an earlier refund is refused the same way, and is logged at warn.
+2. A refund decision larger than a wrongly labelled booking holds (80% against ₱7,500) is refused for the mismatch (FIN-015's earlier setup).
+3. A refund-with-suspension decision on money already paid out is refused, and the provider is not suspended.
+4. A refund decision on a booking already refunded in full is refused as having nothing to pay from.
+5. to 9. **States older code could leave behind:** a refund decision on a booking labelled "held" that holds nothing (refused as nothing held); a "no refund" decision on the same booking (refused, ₱0.00 held); a "no refund" decision on a booking labelled "held" that holds ₱11,000, as a duplicated hold would leave; a "no refund" decision on a booking labelled "released" that still holds its money; a "no refund" decision on a booking labelled "partly refunded" that still holds its whole total. Each of the last four is refused for the mismatch.
+10. The older dispute route refuses a partial decision after an earlier refund the same way.
+11. **A decision waits for an escrow movement in flight on the booking.** A blocker adds a ₱1,000 hold without committing; its ledger row's foreign key is the only lock on the booking. The decision waits, then sees ₱11,000 and is refused instead of releasing; the dispute stays open, and nothing is queued or sent.
+12. and 13. **The order of the checks:** a refund decision on a booking labelled "partly refunded" that holds nothing is refused as nothing held, and one on a booking labelled "partly refunded" that still holds its whole total for the mismatch; both are logged at error, not as the earlier-refund hold.
+14. A "no refund" decision on an hourly booking not yet settled that was also partly refunded is held back with its own text.
+15. A partial decision on an hourly booking not yet settled is held back.
+
+**Supporting tests: releases** (`dispute-decision-releases-postgres.test.ts`):
+
+1. A "no refund" decision on a booking labelled "partly refunded" that holds nothing is recorded, and no release is queued.
+2. The older dispute route records a "no refund" decision on money already paid out without queueing a release.
+3. The older dispute route releases a fully held booking after a "no refund" decision (₱6,800 to the provider).
+4. The older dispute route releases a fully held booking after a 0% partial decision: the evidence for the release rule above.
+5. A 0% split decision on a fully held booking releases the whole booking to the provider side, as before.
+6. A full-refund decision on an hourly booking not yet settled still goes through: the customer gets ₱10,000 back and the provider nothing.
+7. and 8. A "no refund" decision on an hourly booking not yet settled is recorded and pays nothing when its money was already refunded in full, or already released by a super admin.
+9. to 11. **The hourly rule is the settlement's own:** a "no refund" decision releases the whole booking on an hourly booking already settled (billed hours set by direct SQL, because a settled booking is normally past the point a dispute can be filed), on a booking marked hourly with no estimated hours, and on a booking with estimated hours that is not marked hourly.
+12. **R-MON-03 acceptance, over HTTP.** After a ₱2,500 support refund, the partial and full decisions are refused, and nothing moves. A "no refund" decision then releases exactly what the booking holds: ₱5,100 to the provider, 75% of its ₱6,800 share. The payment record stays "partly refunded, ₱2,500". Nothing is left queued, and the bystander booking's ₱50,000 is untouched.
+
+**Updated suites (no assertion removed):**
+
+- `bug-fin-015`: reworked as explained above.
+- `services/dispute-resolve-tx`: its mocked decision core now returns `releaseAfterDecision` (false for refunds, true for "no refund"), and the full and partial refund cases also check that no whole-booking release runs.
+- `gateway-retry-queue-med-n28`: its three mocked decisions return `releaseAfterDecision` (false, false, true). The release assertions are unchanged.
+- `bug-ops-314`: its escrow mock now also answers the held-amount read, with the booking's full total.
+- `escrow-payout-limits-postgres`: the production hourly columns it added itself now come from the dispute fixture (`helpers/dispute-postgres.ts`), because the decision reads them.
+
+**Mutations:** 29 mutations on the final code, after both review rounds. The runner restores both files after each one and confirms they are byte-identical, and a run with no mutation passed 66 of 66 first. Only real assertion failures count as a catch. This machine produced many connection timeouts after the day's power cuts; they are listed but not counted, and the one mode whose catch was hidden by a timeout (the older route's old release rule) was rerun and caught.
+
+- **28 of 29 are caught.** Supporting tests are numbered as in the lists above.
+- **One is equivalent:** limiting the release to the three decision types changes nothing. A full-refund decision can refund zero only on a booking whose total is zero, and the mismatch check already requires such a booking to hold nothing.
+- **Some catches are by error code, message or log level only, with no difference in money** (marked). For those, the booking's own refund cap or another refusal still stops the money.
+- The two earlier rounds (17 modes on the first build, 24 on the second) are kept in the private logs.
+
+| Mutation | Caught by |
+|---|---|
+| The two dispute files at `28850c62` (red evidence) | FIN-022, FIN-023, FIN-024, FIN-025, FIN-026, refusals 1, refusals 2, refusals 3 and 17 more |
+| All four refusals removed | FIN-022, FIN-023, FIN-025, FIN-026, refusals 1, refusals 2, refusals 3, refusals 4 and 12 more |
+| No "nothing held" refusal | refusals 3, refusals 4, refusals 5, refusals 12 (code, message or log level only; same money) |
+| "Nothing held" only below zero | refusals 3, refusals 4, refusals 5, refusals 12 (plus 6 environment timeouts, not counted) (code, message or log level only; same money) |
+| No label and money check | FIN-023, FIN-025, refusals 2, refusals 6, refusals 7, refusals 8, refusals 9, refusals 11 and 1 more |
+| "Held" may hold less than its total | FIN-023, FIN-025, refusals 2, refusals 6 |
+| "Held" may hold more than its total | refusals 7, refusals 11 |
+| "Partly refunded" may hold its whole total | refusals 9, refusals 13 |
+| Other labels may still hold money | refusals 8 |
+| No earlier-refund hold | FIN-022, refusals 1, refusals 10, releases 12 (R-MON-03) |
+| Earlier-refund hold checked before the mismatch | refusals 13 (code, message or log level only; same money) |
+| Earlier-refund hold checked first | refusals 12, refusals 13 (code, message or log level only; same money) |
+| No hourly hold | FIN-026, refusals 14, refusals 15 |
+| Hourly hold ignores what is held | releases 7, releases 8 |
+| Hourly hold only for decisions that refund nothing | refusals 15 |
+| Hourly hold ignores whether the hours were settled | releases 9 |
+| Hourly test uses only the hourly flag | releases 10 |
+| Hourly test uses only the estimate | releases 11 |
+| One hourly text for both cases | refusals 14 (code, message or log level only; same money) |
+| Release not limited to the three decision types | none: equivalent (see above) |
+| Release whatever the booking holds | FIN-024, releases 1, releases 2, releases 7, releases 8 |
+| Money anomalies logged at warn | FIN-023, FIN-025, refusals 2, refusals 3 (plus 4 environment timeouts, not counted) (code, message or log level only; same money) |
+| Weaker booking lock (`FOR NO KEY UPDATE`) | refusals 11 (plus 1 environment timeouts, not counted) |
+| No booking lock | refusals 11 (plus 18 environment timeouts, not counted) |
+| A failed refund is ignored | FIN-015 (plus 35 environment timeouts, not counted) |
+| Admin route keeps its old release rule | FIN-024, releases 8 (plus 29 environment timeouts, not counted) |
+| Admin route never releases | dispute-resolve-tx, MED-N28, releases 5, releases 9, releases 10, releases 11 (plus 14 environment timeouts, not counted) |
+| Older route keeps its old release rule | releases 2 |
+| Older route never releases | releases 3 (plus 7 environment timeouts, not counted) |
+
+### Verification
+
+- **Focused tests, final code:** the 12 decision test files, 66/66, serially on PostgreSQL 17, zero skips. They are:
+  - the five bug tests and FIN-015;
+  - both supporting files;
+  - `escrow-payout-limits-postgres`;
+  - the mocked `dispute-resolve-tx`, `gateway-retry-queue-med-n28` and `bug-ops-314`.
+
+  Earlier, on the second build, all 18 dispute-related suites passed 130/130.
+- **API `tsc` and eslint:** clean on every changed file.
+- **Gates:** unique regression ids 1,675 (was 1,670); Gate C passes; Gate A passes; gate smoke 7/7.
+- **Full API run (3 workers), final code:** 1,049/1,081 suites; 3,744 tests passed, 2 todo, 60 failed.
+  - **Every failure inspected was the environment:** connection and lock timeouts against the local database (5-second limits) while this machine was overloaded after three power cuts, process-start timeouts, and the two Docker-only nginx suites.
+  - None of the failing suites touches dispute decisions, escrow or hourly pricing.
+  - Exact-commit CI below is the clean full run.
+- **Two incidents during this step, both mine, both recovered:**
+  1. **A script edited the wrong file.** A drafting script for the next step briefly edited `packages/api/src/services/booking.service.ts`, for about 90 seconds during a mutation run, because its path was still hard-coded. It was restored byte-exact; no test in that run uses change-order payment. The script now refuses to run without an explicit target.
+  2. **A stopped mutation runner kept running.** It erased part of the second-round change in `dispute.service.ts` and left a mutated file until a power cut ended it. It was found because the change was missing. The file was restored from the runner's own backup, which is identical to the reviewed snapshot; the change was re-applied, checked line by line and type-checked. All results from that runner after the stop were discarded. The final runner restores its files on any exit and stops at a STOP file, and the final mutation run above was made with it.
+
+### Exact-commit CI
+
+Recorded in the next commit, as for S2-2 (the run starts on the push).
+
+### Independent reviews
+
+Two read-only reviews, each with three lenses (code and money safety, tests, records and behaviour) and two skeptics on every serious finding.
+
+- **Review 1 (first build): no blocker; four majors confirmed and applied.**
+  - The hourly "no refund" paid the estimate: FIN-026 and the hourly refusal.
+  - The refund side of the mismatch check was untested on money: FIN-025.
+  - FIN-015 no longer reached its fix: reworked.
+  - The older route's release was untested: releases tests 3 and 4.
+
+  Its 19 minors were applied, except the optional below-zero ledger tests: no code path produces a negative ledger.
+- **Review 2 (second build): the code lens found the guard sound for every reachable state, and checked every escrow writer for regressions (none).** Two majors were confirmed and applied:
+  - The hourly refusal ignored what the booking holds. It now applies only when the decision pays the provider from money still held (releases tests 7 and 8).
+  - A private escalation's suggested stopgap was wrong. It is corrected privately.
+
+  Minors applied:
+  - the hourly test shared with the settlement;
+  - check-order tests;
+  - the race test without an explicit lock;
+  - log assertions, and the dispute rows in the snapshot;
+  - record wording;
+  - LAUNCH-LIMITATIONS 124 widened and 125 added;
+  - the handbook list, and the no-show note.
+
+### Scope and limits
+
+- **Not deployed.** Live exposure is described in E82 (private).
+- **R-MON-03 closes only when D36 Q1 is answered.** Until then, refund decisions after an earlier refund are refused.
+- **Hourly disputes** wait for D36 Q10: until then, on an hourly booking not yet settled, only a full refund, or a decision on a booking that holds nothing, can be made. An hourly booking that was also partly refunded cannot be decided at all.
+- **Bookings already wrongly labelled** by older code still need the reviewed data repair in LAUNCH-LIMITATIONS 121 (Ken's decision). Until then, every dispute decision on them is refused: a refund decision on one that holds nothing as having nothing held, every other decision with the mismatch message. Such disputes stay open.
+- **The participant paths** (provider accept, accepted partial offer) are unchanged and stay held under E24.
+- **The wording** of all the refusals, and of the S2-2 internal note, waits for Ken's approval (D36 Q2).
+- **Before release,** the company handbook (`docs/operations/09-trust-safety-and-disputes.md`, sections 2.5, 2.6, 4, 5 and 6, including a "decision on hold" case-update template) and the admin training manual (`docs/operations/11-admin-system-training-manual.md`, sections 2.11 and 2.12) must be updated for S2-1 to S2-3.
+- **Recorded, not changed:**
+  - a support refund between a partial or "no refund" decision and its post-commit payout leaves that payout refused and queued (LAUNCH-LIMITATIONS 124); the fix belongs with S2-9b;
+  - a super admin's manual release and an admin force-complete pay hourly bookings for the estimate (LAUNCH-LIMITATIONS 125);
+  - a ledger sum below zero is not produced by any code path; the refusals treat it as nothing held or a mismatch, and no test builds one.

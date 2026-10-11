@@ -27,6 +27,7 @@ import { withDisputeDatabase } from './dispute-postgres';
 import { adminCancelHttp, adminReleaseHttp } from './booking-admin-cancel-postgres';
 import {
   bookingB, customerB, escrowWallet, operatorId, otherTicketId, providerUserB, refundHttp, participantHttp, syntheticSecret,
+  participantSnapshot,
 } from './booking-participant-postgres';
 
 export { adminCancelHttp, adminReleaseHttp };
@@ -179,4 +180,26 @@ export async function shortHeldResolvedB(database: Pool, idempotencyKey: string)
 export async function noShowTimingB(database: Pool): Promise<void> {
   await database.query(`UPDATE bookings SET scheduled_at=NOW() - INTERVAL '30 minutes',
       completed_at=NOW() - INTERVAL '20 minutes' WHERE id=$1`, [bookingB]);
+}
+
+// S2-3: the participant snapshot plus the dispute rows, so a refused dispute
+// decision is shown to record nothing on the dispute either.
+export async function decisionSnapshot(database: Pool) {
+  return {
+    ...await participantSnapshot(database),
+    disputes: (await database.query('SELECT * FROM disputes ORDER BY id')).rows,
+    evidence: (await database.query('SELECT * FROM dispute_evidence ORDER BY id')).rows,
+  };
+}
+
+// The log line of a dispute decision refused by S2-3 (at error for a money
+// anomaly, at warn for a policy hold).
+export const decisionRefusalLog = 'Dispute decision refused before anything was recorded';
+
+// S2-3: booking B made hourly and not yet settled. Two hours were estimated
+// and one was worked; the settlement that bills the worked hours runs only
+// when the customer confirms, so the total is still the estimate.
+export async function hourlyUnsettledB(database: Pool): Promise<void> {
+  await database.query(`UPDATE bookings SET is_hourly=TRUE, estimated_hours=2,
+      work_started_at=NOW() - INTERVAL '2 hours', work_completed_at=NOW() - INTERVAL '1 hour' WHERE id=$1`, [bookingB]);
 }

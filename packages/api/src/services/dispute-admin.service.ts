@@ -543,6 +543,7 @@ export async function adminResolveDispute(
       bookingTotalAmount: helper.bookingTotalAmount,
       pushRequests: helper.pushRequests,
       refundPaymentMethod: helper.refundPaymentMethod,
+      releaseAfterDecision: helper.releaseAfterDecision,
     };
   });
 
@@ -607,9 +608,9 @@ export async function adminResolveDispute(
     }
   }
 
-  const shouldReleaseToProvider =
-    input.resolutionType === 'no_refund' ||
-    (resolution.refundAmount === 0 && input.resolutionType !== 'free_redo');
+  // S2-3 — decided in the transaction from what the booking still holds:
+  // nothing is released when the money was already released or refunded.
+  const shouldReleaseToProvider = resolution.releaseAfterDecision;
   if (shouldReleaseToProvider && resolution.providerId) {
     try {
       await escrowService.releaseEscrow(resolution.bookingId);

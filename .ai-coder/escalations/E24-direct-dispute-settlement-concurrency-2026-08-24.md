@@ -120,3 +120,15 @@ This path writes **no participant notification and no audit row**. The provider 
 - item 7: Ken approves lifting the hold through a reviewed code change.
 
 See the MC-03 section of `docs/audits/BOOKING-AUTHORITY-SLICE1-2026-10-10.md`.
+
+## Progress, 2026-10-11 (S2-3 candidate, not deployed)
+
+The hold is unchanged and stays in place. Status remains OPEN.
+
+S2-3 makes the admin's dispute decision check what the booking still holds before anything is recorded (LAUNCH-LIMITATIONS 123). The two participant paths held here do not use that check and keep their own math:
+
+- **Provider accepts the whole claim after an earlier refund.** It refunds the whole original total, which is more than the booking holds. The refund cap refuses it, the whole step rolls back, and nothing moves.
+- **Customer accepts a partial offer after an earlier refund.** The offer is refunded if the booking holds enough. The provider's share that follows is the original total minus the offer, which is more than the booking still holds. That release is refused, queued as a retry that can never succeed, and the money is left stuck.
+- **The same paths on other bookings the admin decision now refuses.** An accepted offer on an hourly booking not yet settled pays the provider from the estimate (the FIN-026 problem), and on a booking whose escrow label does not match its money its release is refused and left stuck (the FIN-025 problem).
+
+**Added to "Still open before the hold can be lifted":** both participant paths must follow the same rules as the admin decision: D36 Q1 for what a refund means after an earlier refund, D36 Q10 for unsettled hourly bookings, and the label/ledger check in LAUNCH-LIMITATIONS 121 and 123. Until then they must refuse, as the admin decision does, rather than leave money stuck.

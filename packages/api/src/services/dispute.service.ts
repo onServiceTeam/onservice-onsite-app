@@ -7,6 +7,7 @@ import * as settingsService from './settings.service';
 import * as gatewayRetryService from './gateway-retry.service';
 import * as notificationService from './notification.service';
 import { formatPHP } from '../utils/currency';
+import { hourlySettlementApplies } from './booking/pricing.service';
 
 interface DisputeRow {
   id: string;
@@ -61,6 +62,11 @@ interface BookingContextRow {
   scheduled_at: Date | null;
   completed_at: Date | null;
   confirmed_at: Date | null;
+  // Read only by resolveDisputeInTransaction (S2-3).
+  is_hourly?: boolean;
+  estimated_hours?: string | null;
+  service_price?: string | null;
+  billed_hours?: string | null;
 }
 
 interface ProviderLookupRow {
@@ -775,6 +781,9 @@ export async function resolveDisputeInTransaction(
   // MC-03: how the refunded booking was paid, for the post-commit
   // payment-record step. null when no refund was made.
   refundPaymentMethod: string | null;
+  // S2-3: whether the decision moved no money and the booking still holds
+  // some, so the caller releases it to the provider after commit.
+  releaseAfterDecision: boolean;
 }> {
   assertDisputeResolutionAvailable(data.resolutionType);
   const dispute = await client.query<DisputeRow>(
@@ -790,7 +799,8 @@ export async function resolveDisputeInTransaction(
 
   // MC-03 — lock the booking (after the dispute) before any money moves.
   const booking = await client.query<BookingContextRow>(
-    `SELECT id, customer_id, provider_id, status, escrow_status, total_amount, scheduled_at, completed_at, confirmed_at
+    `SELECT id, customer_id, provider_id, status, escrow_status, total_amount, scheduled_at, completed_at, confirmed_at,
+            is_hourly, estimated_hours, service_price, billed_hours
      FROM bookings WHERE id = $1 FOR UPDATE`,
     [d.booking_id],
   );
@@ -811,6 +821,74 @@ export async function resolveDisputeInTransaction(
     refundPercent = data.refundPercent;
     refundAmount = Math.round(totalAmount * (refundPercent / 100));
   }
+
+  // S2-3 — interim refusals (D36 Q1, Q10, Q12; wording D36 Q2), checked
+  // before anything is written. The decision is held against what this
+  // booking still holds, read under the booking lock: every escrow
+  // movement's ledger row references the booking, so none can land meanwhile.
+  const held = await escrowService.bookingEscrowHeldForLockedBookingInTransaction(
+    client as unknown as Parameters<typeof escrowService.bookingEscrowHeldForLockedBookingInTransaction>[0],
+    d.booking_id,
+  );
+  const label = bk.escrow_status;
+  // Only these decisions can refund nothing; the full-refund family always
+  // refunds the whole total.
+  const releasesWhatIsHeld = refundAmount === 0 && (data.resolutionType === 'no_refund'
+    || data.resolutionType === 'partial_refund' || data.resolutionType === 'split_decision');
+  const refusalDetails = {
+    disputeId, bookingId: d.booking_id, resolutionType: data.resolutionType,
+    refundCentavos: refundAmount, heldCentavos: held, totalCentavos: totalAmount, escrowStatus: label,
+  };
+  // Money already refunded or paid out: there is nothing to refund from,
+  // and no clawback exists (D36 Q12).
+  if (refundAmount > 0 && held <= 0) {
+    throw disputeDecisionRefusal(
+      'DISPUTE_NOTHING_HELD',
+      `This booking holds no money in escrow that a refund could be paid from (escrow label: ${label}). Nothing was recorded or moved; ask finance how to handle it.`,
+      refusalDetails, 'error',
+    );
+  }
+  // The label must match the ledger: "held" holds the whole total, "partly
+  // refunded" holds less than the total, and every other label holds
+  // nothing. Older code could leave them apart (LAUNCH-LIMITATIONS 121).
+  const labelMatchesLedger = label === 'held' ? held === totalAmount
+    : label === 'partially_refunded' ? held >= 0 && held < totalAmount
+      : held === 0;
+  if (!labelMatchesLedger) {
+    throw disputeDecisionRefusal(
+      'DISPUTE_ESCROW_MISMATCH',
+      `This booking's escrow does not add up: it holds ${formatPHP(held)} of its ${formatPHP(totalAmount)} total, but its escrow label is "${label}". Nothing was recorded or moved; ask finance to review this booking's payments first.`,
+      refusalDetails, 'error',
+    );
+  }
+  // After an earlier refund, the decision's percentage would apply to the
+  // original total on top of it. What it should mean is Ken's (D36 Q1).
+  if (refundAmount > 0 && label === 'partially_refunded') {
+    throw disputeDecisionRefusal(
+      'DISPUTE_DECISION_AFTER_EARLIER_REFUND',
+      `This booking was already partly refunded: it holds ${formatPHP(held)} of its ${formatPHP(totalAmount)} total. A refund decision after an earlier refund is on hold until the owner decides how to count it. Nothing was recorded or moved; leave the dispute open until then.`,
+      refusalDetails, 'warn',
+    );
+  }
+  // An hourly booking is settled to the hours worked only when the customer
+  // confirms, and a dispute always comes before that, so its total is still
+  // the estimate. A decision that pays the provider from money still held
+  // would pay for estimated hours. A full refund returns what the customer
+  // paid, and a decision on a booking that holds nothing moves nothing; both
+  // go ahead. What the rest should mean is Ken's (D36 Q10).
+  const paysProvider = (releasesWhatIsHeld && held > 0) || (refundAmount > 0 && refundAmount < totalAmount);
+  if (hourlySettlementApplies(bk) && bk.billed_hours == null && paysProvider) {
+    throw disputeDecisionRefusal(
+      'DISPUTE_HOURLY_UNSETTLED',
+      label === 'partially_refunded'
+        ? 'This hourly booking has not been settled to the hours worked, so this decision would pay the provider for the estimated hours. Nothing was recorded or moved. It was also partly refunded earlier, so no decision can be made until the owner decides how both are counted; leave the dispute open.'
+        : 'This hourly booking has not been settled to the hours worked, so this decision would pay the provider for the estimated hours. Nothing was recorded or moved. Until the owner decides how hourly disputes are counted, only a full refund can be decided; otherwise leave the dispute open.',
+      refusalDetails, 'warn',
+    );
+  }
+  // A decision that refunds nothing releases what the booking still holds.
+  // Money already released or refunded stays where it is.
+  const releaseAfterDecision = releasesWhatIsHeld && held > 0;
 
   await client.query(
     `UPDATE disputes SET
@@ -895,7 +973,21 @@ export async function resolveDisputeInTransaction(
     providerId: bk.provider_id,
     pushRequests,
     refundPaymentMethod,
+    releaseAfterDecision,
   };
+}
+
+// S2-3 — a dispute decision refused before anything is written. The admin
+// sees the message. A refusal that shows the money and its label disagree,
+// or a refund with nothing to pay it from, is logged at error so support sees
+// it (as S2-1's payout refusals are); a policy hold is logged at warn.
+function disputeDecisionRefusal(
+  code: string, message: string, details: Record<string, unknown>, level: 'error' | 'warn',
+): Error {
+  logger[level]('Dispute decision refused before anything was recorded', { code, ...details });
+  const error = createAppError(message, 409);
+  error.code = code;
+  return error;
 }
 
 export async function resolveDispute(
@@ -956,8 +1048,9 @@ export async function resolveDispute(
     }
   }
 
-  const shouldReleaseToProvider = data.resolutionType === 'no_refund'
-    || (refundAmount === 0 && data.resolutionType !== 'free_redo');
+  // S2-3 — decided in the transaction from what the booking still holds:
+  // nothing is released when the money was already released or refunded.
+  const shouldReleaseToProvider = result.releaseAfterDecision;
   if (shouldReleaseToProvider && result.providerId) {
     try {
       const { releaseEscrow } = await import('./escrow.service');

@@ -5,7 +5,7 @@ import * as walletService from './wallet.service';
 import * as commissionService from './commission.service';
 import * as paymentService from './payment.service';
 import * as orService from './or.service';
-import { computeHourlySettlement } from './booking/pricing.service';
+import { computeHourlySettlement, hourlySettlementApplies } from './booking/pricing.service';
 import * as financialTermsService from './booking-financial-terms.service';
 
 interface BookingAmountRow {
@@ -819,7 +819,7 @@ export async function settleHourlyAndReleaseInTransaction(
   // Non-hourly (or un-priceable) bookings just take the standard release path.
   const estimatedHours = Number(bk.estimated_hours);
   const servicePrice = Number(bk.service_price);
-  if (!bk.is_hourly || !(estimatedHours > 0) || !(servicePrice > 0)) {
+  if (!hourlySettlementApplies(bk)) {
     return releaseEscrowInTransaction(client, bookingId);
   }
 

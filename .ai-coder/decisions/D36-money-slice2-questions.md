@@ -27,7 +27,7 @@ A booking already had a partial refund from support (for example ₱2,500 of ₱
   - (c) something else?
 - **"Full refund" decision.** Does it mean "return everything not yet returned" (here ₱7,500)?
 
-**Interim built in S2-3:** any refund decision on a dispute after an earlier refund is refused, and nothing moves. A dispute on a booking with no earlier refund works as today.
+**Interim built in S2-3:** any refund decision on a dispute after an earlier refund is refused, and nothing moves. A dispute on a booking with no earlier refund works as today. (Built in the candidate on 2026-10-11; the refusal text is under Q2. Until this question is answered, such a dispute can only be decided "no refund" or left open. "No refund" pays the provider what the booking still holds, which is the rule asked below and cannot be undone. This includes a no-show dispute whose automatic refund did not run: its only allowed decision, "no refund", pays the provider whatever the booking still holds, though the customer says the provider never came, so leave such a dispute open. An hourly booking that also had an earlier refund cannot be decided at all until both this question and Q10 are answered. A dispute on a booking that older code left labelled "held" cannot be decided at all until the LAUNCH-LIMITATIONS 121 repair. When this question is answered, the admin's refund preview on the dispute screen also moves to the server's amount.)
 
 **Please also confirm (built in S2-2):** a **"no refund"** decision on a dispute filed after an earlier support refund now pays the provider what the booking still holds. In the ₱2,500-of-₱10,000 example that is ₱7,500, shared between provider, commission and guarantee fund in proportion, as a manual release after a support refund already does. Before S2-2 this payout was refused and left stuck for finance. Is paying the provider the rest right in this case?
 
@@ -43,11 +43,17 @@ A booking already had a partial refund from support (for example ₱2,500 of ₱
 - **A release shown in Financials:** "This release of ₱4,000.00 does not match the ₱3,000.00 this booking still holds in escrow. Nothing was paid. Ask finance to review this booking's payments before releasing or refunding it."
 - **Hourly settlement:** "This booking holds ₱2,000.00 in escrow, less than the ₱5,000.00 unused-time refund. Nothing was settled or paid. Ask finance to review this booking's payments."
 
-**S2-3 (planned).** This step adds refusals to admin dispute decisions:
+**S2-3 (built, interim wording).** An admin's dispute decision is refused before anything is recorded, and nothing moves. The admin sees the text under the decision form, and the dispute stays open. The texts (the amounts and labels are the booking's own):
 
-- after an earlier refund (Q1);
-- when no money is held for the booking any more;
-- when the booking's held amount does not match its total.
+- **A refund decision with no money left to pay it from (Q12):** "This booking holds no money in escrow that a refund could be paid from (escrow label: released). Nothing was recorded or moved; ask finance how to handle it."
+- **Any decision on a booking whose escrow label does not match its money:** "This booking's escrow does not add up: it holds ₱7,500.00 of its ₱10,000.00 total, but its escrow label is "held". Nothing was recorded or moved; ask finance to review this booking's payments first."
+- **A refund decision after an earlier refund (Q1):** "This booking was already partly refunded: it holds ₱7,500.00 of its ₱10,000.00 total. A refund decision after an earlier refund is on hold until the owner decides how to count it. Nothing was recorded or moved; leave the dispute open until then."
+- **A decision that would pay the provider on an hourly booking not yet settled (Q10):** "This hourly booking has not been settled to the hours worked, so this decision would pay the provider for the estimated hours. Nothing was recorded or moved. Until the owner decides how hourly disputes are counted, only a full refund can be decided; otherwise leave the dispute open."
+- **The same, on an hourly booking that was also partly refunded earlier (Q1 and Q10):** "This hourly booking has not been settled to the hours worked, so this decision would pay the provider for the estimated hours. Nothing was recorded or moved. It was also partly refunded earlier, so no decision can be made until the owner decides how both are counted; leave the dispute open."
+
+The label in the first two texts is the system's own word (held, partially_refunded, released, refunded, pending), so it can read oddly, for example "(escrow label: held)" on a booking that holds nothing.
+
+**S2-2 (built): the internal note on a no-show dispute whose automatic refund did not run.** "Automatic no-show refund not run: this booking holds ₱7,500.00 of its ₱10,000.00 total (escrow label: partially_refunded). Decide this dispute manually." After S2-3 the only decision that goes through on such a booking is "no refund" (see Q1), so a better interim ending may be "Leave this dispute open until the owner decides (D36 Q1)."
 
 Please approve or replace all of these before release.
 
@@ -116,6 +122,7 @@ And how many change orders may wait for payment at once?
 
 1. Should change-order money be left out of the hours-based adjustment at the end of an hourly job?
 2. The refund for unused hours always goes to the customer's wallet, even when the booking was paid by card. Should it go back to the original payment instead?
+3. **(Added 2026-10-11, S2-3.)** An hourly booking is settled to the hours worked only when the customer confirms. A dispute always comes before that, so every disputed hourly booking still has the estimate as its total. What should a dispute decision mean on such a booking? For example, with two hours estimated and one worked: should "no refund" pay the provider for one hour and refund the unused hour, and should "50%" be half of the estimate or half of the hours worked? **Interim built in S2-3:** a decision that would pay the provider from money still held is refused, and nothing moves; a full refund still goes through, and a decision on a booking that holds nothing is recorded. The hold also covers jobs where the whole estimate was worked, where "no refund" would in fact be right; you may choose to allow those. Before S2-3 a "no refund" decision paid the provider for all the estimated hours. A super admin's manual release and an admin force-complete still pay hourly bookings for the estimate (LAUNCH-LIMITATIONS 125).
 
 ## Q11. The per-booking money record (K01)
 
@@ -125,7 +132,7 @@ Slice 2 adds interim bookkeeping in its place. Approve starting K01 as the next 
 
 ## Q12. A refund decided after the money was already paid out
 
-The provider has already been paid, and a dispute is then decided as "refund". The code refuses this today (there is no clawback). Slice 2 keeps that refusal and makes sure it never records a refund that was not paid.
+The provider has already been paid, and a dispute is then decided as "refund". The code refuses this today (there is no clawback). Slice 2 keeps that refusal and makes sure it never records a refund that was not paid. (Built in S2-3, 2026-10-11: the refusal now comes first, before anything is recorded, with its own message under Q2. As before, a "refund with suspension" decision on paid-out money does not suspend the provider.)
 
 What should support do in this case?
 

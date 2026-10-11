@@ -16,6 +16,12 @@ export async function withDisputeDatabase(run: (database: Pool) => Promise<void>
     await database.query(`
       ALTER TABLE bookings ADD COLUMN completed_at timestamptz, ADD COLUMN confirmed_at timestamptz,
         ADD COLUMN provider_suspended_during_booking_at timestamptz;
+      -- The production hourly columns (migration 145). S2-3: the dispute
+      -- decision reads whether an hourly booking was settled.
+      ALTER TABLE bookings ADD COLUMN estimated_hours numeric(5,2),
+        ADD COLUMN work_completed_at timestamptz, ADD COLUMN billed_hours numeric(5,2);
+      ALTER TABLE service_subcategories ADD COLUMN min_billable_minutes integer NOT NULL DEFAULT 60,
+        ADD COLUMN billing_increment_minutes integer NOT NULL DEFAULT 30;
       CREATE TABLE disputes (
           id UUID PRIMARY KEY DEFAULT uuidv7(),
           booking_id UUID NOT NULL REFERENCES bookings(id),

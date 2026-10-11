@@ -102,6 +102,17 @@ export function computeHourlySettlement(i: HourlySettlementInput): HourlySettlem
   return { actualHours, billedHours, newServicePrice, newServiceFee, newTotal, refundRemainder };
 }
 
+// S2-3 — whether a booking is settled to the hours worked. The settlement
+// (escrow.service.ts) and the dispute decision both use this test, so they
+// never disagree about which bookings bill by the hour.
+export function hourlySettlementApplies(booking: {
+  is_hourly?: boolean | null;
+  estimated_hours?: string | number | null;
+  service_price?: string | number | null;
+}): boolean {
+  return Boolean(booking.is_hourly) && Number(booking.estimated_hours) > 0 && Number(booking.service_price) > 0;
+}
+
 export function resolveHourlyCap(estimatedHours: number, cfg: HourlyConfig): HourlyCap {
   if (!Number.isFinite(estimatedHours) || estimatedHours <= 0) {
     throw createAppError('hourly_estimate_required', 400);

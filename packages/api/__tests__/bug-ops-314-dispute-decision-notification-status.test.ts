@@ -7,6 +7,8 @@ jest.mock('../src/services/escrow.service', () => ({
   refundFromEscrowInTransaction: jest.fn(async () => ({
     remainingEscrowCentavos: 0, paymentMethod: 'wallet', customerWalletCredited: true,
   })),
+  // S2-3: the booking still holds its whole 100,000 total.
+  bookingEscrowHeldForLockedBookingInTransaction: jest.fn(async () => 100000),
 }));
 jest.mock('../src/services/socket.service', () => ({}));
 jest.mock('../src/services/settings.service', () => ({}));

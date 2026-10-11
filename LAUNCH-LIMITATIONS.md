@@ -3825,6 +3825,11 @@ support refund now pays the provider what the booking still holds (shared
 the same way as a manual release after a support refund). It is no longer
 refused. This is a question for Ken in D36 Q1.
 
+Update (S2-3, 2026-10-11): the interim state above is closed in the
+candidate. A refund decision after an earlier refund, partial or full, is now
+refused before anything is recorded, and nothing moves (section 123). The
+no-refund decision still pays the provider what the booking holds.
+
 ## 120. Two money steps can deadlock with another payment (open)
 
 Found while reviewing S2-1 (2026-10-11). Not fixed.
@@ -3889,6 +3894,13 @@ Update (2026-10-11): S2-2 is built in the candidate (section 122), so new
 dispute filings no longer relabel the money. Bookings that older code already
 relabelled still need the repair above.
 
+Update (S2-3, 2026-10-11): in the candidate, every dispute decision on either
+case is now refused, and nothing is recorded or moved (section 123). Such a
+dispute stays open until the repair is done. The same check also refuses a
+booking whose label and money disagree in other ways, for example one
+labelled "held" that holds more than its total; any such booking needs the
+same reviewed repair.
+
 ## 122. Filing a dispute no longer resets the booking's escrow status
 
 Filing a dispute set the booking's escrow status to "held", even when part or
@@ -3917,5 +3929,98 @@ The general status change's matching relabel, which nothing can reach any
 more, was removed. Bookings that older code already relabelled still need the
 data repair in section 121.
 
+Update (S2-3, 2026-10-11): a no-show dispute whose automatic refund did not
+run is one whose booking was already partly refunded or paid out, or whose
+money does not match its label. After S2-3 every refund decision on it is
+refused (section 123). Where the booking still holds money, the only
+decision that goes through is "no refund", which pays the provider the
+customer says never came. Admins should leave such a dispute open until D36
+Q1 is answered, whatever its internal note says.
+
 This is verified in source and tests in the candidate only and is not
 deployed. See `docs/audits/MONEY-SLICE2-2026-10-11.md`.
+
+## 123. Dispute decisions now refuse what they cannot honestly pay
+
+In the candidate before S2-3, an admin's dispute decision worked out its
+refund from the booking's total and never checked what the booking still
+held. So:
+
+- after an earlier support refund, a "60%" decision refunded 60% of the
+  original total on top of it, and the provider's share was left stuck;
+- on a booking wrongly labelled "held", a refund or "no refund" decision was
+  recorded and left a payout retry that can never succeed;
+- a "no refund" decision on money already paid out queued a payout retry
+  that can never succeed;
+- on an hourly booking, a "no refund" decision paid the provider for all the
+  estimated hours. A dispute always comes before the hours are settled
+  (settlement happens only when the customer confirms), so any unused time
+  was never refunded.
+
+Candidates FIN-022 to FIN-026 (S2-3) check the booking before anything is
+recorded:
+
+- **A refund decision with no money left to pay it from is refused.** There
+  is no clawback (D36 Q12).
+- **Any decision on a booking whose escrow label does not match its money is
+  refused.** Those bookings need the reviewed data repair in section 121.
+- **A refund decision after an earlier refund is refused.** What a
+  percentage or a "full refund" should mean then is Ken's decision (D36 Q1).
+- **On a disputed hourly booking, a decision that would pay the provider
+  from money still held is refused;** a full refund still goes through. What
+  the other decisions should mean is Ken's decision (D36 Q10). An hourly
+  booking that also had an earlier refund cannot be decided at all until
+  both questions are answered.
+- **A "no refund" decision on money already paid out or refunded is
+  recorded, and nothing is paid again.**
+
+Each refusal tells the admin why, records nothing and moves nothing, and the
+dispute stays open. The customer and provider are not told: the admin should
+send them a case update saying the decision is on hold, and must not use a
+support refund to get round the refusal. The wording is interim (D36 Q2).
+Decisions on a fully held, non-hourly booking with no earlier refund work as
+before. The provider's "accept" and the customer's acceptance of a partial
+offer do not go through these checks; they stay held for launch under E24.
+Before release, the company handbook and the admin training manual must be
+updated to match (see the S2-3 record).
+
+This is verified in source and tests in the candidate only and is not
+deployed. See `docs/audits/MONEY-SLICE2-2026-10-11.md`. Live exposure is
+described in E82 (private).
+
+## 124. A support refund between a dispute decision and its payout leaves the payout stuck (open)
+
+Found in the S2-3 reviews (2026-10-11). Not fixed.
+
+A partial or "no refund" dispute decision is recorded in one step, and the
+provider's payout runs in a separate step just after. A support refund on
+the same booking can land in between. The payout then no longer matches what
+the booking holds, so it is refused and queued for a retry that can never
+succeed; it ends in Financials as "manual investigation". In the candidate
+no money is lost, because S2-1 refuses the payout; finance has to sort the
+booking out.
+
+Support should not refund a booking that has a dispute, or whose dispute
+decision's payout is still pending. The fix is to pay the provider's share in
+the same step as the decision, which belongs with S2-9b (dispute payment
+steps written with the decision).
+
+This describes the candidate only and is not deployed. Live exposure is
+described in E82 (private).
+
+## 125. Manual release and force-complete pay hourly bookings for the estimated hours (open)
+
+Found in the S2-3 review (2026-10-11). Not fixed.
+
+An hourly booking is settled to the hours worked only when the customer
+confirms (or the 24-hour automatic confirmation runs). A super admin's
+manual release, and an admin force-complete, pay the provider from the
+booking's total instead, which is still the estimate, so any unused time is
+never refunded to the customer. When the customer's confirmation fails to
+release (for example, a provider suspended during the job), the code comment
+in the confirm step points admins at the manual release, which then pays the
+estimate.
+
+Until this is fixed, admins should not manually release or force-complete an
+hourly booking; escalate it instead. The fix (settle hourly bookings first,
+or refuse them, on those paths) is a later money step and is tied to D36 Q10.
