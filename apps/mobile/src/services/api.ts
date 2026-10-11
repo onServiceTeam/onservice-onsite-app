@@ -30,14 +30,14 @@ import { getDeviceFingerprint } from './device-fingerprint.service';
 // Tokens + user PII are in `./secure-storage` (OS-keychain-encrypted) per
 // Bug 1061 fix. The legacy MMKV id `'onservice-auth'` is preserved here
 // only so `auth-migration.ts` can read pre-fix tokens once at boot.
-let mmkvInstance: { getString: (k: string) => string | undefined; set: (k: string, v: string | boolean) => void; delete: (k: string) => void; getBoolean: (k: string) => boolean | undefined } | null = null;
+let mmkvInstance: import('react-native-mmkv').MMKV | null = null;
 
 function initStorage(): void {
   if (mmkvInstance) return;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { MMKV } = require('react-native-mmkv');
-    mmkvInstance = new MMKV({ id: 'onservice-auth' });
+    const { createMMKV } = require('react-native-mmkv') as typeof import('react-native-mmkv');
+    mmkvInstance = createMMKV({ id: 'onservice-auth' });
   } catch {
     /* MMKV not available in tests / SSR */
   }
@@ -58,7 +58,7 @@ export const storage = {
   },
   delete: (key: string): void => {
     initStorage();
-    if (mmkvInstance) { mmkvInstance.delete(key); return; }
+    if (mmkvInstance) { mmkvInstance.remove(key); return; }
     fallbackStore.delete(key);
   },
   getBoolean: (key: string): boolean | undefined => {

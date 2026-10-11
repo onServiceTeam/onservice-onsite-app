@@ -32,24 +32,6 @@ declare module 'expo-haptics' {
   export function selectionAsync(): Promise<void>;
 }
 
-declare module 'react-native-mmkv' {
-  export interface MMKVConfiguration {
-    id?: string;
-    encryptionKey?: string;
-  }
-  export class MMKV {
-    constructor(config?: MMKVConfiguration);
-    set(key: string, value: string | number | boolean): void;
-    getString(key: string): string | undefined;
-    getNumber(key: string): number | undefined;
-    getBoolean(key: string): boolean | undefined;
-    delete(key: string): void;
-    getAllKeys(): string[];
-    clearAll(): void;
-    contains(key: string): boolean;
-  }
-}
-
 declare module 'expo-network' {
   export interface NetworkState {
     isConnected: boolean;

@@ -6,7 +6,10 @@
 // would have ended up baked into release builds, breaking maps in
 // production and exposing the slot for accidental commit of real keys.
 //
-// Required EAS env vars (set via `eas secret:create --scope project`):
+// Default native/EAS builds require the native values below. Explicit local
+// Android builds may select ONSERVICE_ANDROID_STANDALONE=1: Android Maps stays
+// mandatory, iOS Maps is irrelevant, and EAS identity is optional. No identity
+// means no configured Expo push/OTA service, not a production-readiness claim.
 //   GOOGLE_MAPS_IOS_API_KEY     — iOS-restricted Google Maps key
 //   GOOGLE_MAPS_ANDROID_API_KEY — Android-restricted Google Maps key (SHA1
 //                                 fingerprint + package name pinned in GCP)
@@ -15,22 +18,39 @@
 //
 // On a local dev machine without these set, the loader still resolves to a
 // known-bad sentinel ("DEV_MISSING_<NAME>"). The CI gate at
-// scripts/gates/check-mobile-config-no-placeholders.sh refuses to ship a
-// build whose merged config contains a sentinel or the legacy placeholders.
+// scripts/gates/a-cross-source-no-google-maps-placeholder.sh checks source.
+// Actual merged APK configuration/signing still needs artifact verification.
 
 import type { ExpoConfig } from 'expo/config';
+
+const standaloneSelection = process.env.ONSERVICE_ANDROID_STANDALONE;
+if (standaloneSelection !== undefined && standaloneSelection !== '0' && standaloneSelection !== '1') {
+  throw new Error('Invalid ONSERVICE_ANDROID_STANDALONE: expected 0 or 1.');
+}
+const standaloneAndroid = standaloneSelection === '1';
+if (standaloneAndroid && process.env.EXPO_OS !== undefined && process.env.EXPO_OS !== 'android') {
+  throw new Error('Local standalone Android requires EXPO_OS to be android or unset.');
+}
+if (standaloneAndroid && process.env.EAS_BUILD === 'true') {
+  throw new Error('Local standalone Android cannot be combined with EAS_BUILD.');
+}
 
 function reqEnv(name: string): string {
   const value = process.env[name];
   if (!value || value.trim().length === 0) {
-    if (process.env.NODE_ENV === 'production' || process.env.EAS_BUILD === 'true') {
+    if (standaloneAndroid || process.env.NODE_ENV === 'production' || process.env.EAS_BUILD === 'true') {
       throw new Error(
         `Missing required env var ${name}. Set it via "eas secret:create" or your local .env. See apps/mobile/app.config.ts for the list.`,
       );
     }
     return `DEV_MISSING_${name}`;
   }
-  return value;
+  // Prebuild can evaluate in development mode. Explicit standalone builds
+  // must never quietly bake a development sentinel into their native config.
+  if (standaloneAndroid && /^(DEV_MISSING_|YOUR_)/i.test(value.trim())) {
+    throw new Error(`Invalid required env var ${name}: placeholder values are not allowed.`);
+  }
+  return standaloneAndroid ? value.trim() : value;
 }
 
 // A web export cannot use the native Google Maps keys or EAS Update project.
@@ -39,9 +59,12 @@ function reqEnv(name: string): string {
 // sets EXPO_OS for the target platform; our deploy command also sets it
 // explicitly so config evaluation is deterministic.
 const isWebExport = process.env.EXPO_OS === 'web';
-const easProjectId = isWebExport
+const easProjectId = isWebExport || standaloneAndroid
   ? process.env.EAS_PROJECT_ID?.trim()
   : reqEnv('EAS_PROJECT_ID');
+if (standaloneAndroid && easProjectId && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(easProjectId)) {
+  throw new Error('Invalid EAS_PROJECT_ID: expected a project UUID.');
+}
 
 const config: ExpoConfig = {
   name: 'onService',
@@ -54,7 +77,7 @@ const config: ExpoConfig = {
   // newArchEnabled removed in Phase 14 Remediation #2. The field is no
   // longer recognised by Expo SDK 55's ExpoConfig type; new arch is the
   // default for SDK 55+ on iOS/Android so the explicit flag is redundant.
-  platforms: ['ios', 'android', 'web'],
+  platforms: standaloneAndroid ? ['android'] : ['ios', 'android', 'web'],
   // Phase 200 — web (browser) build for customer/provider testing. SPA
   // output (single index.html + client-side routing) served by nginx at
   // app.onservice.ph. Native-only modules (maps, secure-store, MMKV, push)
@@ -108,7 +131,7 @@ const config: ExpoConfig = {
       ITSAppUsesNonExemptEncryption: true,
     },
     associatedDomains: ['applinks:onservice.ph'],
-    ...(!isWebExport && {
+    ...(!isWebExport && !standaloneAndroid && {
       config: {
         googleMapsApiKey: reqEnv('GOOGLE_MAPS_IOS_API_KEY'),
       },
@@ -158,6 +181,7 @@ const config: ExpoConfig = {
     ],
   },
   plugins: [
+    ['./plugins/withLocalAndroidSigning.js', { enabled: standaloneAndroid }],
     'expo-router',
     [
       'expo-location',

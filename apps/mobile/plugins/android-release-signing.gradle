@@ -1,0 +1,72 @@
+// Applied only by the explicit local standalone Android configuration.
+// No signing value is written to generated source or Expo's public config.
+// Fail closed during configuration, including signingReport and assembleRelease.
+def signingNames = [
+    'ONSERVICE_ANDROID_KEYSTORE_PATH',
+    'ONSERVICE_ANDROID_KEY_ALIAS',
+    'ONSERVICE_ANDROID_STORE_PASSWORD',
+    'ONSERVICE_ANDROID_KEY_PASSWORD',
+    'ONSERVICE_ANDROID_CERT_SHA256'
+]
+def signingValues = signingNames.collectEntries { name ->
+    [(name): providers.environmentVariable(name).orNull]
+}
+if (signingValues.values().any { it == null || it.trim().isEmpty() }) {
+    throw new GradleException('Local Android release signing configuration is incomplete.')
+}
+
+def signingFile
+def signingAlias = signingValues.ONSERVICE_ANDROID_KEY_ALIAS
+def signingStorePassword = signingValues.ONSERVICE_ANDROID_STORE_PASSWORD
+def signingKeyPassword = signingValues.ONSERVICE_ANDROID_KEY_PASSWORD
+def signingStoreType
+try {
+    signingFile = new File(signingValues.ONSERVICE_ANDROID_KEYSTORE_PATH)
+    if (!signingFile.isAbsolute() || !signingFile.isFile()) {
+        throw new IllegalArgumentException()
+    }
+    signingFile = signingFile.canonicalFile
+    // android -> mobile -> apps -> checkout. Keep key material outside source.
+    def checkoutRoot = rootDir.parentFile.parentFile.parentFile.canonicalFile.toPath()
+    if (signingFile.toPath().startsWith(checkoutRoot)) {
+        throw new IllegalArgumentException()
+    }
+    def expectedFingerprint = signingValues.ONSERVICE_ANDROID_CERT_SHA256
+    if (!(expectedFingerprint ==~ /(?i)[0-9a-f]{64}/)) {
+        throw new IllegalArgumentException()
+    }
+    def keyStore = java.security.KeyStore.getInstance(signingFile, signingStorePassword.toCharArray())
+    if (!keyStore.isKeyEntry(signingAlias)) {
+        throw new IllegalArgumentException()
+    }
+    def key = keyStore.getKey(signingAlias, signingKeyPassword.toCharArray())
+    def certificate = keyStore.getCertificate(signingAlias)
+    if (!(key instanceof java.security.PrivateKey) ||
+        !(certificate instanceof java.security.cert.X509Certificate)) {
+        throw new IllegalArgumentException()
+    }
+    certificate.checkValidity()
+    def debugSubject = new javax.naming.ldap.LdapName(certificate.subjectX500Principal.name).rdns.any {
+        it.type.equalsIgnoreCase('CN') && it.value.toString().equalsIgnoreCase('Android Debug')
+    }
+    if (debugSubject || signingAlias.equalsIgnoreCase('androiddebugkey')) {
+        throw new IllegalArgumentException()
+    }
+    def actualFingerprint = java.security.MessageDigest.getInstance('SHA-256')
+        .digest(certificate.encoded).encodeHex().toString()
+    if (!actualFingerprint.equalsIgnoreCase(expectedFingerprint)) {
+        throw new IllegalArgumentException()
+    }
+    signingStoreType = keyStore.type
+} catch (Exception ignored) {
+    // Never include provider exceptions, paths, passwords or aliases in errors.
+    throw new GradleException('Local Android release signing identity could not be verified.')
+}
+
+def releaseSigning = android.signingConfigs.maybeCreate('onserviceRelease')
+releaseSigning.storeFile = signingFile
+releaseSigning.storeType = signingStoreType
+releaseSigning.storePassword = signingStorePassword
+releaseSigning.keyAlias = signingAlias
+releaseSigning.keyPassword = signingKeyPassword
+android.buildTypes.getByName('release').signingConfig = releaseSigning
