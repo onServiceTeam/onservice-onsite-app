@@ -53,6 +53,23 @@ export const platformConfig = {
   // this longer window applies only to request metadata, never usable codes.
   emailLinkRequestRetentionDays: 90,
   emailSignInRequestRetentionDays: 90,
+  // D37 (Ken, 2026-10-11): emailed sign-in codes while SMS is paused. The
+  // window is exactly five minutes from creation and a resend never extends
+  // it. Per-IP allowance is wide on purpose: Philippine mobile networks put
+  // many people behind one address. No relaxed-test bypass.
+  emailCode: {
+    validForMs: 300_000,
+    maxAttempts: 5,
+    resendCooldownMs: 30_000,
+    maxSendsPerCode: 5,
+    newCodesPerEmailPerHour: 5,
+    newCodesPerIpPerHour: 30,
+    // Wrong codes from one network per hour before code checks from it pause.
+    // Only real wrong guesses count; nothing locks a single email address.
+    wrongGuessesPerIpPerHour: 30,
+    signupTokenSeconds: 1800,
+    retentionDays: 90,
+  },
 
   // --- Quotes ---
   quoteExpiryHours: 48,           // Quotes expire after 48 hours

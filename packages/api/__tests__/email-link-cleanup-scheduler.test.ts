@@ -17,6 +17,8 @@ jest.mock('../src/utils/logger', () => ({ logger: {
 import { initScheduledJobs } from '../src/jobs/workers';
 import * as cleanup from '../src/services/email-link-cleanup.service';
 import * as signInCleanup from '../src/services/email-sign-in-cleanup.service';
+// D37: the same job also closes expired emailed sign-in codes.
+import * as emailCodeAuth from '../src/services/email-code-auth.service';
 
 beforeEach(() => jest.clearAllMocks());
 afterEach(() => jest.restoreAllMocks());
@@ -25,6 +27,8 @@ it('email-link cleanup uses the existing scheduler with a fixed bounded invocati
   const result = { proofsExpired: 100, requestsPurged: 100 };
   const purge = jest.spyOn(cleanup, 'cleanupEmailLinkChallenges').mockResolvedValue(result);
   const signInPurge = jest.spyOn(signInCleanup, 'cleanupEmailSignInChallenges').mockResolvedValue(result);
+  const codeResult = { expired: 3, deleted: 7 };
+  const codePurge = jest.spyOn(emailCodeAuth, 'cleanupEmailCodeChallenges').mockResolvedValue(codeResult);
   await initScheduledJobs();
   expect(mockAdd.mock.calls.filter(call => call[0] === 'email-link-cleanup')).toEqual([
     ['email-link-cleanup', {}, { repeat: { pattern: '*/5 * * * *' }, attempts: 3,
@@ -32,13 +36,15 @@ it('email-link cleanup uses the existing scheduler with a fixed bounded invocati
   ]);
   expect(await mockProcessor({ name: 'email-link-cleanup', data: {
     limit: 999999, before: '2999-01-01', email: 'private@example.invalid',
-  } })).toEqual({ emailLinkCleanup: result, emailSignInCleanup: result });
+  } })).toEqual({ emailLinkCleanup: result, emailSignInCleanup: result, emailCodeCleanup: codeResult });
   expect(purge).toHaveBeenCalledTimes(1);
   expect(purge).toHaveBeenCalledWith(100);
   expect(signInPurge).toHaveBeenCalledTimes(1);
   expect(signInPurge).toHaveBeenCalledWith(100);
+  expect(codePurge).toHaveBeenCalledTimes(1);
+  expect(codePurge).toHaveBeenCalledWith(200);
   expect(mockInfo).toHaveBeenLastCalledWith('Scheduler job completed', {
-    name: 'email-link-cleanup', results: { emailLinkCleanup: result, emailSignInCleanup: result },
+    name: 'email-link-cleanup', results: { emailLinkCleanup: result, emailSignInCleanup: result, emailCodeCleanup: codeResult },
   });
   expect(JSON.stringify(mockInfo.mock.calls)).not.toContain('private@example.invalid');
 });
@@ -54,6 +60,15 @@ it('email sign-in cleanup failure remains a failed job even after link cleanup c
   jest.spyOn(cleanup, 'cleanupEmailLinkChallenges').mockResolvedValue({ proofsExpired: 0, requestsPurged: 0 });
   const failure = new Error('Synthetic sign-in cleanup failure');
   jest.spyOn(signInCleanup, 'cleanupEmailSignInChallenges').mockRejectedValue(failure);
+  await expect(mockProcessor({ name: 'email-link-cleanup' })).rejects.toBe(failure);
+  expect(mockInfo).not.toHaveBeenCalledWith('Scheduler job completed', expect.anything());
+});
+
+it('D37 - an emailed-code cleanup failure remains a failed job after the other cleanups committed', async () => {
+  jest.spyOn(cleanup, 'cleanupEmailLinkChallenges').mockResolvedValue({ proofsExpired: 0, requestsPurged: 0 });
+  jest.spyOn(signInCleanup, 'cleanupEmailSignInChallenges').mockResolvedValue({ proofsExpired: 0, requestsPurged: 0 });
+  const failure = new Error('Synthetic email-code cleanup failure');
+  jest.spyOn(emailCodeAuth, 'cleanupEmailCodeChallenges').mockRejectedValue(failure);
   await expect(mockProcessor({ name: 'email-link-cleanup' })).rejects.toBe(failure);
   expect(mockInfo).not.toHaveBeenCalledWith('Scheduler job completed', expect.anything());
 });

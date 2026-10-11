@@ -63,6 +63,9 @@ const PRE_AUTH_ENDPOINTS = new Set([
   '/api/v1/auth/admin/2fa/setup',
   '/api/v1/auth/admin/2fa/verify',
   '/api/v1/auth/admin/2fa/enable',
+  // D37: emailed admin second step.
+  '/api/v1/auth/admin/email-code/resend',
+  '/api/v1/auth/admin/email-code/verify',
 ]);
 
 function canRefreshAfter401(url: string): boolean {

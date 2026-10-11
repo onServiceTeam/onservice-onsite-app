@@ -480,13 +480,16 @@ export interface PendingInvite {
 // Pending invites that match the given user's phone/email (so a freshly
 // registered user can discover and accept an invite addressed to them).
 export async function listInvitesForUser(userId: string): Promise<PendingInvite[]> {
-  const userRes = await db.query<{ phone: string | null; email: string | null }>(
-    `SELECT phone, email FROM users WHERE id = $1`,
+  // D37: SELECT * so older schemas without phone_verified_at still work.
+  const userRes = await db.query<{ phone: string | null; email: string | null; phone_verified_at?: Date | null }>(
+    `SELECT * FROM users WHERE id = $1`,
     [userId],
   );
   const u = userRes.rows[0];
   if (!u) return [];
-  const phone = u.phone;
+  // D37: a number typed at email sign-up (phone_verified_at NULL) was never
+  // proven, so it must not claim an invite addressed to that phone.
+  const phone = u.phone_verified_at === null ? null : u.phone;
   const email = u.email;
   const res = await db.query<{
     id: string; role_title: string | null; invite_phone: string | null;
@@ -520,8 +523,9 @@ export async function listInvitesForUser(userId: string): Promise<PendingInvite[
 // for issuing a fresh token pair so the new role takes effect.
 export async function acceptInvite(staffId: string, userId: string): Promise<ProviderStaffRow> {
   return db.transaction(async (client) => {
-    const userRes = await client.query<{ phone: string | null; email: string | null; role: string }>(
-      `SELECT phone, email, role FROM users WHERE id = $1`,
+    // D37: SELECT * so older schemas without phone_verified_at still work.
+    const userRes = await client.query<{ phone: string | null; email: string | null; role: string; phone_verified_at?: Date | null }>(
+      `SELECT * FROM users WHERE id = $1`,
       [userId],
     );
     const user = userRes.rows[0];
@@ -543,7 +547,8 @@ export async function acceptInvite(staffId: string, userId: string): Promise<Pro
       throw createAppError('This invite has expired. Ask the provider to re-send it.', 409);
     }
     // The invite must be addressed to this user (phone or email match).
-    const phoneMatch = !!staff.invite_phone && staff.invite_phone === user.phone;
+    // D37: an unproven number (typed at email sign-up) never matches.
+    const phoneMatch = !!staff.invite_phone && staff.invite_phone === user.phone && user.phone_verified_at !== null;
     const emailMatch = !!staff.invite_email && !!user.email &&
       staff.invite_email.toLowerCase() === user.email.toLowerCase();
     if (!phoneMatch && !emailMatch) {

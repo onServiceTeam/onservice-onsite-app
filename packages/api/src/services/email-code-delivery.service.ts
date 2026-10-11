@@ -112,6 +112,51 @@ export async function sendEmailVerificationCode(
     'If you did not request this, ignore this message. No account change is made by receiving this email.',
   ].join('\n\n');
 
+  return postToProvider(config.apiKey, `onservice-email-code/${challenge.deliveryId}`, {
+    from: `onService PH <${config.from}>`,
+    to: [challenge.email],
+    subject: linking ? 'Confirm your onService sign-in email' : 'Your onService sign-in code',
+    text,
+  }, remainingMs);
+}
+
+/**
+ * D37 (2026-10-11): send one prepared sign-in code email (subject, text and
+ * HTML from email-code-message.ts). The caller owns the code, the expiry and
+ * the resend rules; every send, including a resend of the same code, passes
+ * a NEW idempotency key, because the provider silently drops a repeated key
+ * for 24 hours. Same outcomes and the same no-logging rules as above.
+ */
+export async function sendEmailCodeMessage(input: {
+  idempotencyKey: string; to: string; expiresAt: Date;
+  message: { subject: string; text: string; html: string };
+}): Promise<EmailDeliveryOutcome> {
+  if (!/^onservice-email-code\/[0-9a-f-]{36}\/\d{1,2}$/.test(input.idempotencyKey)
+      || !emailAddress.safeParse(input.to).success
+      || !input.message.subject || !input.message.text || !input.message.html) {
+    throw createAppError('Invalid email code delivery.', 400);
+  }
+  const remainingMs = input.expiresAt.getTime() - Date.now();
+  if (remainingMs <= 0 || remainingMs > 10 * 60_000) {
+    throw createAppError('Invalid email verification expiry.', 400);
+  }
+  const config = deliveryConfig();
+  if (!config) return { status: 'unavailable' };
+  const name = (process.env.EMAIL_FROM_NAME ?? '').trim();
+  const replyTo = (process.env.EMAIL_REPLY_TO ?? '').trim();
+  return postToProvider(config.apiKey, input.idempotencyKey, {
+    from: `${/^[\w .&'-]{1,60}$/.test(name) ? name : 'onService PH'} <${config.from}>`,
+    to: [input.to],
+    ...(replyTo && emailAddress.safeParse(replyTo).success ? { reply_to: replyTo } : {}),
+    subject: input.message.subject,
+    text: input.message.text,
+    html: input.message.html,
+  }, remainingMs);
+}
+
+async function postToProvider(
+  apiKey: string, idempotencyKey: string, body: Record<string, unknown>, remainingMs: number,
+): Promise<EmailDeliveryOutcome> {
   const controller = new AbortController();
   // Bound both headers and body, including when the challenge expires sooner.
   const timer = setTimeout(() => controller.abort(), Math.min(TIMEOUT_MS, remainingMs));
@@ -122,16 +167,11 @@ export async function sendEmailVerificationCode(
       redirect: 'error',
       signal: controller.signal,
       headers: {
-        Authorization: `Bearer ${config.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'Idempotency-Key': `onservice-email-code/${challenge.deliveryId}`,
+        'Idempotency-Key': idempotencyKey,
       },
-      body: JSON.stringify({
-        from: `onService PH <${config.from}>`,
-        to: [challenge.email],
-        subject: linking ? 'Confirm your onService sign-in email' : 'Your onService sign-in code',
-        text,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {

@@ -18,6 +18,9 @@ export default function AuthLayout(): React.ReactElement {
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
       <Stack.Screen name="otp-verify" />
+      {/* D37: email codes while phone codes are paused. */}
+      <Stack.Screen name="email-verify" />
+      <Stack.Screen name="create-account" />
     </Stack>
   );
 }

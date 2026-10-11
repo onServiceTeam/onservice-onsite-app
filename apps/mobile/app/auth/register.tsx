@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { showToast } from '@/lib/toast';
 import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,12 +14,25 @@ import { useCaptchaOtp } from '@/hooks/useCaptchaOtp';
 import { useResponsive } from '@/hooks/useResponsive';
 import AuthBrandPanel from '@/components/AuthBrandPanel';
 import { Routes } from '@/config/navigation';
+import { useAuthMethods } from '@/hooks/useAuthMethods';
+import EmailSignInForm from '@/components/auth/EmailSignInForm';
 
 export default function RegisterScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
   const { requestOtpWithCaptcha, captchaModal } = useCaptchaOtp();
+  // D37 (Ken, 2026-10-11): with phone codes paused, a new account starts with
+  // an email code; name and mobile number follow on /auth/create-account.
+  // The phone form below is kept intact for when phone codes return.
+  const methods = useAuthMethods();
+  // While the server's answer loads, show neither form. When both methods are
+  // on, email comes first and a link switches to the phone form.
+  const [preferPhone, setPreferPhone] = useState(false);
+  const methodsLoading = methods.status === 'loading';
+  const canSwitch = methods.email && methods.phone;
+  const showEmail = !methodsLoading && methods.email && !(preferPhone && methods.phone);
+  const showPhone = !methodsLoading && methods.phone && (!methods.email || preferPhone);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -95,6 +108,28 @@ export default function RegisterScreen(): React.ReactElement {
             no maxLength. Server's auth.validators.ts:76-77 caps both
             at max(100). Same fix shape as Phase 145/146. */}
         <Card style={styles.form}>
+          {methods.status === 'unavailable' && <Text style={{ color: colors.textSecondary, ...typography.bodySmall }} accessibilityRole="alert">
+            We couldn't reach onService to check sign-in options. Check your connection.{' '}
+            <Text style={styles.legalLink} onPress={methods.retry} accessibilityRole="button">Try again</Text>
+          </Text>}
+          {showEmail && <EmailSignInForm mode="register" />}
+          {!showEmail && !showPhone && methods.status === 'ready' && <Text style={{ color: colors.textSecondary, ...typography.bodySmall }} accessibilityRole="alert">
+            Creating accounts is temporarily unavailable. Please try again later.
+          </Text>}
+          {methodsLoading && <ActivityIndicator accessibilityLabel="Checking sign-in options" />}
+          {canSwitch && !methodsLoading && (
+            <Pressable
+              onPress={() => setPreferPhone(value => !value)}
+              accessibilityRole="button"
+              style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Text style={styles.legalLink}>
+                {showPhone ? 'Use my email instead' : 'Use my mobile number instead'}
+              </Text>
+            </Pressable>
+          )}
+
+          {showPhone && <>
           <Input
             label="First Name"
             placeholder="Juan"
@@ -133,6 +168,7 @@ export default function RegisterScreen(): React.ReactElement {
             onPress={handleSubmit}
             loading={loading}
           />
+          </>}
         </Card>
 
         <View style={styles.footer}>

@@ -101,6 +101,32 @@ export default function LoginPage(): React.ReactElement {
   const [backupCode, setBackupCode] = useState('');
   const totpInputRef = useRef<HTMLInputElement>(null);
 
+  // D37: details the server adds to an email-code error (read by shape, so it
+  // also works with any API error wrapper).
+  const emailErrorDetail = (err: unknown): { code?: string; retryAfterMs?: unknown } =>
+    ((err as { body?: { error?: { code?: string; retryAfterMs?: unknown } } } | null)?.body?.error) ?? {};
+
+  // D37 (Ken, 2026-10-11): emailed second step (server ADMIN_SECOND_FACTOR=email).
+  // The code works for 5 minutes from when it was first sent; "Resend code"
+  // re-sends the SAME code inside that window, and a fresh one after it.
+  const [requiresEmailCode, setRequiresEmailCode] = useState(false);
+  const [emailHint, setEmailHint] = useState('');
+  const [emailCode, setEmailCode] = useState('');
+  const [emailExpiresAt, setEmailExpiresAt] = useState(0);
+  const [emailResendAt, setEmailResendAt] = useState(0);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailNotice, setEmailNotice] = useState('');
+  // The authenticator path, offered as the other way in when it is set up.
+  const [totpFallbackToken, setTotpFallbackToken] = useState('');
+  // Re-render twice a second; the time is read fresh on every render.
+  const [, setClockTick] = useState(0);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!requiresEmailCode) return undefined;
+    const timer = setInterval(() => setClockTick(value => value + 1), 500);
+    return () => clearInterval(timer);
+  }, [requiresEmailCode]);
+
   // 2FA force-enrollment state
   const [requires2FASetup, setRequires2FASetup] = useState(false);
   const [setupSecret, setSetupSecret] = useState('');
@@ -140,7 +166,7 @@ export default function LoginPage(): React.ReactElement {
         password: DEMO_ADMIN.password,
       });
       const data = res.data.data;
-      if (data.requires2FA || data.requires2FASetup) {
+      if (data.requires2FA || data.requires2FASetup || data.requiresEmailCode) {
         setError('Demo entry unavailable while admin 2FA is enabled.');
         setLoading(false);
         return;
@@ -213,6 +239,27 @@ export default function LoginPage(): React.ReactElement {
       const res = await api.post('/api/v1/auth/admin/login', { email, password });
       const data = res.data.data;
 
+      // D37: emailed second step.
+      if (data.requiresEmailCode) {
+        const now = Date.now();
+        setPreAuthToken(data.preAuthToken);
+        setEmailHint(typeof data.emailHint === 'string' ? data.emailHint : '');
+        setEmailExpiresAt(now + Number(data.expiresInMs ?? 0));
+        setEmailResendAt(now + Number(data.resendInMs ?? 0));
+        setEmailCode('');
+        setTotpFallbackToken(typeof data.totpPreAuthToken === 'string' ? data.totpPreAuthToken : '');
+        setEmailNotice(data.codeAlreadySent === true
+          ? 'We already sent you a code a moment ago. Enter it below.'
+          : data.delivery === 'unknown'
+            ? "We couldn't confirm the email went out. If it doesn't arrive within a minute, use Resend."
+            : '');
+        setRequiresEmailCode(true);
+        setPassword('');
+        setLoading(false);
+        setTimeout(() => emailInputRef.current?.focus(), 100);
+        return;
+      }
+
       // Check if 2FA is required
       if (data.requires2FA) {
         setRequires2FA(true);
@@ -263,6 +310,55 @@ export default function LoginPage(): React.ReactElement {
       else setTotpCode('');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEmailCodeVerify = async (e: FormEvent): Promise<void> => {
+    e.preventDefault();
+    setError('');
+    setEmailNotice('');
+    setLoading(true);
+    try {
+      const res = await api.post('/api/v1/auth/admin/email-code/verify', { preAuthToken, code: emailCode });
+      const { user, mustRotatePassword } = res.data.data;
+      completeLogin(user, { mustRotatePassword: mustRotatePassword === true });
+    } catch (err) {
+      const code = emailErrorDetail(err).code;
+      if (code === 'email_code_expired' || code === 'email_code_not_found' || code === 'email_code_attempts_exhausted') {
+        setEmailExpiresAt(Date.now());
+        setEmailResendAt(Date.now());
+      }
+      setError(getErrorMessage(err));
+      setEmailCode('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEmailCodeResend = async (): Promise<void> => {
+    // Honour the server's wait, after expiry too.
+    if (emailSending || emailResendAt > Date.now()) return;
+    setError('');
+    setEmailNotice('');
+    setEmailSending(true);
+    try {
+      const res = await api.post('/api/v1/auth/admin/email-code/resend', { preAuthToken });
+      const data = res.data.data as { resent?: boolean; expiresInMs?: number; resendInMs?: number; delivery?: string };
+      const now = Date.now();
+      setEmailExpiresAt(now + Number(data.expiresInMs ?? 0));
+      setEmailResendAt(now + Number(data.resendInMs ?? 0));
+      setEmailCode('');
+      setEmailNotice(data.delivery === 'unknown'
+        ? "We couldn't confirm the email went out. If it doesn't arrive within a minute, use Resend."
+        : data.resent
+          ? 'We sent the same code again. Check your inbox and spam folder.'
+          : 'We sent you a new code. It works for 5 minutes.');
+    } catch (err) {
+      const retryAfterMs = Number(emailErrorDetail(err).retryAfterMs);
+      if (Number.isFinite(retryAfterMs) && retryAfterMs > 0) setEmailResendAt(Date.now() + retryAfterMs);
+      setError(getErrorMessage(err));
+    } finally {
+      setEmailSending(false);
     }
   };
 
@@ -523,6 +619,142 @@ export default function LoginPage(): React.ReactElement {
                 setSetupLoading(false);
                 setIssuedBackupCodes([]);
                 setEnrolledUser(null);
+                setPassword('');
+                setError('');
+              }}
+              className="w-full mt-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
+            >
+              Back to login
+            </button>
+          </form>
+      </AdminAuthShell>
+    );
+  }
+
+  // D37: emailed second step
+  if (requiresEmailCode) {
+    const clock = Date.now();
+    const expired = emailExpiresAt <= clock;
+    const resendWait = Math.max(0, emailResendAt - clock);
+    const mmss = (ms: number): string => {
+      const total = Math.max(0, Math.ceil(ms / 1000));
+      return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+    };
+    return (
+      <AdminAuthShell
+        title="Check your email"
+        description={`We sent a 6-digit code to ${emailHint || 'your admin email'}. It works for 5 minutes.`}
+      >
+          <form
+            onSubmit={(e) => void handleEmailCodeVerify(e)}
+            className="rounded-xl border border-[var(--color-border)] bg-white p-6 md:p-8"
+          >
+            {error && (
+              <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {error}
+              </div>
+            )}
+            {emailNotice && (
+              <div role="status" className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                {emailNotice}
+              </div>
+            )}
+
+            <p
+              data-testid="admin-email-code-clock"
+              className={`mb-4 text-center text-sm ${expired ? 'font-semibold text-red-700' : 'text-[var(--color-text-secondary)]'}`}
+            >
+              {expired ? 'This code has expired.' : `Code expires in ${mmss(emailExpiresAt - clock)}`}
+            </p>
+
+            <div className="mb-5">
+              <Label htmlFor="login-email-code" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">
+                Code from your email
+              </Label>
+              <Input
+                id="login-email-code"
+                ref={emailInputRef}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                value={emailCode}
+                onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                required
+                autoFocus
+                autoComplete="one-time-code"
+                placeholder="000000"
+                className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm text-center tracking-[0.3em] font-mono text-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)] focus:border-transparent"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || emailCode.length !== 6 || expired}
+              className="w-full py-2.5 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition-opacity"
+            >
+              {loading ? 'Verifying...' : 'Verify'}
+            </button>
+
+            {expired && resendWait > 0 ? (
+              <p className="mt-3 min-h-11 flex items-center justify-center text-sm text-[var(--color-text-secondary)]">
+                Send a new code in {mmss(resendWait)}
+              </p>
+            ) : expired ? (
+              <button
+                type="button"
+                onClick={() => void handleEmailCodeResend()}
+                disabled={emailSending}
+                className="mt-3 min-h-11 w-full rounded-md text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)] disabled:opacity-60"
+              >
+                {emailSending ? 'Sending…' : 'Send a new code'}
+              </button>
+            ) : resendWait > 0 ? (
+              <p className="mt-3 min-h-11 flex items-center justify-center text-sm text-[var(--color-text-secondary)]">
+                Resend code in {mmss(resendWait)}
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleEmailCodeResend()}
+                disabled={emailSending}
+                className="mt-3 min-h-11 w-full rounded-md text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)] disabled:opacity-60"
+              >
+                {emailSending ? 'Sending…' : 'Resend code'}
+              </button>
+            )}
+
+            <p className="mt-3 text-center text-xs text-[var(--color-text-secondary)]">
+              Can’t find it? Check your spam or junk folder.
+            </p>
+
+            {totpFallbackToken && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Switch to the authenticator step with its own pre-auth token.
+                  setPreAuthToken(totpFallbackToken);
+                  setTotpFallbackToken('');
+                  setRequiresEmailCode(false);
+                  setEmailCode('');
+                  setEmailNotice('');
+                  setError('');
+                  setRequires2FA(true);
+                  setTimeout(() => totpInputRef.current?.focus(), 100);
+                }}
+                className="mt-3 min-h-11 w-full rounded-md text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]"
+              >
+                Use authenticator app instead
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setRequiresEmailCode(false);
+                setPreAuthToken('');
+                setTotpFallbackToken('');
+                setEmailCode('');
+                setEmailNotice('');
                 setPassword('');
                 setError('');
               }}

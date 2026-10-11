@@ -4063,3 +4063,87 @@ other businesses share, so it waits for a planned window.
 
 Backups taken before each step, and the previous app image, are kept on the
 server for rollback.
+
+**Correction, 2026-10-12.** The line above "admin two-factor is off" was
+wrong. The live server runs with `ADMIN_DISABLE_2FA=0`, so admin two-factor is
+ON: every active admin, super admin and DPO account signs in with a password
+and an authenticator-app code (checked 2026-10-11, values not printed).
+
+## 127. Phone codes are paused; sign-in uses email codes (D37, 2026-10-12)
+
+Philippine carriers will not deliver our SMS until they receive our corporate
+registration documents, so on Ken's instruction (2026-10-11) phone codes are
+switched off and email codes replace them (`.ai-coder/decisions/D37-email-codes-replace-phone-codes.md`).
+
+What is built (API, web app, Android app, admin console):
+
+- Customers, providers and team members type their email and get a 6-digit
+  code by email. The code works for exactly 5 minutes from when it was first
+  sent. "Resend code" (after 30 seconds) sends the same code again within
+  those 5 minutes; after them a new code is needed. Five wrong tries end a
+  code.
+- A new email asks for name and mobile number on "Create your account"
+  before any account exists.
+- Admins can be switched to an emailed code instead of the authenticator app
+  (`ADMIN_SECOND_FACTOR=email`).
+- The phone-code screens and server code are kept, switched off by
+  `PHONE_OTP_SIGN_IN_ENABLED=0`. The apps read the switches from the server,
+  so turning phone codes back on needs no new app release.
+
+Still open:
+
+- **Nothing can send until Ken sets up the email service.** The server cannot
+  send mail itself (Hetzner blocks outgoing mail ports), and `onservice.ph` has
+  no email records (MX, SPF, DKIM, DMARC). Ken needs a Resend account, the
+  Resend DNS records plus a DMARC record in GoDaddy, and a sending key in the
+  server `.env`. Until then email codes stay off and phone codes stay on.
+- **No existing account has an email that can receive mail.** Live accounts
+  use `@onservice.ph` (no mailboxes) or `@test.ph` (someone else's domain).
+  Testers sign up again with their real email, or Ken names which real inbox
+  each test account should use.
+- **Admin email codes stay off** until every active admin account has a real
+  inbox. Even when on, a failed email falls back to the authenticator app, so
+  admins cannot be locked out.
+- **Mobile numbers given at email sign-up are not verified.** They are contact
+  details only: phone sign-in will never open such an account and a team
+  invite addressed to that phone will not match it (`phone_verified_at` is
+  empty). There is no screen yet to prove the number by SMS, so **email codes
+  must stay on** even after SMS returns, or those accounts could not sign in.
+- **A typed number occupies that number.** Someone who types another
+  person's number blocks its real owner until support clears it by hand (D37
+  item D; an admin action is recommended before launch).
+- Admin activity views do not show email-code sign-in attempts (D37 item E).
+- **An older account's email was typed in, not proven.** Whoever controls that
+  inbox can now sign in to the account. No live account is exposed today
+  (none of their emails can receive mail). Ken to confirm (D37 item A).
+- Delivery is "accepted by the provider", not proof of inbox placement. Inbox
+  placement must be checked with real Gmail, Outlook and Yahoo inboxes once
+  the domain records exist.
+
+## 129. Tester-server sign-in shortcuts are on, at Ken's request (2026-10-12)
+
+Ken (2026-10-12): logging in must not get in the way of testing the whole
+platform, so on the live **tester** server:
+
+- **Admin sign-in is email + password only** (`ADMIN_DISABLE_2FA=1`). This
+  reverses the 2026-08-24 change recorded in section 37. The admin console is
+  still behind the separate site password and network allowlist, and the
+  server refuses to start with this setting in production mode.
+- **Customer and provider test accounts sign in instantly** with their
+  allowlisted test phone numbers and a shared test code (`ALLOW_DEV_OTP`),
+  as before. Real SMS is never sent to them.
+- **All admin-tier emails now end in `@onservice.com.ph`** (Ken). That domain
+  has no mail records yet, so admin email codes (section 127) need mailboxes
+  or a Resend domain there before they can be switched on.
+
+Incident and fix, same night: while checking Ken's private login guide,
+Claude printed part, then all, of its contents into the working session (an
+error message echoed the file). Nothing left Ken's machine, but everything in
+it was treated as exposed and replaced within minutes: a new shared test code,
+a new password for the guide's admin account, that account's authenticator
+cleared and its sessions revoked. The guide was updated with the new details
+(old copy kept privately). Scripts that touch private files now print only
+yes/no results.
+
+Before a real launch: switch `ADMIN_DISABLE_2FA` off (or move admins to email
+codes, section 127), remove the shared test code, and run in production mode.

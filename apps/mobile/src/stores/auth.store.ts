@@ -48,6 +48,26 @@ export interface User {
   avatarUrl: string | null;
 }
 
+/** D37: answer to "send me a code" (POST /api/v1/auth/email-code/request). */
+export interface EmailCodeReceipt {
+  challengeId: string;
+  /** true when the server re-sent the SAME code inside its window. */
+  resent: boolean;
+  /** Milliseconds left on the code by the server's clock. */
+  expiresInMs: number;
+  /** Milliseconds before "Resend" may be used again. */
+  resendInMs: number;
+  validForMs: number;
+  message: string;
+  /** 'unknown' when the email provider did not confirm the send. */
+  delivery: 'accepted' | 'unknown';
+}
+
+/** D37: result of checking an email code. A new email must still create its account. */
+export type EmailVerifyOutcome =
+  | { status: 'signed_in'; isNewUser: boolean }
+  | { status: 'needs_account'; email: string; signupToken: string; signupExpiresInSeconds: number };
+
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
@@ -60,6 +80,10 @@ interface AuthState {
   requestOtp: (phone: string, captchaToken?: string) => Promise<void>;
   verifyOtp: (phone: string, code: string) => Promise<void>;
   register: (phone: string, firstName: string, lastName: string) => Promise<void>;
+  // D37 (2026-10-11): email codes replace phone codes while SMS is paused.
+  requestEmailCode: (email: string, captchaToken?: string) => Promise<EmailCodeReceipt>;
+  verifyEmailCode: (email: string, code: string) => Promise<EmailVerifyOutcome>;
+  completeEmailSignup: (input: { signupToken: string; firstName: string; lastName: string; phone: string }) => Promise<void>;
   logout: (reason?: 'sign-in-required') => Promise<void>;
   setUser: (user: User) => void;
   // D23 — after accepting a team invite the API returns a fresh token pair
@@ -76,6 +100,43 @@ interface AuthState {
 // All read/write helpers here are SYNCHRONOUS because initSecureStorage()
 // is awaited at app boot in apps/mobile/app/_layout.tsx before this store
 // is hydrated.
+async function fingerprintOrUndefined(): Promise<string | undefined> {
+  try {
+    return await getDeviceFingerprint();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * D37: validate a signed-in response from the email-code routes before storing
+ * anything, with the same checks verifyOtp applies (MED-K02): never store
+ * undefined tokens or mark a user signed in without a user object.
+ */
+function acceptEmailSession(
+  data: { accessToken?: unknown; refreshToken?: unknown; user?: unknown; isNewUser?: unknown } | undefined,
+  set: (partial: Partial<AuthState>) => void,
+): boolean {
+  if (!data) throw new Error('Sign-in returned an unexpected response. Please try again.');
+  if (typeof data.accessToken !== 'string' || data.accessToken.length === 0) {
+    throw new Error('Sign-in returned no access token. Please try again.');
+  }
+  if (typeof data.refreshToken !== 'string' || data.refreshToken.length === 0) {
+    throw new Error('Sign-in returned no refresh token. Please try again.');
+  }
+  if (!data.user || typeof data.user !== 'object') {
+    throw new Error('Sign-in returned no user object. Please try again.');
+  }
+  const user = data.user as User;
+  const isNewUser = data.isNewUser === true;
+  invalidateApplicantIdentity();
+  storeTokens(data.accessToken, data.refreshToken);
+  storeUser(JSON.stringify(user));
+  if (isNewUser) storage.set('isNewUser', 'true');
+  set({ user, isAuthenticated: true, otpRequestId: null, sessionExpired: false });
+  return isNewUser;
+}
+
 export const useAuthStore = create<AuthState>((set, _get) => ({
   user: null,
   isAuthenticated: false,
@@ -169,6 +230,50 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     const user = res.data.data;
     storeUser(JSON.stringify(user));
     set({ user, isAuthenticated: true });
+  },
+
+  // D37: one-time email proof requests are anonymous: no stored credential is
+  // attached, refreshed or replayed (api.ts 'anonymous' mode).
+  requestEmailCode: async (email: string, captchaToken?: string) => {
+    const deviceFingerprint = await fingerprintOrUndefined();
+    const res = await api.post('/api/v1/auth/email-code/request',
+      { email, deviceFingerprint, ...(captchaToken ? { captchaToken } : {}) }, { auth: 'anonymous' });
+    const data = res.data?.data as Partial<EmailCodeReceipt> | undefined;
+    if (!data || typeof data.challengeId !== 'string' || typeof data.expiresInMs !== 'number'
+        || typeof data.resendInMs !== 'number') {
+      throw new Error('The code request returned an unexpected response. Please try again.');
+    }
+    return {
+      challengeId: data.challengeId,
+      resent: data.resent === true,
+      expiresInMs: data.expiresInMs,
+      resendInMs: data.resendInMs,
+      validForMs: typeof data.validForMs === 'number' ? data.validForMs : 300_000,
+      message: typeof data.message === 'string' ? data.message : '',
+      delivery: data.delivery === 'unknown' ? 'unknown' : 'accepted',
+    };
+  },
+
+  verifyEmailCode: async (email: string, code: string) => {
+    const deviceFingerprint = await fingerprintOrUndefined();
+    const res = await api.post('/api/v1/auth/email-code/verify', { email, code, deviceFingerprint }, { auth: 'anonymous' });
+    const data = res.data?.data as Record<string, unknown> | undefined;
+    if (data?.status === 'needs_account') {
+      if (typeof data.signupToken !== 'string' || typeof data.email !== 'string') {
+        throw new Error('Sign-in returned an unexpected response. Please try again.');
+      }
+      return { status: 'needs_account', email: data.email, signupToken: data.signupToken,
+        signupExpiresInSeconds: typeof data.signupExpiresInSeconds === 'number' ? data.signupExpiresInSeconds : 1800 };
+    }
+    const isNewUser = acceptEmailSession(data, set);
+    return { status: 'signed_in', isNewUser };
+  },
+
+  completeEmailSignup: async ({ signupToken, firstName, lastName, phone }) => {
+    const deviceFingerprint = await fingerprintOrUndefined();
+    const res = await api.post('/api/v1/auth/email-code/complete-signup',
+      { signupToken, firstName, lastName, phone, deviceFingerprint }, { auth: 'anonymous' });
+    acceptEmailSession(res.data?.data, set);
   },
 
   // Phase D CRIT-72 fix — call server /auth/logout to invalidate the

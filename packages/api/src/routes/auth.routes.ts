@@ -19,7 +19,12 @@ import {
 import * as authService from '../services/auth.service';
 import * as securityService from '../services/security.service';
 import * as adminTwoFactorService from '../services/admin-2fa.service';
-import { assertEmailSignInDeliveryConfigured } from '../services/email-sign-in.service';
+import {
+  adminSecondFactor, isEmailCodeSignInEnabled, isPhoneOtpSignInEnabled, requestAdminEmailCode, verifyAdminEmailCode,
+} from '../services/email-code-auth.service';
+import { sendEmailCodeError } from './email-code.routes';
+import { maskEmail } from '../utils/pii-mask';
+import { z } from 'zod';
 import { platformConfig } from '../config/platform.config';
 import { generateTotpSecret, verifyTotp, generateTotpUri, encryptSecret, decryptSecret } from '../utils/totp';
 import {
@@ -59,24 +64,32 @@ function formatUserResponse(u: UserProfileRow): Record<string, unknown> {
 
 const router = Router();
 
+// D37 (Ken, 2026-10-11): phone/SMS codes are paused while the carriers will
+// not deliver our SMS (PHONE_OTP_SIGN_IN_ENABLED=0). Everything behind this
+// check is kept intact for when SMS returns.
+function phoneSignInPaused(): Error {
+  const paused = createAppError('Phone sign-in is paused. Please sign in with your email address.', 503);
+  paused.code = 'phone_sign_in_paused';
+  return paused;
+}
+
 // Public, account-independent configuration discovery. This is not provider
 // health, inbox acceptance, account eligibility or permission to skip a proof.
+// D37 (2026-10-11): the web app and the APK read this at the sign-in screen,
+// so phone codes can be paused and resumed from the server's settings alone.
 router.get('/methods', (_req: Request, res: Response) => {
-  let emailCode: { enabled: boolean; captchaSiteKey?: string } = { enabled: false };
-  try {
-    // Reuse the producer's opt-in/sender guard; never invent a second flag.
-    assertEmailSignInDeliveryConfigured();
-    const siteKey = process.env.TURNSTILE_SITE_KEY?.trim();
-    const secret = process.env.CAPTCHA_SECRET_KEY || process.env.TURNSTILE_SECRET_KEY;
-    if (siteKey && secret?.trim()) emailCode = { enabled: true, captchaSiteKey: siteKey };
-  } catch {
-    // Missing/disabled configuration has one shape, without private details.
-  }
+  const emailCode = {
+    enabled: isEmailCodeSignInEnabled(),
+    codeLength: 6,
+    validForMs: platformConfig.emailCode.validForMs,
+    resendCooldownMs: platformConfig.emailCode.resendCooldownMs,
+  };
+  const phoneOtp = { supported: true, enabled: isPhoneOtpSignInEnabled() };
   res.set('Cache-Control', 'private, no-store');
   // end(), rather than send()/json(), avoids Express-generated ETags and 304
   // responses: callers always receive a newly evaluated configuration body.
   res.status(200).type('application/json').end(JSON.stringify({
-    success: true, data: { phoneOtp: { supported: true }, emailCode },
+    success: true, data: { phoneOtp, emailCode },
   }));
 });
 
@@ -211,6 +224,12 @@ router.post(
   authRateLimitMiddleware,
   validationMiddleware(sendOtpSchema),
   async (req: Request, res: Response, next: NextFunction) => {
+    // D37: refused before anything is recorded, so paused requests from old
+    // apps never count toward any lockout.
+    if (!isPhoneOtpSignInEnabled()) {
+      next(phoneSignInPaused());
+      return;
+    }
     try {
       const clientIp = getClientIp(req);
       const phone = req.body.phone as string;
@@ -286,6 +305,12 @@ router.post(
   authRateLimitMiddleware,
   validationMiddleware(verifyOtpSchema),
   async (req: Request, res: Response, next: NextFunction) => {
+    // D37: refused before anything is recorded, so paused requests from old
+    // apps never count toward any lockout.
+    if (!isPhoneOtpSignInEnabled()) {
+      next(phoneSignInPaused());
+      return;
+    }
     try {
       const clientIp = getClientIp(req);
       const phone = req.body.phone as string;
@@ -653,13 +678,76 @@ router.post(
         });
       }
 
-      // Check if 2FA is enabled — require TOTP verification before issuing tokens
+      // Is an authenticator set up? (Read before the D37 email step, which falls
+      // back to it and offers it as the other way in.)
       const totpResult = await db.query<{ totp_enabled: boolean }>(
         `SELECT totp_enabled FROM users WHERE id = $1`,
         [user.id],
       );
       const totpEnabled = totpResult.rows[0]?.totp_enabled ?? false;
 
+      // D37 (Ken, 2026-10-11): with ADMIN_SECOND_FACTOR=email the second step
+      // is a code sent to the admin's own email address instead of the
+      // authenticator app. The authenticator branches below stay intact: they
+      // run for 'totp' (the default), when email delivery is not configured,
+      // and whenever the email cannot be sent, so a mail outage never locks
+      // the admins out and never removes the second step.
+      if (!twoFaDisabled && adminSecondFactor() === 'email') {
+        const jwtEmail = await import('jsonwebtoken');
+        const emailSecret = process.env.JWT_SECRET;
+        if (!emailSecret) throw new Error('JWT_SECRET is not configured');
+        const preAuth = (type: 'pre_auth_email' | 'pre_auth_2fa', seconds: number): string => jwtEmail.default.sign(
+          { userId: user.id, role: user.role, sessionVersion: Number(user.session_version), type },
+          emailSecret,
+          { algorithm: 'HS256', expiresIn: seconds },
+        );
+        let code: { expiresInMs: number; resendInMs: number; delivery: 'accepted' | 'unknown'; alreadySent: boolean } | null = null;
+        try {
+          const receipt = await requestAdminEmailCode(
+            { id: user.id, email: user.email, sessionVersion: Number(user.session_version) }, clientIp);
+          code = { expiresInMs: receipt.expiresInMs, resendInMs: receipt.resendInMs, delivery: receipt.delivery, alreadySent: false };
+        } catch (error) {
+          const failure = (error as { code?: string }).code ?? '';
+          const details = (error as { clientDetails?: { retryAfterMs?: number; expiresInMs?: number; codePending?: boolean } })
+            .clientDetails;
+          if (['email_code_resend_too_soon', 'email_code_send_limit'].includes(failure) && details?.codePending) {
+            // A code sent moments ago (e.g. before "Back to login") is still valid.
+            code = { expiresInMs: Number(details.expiresInMs ?? 0), resendInMs: Number(details.retryAfterMs ?? 0),
+              delivery: 'accepted', alreadySent: true };
+          } else if (['email_code_not_sent', 'email_sign_in_unavailable', 'email_code_hourly_limit',
+            'email_code_network_limit', 'email_domain_cannot_receive', 'admin_email_missing'].includes(failure)) {
+            logger.warn('Admin email code unavailable; using the authenticator step instead', { reason: failure });
+          } else {
+            throw error;
+          }
+        }
+        if (code) {
+          await securityService.logSecurityEvent({
+            userId: user.id,
+            eventType: 'admin_login_2fa_required',
+            ipAddress: clientIp,
+            metadata: { email: accountEmail, method: 'email_code' },
+          });
+          res.json({
+            success: true,
+            data: {
+              requiresEmailCode: true,
+              preAuthToken: preAuth('pre_auth_email', 900),
+              emailHint: maskEmail(user.email),
+              expiresInMs: code.expiresInMs,
+              resendInMs: code.resendInMs,
+              delivery: code.delivery,
+              codeAlreadySent: code.alreadySent,
+              // The other way in, if this admin has an authenticator set up.
+              ...(totpEnabled ? { totpPreAuthToken: preAuth('pre_auth_2fa', 600) } : {}),
+              user: formatUserResponse(user),
+            },
+          });
+          return;
+        }
+      }
+
+      // Check if 2FA is enabled — require TOTP verification before issuing tokens
       if (totpEnabled && !twoFaDisabled) {
         // Return a partial response requiring 2FA verification.
         // 10-min pre-auth window — enough time to open the authenticator and
@@ -961,6 +1049,151 @@ router.post(
       });
     } catch (error) {
       next(error);
+    }
+  },
+);
+
+// --- D37: admin emailed second step (ADMIN_SECOND_FACTOR=email) ---
+
+interface EmailPreAuth { userId: string; role: string; sessionVersion: number }
+
+async function readEmailPreAuth(token: unknown): Promise<EmailPreAuth> {
+  const jwtLib = await import('jsonwebtoken');
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET is not configured');
+  let payload: { userId?: string; role?: string; sessionVersion?: number; type?: string };
+  try {
+    payload = jwtLib.default.verify(String(token), secret, { algorithms: ['HS256'] }) as typeof payload;
+  } catch {
+    throw createAppError('Your sign-in step expired. Please sign in again.', 401);
+  }
+  const sessionVersion = Number(payload.sessionVersion ?? 1);
+  if (payload.type !== 'pre_auth_email' || typeof payload.userId !== 'string' || typeof payload.role !== 'string'
+      || !Number.isSafeInteger(sessionVersion) || sessionVersion < 1) {
+    throw createAppError('Invalid token type.', 401);
+  }
+  return { userId: payload.userId, role: payload.role, sessionVersion };
+}
+
+async function loadEmailStepAdmin(proof: EmailPreAuth): Promise<{
+  id: string; email: string | null; role: string; sessionVersion: number;
+}> {
+  const row = (await db.query<{ id: string; email: string | null; role: string; is_active: boolean; session_version: number | string }>(
+    'SELECT id, email, role, is_active, session_version FROM users WHERE id = $1', [proof.userId],
+  )).rows[0];
+  if (!row?.is_active || !['admin', 'super_admin', 'dpo'].includes(row.role) || row.role !== proof.role
+      || Number(row.session_version) !== proof.sessionVersion) {
+    throw createAppError('This authentication session has been revoked. Please login again.', 401);
+  }
+  return { id: row.id, email: row.email, role: row.role, sessionVersion: proof.sessionVersion };
+}
+
+router.post(
+  '/admin/email-code/resend',
+  authRateLimitMiddleware,
+  validationMiddleware(z.object({ preAuthToken: z.string().min(10).max(4096) }).strict()),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const admin = await loadEmailStepAdmin(await readEmailPreAuth(req.body.preAuthToken));
+      const receipt = await requestAdminEmailCode(admin, getClientIp(req));
+      res.json({
+        success: true,
+        data: { resent: receipt.resent, expiresInMs: receipt.expiresInMs, resendInMs: receipt.resendInMs,
+          delivery: receipt.delivery },
+      });
+    } catch (error) {
+      sendEmailCodeError(error, res, next);
+    }
+  },
+);
+
+router.post(
+  '/admin/email-code/verify',
+  authRateLimitMiddleware,
+  validationMiddleware(z.object({
+    preAuthToken: z.string().min(10).max(4096),
+    code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code from your email.'),
+  }).strict()),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const clientIp = getClientIp(req);
+      const proof = await readEmailPreAuth(req.body.preAuthToken);
+      const admin = await loadEmailStepAdmin(proof);
+      const loginIdentifier = (admin.email ?? '').toLowerCase().trim();
+      try {
+        await verifyAdminEmailCode(admin, req.body.code);
+      } catch (error) {
+        // Counts toward the same per-account lockout as wrong passwords.
+        await securityService.recordLoginAttempt({
+          phone: loginIdentifier,
+          ipAddress: clientIp,
+          attemptType: 'admin_login',
+          success: false,
+          userAgent: req.headers['user-agent'] as string | undefined,
+        });
+        await securityService.logSecurityEvent({
+          userId: admin.id,
+          eventType: 'admin_2fa_failed',
+          ipAddress: clientIp,
+          metadata: { reason: 'invalid_email_code' },
+        });
+        throw error;
+      }
+
+      // The code is consumed. Re-check the account under its lock before
+      // issuing anything, as the authenticator path does (OPS-531/532).
+      const user = await db.transaction(async client => {
+        const row = (await client.query<{ id: string; role: string; is_active: boolean; session_version: number | string }>(
+          'SELECT id, role, is_active, session_version FROM users WHERE id = $1 FOR NO KEY UPDATE', [proof.userId],
+        )).rows[0];
+        if (!row?.is_active || !['admin', 'super_admin', 'dpo'].includes(row.role) || row.role !== proof.role
+            || Number(row.session_version) !== proof.sessionVersion) {
+          throw createAppError('This authentication session has been revoked. Please login again.', 401);
+        }
+        await client.query('UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1', [row.id]);
+        return row;
+      });
+      const tokens = await authService.createTokenPair(user.id, user.role, Number(user.session_version));
+
+      await securityService.recordLoginAttempt({
+        phone: loginIdentifier,
+        ipAddress: clientIp,
+        attemptType: 'admin_login',
+        success: true,
+        userAgent: req.headers['user-agent'] as string | undefined,
+      });
+      await securityService.logSecurityEvent({
+        userId: user.id,
+        eventType: 'admin_login_2fa_verified',
+        ipAddress: clientIp,
+        metadata: { verificationMethod: 'email_code' },
+      });
+
+      const fullUser = await db.query<UserProfileRow & { must_rotate_password: boolean | null }>(
+        `SELECT id, phone, email, first_name, last_name, role, avatar_url,
+                is_verified, is_active, created_at, session_version,
+                COALESCE(must_rotate_password, FALSE) AS must_rotate_password
+         FROM users WHERE id = $1`,
+        [user.id],
+      );
+      logger.info('Admin email-code login', { userId: user.id });
+      await setAdminSessionCookies(res, {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        adminUserId: user.id,
+        ipAddress: clientIp,
+        userAgent: req.headers['user-agent'] as string | undefined,
+      });
+      res.json({
+        success: true,
+        data: {
+          user: formatUserResponse(fullUser.rows[0]!),
+          sessionExpiresAt: new Date(Date.now() + platformConfig.adminSessionTimeoutHours * 3600 * 1000).toISOString(),
+          mustRotatePassword: fullUser.rows[0]?.must_rotate_password === true,
+        },
+      });
+    } catch (error) {
+      sendEmailCodeError(error, res, next);
     }
   },
 );

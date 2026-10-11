@@ -58,6 +58,13 @@ jest.mock('@/services/secure-storage', () => ({
 jest.mock('@/stores/auth.store', () => {
   const requestOtp = jest.fn().mockResolvedValue(undefined);
   const verifyOtp = jest.fn().mockResolvedValue(undefined);
+  // D37 email-code actions.
+  const requestEmailCode = jest.fn().mockResolvedValue({
+    challengeId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', resent: false, expiresInMs: 300000,
+    resendInMs: 30000, validForMs: 300000, message: '',
+  });
+  const verifyEmailCode = jest.fn().mockResolvedValue({ status: 'signed_in', isNewUser: false });
+  const completeEmailSignup = jest.fn().mockResolvedValue(undefined);
   const logout = jest.fn();
   const hydrate = jest.fn();
   const useAuthStore = (selector) => {
@@ -66,6 +73,9 @@ jest.mock('@/stores/auth.store', () => {
       user: null,
       requestOtp,
       verifyOtp,
+      requestEmailCode,
+      verifyEmailCode,
+      completeEmailSignup,
       logout,
       hydrate,
     };
@@ -76,8 +86,23 @@ jest.mock('@/stores/auth.store', () => {
     user: null,
     requestOtp,
     verifyOtp,
+    requestEmailCode,
+    verifyEmailCode,
+    completeEmailSignup,
     logout,
     hydrate,
   });
   return { useAuthStore };
 });
+
+// D37: the sign-in screens ask the server which methods are on. Tests default
+// to the server's own default (phone codes on, email codes off) so the kept
+// phone screens stay covered; email tests switch email on explicitly.
+jest.mock('@/hooks/useAuthMethods', () => ({
+  AUTH_METHOD_DEFAULTS: { codeLength: 6, validForMs: 300000, resendCooldownMs: 30000 },
+  fetchAuthMethods: jest.fn(),
+  useAuthMethods: jest.fn(() => ({
+    status: 'ready', phone: true, email: false, codeLength: 6, validForMs: 300000, resendCooldownMs: 30000,
+    retry: jest.fn(),
+  })),
+}));

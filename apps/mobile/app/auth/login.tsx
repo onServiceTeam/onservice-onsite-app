@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Pressable } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Card } from '@/components/ui';
@@ -18,12 +18,25 @@ import { DEMO_MODE, demoLogin, type DemoRole } from '@/config/demo';
 import { useResponsive } from '@/hooks/useResponsive';
 import AuthBrandPanel from '@/components/AuthBrandPanel';
 import { useAuthStore } from '@/stores/auth.store';
+import { useAuthMethods } from '@/hooks/useAuthMethods';
+import EmailSignInForm from '@/components/auth/EmailSignInForm';
 
 export default function LoginScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
   const sessionExpired = useAuthStore(state => state.sessionExpired);
+  // D37 (Ken, 2026-10-11): phone codes are paused while SMS cannot be
+  // delivered; the server says which method is on. The phone form below is
+  // kept intact and returns when the server switches phone codes back on.
+  const methods = useAuthMethods();
+  // While the server's answer loads, show neither form. When both methods are
+  // on, email comes first and a link switches to the phone form.
+  const [preferPhone, setPreferPhone] = useState(false);
+  const methodsLoading = methods.status === 'loading';
+  const canSwitch = methods.email && methods.phone;
+  const showEmail = !methodsLoading && methods.email && !(preferPhone && methods.phone);
+  const showPhone = !methodsLoading && methods.phone && (!methods.email || preferPhone);
   // requestOtpWithCaptcha transparently handles the server's 428 captcha
   // challenge (Cloudflare Turnstile) that appears after the lockout threshold.
   const { requestOtpWithCaptcha, captchaModal } = useCaptchaOtp();
@@ -96,15 +109,39 @@ export default function LoginScreen(): React.ReactElement {
         <View style={styles.header}>
           <Text style={styles.title}>Welcome back</Text>
           <Text style={styles.subtitle}>
-            Enter your mobile number to log in
+            {showPhone ? 'Enter your mobile number to log in' : 'Enter your email address to log in'}
           </Text>
         </View>
 
         <Card style={styles.form}>
           {sessionExpired && <Text style={styles.sessionNotice} accessibilityRole="alert">
-            Sign in again to confirm your current account access. Use your verified mobile number. If you were applying to become a provider, signing in does not submit another application.
+            {showEmail
+              ? 'Sign in again to confirm your current account access. Use the email address on your account. If you were applying to become a provider, signing in does not submit another application.'
+              : 'Sign in again to confirm your current account access. Use your verified mobile number. If you were applying to become a provider, signing in does not submit another application.'}
           </Text>}
-          {/* Phase 14 R5-complete — PhoneInput component */}
+          {methods.status === 'unavailable' && <Text style={styles.sessionNotice} accessibilityRole="alert">
+            We couldn't reach onService to check sign-in options. Check your connection.{' '}
+            <Text style={styles.legalLink} onPress={methods.retry} accessibilityRole="button">Try again</Text>
+          </Text>}
+          {showEmail && <EmailSignInForm mode="login" />}
+          {!showEmail && !showPhone && methods.status === 'ready' && <Text style={styles.sessionNotice} accessibilityRole="alert">
+            Sign-in is temporarily unavailable. Please try again later.
+          </Text>}
+          {methodsLoading && <ActivityIndicator accessibilityLabel="Checking sign-in options" />}
+          {canSwitch && !methodsLoading && (
+            <Pressable
+              onPress={() => setPreferPhone(value => !value)}
+              accessibilityRole="button"
+              style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Text style={styles.legalLink}>
+                {showPhone ? 'Use my email instead' : 'Use my mobile number instead'}
+              </Text>
+            </Pressable>
+          )}
+
+          {/* Phase 14 R5-complete — PhoneInput component. D37: shown only while phone codes are on. */}
+          {showPhone && <>
           <PhoneInput
             value={phone}
             onChange={(text) => {
@@ -127,8 +164,10 @@ export default function LoginScreen(): React.ReactElement {
             loading={loading}
             disabled={phone.length < 10}
           />
+          </>}
 
-          {DEMO_MODE && (
+          {/* Demo entry signs in with phone codes, so it shows only while they are on. */}
+          {DEMO_MODE && showPhone && (
             <View style={styles.demo}>
               <Text style={styles.demoLabel}>Or jump straight in (demo)</Text>
               <Button

@@ -252,11 +252,12 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
     signInEmailResult,
     emailLinkRequestResult,
     emailSignInRequestResult,
+    emailCodeRequestResult,
   ] =
     await Promise.all([
       db.query(
         `SELECT id, phone, email, first_name, last_name, role, avatar_url,
-                is_verified, created_at, updated_at
+                is_verified, email_verified_at, created_at, updated_at
          FROM users WHERE id = $1`,
         [userId],
       ),
@@ -462,6 +463,15 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
          FROM email_sign_in_challenges WHERE user_id = $1 ORDER BY created_at, id`,
         [userId],
       ),
+      // D37 emailed sign-in codes for this account's email (or admin account).
+      // Metadata only: the codes themselves are never stored.
+      db.query(
+        `SELECT purpose, state, attempts, sends, request_ip, created_at, expires_at, finished_at, last_delivery
+         FROM email_code_challenges
+         WHERE user_id = $1 OR recipient_hash = (SELECT encode(sha256(convert_to(lower(email), 'UTF8')), 'hex') FROM users WHERE id = $1)
+         ORDER BY created_at, id`,
+        [userId],
+      ),
     ]);
 
   return {
@@ -491,6 +501,7 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
     signInEmails: signInEmailResult.rows,
     emailLinkRequests: emailLinkRequestResult.rows,
     emailSignInRequests: emailSignInRequestResult.rows,
+    emailCodeRequests: emailCodeRequestResult.rows,
   };
 }
 
@@ -872,6 +883,12 @@ async function anonymizeUser(userId: string): Promise<void> {
     await client.query('DELETE FROM email_link_challenges WHERE user_id = $1', [userId]);
     await client.query('DELETE FROM email_sign_in_challenges WHERE user_id = $1', [userId]);
     await client.query('DELETE FROM sign_in_email_identities WHERE user_id = $1', [userId]);
+    // D37: emailed sign-in codes, matched by account (admin) or by the digest
+    // of the email being erased (marketplace). Runs before the email changes.
+    await client.query(
+      `DELETE FROM email_code_challenges WHERE user_id = $1 OR recipient_hash = (SELECT encode(sha256(convert_to(lower(email), 'UTF8')), 'hex') FROM users WHERE id = $1)`,
+      [userId],
+    );
 
     // Use crypto.randomUUID() for the anonymized phone/email so two
     // simultaneous deletions don't collide on UNIQUE constraints.
@@ -888,6 +905,7 @@ async function anonymizeUser(userId: string): Promise<void> {
          last_name = 'User',
          phone = $2,
          email = $3,
+         email_verified_at = NULL,
          avatar_url = NULL,
          is_active = FALSE,
          updated_at = NOW()

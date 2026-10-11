@@ -19,6 +19,7 @@ import * as settingsService from '../services/settings.service';
 import * as providerApplicationDraftService from '../services/provider-application-draft.service';
 import * as emailLinkCleanupService from '../services/email-link-cleanup.service';
 import * as emailSignInCleanupService from '../services/email-sign-in-cleanup.service';
+import * as emailCodeAuthService from '../services/email-code-auth.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -488,6 +489,8 @@ const schedulerWorker = new Worker(
         // cutoff/limit, log identifiers or suppress a failed SQL transaction.
         results.emailLinkCleanup = await emailLinkCleanupService.cleanupEmailLinkChallenges(100);
         results.emailSignInCleanup = await emailSignInCleanupService.cleanupEmailSignInChallenges(100);
+        // D37: emailed sign-in codes (closes expired ones, drops old finished rows).
+        results.emailCodeCleanup = await emailCodeAuthService.cleanupEmailCodeChallenges(200);
         break;
       case 'quality-score-compute':
         // Bug UX-830 / E47: retain the processor branch so already queued

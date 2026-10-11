@@ -453,6 +453,19 @@ export async function verifyOtp(
       throw createAppError('Your account has been deactivated. Contact support.', 403);
     }
 
+    // D37 (2026-10-11): an account created by email sign-up while SMS was
+    // paused carries a typed, never-proven mobile number (phone_verified_at
+    // NULL). When phone codes return, holding that number must not open the
+    // account. Older accounts were created by phone codes and are stamped.
+    if (existingUser && (existingUser as UserRow & { phone_verified_at?: Date | null }).phone_verified_at === null) {
+      const unproven = createAppError(
+        'This mobile number has not been verified for this account. Please sign in with your email address.',
+        403,
+      );
+      unproven.code = 'phone_not_verified_for_account';
+      throw unproven;
+    }
+
     if (userResult.rows.length === 0) {
       isNewUser = true;
       userResult = await client.query<UserRow>(

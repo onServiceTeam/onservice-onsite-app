@@ -37,6 +37,9 @@ export const Routes = {
     LOGIN: '/auth/login',
     REGISTER: '/auth/register',
     OTP_VERIFY: '/auth/otp-verify',
+    // D37: email codes while phone codes are paused.
+    EMAIL_VERIFY: '/auth/email-verify',
+    CREATE_ACCOUNT: '/auth/create-account',
   },
 
   CUSTOMER: {
