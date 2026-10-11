@@ -211,6 +211,13 @@ A partial dispute decision made after an earlier support refund still refunds th
     - Rerun serially, all 8 passed (57/57).
   - **Earlier runs, serial reruns.** Every money suite passed: dispute refunds, cancellation transactions, quote payment and guard pool starvation.
 
+### Exact-commit CI (commit `f3e53f56`)
+
+CI `38092853947` and Gates `38092853850` both succeeded, including all six Gates jobs.
+
+- API job `114332676243`: 1,070/1,070 suites; 3,764 passed, 2 todo, 0 skipped. FIN-017, FIN-018, FIN-019, `escrow-payout-limits-postgres` and the three updated mocked suites passed. So did the sign-in, session and backup suites that timed out on this machine.
+- The admin, mobile and Docker jobs succeeded.
+
 ### Independent reviews
 
 **Review 1.** Four read-only lenses: money across every caller, locking, tests, and operational impact. Each serious finding was checked by two skeptics.
@@ -253,3 +260,143 @@ A partial dispute decision made after an earlier support refund still refunds th
 - **Live is exposed through older code.** E82 (private) describes the exposure and why only a refusal-only hotfix contains it. It also records the read-only checks and the data repair of wrongly labelled bookings (LAUNCH-LIMITATIONS 121), all waiting for Ken.
 - **The recurring auto-charge** holds 1/100 of the amount. It stays contained (LAUNCH-LIMITATIONS 44, E20); after S2-1 such a booking is refused rather than paid out.
 - **Not built:** the lock-order deadlock risk (LAUNCH-LIMITATIONS 120).
+
+## S2-2: dispute filing locks the booking and keeps the true escrow label (FIN-020, FIN-021, OPS-562)
+
+### Defect, reproduced before the fix
+
+`fileDispute`:
+
+- read the booking and counted its open disputes **before** its transaction, without a lock;
+- then set `status = 'disputed'` **and** `escrow_status = 'held'`, whatever the money had done.
+
+Captured against `f3e53f56`:
+
+- **FIN-020: the label is reset.** Two bookings were both relabelled "held" by the filing:
+  - one partly refunded through a real support refund, holding ₱7,500 of ₱10,000;
+  - one confirmed and paid out through a real manual release, holding nothing.
+- **FIN-021: the automatic refund cannot run.** A no-show dispute qualified by timing on a partly refunded booking. It tried the automatic full refund of ₱10,000, which the refund cap refused, so the filing answered 409 and no dispute was recorded: the customer could not file at all.
+- **OPS-562: two filings at once.** Two simultaneous filings both passed the unlocked checks and created two disputes.
+
+### Fix
+
+`packages/api/src/services/dispute.service.ts`:
+
+- **`fileDispute` locks first.** It opens its transaction first and locks the booking row. It then runs the customer, status, window and open-dispute checks on that locked row.
+  - A booking that is already disputed is told that an active dispute exists; before, it was told the job was not complete.
+  - The open-dispute count is a plain read. The booking lock already serialises filings, and locking dispute rows here would invert the dispute-then-booking order the dispute decisions use.
+  - In normal flows the status check refuses first. The count matters only for inconsistent older data, and supporting test 2 exercises that.
+- **The filing changes only the status.** The escrow label is left as it is.
+- **The automatic no-show refund** runs only while the label is "held" **and** the booking still holds its whole total.
+  - Otherwise the dispute stays open for an admin. The dispute's internal note says why, for example "Automatic no-show refund not run: this booking holds ₱7,500.00 of its ₱10,000.00 total (escrow label: partially_refunded). Decide this dispute manually."
+  - The held amount comes from the new `escrowService.bookingEscrowHeldForLockedBookingInTransaction`, read under the booking lock. Every escrow movement's ledger row references the booking, so none can land meanwhile (supporting test 4).
+- **The no-show timing setting is read before the booking lock**, so the locked transaction never waits for a second database connection (the OPS-555 rule).
+
+`packages/api/src/services/booking.service.ts`:
+
+- **Removed:** the general status change's relabel to "held" for `paid` and `disputed`. No role can request either target on that route. Customers and providers are refused them as flow-only (SEC-092, OPS-556, SEC-093). Admins and super admins are refused them because neither status is in their allowed list (SEC-090, SEC-091). Team members and other roles are refused all such changes. So the branch was dead. It is removed so that a later change to those rules cannot bring the relabel back; no test can reach unreachable code.
+
+**Changed as a consequence:** a **"no refund"** decision on a dispute filed after a support refund now pays the provider what the booking still holds. The amount is shared the same way as a manual release after a support refund (supporting test 5). Before, the filing had relabelled the booking "held", so that payout was refused and left stuck. LAUNCH-LIMITATIONS 119 has a dated update, and D36 Q1 asks Ken to confirm.
+
+**Unchanged:**
+
+- who may file, and when;
+- the window;
+- the notifications;
+- the automatic no-show rule on a fully held booking (FIN-016 still passes);
+- refund decisions after an earlier refund (S2-3, D36 Q1).
+
+**What admins now see.** A no-show dispute that would once have failed now opens normally, with the internal note. Until S2-3:
+
+- a provider's "accept";
+- or an admin's "full refund" on such a dispute;
+
+is refused by the refund cap ("Refund exceeds this booking's remaining escrow"). A partial or no-refund decision works.
+
+**Correction to E18, E59 and LAUNCH-LIMITATIONS 42** (dated notes added to each, nothing deleted):
+
+- **No dispute after the automatic release.** The automatic 24-hour confirmation, and a customer's own confirmation, move the booking to "payout ready", and a dispute cannot be filed after that. So the automatic path never sends released money into a dispute.
+- **Two narrower ways remain.** Released money could still reach a dispute after a super admin's manual release (the booking keeps its status), or through the unlocked read above, which S2-2 closes.
+- **Still true, and still Ken's E18 decision:** the apps promise 48 hours, but after the automatic confirmation the customer cannot file and is told the job is not complete yet.
+
+### Tests
+
+**Bug tests**, each red against `f3e53f56` for the stated reason, with the final test text:
+
+- `bug-fin-020-dispute-filing-keeps-escrow-label.test.ts`: both states always run and report. Before the fix, both labels became "held".
+- `bug-fin-021-no-show-dispute-after-refund-filed-for-review.test.ts`: before the fix, the filing answered 409 and no dispute existed. After it, the dispute is open, nothing moved, and the internal note is set.
+- `bug-ops-562-concurrent-dispute-filing.test.ts`: a blocker holds the booking row and both filings wait; then it lets go. Before the fix, both were recorded (received `['filed', 'filed']`). Now the second is told an active dispute already exists.
+
+**Supporting tests**, `dispute-filing-locks-postgres.test.ts`:
+
+1. Filing on a fully held booking keeps its label "held".
+2. **A filing racing a decision on the same booking finishes without a deadlock, in either order.** The booking is first put back to "completed" while its dispute is open, an inconsistent state older data could hold, so the filing really reaches the open-dispute read. The decision always goes through, and the filing is refused with the matching message.
+3. **The automatic no-show refund needs both the label and the full amount.** Two cases are filed for review: a booking labelled "held" that holds less than its total, and a fully held booking whose label is not "held".
+4. **A no-show filing waits for an escrow movement in flight on the booking**, then sees the changed amount and is filed for review. No stale full refund runs.
+5. **A "no refund" decision after a support refund** releases exactly what the booking holds to the provider.
+
+**Updated mocked suites (no assertion removed):** `bug-ops-471`, `dispute-auto-refund-payment-step` and `dispute-auto-resolve-trx-med-n19`.
+
+- They now answer the booking read and the open-dispute count inside the transaction, and fail on any read outside it.
+- OPS-471 also checks that the locked read comes first.
+- MED-N19 also checks that the filing never writes the escrow label.
+
+**Mutations:** 12 runs on the final code. Each was reverted, and both source files were confirmed byte-identical afterwards. Supporting tests are numbered as above. "Mocked" means the three mocked suites, which match SQL text, not behaviour.
+
+| Mutation | Failed |
+|---|---|
+| The two files at \`f3e53f56\` (red evidence) | FIN-020, FIN-021, OPS-562, supporting 2, 3, 4, 5, mocked |
+| The filing sets the label to "held" again | FIN-020, FIN-021, supporting 3, 5, MED-N19 |
+| No lock on the booking | OPS-562, supporting 2, 4, mocked |
+| A weaker lock (\`FOR NO KEY UPDATE\`) | supporting 4, mocked |
+| Lock the open disputes | supporting 2 (a deadlock), mocked |
+| Count the open disputes before the lock | supporting 2 |
+| Automatic refund without the new condition | FIN-021, supporting 3, 4 |
+| The automatic refund checks only the label | supporting 3, 4 |
+| The automatic refund checks only the amount | supporting 3 |
+| No internal note when the automatic refund is skipped | FIN-021 |
+| A second filing told "not complete" again | OPS-562 |
+| Restore the dead status-route relabel | none: unreachable, as explained above |
+
+### Verification
+
+- **Focused tests.** 13/13 on PostgreSQL 17.9, run serially, zero skips:
+  - the 3 bug tests and the 5 supporting tests;
+  - FIN-016 and the three updated mocked suites.
+- **Related dispute money suites:** `dispute-refund-commits-with-resolution-postgres`, FIN-013 to FIN-016 and `money-dispute-fixture-postgres` pass.
+- **API `tsc` and eslint** on every changed file: clean.
+- **Gates:** gate smoke 7/7; Gate A passes; Gate C passes. The unique regression ids went from 1,667 to 1,670.
+- **Full API run (4 workers), final code:** 1,072/1,074 suites; 3,770 tests passed, 2 todo. Only the two Docker-only nginx suites (`bug-ux-201`, `bug-ux-860`) failed. The machine had recovered from the morning's slowness, and no suite timed out.
+
+### Independent review
+
+Three read-only lenses: code and concurrency, tests, and records and behaviour. Each serious finding was checked by two skeptics.
+
+- **Code: no defect.**
+  - The lock order has no cycle with any dispute or booking path.
+  - The plain open-dispute read is enough: the only place that creates a dispute runs under the booking lock.
+  - The removed relabel is unreachable for every role.
+  - Error codes, messages and responses are unchanged.
+  - The held-amount read is correct, and no path depended on the old relabel.
+  - The old unlocked read could also let a filing overwrite a booking the automatic confirmation had just moved on. That race is now closed.
+- **Four majors, confirmed and applied:**
+  - **The race test could not see the lock order it named:** the status check refused first. It now uses an inconsistent older state, so the filing reaches the open-dispute read. Locking the disputes now deadlocks and fails the test.
+  - **The first red log was captured before OPS-562's expected message was corrected.** It was re-captured with the final tests, and the earlier one is kept as superseded.
+  - **A "no refund" decision after a support refund now pays the provider.** It is recorded as a change, pinned by supporting test 5, added to LAUNCH-LIMITATIONS 119 and put to Ken in D36 Q1.
+  - **The E18 correction said "only", left out a remaining path, and lived only in a private note.** Corrected, with dated public notes on E18, E59 and LAUNCH-LIMITATIONS 42.
+- **Applied from the minors:**
+  - the no-show setting is read before the lock;
+  - an internal note when the automatic refund is skipped;
+  - a clearer message for a second filing;
+  - the in-flight movement test (supporting 4);
+  - two more mutations (count before the lock, weaker lock);
+  - the comment placement in `escrow.service.ts`;
+  - the tip deadlock recorded under LAUNCH-LIMITATIONS 120;
+  - the mocked suites named in the record.
+
+### Scope and limits
+
+- **Not deployed.**
+- **Bookings already wrongly labelled** by older code still need the data repair in LAUNCH-LIMITATIONS 121 (Ken's decision).
+- **Refund decisions after an earlier refund** are S2-3 (D36 Q1).
+- **Recorded, not changed:** a tip locks the customer's wallet before the booking, so a tip and a no-show filing on the same wallet-paid booking at the same moment can deadlock. One request then fails, and no money moves (LAUNCH-LIMITATIONS 120 update).

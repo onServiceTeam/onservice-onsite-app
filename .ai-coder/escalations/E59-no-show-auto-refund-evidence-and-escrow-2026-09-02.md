@@ -72,3 +72,7 @@ not recommended.
 Approve Option A, B, or C together with E18's escrow-window choice. Until then,
 do not bypass the Settings hold or represent timing-only auto-resolution as a
 launch-ready no-show policy. Independent non-money audit work can continue.
+
+## Correction (2026-10-11, Claude Code)
+
+The reference to E18 above overstates it: after the automatic release, a dispute cannot be filed (see the correction at the end of E18). In the candidate (S2-2, LAUNCH-LIMITATIONS 122), the automatic no-show refund runs only while the booking is labelled "held" **and** still holds its whole total. Otherwise the dispute is filed for an admin, and an internal note on the dispute says why. The policy question in this file (what evidence an automatic refund needs) is unchanged and still open.

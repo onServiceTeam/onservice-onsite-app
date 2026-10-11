@@ -4,6 +4,7 @@ const refundInTransactionMock = jest.fn();
 const legacyRefundMock = jest.fn();
 const paymentStepMock = jest.fn();
 const emitAdminEventMock = jest.fn();
+const heldMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({
   db: {
@@ -15,6 +16,7 @@ jest.mock('../src/services/escrow.service', () => ({
   refundFromEscrowInTransaction: (...args: unknown[]) => refundInTransactionMock(...args),
   refundFromEscrow: (...args: unknown[]) => legacyRefundMock(...args),
   processEscrowRefundPaymentStep: (...args: unknown[]) => paymentStepMock(...args),
+  bookingEscrowHeldForLockedBookingInTransaction: (...args: unknown[]) => heldMock(...args),
 }));
 jest.mock('../src/services/socket.service', () => ({
   ADMIN_EVENTS: { DISPUTE_FILED: 'dispute:filed' },
@@ -77,27 +79,23 @@ it('MED-N19 - a failed automatic no-show refund rolls back the dispute and booki
     updated_at: new Date(),
   });
 
+  // S2-2: every read happens on the booking locked inside the filing transaction.
   dbQueryMock.mockImplementation(async (sql: string) => {
-    if (sql.includes('FROM bookings WHERE id')) {
-      return {
-        rows: [{
-          id: 'booking-med-n19',
-          customer_id: 'customer-med-n19',
-          provider_id: 'provider-med-n19',
-          status: state.bookingStatus,
-          escrow_status: state.escrowStatus,
-          total_amount: '12000',
-          scheduled_at: scheduledAt,
-          completed_at: completedAt,
-          confirmed_at: null,
-        }],
-        rowCount: 1,
-      };
-    }
-    if (sql.includes('COUNT(*)::text as count')) {
-      return { rows: [{ count: state.disputeExists ? '1' : '0' }], rowCount: 1 };
-    }
     throw new Error(`Unexpected outer query: ${sql}`);
+  });
+  const lockedBookingRead = () => ({
+    rows: [{
+      id: 'booking-med-n19',
+      customer_id: 'customer-med-n19',
+      provider_id: 'provider-med-n19',
+      status: state.bookingStatus,
+      escrow_status: state.escrowStatus,
+      total_amount: '12000',
+      scheduled_at: scheduledAt,
+      completed_at: completedAt,
+      confirmed_at: null,
+    }],
+    rowCount: 1,
   });
 
   dbTransactionMock.mockImplementation(async (
@@ -106,14 +104,19 @@ it('MED-N19 - a failed automatic no-show refund rolls back the dispute and booki
     const snapshot = { ...state };
     const client = {
       query: jest.fn(async (sql: string) => {
+        if (sql.includes('FROM bookings WHERE id') && sql.includes('FOR UPDATE')) return lockedBookingRead();
+        if (sql.includes('COUNT(*)::text as count')) {
+          return { rows: [{ count: state.disputeExists ? '1' : '0' }], rowCount: 1 };
+        }
         if (sql.includes('INSERT INTO disputes')) {
           state.disputeExists = true;
           state.disputeStatus = 'open';
           return { rows: [disputeRow()], rowCount: 1 };
         }
         if (sql.includes("status = 'disputed'")) {
+          // S2-2: filing changes only the status, never the escrow label.
+          expect(sql).not.toContain('escrow_status');
           state.bookingStatus = 'disputed';
-          state.escrowStatus = 'held';
           return { rows: [], rowCount: 1 };
         }
         if (sql.includes('SELECT scheduled_at, completed_at')) {
@@ -158,6 +161,8 @@ it('MED-N19 - a failed automatic no-show refund rolls back the dispute and booki
   // MC-03's post-commit payment-record step; pinned in
   // dispute-auto-refund-payment-step.test.ts.
   paymentStepMock.mockResolvedValue(undefined);
+  // S2-2: the booking still holds its whole total, so the automatic refund may run.
+  heldMock.mockResolvedValue(12000);
 
   const input = {
     type: 'no_show' as const,

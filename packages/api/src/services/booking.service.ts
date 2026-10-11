@@ -805,11 +805,11 @@ export async function transitionBookingStatus(
       updates.push(`work_started_at = COALESCE(work_started_at, NOW())`);
     } else if (newStatus === 'confirmed') {
       updates.push(`confirmed_at = NOW()`);
-    } else if (newStatus === 'paid') {
-      updates.push(`escrow_status = 'held'`);
-    } else if (newStatus === 'disputed') {
-      updates.push(`escrow_status = 'held'`);
     }
+    // S2-2 — 'paid' and 'disputed' no longer relabel the escrow as held here.
+    // No role can request either target on this route (flow-only for
+    // participants, not held for admins), and the label must follow the
+    // money, never a status change.
 
     const result = await client.query<BookingRow>(
       `UPDATE bookings SET ${updates.join(', ')} WHERE id = $1 RETURNING *`,

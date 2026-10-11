@@ -6,6 +6,7 @@ const legacyRefundMock = jest.fn();
 const paymentStepMock = jest.fn();
 const retryMock = jest.fn();
 const emitMock = jest.fn();
+const heldMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({ db: {
   query: (...args: unknown[]) => queryMock(...args),
@@ -18,6 +19,7 @@ jest.mock('../src/services/escrow.service', () => ({
   refundFromEscrowInTransaction: (...args: unknown[]) => refundMock(...args),
   refundFromEscrow: (...args: unknown[]) => legacyRefundMock(...args),
   processEscrowRefundPaymentStep: (...args: unknown[]) => paymentStepMock(...args),
+  bookingEscrowHeldForLockedBookingInTransaction: (...args: unknown[]) => heldMock(...args),
 }));
 jest.mock('../src/services/gateway-retry.service', () => ({
   enqueueRetry: (...args: unknown[]) => retryMock(...args),
@@ -52,12 +54,16 @@ it('Bug OPS-471 — filing records participant inboxes atomically and delivers p
         id: 'dispute-471', booking_id: booking.id, filed_by: booking.customer_id,
         type: autoResolved ? 'no_show' : 'substandard', status: state.dispute,
       });
+      // S2-2: every read happens on the booking locked inside the filing transaction.
       queryMock.mockImplementation(async (sql: string) => {
-        if (sql.includes('FROM bookings')) return { rows: [booking] };
-        if (sql.includes('COUNT(*)')) return { rows: [{ count: '0' }] };
         throw new Error(`Unexpected outer query: ${sql}`);
       });
       const client = { query: jest.fn(async (sql: string, params: unknown[] = []) => {
+        if (sql.includes('FROM bookings') && sql.includes('FOR UPDATE')) {
+          events.push('lock');
+          return { rows: [booking] };
+        }
+        if (sql.includes('COUNT(*)')) return { rows: [{ count: '0' }] };
         if (sql.includes('INSERT INTO disputes')) {
           state.dispute = 'open';
           return { rows: [disputeRow()], rowCount: 1 };
@@ -106,6 +112,12 @@ it('Bug OPS-471 — filing records participant inboxes atomically and delivers p
       // MC-03's post-commit payment-record step; its order is pinned in
       // dispute-auto-refund-payment-step.test.ts.
       paymentStepMock.mockResolvedValue(undefined);
+      // S2-2: the booking still holds its whole total, so the automatic
+      // refund may run.
+      heldMock.mockImplementation(async (heldClient: unknown) => {
+        expect(heldClient).toBe(client);
+        return Number(booking.total_amount);
+      });
       pushMock.mockImplementation(async ({ userId }: { userId: string }) => {
         expect(events).toContain('commit');
         events.push(`push:${userId}`);
@@ -138,6 +150,8 @@ it('Bug OPS-471 — filing records participant inboxes atomically and delivers p
             data: expect.objectContaining({ disputeId: 'dispute-471', bookingId: booking.id }),
           }));
         }
+        expect(events[0]).toBe('lock');
+        expect(heldMock).toHaveBeenCalledTimes(autoResolved ? 1 : 0);
         expect(refundMock).toHaveBeenCalledTimes(autoResolved ? 1 : 0);
         expect(state.refunded).toBe(autoResolved);
         expect(emitMock).toHaveBeenCalledTimes(1);

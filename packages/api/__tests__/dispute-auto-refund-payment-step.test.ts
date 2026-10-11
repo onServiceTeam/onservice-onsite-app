@@ -11,6 +11,7 @@ const pushMock = jest.fn();
 const refundMock = jest.fn();
 const paymentStepMock = jest.fn();
 const emitMock = jest.fn();
+const heldMock = jest.fn();
 
 jest.mock('../src/models/db', () => ({ db: {
   query: (...args: unknown[]) => queryMock(...args),
@@ -22,6 +23,7 @@ jest.mock('../src/services/notification.service', () => ({
 jest.mock('../src/services/escrow.service', () => ({
   refundFromEscrowInTransaction: (...args: unknown[]) => refundMock(...args),
   processEscrowRefundPaymentStep: (...args: unknown[]) => paymentStepMock(...args),
+  bookingEscrowHeldForLockedBookingInTransaction: (...args: unknown[]) => heldMock(...args),
 }));
 jest.mock('../src/services/gateway-retry.service', () => ({ enqueueRetry: jest.fn() }));
 jest.mock('../src/services/settings.service', () => ({ getSettingInteger: jest.fn(async () => 30) }));
@@ -48,12 +50,13 @@ function primeFiling(events: string[], refundFails: boolean) {
     id: 'dispute-auto', booking_id: booking.id, filed_by: booking.customer_id,
     type: 'no_show', status: disputeStatus,
   });
+  // S2-2: every read happens on the booking locked inside the filing transaction.
   queryMock.mockImplementation(async (sql: string) => {
-    if (sql.includes('FROM bookings')) return { rows: [booking] };
-    if (sql.includes('COUNT(*)')) return { rows: [{ count: '0' }] };
     throw new Error(`Unexpected outer query: ${sql}`);
   });
   const client = { query: jest.fn(async (sql: string, params: unknown[] = []) => {
+    if (sql.includes('FROM bookings') && sql.includes('FOR UPDATE')) return { rows: [booking] };
+    if (sql.includes('COUNT(*)')) return { rows: [{ count: '0' }] };
     if (sql.includes('INSERT INTO disputes')) { disputeStatus = 'open'; return { rows: [disputeRow()], rowCount: 1 }; }
     if (sql.includes('UPDATE bookings')) return { rows: [], rowCount: 1 };
     if (sql.includes('SELECT scheduled_at')) return { rows: [booking] };
@@ -76,6 +79,8 @@ function primeFiling(events: string[], refundFails: boolean) {
   emitMock.mockImplementation(() => { events.push('admin-event'); });
   pushMock.mockImplementation(async ({ userId }: { userId: string }) => { events.push(`push:${userId}`); });
   paymentStepMock.mockImplementation(async () => { events.push('payment-step'); });
+  // S2-2: the booking still holds its whole total, so the automatic refund may run.
+  heldMock.mockResolvedValue(Number(booking.total_amount));
 }
 
 beforeEach(() => {

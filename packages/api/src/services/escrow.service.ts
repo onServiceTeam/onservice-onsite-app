@@ -170,6 +170,19 @@ async function bookingEscrowHeldInTransaction(
   return Number(result.rows[0]?.remaining ?? 0);
 }
 
+// S2-2 — what one booking still holds in the shared escrow wallet, for a
+// caller that already holds that booking's row lock. Every escrow movement's
+// ledger row references the booking, and that foreign key needs a key-share
+// lock on the booking row, so no movement for this booking can land until the
+// caller commits.
+export async function bookingEscrowHeldForLockedBookingInTransaction(
+  client: PgClient,
+  bookingId: string,
+): Promise<number> {
+  const wallets = await resolvePlatformWalletsInTransaction(client, ['platform_escrow']);
+  return bookingEscrowHeldInTransaction(client, wallets.get('platform_escrow')!, bookingId);
+}
+
 // Amounts in refusal texts are shown in pesos, as on the admin screens.
 function formatPesos(centavos: number): string {
   const sign = centavos < 0 ? '-' : '';

@@ -6,6 +6,7 @@ import * as socketService from './socket.service';
 import * as settingsService from './settings.service';
 import * as gatewayRetryService from './gateway-retry.service';
 import * as notificationService from './notification.service';
+import { formatPHP } from '../utils/currency';
 
 interface DisputeRow {
   id: string;
@@ -163,47 +164,66 @@ export async function fileDispute(
     evidenceUrls?: Array<{ url: string; type: 'photo' | 'video' | 'document'; description?: string }>;
   },
 ): Promise<DisputeRow> {
-  const booking = await db.query<BookingContextRow>(
-    `SELECT id, customer_id, provider_id, status, escrow_status, total_amount, scheduled_at, completed_at, confirmed_at
-     FROM bookings WHERE id = $1`,
-    [bookingId],
-  );
-  if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
-  const bk = booking.rows[0]!;
-
-  if (bk.customer_id !== filedBy) {
-    throw createAppError('Only the booking customer can file a dispute.', 403);
-  }
-
-  if (bk.status !== 'completed_by_provider' && bk.status !== 'confirmed') {
-    throw createAppError('Disputes can only be filed after the provider marks the job as complete.', 409);
-  }
-
-  if (bk.completed_at) {
-    const hoursSinceCompletion = (Date.now() - new Date(bk.completed_at).getTime()) / (1000 * 60 * 60);
-    if (hoursSinceCompletion > DISPUTE_WINDOW_HOURS) {
-      throw createAppError(`Disputes must be filed within ${DISPUTE_WINDOW_HOURS} hours of completion.`, 409);
-    }
-  }
-
-  const existing = await db.query<CountRow>(
-    `SELECT COUNT(*)::text as count FROM disputes WHERE booking_id = $1 AND status != 'resolved'`,
-    [bookingId],
-  );
-  if (Number(existing.rows[0]?.count ?? 0) > 0) {
-    throw createAppError('An active dispute already exists for this booking.', 409);
-  }
-
-  if ((data.type === 'damage' || data.type === 'theft') &&
-      (!data.evidenceUrls || data.evidenceUrls.length === 0)) {
-    logger.warn('Dispute filed without evidence for damage/theft claim — evidence strongly recommended', {
-      bookingId, type: data.type, filedBy,
-    });
-  }
-
   // MC-03 — the auto no-show refund commits inside the filing transaction
   // (MED-N19); its payment-record step runs after the commit (R-MON-09).
+  // S2-2 — the no-show window setting may need a database read; take it
+  // before the booking lock so the locked transaction never waits for a
+  // second pool connection (the OPS-555 rule).
+  const noShowWindowMinutes = data.type === 'no_show'
+    ? await resolveNoShowAutoResolutionWindowMinutes()
+    : null;
+
+  // S2-2 (OPS-562) — every check runs on the booking row locked inside that
+  // transaction. Before, the booking and the open-dispute count were read
+  // before it without a lock, so two simultaneous filings both passed. The
+  // open-dispute count is a plain read: the booking lock already serialises
+  // filings, and locking dispute rows here would invert the dispute-then-
+  // booking order the dispute decisions use.
   const result = await db.transaction(async (client) => {
+    const booking = await client.query<BookingContextRow>(
+      `SELECT id, customer_id, provider_id, status, escrow_status, total_amount, scheduled_at, completed_at, confirmed_at
+       FROM bookings WHERE id = $1 FOR UPDATE`,
+      [bookingId],
+    );
+    if (booking.rows.length === 0) throw createAppError('Booking not found.', 404);
+    const bk = booking.rows[0]!;
+
+    if (bk.customer_id !== filedBy) {
+      throw createAppError('Only the booking customer can file a dispute.', 403);
+    }
+
+    // S2-2 — a booking that is already disputed has an open dispute; say so
+    // (the same message as the open-dispute check below) rather than
+    // "not complete".
+    if (bk.status === 'disputed') {
+      throw createAppError('An active dispute already exists for this booking.', 409);
+    }
+    if (bk.status !== 'completed_by_provider' && bk.status !== 'confirmed') {
+      throw createAppError('Disputes can only be filed after the provider marks the job as complete.', 409);
+    }
+
+    if (bk.completed_at) {
+      const hoursSinceCompletion = (Date.now() - new Date(bk.completed_at).getTime()) / (1000 * 60 * 60);
+      if (hoursSinceCompletion > DISPUTE_WINDOW_HOURS) {
+        throw createAppError(`Disputes must be filed within ${DISPUTE_WINDOW_HOURS} hours of completion.`, 409);
+      }
+    }
+
+    const existing = await client.query<CountRow>(
+      `SELECT COUNT(*)::text as count FROM disputes WHERE booking_id = $1 AND status != 'resolved'`,
+      [bookingId],
+    );
+    if (Number(existing.rows[0]?.count ?? 0) > 0) {
+      throw createAppError('An active dispute already exists for this booking.', 409);
+    }
+
+    if ((data.type === 'damage' || data.type === 'theft') &&
+        (!data.evidenceUrls || data.evidenceUrls.length === 0)) {
+      logger.warn('Dispute filed without evidence for damage/theft claim — evidence strongly recommended', {
+        bookingId, type: data.type, filedBy,
+      });
+    }
+
     const pushRequests: DisputeParticipantPushRequest[] = [];
     const result = await client.query<DisputeRow>(
       `INSERT INTO disputes (booking_id, filed_by, type, description)
@@ -222,14 +242,17 @@ export async function fileDispute(
       }
     }
 
+    // S2-2 (FIN-020) — only the status changes. Before, the filing also set
+    // escrow_status = 'held' whatever the money had done, so a booking that
+    // had been partly refunded or paid out looked fully held again.
     await client.query(
-      `UPDATE bookings SET status = 'disputed', escrow_status = 'held', updated_at = NOW() WHERE id = $1`,
+      `UPDATE bookings SET status = 'disputed', updated_at = NOW() WHERE id = $1`,
       [bookingId],
     );
 
     logger.info('Dispute filed', { disputeId: d.id, bookingId, type: data.type });
 
-    const autoResult = await attemptAutoResolution(client, d, bk);
+    const autoResult = await attemptAutoResolution(client, d, bk, noShowWindowMinutes);
     if (autoResult) {
       const resolved = await client.query<DisputeRow>(
         `SELECT * FROM disputes WHERE id = $1`,
@@ -315,8 +338,9 @@ async function attemptAutoResolution(
   client: { query: <R extends import('pg').QueryResultRow>(text: string, params?: unknown[]) => Promise<import('pg').QueryResult<R>> },
   dispute: DisputeRow,
   booking: BookingContextRow,
+  noShowWindowMinutes: number | null,
 ): Promise<{ refundAmount: number; paymentMethod: string | null } | null> {
-  if (dispute.type === 'no_show') {
+  if (dispute.type === 'no_show' && noShowWindowMinutes !== null) {
     interface BookingTimingRow { scheduled_at: Date; completed_at: Date | null }
     const timingResult = await client.query<BookingTimingRow>(
       `SELECT scheduled_at, completed_at FROM bookings WHERE id = $1`,
@@ -333,11 +357,30 @@ async function attemptAutoResolution(
         // MED-N18 fix: threshold is now admin-tunable via the
         // `noshow_auto_resolve_window_minutes` setting (default 30,
         // up from the hardcoded 5 that auto-flagged real providers
-        // doing legitimate quick repairs).
-        const noShowWindowMinutes = await resolveNoShowAutoResolutionWindowMinutes();
-
+        // doing legitimate quick repairs). S2-2: read before the lock.
         if (minutesBetween < noShowWindowMinutes) {
           const totalAmount = Number(booking.total_amount);
+          // S2-2 (FIN-021) — the automatic full refund is honest only while
+          // the booking still holds its whole total. After an earlier refund
+          // or a release, the dispute is filed for an admin instead (the
+          // filing transaction holds the booking lock, so the held amount
+          // cannot change).
+          const held = await escrowService.bookingEscrowHeldForLockedBookingInTransaction(
+            client as unknown as Parameters<typeof escrowService.bookingEscrowHeldForLockedBookingInTransaction>[0],
+            booking.id,
+          );
+          if (booking.escrow_status !== 'held' || held !== totalAmount) {
+            // The admin sees why on the dispute itself (internal notes).
+            await client.query(
+              `UPDATE disputes SET internal_notes = $2, updated_at = NOW() WHERE id = $1`,
+              [dispute.id, `Automatic no-show refund not run: this booking holds ${formatPHP(held)} of its ${formatPHP(totalAmount)} total (escrow label: ${booking.escrow_status}). Decide this dispute manually.`],
+            );
+            logger.warn('Dispute auto-resolution skipped: the booking does not hold its full total', {
+              disputeId: dispute.id, bookingId: booking.id, escrowStatus: booking.escrow_status,
+              heldCentavos: held, totalCentavos: totalAmount,
+            });
+            return null;
+          }
           await client.query(
             `UPDATE disputes SET
                status = 'resolved', resolution_type = 'full_refund',

@@ -29,6 +29,8 @@ A booking already had a partial refund from support (for example ₱2,500 of ₱
 
 **Interim built in S2-3:** any refund decision on a dispute after an earlier refund is refused, and nothing moves. A dispute on a booking with no earlier refund works as today.
 
+**Please also confirm (built in S2-2):** a **"no refund"** decision on a dispute filed after an earlier support refund now pays the provider what the booking still holds. In the ₱2,500-of-₱10,000 example that is ₱7,500, shared between provider, commission and guarantee fund in proportion, as a manual release after a support refund already does. Before S2-2 this payout was refused and left stuck for finance. Is paying the provider the rest right in this case?
+
 ## Q2. Wording of the payout and dispute refusals
 
 **S2-1 (built, interim wording).** A payout is refused when the booking does not hold the amount it would pay out. Nothing moves, and the refusal is logged for support. The texts:

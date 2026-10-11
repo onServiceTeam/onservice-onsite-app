@@ -1577,6 +1577,16 @@ build a real post-release provider clawback model. The current 24/48 combination
 is a launch blocker. See
 `.ai-coder/escalations/E18-auto-confirm-dispute-window-contradiction-2026-08-24.md`.
 
+Correction (2026-10-11): the automatic release also moves the booking to
+"payout ready", and a dispute cannot be filed after that, so the second
+paragraph above does not happen through the automatic path. Released money
+could still reach a dispute after a super admin's manual release (the booking
+keeps its status), or through a filing that raced the automatic confirmation.
+S2-2 closes the race and stops the relabel in the candidate (section 122).
+What remains is the broken promise: the apps say 48 hours, but after the
+24-hour automatic confirmation the customer cannot file, and is told the job
+is not complete yet. The E18 decision is still needed.
+
 ---
 
 ## 43. Customer acceptance signatures are attributed to the provider
@@ -3809,6 +3819,12 @@ decision is refused outright, and a no-refund decision's payout is refused.
 This is verified in source and tests in the candidate only and is not
 deployed. See `docs/audits/MONEY-SLICE2-2026-10-11.md`.
 
+Update (S2-2, 2026-10-11): filing a dispute no longer relabels the money as
+"held" (section 122). So a no-refund decision on a dispute filed after a
+support refund now pays the provider what the booking still holds (shared
+the same way as a manual release after a support refund). It is no longer
+refused. This is a question for Ken in D36 Q1.
+
 ## 120. Two money steps can deadlock with another payment (open)
 
 Found while reviewing S2-1 (2026-10-11). Not fixed.
@@ -3834,6 +3850,13 @@ payments, refunds and releases already do, and then lock them together with
 the platform wallets in one call. Slice 2 does not build this; it is recorded
 for a later money step. The code comments that called the order deadlock-free
 now point here.
+
+Also found (S2-2 review, 2026-10-11): a tip locks the customer's wallet
+before the booking, the reverse of a dispute filing. A tip sent at the same
+moment as a no-show dispute on the same wallet-paid booking can deadlock with
+the filing's automatic refund. Again, one request fails and no money moves.
+The fix is for the tip to lock the booking first, as payments and change
+orders do.
 
 ## 121. Some bookings whose escrow status does not match their money need a decision (open)
 
@@ -3861,3 +3884,38 @@ then, this candidate still does it. After S2-1 there are two cases.
 
 The repair changes production data, so it needs Ken's yes and a read-only
 export first. Support should escalate any booking that shows these refusals.
+
+Update (2026-10-11): S2-2 is built in the candidate (section 122), so new
+dispute filings no longer relabel the money. Bookings that older code already
+relabelled still need the repair above.
+
+## 122. Filing a dispute no longer resets the booking's escrow status
+
+Filing a dispute set the booking's escrow status to "held", even when part or
+all of the money had already been refunded or paid out. The filing's checks
+also ran before its transaction, without a lock, so two filings at the same
+moment could both be recorded. And a no-show dispute on a partly refunded
+booking was refused outright: the automatic full refund it triggered was
+larger than what the booking still held.
+
+Candidates FIN-020, FIN-021 and OPS-562 (S2-2) change four things:
+
+- **The filing locks the booking** and runs every check on the locked row.
+- **It changes only the booking's status,** never its escrow label.
+- **The automatic no-show refund runs only while the booking still holds its
+  whole total.** Otherwise the dispute stays open for an admin to decide,
+  with a note on the dispute saying why the automatic refund did not run.
+- **A second filing on a booking that is already disputed is told** that an
+  active dispute already exists. It used to be told the job was not complete.
+
+One consequence: after a support refund the booking now stays labelled "partly
+refunded" through a later dispute. So a "no refund" decision on that dispute
+pays the provider what the booking still holds, instead of being refused
+(section 119 update; D36 Q1 asks Ken to confirm).
+
+The general status change's matching relabel, which nothing can reach any
+more, was removed. Bookings that older code already relabelled still need the
+data repair in section 121.
+
+This is verified in source and tests in the candidate only and is not
+deployed. See `docs/audits/MONEY-SLICE2-2026-10-11.md`.

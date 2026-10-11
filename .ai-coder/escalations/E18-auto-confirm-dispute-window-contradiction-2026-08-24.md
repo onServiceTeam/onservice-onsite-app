@@ -88,3 +88,20 @@ Then correct the contradictory operations and customer documentation.
 Approve Option A, or choose Option B or C. Until then, do not change the live
 24/48 settings and do not represent this money path as launch-ready. Independent
 non-money audit and remediation can continue while this escalation remains open.
+
+## Correction (2026-10-11, Claude Code, while building S2-2)
+
+Part of the "Bad news first" section is not what the code does, on live (`7ed367cd`) or in the candidate. The 24-hour automatic confirmation releases the money and moves the booking to `payout_ready` in the same step (`jobs/workers.ts`). A customer's own confirmation does the same. Filing a dispute accepts only `completed_by_provider` or `confirmed`. So after the automatic release, a dispute is refused, not accepted.
+
+Released money could still reach a dispute in two narrower ways:
+
+- **After a super admin's manual release.** That release does not change the booking's status, so the job can still be disputed.
+- **Through a race.** Before S2-2, the filing read the booking without a lock, so it could race the automatic confirmation. S2-2 closes that race in the candidate (LAUNCH-LIMITATIONS 122).
+
+**What is still true, and still needs the decision above:**
+
+- the apps promise 48 hours to dispute;
+- after the 24-hour automatic confirmation the customer cannot file;
+- the dispute screen then says "This booking is not eligible for a dispute yet. The provider must mark the job complete first.", which is wrong.
+
+**One more change in the candidate:** filing a dispute no longer relabels the money as "held" (LAUNCH-LIMITATIONS 122).
