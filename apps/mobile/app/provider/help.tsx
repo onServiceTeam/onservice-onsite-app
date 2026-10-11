@@ -8,6 +8,7 @@ import { platformConfig } from '@/config/platform.config';
 import { Routes } from '@/config/navigation';
 import { Wrench, Mail, MessageSquare, ChevronRight } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
+import AppVersionCheck from '@/components/AppVersionCheck';
 
 const SUPPORT_EMAIL = 'providers@onservice.ph';
 
@@ -237,6 +238,7 @@ export default function ProviderHelpScreen(): React.ReactElement {
              the (provider-tabs) profile screen. */}
         <View style={styles.versionInfo}>
           <Text style={styles.versionText}>onService v{platformConfig.appVersion}</Text>
+          <AppVersionCheck />
         </View>
       </ScrollView>
     </SafeAreaView>

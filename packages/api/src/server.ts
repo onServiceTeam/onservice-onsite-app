@@ -39,6 +39,7 @@ import { collectMetrics, toPrometheusFormat } from './services/metrics.service';
 import authRoutes from './routes/auth.routes';
 import emailSignInRoutes from './routes/email-sign-in.routes';
 import emailCodeRoutes from './routes/email-code.routes';
+import appReleaseRoutes from './routes/app-release.routes';
 import bookingRoutes from './routes/booking.routes';
 import catalogRoutes from './routes/catalog.routes';
 import providerRoutes from './routes/provider.routes';
@@ -215,6 +216,8 @@ app.use('/api/v1/webhooks', webhookRoutes);
 // --- API Routes ---
 // D37: email-code sign-in (replaces phone codes while SMS is paused).
 app.use('/api/v1/auth/email-code', emailCodeRoutes);
+// Android APK update manifest + immutable APK files (public, no account).
+app.use('/api/v1/app-releases', appReleaseRoutes);
 app.use('/api/v1/auth/email', emailSignInRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/bookings', bookingRoutes);

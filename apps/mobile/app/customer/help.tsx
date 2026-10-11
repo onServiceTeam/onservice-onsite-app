@@ -21,6 +21,7 @@ import { fetchCancellationPolicy, policyToHelpAnswer } from '@/utils/cancellatio
 import { platformConfig } from '@/config/platform.config';
 import { Routes } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
+import AppVersionCheck from '@/components/AppVersionCheck';
 
 interface FAQItem {
   q: string;
@@ -273,6 +274,7 @@ export default function HelpScreen(): React.ReactElement {
              package.json); the help footer now reads from it. */}
         <View style={styles.versionInfo}>
           <Text style={styles.versionText}>onService v{platformConfig.appVersion}</Text>
+          <AppVersionCheck />
         </View>
       </ScrollView>
     </SafeAreaView>

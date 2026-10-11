@@ -16,6 +16,7 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
+import AppVersionCheck from '@/components/AppVersionCheck';
 export default function ProviderSettingsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -204,6 +205,7 @@ export default function ProviderSettingsScreen(): React.ReactElement {
             <Text style={styles.rowLabel}>Version</Text>
             <Text style={styles.rowValue}>{platformConfig.appVersion}</Text>
           </View>
+          <AppVersionCheck />
           <TouchableOpacity
             style={[styles.row, { borderBottomWidth: 0 }]}
             onPress={() => router.push(Routes.PROVIDER.HELP)}

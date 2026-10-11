@@ -1,6 +1,7 @@
 declare module 'expo-application' {
   export const applicationId: string | null;
   export const nativeBuildVersion: string | null;
+  export const nativeApplicationVersion: string | null;
   export function getInstallationTimeAsync(): Promise<Date | null>;
 }
 

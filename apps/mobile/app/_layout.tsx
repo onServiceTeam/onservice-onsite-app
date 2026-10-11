@@ -19,6 +19,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { WebAppFrame } from '@/components/WebAppFrame';
 import { installWebAlert } from '@/utils/web-alert';
 import { PushNotificationGate } from '@/components/PushNotificationGate';
+import AppUpdateGate from '@/components/AppUpdateGate';
 import { AccountQueryCacheGate } from '@/components/AccountQueryCacheGate';
 
 // Make Alert.alert render a real dialog on the web build (react-native-web's
@@ -96,6 +97,8 @@ function RootLayout(): React.ReactElement {
       <QueryClientProvider client={queryClient}>
         <AccountQueryCacheGate />
         <PushNotificationGate />
+        {/* Offers newer signed APKs from our server (Android app only). */}
+        <AppUpdateGate />
         <StatusBar style="dark" />
         {/* A2 — a render error in any screen below shows a recoverable
             fallback instead of white-screening the whole app. */}

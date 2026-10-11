@@ -58,6 +58,7 @@ module.exports = {
     '^expo-task-manager$': '<rootDir>/__mocks__/expo-task-manager.js',
     '^expo-secure-store$': '<rootDir>/__mocks__/expo-secure-store.js',
     '^expo-constants$': '<rootDir>/__mocks__/expo-constants.js',
+    '^expo-application$': '<rootDir>/__mocks__/expo-application.js',
     '^expo$': '<rootDir>/__mocks__/expo.js',
     '^@sentry/react-native$': '<rootDir>/__mocks__/sentry.js',
     '^@sentry/core$': '<rootDir>/__mocks__/sentry.js',

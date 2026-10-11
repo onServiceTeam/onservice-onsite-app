@@ -4120,6 +4120,27 @@ Still open:
   placement must be checked with real Gmail, Outlook and Yahoo inboxes once
   the domain records exist.
 
+## 128. The Android app can update itself from our server (2026-10-12)
+
+Installed Android test apps from version 1.0.1 (build 2) onward check
+`https://app.onservice.ph/api/v1/app-releases/android/latest` when they open
+and whenever they come back to the front (at most every 30 minutes), and
+offer a newer signed build with Update or Later. Help and provider Settings
+show the installed version and a "Check for updates" button.
+
+- Updating is a download plus Android's own install prompt; the app cannot
+  install silently. The tester must allow installs from their browser once.
+- Only a strictly newer build signed with the onService PH release key is
+  offered. Android also refuses any other key.
+- A build is published with `scripts/release/publish-android-apk.sh` on the
+  server after it is inspected. The files live in the API's upload volume and
+  the API serves them with the Android package type, because the shared web
+  server has no APK type mapping.
+- The first APK (1.0.0, build 1) has no update check. Testers must install
+  1.0.1 by hand once; later builds can be offered automatically.
+- JavaScript-only "over-the-air" updates (no reinstall) are not built; every
+  change still needs a new APK. That remains a Ken decision.
+
 ## 129. Tester-server sign-in shortcuts are on, at Ken's request (2026-10-12)
 
 Ken (2026-10-12): logging in must not get in the way of testing the whole
