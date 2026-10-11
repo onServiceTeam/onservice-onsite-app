@@ -15,6 +15,8 @@ jest.mock('expo-router', () => {
   Stack.Screen = () => null;
   return {
     Stack,
+    // A job screen inside the staff area (Bug UX-1383 admits customers only on invites).
+    useSegments: () => ['staff', 'jobs'],
     Redirect: ({ href }: { href: string }) => ReactLib.createElement('div', { 'data-testid': 'role-redirect', 'data-href': href }),
   };
 });
