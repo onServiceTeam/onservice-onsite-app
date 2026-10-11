@@ -42,7 +42,7 @@ module.exports = {
     }],
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(@react-native|react-native|@testing-library|expo|expo-.*|@expo|@expo/.*)/)',
+    'node_modules/(?!(@react-native|react-native|react-native-mmkv|@testing-library|expo|expo-.*|@expo|@expo/.*)/)',
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',

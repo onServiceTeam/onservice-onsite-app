@@ -20,8 +20,8 @@ class MMKV {
   contains(k) {
     return this.store.has(k);
   }
-  delete(k) {
-    this.store.delete(k);
+  remove(k) {
+    return this.store.delete(k);
   }
   clearAll() {
     this.store.clear();
@@ -30,4 +30,4 @@ class MMKV {
     return Array.from(this.store.keys());
   }
 }
-module.exports = { MMKV };
+module.exports = { createMMKV: () => new MMKV() };
