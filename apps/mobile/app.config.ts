@@ -71,7 +71,7 @@ const config: ExpoConfig = {
   slug: 'onservice',
   // Raise version and android.versionCode together for every APK handed to
   // testers: an installed app only accepts a strictly higher versionCode.
-  version: '1.0.1',
+  version: '1.0.2',
   runtimeVersion: { policy: 'appVersion' },
   orientation: 'portrait',
   scheme: 'onservice',
@@ -153,7 +153,7 @@ const config: ExpoConfig = {
       backgroundColor: '#003D9B',
     },
     package: 'ph.onservice.app',
-    versionCode: 2,
+    versionCode: 3,
     permissions: [
       'ACCESS_FINE_LOCATION',
       'ACCESS_COARSE_LOCATION',

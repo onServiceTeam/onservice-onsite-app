@@ -36,7 +36,8 @@ it('builds an explicitly selected standalone Android config without inventing EA
   expect(config.updates).toBeUndefined();
   expect(config.extra?.router).toEqual({ root: 'app' });
   // 1.0.1 (build 2), 2026-10-12: the first APK with email sign-in and the update check.
-  expect(config.android?.versionCode).toBe(2);
+  // 1.0.2 (build 3), 2026-10-13: tester feedback v2 (Send feedback entries, real version shown).
+  expect(config.android?.versionCode).toBe(3);
 });
 
 it('retains an explicitly configured EAS identity while still requiring only Android Maps configuration', () => {
