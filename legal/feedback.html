@@ -2,2222 +2,1496 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>onService — Tester Feedback</title>
+<meta name="referrer" content="no-referrer">
+<title>onService app test</title>
+<!--
+  Tester feedback page, version 2 (Ken, 2026-10-12).
+  Design: docs/qa/ux-testing/FEEDBACK-V2-AUDIT-AND-PLAN-2026-10-12.md, section 2.
+  Served by nginx at /feedback as this single file, so everything is inline:
+  no external scripts, fonts or images. Every question's wording comes from
+  GET /api/v1/feedback/v2/study (packages/api/src/config/feedback-study.ts).
+  Plain ES2017 so it runs on older Android Chrome: no optional chaining,
+  no object spread, no CSS :has().
+-->
 <style>
   :root {
     --teal: #0d9488;
     --teal-dark: #0f766e;
-    --teal-soft: #ccfbf1;
     --teal-tint: #f0fdfa;
-    --navy: #0f172a;
     --ink: #1e293b;
-    --muted: #64748b;
-    --muted-2: #94a3b8;
-    --line: #e2e8f0;
-    --line-2: #cbd5e1;
-    --bg: #f6f8fb;
+    --navy: #0f172a;
+    --muted: #526071;
+    --line: #d5dde7;
+    --bg: #f5f7fa;
     --card: #ffffff;
-    --radius: 20px;
-    --radius-sm: 14px;
-    --radius-xs: 11px;
-    --shadow-sm: 0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.05);
-    --shadow-md: 0 4px 16px rgba(15,23,42,.07), 0 1px 4px rgba(15,23,42,.05);
-    --amber: #f59e0b;
-    --rose: #e11d48;
-    --focus: 0 0 0 4px rgba(13,148,136,.30);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    --red: #b42318;
+    --red-tint: #fef3f2;
+    --amber-tint: #fffaeb;
+    --amber-line: #f5c26b;
+    --green: #067647;
+    --green-tint: #ecfdf3;
+    --focus: #1d4ed8;
   }
-
   * { box-sizing: border-box; }
-
   html { -webkit-text-size-adjust: 100%; }
-
   body {
     margin: 0;
     background: var(--bg);
     color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     font-size: 17px;
-    line-height: 1.55;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-  }
-
-  /* ---------- TOP SCROLL PROGRESS BAR ---------- */
-  #progress {
-    position: fixed;
-    top: 0; left: 0;
-    height: 3px;
-    width: 0%;
-    background: linear-gradient(90deg, var(--teal), var(--teal-dark));
-    z-index: 130;
-    transition: width .2s ease;
-    border-radius: 0 3px 3px 0;
-    pointer-events: none;
-  }
-
-  /* ---------- STICKY BRAND TOPBAR ---------- */
-  .topbar {
-    position: sticky;
-    top: 0;
-    z-index: 60;
-    background: rgba(246,248,251,.82);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
-    border-bottom: 1px solid var(--line);
-  }
-  .topbar-inner {
-    max-width: 620px;
-    margin: 0 auto;
-    padding: 11px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .topbar .mark {
-    font-weight: 800;
-    font-size: 18px;
-    letter-spacing: -0.02em;
-    color: var(--navy);
-    white-space: nowrap;
-  }
-  .topbar .mark .svc { color: var(--teal); }
-  .topbar .tb-hint {
-    font-size: 12.5px;
-    color: var(--muted);
-    font-weight: 500;
-    text-align: right;
-  }
-
-  .wrap {
-    max-width: 620px;
-    margin: 0 auto;
-    /* generous bottom pad so the fixed submit bar never hides content */
-    padding: 0 16px calc(150px + env(safe-area-inset-bottom));
-  }
-
-  /* ---------- HERO ---------- */
-  .hero {
-    background: radial-gradient(120% 120% at 50% 0%, #134e4a 0%, var(--navy) 60%);
-    color: #fff;
-    text-align: center;
-    padding: 44px 22px 56px;
-    border-radius: 0 0 32px 32px;
-    margin-bottom: -28px;
-    position: relative;
-    overflow: hidden;
-  }
-  .hero::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(60% 40% at 80% 10%, rgba(13,148,136,.35), transparent 70%),
-      radial-gradient(50% 40% at 10% 30%, rgba(13,148,136,.22), transparent 70%);
-    pointer-events: none;
-  }
-  .hero-inner { position: relative; z-index: 1; }
-  .wave {
-    font-size: 40px;
-    display: block;
-    margin-bottom: 10px;
-  }
-  .wordmark {
-    font-size: 38px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    margin: 0 0 6px;
-  }
-  .wordmark .svc { color: var(--teal); }
-  .hero p {
-    margin: 6px auto 0;
-    font-size: 17px;
-    color: #cbd5e1;
-    max-width: 360px;
-  }
-
-  /* ---------- CARDS ---------- */
-  .card {
-    background: var(--card);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-md);
-    padding: 22px 20px;
-    margin: 18px 0;
-    border: 1px solid rgba(226,232,240,.7);
-    scroll-margin-top: 70px;
-  }
-  .card-lead {
-    position: relative;
-    z-index: 2;
-  }
-
-  h2 {
-    font-size: 21px;
-    font-weight: 750;
-    margin: 0 0 4px;
-    letter-spacing: -0.3px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  h2 .ic { font-size: 24px; line-height: 1; }
-  .section-sub {
-    color: var(--muted);
-    font-size: 15px;
-    margin: 0 0 18px;
-  }
-
-  /* ---------- SECTION HEAD WITH LETTERED EYEBROW + ACCENT BAR ---------- */
-  .sec-head {
-    display: flex;
-    align-items: flex-start;
-    gap: 13px;
-    margin-bottom: 16px;
-    padding-bottom: 14px;
-    padding-left: 13px;
-    border-bottom: 1px solid var(--line);
-    position: relative;
-  }
-  .sec-head::before {
-    content: "";
-    position: absolute;
-    left: -20px;
-    top: 1px;
-    width: 4px;
-    height: 30px;
-    border-radius: 0 4px 4px 0;
-    background: var(--teal);
-  }
-  .sec-head .badge-chip {
-    flex: 0 0 auto;
-    width: 34px;
-    height: 34px;
-    border-radius: 11px;
-    background: var(--teal-tint);
-    color: var(--teal-dark);
-    font-weight: 800;
-    font-size: 15px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--teal-soft);
-  }
-  .sec-head .titles h2 {
-    margin: 0;
-    font-size: 20px;
-  }
-  .sec-head .titles p {
-    margin: 3px 0 0;
-    font-size: 14px;
-    color: var(--muted);
-  }
-
-  /* ---------- STEPS ---------- */
-  .steps { list-style: none; margin: 0; padding: 0; }
-  .steps li {
-    display: flex;
-    gap: 14px;
-    align-items: flex-start;
-    padding: 12px 0;
-    border-bottom: 1px dashed var(--line);
-  }
-  .steps li:last-child { border-bottom: none; }
-  .step-num {
-    flex: 0 0 32px;
-    height: 32px;
-    width: 32px;
-    border-radius: 50%;
-    background: var(--teal-soft);
-    color: var(--teal-dark);
-    font-weight: 800;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-  }
-  .step-txt { padding-top: 3px; font-size: 16px; }
-  .step-txt small { color: var(--muted); display: block; margin-top: 2px; font-size: 14px; }
-
-  .time-note {
-    margin-top: 16px;
-    background: var(--teal-tint);
-    border: 1px solid var(--teal-soft);
-    color: var(--teal-dark);
-    border-radius: var(--radius-sm);
-    padding: 11px 14px;
-    font-size: 14px;
-    font-weight: 600;
-    display: flex;
-    gap: 9px;
-    align-items: center;
-  }
-
-  /* ---------- TEST-DOOR / LOGIN NOTE (amber) ---------- */
-  .door-note {
-    display: flex;
-    gap: 12px;
-    background: linear-gradient(180deg, #fffdf5, #fffaf0);
-    border: 1px solid #fde68a;
-    border-radius: var(--radius-sm);
-    padding: 14px 16px;
-    margin: 4px 0 18px;
-  }
-  .door-note .door-ico { flex: 0 0 auto; font-size: 20px; line-height: 1.3; }
-  .door-note .door-body { font-size: 14.5px; color: #854d0e; }
-  .door-note .door-body strong { color: #713f12; }
-  .creds {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 11px;
-  }
-  .cred {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    background: #fff;
-    border: 1px solid #fcd34d;
-    border-radius: 999px;
-    padding: 5px 8px 5px 12px;
-    font-size: 13.5px;
-    color: #854d0e;
-    font-weight: 600;
-  }
-  .chip {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    background: var(--navy);
-    color: #5eead4;
-    padding: 3px 10px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: .3px;
-  }
-
-  /* ---------- APP LINKS ---------- */
-  .applinks { display: grid; gap: 12px; margin: 6px 0 4px; }
-  .applink {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    text-decoration: none;
-    color: var(--ink);
-    background: #fff;
-    border: 2px solid var(--line);
-    border-radius: var(--radius-sm);
-    padding: 14px 16px;
-    transition: border-color .15s ease, transform .12s ease, box-shadow .15s ease;
-  }
-  .applink:hover { border-color: var(--teal); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-  .applink:focus-visible { outline: none; box-shadow: var(--focus); border-color: var(--teal); }
-  .applink .emoji {
-    font-size: 26px;
-    flex: 0 0 48px;
-    height: 48px;
-    width: 48px;
-    border-radius: 12px;
-    background: var(--teal-tint);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .applink .meta { flex: 1; min-width: 0; }
-  .applink .meta .role {
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: var(--teal-dark);
-  }
-  .applink .meta b { display: block; font-size: 16.5px; font-weight: 700; margin-top: 1px; }
-  .applink .meta span.desc { color: var(--muted); font-size: 14px; display: block; }
-  .applink .arrow {
-    flex: 0 0 auto;
-    color: var(--teal-dark);
-    font-weight: 800;
-    font-size: 16px;
-    background: var(--teal-tint);
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .applink.lp-customer .emoji { background: #eff6ff; }
-  .applink.lp-provider .emoji { background: #f0fdf4; }
-  .applink.lp-admin .emoji { background: #fef3f2; }
-  .applink.lp-provider .meta .role { color: #2563eb; }
-  .applink.lp-admin .meta .role { color: #475569; }
-
-  .hint {
-    font-size: 14.5px;
-    color: var(--muted);
-    margin: 14px 0 0;
     line-height: 1.5;
+    overflow-x: hidden;
   }
-  .hint strong { color: var(--ink); }
+  .top { background: var(--navy); color: #fff; }
+  .top-in { max-width: 640px; margin: 0 auto; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+  .mark { font-weight: 800; font-size: 19px; letter-spacing: -0.01em; }
+  .mark b { color: #5eead4; font-weight: 800; }
+  .top-note { font-size: 14px; color: #cbd5e1; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px 120px; outline: none; }
+  h1 { font-size: 26px; line-height: 1.25; margin: 8px 0 12px; color: var(--navy); outline: none; }
+  h2 { font-size: 19px; margin: 24px 0 8px; color: var(--navy); }
+  p { margin: 0 0 12px; }
+  ul.plain { margin: 0 0 12px; padding-left: 22px; }
+  ul.plain li { margin-bottom: 6px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin: 0 0 16px; }
+  .callout { background: var(--teal-tint); border: 1px solid #99e2d8; border-radius: 14px; padding: 14px 16px; margin: 0 0 16px; }
+  .note { background: var(--amber-tint); border: 1px solid var(--amber-line); border-radius: 12px; padding: 10px 14px; margin: 0 0 14px; font-size: 15px; }
+  .muted { color: var(--muted); font-size: 15px; }
+  .small { font-size: 14px; color: var(--muted); }
+  .back { display: inline-block; padding: 10px 0; color: var(--teal-dark); font-weight: 600; text-decoration: none; min-height: 44px; }
+  .back:hover { text-decoration: underline; }
 
-  details.trythis {
-    margin-top: 16px;
-    background: var(--bg);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--line);
-    overflow: hidden;
+  .field { margin: 0 0 18px; }
+  .field > label, .lbl { display: block; font-weight: 600; margin-bottom: 6px; color: var(--navy); }
+  .opt { font-weight: 400; color: var(--muted); }
+  .hint { display: block; font-size: 14px; color: var(--muted); margin: -2px 0 6px; }
+  textarea, input[type="text"], input[type="email"], select {
+    width: 100%; font: inherit; font-size: 17px; color: var(--ink); background: #fff;
+    border: 1.5px solid #b8c3d1; border-radius: 10px; padding: 10px 12px; min-height: 48px;
   }
-  details.trythis summary {
-    cursor: pointer;
-    padding: 13px 16px;
-    font-weight: 650;
-    font-size: 15.5px;
-    list-style: none;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  textarea { min-height: 96px; resize: vertical; }
+  fieldset { border: 0; padding: 0; margin: 0 0 18px; min-width: 0; }
+  legend { font-weight: 600; color: var(--navy); padding: 0; margin-bottom: 8px; }
+  /* Spacing uses margins, not flex gap: flex gap needs Chrome 84+, and testers may have older Android phones. */
+  .choices { display: block; }
+  .choice {
+    display: flex; align-items: flex-start; background: #fff; border: 1.5px solid #b8c3d1;
+    border-radius: 10px; padding: 12px; margin-bottom: 8px; min-height: 48px; cursor: pointer;
   }
-  details.trythis summary::-webkit-details-marker { display: none; }
-  details.trythis summary::after {
-    content: "▾";
-    margin-left: auto;
-    color: var(--muted);
-    transition: transform .2s ease;
-  }
-  details.trythis[open] summary::after { transform: rotate(180deg); }
-  details.trythis summary:focus-visible { outline: none; box-shadow: var(--focus) inset; }
-  details.trythis .try-body { padding: 0 16px 14px; font-size: 14.5px; }
-  details.trythis .try-body p { margin: 12px 0 4px; font-weight: 650; color: var(--teal-dark); }
-  details.trythis .try-body ul { margin: 4px 0 10px; padding-left: 20px; color: var(--muted); }
-  details.trythis .try-body li { margin: 3px 0; }
+  .choice.is-checked { border-color: var(--teal); background: var(--teal-tint); }
+  .choice input { margin: 3px 10px 0 0; width: 20px; height: 20px; flex: 0 0 auto; }
+  .choice .ct { display: block; }
+  .choice .ch { display: block; font-size: 14px; color: var(--muted); }
+  .scale { display: flex; }
+  .scale .choice { flex: 1 1 0; flex-direction: column; align-items: center; padding: 8px 2px; margin: 0; min-width: 0; text-align: center; }
+  .scale .choice + .choice { margin-left: 6px; }
+  .scale .choice input { margin: 0 0 2px; }
+  .scale-ends { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); margin-top: 6px; }
+  .scale-ends span:last-child { text-align: right; margin-left: 12px; }
 
-  /* ---------- FORM INTRO ---------- */
-  .form-intro {
-    text-align: center;
-    margin: 34px 0 8px;
+  .btn {
+    display: inline-block; font: inherit; font-weight: 700; font-size: 17px; border-radius: 12px; border: 2px solid var(--teal);
+    background: var(--teal); color: #fff; padding: 12px 20px; min-height: 50px; cursor: pointer; text-decoration: none; text-align: center;
   }
-  .form-intro h2 {
-    justify-content: center;
-    font-size: 23px;
-  }
-  .form-intro p { color: var(--muted); margin: 4px 0 0; font-size: 15px; }
+  .btn:hover { background: var(--teal-dark); border-color: var(--teal-dark); }
+  .btn[disabled] { background: #9aa6b5; border-color: #9aa6b5; cursor: not-allowed; }
+  .btn.secondary { background: #fff; color: var(--teal-dark); }
+  .btn.secondary:hover { background: var(--teal-tint); }
+  .btn.small-btn { font-size: 15px; padding: 6px 12px; min-height: 40px; }
+  .btn.block { display: block; width: 100%; }
+  .actions { display: flex; flex-wrap: wrap; margin: 3px -5px 0; }
+  .actions .btn { flex: 1 1 160px; margin: 5px; }
 
-  /* ---------- AREA PICKER (single source of truth) ---------- */
-  .area-card .sec-head { margin-bottom: 14px; }
-  .segmented {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 9px;
-  }
-  .seg {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    padding: 14px 8px;
-    border: 2px solid var(--line);
-    border-radius: 14px;
-    background: var(--card);
-    cursor: pointer;
-    text-align: center;
-    transition: border-color .15s ease, background .15s ease;
-    user-select: none;
-  }
-  .seg .seg-ico { font-size: 24px; line-height: 1; }
-  .seg .seg-t { font-size: 13.5px; font-weight: 700; color: var(--ink); }
-  .seg .seg-d { font-size: 11px; color: var(--muted); line-height: 1.25; }
-  .seg input {
-    position: absolute;
-    opacity: 0;
-    width: 0; height: 0;
-    margin: 0;
-    pointer-events: none;
-  }
-  .seg:hover { border-color: var(--line-2); }
-  .seg:has(input:focus-visible) { box-shadow: var(--focus); border-color: var(--teal); }
-  .seg:has(input:checked) {
-    border-color: var(--teal);
-    background: var(--teal-tint);
-  }
-  .seg:has(input:checked) .seg-t { color: var(--teal-dark); }
-  .seg .seg-check {
-    position: absolute;
-    top: 8px; right: 8px;
-    width: 18px; height: 18px;
-    border-radius: 50%;
-    background: var(--teal);
-    color: #fff;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    font-weight: 900;
-  }
-  .seg:has(input:checked) .seg-check { display: flex; }
-  .seg-foot { margin-top: 12px; font-size: 12.5px; color: var(--muted); text-align: center; }
-
-  /* ---------- FORM FIELDS ---------- */
-  .field { margin-bottom: 18px; }
-  .field:last-child { margin-bottom: 0; }
-  label.q {
-    display: block;
-    font-weight: 650;
-    font-size: 16px;
-    margin-bottom: 8px;
-    color: var(--ink);
-  }
-  label.q .opt { color: var(--muted-2); font-weight: 500; font-size: 13.5px; }
-
-  input[type=text],
-  input[type=number],
-  input[type=email],
-  select,
-  textarea {
-    width: 100%;
-    font: inherit;
-    font-size: 16.5px;
-    color: var(--ink);
-    background: #fff;
-    border: 2px solid var(--line);
-    border-radius: var(--radius-sm);
-    padding: 13px 15px;
-    transition: border-color .15s ease, box-shadow .15s ease;
-    -webkit-appearance: none;
-    appearance: none;
-  }
-  textarea { min-height: 92px; resize: vertical; line-height: 1.5; }
-  input::placeholder, textarea::placeholder { color: var(--muted-2); }
-
-  input:focus,
-  select:focus,
-  textarea:focus {
-    outline: none;
-    border-color: var(--teal);
-    box-shadow: var(--focus);
+  /* No h1 here: headings get focus from the script after each screen change, not from the tester. */
+  a:focus, button:focus, input:focus, textarea:focus, select:focus, .choice:focus {
+    outline: 3px solid var(--focus); outline-offset: 2px;
   }
 
-  select {
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
-    background-repeat: no-repeat;
-    background-position: right 15px center;
-    padding-right: 42px;
-    cursor: pointer;
-  }
+  .err { color: var(--red); background: var(--red-tint); border: 1px solid #fda29b; border-radius: 10px; padding: 10px 12px; margin: 0 0 14px; font-weight: 600; }
+  .err:empty { display: none; }
+  .err .btn { margin-top: 8px; }
+  .flash { color: var(--green); background: var(--green-tint); border: 1px solid #75e0a7; border-radius: 10px; padding: 10px 12px; margin: 0 0 14px; font-weight: 600; }
+  .flash:empty { display: none; }
+  .price-err { color: var(--red); font-weight: 600; font-size: 15px; margin: 0; }
+  .price-err:empty { display: none; }
 
-  .grid-2 { display: grid; gap: 12px; }
-  @media (min-width: 520px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+  .tasks { list-style: none; margin: 0 0 16px; padding: 0; }
+  .tasks li { margin: 0 0 10px; }
+  .task {
+    display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1.5px solid var(--line);
+    border-radius: 14px; padding: 14px 16px; color: var(--ink); text-decoration: none; min-height: 56px;
+  }
+  .task:hover { border-color: var(--teal); }
+  .task-title { display: block; font-weight: 700; color: var(--navy); }
+  .task-sub { display: block; font-size: 14px; color: var(--muted); }
+  .pill { flex: 0 0 auto; font-size: 13px; font-weight: 700; border-radius: 999px; padding: 4px 10px; background: #eef2f6; color: var(--muted); white-space: nowrap; }
+  .task .pill { margin-left: 12px; }
+  .pill.done { background: var(--green-tint); color: var(--green); }
+  .group-h { font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 18px 0 8px; }
 
-  /* checkboxes for areas (in About you) */
-  .checks { display: grid; gap: 10px; }
-  .check {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    border: 2px solid var(--line);
-    border-radius: var(--radius-sm);
-    padding: 12px 14px;
-    cursor: pointer;
-    transition: border-color .15s ease, background .15s ease;
-    font-size: 16px;
-  }
-  .check:hover { border-color: var(--teal-soft); }
-  .check input[type=checkbox] {
-    width: 22px;
-    height: 22px;
-    accent-color: var(--teal);
-    flex: 0 0 auto;
-    margin: 0;
-    cursor: pointer;
-  }
-  .check:has(input:focus-visible) { box-shadow: var(--focus); border-color: var(--teal); }
-  .check:has(input:checked) {
-    border-color: var(--teal);
-    background: var(--teal-tint);
-  }
-  .check .cemoji { font-size: 20px; }
+  .shots { position: relative; border: 2px dashed #b8c3d1; border-radius: 14px; padding: 14px; margin: 0 0 18px; background: #fff; }
+  .shots.dragging { border-color: var(--teal); background: var(--teal-tint); }
+  .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+  .file-input:focus + .btn { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .chips { list-style: none; margin: 10px 0 0; padding: 0; }
+  .chip { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin-bottom: 8px; background: #fbfcfd; }
+  .chip > * + * { margin-left: 10px; }
+  .chip.failed { border-color: #fda29b; background: var(--red-tint); }
+  .thumb { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 8px; object-fit: cover; background: #e3e8ef; display: block; }
+  .chip-text { flex: 1 1 auto; min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
+  .chip.failed .chip-text { color: var(--red); font-weight: 600; }
+  .shot-note { font-size: 15px; color: var(--red); font-weight: 600; margin: 8px 0 0; }
+  .shot-note:empty { display: none; }
 
-  /* ---------- RATING ROWS ---------- */
-  .skipnote {
-    font-size: 14px;
-    color: var(--muted);
-    background: var(--bg);
-    border-radius: 10px;
-    padding: 9px 13px;
-    margin-bottom: 18px;
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-  .raterow {
-    padding: 14px 0;
-    border-bottom: 1px dashed var(--line);
-  }
-  .raterow:last-of-type { border-bottom: none; }
-  .raterow .rq {
-    font-weight: 600;
-    font-size: 16px;
-    margin-bottom: 10px;
-  }
+  .price-row { display: flex; align-items: center; }
+  .peso { font-weight: 700; color: var(--muted); margin-right: 8px; }
+  .route { font-family: Consolas, Menlo, monospace; font-size: 15px; overflow-wrap: anywhere; background: #eef2f6; padding: 1px 6px; border-radius: 6px; }
 
-  /* the 1-5 scale (script builds .scale-opt holding an input + visible square) */
-  .scale {
-    display: flex;
-    gap: 8px;
-  }
-  .scale-opt {
-    flex: 1;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 50px;
-    border: 2px solid var(--line);
-    border-radius: 12px;
-    font-weight: 700;
-    font-size: 18px;
-    color: var(--muted);
-    cursor: pointer;
-    background: #fff;
-    transition: all .14s ease;
-    user-select: none;
-  }
-  .scale-opt input {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-    margin: 0;
-    pointer-events: none;
-  }
-  .scale-opt:hover { border-color: var(--teal-soft); }
-  .scale-opt:has(input:checked) {
-    background: var(--teal);
-    border-color: var(--teal);
-    color: #fff;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(13,148,136,.3);
-  }
-  .scale-opt:has(input:focus-visible) {
-    outline: none;
-    box-shadow: var(--focus);
-    border-color: var(--teal);
-  }
-  .scale-ends {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12.5px;
-    color: var(--muted);
-    margin-top: 6px;
-  }
+  .hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
 
-  /* ---------- NPS 0-10 (script builds .nps-opt) ---------- */
-  .nps {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 8px;
+  .report-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: rgba(255,255,255,.97);
+    border-top: 1px solid var(--line); padding: 10px 16px; padding-bottom: calc(10px + env(safe-area-inset-bottom));
   }
-  @media (min-width: 520px) {
-    .nps { grid-template-columns: repeat(11, 1fr); }
-  }
-  .nps-opt {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 48px;
-    border: 2px solid var(--line);
-    border-radius: 12px;
-    font-weight: 700;
-    font-size: 16px;
-    color: var(--muted);
-    cursor: pointer;
-    background: #fff;
-    transition: all .14s ease;
-    user-select: none;
-  }
-  .nps-opt input {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-    margin: 0;
-    pointer-events: none;
-  }
-  .nps-opt:hover { border-color: var(--teal-soft); }
-  .nps-opt:has(input:checked) {
-    background: var(--teal);
-    border-color: var(--teal);
-    color: #fff;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(13,148,136,.3);
-  }
-  .nps-opt:has(input:focus-visible) {
-    outline: none;
-    box-shadow: var(--focus);
-    border-color: var(--teal);
-  }
-  .nps-ends {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12.5px;
-    color: var(--muted);
-    margin-top: 8px;
-  }
-
-  /* ---------- PRICE GROUPS ---------- */
-  .price-group {
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
-    padding: 16px;
-    margin-bottom: 16px;
-    background: #fcfdfe;
-  }
-  .price-group > .pg-title {
-    font-weight: 700;
-    font-size: 16.5px;
-    margin-bottom: 2px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .price-group > .pg-sub { color: var(--muted); font-size: 14px; margin-bottom: 12px; }
-  .price-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 10px;
-  }
-  .price-row:last-child { margin-bottom: 0; }
-  .price-row label {
-    flex: 1;
-    font-size: 15px;
-    color: var(--ink);
-  }
-  .peso-wrap {
-    position: relative;
-    flex: 0 0 130px;
-  }
-  .peso-wrap::before {
-    content: "₱";
-    position: absolute;
-    left: 13px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--muted);
-    font-weight: 600;
-    pointer-events: none;
-  }
-  .peso-wrap input { padding-left: 28px; text-align: left; }
-
-  /* ---------- ISSUES ---------- */
-  #issues { display: grid; gap: 14px; }
-  .issue {
-    border: 2px solid var(--line);
-    border-radius: var(--radius-sm);
-    padding: 16px;
-    background: #fcfdfe;
-    position: relative;
-  }
-  .issue-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 14px;
-  }
-  .issue-head .it {
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: .05em;
-    text-transform: uppercase;
-    color: var(--teal-dark);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .issue-head .it .dot-i {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--teal);
-    display: inline-block;
-  }
-  .issue-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-  .issue-grid .full { grid-column: 1 / -1; }
-  .issue .mini-label {
-    display: block;
-    font-size: 13.5px;
-    font-weight: 600;
-    color: var(--muted);
-    margin-bottom: 5px;
-  }
-  .issue .mini-label .opt { color: var(--muted-2); font-weight: 500; }
-  .issue [data-remove] {
-    background: #fff;
-    border: 1px solid var(--line-2);
-    color: var(--rose);
-    font-size: 13px;
-    font-weight: 650;
-    cursor: pointer;
-    padding: 6px 12px;
-    border-radius: 9px;
-    font-family: inherit;
-    transition: background .12s ease, border-color .12s ease;
-  }
-  .issue [data-remove]:hover { background: #fff1f2; border-color: #fecdd3; }
-  .issue [data-remove]:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(225,29,72,.30); }
-
-  .uploader-row {
-    border-top: 1px dashed var(--line);
-    margin-top: 12px;
-    padding-top: 12px;
-  }
-  input[type=file] {
-    font-size: 14px;
-    color: var(--muted);
-    width: 100%;
-  }
-  input[type=file]::file-selector-button {
-    font: inherit;
-    font-size: 14px;
-    font-weight: 650;
-    color: var(--teal-dark);
-    background: var(--teal-soft);
-    border: none;
-    border-radius: 10px;
-    padding: 9px 14px;
-    margin-right: 12px;
-    cursor: pointer;
-  }
-  input[type=file]::file-selector-button:hover { background: #99f6e4; }
-  input[type=file]:focus-visible { outline: none; }
-  input[type=file]:focus-visible::file-selector-button { box-shadow: var(--focus); }
-
-  /* thumbnails the script appends */
-  [data-previews] {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 10px;
-  }
-  .shot {
-    position: relative;
-    width: 64px;
-    height: 64px;
-    border-radius: 10px;
-    overflow: hidden;
-    border: 1px solid var(--line);
-    background: var(--bg);
-    flex: 0 0 auto;
-  }
-  .shot img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-    border-radius: 10px;
-  }
-  .shot-x {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: rgba(15,23,42,.78);
-    color: #fff;
-    border: none;
-    font-size: 13px;
-    line-height: 1;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-  }
-  .shot-x:hover { background: var(--rose); }
-  .shot-x:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--rose); }
-  .shot.err {
-    border-color: var(--rose);
-    box-shadow: 0 0 0 2px rgba(225,29,72,.25);
-  }
-  .shot.err img { display: none; }
-  .shot.err::after {
-    content: "!";
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(225,29,72,.12);
-    color: var(--rose);
-    font-weight: 800;
-    font-size: 22px;
-  }
-
-  .addbtn {
-    width: 100%;
-    background: #fff;
-    border: 2px dashed var(--teal);
-    color: var(--teal-dark);
-    border-radius: var(--radius-sm);
-    padding: 14px;
-    font-weight: 700;
-    font-size: 16px;
-    cursor: pointer;
-    font-family: inherit;
-    transition: background .15s ease;
-    margin-top: 4px;
-  }
-  .addbtn:hover { background: var(--teal-tint); }
-  .addbtn:focus-visible { outline: none; box-shadow: var(--focus); }
-
-  .privacy {
-    text-align: center;
-    font-size: 13.5px;
-    color: var(--muted);
-    margin: 24px 0 0;
-    line-height: 1.5;
-  }
-
-  /* ---------- STICKY SUBMIT BAR ---------- */
-  .submit-bar {
-    position: fixed;
-    left: 0; right: 0; bottom: 0;
-    z-index: 110;
-    background: rgba(255,255,255,.92);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-top: 1px solid var(--line);
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-    box-shadow: 0 -6px 24px rgba(15,23,42,.06);
-  }
-  .submit-bar-inner { max-width: 620px; margin: 0 auto; }
-  #status {
-    margin: 0 0 9px;
-    font-size: 14px;
-    min-height: 20px;
-    color: var(--muted);
-    text-align: center;
-    transition: color .2s ease;
-  }
-  #status.error { color: var(--rose); font-weight: 600; }
-  #status.ok { color: var(--teal-dark); font-weight: 600; }
-  #status.sending { color: var(--teal-dark); }
-  #submitBtn {
-    width: 100%;
-    background: linear-gradient(180deg, var(--teal), var(--teal-dark));
-    color: #fff;
-    border: none;
-    border-radius: var(--radius-sm);
-    padding: 16px;
-    font-size: 17px;
-    font-weight: 750;
-    font-family: inherit;
-    cursor: pointer;
-    box-shadow: 0 6px 18px rgba(13,148,136,.32);
-    transition: transform .12s ease, box-shadow .15s ease, opacity .15s ease;
-  }
-  #submitBtn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(13,148,136,.40); }
-  #submitBtn:active { transform: translateY(0); }
-  #submitBtn:focus-visible { outline: none; box-shadow: var(--focus), 0 6px 18px rgba(13,148,136,.32); }
-  #submitBtn:disabled { opacity: .6; cursor: progress; transform: none; }
-
-  /* ---------- THANKS ---------- */
-  #thanks {
-    text-align: center;
-    margin: 18px 0;
-  }
-  #thanks .tcard {
-    background: var(--card);
-    border: 1px solid rgba(226,232,240,.7);
-    border-radius: var(--radius);
-    padding: 44px 26px;
-    box-shadow: var(--shadow-md);
-  }
-  #thanks .checkmark {
-    width: 76px;
-    height: 76px;
-    border-radius: 50%;
-    background: var(--teal-tint);
-    border: 2px solid var(--teal-soft);
-    color: var(--teal-dark);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 38px;
-    font-weight: 900;
-    margin: 0 auto 18px;
-  }
-  #thanks h2 { justify-content: center; font-size: 26px; margin-bottom: 8px; }
-  #thanks h2 .salamat { color: var(--teal-dark); }
-  #thanks p { color: var(--muted); max-width: 380px; margin: 0 auto; font-size: 15.5px; }
-  #again {
-    margin-top: 24px;
-    background: var(--teal);
-    color: #fff;
-    border: none;
-    border-radius: var(--radius-sm);
-    padding: 14px 26px;
-    font-size: 16px;
-    font-weight: 700;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background .15s ease;
-  }
-  #again:hover { background: var(--teal-dark); }
-  #again:focus-visible { outline: none; box-shadow: var(--focus); }
-
-  .foot {
-    text-align: center;
-    font-size: 12.5px;
-    color: var(--muted-2);
-    padding: 8px 0 4px;
-  }
-  .foot .fm { font-weight: 700; color: var(--muted); }
-  .foot .fm .svc { color: var(--teal); }
-
-  /* ---------- HONEYPOT ---------- */
-  .hp-field {
-    position: absolute !important;
-    left: -9999px !important;
-    top: -9999px !important;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-  }
-
-  /* ---------- RESPONSIVE ---------- */
-  @media (max-width: 460px) {
-    body { font-size: 16px; }
-    .wordmark { font-size: 32px; }
-    .issue-grid { grid-template-columns: 1fr; }
-    .peso-wrap { flex: 0 0 110px; }
-    .scale-opt { font-size: 16px; min-height: 46px; }
-    .nps-opt { font-size: 15px; min-height: 44px; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    * { transition: none !important; animation: none !important; }
-  }
+  .report-bar .btn { display: block; width: 100%; max-width: 608px; margin: 0 auto; background: #fff; color: var(--red); border-color: var(--red); }
+  .report-bar .btn:hover { background: var(--red-tint); }
+  .loading { color: var(--muted); padding: 24px 0; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 </style>
 </head>
 <body>
+<header class="top"><div class="top-in"><span class="mark">on<b>Service</b></span><span class="top-note">App test</span></div></header>
+<main id="app" class="wrap" tabindex="-1"><p class="loading">Loading the test...</p></main>
+<div id="reportBar" class="report-bar" hidden><button type="button" id="reportBtn" class="btn">Report a problem</button></div>
+<noscript><div class="wrap"><p class="err">This page needs JavaScript. Please turn it on, or open the page in Chrome.</p></div></noscript>
+<script>
+(function () {
+  'use strict';
 
-  <div id="progress" aria-hidden="true"></div>
+  var API = '/api/v1/feedback/v2';
+  var KEY = 'osfb2:';
+  var MAX_SHOTS = 10;
+  var MAX_BYTES = 10 * 1024 * 1024;
+  var EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+  var NETWORK_MSG = 'Could not reach the server. Check your connection and try again. What you typed is still here.';
+  var CONSENT_MSG = 'Please agree to the privacy notice to start.';
+  var SIDE_LABELS = { start: 'Getting started', customer: 'Customer side', provider: 'Provider side', account: 'Your account' };
 
-  <!-- STICKY BRAND TOPBAR -->
-  <div class="topbar">
-    <div class="topbar-inner">
-      <div class="mark">on<span class="svc">Service</span></div>
-      <div class="tb-hint">Tester feedback · ~15–30 min</div>
-    </div>
-  </div>
+  var app = document.getElementById('app');
+  var reportBar = document.getElementById('reportBar');
+  var reportBtn = document.getElementById('reportBtn');
 
-  <header class="hero">
-    <div class="hero-inner">
-      <span class="wave">👋</span>
-      <h1 class="wordmark">on<span class="svc">Service</span></h1>
-      <p>Help us make the app better. Your honest feedback shapes what we build next.</p>
-    </div>
-  </header>
+  var state = {
+    study: null,
+    session: null,      // { id, token, role }
+    progress: null,     // { role, saved: [{kind, itemKey}], problems }
+    route: 'welcome',
+    flash: '',
+    pendingReport: null, // { route }
+    appVersion: null,   // last app version this phone told us about (?app=, remembered)
+    urlAppVersion: null, // the ?app= on this visit only
+    surface: null,
+    emailCodes: false,  // true only when GET /api/v1/auth/methods says email codes are on
+    sessionStored: false, // true only when the session really was kept on this phone
+    shots: {},          // formKey -> [{ id, status, filename, at, url, error, removed }]
+    form: null,         // the form on screen: { key, el, saveBtn, saveText, saving, hasShots }
+    problemSaved: false,
+    consent: false
+  };
+  // The server deletes screenshots that were never saved with an answer after
+  // 24 hours (purgeUnattachedUploads). Older than this, ask for them again.
+  var SHOT_MAX_AGE_MS = 23 * 60 * 60 * 1000;
+  var SIGN_IN_EMAIL = 'Sign up in the app with your own email address. The app sends a 6-digit code to that email. If it does not arrive within a minute, check your Spam or Promotions folder.';
+  var SIGN_IN_ASK_KEN = 'Sign in the way Ken told you, or ask him for your sign-in details.';
+  var PROVIDER_ONCE = 'Testing the provider side? Right after you sign up, the app asks "How would you like to use onService?". Choose "I provide services". This choice appears only once, so decide before you tap. You can still book as a customer.';
+  var shotSeq = 0;
+  var idSeq = 0;
 
-  <main class="wrap">
-
-    <!-- HOW THIS WORKS -->
-    <section class="card card-lead">
-      <h2><span class="ic">🧭</span> How this works — and the mindset we need</h2>
-      <p class="section-sub"><strong>Please be brutal.</strong> We are not looking for compliments. We want every problem, every confusing bit, every ugly or slow screen, every "wait, is this broken?" moment you can find.</p>
-      <div style="background:#FEF2F2;border:1.5px solid #FCA5A5;border-radius:14px;padding:16px 18px;margin:14px 0 4px;color:#7F1D1D;line-height:1.55;">
-        <p style="margin:0 0 10px;"><strong>Come in looking for trouble.</strong> Use the app like a picky, impatient, suspicious real user and try hard to break it, confuse yourself, and catch what's wrong. Nitpick. Complain. Rearrange. Rename things. Tell us what you'd throw away.</p>
-        <p style="margin:0;"><strong>One real problem you found is worth more than ten nice words.</strong> Don't soften it, don't be shy, don't worry about hurting our feelings — we can only fix what you tell us. Negatives, blockers, harsh suggestions, and your own ideas are exactly what we want.</p>
-      </div>
-      <ol class="steps">
-        <li>
-          <span class="step-num">1</span>
-          <span class="step-txt">Open an area below and use it like a demanding real customer.
-            <small>Links open in a new tab so this page stays open.</small>
-          </span>
-        </li>
-        <li>
-          <span class="step-num">2</span>
-          <span class="step-txt">Hunt for problems: anything confusing, broken, slow, ugly, missing, or that you wouldn't trust.</span>
-        </li>
-        <li>
-          <span class="step-num">3</span>
-          <span class="step-txt">Come back and write it all down — the bad, the worse, your ideas, and what you'd change.
-            <small>Be specific. Name the screen.</small>
-          </span>
-        </li>
-      </ol>
-      <div class="time-note"><span>⏱️</span><span>Take as long as you like. More detail = more useful. Even five brutal sentences help.</span></div>
-    </section>
-
-    <!-- STEP 1: OPEN THE APP -->
-    <section class="card">
-      <h2><span class="ic">🚪</span> Step 1 — Open the app</h2>
-      <p class="section-sub">Pick an area to try. Each link opens in its own tab.</p>
-
-      <div class="door-note">
-        <span class="door-ico">✅</span>
-        <div class="door-body">
-          <strong>No login. No password.</strong> Just click a link below and you go straight into the app as that user.
-          Nothing to type, no account to make.
-          <div class="creds" style="margin-top:8px;">
-            <span class="cred">💻 On a laptop? Add <span class="chip">&amp;view=desktop</span> to the Customer or Provider link for the desktop layout (and <span class="chip">&amp;view=mobile</span> to switch back).</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="applinks">
-        <a class="applink lp-customer" href="https://app.onservice.ph/?demo=customer" target="_blank" rel="noopener">
-          <span class="emoji">🏠</span>
-          <span class="meta">
-            <span class="role">Customer</span>
-            <b>I need home help</b>
-            <span class="desc">Book a cleaner, aircon tech, plumber…</span>
-          </span>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </a>
-
-        <a class="applink lp-provider" href="https://app.onservice.ph/?demo=provider" target="_blank" rel="noopener">
-          <span class="emoji">🧰</span>
-          <span class="meta">
-            <span class="role">Provider</span>
-            <b>I do the work</b>
-            <span class="desc">Receive jobs, go online, track earnings</span>
-          </span>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </a>
-
-        <a class="applink lp-admin" href="https://admin.onservice.ph/login?demo=1" target="_blank" rel="noopener">
-          <span class="emoji">🖥️</span>
-          <span class="meta">
-            <span class="role">Admin</span>
-            <b>The office view</b>
-            <span class="desc">Best on a laptop or desktop</span>
-          </span>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </a>
-      </div>
-
-      <p class="hint">
-        <strong>Customer</strong> and <strong>Provider</strong> are two different logins — use the matching link for each.
-        You don't type any account details; the link logs you in automatically.
-      </p>
-
-      <details class="trythis">
-        <summary>What should I try? (and how to find problems)</summary>
-        <div class="try-body">
-          <p style="font-weight:700;">Be picky and suspicious. Tap everything. Try the wrong thing on purpose. Note anything slow, confusing, ugly, broken, fake-looking, or that you would not trust.</p>
-          <p>🏠 As a Customer</p>
-          <ul>
-            <li>Browse and book a service. Is the price clear? Any hidden or surprise fees? Would you actually pay?</li>
-            <li>Try to get help, cancel, or chat the provider. Could you find it? Did it work?</li>
-            <li>Look hard at trust and safety: would you really give this app your home address and your money?</li>
-          </ul>
-          <p>🧰 As a Provider</p>
-          <ul>
-            <li>Read the dashboard, go online, open a job. Is your pay and commission honest and clear?</li>
-            <li>Set your services and price, then try to finish a job (photos, signature). What is annoying or slow?</li>
-            <li>What would stop you from working through this app for real money?</li>
-          </ul>
-          <p>🖥️ As Admin (best on a laptop)</p>
-          <ul>
-            <li>Open every screen in the side menu. Click buttons. What is confusing, missing, or risky?</li>
-            <li>Approve or reject a provider, handle a complaint, look at the money screens. Did you trust it?</li>
-            <li>Could a non-technical manager really run the business from here? Where would they get stuck?</li>
-          </ul>
-        </div>
-      </details>
-    </section>
-
-    <!-- FORM INTRO -->
-    <div class="form-intro">
-      <h2><span class="ic">📝</span> Step 3 — Tell us everything that's wrong (and your ideas)</h2>
-      <p>Skip any part you didn't test. The harsher and more specific, the better — name the screen, describe the problem, and tell us what you'd change. Don't hold back.</p>
-    </div>
-
-    <form id="fb" novalidate>
-
-      <!-- honeypot (offscreen) -->
-      <div class="hp-field" aria-hidden="true">
-        <label>Leave this empty
-          <input type="text" name="_hp" tabindex="-1" autocomplete="off">
-        </label>
-      </div>
-
-      <!-- AREA PICKER (single source of truth — drives section gating) -->
-      <section class="card area-card">
-        <div class="sec-head">
-          <div class="badge-chip" aria-hidden="true">①</div>
-          <div class="titles">
-            <h2>Which area did you test?</h2>
-            <p>Pick all that apply — we'll show only those questions.</p>
-          </div>
-        </div>
-        <div class="segmented" role="group" aria-label="Which areas did you test?">
-          <label class="seg">
-            <input type="checkbox" name="area" value="customer">
-            <span class="seg-check" aria-hidden="true">✓</span>
-            <span class="seg-ico" aria-hidden="true">🏠</span>
-            <span class="seg-t">Customer</span>
-            <span class="seg-d">I need help</span>
-          </label>
-          <label class="seg">
-            <input type="checkbox" name="area" value="provider">
-            <span class="seg-check" aria-hidden="true">✓</span>
-            <span class="seg-ico" aria-hidden="true">🧰</span>
-            <span class="seg-t">Provider</span>
-            <span class="seg-d">I do the work</span>
-          </label>
-          <label class="seg">
-            <input type="checkbox" name="area" value="admin">
-            <span class="seg-check" aria-hidden="true">✓</span>
-            <span class="seg-ico" aria-hidden="true">🖥️</span>
-            <span class="seg-t">Admin</span>
-            <span class="seg-d">Office view</span>
-          </label>
-        </div>
-        <p class="seg-foot">Not sure? Just pick what you opened. You can change this anytime, and you can always scroll to any section.</p>
-      </section>
-
-      <!-- A) ABOUT YOU -->
-      <section class="card">
-        <div class="sec-head">
-          <div class="badge-chip" aria-hidden="true">A</div>
-          <div class="titles">
-            <h2>About you</h2>
-            <p>All optional — only if you're comfortable.</p>
-          </div>
-        </div>
-
-        <div class="grid-2">
-          <div class="field">
-            <label class="q" for="testerName">Your name <span class="opt">(optional)</span></label>
-            <input type="text" id="testerName" name="testerName" autocomplete="name" placeholder="e.g. Maria">
-          </div>
-          <div class="field">
-            <label class="q" for="testerContact">Email or mobile <span class="opt">(optional)</span></label>
-            <input type="text" id="testerContact" name="testerContact" placeholder="email or mobile">
-          </div>
-        </div>
-
-
-        <div class="grid-2">
-          <div class="field">
-            <label class="q" for="device">What did you use?</label>
-            <select id="device" name="device">
-              <option value="">Choose…</option>
-              <option>Phone</option>
-              <option>Tablet</option>
-              <option>Laptop / Desktop</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="q" for="freq">How often do you book home help?</label>
-            <select id="freq" name="answer:about:frequency">
-              <option value="">Choose…</option>
-              <option>Never</option>
-              <option>A few times a year</option>
-              <option>Monthly</option>
-              <option>Often</option>
-            </select>
-          </div>
-        </div>
-      </section>
-
-      <!-- ★) BE BRUTAL — the section we care about most -->
-      <section class="card" style="border:2px solid #FCA5A5;background:linear-gradient(180deg,#FFF7F7,#FFFFFF);">
-        <div class="sec-head">
-          <div class="badge-chip" aria-hidden="true" style="background:#DC2626;">🔥</div>
-          <div class="titles">
-            <h2>Be brutal — this is the part we care about most</h2>
-            <p>Whatever you tested, dump every problem, complaint, and idea here. The harsher and more specific, the better.</p>
-          </div>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-brutal-worst_thing">What is the single WORST thing about the app right now? The one problem you would fix before anything else.</label>
-          <textarea id="answer-brutal-worst_thing" name="answer:brutal:worst_thing" placeholder="Don't hold back — the worst thing."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-brutal-top3_problems">List the TOP 3 problems you found, worst first. Name the screen for each.</label>
-          <textarea id="answer-brutal-top3_problems" name="answer:brutal:top3_problems" placeholder="1)…  2)…  3)…"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-brutal-dealbreaker">What would make you ABANDON the app, or tell a friend NOT to use it?</label>
-          <textarea id="answer-brutal-dealbreaker" name="answer:brutal:dealbreaker" placeholder="The dealbreakers."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-brutal-broken_or_untrustworthy">What looked broken, unfinished, fake, or untrustworthy? Where?</label>
-          <textarea id="answer-brutal-broken_or_untrustworthy" name="answer:brutal:broken_or_untrustworthy" placeholder="Screen + what felt off."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-brutal-confusing_wording">What words, labels, or buttons were confusing or badly worded? Give the word and the clearer name you would use.</label>
-          <textarea id="answer-brutal-confusing_wording" name="answer:brutal:confusing_wording" placeholder="Current word → your better word."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-brutal-ugly_or_cheap">What looked ugly, cheap, dated, or off-brand? Be specific.</label>
-          <textarea id="answer-brutal-ugly_or_cheap" name="answer:brutal:ugly_or_cheap" placeholder="What looked bad, and where."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-brutal-slow_or_froze">What was slow, laggy, froze, or made you wait? Where did it happen?</label>
-          <textarea id="answer-brutal-slow_or_froze" name="answer:brutal:slow_or_froze" placeholder="What was slow, and where."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-brutal-expected_but_missing">What did you EXPECT to be there that wasn't? What were you looking for and couldn't find?</label>
-          <textarea id="answer-brutal-expected_but_missing" name="answer:brutal:expected_but_missing" placeholder="What was missing."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-brutal-risky_or_unsafe">What felt risky or unsafe — anything that could lose money, leak private info, or be done by accident?</label>
-          <textarea id="answer-brutal-risky_or_unsafe" name="answer:brutal:risky_or_unsafe" placeholder="What felt risky, and why."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-brutal-competitor_attack">If you ran a competing app, where would you attack us? What is our weakest point?</label>
-          <textarea id="answer-brutal-competitor_attack" name="answer:brutal:competitor_attack" placeholder="Our weak spot."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-brutal-rearrange_redesign">If you could rearrange or redesign ONE screen, which one and how? Move things, rename things, cut things.</label>
-          <textarea id="answer-brutal-rearrange_redesign" name="answer:brutal:rearrange_redesign" placeholder="Screen + how you'd redo it."></textarea>
-        </div>
-      </section>
-
-      <!-- B) CUSTOMER -->
-      <section class="card" data-rategroup="customer">
-        <div class="sec-head">
-          <div class="badge-chip" aria-hidden="true">B</div>
-          <div class="titles">
-            <h2>The Customer app</h2>
-            <p>For when you need home help. Be picky: what would stop you from booking, paying, or trusting it?</p>
-          </div>
-        </div>
-        <div class="skipnote"><span aria-hidden="true">↩️</span> Skip this section if you didn't test the customer side.</div>
-
-        <div class="raterow">
-          <div class="rq">Easy to understand what the app does</div>
-          <div class="scale" data-name="rating:customer:understand" role="radiogroup" aria-label="Easy to understand what the app does"></div>
-          <div class="scale-ends"><span>Not at all</span><span>Totally</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">Easy to find and book a service</div>
-          <div class="scale" data-name="rating:customer:booking" role="radiogroup" aria-label="Easy to find and book a service"></div>
-          <div class="scale-ends"><span>Hard</span><span>Very easy</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">The price was clear</div>
-          <div class="scale" data-name="rating:customer:price" role="radiogroup" aria-label="The price was clear"></div>
-          <div class="scale-ends"><span>Confusing</span><span>Crystal clear</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">I'd trust it with my money and address</div>
-          <div class="scale" data-name="rating:customer:trust" role="radiogroup" aria-label="I'd trust it with my money and address"></div>
-          <div class="scale-ends"><span>No way</span><span>Absolutely</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">It looked good and modern</div>
-          <div class="scale" data-name="rating:customer:design" role="radiogroup" aria-label="It looked good and modern"></div>
-          <div class="scale-ends"><span>Dated</span><span>Beautiful</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">It was fast (no waiting or freezing)</div>
-          <div class="scale" data-name="rating:customer:speed" role="radiogroup" aria-label="It was fast, no waiting or freezing"></div>
-          <div class="scale-ends"><span>Slow</span><span>Snappy</span></div>
-        </div>
-
-        <div class="raterow">
-          <div class="rq">Setting my home address and map pin was easy, and I felt sure the provider would find the right place.</div>
-          <div class="scale" data-name="rating:customer:address_on_map_was_easy" role="radiogroup" aria-label="Setting my address on the map was easy"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">The price breakdown at checkout made sense: service price, add-ons, and platform fee, with no surprise charges.</div>
-          <div class="scale" data-name="rating:customer:price_breakdown_made_sense" role="radiogroup" aria-label="The price breakdown made sense"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">Knowing my payment is held safely and only released after the job is done made me feel safe paying.</div>
-          <div class="scale" data-name="rating:customer:escrow_made_me_feel_safe" role="radiogroup" aria-label="Held payment made me feel safe"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">Paying with GCash, Maya, card, or my wallet felt safe and worked smoothly.</div>
-          <div class="scale" data-name="rating:customer:payment_method_felt_safe" role="radiogroup" aria-label="Paying felt safe and smooth"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">After booking, I could tell what was happening, like when a provider was found and when they were on the way.</div>
-          <div class="scale" data-name="rating:customer:tracking_kept_me_informed" role="radiogroup" aria-label="Tracking kept me informed"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">If something went wrong, I felt it would be easy to message my provider, cancel, or report a problem and get my money back.</div>
-          <div class="scale" data-name="rating:customer:easy_to_get_help_or_cancel" role="radiogroup" aria-label="Easy to get help or cancel"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">I would trust this app enough to let a real provider into my home for a real job.</div>
-          <div class="scale" data-name="rating:customer:would_use_for_real_home" role="radiogroup" aria-label="Would use for a real job"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-
-        <div class="field" style="margin-top:18px;">
-          <label class="q" for="cust-worst">What confused or annoyed you most?</label>
-          <textarea id="cust-worst" name="answer:customer:worst" placeholder="Tell us what got in your way…"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="cust-best">What did you like most?</label>
-          <textarea id="cust-best" name="answer:customer:best" placeholder="The good stuff!"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="cust-wouldbook">Would you book a service with it? Why or why not?</label>
-          <textarea id="cust-wouldbook" name="answer:customer:wouldbook" placeholder="Be honest — it helps us a lot."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-customer-checkout_price_confusion">Think back to the price list at checkout (service price, add-ons, platform fee, and sometimes a discount or surge charge). Was there any line you were unsure about or that felt like an extra charge? Which one, and what did you think it meant?</label>
-          <textarea id="answer-customer-checkout_price_confusion" name="answer:customer:checkout_price_confusion" placeholder="Tell us in your own words."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-customer-payment_trust_moment">When it was time to actually pay, what went through your mind? Did anything make you hesitate before tapping pay, or worry about where your money was going?</label>
-          <textarea id="answer-customer-payment_trust_moment" name="answer:customer:payment_trust_moment" placeholder="Describe that moment."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-customer-after_booking_expectations">Right after you booked, what did you expect to happen next, and did the app make it clear? For example, how you would know when a provider accepts and when they are coming?</label>
-          <textarea id="answer-customer-after_booking_expectations" name="answer:customer:after_booking_expectations" placeholder="Tell us in your own words."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-customer-if_something_went_wrong">Imagine the provider was very late, did a bad job, or you needed to cancel. Walk us through what you would do in the app, and whether you felt confident you could fix it or get a refund.</label>
-          <textarea id="answer-customer-if_something_went_wrong" name="answer:customer:if_something_went_wrong" placeholder="Walk us through it."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-customer-confirm_and_release_payment">At the end of a job you confirm it is done so the provider gets paid (and it auto-confirms after some hours if you do nothing). Did that feel fair and clear, or did anything make you uneasy?</label>
-          <textarea id="answer-customer-confirm_and_release_payment" name="answer:customer:confirm_and_release_payment" placeholder="Tell us in your own words."></textarea>
-        </div>
-
-        <div class="genhead" style="margin-top:24px;padding-top:18px;border-top:2px dashed var(--line);font-weight:750;color:var(--teal-dark);font-size:15px;">💡 Make the customer side better</div>
-        <p class="section-sub" style="margin:4px 0 14px;">All optional. Even one line helps.</p>
-        <div class="field">
-          <label class="q" for="answer-customer-add_remove_simpler">If you could change this app any way you wanted, what would you ADD, what would you REMOVE, and what would you make SIMPLER? Tell us anything, even small things.</label>
-          <textarea id="answer-customer-add_remove_simpler" name="answer:customer:add_remove_simpler" placeholder="Add… remove… simplify…"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-customer-home_screen_priority">When you first open the app, what do you want to see FIRST, then SECOND, then THIRD? (For example: a search box, the list of services, prices, nearby providers, your past bookings.) Tell us your order and why.</label>
-          <textarea id="answer-customer-home_screen_priority" name="answer:customer:home_screen_priority" placeholder="First… second… third…"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-customer-confusing_words_better_names">Were there any words, labels, or button names that confused you or made you stop and think? Tell us which ones, and what you would call them instead so they are easier to understand.</label>
-          <textarea id="answer-customer-confusing_words_better_names" name="answer:customer:confusing_words_better_names" placeholder="The word, and what you'd call it instead"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-customer-new_service_ideas">What other services would you want to book here that you did not see? Give us your ideas and what you would call each one (for example: pest control, laundry pickup, CCTV install).</label>
-          <textarea id="answer-customer-new_service_ideas" name="answer:customer:new_service_ideas" placeholder="Service idea + the name you'd use"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-customer-service_grouping">Looking at the grid of services, did the way they are grouped into sections make sense to you? How would you group or order them so they are easier to find?</label>
-          <textarea id="answer-customer-service_grouping" name="answer:customer:service_grouping" placeholder="How you'd group or order them"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-customer-pricing_suggestions">Thinking about the prices you saw, did anything feel too expensive or too cheap, or like it should be priced a different way? Tell us which services and what would feel fair to you.</label>
-          <textarea id="answer-customer-pricing_suggestions" name="answer:customer:pricing_suggestions" placeholder="Which service, and what feels fair"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-customer-felt_missing_or_unfinished">Was there any moment where you wished a button, screen, or piece of information was there but it was missing? Tell us where and what you were looking for.</label>
-          <textarea id="answer-customer-felt_missing_or_unfinished" name="answer:customer:felt_missing_or_unfinished" placeholder="Where, and what you were looking for"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-customer-one_feature_wish">If we could build just ONE new thing for you, what would it be?</label>
-          <input type="text" id="answer-customer-one_feature_wish" name="answer:customer:one_feature_wish" placeholder="Your one wish">
-        </div>
-      </section>
-
-      <!-- C) PROVIDER -->
-      <section class="card" data-rategroup="provider">
-        <div class="sec-head">
-          <div class="badge-chip" aria-hidden="true">C</div>
-          <div class="titles">
-            <h2>The Provider app</h2>
-            <p>For the people who do the work. What would make you walk away, or feel the pay or rules are unfair?</p>
-          </div>
-        </div>
-        <div class="skipnote"><span aria-hidden="true">↩️</span> Skip this section if you didn't test the provider side.</div>
-
-        <div class="raterow">
-          <div class="rq">Easy to understand the dashboard</div>
-          <div class="scale" data-name="rating:provider:dashboard" role="radiogroup" aria-label="Easy to understand the dashboard"></div>
-          <div class="scale-ends"><span>Confusing</span><span>Clear</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">Clear how to go online and get jobs</div>
-          <div class="scale" data-name="rating:provider:online" role="radiogroup" aria-label="Clear how to go online and get jobs"></div>
-          <div class="scale-ends"><span>Unclear</span><span>Obvious</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">A job had enough detail to do it</div>
-          <div class="scale" data-name="rating:provider:jobdetail" role="radiogroup" aria-label="A job had enough detail to do it"></div>
-          <div class="scale-ends"><span>Too little</span><span>Plenty</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">Clear how much I earn and when I'm paid</div>
-          <div class="scale" data-name="rating:provider:earnings" role="radiogroup" aria-label="Clear how much I earn and when I'm paid"></div>
-          <div class="scale-ends"><span>Unclear</span><span>Clear</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">I'd trust it to pay me correctly</div>
-          <div class="scale" data-name="rating:provider:paytrust" role="radiogroup" aria-label="I'd trust it to pay me correctly"></div>
-          <div class="scale-ends"><span>No</span><span>Yes</span></div>
-        </div>
-
-        <div class="raterow">
-          <div class="rq">When a job request comes in, I feel okay accepting or declining it, without worrying it will hurt my standing.</div>
-          <div class="scale" data-name="rating:provider:accept_decline_pressure" role="radiogroup" aria-label="Okay to accept or decline a job"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">I can clearly see how much the app keeps and exactly how much I take home after a job.</div>
-          <div class="scale" data-name="rating:provider:commission_net_clear" role="radiogroup" aria-label="Commission and take-home are clear"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">The job buttons (on my way, arrived, start, finish) are easy to find and I know which to tap at each step.</div>
-          <div class="scale" data-name="rating:provider:arrival_status_steps" role="radiogroup" aria-label="Job status buttons are clear"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">Taking the after photos and getting the customer to sign on my phone to finish a job feels doable.</div>
-          <div class="scale" data-name="rating:provider:completion_proof_doable" role="radiogroup" aria-label="Finishing a job with photos and signature is doable"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">I trust that when I cash out to GCash, Maya, or my bank, the money will safely reach me.</div>
-          <div class="scale" data-name="rating:provider:cashout_method_trust" role="radiogroup" aria-label="I trust cash-out reaches me"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">When I set my own price for a service, I feel confident it is fair, not too high or too low.</div>
-          <div class="scale" data-name="rating:provider:set_price_confidence" role="radiogroup" aria-label="Confident setting my own price"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">I understand how to reach a higher level so the app takes a smaller cut, and it feels worth working toward.</div>
-          <div class="scale" data-name="rating:provider:tier_commission_motivating" role="radiogroup" aria-label="Higher tier for a smaller cut is clear"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-
-        <div class="field" style="margin-top:18px;">
-          <label class="q" for="prov-why">What would make you choose this over the old way of getting jobs?</label>
-          <textarea id="prov-why" name="answer:provider:why" placeholder="What would win you over?"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="prov-missing">What's missing before you'd rely on it for income?</label>
-          <textarea id="prov-missing" name="answer:provider:missing" placeholder="The dealbreakers, please."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-provider-decline_reason_story">Think of a job request you would say no to. What about it would make you decline (the pay, the location, the time, the type of work)?</label>
-          <textarea id="answer-provider-decline_reason_story" name="answer:provider:decline_reason_story" placeholder="Tell us what happened or what you imagined."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-provider-net_pay_reaction">When you saw how much you actually take home after the app's cut, what went through your mind? More, less, or about what you expected?</label>
-          <textarea id="answer-provider-net_pay_reaction" name="answer:provider:net_pay_reaction" placeholder="Tell us in your own words."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-provider-cashout_experience">Walk us through trying to cash out your money. Which method did you pick, what did you have to type in, and was anything confusing or worrying?</label>
-          <textarea id="answer-provider-cashout_experience" name="answer:provider:cashout_experience" placeholder="Walk us through it."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-provider-onsite_proof_worry">To finish a job you need after photos and the customer to sign on your phone. Picture doing that in a stranger's home. What would make that easy or hard?</label>
-          <textarea id="answer-provider-onsite_proof_worry" name="answer:provider:onsite_proof_worry" placeholder="Tell us in your own words."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-provider-getting_started_blockers">From signing up to being ready for your first job (verifying yourself, adding services, setting prices), what was the hardest or most unclear part?</label>
-          <textarea id="answer-provider-getting_started_blockers" name="answer:provider:getting_started_blockers" placeholder="Tell us in your own words."></textarea>
-        </div>
-
-        <div class="genhead" style="margin-top:24px;padding-top:18px;border-top:2px dashed var(--line);font-weight:750;color:var(--teal-dark);font-size:15px;">💡 Make the provider side better</div>
-        <p class="section-sub" style="margin:4px 0 14px;">All optional. Even one line helps.</p>
-        <div class="field">
-          <label class="q" for="answer-provider-add_remove_simpler">If you could change three things about this app for workers like you, what would you ADD, what would you REMOVE, and what would you make SIMPLER? Tell me in your own words.</label>
-          <textarea id="answer-provider-add_remove_simpler" name="answer:provider:add_remove_simpler" placeholder="Add… remove… simplify…"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-provider-dashboard_first_three">When you open the app to start your work day, what is the FIRST thing you want to see on the home screen? Then the second? Then the third? (For example: new jobs, today's money, your schedule.)</label>
-          <textarea id="answer-provider-dashboard_first_three" name="answer:provider:dashboard_first_three" placeholder="First… second… third…"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-provider-confusing_words">Were there any words, labels, or buttons in the app that confused you or you were not sure what they meant? Please name them and tell me what you thought they meant.</label>
-          <textarea id="answer-provider-confusing_words" name="answer:provider:confusing_words" placeholder="The word, and what you thought it meant"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-provider-better_names">For any button or label that felt unclear, what would be a clearer name for it? (For example, a better word than 'Payouts', 'Commission', or 'Tier'.)</label>
-          <input type="text" id="answer-provider-better_names" name="answer:provider:better_names" placeholder="Current name → your clearer name">
-        </div>
-        <div class="field">
-          <label class="q" for="answer-provider-new_services_and_grouping">What other services should we let workers offer that are missing right now? Tell me the service name you'd use, and how you'd group services into sections so they're easy to find.</label>
-          <textarea id="answer-provider-new_services_and_grouping" name="answer:provider:new_services_and_grouping" placeholder="Service name + how you'd group them"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-provider-pricing_feel">Thinking about the prices and the fee the app takes from each job: what felt too high, what felt too low, and what would you price differently? Tell me what feels fair to you.</label>
-          <textarea id="answer-provider-pricing_feel" name="answer:provider:pricing_feel" placeholder="What felt high/low, and what's fair"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-provider-setup_and_jobscreen_change">Thinking about setting up your services and prices, and the job screen you use while working: what was annoying or slow, and what one thing would you change to make it easier?</label>
-          <textarea id="answer-provider-setup_and_jobscreen_change" name="answer:provider:setup_and_jobscreen_change" placeholder="What was slow, and your one change"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-provider-dream_feature">Imagine one new feature that would make this app really worth your time as a worker. What is it, and how would it help you get more jobs or more money?</label>
-          <textarea id="answer-provider-dream_feature" name="answer:provider:dream_feature" placeholder="Your dream feature"></textarea>
-        </div>
-      </section>
-
-      <!-- D) ADMIN -->
-      <section class="card" data-rategroup="admin">
-        <div class="sec-head">
-          <div class="badge-chip" aria-hidden="true">D</div>
-          <div class="titles">
-            <h2>The Admin / office view</h2>
-            <p>For running the business behind the scenes. Where would a real, non-technical manager get stuck, confused, or make a costly mistake?</p>
-          </div>
-        </div>
-        <div class="skipnote"><span aria-hidden="true">↩️</span> Skip this section if you didn't test the admin side.</div>
-
-        <div class="raterow">
-          <div class="rq">The dashboard shows if the business is healthy</div>
-          <div class="scale" data-name="rating:admin:dashboard" role="radiogroup" aria-label="The dashboard shows if the business is healthy"></div>
-          <div class="scale-ends"><span>No idea</span><span>Crystal clear</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">Easy to find a customer, provider, or booking</div>
-          <div class="scale" data-name="rating:admin:find" role="radiogroup" aria-label="Easy to find a customer, provider, or booking"></div>
-          <div class="scale-ends"><span>Hard</span><span>Easy</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">Clear how a job gets assigned (dispatch)</div>
-          <div class="scale" data-name="rating:admin:dispatch" role="radiogroup" aria-label="Clear how a job gets assigned (dispatch)"></div>
-          <div class="scale-ends"><span>Unclear</span><span>Clear</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">Clear how to handle a complaint (dispute)</div>
-          <div class="scale" data-name="rating:admin:dispute" role="radiogroup" aria-label="Clear how to handle a complaint (dispute)"></div>
-          <div class="scale-ends"><span>Unclear</span><span>Clear</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">A non-technical manager could run it</div>
-          <div class="scale" data-name="rating:admin:manageable" role="radiogroup" aria-label="A non-technical manager could run it"></div>
-          <div class="scale-ends"><span>No</span><span>Yes</span></div>
-        </div>
-
-        <div class="raterow">
-          <div class="rq">When approving a provider, I could find their ID and permit documents and felt I had enough to decide.</div>
-          <div class="scale" data-name="rating:admin:confident_approving_provider_after_documents" role="radiogroup" aria-label="Enough info to approve a provider"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">When resolving a complaint, the outcome choices (full / partial / no refund, free redo, and so on) matched the real situations I imagined.</div>
-          <div class="scale" data-name="rating:admin:dispute_resolution_choices_made_sense" role="radiogroup" aria-label="Dispute outcome choices made sense"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">When I issued a refund or processed a payout, it was clear who would get the money and how much.</div>
-          <div class="scale" data-name="rating:admin:clear_who_money_goes_to" role="radiogroup" aria-label="Clear who the money goes to"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">When an action asked me to write a reason or note, it was clear what I needed to write and why it mattered.</div>
-          <div class="scale" data-name="rating:admin:knew_what_notes_were_required" role="radiogroup" aria-label="Clear what notes were required"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">I understood which notes only staff would see and which would be shared with the customer or provider.</div>
-          <div class="scale" data-name="rating:admin:understood_internal_vs_shared_notes" role="radiogroup" aria-label="Understood internal vs shared notes"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">When I reassigned or cancelled a job from dispatch, I understood what would happen to the customer and provider before confirming.</div>
-          <div class="scale" data-name="rating:admin:reassign_cancel_felt_safe" role="radiogroup" aria-label="Reassign or cancel felt safe"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-        <div class="raterow">
-          <div class="rq">When some buttons were greyed out or missing, I understood why (for example, needing a higher-level account) instead of feeling the page was broken.</div>
-          <div class="scale" data-name="rating:admin:knew_why_buttons_missing" role="radiogroup" aria-label="Knew why some buttons were missing"></div>
-          <div class="scale-ends"><span>Disagree</span><span>Agree</span></div>
-        </div>
-
-        <div class="field" style="margin-top:18px;">
-          <label class="q" for="admin-add">What would you add to the admin dashboard?</label>
-          <textarea id="admin-add" name="answer:admin:add" placeholder="Anything you wished was there…"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-provider_approval_walkthrough">A new provider just signed up. Walk me through how you would decide to approve or reject them. What did you look at, and was anything you wanted to check missing or hard to find?</label>
-          <textarea id="answer-admin-provider_approval_walkthrough" name="answer:admin:provider_approval_walkthrough" placeholder="Walk us through it."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-hardest_dispute_decision">A customer says the cleaner did a bad job and wants a refund, but the provider disagrees. Using this screen, how would you handle it? What would make you unsure of the right outcome?</label>
-          <textarea id="answer-admin-hardest_dispute_decision" name="answer:admin:hardest_dispute_decision" placeholder="Tell us in your own words."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-refund_money_trust">When you issued a refund or approved a payout, did you trust the system would send the right amount to the right person? What would make you double-check before confirming?</label>
-          <textarea id="answer-admin-refund_money_trust" name="answer:admin:refund_money_trust" placeholder="Tell us in your own words."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-finding_a_specific_problem">A provider calls saying they were never paid for a job last week. Where would you go to look into it, and how easy was it to piece together what happened?</label>
-          <textarea id="answer-admin-finding_a_specific_problem" name="answer:admin:finding_a_specific_problem" placeholder="Tell us in your own words."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-first_thing_each_morning">If this was your job and you opened the admin panel at the start of your shift, what would you want to check first to know if anything needs your attention?</label>
-          <textarea id="answer-admin-first_thing_each_morning" name="answer:admin:first_thing_each_morning" placeholder="Tell us in your own words."></textarea>
-        </div>
-
-        <div class="genhead" style="margin-top:24px;padding-top:18px;border-top:2px dashed var(--line);font-weight:750;color:var(--teal-dark);font-size:15px;">💡 Make the admin / office tools better</div>
-        <p class="section-sub" style="margin:4px 0 14px;">This is where we most want your ideas. All optional, answer the ones that jump out.</p>
-        <div class="field">
-          <label class="q" for="answer-admin-add_remove_change_per_screen">Go screen by screen in the side menu (Dashboard, Providers, Customers, Bookings, Dispatch, Catalog, Pricing Rules, Disputes, Financials, Payouts, Templates, Marketing, Recurring, Business, Service Areas). For any screen, tell me one thing you'd ADD, one you'd REMOVE, or one you'd CHANGE. You don't need to cover all of them, just the ones where something jumped out.</label>
-          <textarea id="answer-admin-add_remove_change_per_screen" name="answer:admin:add_remove_change_per_screen" placeholder="Screen: add / remove / change…"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-confusing_anywhere">Anywhere in the admin, what confused you or made you stop and think 'wait, what does this do?' Tell me the screen and what tripped you up.</label>
-          <textarea id="answer-admin-confusing_anywhere" name="answer:admin:confusing_anywhere" placeholder="Screen + what confused you"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-first_second_third_to_see">When you open the admin to run the day, what should be the very FIRST thing you see, then SECOND, then THIRD? List them in order.</label>
-          <textarea id="answer-admin-first_second_third_to_see" name="answer:admin:first_second_third_to_see" placeholder="1… 2… 3…"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-sidebar_order_and_grouping">The left menu has a lot of items. How would you REORDER it, and would you group some under headings (like 'Money', 'People', 'Settings')? Tell me your ideal order.</label>
-          <textarea id="answer-admin-sidebar_order_and_grouping" name="answer:admin:sidebar_order_and_grouping" placeholder="Your ideal menu order / groups"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-rename_labels_buttons">Any menu items, button names, or labels that should be RENAMED to something clearer? For example, is 'Dispatch', 'Catalog', 'Templates', 'Recurring', or 'Compliance' obvious to you? Give me the current name and your better name.</label>
-          <textarea id="answer-admin-rename_labels_buttons" name="answer:admin:rename_labels_buttons" placeholder="Current name → clearer name"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-dispatch_improvements">On the Dispatch console (the live map with active bookings and the Reassign / Cancel / Message buttons), what would make it faster or clearer to run? Anything missing, or any button that feels risky?</label>
-          <textarea id="answer-admin-dispatch_improvements" name="answer:admin:dispatch_improvements" placeholder="What would make dispatch better"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-money_screens_improvements">Looking at Financials and Payouts (where you see earnings and pay providers), what numbers or buttons are missing? What would make paying providers feel safer and clearer?</label>
-          <textarea id="answer-admin-money_screens_improvements" name="answer:admin:money_screens_improvements" placeholder="Missing numbers / safer payouts"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-missing_reports_numbers">What report or number do you wish the admin showed that it doesn't? (For example: today's bookings, money this week, top providers, no-shows, refunds given.) List the ones you'd actually look at.</label>
-          <textarea id="answer-admin-missing_reports_numbers" name="answer:admin:missing_reports_numbers" placeholder="Reports / numbers you'd check"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-bulk_actions">Where do you wish you could act on MANY items at once instead of one by one? (For example: approve several providers, pay many payouts, message a group.) Tell me where.</label>
-          <textarea id="answer-admin-bulk_actions" name="answer:admin:bulk_actions" placeholder="Where you'd want bulk actions"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-filters_and_search">Where did finding something take too long? What filter or search box would you ADD, and on which screen?</label>
-          <textarea id="answer-admin-filters_and_search" name="answer:admin:filters_and_search" placeholder="Screen + filter/search you want"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-what_to_automate">What boring or repeated task should the system do automatically so you don't have to? (For example: reminders, auto-assign, flagging late jobs.)</label>
-          <textarea id="answer-admin-what_to_automate" name="answer:admin:what_to_automate" placeholder="What to automate"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-risky_needs_confirmation">Which actions felt risky or too easy to do by accident, and should ask 'Are you sure?' or be harder to reach? (Cancelling a booking, deleting a service, refunding money, etc.)</label>
-          <textarea id="answer-admin-risky_needs_confirmation" name="answer:admin:risky_needs_confirmation" placeholder="Risky actions to guard"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-new_services_and_grouping">Think about home services in Cebu. What services should we ADD to the catalog, and how would you group them into categories? Give me category names and the services under each, in your own words.</label>
-          <textarea id="answer-admin-new_services_and_grouping" name="answer:admin:new_services_and_grouping" placeholder="Categories + services under each"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-pricing_and_surge_suggestions">Looking at the prices and the surge rules (Rush, Holiday, Peak Hours), what feels OVER-priced, UNDER-priced, or priced the wrong way? What would you charge differently, and why?</label>
-          <textarea id="answer-admin-pricing_and_surge_suggestions" name="answer:admin:pricing_and_surge_suggestions" placeholder="What to price differently, and why"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-admin-one_feature_wish">If you could add ONE new feature to the admin to make your job easier, what would it be?</label>
-          <input type="text" id="answer-admin-one_feature_wish" name="answer:admin:one_feature_wish" placeholder="Your one admin wish">
-        </div>
-      </section>
-
-      <!-- E) OVERALL / NPS -->
-      <section class="card">
-        <div class="sec-head">
-          <div class="badge-chip" aria-hidden="true">E</div>
-          <div class="titles">
-            <h2>Overall</h2>
-            <p>The big-picture question.</p>
-          </div>
-        </div>
-        <div class="field">
-          <label class="q" id="nps-label">How likely are you to recommend onService to a friend? <span class="opt">(0 = never, 10 = absolutely)</span></label>
-          <div class="nps" data-nps role="radiogroup" aria-labelledby="nps-label"></div>
-          <div class="nps-ends"><span>0 = never</span><span>10 = absolutely</span></div>
-        </div>
-        <div class="field">
-          <label class="q" for="nps-reason">Main reason for that number?</label>
-          <textarea id="nps-reason" name="answer:overall:npsreason" placeholder="What made you pick that score?"></textarea>
-        </div>
-      </section>
-
-      <!-- F) IDEAS -->
-      <section class="card">
-        <div class="sec-head">
-          <div class="badge-chip" aria-hidden="true">F</div>
-          <div class="titles">
-            <h2>Ideas &amp; wishes</h2>
-            <p>Dream a little — what would make this great?</p>
-          </div>
-        </div>
-        <div class="field">
-          <label class="q" for="ideas-services">Missing services you'd want</label>
-          <textarea id="ideas-services" name="answer:ideas:services" placeholder="pest control, gardening, laundry pickup, CCTV install, car wash at home…"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="ideas-feature">One feature that would make you actually use this</label>
-          <textarea id="ideas-feature" name="answer:ideas:feature" placeholder="The one thing that would seal the deal."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="ideas-trust">What would make you trust paying through the app?</label>
-          <textarea id="ideas-trust" name="answer:ideas:trust" placeholder="Refunds, receipts, verified providers…"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="ideas-else">Anything else you wish worked differently</label>
-          <textarea id="ideas-else" name="ideas" placeholder="No idea too small."></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-ideas-add_one">If you could ADD just one thing to the app, what would it be?</label>
-          <textarea id="answer-ideas-add_one" name="answer:ideas:add_one" placeholder="The one thing you'd add"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-ideas-remove_simplify">What is one thing you'd REMOVE or make simpler? (anything that felt like too much, too many steps, or just in the way)</label>
-          <textarea id="answer-ideas-remove_simplify" name="answer:ideas:remove_simplify" placeholder="What you'd remove or simplify"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-ideas-confusing_word">Which word, label, or button name confused you the most, and what would be a clearer name for it?</label>
-          <input type="text" id="answer-ideas-confusing_word" name="answer:ideas:confusing_word" placeholder="The word → a clearer name">
-        </div>
-        <div class="field">
-          <label class="q" for="answer-ideas-fix_priority">If we could only fix three things, which would you want fixed FIRST, SECOND, and THIRD? (list 1, 2, 3)</label>
-          <textarea id="answer-ideas-fix_priority" name="answer:ideas:fix_priority" placeholder="1… 2… 3…"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-ideas-group_services">How should the services be grouped so they're easy to find? (e.g. which ones belong together under one heading like "Home cleaning" or "Repairs")</label>
-          <textarea id="answer-ideas-group_services" name="answer:ideas:group_services" placeholder="How you'd group the services"></textarea>
-        </div>
-        <div class="field">
-          <label class="q" for="answer-ideas-price_feel">Was there anything that felt too expensive, or surprisingly cheap?</label>
-          <input type="text" id="answer-ideas-price_feel" name="answer:ideas:price_feel" placeholder="Too pricey, or too cheap?">
-        </div>
-        <div class="field">
-          <label class="q" for="answer-ideas-price_fair">Is there anything you'd price differently, and what would feel fair to you?</label>
-          <textarea id="answer-ideas-price_fair" name="answer:ideas:price_fair" placeholder="What you'd price differently, and what's fair"></textarea>
-        </div>
-      </section>
-
-      <!-- G) PRICES -->
-      <section class="card">
-        <div class="sec-head">
-          <div class="badge-chip" aria-hidden="true">G</div>
-          <div class="titles">
-            <h2>What feels like a fair price?</h2>
-            <p>In pesos (₱). Leave blank if you're not sure.</p>
-          </div>
-        </div>
-
-        <div class="price-group">
-          <div class="pg-title"><span aria-hidden="true">🧹</span> General home cleaning</div>
-          <div class="pg-sub">About 2 hours</div>
-          <div class="price-row">
-            <label for="cl-toocheap">So cheap you'd doubt the quality</label>
-            <div class="peso-wrap"><input type="number" id="cl-toocheap" name="price:cleaning:toocheap" min="0" inputmode="numeric" placeholder="0"></div>
-          </div>
-          <div class="price-row">
-            <label for="cl-deal">A great deal</label>
-            <div class="peso-wrap"><input type="number" id="cl-deal" name="price:cleaning:deal" min="0" inputmode="numeric" placeholder="0"></div>
-          </div>
-          <div class="price-row">
-            <label for="cl-pricey">Starting to feel expensive</label>
-            <div class="peso-wrap"><input type="number" id="cl-pricey" name="price:cleaning:pricey" min="0" inputmode="numeric" placeholder="0"></div>
-          </div>
-          <div class="price-row">
-            <label for="cl-toomuch">Too expensive, you'd walk away</label>
-            <div class="peso-wrap"><input type="number" id="cl-toomuch" name="price:cleaning:toomuch" min="0" inputmode="numeric" placeholder="0"></div>
-          </div>
-        </div>
-
-        <div class="price-group">
-          <div class="pg-title"><span aria-hidden="true">❄️</span> Aircon cleaning</div>
-          <div class="pg-sub">One split unit</div>
-          <div class="price-row">
-            <label for="ac-toocheap">So cheap you'd doubt the quality</label>
-            <div class="peso-wrap"><input type="number" id="ac-toocheap" name="price:aircon:toocheap" min="0" inputmode="numeric" placeholder="0"></div>
-          </div>
-          <div class="price-row">
-            <label for="ac-deal">A great deal</label>
-            <div class="peso-wrap"><input type="number" id="ac-deal" name="price:aircon:deal" min="0" inputmode="numeric" placeholder="0"></div>
-          </div>
-          <div class="price-row">
-            <label for="ac-pricey">Starting to feel expensive</label>
-            <div class="peso-wrap"><input type="number" id="ac-pricey" name="price:aircon:pricey" min="0" inputmode="numeric" placeholder="0"></div>
-          </div>
-          <div class="price-row">
-            <label for="ac-toomuch">Too expensive, you'd walk away</label>
-            <div class="peso-wrap"><input type="number" id="ac-toomuch" name="price:aircon:toomuch" min="0" inputmode="numeric" placeholder="0"></div>
-          </div>
-        </div>
-
-        <div class="price-group">
-          <div class="pg-title"><span aria-hidden="true">🔧</span> A plumber visit</div>
-          <div class="pg-sub">Basic</div>
-          <div class="price-row">
-            <label for="pl-toocheap">So cheap you'd doubt the quality</label>
-            <div class="peso-wrap"><input type="number" id="pl-toocheap" name="price:plumber:toocheap" min="0" inputmode="numeric" placeholder="0"></div>
-          </div>
-          <div class="price-row">
-            <label for="pl-deal">A great deal</label>
-            <div class="peso-wrap"><input type="number" id="pl-deal" name="price:plumber:deal" min="0" inputmode="numeric" placeholder="0"></div>
-          </div>
-          <div class="price-row">
-            <label for="pl-pricey">Starting to feel expensive</label>
-            <div class="peso-wrap"><input type="number" id="pl-pricey" name="price:plumber:pricey" min="0" inputmode="numeric" placeholder="0"></div>
-          </div>
-          <div class="price-row">
-            <label for="pl-toomuch">Too expensive, you'd walk away</label>
-            <div class="peso-wrap"><input type="number" id="pl-toomuch" name="price:plumber:toomuch" min="0" inputmode="numeric" placeholder="0"></div>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="q" for="prices-rush">Would you pay extra for same-day / within 2 hours? How much more?</label>
-          <input type="text" id="prices-rush" name="answer:prices:rush" placeholder="e.g. yes, about ₱150 more">
-        </div>
-      </section>
-
-      <!-- H) BUGS & FRICTION -->
-      <section class="card">
-        <div class="sec-head">
-          <div class="badge-chip" aria-hidden="true">H</div>
-          <div class="titles">
-            <h2>Bugs &amp; rough spots</h2>
-            <p>Hit something broken or confusing? Add it here. One box per problem.</p>
-          </div>
-        </div>
-
-        <div id="issues"></div>
-
-        <button type="button" id="addIssue" class="addbtn">＋ Add another</button>
-
-        <template id="issueTemplate">
-          <div class="issue-head">
-            <span class="it"><span class="dot-i" aria-hidden="true"></span> Issue</span>
-            <button type="button" data-remove>remove</button>
-          </div>
-          <div class="issue-grid">
-            <div>
-              <span class="mini-label">Which area?</span>
-              <select data-k="area">
-                <option value="">Choose…</option>
-                <option value="customer">Customer</option>
-                <option value="provider">Provider</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div>
-              <span class="mini-label">What kind?</span>
-              <select data-k="type">
-                <option value="">Choose…</option>
-                <option value="bug">Bug</option>
-                <option value="friction">Friction</option>
-                <option value="idea">Idea</option>
-                <option value="service idea">Service idea</option>
-                <option value="price idea">Price idea</option>
-                <option value="praise">Praise</option>
-              </select>
-            </div>
-            <div>
-              <span class="mini-label">How bad?</span>
-              <select data-k="severity">
-                <option value="">Choose…</option>
-                <option value="blocker">Blocker</option>
-                <option value="major">Major</option>
-                <option value="minor">Minor</option>
-                <option value="idea">Idea</option>
-                <option value="praise">Praise</option>
-              </select>
-            </div>
-            <div>
-              <span class="mini-label">Where were you? (which screen)</span>
-              <input type="text" data-k="where" placeholder="e.g. Booking page">
-            </div>
-            <div class="full">
-              <span class="mini-label">What happened?</span>
-              <textarea data-k="what" placeholder="Describe what you saw…"></textarea>
-            </div>
-            <div class="full">
-              <span class="mini-label">What did you expect instead? <span class="opt">(optional)</span></span>
-              <textarea data-k="expected" placeholder="What you thought would happen…"></textarea>
-            </div>
-            <div class="full">
-              <span class="mini-label">How to see it again? <span class="opt">(optional)</span></span>
-              <input type="text" data-k="repro" placeholder="e.g. tap Book, then tap Pay">
-            </div>
-            <div class="full uploader-row">
-              <span class="mini-label">📷 Add a screenshot of the problem <span class="opt">(optional)</span></span>
-              <input type="file" accept="image/*" multiple>
-              <span data-previews></span>
-            </div>
-          </div>
-        </template>
-      </section>
-
-      <p class="privacy">🔒 Thank you for helping. We only use this to improve the app. Your contact info is optional and never shared.</p>
-
-    </form>
-
-    <!-- THANK YOU -->
-    <div id="thanks" style="display:none">
-      <div class="tcard">
-        <div class="checkmark" aria-hidden="true">✓</div>
-        <h2>Got it — <span class="salamat">salamat!</span></h2>
-        <p>Your feedback is in. Every note helps us make onService better for everyone. We really appreciate the time you gave.</p>
-        <button type="button" id="again">Submit more feedback</button>
-      </div>
-    </div>
-
-    <p class="foot"><span class="fm">on<span class="svc">Service</span></span> · Made for Metro Cebu &amp; beyond</p>
-
-  </main>
-
-  <!-- STICKY SUBMIT BAR (lives outside the form, uses form="fb") -->
-  <div class="submit-bar">
-    <div class="submit-bar-inner">
-      <div id="status"></div>
-      <button type="submit" id="submitBtn" form="fb">Submit my feedback</button>
-    </div>
-  </div>
-
-  <style>
-    .shot.loading {
-      background: linear-gradient(90deg, #e2e8f0, #f1f5f9, #e2e8f0);
-      background-size: 200% 100%;
-      animation: shotpulse 1.1s ease-in-out infinite;
-    }
-    @keyframes shotpulse { 0% { background-position: 0% 0; } 100% { background-position: -200% 0; } }
-    #status.err { color: var(--rose); font-weight: 600; font-size: 14px; }
-    #status.err:not(:empty) { margin-bottom: 8px; }
-  </style>
-  <script>
-  /* CANON-FEEDBACK-JS v2 — structure-agnostic wiring for the feedback page.
-     Builds rating/NPS controls, gates sections by area, clones issue rows,
-     uploads screenshots, and submits the questionnaire as JSON. */
-  (function () {
-    var API = '/api/v1/feedback';
-
-    // Mirror the API's text caps in the browser so a tester cannot unknowingly
-    // write more than the server can store. The API remains authoritative for
-    // direct or programmatic requests.
-    function applyTextLimits(scope) {
-      var name = scope.querySelector('[name="testerName"]');
-      var contact = scope.querySelector('[name="testerContact"]');
-      var ideas = scope.querySelector('[name="ideas"]');
-      if (name) name.setAttribute('maxlength', '200');
-      if (contact) contact.setAttribute('maxlength', '200');
-      if (ideas) ideas.setAttribute('maxlength', '10000');
-      scope.querySelectorAll('textarea[name^="answer:"], input[type="text"][name^="answer:"]').forEach(function (field) {
-        field.setAttribute('maxlength', '2000');
-      });
-      scope.querySelectorAll('[data-k="where"], [data-k="what"], [data-k="expected"], [data-k="repro"]').forEach(function (field) {
-        field.setAttribute('maxlength', '3000');
-      });
-    }
-    applyTextLimits(document);
-
-    // ---- 1-5 rating scales ----
-    document.querySelectorAll('[data-name^="rating:"]').forEach(function (s) {
-      var name = s.getAttribute('data-name');
-      s.setAttribute('role', 'radiogroup');
-      for (var i = 1; i <= 5; i++) {
-        var l = document.createElement('label');
-        l.className = 'scale-opt';
-        l.innerHTML = '<input type="radio" name="' + name + '" value="' + i + '"><span>' + i + '</span>';
-        s.appendChild(l);
+  // ---------- storage (every access guarded: the page must work with storage blocked) ----------
+  function load(name) {
+    try {
+      var raw = window.localStorage.getItem(KEY + name);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+  function keep(name, value) {
+    try {
+      window.localStorage.setItem(KEY + name, JSON.stringify(value));
+      return true;
+    } catch (e) { return false; /* storage blocked or full */ }
+  }
+  function forget(name) {
+    try { window.localStorage.removeItem(KEY + name); } catch (e) { /* storage blocked */ }
+  }
+  function draftKeys() {
+    var keys = [];
+    try {
+      var ls = window.localStorage;
+      for (var i = 0; i < ls.length; i += 1) {
+        var k = ls.key(i);
+        if (k && k.indexOf(KEY + 'draft:') === 0) keys.push(k.slice(KEY.length));
       }
-    });
+    } catch (e) { /* storage blocked */ }
+    return keys;
+  }
+  function getDraft(formKey) {
+    var d = load('draft:' + formKey);
+    if (!d || typeof d !== 'object') d = {};
+    if (!d.fields || typeof d.fields !== 'object') d.fields = {};
+    if (!Array.isArray(d.shots)) d.shots = [];
+    return d;
+  }
+  function putDraft(formKey, draft) { keep('draft:' + formKey, draft); }
 
-    // ---- NPS 0-10 ----
-    document.querySelectorAll('[data-nps]').forEach(function (nps) {
-      for (var n = 0; n <= 10; n++) {
-        var l = document.createElement('label');
-        l.className = 'nps-opt';
-        l.innerHTML = '<input type="radio" name="nps" value="' + n + '"><span>' + n + '</span>';
-        nps.appendChild(l);
+  // ---------- DOM helpers ----------
+  function append(el, kids) {
+    if (kids === null || kids === undefined || kids === false) return;
+    if (!Array.isArray(kids)) kids = [kids];
+    for (var i = 0; i < kids.length; i += 1) {
+      var c = kids[i];
+      if (c === null || c === undefined || c === false) continue;
+      if (Array.isArray(c)) append(el, c);
+      else el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    }
+  }
+  function h(tag, attrs, kids) {
+    var el = document.createElement(tag);
+    if (attrs) {
+      Object.keys(attrs).forEach(function (k) {
+        var v = attrs[k];
+        if (v === null || v === undefined || v === false) return;
+        if (k === 'class') el.className = v;
+        else if (k === 'text') el.textContent = v;
+        else if (k.indexOf('on') === 0 && typeof v === 'function') el.addEventListener(k.slice(2), v);
+        else if (v === true) el.setAttribute(k, '');
+        else el.setAttribute(k, String(v));
+      });
+    }
+    append(el, kids);
+    return el;
+  }
+  function uid(prefix) { idSeq += 1; return prefix + '-' + idSeq; }
+  function each(list, fn) { Array.prototype.forEach.call(list, fn); }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+
+  // ---------- API ----------
+  function errorText(body, status) {
+    if (body && body.error) {
+      if (typeof body.error === 'string') return body.error;
+      if (body.error.message) return String(body.error.message);
+    }
+    if (status === 413) return 'That screenshot is too big. Please add a smaller one.';
+    if (status === 429) return 'Too many tries from this connection. Please wait a little and try again.';
+    return 'Something went wrong on our side (error ' + status + '). Please try again.';
+  }
+  async function api(path, opts) {
+    var res;
+    try {
+      res = await window.fetch(API + path, opts || {});
+    } catch (e) {
+      var netErr = new Error(NETWORK_MSG);
+      netErr.status = 0;
+      throw netErr;
+    }
+    var body = null;
+    try { body = await res.json(); } catch (e) { body = null; }
+    if (!res.ok || !body || body.success === false) {
+      var err = new Error(errorText(body, res.status));
+      err.status = res.status;
+      throw err;
+    }
+    return body.data;
+  }
+  function sessionHeaders(extra) {
+    var headers = { 'x-feedback-session': state.session.token };
+    if (extra) Object.keys(extra).forEach(function (k) { headers[k] = extra[k]; });
+    return headers;
+  }
+
+  // ---------- device detection (pre-fills; the tester can change it) ----------
+  function ua() { return (window.navigator && navigator.userAgent) || ''; }
+  function detectDevice() {
+    var u = ua();
+    if (/iPad|Tablet/i.test(u) || (/Android/i.test(u) && !/Mobile/i.test(u))) return 'tablet';
+    if (/Mobi|Android|iPhone|iPod/i.test(u)) return 'phone';
+    return 'computer';
+  }
+  function detectSurface(device) {
+    if (state.surface) return state.surface;
+    return (/Android/i.test(ua()) && device === 'phone') ? 'apk' : 'browser';
+  }
+  function platformDetail() {
+    var u = ua();
+    var m;
+    var os = 'Unknown system';
+    if ((m = /Android ([\d.]+)/.exec(u))) os = 'Android ' + m[1];
+    else if ((m = /(?:iPhone|CPU) OS ([\d_]+)/.exec(u))) os = 'iOS ' + m[1].replace(/_/g, '.');
+    else if (/Windows NT/.test(u)) os = 'Windows';
+    else if (/Mac OS X/.test(u)) os = 'Mac';
+    else if (/Linux/.test(u)) os = 'Linux';
+    var browser = 'unknown browser';
+    if ((m = /SamsungBrowser\/([\d.]+)/.exec(u))) browser = 'Samsung Internet ' + m[1];
+    else if ((m = /Edg\/(\d+)/.exec(u))) browser = 'Edge ' + m[1];
+    else if ((m = /OPR\/(\d+)/.exec(u))) browser = 'Opera ' + m[1];
+    else if ((m = /Firefox\/(\d+)/.exec(u))) browser = 'Firefox ' + m[1];
+    else if ((m = /Chrome\/(\d+)/.exec(u))) browser = 'Chrome ' + m[1];
+    else if ((m = /Version\/([\d.]+).*Safari/.exec(u))) browser = 'Safari ' + m[1];
+    var size = '';
+    try { size = ', screen ' + window.screen.width + 'x' + window.screen.height; } catch (e) { size = ''; }
+    return (os + ', ' + browser + size).slice(0, 200);
+  }
+
+  // ---------- URL parameters (?report=1&screen=<route>&app=<version>&surface=apk|browser) ----------
+  function readParams() {
+    var p = null;
+    try { p = new URLSearchParams(window.location.search); } catch (e) { p = null; }
+    if (p) {
+      var surface = p.get('surface');
+      if (surface === 'apk' || surface === 'browser') state.surface = surface;
+      var appVersion = (p.get('app') || '').trim();
+      if (appVersion) { state.appVersion = appVersion.slice(0, 40); state.urlAppVersion = state.appVersion; }
+      if (p.get('report') === '1') {
+        state.pendingReport = { route: (p.get('screen') || '').trim().slice(0, 200) };
+        keep('pendingReport', state.pendingReport);
       }
+      if (p.get('report') || p.get('screen')) {
+        // So a reload does not open a fresh report form again.
+        try { window.history.replaceState(null, '', window.location.pathname + window.location.hash); } catch (e) { /* ignore */ }
+      }
+    }
+    if (!state.pendingReport) {
+      var saved = load('pendingReport');
+      if (saved && typeof saved.route === 'string') state.pendingReport = saved;
+    }
+    if (!state.appVersion) state.appVersion = load('appVersion');
+    else keep('appVersion', state.appVersion);
+    if (!state.surface) state.surface = load('surface');
+    else keep('surface', state.surface);
+  }
+
+  // ---------- routing ----------
+  function routeFromHash() {
+    return (window.location.hash || '').replace(/^#\/?/, '');
+  }
+  function go(route, replace) {
+    state.route = route;
+    try {
+      if (routeFromHash() !== route) {
+        if (replace) window.history.replaceState(null, '', '#/' + route);
+        else window.history.pushState(null, '', '#/' + route);
+      }
+    } catch (e) { /* history blocked: still render */ }
+    render();
+  }
+  function onNav() {
+    var r = routeFromHash();
+    if (r && r !== state.route) { state.route = r; render(); }
+  }
+
+  // ---------- study helpers ----------
+  function role() { return (state.progress && state.progress.role) || (state.session && state.session.role) || 'customer'; }
+  function missionsForRole() {
+    var r = role();
+    return state.study.missions.filter(function (m) { return r === 'both' || m.role === r; });
+  }
+  function findMission(key) {
+    var list = missionsForRole();
+    for (var i = 0; i < list.length; i += 1) if (list[i].key === key) return list[i];
+    return null;
+  }
+  function wrapupQuestions() {
+    var r = role();
+    return state.study.wrapup.filter(function (q) { return !q.roles || r === 'both' || q.roles.indexOf(r) !== -1; });
+  }
+  function isSaved(kind, itemKey) {
+    var saved = (state.progress && state.progress.saved) || [];
+    for (var i = 0; i < saved.length; i += 1) if (saved[i].kind === kind && saved[i].itemKey === itemKey) return true;
+    return false;
+  }
+  function markSaved(kind, itemKey) {
+    if (!state.progress) state.progress = { role: role(), saved: [], problems: 0 };
+    if (kind === 'problem') { state.progress.problems = (state.progress.problems || 0) + 1; return; }
+    if (!isSaved(kind, itemKey)) state.progress.saved.push({ kind: kind, itemKey: itemKey });
+  }
+  function missionsDone() {
+    return missionsForRole().filter(function (m) { return isSaved('mission', m.key); }).length;
+  }
+
+  // ---------- form building blocks ----------
+  function syncChoices(container) {
+    each(container.querySelectorAll('.choice'), function (lab) {
+      var input = lab.querySelector('input');
+      if (input) lab.className = 'choice' + (input.checked ? ' is-checked' : '');
     });
+  }
+  function choice(type, name, value, text, hint, ariaLabel) {
+    var input = h('input', { type: type, name: name, value: value, 'aria-label': ariaLabel || null });
+    return h('label', { class: 'choice' }, [input, h('span', null, [
+      h('span', { class: 'ct', text: text }),
+      hint ? h('span', { class: 'ch', text: hint }) : null
+    ])]);
+  }
+  function questionField(q, prefix) {
+    var id = uid('q');
+    var hintId = q.hint ? id + '-hint' : null;
+    return h('div', { class: 'field' }, [
+      h('label', { for: id }, [q.label, q.required ? null : h('span', { class: 'opt', text: ' (optional)' })]),
+      q.hint ? h('span', { class: 'hint', id: hintId, text: q.hint }) : null,
+      h('textarea', {
+        id: id, name: prefix + q.key, maxlength: q.maxLength, rows: 3,
+        'aria-required': q.required ? 'true' : null, 'aria-describedby': hintId
+      })
+    ]);
+  }
+  function scale(name, legendText, from, to, lowLabel, highLabel) {
+    var row = h('div', { class: 'scale' });
+    for (var n = from; n <= to; n += 1) {
+      var aria = String(n);
+      if (n === from) aria = n + ', ' + lowLabel;
+      if (n === to) aria = n + ', ' + highLabel;
+      row.appendChild(choice('radio', name, String(n), String(n), null, aria));
+    }
+    return h('fieldset', null, [
+      h('legend', { text: legendText }),
+      row,
+      h('div', { class: 'scale-ends', 'aria-hidden': 'true' }, [
+        h('span', { text: from + ' = ' + lowLabel }), h('span', { text: to + ' = ' + highLabel })
+      ])
+    ]);
+  }
+  function errorBox() { return h('div', { class: 'err', role: 'alert', 'aria-live': 'assertive' }); }
 
-    // ---- progressive disclosure: show a rating group only if its area is
-    // checked (or none checked yet). Single source of truth = name="area". ----
-    function applyAreaFilter() {
-      var checked = Array.prototype.slice.call(document.querySelectorAll('input[name="area"]:checked')).map(function (c) { return c.value; });
-      document.querySelectorAll('[data-rategroup]').forEach(function (g) {
-        var area = g.getAttribute('data-rategroup');
-        g.style.display = (checked.length === 0 || checked.indexOf(area) !== -1) ? '' : 'none';
-      });
-    }
-    document.querySelectorAll('input[name="area"]').forEach(function (c) { c.addEventListener('change', applyAreaFilter); });
-    applyAreaFilter();
+  function readForm(form) {
+    var out = {};
+    each(form.elements, function (el) {
+      if (!el.name || el.name === 'website' || el.type === 'file' || el.type === 'submit' || el.type === 'button') return;
+      if (el.type === 'radio') { if (el.checked) out[el.name] = el.value; return; }
+      if (el.type === 'checkbox') {
+        if (!out[el.name]) out[el.name] = [];
+        if (el.checked) out[el.name].push(el.value);
+        return;
+      }
+      out[el.name] = el.value;
+    });
+    return out;
+  }
+  function fillForm(form, fields) {
+    each(form.elements, function (el) {
+      if (!el.name || !Object.prototype.hasOwnProperty.call(fields, el.name)) return;
+      var v = fields[el.name];
+      if (el.type === 'radio') el.checked = (v === el.value);
+      else if (el.type === 'checkbox') el.checked = Array.isArray(v) && v.indexOf(el.value) !== -1;
+      else if (el.type !== 'file' && typeof v === 'string') el.value = v;
+    });
+    syncChoices(form);
+  }
+  function answersFrom(fields, questions, prefix) {
+    var out = {};
+    questions.forEach(function (q) {
+      var v = String(fields[prefix + q.key] || '').trim();
+      if (v) out[q.key] = v;
+    });
+    return out;
+  }
 
-    // ---- top scroll progress bar ----
-    var progress = document.getElementById('progress');
-    if (progress) {
-      var onScroll = function () {
-        var h = document.documentElement;
-        var max = (h.scrollHeight - h.clientHeight) || 1;
-        progress.style.width = Math.min(100, Math.max(0, (h.scrollTop || document.body.scrollTop) / max * 100)) + '%';
-      };
-      window.addEventListener('scroll', onScroll, { passive: true });
-      window.addEventListener('resize', onScroll);
-      onScroll();
+  // Wires a form: restores its draft, autosaves every change, tracks it as the
+  // form on screen (for paste and drop), and runs onSave when Save is pressed.
+  function setupForm(formKey, form, saveText, hasShots, onSave) {
+    var draft = getDraft(formKey);
+    fillForm(form, draft.fields);
+    var saveBtn = form.querySelector('button[type="submit"]');
+    var current = { key: formKey, el: form, saveBtn: saveBtn, saveText: saveText, saving: false, hasShots: hasShots };
+    state.form = current;
+    function persist() {
+      var d = getDraft(formKey);
+      d.fields = readForm(form);
+      putDraft(formKey, d);
     }
-
-    // ---- screenshot upload ----
-    function uploadImage(file) {
-      var fd = new FormData();
-      fd.append('file', file);
-      return fetch(API + '/upload', { method: 'POST', body: fd }).then(function (res) {
-        return res.json().catch(function () { return {}; }).then(function (data) {
-          if (!res.ok || !data.success || !data.url) throw new Error((data && data.error) || 'Upload failed');
-          return data.url;
-        });
-      });
-    }
-    function bindUploader(scope) {
-      var input = scope.querySelector('input[type=file]');
-      var previews = scope.querySelector('[data-previews]');
-      if (!input || !previews) return;
-      input.addEventListener('change', function () {
-        Array.prototype.slice.call(input.files || []).forEach(function (file) {
-          var chip = document.createElement('span');
-          chip.className = 'shot loading';
-          var previewUrl = typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : '';
-          if (previewUrl) chip.setAttribute('data-preview-url', previewUrl);
-          var img = document.createElement('img');
-          img.alt = 'Selected screenshot';
-          if (previewUrl) img.src = previewUrl;
-          chip.appendChild(img);
-          previews.appendChild(chip);
-          uploadImage(file).then(function (url) {
-            chip.className = 'shot';
-            chip.setAttribute('data-url', url);
-            var x = document.createElement('button'); x.type = 'button'; x.className = 'shot-x'; x.setAttribute('aria-label', 'Remove'); x.textContent = '×';
-            x.addEventListener('click', function () { releasePreview(chip); chip.remove(); });
-            chip.appendChild(x);
-          }).catch(function () {
-            releasePreview(chip);
-            chip.className = 'shot err';
-            chip.title = 'Upload failed (use a JPG/PNG/WebP under 10MB)';
-          });
-        });
-        input.value = '';
-      });
-    }
-    function collectShots(scope) {
-      return Array.prototype.slice.call(scope.querySelectorAll('.shot[data-url]')).map(function (c) { return c.getAttribute('data-url'); });
-    }
-    function releasePreview(chip) {
-      var previewUrl = chip.getAttribute('data-preview-url');
-      if (previewUrl && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(previewUrl);
-      chip.removeAttribute('data-preview-url');
-    }
-    function releaseAllPreviews(scope) {
-      scope.querySelectorAll('.shot[data-preview-url]').forEach(releasePreview);
-    }
-
-    // ---- issue rows (cloned from <template id="issueTemplate">) ----
-    var issues = document.getElementById('issues');
-    var tpl = document.getElementById('issueTemplate');
-    function addIssue() {
-      if (!issues || !tpl || !tpl.content) return;
-      var wrap = document.createElement('div');
-      wrap.className = 'issue';
-      wrap.appendChild(tpl.content.cloneNode(true));
-      issues.appendChild(wrap);
-      applyTextLimits(wrap);
-      var rm = wrap.querySelector('[data-remove]');
-      if (rm) rm.addEventListener('click', function () { releaseAllPreviews(wrap); wrap.remove(); });
-      bindUploader(wrap);
-    }
-    var addBtn = document.getElementById('addIssue');
-    if (addBtn) addBtn.addEventListener('click', addIssue);
-    addIssue();
-
-    // ---- collect + submit ----
-    function collectPrefixed(prefix) {
-      var out = {};
-      document.querySelectorAll('[name^="' + prefix + '"]').forEach(function (el) {
-        if (el.type === 'radio' && !el.checked) return;
-        var key = el.name.slice(prefix.length);
-        var v = (el.value || '').trim();
-        if (v) out[key] = v;
-      });
-      return out;
-    }
-
-    var form = document.getElementById('fb');
-    var statusEl = document.getElementById('status');
-    var btn = document.getElementById('submitBtn');
-    if (!form) return;
-
+    form.addEventListener('input', persist);
+    form.addEventListener('change', function () { syncChoices(form); persist(); });
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      if (statusEl) { statusEl.className = ''; statusEl.textContent = ''; }
+      if (current.saving || pendingCount(formKey) > 0) return;
+      onSave(readForm(form), current);
+    });
+    updateSaveButton(current);
+    return current;
+  }
+  function updateSaveButton(current) {
+    if (!current || !current.saveBtn) return;
+    var pending = pendingCount(current.key);
+    if (current.saving) { current.saveBtn.disabled = true; current.saveBtn.textContent = 'Saving...'; return; }
+    if (pending > 0) {
+      current.saveBtn.disabled = true;
+      current.saveBtn.textContent = 'Waiting for ' + plural(pending, 'screenshot', 'screenshots') + ' to finish';
+      return;
+    }
+    current.saveBtn.disabled = false;
+    current.saveBtn.textContent = current.saveText;
+  }
+  function showError(form, message, sessionGone) {
+    var box = form.querySelector('.err');
+    if (!box) return;
+    box.textContent = message;
+    if (sessionGone) {
+      box.appendChild(h('div', null, h('button', { type: 'button', class: 'btn secondary small-btn', onclick: startOver, text: 'Start again' })));
+    }
+    if (box.scrollIntoView) { try { box.scrollIntoView({ block: 'center' }); } catch (e) { /* old browsers */ } }
+  }
+  function clearError(form) {
+    var box = form.querySelector('.err');
+    if (box) box.textContent = '';
+  }
 
-      var fd = new FormData(form);
-      var areas = fd.getAll('area');
-
-      var items = [];
-      document.querySelectorAll('#issues .issue').forEach(function (div) {
-        var it = {};
-        div.querySelectorAll('[data-k]').forEach(function (el) {
-          var v = (el.value || '').trim();
-          if (v) it[el.getAttribute('data-k')] = v;
-        });
-        var shots = collectShots(div);
-        if (shots.length) it.screenshots = shots;
-        if (Object.keys(it).length) items.push(it);
+  // While a save is on its way, the form is locked: nothing typed, picked or
+  // pasted in that moment could be left out of the save and then lost.
+  function lockForm(current, locked) {
+    each(current.el.elements, function (el) {
+      if (el.name === 'website') return;
+      el.disabled = locked;
+    });
+    if (!locked) updateSaveButton(current);
+  }
+  async function postEntry(current, body, onDone) {
+    var form = current.el;
+    clearError(form);
+    current.saving = true;
+    lockForm(current, true);
+    updateSaveButton(current);
+    try {
+      var data = await api('/sessions/' + state.session.id + '/entries', {
+        method: 'POST',
+        headers: sessionHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body)
       });
+      current.saving = false;
+      lockForm(current, false);
+      // Screenshots saved with a first impression, mission or wrap-up are kept
+      // by the server, so they can never expire from the draft.
+      if (body.kind !== 'problem' && Array.isArray(body.screenshots) && body.screenshots.length) {
+        shotList(current.key).forEach(function (s) { if (body.screenshots.indexOf(s.filename) !== -1) s.saved = true; });
+        persistShots(current.key);
+      }
+      onDone(data);
+    } catch (e) {
+      current.saving = false;
+      lockForm(current, false);
+      showError(form, e.message, e.status === 401 || e.status === 403);
+    }
+  }
 
-      var payload = {
-        testerName: (fd.get('testerName') || '').trim(),
-        testerContact: (fd.get('testerContact') || '').trim(),
-        device: (fd.get('device') || '').trim(),
-        areas: areas,
-        role: areas.length === 1 ? areas[0] : (areas.length > 1 ? 'mixed' : ''),
-        nps: fd.get('nps') || '',
-        ratings: collectPrefixed('rating:'),
-        answers: collectPrefixed('answer:'),
-        prices: collectPrefixed('price:'),
-        ideas: (fd.get('ideas') || '').trim(),
-        items: items,
-        _hp: (fd.get('_hp') || '')
+  // ---------- screenshots ----------
+  // A screenshot uploaded but not yet saved with an answer is deleted by the
+  // server after a day. Drafts remember when each one was uploaded, and
+  // whether it was saved with an answer (saved ones are kept by the server).
+  function isStale(shot) {
+    if (shot.saved) return false;
+    return shot.status === 'done' && !(typeof shot.at === 'number' && Date.now() - shot.at < SHOT_MAX_AGE_MS);
+  }
+  function shotList(formKey) {
+    if (!state.shots[formKey]) {
+      state.shots[formKey] = getDraft(formKey).shots.map(function (saved) {
+        shotSeq += 1;
+        var filename = saved && typeof saved === 'object' ? saved.filename : saved;
+        var at = saved && typeof saved === 'object' ? saved.at : null;
+        var wasSaved = !!(saved && typeof saved === 'object' && saved.saved === true);
+        return { id: shotSeq, status: 'done', filename: String(filename || ''), at: at, saved: wasSaved, url: null, error: null };
+      }).filter(function (s) { return !!s.filename; });
+    }
+    return state.shots[formKey];
+  }
+  function pendingCount(formKey) {
+    return (state.shots[formKey] || []).filter(function (s) { return s.status === 'uploading'; }).length;
+  }
+  function freshShots(formKey) {
+    return shotList(formKey).filter(function (s) { return s.status === 'done' && !isStale(s); });
+  }
+  function doneFilenames(formKey) {
+    return freshShots(formKey).map(function (s) { return s.filename; });
+  }
+  function persistShots(formKey) {
+    var d = getDraft(formKey);
+    d.shots = freshShots(formKey).map(function (s) { return s.saved ? { filename: s.filename, at: s.at, saved: true } : { filename: s.filename, at: s.at }; });
+    putDraft(formKey, d);
+  }
+  function objectUrl(file) {
+    try {
+      if (window.URL && typeof window.URL.createObjectURL === 'function') return window.URL.createObjectURL(file);
+    } catch (e) { /* no preview */ }
+    return null;
+  }
+  function releaseUrl(shot) {
+    if (!shot.url) return;
+    try { window.URL.revokeObjectURL(shot.url); } catch (e) { /* ignore */ }
+    shot.url = null;
+  }
+  function clearShots(formKey) {
+    (state.shots[formKey] || []).forEach(releaseUrl);
+    state.shots[formKey] = [];
+  }
+  function setShotNote(formKey, text) {
+    if (!state.form || state.form.key !== formKey) return;
+    var note = state.form.el.querySelector('.shot-note');
+    if (note) note.textContent = text;
+  }
+  function addFiles(formKey, files) {
+    if (state.form && state.form.key === formKey && state.form.saving) {
+      setShotNote(formKey, 'Please wait until saving has finished, then add that screenshot again.');
+      return;
+    }
+    var list = shotList(formKey);
+    setShotNote(formKey, '');
+    for (var i = 0; i < files.length; i += 1) {
+      var file = files[i];
+      var active = list.filter(function (s) { return s.status !== 'error' && !isStale(s); }).length;
+      if (active >= MAX_SHOTS) {
+        setShotNote(formKey, 'You can add up to ' + MAX_SHOTS + ' screenshots here.');
+        break;
+      }
+      shotSeq += 1;
+      var shot = { id: shotSeq, status: 'uploading', filename: null, url: objectUrl(file), error: null };
+      list.push(shot);
+      if (!EXT[file.type]) {
+        shot.status = 'error';
+        shot.error = 'Please add a JPG, PNG or WebP screenshot.';
+      } else if (file.size > MAX_BYTES) {
+        shot.status = 'error';
+        shot.error = 'This screenshot is over 10 MB. Please add a smaller one.';
+      } else {
+        uploadShot(formKey, shot, file);
+      }
+    }
+    refreshShots(formKey);
+  }
+  async function uploadShot(formKey, shot, file) {
+    var fd = new FormData();
+    // The server checks the file name's ending, and pasted images often have none.
+    fd.append('file', file, 'screenshot.' + EXT[file.type]);
+    try {
+      var data = await api('/sessions/' + state.session.id + '/uploads', {
+        method: 'POST', headers: sessionHeaders(), body: fd
+      });
+      if (shot.removed) return;
+      shot.status = 'done';
+      shot.filename = data.filename;
+      shot.at = Date.now();
+      persistShots(formKey);
+    } catch (e) {
+      if (shot.removed) return;
+      shot.status = 'error';
+      shot.error = 'Upload failed: ' + e.message;
+    }
+    refreshShots(formKey);
+  }
+  function removeShot(formKey, shot) {
+    shot.removed = true;
+    releaseUrl(shot);
+    var list = shotList(formKey);
+    var at = list.indexOf(shot);
+    if (at !== -1) list.splice(at, 1);
+    persistShots(formKey);
+    setShotNote(formKey, '');
+    refreshShots(formKey);
+  }
+  function chipFor(formKey, shot, index) {
+    var text;
+    var stale = isStale(shot);
+    if (shot.status === 'uploading') text = 'Uploading...';
+    else if (shot.status === 'error') text = shot.error;
+    else if (stale) text = 'Screenshot ' + index + ': Please add this again. It was added more than a day ago and was not saved, so it has expired.';
+    else text = 'Screenshot ' + index + ' added';
+    var thumb = shot.url
+      ? h('img', { class: 'thumb', src: shot.url, alt: '' })
+      : h('span', { class: 'thumb', 'aria-hidden': 'true' });
+    var failed = shot.status === 'error' || stale;
+    return h('li', { class: 'chip' + (failed ? ' failed' : ''), 'data-status': stale ? 'expired' : shot.status }, [
+      thumb,
+      h('span', { class: 'chip-text', text: text }),
+      h('button', {
+        type: 'button', class: 'btn secondary small-btn', 'aria-label': 'Remove screenshot ' + index,
+        disabled: !!(state.form && state.form.key === formKey && state.form.saving),
+        onclick: function () { removeShot(formKey, shot); }, text: 'Remove'
+      })
+    ]);
+  }
+  function refreshShots(formKey) {
+    if (!state.form || state.form.key !== formKey) return;
+    var ul = state.form.el.querySelector('.chips');
+    if (ul) {
+      ul.textContent = '';
+      shotList(formKey).forEach(function (shot, i) { ul.appendChild(chipFor(formKey, shot, i + 1)); });
+    }
+    updateSaveButton(state.form);
+  }
+  function shotsArea(formKey) {
+    var inputId = uid('shots');
+    var input = h('input', { type: 'file', id: inputId, class: 'file-input', accept: 'image/*', multiple: true });
+    input.addEventListener('change', function () {
+      var files = Array.prototype.slice.call(input.files || []);
+      input.value = '';
+      if (files.length) addFiles(formKey, files);
+    });
+    return h('div', { class: 'shots' }, [
+      h('span', { class: 'lbl' }, ['Screenshots', h('span', { class: 'opt', text: ' (optional)' })]),
+      h('span', { class: 'hint', text: 'Up to ' + MAX_SHOTS + '. On most Android phones, press Power and Volume Down together to take one. On a computer you can also paste (Ctrl+V) or drag them here.' }),
+      input,
+      h('label', { for: inputId, class: 'btn secondary small-btn', text: 'Add screenshots' }),
+      h('ul', { class: 'chips', 'aria-live': 'polite' }),
+      h('p', { class: 'shot-note', 'aria-live': 'polite' })
+    ]);
+  }
+  function onPaste(e) {
+    if (!state.form || !state.form.hasShots) return;
+    var cd = e.clipboardData;
+    if (!cd) return;
+    var files = [];
+    var i;
+    if (cd.items) {
+      for (i = 0; i < cd.items.length; i += 1) {
+        var item = cd.items[i];
+        if (item.kind === 'file' && /^image\//.test(item.type)) {
+          var f = item.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+    }
+    if (!files.length && cd.files) {
+      for (i = 0; i < cd.files.length; i += 1) if (/^image\//.test(cd.files[i].type)) files.push(cd.files[i]);
+    }
+    if (!files.length) return;
+    var hasText = false;
+    try { hasText = !!(cd.getData && cd.getData('text/plain')); } catch (err) { hasText = false; }
+    if (!hasText) e.preventDefault();
+    addFiles(state.form.key, files);
+  }
+  function hasFiles(e) {
+    var types = e.dataTransfer && e.dataTransfer.types;
+    if (!types) return false;
+    for (var i = 0; i < types.length; i += 1) if (types[i] === 'Files') return true;
+    return false;
+  }
+  function dropZone() { return state.form && state.form.hasShots ? state.form.el.querySelector('.shots') : null; }
+  function onDragOver(e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    var zone = dropZone();
+    if (zone) zone.className = 'shots dragging';
+  }
+  function onDragLeave() {
+    var zone = dropZone();
+    if (zone) zone.className = 'shots';
+  }
+  function onDrop(e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); // never let a dropped file replace this page
+    onDragLeave();
+    if (!state.form || !state.form.hasShots) return;
+    var files = Array.prototype.slice.call(e.dataTransfer.files || []);
+    if (files.length) addFiles(state.form.key, files);
+  }
+
+  // ---------- views ----------
+  function backLink() {
+    return h('a', { class: 'back', href: '#/home', onclick: function (e) { e.preventDefault(); go('home'); }, text: '< Back to your test' });
+  }
+
+  function viewLoading(text) {
+    return [h('p', { class: 'loading', role: 'status', text: text || 'Loading the test...' })];
+  }
+
+  function viewFatal(message, retry) {
+    return [
+      h('h1', { tabindex: '-1', text: 'Something went wrong' }),
+      h('p', { class: 'err', role: 'alert', text: message }),
+      h('button', { type: 'button', class: 'btn', onclick: retry, text: 'Try again' })
+    ];
+  }
+
+  function viewWelcome() {
+    var err = errorBox();
+    var consentId = uid('consent');
+    var box = h('input', { type: 'checkbox', id: consentId, name: 'consent' });
+    box.checked = state.consent || load('consent') === true;
+    box.addEventListener('change', function () {
+      state.consent = box.checked;
+      keep('consent', box.checked);
+      if (box.checked) err.textContent = '';
+    });
+    state.form = null;
+    return [
+      h('h1', { tabindex: '-1', text: 'Help us test the onService app' }),
+      h('p', { text: 'onService is an app for booking home help: cleaning, aircon, plumbing, electrical and more. Before real customers use it, we need you to find what is wrong with it.' }),
+      h('div', { class: 'callout' }, [
+        h('p', null, h('strong', { text: 'We are testing the app, not you.' })),
+        h('p', { style: 'margin:0', text: 'If you get stuck, that is our mistake, and it is the most useful thing you can tell us. Please be honest. Nice comments do not help us fix anything.' })
+      ]),
+      h('h2', { text: 'How it works' }),
+      h('ul', { class: 'plain' }, [
+        h('li', { text: 'It takes about 40 minutes. You can split it over several sittings. Your progress is saved.' }),
+        h('li', { text: 'You do short missions in the app, then answer a few questions here.' }),
+        h('li', { text: 'Answer in English, Tagalog, Bisaya or Taglish, whatever is easiest.' }),
+        h('li', { text: 'Nothing in this test is real. No money is charged and no worker will come to your house.' })
+      ]),
+      h('h2', { text: 'Signing in to the app' }),
+      h('p', { 'data-sign-in': state.emailCodes ? 'email' : 'ask', text: state.emailCodes ? SIGN_IN_EMAIL : SIGN_IN_ASK_KEN }),
+      h('h2', { text: 'Your privacy' }),
+      h('ul', { class: 'plain', 'data-privacy': 'notice' }, [
+        h('li', { text: 'What we collect: your answers, your screenshots, and the name and contact details you choose to give us. We also collect details about your device and browser (phone model, system and browser versions, screen size) and your connection address. We use the connection address only to stop abuse.' }),
+        h('li', { text: 'Who reads it: the onService team. AI tools working for onService help us sort and summarise what you send.' }),
+        h('li', { text: 'Nothing you send is shown publicly or sold.' }),
+        h('li', { text: 'You can ask the person who invited you to have everything you sent deleted. It will be deleted completely.' }),
+        h('li', { text: 'We will tell you how long we keep it before the full test starts.' })
+      ]),
+      h('div', { class: 'card' }, h('label', { class: 'choice', for: consentId, style: 'margin:0;border:0;padding:0' }, [
+        box, h('span', { class: 'ct', text: 'I have read this and I agree to take part.' })
+      ])),
+      err,
+      h('button', {
+        type: 'button', class: 'btn block', text: 'Next',
+        onclick: function () {
+          if (!box.checked) { err.textContent = CONSENT_MSG; box.focus(); return; }
+          state.consent = true;
+          go('about');
+        }
+      })
+    ];
+  }
+
+  function viewAbout() {
+    if (!(state.consent || load('consent') === true)) { state.route = 'welcome'; return viewWelcome(); }
+    var device = detectDevice();
+    var nameId = uid('name');
+    var contactId = uid('contact');
+    var contactHint = contactId + '-hint';
+    var deviceId = uid('device');
+    var surfaceId = uid('surface');
+    var hpId = uid('website');
+    var form = h('form', { novalidate: true }, [
+      h('fieldset', null, [
+        h('legend', { text: 'Which side will you test?' }),
+        choice('radio', 'role', 'customer', 'Customer', 'Someone who books home help'),
+        choice('radio', 'role', 'provider', 'Provider', 'A worker who does the jobs'),
+        choice('radio', 'role', 'both', 'Both', null)
+      ]),
+      h('p', { class: 'note', 'data-provider-note': 'about', hidden: true, text: PROVIDER_ONCE }),
+      h('div', { class: 'field' }, [
+        h('label', { for: deviceId, text: 'What are you using?' }),
+        h('select', { id: deviceId, name: 'deviceKind' }, [
+          h('option', { value: 'phone', text: 'A phone' }),
+          h('option', { value: 'tablet', text: 'A tablet' }),
+          h('option', { value: 'computer', text: 'A computer' })
+        ])
+      ]),
+      h('div', { class: 'field' }, [
+        h('label', { for: surfaceId, text: 'Are you testing the app or the website?' }),
+        h('select', { id: surfaceId, name: 'appSurface' }, [
+          h('option', { value: 'apk', text: 'The Android app I installed' }),
+          h('option', { value: 'browser', text: 'The website in a browser' }),
+          h('option', { value: 'both', text: 'Both' })
+        ])
+      ]),
+      h('fieldset', null, [
+        h('legend', { text: 'How do you get home help today?' }),
+        h('span', { class: 'hint', text: 'Choose all that fit.' }),
+        state.study.helpMethods.map(function (m) { return choice('checkbox', 'helpMethods', m.key, m.label, null); })
+      ]),
+      h('div', { class: 'field' }, [
+        h('label', { for: nameId }, ['Your name', h('span', { class: 'opt', text: ' (optional)' })]),
+        h('input', { type: 'text', id: nameId, name: 'testerName', maxlength: 200, autocomplete: 'name' })
+      ]),
+      h('div', { class: 'field' }, [
+        h('label', { for: contactId }, ['Email or mobile number', h('span', { class: 'opt', text: ' (optional)' })]),
+        h('span', { class: 'hint', id: contactHint, text: 'Only if you are happy for us to ask you about your answers.' }),
+        h('input', { type: 'text', id: contactId, name: 'testerContact', maxlength: 200, autocomplete: 'email', 'aria-describedby': contactHint })
+      ]),
+      h('div', { class: 'hp', 'aria-hidden': 'true' }, [
+        h('label', { for: hpId, text: 'Leave this field empty' }),
+        h('input', { type: 'text', id: hpId, name: 'website', tabindex: '-1', autocomplete: 'off' })
+      ]),
+      errorBox(),
+      h('div', { class: 'actions' }, [
+        h('button', { type: 'button', class: 'btn secondary', onclick: function () { go('welcome'); }, text: 'Back' }),
+        h('button', { type: 'submit', class: 'btn', text: 'Start the test' })
+      ])
+    ]);
+    var draft = getDraft('about');
+    form.querySelector('[name="deviceKind"]').value = device;
+    form.querySelector('[name="appSurface"]').value = detectSurface(device);
+    fillForm(form, draft.fields);
+    if (state.surface) form.querySelector('[name="appSurface"]').value = state.surface;
+    var providerNote = form.querySelector('[data-provider-note]');
+    function syncProviderNote() {
+      var picked = readForm(form).role;
+      providerNote.hidden = !(picked === 'provider' || picked === 'both');
+    }
+    syncProviderNote();
+    var aboutStarted = false;
+    function persistAbout() {
+      if (aboutStarted) return; // the session exists: do not keep name and contact on this phone
+      var d = getDraft('about'); d.fields = readForm(form); putDraft('about', d);
+    }
+    form.addEventListener('input', persistAbout);
+    form.addEventListener('change', function () { syncChoices(form); syncProviderNote(); persistAbout(); });
+    var saveBtn = form.querySelector('button[type="submit"]');
+    var busy = false;
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      if (busy) return;
+      var f = readForm(form);
+      clearError(form);
+      if (!f.role) { showError(form, 'Please choose which side you will test.'); return; }
+      var body = {
+        consent: true,
+        role: f.role,
+        deviceKind: f.deviceKind,
+        appSurface: f.appSurface,
+        platformDetail: platformDetail(),
+        helpMethods: f.helpMethods || [],
+        website: form.querySelector('[name="website"]').value
       };
+      if (state.appVersion) body.appVersion = state.appVersion;
+      if (String(f.testerName || '').trim()) body.testerName = f.testerName.trim();
+      if (String(f.testerContact || '').trim()) body.testerContact = f.testerContact.trim();
+      busy = true;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Starting...';
+      try {
+        var data = await api('/sessions', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        if (!data || !data.sessionId) { app.textContent = ''; append(app, h('h1', { tabindex: '-1', text: 'Thank you.' })); return; }
+        state.session = { id: data.sessionId, token: data.token, role: f.role };
+        if (state.appVersion) state.session.appVersion = state.appVersion;
+        state.sessionStored = keep('session', state.session);
+        aboutStarted = true;
+        forget('draft:about');
+        state.progress = { role: f.role, saved: [], problems: 0 };
+        afterSessionReady();
+      } catch (err) {
+        busy = false;
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Start the test';
+        showError(form, err.message);
+      }
+    });
+    state.form = null;
+    return [
+      h('h1', { tabindex: '-1', text: 'About you' }),
+      h('p', { class: 'muted', text: 'This takes about 30 seconds.' }),
+      form
+    ];
+  }
 
-      if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = 'Sending…'; }
-      fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-        .then(function (resp) { return resp.json().catch(function () { return {}; }).then(function (data) { return { ok: resp.ok, data: data }; }); })
-        .then(function (r) {
-          if (r.ok && r.data && r.data.success) {
-            releaseAllPreviews(form);
-            if (form) form.style.display = 'none';
-            var sb = document.querySelector('.submit-bar'); if (sb) sb.style.display = 'none';
-            var thanks = document.getElementById('thanks'); if (thanks) thanks.style.display = 'block';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            return;
-          }
-          if (statusEl) { statusEl.className = 'err'; statusEl.textContent = (r.data && r.data.error) ? r.data.error : 'Something went wrong. Please try again.'; }
-          if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || 'Submit my feedback'; }
-        })
-        .catch(function () {
-          if (statusEl) { statusEl.className = 'err'; statusEl.textContent = 'Could not reach the server. Check your connection and try again.'; }
-          if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || 'Submit my feedback'; }
+  function taskItem(route, title, sub, done, extraNote) {
+    return h('li', null, h('a', {
+      class: 'task', href: '#/' + route,
+      onclick: function (e) { e.preventDefault(); go(route); }
+    }, [
+      h('span', null, [
+        h('span', { class: 'task-title', text: title }),
+        sub ? h('span', { class: 'task-sub', text: sub }) : null,
+        extraNote ? h('span', { class: 'task-sub', text: extraNote }) : null
+      ]),
+      h('span', { class: 'pill' + (done ? ' done' : ''), text: done ? 'Done' : 'Not done' })
+    ]));
+  }
+
+  function viewHome() {
+    state.form = null;
+    var flash = h('div', { class: 'flash', role: 'status', 'aria-live': 'polite', text: state.flash || '' });
+    state.flash = '';
+    var r = role();
+    var list = h('ul', { class: 'tasks' });
+    list.appendChild(taskItem('first', 'First impression', 'Before you tap anything in the app', isSaved('first_impression', 'first_impression')));
+    var groups = r === 'both' ? ['customer', 'provider'] : [r];
+    var out = [];
+    groups.forEach(function (g) {
+      var heading = g === 'customer' ? 'Customer missions' : 'Provider missions';
+      list.appendChild(h('li', null, h('h2', { class: 'group-h', text: heading })));
+      missionsForRole().filter(function (m) { return m.role === g; }).forEach(function (m) {
+        list.appendChild(taskItem('mission/' + m.key, m.title, null, isSaved('mission', m.key),
+          m.needsApprovedProvider ? 'Opens after Ken approves your worker account.' : null));
+      });
+    });
+    list.appendChild(h('li', null, h('h2', { class: 'group-h', text: 'Last step' })));
+    list.appendChild(taskItem('wrapup', 'Wrap-up', 'A few last questions about the whole app', isSaved('wrapup', 'wrapup')));
+    var problems = (state.progress && state.progress.problems) || 0;
+    out.push(
+      flash,
+      h('h1', { tabindex: '-1', text: 'Your test' }),
+      h('p', { text: 'Do these in any order. Each one is saved on our side as soon as you press Save.' }),
+      h('p', { class: 'note', 'data-sign-in': state.emailCodes ? 'email' : 'ask', text: state.emailCodes
+        ? 'To sign in to the app, sign up with your own email address. Check Spam or Promotions if the code does not arrive.'
+        : SIGN_IN_ASK_KEN }),
+      r === 'provider' || r === 'both' ? h('p', { class: 'note', 'data-provider-note': 'home', text: PROVIDER_ONCE }) : null,
+      list,
+      h('p', { class: 'muted', text: 'Problems you reported so far: ' + problems + '. Use "Report a problem" at the bottom of the screen any time.' })
+    );
+    return out;
+  }
+
+  function viewFirst() {
+    var formKey = 'first';
+    var questions = state.study.firstImpression;
+    var form = h('form', { novalidate: true }, [
+      questions.map(function (q) { return questionField(q, 'a:'); }),
+      shotsArea(formKey),
+      errorBox(),
+      h('button', { type: 'submit', class: 'btn block', text: 'Save' })
+    ]);
+    var view = [
+      backLink(),
+      h('h1', { tabindex: '-1', text: 'First impression' }),
+      h('div', { class: 'callout' }, [
+        h('p', { text: 'Open the onService app. Look at the first screen for 10 seconds without tapping anything.' }),
+        h('p', { style: 'margin:0', text: 'Then come back here and answer.' })
+      ]),
+      isSaved('first_impression', 'first_impression') ? h('p', { class: 'note', text: 'You already saved this. Change anything and press Save again to update it.' }) : null,
+      form
+    ];
+    setupForm(formKey, form, 'Save', true, function (fields, current) {
+      postEntry(current, {
+        kind: 'first_impression',
+        answers: answersFrom(fields, questions, 'a:'),
+        screenshots: doneFilenames(formKey)
+      }, function () {
+        markSaved('first_impression', 'first_impression');
+        state.flash = 'Saved: First impression. Thank you!';
+        go('home');
+      });
+    });
+    return view;
+  }
+
+  function viewMission(key) {
+    var mission = findMission(key);
+    if (!mission) { state.route = 'home'; return viewHome(); }
+    var formKey = 'mission:' + key;
+    var study = state.study;
+    var form = h('form', { novalidate: true }, [
+      h('fieldset', null, [
+        h('legend', { text: 'Did you manage it?' }),
+        study.missionOutcomes.map(function (o) { return choice('radio', 'outcome', o.key, o.label, null); })
+      ]),
+      scale('seq', study.seq.question, 1, 7, study.seq.low, study.seq.high),
+      study.missionQuestions.map(function (q) { return questionField(q, 'a:'); }),
+      shotsArea(formKey),
+      errorBox(),
+      h('button', { type: 'submit', class: 'btn block', text: 'Save' })
+    ]);
+    var view = [
+      backLink(),
+      h('h1', { tabindex: '-1', text: mission.title }),
+      h('div', { class: 'card' }, [
+        h('h2', { style: 'margin-top:0', text: 'Your goal' }),
+        h('p', { text: mission.goal }),
+        h('h2', { text: 'Where to stop' }),
+        h('p', { style: 'margin:0', text: mission.stopAt })
+      ]),
+      mission.needsApprovedProvider ? h('p', { class: 'note', text: 'This works after Ken approves your worker account. You can still open it now.' }) : null,
+      h('p', { class: 'callout', text: 'Start: switch to the app now and try it, without asking anyone how. Come back to this page when you stop. What you type here is kept.' }),
+      isSaved('mission', key) ? h('p', { class: 'note', text: 'You already saved this mission. Change anything and press Save again to update it.' }) : null,
+      form
+    ];
+    setupForm(formKey, form, 'Save', true, function (fields, current) {
+      var body = {
+        kind: 'mission',
+        missionKey: key,
+        answers: answersFrom(fields, study.missionQuestions, 'a:'),
+        screenshots: doneFilenames(formKey)
+      };
+      if (fields.outcome) body.outcome = fields.outcome;
+      if (fields.seq) body.seq = Number(fields.seq);
+      postEntry(current, body, function () {
+        markSaved('mission', key);
+        state.flash = 'Saved: ' + mission.title + '. Thank you!';
+        go('home');
+      });
+    });
+    return view;
+  }
+
+  function openProblem() {
+    state.problemSaved = false;
+    if (state.pendingReport) {
+      var d = getDraft('problem');
+      d.route = state.pendingReport.route;
+      putDraft('problem', d);
+      state.pendingReport = null;
+      forget('pendingReport');
+    }
+    go('problem');
+  }
+
+  function viewProblemSaved() {
+    state.form = null;
+    return [
+      h('h1', { tabindex: '-1', text: 'Saved. Thank you!' }),
+      h('p', { role: 'status', text: 'Your problem report was sent. Every report helps.' }),
+      h('div', { class: 'actions' }, [
+        h('button', { type: 'button', class: 'btn', onclick: function () { state.problemSaved = false; render(); }, text: 'Report another' }),
+        h('button', { type: 'button', class: 'btn secondary', onclick: function () { state.problemSaved = false; go('home'); }, text: 'Back to missions' })
+      ])
+    ];
+  }
+
+  function viewProblem() {
+    if (state.problemSaved) return viewProblemSaved();
+    var formKey = 'problem';
+    var study = state.study;
+    var noted = getDraft(formKey).route || '';
+    var screenId = uid('screen');
+    var screenHint = screenId + '-hint';
+    var groups = {};
+    var order = [];
+    study.screens.forEach(function (s) {
+      if (!groups[s.side]) { groups[s.side] = []; order.push(s.side); }
+      groups[s.side].push(s);
+    });
+    var select = h('select', { id: screenId, name: 'screenKey', 'aria-describedby': noted ? screenHint : null }, [
+      h('option', { value: '', text: 'Choose a screen' }),
+      order.map(function (side) {
+        return h('optgroup', { label: SIDE_LABELS[side] || side }, groups[side].map(function (s) {
+          return h('option', { value: s.key, text: s.name });
+        }));
+      })
+    ]);
+    var form = h('form', { novalidate: true }, [
+      study.problemQuestions.map(function (q) { return questionField(q, 'a:'); }),
+      h('fieldset', null, [
+        h('legend', { text: 'How bad was it?' }),
+        study.severities.map(function (s) { return choice('radio', 'severity', s.key, s.label, s.hint); })
+      ]),
+      h('div', { class: 'field' }, [
+        h('label', { for: screenId }, ['Which screen was it?', h('span', { class: 'opt', text: ' (optional)' })]),
+        noted ? h('span', { class: 'hint', id: screenHint, text: 'We already noted the screen from the app, so this is optional.' }) : null,
+        select
+      ]),
+      shotsArea(formKey),
+      errorBox(),
+      h('button', { type: 'submit', class: 'btn block', text: 'Save' })
+    ]);
+    var view = [
+      backLink(),
+      h('h1', { tabindex: '-1', text: 'Report a problem' }),
+      h('p', { text: 'Anything confusing, broken, slow or just wrong. Small things count too.' }),
+      noted ? h('p', { class: 'note', 'data-noted-route': noted }, ['We noted the screen you were on: ', h('span', { class: 'route', text: noted })]) : null,
+      form
+    ];
+    setupForm(formKey, form, 'Save', true, function (fields, current) {
+      var body = {
+        kind: 'problem',
+        answers: answersFrom(fields, study.problemQuestions, 'a:'),
+        screenshots: doneFilenames(formKey)
+      };
+      if (fields.severity) body.severity = fields.severity;
+      if (fields.screenKey) body.screenKey = fields.screenKey;
+      if (noted) body.screenRoute = noted;
+      // The app version this report came from: this visit's ?app=, else the session's.
+      var version = state.urlAppVersion || (state.session && state.session.appVersion) || state.appVersion;
+      if (version) body.appVersion = version;
+      var sentText = JSON.stringify(fields);
+      var sentShots = body.screenshots.slice();
+      postEntry(current, body, function () {
+        markSaved('problem', 'problem');
+        // Clear only what was sent. Anything else stays for the next report.
+        var left = shotList(formKey).filter(function (s) {
+          return s.status !== 'error' && !isStale(s) && sentShots.indexOf(s.filename) === -1;
+        });
+        shotList(formKey).forEach(function (s) { if (left.indexOf(s) === -1) releaseUrl(s); });
+        state.shots[formKey] = left;
+        var d = getDraft(formKey);
+        if (JSON.stringify(readForm(form)) === sentText) d.fields = {};
+        delete d.route;
+        d.shots = left.filter(function (s) { return s.status === 'done'; }).map(function (s) { return { filename: s.filename, at: s.at }; });
+        if (!left.length && !Object.keys(d.fields).length) forget('draft:' + formKey);
+        else putDraft(formKey, d);
+        state.problemSaved = true;
+        render();
+      });
+    });
+    return view;
+  }
+
+  function priceKey(serviceKey, pointKey) { return 'p:' + serviceKey + ':' + pointKey; }
+  // Returns { prices, message, serviceKey } from the form's price boxes.
+  function checkPrices(fields) {
+    var study = state.study;
+    var prices = {};
+    var any = false;
+    for (var s = 0; s < study.prices.services.length; s += 1) {
+      var service = study.prices.services[s];
+      var row = {};
+      var filled = [];
+      for (var p = 0; p < study.prices.points.length; p += 1) {
+        var point = study.prices.points[p];
+        var raw = String(fields[priceKey(service.key, point.key)] || '').replace(/[\s,]/g, '').replace(/^(?:₱|PHP|P)/i, '');
+        if (!raw) continue;
+        if (!/^\d{1,7}$/.test(raw) || Number(raw) > 1000000) {
+          return { message: 'For "' + service.name + '", please write whole pesos only, like 800.', serviceKey: service.key };
+        }
+        row[point.key] = Number(raw);
+        filled.push(Number(raw));
+      }
+      for (var i = 1; i < filled.length; i += 1) {
+        if (filled[i] < filled[i - 1]) {
+          return { message: 'For "' + service.name + '", each price should be the same or higher than the one before it.', serviceKey: service.key };
+        }
+      }
+      if (filled.length) { prices[service.key] = row; any = true; }
+    }
+    return { prices: any ? prices : null, message: null, serviceKey: null };
+  }
+
+  function viewWrapup() {
+    var formKey = 'wrapup';
+    var study = state.study;
+    var questions = wrapupQuestions();
+    var priceErrors = {};
+    var priceBlocks = study.prices.services.map(function (service) {
+      // Polite, and only rewritten when the message changes, so a screen reader
+      // does not repeat it on every keystroke.
+      var errEl = h('p', { class: 'price-err', 'aria-live': 'polite', 'data-price-error': service.key });
+      priceErrors[service.key] = errEl;
+      return h('fieldset', { class: 'card' }, [
+        h('legend', { text: service.name }),
+        study.prices.points.map(function (point) {
+          var id = uid('price');
+          return h('div', { class: 'field' }, [
+            h('label', { for: id, text: point.label }),
+            h('div', { class: 'price-row' }, [
+              h('span', { class: 'peso', 'aria-hidden': 'true', text: '₱' }),
+              h('input', { type: 'text', id: id, name: priceKey(service.key, point.key), inputmode: 'numeric', maxlength: 9, autocomplete: 'off' })
+            ])
+          ]);
+        }),
+        errEl
+      ]);
+    });
+    var form = h('form', { novalidate: true }, [
+      h('h2', { text: 'How much do you agree?' }),
+      h('p', { class: 'muted', text: '1 = ' + study.sus.scale.low + ', 5 = ' + study.sus.scale.high + '.' }),
+      study.sus.items.map(function (item, i) {
+        return scale('sus' + i, (i + 1) + '. ' + item, 1, 5, study.sus.scale.low, study.sus.scale.high);
+      }),
+      h('h2', { text: 'Your thoughts' }),
+      questions.map(function (q) { return questionField(q, 'a:'); }),
+      h('h2', { text: 'Fair prices' }),
+      h('p', { class: 'muted', text: 'Optional. In pesos. Leave blank any you are not sure about. Each price should be the same or higher than the one above it.' }),
+      priceBlocks,
+      errorBox(),
+      h('button', { type: 'submit', class: 'btn block', text: 'Save' })
+    ]);
+    function showPriceCheck() {
+      var result = checkPrices(readForm(form));
+      Object.keys(priceErrors).forEach(function (k) {
+        var text = result.serviceKey === k ? result.message : '';
+        if (priceErrors[k].textContent !== text) priceErrors[k].textContent = text;
+      });
+      return result;
+    }
+    form.addEventListener('input', function (e) {
+      if (e.target && e.target.name && e.target.name.indexOf('p:') === 0) showPriceCheck();
+    });
+    var view = [
+      backLink(),
+      h('h1', { tabindex: '-1', text: 'Wrap-up' }),
+      h('p', { text: 'Last questions, about the app as a whole. About 5 minutes.' }),
+      isSaved('wrapup', 'wrapup') ? h('p', { class: 'note', text: 'You already saved this. Change anything and press Save again to update it.' }) : null,
+      form
+    ];
+    setupForm(formKey, form, 'Save', false, function (fields, current) {
+      var sus = [];
+      for (var i = 0; i < study.sus.items.length; i += 1) {
+        if (!fields['sus' + i]) { showError(form, 'Please answer all 10 statements.'); return; }
+        sus.push(Number(fields['sus' + i]));
+      }
+      var priceCheck = showPriceCheck();
+      if (priceCheck.message) { showError(form, priceCheck.message); return; }
+      var body = { kind: 'wrapup', sus: sus, answers: answersFrom(fields, questions, 'a:'), screenshots: [] };
+      if (priceCheck.prices) body.prices = priceCheck.prices;
+      postEntry(current, body, function () {
+        markSaved('wrapup', 'wrapup');
+        go('thanks');
+      });
+    });
+    showPriceCheck();
+    return view;
+  }
+
+  function viewThanks() {
+    state.form = null;
+    var total = missionsForRole().length;
+    var problems = (state.progress && state.progress.problems) || 0;
+    return [
+      h('h1', { tabindex: '-1', text: 'Thank you!' }),
+      h('p', { text: 'You finished ' + missionsDone() + ' of ' + total + ' missions and sent ' + plural(problems, 'problem report', 'problem reports') + '.' }),
+      state.sessionStored
+        ? h('p', { 'data-remembered': 'yes', text: 'You can come back to this page any time and add more. It remembers you on this phone or computer.' })
+        : h('p', { 'data-remembered': 'no', text: 'This browser is not letting the page remember you, so if you close it you will start a new test. You can still add more now, before you close it.' }),
+      h('div', { class: 'actions' }, [
+        h('button', { type: 'button', class: 'btn', onclick: function () { go('home'); }, text: 'Back to missions' }),
+        h('button', { type: 'button', class: 'btn secondary', onclick: openProblem, text: 'Report a problem' })
+      ])
+    ];
+  }
+
+  function viewLost(message) {
+    state.form = null;
+    return [
+      h('h1', { tabindex: '-1', text: 'We could not open your saved test' }),
+      h('p', { class: 'err', role: 'alert', text: message }),
+      h('p', { text: 'You can start a new one. Anything you already saved is kept on our side.' }),
+      h('button', { type: 'button', class: 'btn', onclick: startOver, text: 'Start again' })
+    ];
+  }
+
+  function startOver() {
+    forget('session');
+    state.session = null;
+    state.sessionStored = false;
+    state.progress = null;
+    state.problemSaved = false;
+    // Typed text is kept for the new session; screenshots belonged to the old one.
+    draftKeys().forEach(function (name) {
+      var d = load(name);
+      if (d && typeof d === 'object') { d.shots = []; keep(name, d); }
+    });
+    Object.keys(state.shots).forEach(clearShots);
+    state.shots = {};
+    go('welcome');
+  }
+
+  // ---------- render ----------
+  function render() {
+    var route = state.route || '';
+    if (!state.session) {
+      if (route !== 'about') route = 'welcome';
+    } else if (route === 'welcome' || route === 'about' || !route) {
+      route = 'home';
+    }
+    state.route = route;
+    if (route !== 'problem') state.problemSaved = false;
+    state.form = null;
+    var view;
+    if (route === 'welcome') view = viewWelcome();
+    else if (route === 'about') view = viewAbout();
+    else if (route === 'first') view = viewFirst();
+    else if (route.indexOf('mission/') === 0) view = viewMission(route.slice(8));
+    else if (route === 'problem') view = viewProblem();
+    else if (route === 'wrapup') view = viewWrapup();
+    else if (route === 'thanks') view = viewThanks();
+    else view = viewHome();
+    app.textContent = '';
+    append(app, view);
+    if (state.form) refreshShots(state.form.key);
+    reportBar.hidden = !state.session || state.route === 'problem';
+    var heading = app.querySelector('h1');
+    try { window.scrollTo(0, 0); } catch (e) { /* ignore */ }
+    if (heading) { try { heading.focus(); } catch (e) { /* ignore */ } }
+  }
+
+  function show(view) {
+    state.form = null;
+    app.textContent = '';
+    append(app, view);
+    reportBar.hidden = true;
+    var heading = app.querySelector('h1');
+    if (heading) { try { heading.focus(); } catch (e) { /* ignore */ } }
+  }
+
+  function afterSessionReady() {
+    if (state.pendingReport) { openProblem(); return; }
+    var r = routeFromHash();
+    go(r && r !== 'welcome' && r !== 'about' ? r : 'home', true);
+  }
+
+  async function loadProgress() {
+    show(viewLoading('Opening your saved test...'));
+    try {
+      state.progress = await api('/sessions/' + state.session.id + '/progress', { headers: sessionHeaders() });
+      state.session.role = state.progress.role;
+      state.sessionStored = keep('session', state.session);
+    } catch (e) {
+      if (e.status === 401 || e.status === 403) { show(viewLost(e.message)); return; }
+      show(viewFatal(e.message, loadProgress));
+      return;
+    }
+    afterSessionReady();
+  }
+
+  function studyLooksRight(study) {
+    if (!study || typeof study !== 'object') return false;
+    var lists = [study.missions, study.missionQuestions, study.missionOutcomes, study.firstImpression, study.problemQuestions,
+      study.severities, study.helpMethods, study.wrapup, study.screens];
+    for (var i = 0; i < lists.length; i += 1) if (!Array.isArray(lists[i])) return false;
+    return !!(study.seq && study.sus && Array.isArray(study.sus.items) && study.sus.scale
+      && study.prices && Array.isArray(study.prices.services) && Array.isArray(study.prices.points));
+  }
+
+  // Which sign-in the app offers right now (D37). Only when the server says
+  // email codes are on does the page promise an emailed code. If the check
+  // fails or is slow, the page tells testers to ask Ken instead.
+  function loadSignInMethods() {
+    var answered = false;
+    return new Promise(function (resolve) {
+      var timer = setTimeout(function () { answered = true; resolve(false); }, 2500);
+      window.fetch('/api/v1/auth/methods', { headers: { Accept: 'application/json' } })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (body) {
+          return !!(body && body.success !== false && body.data && body.data.emailCode && body.data.emailCode.enabled === true);
+        }, function () { return false; })
+        .then(function (on) {
+          if (answered) return;
+          answered = true;
+          clearTimeout(timer);
+          resolve(on);
         });
     });
+  }
+  var signInMethods = null;
 
-    var again = document.getElementById('again');
-    if (again) again.addEventListener('click', function () { window.location.reload(); });
-  })();
-  </script>
+  async function loadStudy() {
+    show(viewLoading());
+    if (!signInMethods) signInMethods = loadSignInMethods();
+    try {
+      state.study = await api('/study');
+      if (!studyLooksRight(state.study)) throw new Error('Please try again in a minute.');
+    } catch (e) {
+      state.study = null;
+      show(viewFatal('We could not load the test. ' + e.message, loadStudy));
+      return;
+    }
+    state.emailCodes = await signInMethods;
+    var saved = load('session');
+    if (saved && typeof saved.id === 'string' && typeof saved.token === 'string') {
+      state.session = { id: saved.id, token: saved.token, role: saved.role };
+      if (typeof saved.appVersion === 'string' && saved.appVersion) state.session.appVersion = saved.appVersion;
+      // Opened from a newer app build: that version is now the session's.
+      if (state.urlAppVersion) state.session.appVersion = state.urlAppVersion;
+      await loadProgress();
+      return;
+    }
+    state.consent = load('consent') === true;
+    state.route = routeFromHash() === 'about' ? 'about' : 'welcome';
+    render();
+  }
+
+  readParams();
+  window.addEventListener('popstate', onNav);
+  window.addEventListener('hashchange', onNav);
+  document.addEventListener('paste', onPaste);
+  document.addEventListener('dragover', onDragOver);
+  document.addEventListener('dragleave', onDragLeave);
+  document.addEventListener('drop', onDrop);
+  reportBtn.addEventListener('click', openProblem);
+  loadStudy().catch(function () {
+    try { show(viewFatal('Something went wrong while opening the test.', function () { window.location.reload(); })); } catch (e) { /* page closed */ }
+  });
+})();
+</script>
 </body>
 </html>

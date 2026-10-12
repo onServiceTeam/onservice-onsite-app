@@ -158,7 +158,12 @@ function collectScreenshots(recordId: string, payload: { [key: string]: JsonValu
   return [...found];
 }
 
-export default function FeedbackPage(): React.ReactElement {
+/**
+ * The version 1 tester feedback queue. On its own it is a full page; with
+ * `embedded` it sits inside the "Earlier feedback" tab of TesterFeedbackPage,
+ * which supplies the page heading, so this shows a section heading instead.
+ */
+export default function FeedbackPage({ embedded = false }: { embedded?: boolean } = {}): React.ReactElement {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const status = parseStatus(searchParams.get('status'));
@@ -339,10 +344,16 @@ export default function FeedbackPage(): React.ReactElement {
     <div className="space-y-5">
       <div className="flex flex-col justify-between gap-3 xl:flex-row xl:items-end">
         <div>
-          <p className="mb-1 text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-text-tertiary)]">Product operations</p>
-          <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight text-[var(--color-text)]">
-            <MessageSquare size={24} /> Tester Feedback
-          </h1>
+          {embedded ? (
+            <h2 className="text-xl font-semibold text-[var(--color-text)]">Earlier feedback (old form)</h2>
+          ) : (
+            <>
+              <p className="mb-1 text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-text-tertiary)]">Product operations</p>
+              <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight text-[var(--color-text)]">
+                <MessageSquare size={24} /> Tester Feedback
+              </h1>
+            </>
+          )}
           <p className="mt-2 max-w-3xl text-sm text-[var(--color-text-secondary)]">
             Turn customer, provider, and admin testing into owned work. Preserve the original evidence, name an owner,
             and record why a report was completed or dismissed.

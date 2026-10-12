@@ -4,7 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 const mockPush = jest.fn();
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: (...args: unknown[]) => mockPush(...args), replace: jest.fn(), back: jest.fn() }),
+  useRouter: () => ({ push: (...args: unknown[]) => mockPush(...args), replace: jest.fn(), back: jest.fn() }), usePathname: () => '/provider/settings',
 }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({

@@ -116,6 +116,12 @@ TESTER-LOGINS.txt
 docs/qa/ux-testing/FEEDBACK-INBOX.json
 docs/qa/ux-testing/FEEDBACK-INBOX.md
 docs/qa/ux-testing/feedback-screenshots/
+# Version 2 bundle (SUMMARY.md, spreadsheets, raw.json, screenshots). The pull
+# script also writes a "*" .gitignore inside it, for when --out-dir points elsewhere.
+docs/qa/ux-testing/feedback-v2/
+docs/qa/ux-testing/feedback-v2-work/
+docs/qa/ux-testing/feedback-v2.partial/
+docs/qa/ux-testing/feedback-v2.previous/
 
 # timestamped backups made during the 2026-08 server consolidation
 *.bak-*

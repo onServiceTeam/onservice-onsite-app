@@ -20,6 +20,7 @@ import * as providerApplicationDraftService from '../services/provider-applicati
 import * as emailLinkCleanupService from '../services/email-link-cleanup.service';
 import * as emailSignInCleanupService from '../services/email-sign-in-cleanup.service';
 import * as emailCodeAuthService from '../services/email-code-auth.service';
+import * as feedbackStudyService from '../services/feedback-study.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -483,6 +484,8 @@ const schedulerWorker = new Worker(
         break;
       case 'security-cleanup':
         results.loginAttemptsDeleted = await securityService.cleanupOldLoginAttempts();
+        // Tester screenshots uploaded but never attached to an answer (24 h).
+        results.feedbackUploadsPurged = await feedbackStudyService.purgeUnattachedUploads(200);
         break;
       case 'email-link-cleanup':
         // Fixed, bounded work on the existing scheduler. Never trust a job's

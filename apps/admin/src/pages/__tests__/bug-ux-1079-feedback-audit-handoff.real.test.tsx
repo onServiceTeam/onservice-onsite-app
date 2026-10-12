@@ -17,7 +17,10 @@ vi.mock('@/lib/api', () => ({
 }));
 
 import AuditLogPage from '../AuditLogPage';
-import FeedbackPage from '../FeedbackPage';
+// The real /feedback route element (App.tsx): version 2 tabs, with the old
+// queue under Earlier feedback. The audit link carries no tab, so the page
+// must pick Earlier feedback from the feedbackId on its own.
+import TesterFeedbackPage from '../TesterFeedbackPage';
 
 function LocationEvidence(): React.ReactElement {
   const location = useLocation();
@@ -98,7 +101,7 @@ it('Bug UX-1079 - a feedback triage audit event reopens the exact original submi
         <LocationEvidence />
         <Routes>
           <Route path="/audit-log" element={<AuditLogPage />} />
-          <Route path="/feedback" element={<FeedbackPage />} />
+          <Route path="/feedback" element={<TesterFeedbackPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -111,6 +114,7 @@ it('Bug UX-1079 - a feedback triage audit event reopens the exact original submi
   fireEvent.click(destinationLink!);
 
   expect(await screen.findByRole('heading', { name: record.testerName })).toBeVisible();
+  expect(screen.getByRole('tab', { name: 'Earlier feedback' })).toHaveAttribute('aria-selected', 'true');
   expect(screen.getByText('Feedback queue temporarily unavailable.')).toBeVisible();
   expect(screen.getByText(record.summary)).toBeVisible();
   expect(screen.getAllByText(record.triageNote).length).toBeGreaterThan(0);

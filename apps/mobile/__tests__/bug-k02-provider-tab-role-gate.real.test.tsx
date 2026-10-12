@@ -16,6 +16,7 @@ jest.mock('expo-router', () => {
   Tabs.Screen = () => null;
   return {
     Tabs,
+    usePathname: () => '/dashboard',
     Redirect: ({ href }: { href: string }) => ReactLib.createElement('div', { 'data-testid': 'role-redirect', 'data-href': href }),
   };
 });

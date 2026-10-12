@@ -13,7 +13,7 @@ import { useApplicationSession } from '@/stores/provider-application-session.sto
 import { getApplicationStatus, type ProviderApplicationStatus } from '@/services/provider-api.service';
 const statusCopy: Record<ProviderApplicationStatus['status'], { title: string; body: string }> = {
   pending: { title: 'Application submitted', body: 'Your application is waiting for a decision. We cannot yet confirm whether the review has started.' },
-  approved: { title: 'Application approved', body: 'Sign in again with your verified mobile number to open your provider workspace. Your current sign-in cannot be upgraded by refreshing this screen.' },
+  approved: { title: 'Application approved', body: 'Sign in again with your email or mobile number to open your provider workspace. Your current sign-in cannot be upgraded by refreshing this screen.' },
   rejected: { title: 'Application not approved', body: 'Your application was declined. Read the reason below, or contact support if you need clarification.' },
   suspended: { title: 'Provider access suspended', body: 'Provider access is suspended. This is not a new application rejection. Contact support to discuss the restriction.' },
   deactivated: { title: 'Provider account deactivated', body: 'This provider account is deactivated. Contact support about its status; submitting another application does not restore access.' },
@@ -130,7 +130,7 @@ export function ProviderApplicationStatusScreen({ routeName }: {
             <Button title="Notification history" variant="ghost" onPress={() => router.push(Routes.CUSTOMER.NOTIFICATIONS)} />
             <Button title={helpOpen ? 'Hide review guidance' : 'What happens after a decision?'} variant="ghost" onPress={() => setHelpOpen(value => !value)} />
             {helpOpen && <View style={styles.reason}>
-              <Text style={styles.body}>After approval, sign in again with your verified mobile number. Then review your services and availability in the provider workspace before accepting work.</Text>
+              <Text style={styles.body}>After approval, sign in again with your email or mobile number. Then review your services and availability in the provider workspace before accepting work.</Text>
               <Text style={styles.body}>If your application was declined or your provider access is restricted, contact support. You cannot edit or resubmit a submitted application here yet.</Text>
             </View>}
           </View>

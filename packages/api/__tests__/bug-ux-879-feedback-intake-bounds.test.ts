@@ -1,6 +1,9 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { JSDOM } from 'jsdom';
+// 2026-10-12: the page half of this test (loading legal/feedback.html and
+// checking its field limits) was retired. The v1 feedback page it checked was
+// replaced that day by the v2 study page, whose limits are enforced by the v2
+// API tests (feedback-study-postgres.test.ts) and whose behaviour is covered by
+// feedback-v2-page.dom.test.ts. The v1 service limits below still apply to the
+// old /api/v1/feedback intake and stay tested here.
 
 jest.mock('../src/config/database.config', () => ({
   pool: { query: jest.fn() },
@@ -57,34 +60,5 @@ it('Bug UX-879 — tester feedback exposes its text limits and rejects overflow 
   expect(accepted.ok).toBe(true);
   if (accepted.ok) {
     expect((accepted.value.payload.answers as Record<string, string>)['customer:worst']).toBe(exact);
-  }
-
-  const html = readFileSync(path.resolve(__dirname, '../../..', 'legal', 'feedback.html'), 'utf8');
-  const dom = new JSDOM(html, {
-    runScripts: 'dangerously',
-    url: 'https://app.onservice.ph/feedback',
-    beforeParse(window) {
-      Object.defineProperty(window, 'scrollTo', { value: jest.fn(), configurable: true });
-    },
-  });
-
-  try {
-    expect(dom.window.document.querySelector('[name="testerName"]')?.getAttribute('maxlength')).toBe('200');
-    expect(dom.window.document.querySelector('[name="testerContact"]')?.getAttribute('maxlength')).toBe('200');
-    expect(dom.window.document.querySelector('[name="ideas"]')?.getAttribute('maxlength')).toBe('10000');
-    for (const field of dom.window.document.querySelectorAll('textarea[name^="answer:"], input[type="text"][name^="answer:"]')) {
-      expect(field.getAttribute('maxlength')).toBe('2000');
-    }
-    for (const field of dom.window.document.querySelectorAll('#issues [data-k="where"], #issues [data-k="what"], #issues [data-k="expected"], #issues [data-k="repro"]')) {
-      expect(field.getAttribute('maxlength')).toBe('3000');
-    }
-
-    dom.window.document.querySelector<HTMLButtonElement>('#addIssue')?.click();
-    expect(dom.window.document.querySelectorAll('#issues .issue')).toHaveLength(2);
-    for (const field of dom.window.document.querySelectorAll('#issues .issue:last-child [data-k="where"], #issues .issue:last-child [data-k="what"], #issues .issue:last-child [data-k="expected"], #issues .issue:last-child [data-k="repro"]')) {
-      expect(field.getAttribute('maxlength')).toBe('3000');
-    }
-  } finally {
-    dom.window.close();
   }
 });

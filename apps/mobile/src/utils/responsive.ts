@@ -27,6 +27,12 @@ export const DESKTOP_CONTENT_MAX_WIDTH = 1100;
 export const DESKTOP_SHELL_MIN_WIDTH = 1180;
 export const DESKTOP_SHELL_MAX_WIDTH = 1320;
 
+// Height of the customer and provider bottom tab bars ((tabs)/_layout.tsx and
+// (provider-tabs)/_layout.tsx). It includes the phone's bottom safe area,
+// because React Navigation pads inside a tab bar whose height is set. The
+// tester Feedback button sits just above it.
+export const TAB_BAR_HEIGHT = 80;
+
 /** Web-only forced view from the current ?view=desktop|mobile query string. */
 export function getForcedView(): 'mobile' | 'desktop' | null {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;

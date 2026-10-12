@@ -5,7 +5,7 @@ import { Routes } from '@/config/navigation';
 const mockPush = jest.fn();
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
+  useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }), usePathname: () => '/provider/settings',
 }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1280, breakpoint: 'desktop', isPhone: false, isTablet: false, isDesktop: true }),

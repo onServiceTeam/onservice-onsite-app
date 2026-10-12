@@ -34,6 +34,10 @@ it('Bug UX-373 — tablet customer profile separates identity and settings while
   expect(screen.getByLabelText('Customer identity and contact details')).toBeTruthy();
   expect(screen.getByLabelText('Customer account settings')).toBeTruthy();
   expect(screen.getByText('Account settings')).toBeTruthy();
+  // Sign-in is by email or by phone (D37), so the note names both.
+  expect(screen.getByLabelText('Account phone security note').textContent)
+    .toContain('Your email or mobile number is used to protect sign-in.');
+  expect(screen.queryByText(/verified mobile number is used to protect sign-in/)).toBeNull();
 
   fireEvent.click(screen.getByRole('button', { name: 'Edit customer profile' }));
   expect(screen.getByLabelText('Verified mobile number')).toBeTruthy();
@@ -51,5 +55,6 @@ it('Bug UX-373 — tablet customer profile separates identity and settings while
   });
 
   fireEvent.click(screen.getByRole('button', { name: 'Log Out' }));
-  expect(screen.getByRole('alert').textContent).toContain('You will need your verified mobile number to sign in again.');
+  expect(screen.getByRole('alert').textContent).toContain('You will need your email or mobile number to sign in again.');
+  expect(screen.getByRole('alert').textContent).not.toContain('verified mobile number');
 });

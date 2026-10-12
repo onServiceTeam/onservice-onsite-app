@@ -43,6 +43,6 @@ it('Bug UX-504 — Dashboard action cards open the exact booking, support, provi
   expect(screen.getByRole('link', { name: 'Open Urgent support queue' })).toHaveAttribute('href', '/support-tickets?priority=urgent&active=1');
   expect(screen.getByRole('link', { name: 'Open Active disputes queue' })).toHaveAttribute('href', '/disputes?view=active');
   expect(screen.getByRole('link', { name: 'Open Open disputes (48h+) queue' })).toHaveAttribute('href', '/disputes?view=stale');
-  expect(screen.getByRole('link', { name: 'Open New tester feedback queue' })).toHaveAttribute('href', '/feedback');
+  expect(screen.getByRole('link', { name: 'Open New tester feedback queue' })).toHaveAttribute('href', '/feedback?tab=earlier');
   expect(screen.getByText(/8 support cases are currently open/)).toBeInTheDocument();
 });

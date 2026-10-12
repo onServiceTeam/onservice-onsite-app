@@ -3,6 +3,8 @@
  * Never hardcode commission rates, fees, timeouts, etc. in code.
  * Reference this config everywhere.
  */
+import { resolveAppVersion, UNKNOWN_APP_VERSION } from './app-version';
+
 // Phase D CRIT-82 fix — apiUrl no longer silently defaults to
 // localhost. Pre-fix: a release build that forgot to set
 // EXPO_PUBLIC_API_URL would point at http://localhost:7381 — every
@@ -26,7 +28,12 @@ function resolveApiUrl(): string {
 }
 
 export const platformConfig = {
-  appVersion: '0.1.0',
+  // The real installed or built version (see app-version.ts), never a
+  // hard-coded number. Every "Version" line in the app reads this. Read on
+  // use rather than at module load, so nothing depends on import order.
+  get appVersion(): string {
+    return resolveAppVersion() ?? UNKNOWN_APP_VERSION;
+  },
   appName: 'onService',
   apiUrl: resolveApiUrl(),
 

@@ -18,6 +18,7 @@ jest.mock('expo-router', () => {
   return {
     Stack,
     Tabs,
+    usePathname: () => '/home',
     Redirect: ({ href }: { href: string }) => ReactLib.createElement('div', { 'data-testid': 'role-redirect', 'data-href': href }),
   };
 });

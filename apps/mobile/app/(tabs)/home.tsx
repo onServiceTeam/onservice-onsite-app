@@ -52,6 +52,8 @@ import {
   ChevronDown,
   ArrowRight,
 } from '@/components/icons';
+import { isTesterFeedbackEnabled } from '@/components/feedback/SendFeedbackLink';
+import { FEEDBACK_BUTTON_CLEARANCE } from '@/components/feedback/TesterFeedbackButton';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -618,7 +620,7 @@ export default function HomeScreen(): React.ReactElement {
       ListFooterComponent={renderFooter}
       columnWrapperStyle={styles.categoryRow}
       style={styles.list}
-      contentContainerStyle={styles.listContent}
+      contentContainerStyle={[styles.listContent, isTesterFeedbackEnabled() && { paddingBottom: FEEDBACK_BUTTON_CLEARANCE }]}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl

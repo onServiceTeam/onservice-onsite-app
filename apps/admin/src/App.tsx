@@ -38,7 +38,8 @@ const PricingRulesPage = lazy(() => import('@/pages/PricingRulesPage'));
 const MarketingPage = lazy(() => import('@/pages/MarketingPage'));
 const DispatchConsolePage = lazy(() => import('@/pages/DispatchConsolePage'));
 const CommunicationsPage = lazy(() => import('@/pages/CommunicationsPage'));
-const FeedbackPage = lazy(() => import('@/pages/FeedbackPage'));
+// Tester feedback v2 tabs; the v1 queue (FeedbackPage) is its 'Earlier feedback' tab.
+const TesterFeedbackPage = lazy(() => import('@/pages/TesterFeedbackPage'));
 const CompliancePage = lazy(() => import('@/pages/CompliancePage'));
 const DataProtectionLogPage = lazy(() => import('@/pages/DataProtectionLogPage'));
 const ConsentVersionsPage = lazy(() => import('@/pages/ConsentVersionsPage'));
@@ -134,7 +135,7 @@ export default function App(): React.ReactElement {
               <Route path="/marketing" element={<MarketingPage />} />
               <Route path="/dispatch" element={<DispatchConsolePage />} />
               <Route path="/communications" element={<CommunicationsPage />} />
-              <Route path="/feedback" element={<FeedbackPage />} />
+              <Route path="/feedback" element={<TesterFeedbackPage />} />
               <Route path="/compliance" element={<CompliancePage />} />
               <Route path="/pricing-rules" element={<PricingRulesPage />} />
             </Route>

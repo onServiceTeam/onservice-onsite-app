@@ -1,11 +1,12 @@
 import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { Tabs } from 'expo-router';
-import { Platform, StyleSheet, useWindowDimensions } from 'react-native';
+import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { colors, typography } from '@/config/theme';
 import { Home, ClipboardList, Wallet, User } from '@/components/icons';
-import { DESKTOP_SHELL_MIN_WIDTH } from '@/utils/responsive';
+import { DESKTOP_SHELL_MIN_WIDTH, TAB_BAR_HEIGHT } from '@/utils/responsive';
 import { RoleRouteGuard } from '@/components/RoleRouteGuard';
+import TesterFeedbackButton from '@/components/feedback/TesterFeedbackButton';
 
 type TabIconProps = { focused: boolean; color: string };
 
@@ -26,6 +27,7 @@ export default function TabLayout(): React.ReactElement {
 
   return (
     <RoleRouteGuard allowedRoles={['customer']}>
+      <View style={styles.container}>
       <Tabs
       screenOptions={{
         headerShown: false,
@@ -64,16 +66,21 @@ export default function TabLayout(): React.ReactElement {
         }}
       />
       </Tabs>
+      {/* Tester builds only: the floating Feedback button, on the tab
+          screens only so it never covers a screen's main action button. */}
+      <TesterFeedbackButton tabBarHidden={hideForDesktopShell} />
+      </View>
     </RoleRouteGuard>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
   tabBar: {
     backgroundColor: colors.surface,
     borderTopColor: colors.border,
     borderTopWidth: StyleSheet.hairlineWidth,
-    height: 80,
+    height: TAB_BAR_HEIGHT,
     paddingTop: 8,
   },
   tabLabel: {

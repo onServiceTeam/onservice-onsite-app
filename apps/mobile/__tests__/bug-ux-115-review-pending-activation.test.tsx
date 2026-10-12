@@ -45,6 +45,12 @@ it('BUG-UX-115 — approval never grants provider authority from a status label 
   );
 
   expect(await screen.findByText('Application approved')).toBeTruthy();
+  // Sign-in is by email or by phone (D37): the approval copy must not send
+  // an email-only account holder looking for a "verified mobile number".
+  expect(screen.getByText(/^Sign in again with your email or mobile number to open your provider workspace\./)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'What happens after a decision?' }));
+  expect(screen.getByText(/^After approval, sign in again with your email or mobile number\./)).toBeTruthy();
+  expect(screen.queryByText(/verified mobile number/)).toBeNull();
   expect(refreshAuthSession).not.toHaveBeenCalled();
   expect(api.get).not.toHaveBeenCalled();
   expect(mockSetUser).not.toHaveBeenCalled();

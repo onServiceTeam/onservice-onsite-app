@@ -1,5 +1,7 @@
 # onService PH — Tester Questionnaire
 
+> **History only.** This file describes version 1 of tester feedback, used before October 12, 2026. It is kept for the record, and the TESTER-GUIDE it mentions has since been rewritten. Do not send it to testers. The current process is in [README.md](README.md).
+
 Fill this in after you run the missions in the [TESTER-GUIDE.md](TESTER-GUIDE.md),
 while it's fresh. Most questions are a 1-to-5 rating or a short answer. Be honest.
 "3 out of 5, because I couldn't find the price" helps us more than a polite "5".

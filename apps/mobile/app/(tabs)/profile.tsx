@@ -274,7 +274,7 @@ export default function ProfileScreen(): React.ReactElement {
           <View style={styles.securityNote} accessibilityLabel="Account phone security note">
             <Text style={styles.securityNoteTitle}>Account access</Text>
             <Text style={styles.securityNoteText}>
-              Your verified mobile number is used to protect sign-in. Account and data tools are available in the settings panel.
+              Your email or mobile number is used to protect sign-in. Account and data tools are available in the settings panel.
             </Text>
           </View>
         )}
@@ -330,7 +330,7 @@ export default function ProfileScreen(): React.ReactElement {
       <ConfirmModal
         visible={logoutVisible}
         title="Log out?"
-        message="You will need your verified mobile number to sign in again."
+        message="You will need your email or mobile number to sign in again."
         confirmLabel="Log Out"
         destructive
         loading={loggingOut}

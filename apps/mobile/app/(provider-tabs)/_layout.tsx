@@ -12,8 +12,9 @@ import { LayoutDashboard, Wrench, Coins, User } from '@/components/icons';
 // and see the provider dashboard chrome. Real data didn't load
 // (server gates per-endpoint), but the UI revealed the existence /
 // shape of provider features to non-providers.
-import { DESKTOP_SHELL_MIN_WIDTH } from '@/utils/responsive';
+import { DESKTOP_SHELL_MIN_WIDTH, TAB_BAR_HEIGHT } from '@/utils/responsive';
 import { RoleRouteGuard } from '@/components/RoleRouteGuard';
+import TesterFeedbackButton from '@/components/feedback/TesterFeedbackButton';
 
 type TabIconProps = { focused: boolean; color: string };
 
@@ -73,6 +74,11 @@ export default function ProviderTabLayout(): React.ReactElement {
         />
         </Tabs>
 
+        {/* Tester builds only: the floating Feedback button, on the tab
+            screens only so it never covers a screen's main action button
+            (the job screen's status button sits at the bottom left). */}
+        <TesterFeedbackButton tabBarHidden={hideForDesktopShell} />
+
         {/* Global new-job notification overlay — renders over any tab */}
         <NewJobModal />
       </View>
@@ -85,7 +91,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopColor: colors.border,
     borderTopWidth: StyleSheet.hairlineWidth,
-    height: 80,
+    height: TAB_BAR_HEIGHT,
     paddingTop: 8,
   },
   tabLabel: {

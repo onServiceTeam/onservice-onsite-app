@@ -250,6 +250,24 @@ const LayoutAnimation = {
 
 const NativeModules = {};
 
+// Keyboard with a working listener list, so a test can open and close the
+// on-screen keyboard: Keyboard.__emit('keyboardDidShow').
+const keyboardListeners = new Map();
+const Keyboard = {
+  addListener: (event, callback) => {
+    if (!keyboardListeners.has(event)) keyboardListeners.set(event, new Set());
+    keyboardListeners.get(event).add(callback);
+    return { remove: () => { keyboardListeners.get(event)?.delete(callback); } };
+  },
+  removeAllListeners: (event) => { keyboardListeners.delete(event); },
+  dismiss: jest.fn(),
+  isVisible: () => false,
+  __emit: (event, payload = {}) => {
+    Array.from(keyboardListeners.get(event) ?? []).forEach((callback) => callback(payload));
+  },
+  __listenerCount: (event) => (keyboardListeners.get(event)?.size ?? 0),
+};
+
 module.exports = {
   View,
   Text,
@@ -279,4 +297,5 @@ module.exports = {
   UIManager,
   LayoutAnimation,
   NativeModules,
+  Keyboard,
 };

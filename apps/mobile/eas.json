@@ -16,7 +16,8 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://staging-api.onservice.ph",
-        "EXPO_PUBLIC_ENV": "staging"
+        "EXPO_PUBLIC_ENV": "staging",
+        "EXPO_PUBLIC_TESTER_FEEDBACK": "1"
       },
       "android": {
         "buildType": "apk"

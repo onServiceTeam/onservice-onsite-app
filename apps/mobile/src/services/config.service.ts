@@ -60,7 +60,9 @@ export async function fetchPlatformConfig(): Promise<Config> {
     const remote = body?.data ?? {};
     cachedConfig = {
       ...platformConfig,
-      appVersion: remote.appVersion ?? platformConfig.appVersion,
+      // The server cannot know which build is installed (its /config still
+      // answers '0.1.0'), so the app version always comes from the app itself.
+      appVersion: platformConfig.appVersion,
       currency: remote.currency ?? platformConfig.currency,
       currencySymbol: remote.currencySymbol ?? platformConfig.currencySymbol,
       timezone: remote.timezone ?? platformConfig.timezone,

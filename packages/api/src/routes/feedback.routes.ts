@@ -29,7 +29,9 @@ import {
   toMarkdown,
   toCsv,
 } from '../services/feedback.service';
-import { validateFile, assertImageMagicBytes, getUploadDir } from '../services/upload.service';
+import { validateFile, assertImageMagicBytes } from '../services/upload.service';
+import { ensurePrivateFeedbackDir, feedbackUploadDir } from '../services/feedback-study.service';
+import { stripImageMetadata } from '../utils/image-metadata';
 import { platformConfig } from '../config/platform.config';
 import { logger } from '../utils/logger';
 import { isPrivateExportSecretUsable } from '../config/boot-guards';
@@ -111,9 +113,10 @@ router.post('/upload', uploadLimiter, imageUpload.single('file'), async (req: Re
 
     const ext = MIME_EXT[file.mimetype] ?? '.jpg';
     const filename = `${randomUUID()}${ext}`;
-    const dir = path.join(getUploadDir(), 'feedback');
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, filename), file.buffer);
+    // E52: the folder is 0700 and files 0600, so the web server (another
+    // user) cannot serve them; only the API's authorised routes can.
+    await ensurePrivateFeedbackDir();
+    await fs.writeFile(path.join(feedbackUploadDir(), filename), stripImageMetadata(file.buffer, file.mimetype), { mode: 0o600 });
 
     // This is a storage identifier, not a public download URL. The tester page
     // previews its local File object; authenticated Admin/private-export routes
@@ -126,9 +129,9 @@ router.post('/upload', uploadLimiter, imageUpload.single('file'), async (req: Re
   }
 });
 
+// The address Express derives through the trusted proxy setting. The first
+// X-Forwarded-For entry is chosen by the browser, so it is not used.
 function clientIp(req: Request): string | null {
-  const fwd = req.headers['x-forwarded-for'];
-  if (typeof fwd === 'string' && fwd.length) return (fwd.split(',')[0] ?? '').trim().slice(0, 100) || null;
   return req.ip ? String(req.ip).slice(0, 100) : null;
 }
 

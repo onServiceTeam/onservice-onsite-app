@@ -1,95 +1,54 @@
-# onService PH — UX Testing Pack
+# onService PH: tester feedback (version 2)
 
-This folder is everything you need to run a user-experience test of the onService
-app with everyday people (not engineers) and turn what they say into real fixes
-and improvements.
+This folder is how we test the onService app with everyday people (not engineers) and turn what they tell us into fixes. Version 2 started on October 12, 2026. It replaced the old long questionnaire with short, realistic missions.
 
-It works for the **customer** side, the **provider** side, and the **admin**
-panel. A tester can do one area or all three.
+## Read these first
 
-## Fastest path: the live feedback page
+| File | Who it is for | What it is |
+|---|---|---|
+| [FEEDBACK-V2-AUDIT-AND-PLAN-2026-10-12.md](FEEDBACK-V2-AUDIT-AND-PLAN-2026-10-12.md) | Ken, the AI coder | Why version 1 failed, what the research says, and the design of version 2. |
+| [TESTER-MESSENGER-MESSAGES.md](TESTER-MESSENGER-MESSAGES.md) | Ken | The messages to paste into Messenger for testers, and what not to say while they test. |
+| [TESTER-GUIDE.md](TESTER-GUIDE.md) | Testers | A short guide Ken can send if a tester wants the steps in writing. |
+| [INTAKE-TRIAGE.md](INTAKE-TRIAGE.md) | Ken, staff | How to sort reports in the admin and decide what gets fixed first. |
+| [AI-CODER-REVIEW.md](AI-CODER-REVIEW.md) | The AI coder | The runbook for "pull the latest tester feedback and triage it". |
+| [ANALYSIS-PROTOCOL.md](ANALYSIS-PROTOCOL.md) | The AI coder, a researcher | How to code the answers, rank the problems and write the insights report. |
+| `insights/INSIGHTS-YYYY-MM-DD.md` | Everyone | The dated result of each round. Safe to commit: no names or contact details. |
 
-There is now a hosted page that does all of this in the browser, with no docs to
-download and nothing to email back:
+Kept for history only (version 1): [QUESTIONNAIRE.md](QUESTIONNAIRE.md), [FEEDBACK-LOG.md](FEEDBACK-LOG.md), [FEEDBACK-RESPONSE-2026-06-16.md](FEEDBACK-RESPONSE-2026-06-16.md). Do not send them to testers.
 
-> **https://app.onservice.ph/feedback**
+## How a round works
 
-It carries the instructions, the demo links, and the full questionnaire, and
-submits straight into our database. Send a tester that one link. The markdown
-files below still exist for anyone who prefers paper/Google Docs, and they
-describe the same questions the page asks. To pull what's been submitted, see
-[INTAKE-TRIAGE.md](INTAKE-TRIAGE.md) ("Where the feedback lives").
+1. **Ken sends Message 1** from [TESTER-MESSENGER-MESSAGES.md](TESTER-MESSENGER-MESSAGES.md): install the Android app, but do not explore it yet.
+2. **Testers sign up with their own email.** They open the app, tap Create Account on the sign-in screen, enter their email address and type the 6-digit code that arrives by email. There is no shared test login and no site password any more. A tester who wants to try the worker side chooses "I provide services" when the app asks right after sign-up (that choice appears only once) and goes through the real provider sign-up; Ken approves them in the admin under Providers. Some provider missions only work after that approval. What testers upload for the ID and NBI steps is still open (decision D5 in the plan), and so is sign-up for testers outside Metro Cebu (D6).
+3. **Ken sends Message 2** with the link **app.onservice.ph/feedback**. On that page the tester:
+   - agrees to the privacy notice and says which side they are testing;
+   - writes a first impression before tapping anything in the app;
+   - does short missions in the app, in any order, and answers a few questions after each one;
+   - reports problems any time with "Report a problem" on the page (newer app builds also have "Send feedback or report a problem" under Help, and in provider Settings, which opens the same form);
+   - finishes with the wrap-up: 10 quick statements, the three things they would change, and two price questions.
 
-## What's in here
+   Answers are saved as they go. They can stop and come back later on the same phone and browser.
+4. **Staff triage** in the admin under **Tester feedback** (Overview, Problems, Testers, and Earlier feedback for version 1). See [INTAKE-TRIAGE.md](INTAKE-TRIAGE.md).
+5. **The AI coder pulls and analyses** the round ([AI-CODER-REVIEW.md](AI-CODER-REVIEW.md), [ANALYSIS-PROTOCOL.md](ANALYSIS-PROTOCOL.md)) and writes `insights/INSIGHTS-YYYY-MM-DD.md` with ranked issues and repair tasks.
+6. **Fix, then test again** with fresh people.
 
-| File | Who it's for | What it does |
-| --- | --- | --- |
-| [TESTER-GUIDE.md](TESTER-GUIDE.md) | The tester | Welcome, how to get in, and step-by-step "missions" that walk them through each area while reacting honestly. |
-| [QUESTIONNAIRE.md](QUESTIONNAIRE.md) | The tester | Structured questions after they test: easy 1-5 ratings, a usability score, and prompts for ideas, missing services, and prices. |
-| [FEEDBACK-LOG.md](FEEDBACK-LOG.md) | The tester | A repeatable form to write down every bug, friction point, or idea as it happens, in plain words. |
-| [INTAKE-TRIAGE.md](INTAKE-TRIAGE.md) | You / the team | How to sort the feedback and convert it into ready-to-paste tasks for the AI coder or the design/product team. |
+## Before sending Message 2
 
-The tester gets the first three. You keep the fourth.
+- **Check that sign-up works.** Email codes need the Resend account and DNS records from [docs/operations/email-sending-setup.md](../../operations/email-sending-setup.md). Sign up yourself with an email address that has never been used, and confirm the code arrives (and whether it lands in Spam). Until that works, new testers cannot get in.
+- **Pilot first.** Send to 2 or 3 people, wait a day, fix anything about the test itself that confused them, then send to everyone.
 
-## How a test session runs (about 30-45 minutes)
+## What testers can and cannot do in this build
 
-1. **Send the tester the pack.** Give them [TESTER-GUIDE.md](TESTER-GUIDE.md),
-   [QUESTIONNAIRE.md](QUESTIONNAIRE.md), and [FEEDBACK-LOG.md](FEEDBACK-LOG.md).
-   For non-technical testers, paste these into a Google Doc, or turn the
-   questionnaire into a Google Form (every question is written so it drops
-   straight into a form).
-2. **They get in** using the no-login demo links (see below). No account, no
-   password to remember.
-3. **They run the missions** in the tester guide and write anything that makes
-   them pause, smile, or frown into the feedback log as they go.
-4. **They fill the questionnaire** at the end while it's fresh.
-5. **They send it back** to you (the filled log + questionnaire, plus any
-   screenshots).
-6. **You triage** with [INTAKE-TRIAGE.md](INTAKE-TRIAGE.md) and hand the sorted
-   items to the AI coder or the design team.
-
-## Getting in (no login)
-
-The app is in demo mode, so testers land straight inside each area. Full details
-are in [../DEMO-ACCESS.md](../DEMO-ACCESS.md). The short version:
-
-First, a one-time site gate (a browser username/password pop-up), entered once
-per address:
-
-- Username: `tester`
-- Password: `12345`
-
-Then the three entry links:
-
-| Area | Link |
-| --- | --- |
-| Customer | https://app.onservice.ph/?demo=customer |
-| Provider | https://app.onservice.ph/?demo=provider |
-| Admin | https://admin.onservice.ph/login?demo=1 |
-
-## What we are trying to learn
-
-We want honest reactions, not polite ones. Specifically:
-
-- **Bugs** — anything broken, wrong, or stuck.
-- **Friction** — anything confusing, slow, or that made them hesitate.
-- **Usability** — could they finish a task without help?
-- **Trust** — would they put their money and home address into this?
-- **Ideas** — features they wish existed.
-- **Services** — home services they'd want that we don't offer yet.
-- **Prices** — what they'd expect to pay, and what feels too cheap or too dear.
-- **Advantages** — what made them prefer this over calling someone they know.
+- Nothing is real: no money is charged and no worker comes to anyone's house. Missions stop before payment.
+- Sample providers and bookings are test data.
+- So we never ask testers how paying, cashing out or refunds *felt*. We only ask whether they could find and understand the information.
 
 ## How many testers
 
-5 testers usually surface the large majority of usability problems. Aim for a mix:
-someone who books help often, someone who never does, an older user, a younger
-user, and someone who would be a provider (does aircon, cleaning, repairs, etc.).
-For pricing and service ideas, more testers is better, so collect those from
-everyone.
+About 5 testers per side find most of the big usability problems. Aim for a mix: someone who books home help often, someone who never does, an older and a younger person, and 2 or 3 people who actually do aircon, cleaning or repair work for the provider side. Prices need more answers, so everyone is asked.
 
-## A note on the data they'll see
+## Privacy
 
-The demo accounts use seeded (fake) sample data: sample customers, sample
-providers, sample bookings. Testers can poke at anything. Nothing they do touches
-real customers or real money.
+- Tester answers live in the database and the admin. Ordinary admins see phone numbers and emails inside answers masked, and no tester names. Super admins see everything.
+- The private pull (`scripts/feedback/pull.mjs`) writes to folders that git ignores. Never commit them: they hold tester answers, screenshots and sometimes names and contact details.
+- Insights files quote testers without names.

@@ -2127,6 +2127,8 @@ uploads remain unaffected. Follow
 `docs/runbooks/tester-feedback-evidence-privacy.md` and see
 `.ai-coder/escalations/E52-tester-feedback-screenshots-are-public-2026-09-01.md`.
 
+**Update 2026-10-12 (contained on live; the nginx guard is still not applied).** A check from outside showed a tester screenshot opened publicly on app.onservice.ph (HTTP 200). The nginx guard needs the shared nginx container recreated, which is not allowed on the shared server, so containment uses file permissions instead. The screenshot folder inside the API container is now 0700, owned by the API user (uid 1000). nginx workers run as uid 101 and can no longer list or read it, so the same address now answers 404. The API, and therefore the admin screenshot view, still reads the files. Feedback version 2 (section 130) makes this permanent: the API re-applies 0700 at every start, writes each file 0600, and strips hidden photo metadata (EXIF/GPS) on upload. The nginx guard stays in the repo as a second layer for the next nginx recreate.
+
 ---
 
 ## 61. Business-account billing and contract operations are not launch-safe
@@ -4168,3 +4170,44 @@ yes/no results.
 
 Before a real launch: switch `ADMIN_DISABLE_2FA` off (or move admins to email
 codes, section 127), remove the shared test code, and run in production mode.
+
+---
+
+## 130. Tester feedback version 2 (2026-10-12/13)
+
+Ken asked for an A-to-Z rebuild of app.onservice.ph/feedback. Audit, design and decisions: `docs/qa/ux-testing/FEEDBACK-V2-AUDIT-AND-PLAN-2026-10-12.md`.
+
+What changed:
+- **A new page.** It is a mission-based study:
+  - a welcome with a privacy notice and consent;
+  - a first impression;
+  - 7 customer and 7 worker missions, written as real goals, each followed by the 1-7 ease question and "why";
+  - a "Report a problem" form reachable at any time, with pasted or dragged screenshots;
+  - a wrap-up with the 10-item usability scale (SUS) and fair-price questions.
+
+  Every part is saved as soon as it is finished, drafts autosave on the phone, and a session resumes after a reload.
+- **The API** (migration 181):
+  - tester sessions, one row per answer, and upload records;
+  - unattached screenshots deleted after 24 hours;
+  - screenshots stored privately, with metadata removed;
+  - admin overview numbers: completion rate, average ease, SUS, and problems by screen counted by distinct testers;
+  - problem triage with history and duplicates;
+  - complete deletion of a tester's answers on request.
+- **Admin:** Tester Feedback is now tabs: Overview, Problems, Testers, and Earlier feedback (the unchanged version 1 queue).
+- **The app** (tester builds only, `EXPO_PUBLIC_TESTER_FEEDBACK=1`):
+  - a "Send feedback or report a problem" row in Help and worker Settings;
+  - a small Feedback button on the main tab screens.
+
+  Both pass the current screen and app version to the page. The app now shows its real version (it showed 0.1.0 everywhere).
+- **Analysis:** the pull script writes a private bundle (summary, spreadsheets, screenshots), and `docs/qa/ux-testing/ANALYSIS-PROTOCOL.md` is the coding manual for turning it into an insights report.
+
+Still open (Ken):
+- **Sign-up:** testers can sign up only once email codes are switched on (Resend plus the GoDaddy records, `docs/operations/email-sending-setup.md`). Until then the page tells testers to sign in the way Ken told them.
+- **Decisions:**
+  - D2: retention;
+  - D3: languages;
+  - D4: a thank-you for testers;
+  - D5: worker test accounts (stand-in document photos);
+  - D6: testers outside Metro Cebu (worker sign-up needs GPS inside the service area).
+- **Privacy notice:** the wording is plain English, not attorney-reviewed.
+- **Not built:** filtering problems by side (customer or worker).

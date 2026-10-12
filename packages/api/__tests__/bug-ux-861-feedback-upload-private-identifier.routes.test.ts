@@ -27,6 +27,17 @@ jest.mock('../src/services/upload.service', () => ({
 }));
 
 import feedbackRouter from '../src/routes/feedback.routes';
+
+// Uploads now have their hidden metadata removed (feedback v2), which walks
+// the file's real structure, so the upload must be a structurally valid PNG.
+function tinyPng(): Buffer {
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const length = Buffer.alloc(4); length.writeUInt32BE(data.length);
+    return Buffer.concat([length, Buffer.from(type, 'latin1'), data, Buffer.alloc(4)]);
+  };
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', Buffer.alloc(13)), chunk('IEND', Buffer.alloc(0))]);
+}
 import { errorMiddleware } from '../src/middleware/error.middleware';
 
 it('Bug UX-861 — public feedback upload returns a stable storage identifier instead of a public host URL', async () => {
@@ -40,7 +51,7 @@ it('Bug UX-861 — public feedback upload returns a stable storage identifier in
     const response = await request(app)
       .post('/feedback/upload')
       .set('Host', 'attacker.example')
-      .attach('file', Buffer.from('image bytes'), { filename: 'screen.png', contentType: 'image/png' });
+      .attach('file', tinyPng(), { filename: 'screen.png', contentType: 'image/png' });
 
     expect(response.status).toBe(201);
     expect(response.body.success).toBe(true);

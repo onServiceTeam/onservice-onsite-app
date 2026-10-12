@@ -85,6 +85,9 @@ import settingsRoutes from './routes/settings.routes';
 import cancellationPolicyPublicRoutes from './routes/cancellation-policy-public.routes';
 import feedbackRoutes from './routes/feedback.routes';
 import feedbackAdminRoutes from './routes/feedback-admin.routes';
+import feedbackStudyRoutes from './routes/feedback-study.routes';
+import feedbackStudyAdminRoutes from './routes/feedback-study-admin.routes';
+import { ensurePrivateFeedbackDir } from './services/feedback-study.service';
 import projectAdminRoutes from './routes/project-admin.routes';
 import projectRoutes from './routes/project.routes';
 import cancellationPolicyAdminRoutes from './routes/cancellation-policy-admin.routes';
@@ -254,6 +257,8 @@ app.use('/api/v1/admin/conversations', messagingAdminRoutes);
 // UX-037 — tester feedback is an owned Support & Trust queue. Mount the
 // specific route before the generic /admin router so feedback IDs are never
 // mistaken for generic admin resources.
+// Feedback version 2 (mission study) first, so 'v2' is never read as a v1 id.
+app.use('/api/v1/admin/feedback/v2', feedbackStudyAdminRoutes);
 app.use('/api/v1/admin/feedback', feedbackAdminRoutes);
 // W16 — read-only bounded project discovery for company/support operators.
 // Keep the Admin response separate from the customer/provider project list so
@@ -290,6 +295,7 @@ app.use('/api/v1/settings', cancellationPolicyPublicRoutes);
 
 // UX tester feedback — public POST from the /feedback page; key-protected
 // JSON/Markdown/CSV exports for the dev/design team and the AI coder.
+app.use('/api/v1/feedback/v2', feedbackStudyRoutes);
 app.use('/api/v1/feedback', feedbackRoutes);
 
 // Phase 03: public client config endpoint (no auth required).
@@ -390,6 +396,11 @@ logger.info('Socket.io server initialized');
 httpServer.listen(PORT, () => {
   logger.info(`onService API server running on port ${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  // E52: tester screenshots must stay unreadable to the web server, which
+  // serves the rest of the uploads volume publicly. Re-asserted every start.
+  ensurePrivateFeedbackDir()
+    .catch((err: unknown) => logger.error('Could not make the feedback screenshot folder private', { error: err }));
 
   // CRIT-M01 fix — pull live rate-limit settings when the server starts
   // and start the periodic refresh loop. Conservative platformConfig

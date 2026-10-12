@@ -1,5 +1,7 @@
 # onService PH — Feedback Log
 
+> **History only.** This file describes version 1 of tester feedback, used before October 12, 2026. It is kept for the record, and the TESTER-GUIDE it mentions has since been rewritten. Do not send it to testers. The current process is in [README.md](README.md).
+
 Keep this open next to the app while you test. Every time something makes you
 **pause, frown, smile, or go "huh?"**, copy the block below and fill it in. Don't
 wait until the end, you'll forget the small stuff, and the small stuff matters.

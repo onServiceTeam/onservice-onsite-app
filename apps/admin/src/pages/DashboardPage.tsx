@@ -354,7 +354,8 @@ export default function DashboardPage(): React.ReactElement {
     {
       title: 'New tester feedback',
       value: k.newFeedback ?? 0,
-      to: '/feedback',
+      // This count is reports from the old form, which live under Earlier feedback.
+      to: '/feedback?tab=earlier',
       icon: <MessageSquare size={20} className="text-blue-700" />,
     },
   ];

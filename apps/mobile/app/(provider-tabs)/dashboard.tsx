@@ -32,6 +32,8 @@ import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
+import { isTesterFeedbackEnabled } from '@/components/feedback/SendFeedbackLink';
+import { FEEDBACK_BUTTON_CLEARANCE } from '@/components/feedback/TesterFeedbackButton';
 // BUG-PHASE94-01 — founding tier added so the badge shows the
 // proper label + color instead of falling back to raw "founding"
 // + grey textTertiary.
@@ -149,7 +151,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
   return (
     <ScrollView
       style={[styles.container, { paddingTop: insets.top + spacing.sm }]}
-      contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopContent]}
+      contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopContent, isTesterFeedbackEnabled() && { paddingBottom: FEEDBACK_BUTTON_CLEARANCE }]}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl

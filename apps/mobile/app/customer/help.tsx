@@ -22,6 +22,7 @@ import { platformConfig } from '@/config/platform.config';
 import { Routes } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
 import AppVersionCheck from '@/components/AppVersionCheck';
+import SendFeedbackLink from '@/components/feedback/SendFeedbackLink';
 
 interface FAQItem {
   q: string;
@@ -263,6 +264,11 @@ export default function HelpScreen(): React.ReactElement {
               <Text style={styles.contactBtnValue}>{SUPPORT_EMAIL}</Text>
             </View>
           </TouchableOpacity>
+
+          {/* Tester feedback v2, tester builds only: opens the feedback
+              page's problem form with this screen, the app version and app
+              or browser filled in. Renders nothing in production builds. */}
+          <SendFeedbackLink />
         </View>
 
         {/* BUG-PHASE102-01 fix — pre-fix this row hardcoded a

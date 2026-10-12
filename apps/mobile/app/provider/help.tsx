@@ -9,6 +9,7 @@ import { Routes } from '@/config/navigation';
 import { Wrench, Mail, MessageSquare, ChevronRight } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
 import AppVersionCheck from '@/components/AppVersionCheck';
+import SendFeedbackLink from '@/components/feedback/SendFeedbackLink';
 
 const SUPPORT_EMAIL = 'providers@onservice.ph';
 
@@ -231,6 +232,11 @@ export default function ProviderHelpScreen(): React.ReactElement {
               <Text style={styles.contactBtnValue}>{SUPPORT_EMAIL}</Text>
             </View>
           </TouchableOpacity>
+
+          {/* Tester feedback v2, tester builds only: opens the feedback
+              page's problem form with this screen, the app version and app
+              or browser filled in. Renders nothing in production builds. */}
+          <SendFeedbackLink />
         </View>
 
         {/* BUG-PHASE102-01 fix — match platformConfig.appVersion so

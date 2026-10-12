@@ -17,6 +17,7 @@ import { useResponsive } from '@/hooks/useResponsive';
 
 import { Routes } from '@/config/navigation';
 import AppVersionCheck from '@/components/AppVersionCheck';
+import SendFeedbackLink, { isTesterFeedbackEnabled } from '@/components/feedback/SendFeedbackLink';
 export default function ProviderSettingsScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -206,13 +207,16 @@ export default function ProviderSettingsScreen(): React.ReactElement {
             <Text style={styles.rowValue}>{platformConfig.appVersion}</Text>
           </View>
           <AppVersionCheck />
+          {/* Help & Support is the last row unless this is a tester build,
+              where the "Send feedback" row follows it. */}
           <TouchableOpacity
-            style={[styles.row, { borderBottomWidth: 0 }]}
+            style={StyleSheet.flatten([styles.row, !isTesterFeedbackEnabled() && { borderBottomWidth: 0 }])}
             onPress={() => router.push(Routes.PROVIDER.HELP)}
           >
             <Text style={styles.rowLabel}>Help & Support</Text>
             <Text style={styles.rowArrow}>›</Text>
           </TouchableOpacity>
+          <SendFeedbackLink variant="row" last />
         </View>
 
         </View>
