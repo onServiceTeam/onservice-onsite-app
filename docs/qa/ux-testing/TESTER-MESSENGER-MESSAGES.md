@@ -47,6 +47,13 @@ Why these are written this way:
 >
 > Salamat talaga! This really helps.
 
+## For new testers who don't have the app yet
+
+> Download the app here (Android only): https://app.onservice.ph/api/v1/app-releases/android/files/onService-1.0.2-3.apk
+> If your phone says it's blocked, allow "Install unknown apps" for your browser and tap the file again.
+
+People who installed the earlier file will see an "Update" offer when they open the app. They should tap Update.
+
 ## Reminder: send 2 days before the deadline
 
 > Hi [Name]! Friendly reminder about the onService test, due [date]. Even if you only manage a few missions, please send what you have. Every answer helps. The link again: app.onservice.ph/feedback 🙏
