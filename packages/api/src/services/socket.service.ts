@@ -36,6 +36,7 @@ interface AuthenticatedSocket extends Socket {
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_EVENTS = 60;
 const ADMIN_TIER_ROLES = new Set(['admin', 'super_admin', 'dpo']);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function checkRateLimit(socket: AuthenticatedSocket): boolean {
   const now = Date.now();
@@ -53,6 +54,68 @@ function checkRateLimit(socket: AuthenticatedSocket): boolean {
 const EXP_CHECK_INTERVAL_MS = 60_000;
 
 let io: Server | null = null;
+
+/**
+ * A handshake (or auth:refresh) refusal whose message is safe to send to the
+ * client. Any other failure is reported as 'Invalid token'.
+ */
+export class SocketAuthError extends Error {}
+
+/**
+ * The socket access check, shared by the handshake and `auth:refresh`
+ * (D38, merged plan 2.4). Extracted from the handshake with no behaviour
+ * change: token type, canonical account (active, same role, same session
+ * generation) and forced password rotation for admin-tier roles. The token
+ * type is checked before the account is read.
+ */
+export async function verifySocketAccessToken(
+  token: unknown,
+): Promise<{ userId: string; role: string; exp: number }> {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new SocketAuthError('Server configuration error');
+  if (typeof token !== 'string' || !token) throw new SocketAuthError('Authentication required');
+
+  let payload: AuthPayload & { type?: string };
+  try {
+    payload = jwt.verify(token, secret) as AuthPayload & { type?: string };
+  } catch {
+    throw new SocketAuthError('Invalid token');
+  }
+
+  // Reject partial/non-access tokens (parity with HTTP auth middleware)
+  if (payload.type !== undefined && payload.type !== 'access') {
+    throw new SocketAuthError('Invalid token type');
+  }
+
+  const canonical = await db.query<{
+    role: string;
+    is_active: boolean;
+    session_version: number | string;
+    must_rotate_password: boolean | null;
+  }>(
+    `SELECT role, is_active, session_version,
+            COALESCE(must_rotate_password, FALSE) AS must_rotate_password
+       FROM users
+      WHERE id = $1`,
+    [payload.userId],
+  );
+  const account = canonical.rows[0];
+  const tokenVersion = Number(payload.sessionVersion ?? 1);
+  const currentVersion = Number(account?.session_version);
+  if (!account?.is_active
+      || account.role !== payload.role
+      || !Number.isSafeInteger(tokenVersion)
+      || tokenVersion < 1
+      || !Number.isSafeInteger(currentVersion)
+      || currentVersion < 1
+      || tokenVersion !== currentVersion) {
+    throw new SocketAuthError('Session revoked');
+  }
+  if (ADMIN_TIER_ROLES.has(account.role) && account.must_rotate_password === true) {
+    throw new SocketAuthError('Password rotation required');
+  }
+  return { userId: payload.userId, role: account.role, exp: payload.exp };
+}
 
 export function initSocketServer(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
@@ -82,57 +145,14 @@ export function initSocketServer(httpServer: HttpServer): Server {
       return;
     }
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      next(new Error('Server configuration error'));
-      return;
-    }
-
     try {
-      const payload = jwt.verify(token, secret) as AuthPayload & { type?: string };
-
-      // Reject partial/non-access tokens (parity with HTTP auth middleware)
-      if (payload.type !== undefined && payload.type !== 'access') {
-        next(new Error('Invalid token type'));
-        return;
-      }
-
-      const canonical = await db.query<{
-        role: string;
-        is_active: boolean;
-        session_version: number | string;
-        must_rotate_password: boolean | null;
-      }>(
-        `SELECT role, is_active, session_version,
-                COALESCE(must_rotate_password, FALSE) AS must_rotate_password
-           FROM users
-          WHERE id = $1`,
-        [payload.userId],
-      );
-      const account = canonical.rows[0];
-      const tokenVersion = Number(payload.sessionVersion ?? 1);
-      const currentVersion = Number(account?.session_version);
-      if (!account?.is_active
-          || account.role !== payload.role
-          || !Number.isSafeInteger(tokenVersion)
-          || tokenVersion < 1
-          || !Number.isSafeInteger(currentVersion)
-          || currentVersion < 1
-          || tokenVersion !== currentVersion) {
-        next(new Error('Session revoked'));
-        return;
-      }
-      if (ADMIN_TIER_ROLES.has(account.role) && account.must_rotate_password === true) {
-        next(new Error('Password rotation required'));
-        return;
-      }
-
+      const payload = await verifySocketAccessToken(token);
       socket.userId = payload.userId;
-      socket.userRole = account.role;
+      socket.userRole = payload.role;
       socket.tokenExp = payload.exp;
       next();
-    } catch {
-      next(new Error('Invalid token'));
+    } catch (error) {
+      next(new Error(error instanceof SocketAuthError ? error.message : 'Invalid token'));
     }
   });
 
@@ -183,18 +203,24 @@ export function initSocketServer(httpServer: HttpServer): Server {
       socket.leave(`conversation:${conversationId}`);
     });
 
+    // D38: socket sends go through the same participant send path as HTTP
+    // (messaging.service sendParticipantMessage), so a read-only thread
+    // refuses them and they get the same off-platform check, socket events
+    // and "New message from ..." notice. Socket sends stay text, legacy photo
+    // URL or location; photo and voice media go through HTTP.
     socket.on('send:message', async (data: {
       conversationId: string;
       content: string;
       messageType?: 'text' | 'image' | 'location';
       imageUrl?: string;
+      clientMessageId?: string;
     }) => {
       if (!checkRateLimit(socket)) {
         socket.emit('error', { message: 'Rate limit exceeded; slow down.' });
         return;
       }
       try {
-        if (!data.content || typeof data.content !== 'string' || data.content.length > 2000) {
+        if (!data || !data.content || typeof data.content !== 'string' || data.content.length > 2000) {
           socket.emit('error', { message: 'Message content is required and must be under 2000 characters.' });
           return;
         }
@@ -204,31 +230,53 @@ export function initSocketServer(httpServer: HttpServer): Server {
         }
         const validTypes = ['text', 'image', 'location'] as const;
         const msgType = data.messageType && validTypes.includes(data.messageType) ? data.messageType : 'text';
+        const clientMessageId = typeof data.clientMessageId === 'string' && UUID_PATTERN.test(data.clientMessageId)
+          ? data.clientMessageId
+          : undefined;
 
-        const message = await messagingService.sendMessage(
-          data.conversationId,
-          userId,
-          data.content,
-          msgType,
-          data.imageUrl,
-        );
-
-        const formatted = messagingService.formatMessage(message);
-
-        io?.to(`conversation:${data.conversationId}`).emit('new:message', formatted);
-
-        const conversation = await messagingService.getConversationById(data.conversationId, userId);
-        const recipientId = conversation.customer_id === userId
-          ? conversation.provider_id
-          : conversation.customer_id;
-
-        io?.to(`user:${recipientId}`).emit('notification:message', {
+        const result = await messagingService.sendParticipantMessage({
           conversationId: data.conversationId,
-          message: formatted,
+          senderId: userId,
+          messageType: msgType,
+          content: data.content,
+          imageUrl: typeof data.imageUrl === 'string' ? data.imageUrl : undefined,
+          clientMessageId,
         });
+        await messagingService.deliverParticipantMessage(result);
       } catch (err) {
         const error = err instanceof Error ? err.message : 'Failed to send message';
-        socket.emit('error', { message: error });
+        const code = (err as { code?: unknown }).code;
+        socket.emit('error', typeof code === 'string' ? { message: error, code } : { message: error });
+      }
+    });
+
+    // D38 (merged plan 2.4): the app refreshes its access token while the
+    // socket stays open. Same checks as the handshake; the token must belong
+    // to the same user and role. Success moves socket.tokenExp so the expiry
+    // check above keeps the connection. Failure acks { ok: false }, sends
+    // auth:expired and disconnects. A rate-limited refresh is refused without
+    // a disconnect.
+    socket.on('auth:refresh', async (
+      token: unknown,
+      ack?: (result: { ok: boolean; exp?: number; reason?: string }) => void,
+    ) => {
+      const reply = typeof ack === 'function' ? ack : () => undefined;
+      if (!checkRateLimit(socket)) {
+        reply({ ok: false, reason: 'rate_limited' });
+        return;
+      }
+      try {
+        const verified = await verifySocketAccessToken(token);
+        if (verified.userId !== socket.userId || verified.role !== socket.userRole) {
+          throw new SocketAuthError('Token belongs to another account');
+        }
+        socket.tokenExp = verified.exp;
+        reply({ ok: true, exp: verified.exp });
+      } catch {
+        logger.info('Socket token refresh refused; disconnecting', { userId, socketId: socket.id });
+        reply({ ok: false });
+        socket.emit('auth:expired', { reason: 'refresh_refused' });
+        socket.disconnect(true);
       }
     });
 
@@ -254,10 +302,12 @@ export function initSocketServer(httpServer: HttpServer): Server {
     // Typing events must be authorized like join/send/mark-read — otherwise a
     // user could spam fake "typing" indicators into any conversation room they
     // aren't a participant of. Silent on failure (no error spam, like rate-limit).
+    // D38: typing into a read-only thread is dropped silently as well.
     socket.on('typing:start', async (conversationId: string) => {
       if (!checkRateLimit(socket)) return;
       try {
-        await messagingService.getConversationById(conversationId, userId);
+        const thread = await messagingService.getParticipantThreadState(conversationId, userId);
+        if (thread.effective_state === 'read_only') return;
         socket.to(`conversation:${conversationId}`).emit('typing:start', { userId });
       } catch { /* not a participant — drop silently */ }
     });
@@ -265,7 +315,8 @@ export function initSocketServer(httpServer: HttpServer): Server {
     socket.on('typing:stop', async (conversationId: string) => {
       if (!checkRateLimit(socket)) return;
       try {
-        await messagingService.getConversationById(conversationId, userId);
+        const thread = await messagingService.getParticipantThreadState(conversationId, userId);
+        if (thread.effective_state === 'read_only') return;
         socket.to(`conversation:${conversationId}`).emit('typing:stop', { userId });
       } catch { /* not a participant — drop silently */ }
     });

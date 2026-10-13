@@ -10,6 +10,7 @@
 import { platformConfig } from '../config/platform.config';
 import { createAppError } from '../middleware/error.middleware';
 import { db } from '../models/db';
+import { BOOKED_THREAD_FILTER } from './request-thread.service';
 
 export type ProofActorRole = 'customer' | 'provider' | 'admin' | 'unknown';
 
@@ -347,11 +348,15 @@ export async function getBookingProofSummary(bookingId: string): Promise<Booking
         LIMIT 1`,
       [bookingId],
     ),
+    // D38: only the booked provider's thread once a provider is booked
+    // (a quote request can have one thread per provider who quoted).
     db.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count
          FROM messages m
          JOIN conversations c ON c.id = m.conversation_id
-        WHERE c.booking_id = $1`,
+         JOIN bookings b ON b.id = c.booking_id
+        WHERE c.booking_id = $1
+          AND ${BOOKED_THREAD_FILTER}`,
       [bookingId],
     ),
     db.query<{

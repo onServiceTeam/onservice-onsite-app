@@ -26,6 +26,7 @@ import { maskEmail, maskPhilippinePhone, type ActorRole } from '../utils/pii-mas
 import { canTransition, type BookingStatus } from '../types/booking.types';
 import * as bookingCancelService from './booking-cancel.service';
 import { kickSlotWaitlistAfterCancellation } from './booking.service';
+import * as requestThread from './request-thread.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -200,6 +201,13 @@ export interface ReassignResult {
   adminActionId: string;
 }
 
+/** The stored and opened threads of one reassignment, for the after-commit events. */
+interface ReassignThreads {
+  oldConversationId: string | null;
+  newConversationId: string;
+  newConversationInserted: boolean;
+}
+
 export interface CancelResult {
   bookingId: string;
   refundAmount: number;
@@ -236,6 +244,13 @@ const FORCE_COMPLETE_ALLOWED = new Set<string>([
   'in_progress',
   'completed_by_provider',
 ]);
+
+// Timeline wording for system cancellation reason codes. D38 (merged plan
+// section 3): a quote request no pro answered within the expiry window is
+// cancelled with the code expired_no_provider.
+const CANCELLATION_REASON_LABELS: Readonly<Record<string, string>> = {
+  expired_no_provider: 'Expired: no pro responded in time.',
+};
 
 // BUG-PHASE168-01 fix — pre-fix requireReason had a min check but
 // no max. The helper feeds reason into admin_actions.full_notes
@@ -390,7 +405,9 @@ export async function getBookingDetail(
        LEFT JOIN users cu                  ON cu.id  = b.customer_id
        LEFT JOIN providers p               ON p.id   = b.provider_id
        LEFT JOIN users pu                  ON pu.id  = p.user_id
-       LEFT JOIN conversations c           ON c.booking_id = b.id
+       -- D38: a booking can have one thread per provider (185); Booking 360
+       -- shows only the booked provider's thread, so this join adds no rows.
+       LEFT JOIN conversations c           ON c.booking_id = b.id AND c.provider_id = p.user_id
        LEFT JOIN business_accounts ba      ON ba.id = b.business_account_id
        LEFT JOIN business_contracts bc     ON bc.id = b.contract_id
        LEFT JOIN business_account_term_versions batv
@@ -602,7 +619,9 @@ export async function getBookingTimeline(bookingId: string): Promise<TimelineEve
     events.push({
       at: booking.cancelled_at.toISOString(),
       type: 'booking_cancelled',
-      description: booking.cancellation_reason ?? 'Booking was cancelled.',
+      description: booking.cancellation_reason
+        ? (CANCELLATION_REASON_LABELS[booking.cancellation_reason] ?? booking.cancellation_reason)
+        : 'Booking was cancelled.',
       actor: { kind: 'system', id: null, name: null },
     });
   }
@@ -642,13 +661,16 @@ export async function getBookingTimeline(bookingId: string): Promise<TimelineEve
 
   // Best-effort chat first/last
   try {
+    // D38: only the booked provider's thread once a provider is booked.
     const chatResult = await db.query<{ first_at: Date | null; last_at: Date | null; cnt: string }>(
       `SELECT MIN(m.created_at) AS first_at,
               MAX(m.created_at) AS last_at,
               COUNT(*)::text    AS cnt
          FROM messages m
          JOIN conversations c ON c.id = m.conversation_id
-        WHERE c.booking_id = $1`,
+         JOIN bookings b ON b.id = c.booking_id
+        WHERE c.booking_id = $1
+          AND ${requestThread.BOOKED_THREAD_FILTER}`,
       [bookingId],
     );
     const chat = chatResult.rows[0];
@@ -744,11 +766,14 @@ export async function getBookingEvidence(bookingId: string): Promise<BookingEvid
     };
   });
 
+  // D38: only the booked provider's thread once a provider is booked.
   const chatResult = await db.query<{ cnt: string }>(
     `SELECT COUNT(*)::text AS cnt
        FROM messages m
        JOIN conversations c ON c.id = m.conversation_id
-      WHERE c.booking_id = $1`,
+       JOIN bookings b ON b.id = c.booking_id
+      WHERE c.booking_id = $1
+        AND ${requestThread.BOOKED_THREAD_FILTER}`,
     [bookingId],
   );
   const chatMessageCount = Number(chatResult.rows[0]?.cnt ?? 0);
@@ -1353,6 +1378,7 @@ export async function reassignBookingProvider(
     const bookingResult = await client.query<{
       id: string;
       status: string;
+      booking_type: string | null;
       customer_id: string;
       provider_id: string | null;
       performer_staff_id: string | null;
@@ -1363,7 +1389,7 @@ export async function reassignBookingProvider(
       longitude: string | null;
       scheduled_at: Date | null;
     }>(
-      `SELECT id, status, customer_id, provider_id, performer_staff_id,
+      `SELECT id, status, booking_type, customer_id, provider_id, performer_staff_id,
               category_id, subcategory_id, latitude, longitude, scheduled_at,
               (SELECT user_id FROM providers WHERE id = bookings.provider_id) AS old_provider_user_id
          FROM bookings WHERE id = $1 FOR UPDATE`,
@@ -1371,6 +1397,21 @@ export async function reassignBookingProvider(
     );
     const booking = bookingResult.rows[0];
     if (!booking) throw createAppError('Booking not found.', 404);
+
+    // D38 (critique M1): a quote request still collecting quotes has no price
+    // and no chosen provider. Assigning one here would book a provider at
+    // zero and leave the live quotes open, so it is refused; the customer
+    // chooses a provider by accepting a quote (Ken question 18).
+    if (booking.booking_type === 'quote_based'
+      && (booking.status === 'requested' || booking.status === 'quoted')) {
+      throw Object.assign(
+        createAppError(
+          'This quote request has no accepted quote yet. The customer chooses a pro by accepting a quote.',
+          409,
+        ),
+        { code: 'QUOTE_REQUEST_NOT_ASSIGNABLE' },
+      );
+    }
 
     if (TERMINAL_REASSIGN_BLOCKED.has(booking.status)) {
       throw createAppError(
@@ -1480,12 +1521,49 @@ export async function reassignBookingProvider(
       [newProviderId, bookingId, statusReset?.to ?? null],
     );
 
-    const conversationResult = await client.query(
-      `UPDATE conversations
-          SET provider_id = $1, updated_at = NOW()
-        WHERE booking_id = $2 AND provider_id IS DISTINCT FROM $1`,
-      [provider.user_id, bookingId],
+    // D38 (migration 185): one thread per (booking, provider). The old
+    // provider's thread is closed (stored read-only, provider_reassigned) and
+    // keeps its history; the new provider gets their own thread, so they never
+    // read what the customer and the old provider wrote. A thread the new
+    // provider already had on this booking (reassigned back) is reopened
+    // (critique P4, L16).
+    const threads: ReassignThreads = { oldConversationId: null, newConversationId: '', newConversationInserted: false };
+    if (booking.old_provider_user_id && booking.old_provider_user_id !== provider.user_id) {
+      const closed = await client.query<{ id: string }>(
+        `UPDATE conversations
+            SET state = 'read_only', state_reason = 'provider_reassigned', state_changed_at = NOW()
+          WHERE booking_id = $1 AND provider_id = $2 AND state = 'open'
+          RETURNING id`,
+        [bookingId, booking.old_provider_user_id],
+      );
+      threads.oldConversationId = closed.rows[0]?.id ?? null;
+    }
+    const opened = await client.query<{ id: string; inserted: boolean }>(
+      `INSERT INTO conversations (booking_id, customer_id, provider_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (booking_id, provider_id)
+         DO UPDATE SET state = 'open', state_reason = NULL, state_changed_at = NOW(), updated_at = NOW()
+       RETURNING id, (xmax = 0) AS inserted`,
+      [bookingId, booking.customer_id, provider.user_id],
     );
+    const newConversation = opened.rows[0];
+    if (!newConversation?.id) throw createAppError('Failed to open the new provider conversation.', 500);
+    threads.newConversationId = newConversation.id;
+    threads.newConversationInserted = newConversation.inserted === true;
+    if (threads.oldConversationId) {
+      await requestThread.insertSystemMessageInTransaction(client, {
+        conversationId: threads.oldConversationId,
+        senderId: adminUserId,
+        event: 'provider_reassigned_out',
+        text: requestThread.SYSTEM_MESSAGE_TEXT.provider_reassigned_out,
+      });
+    }
+    await requestThread.insertSystemMessageInTransaction(client, {
+      conversationId: threads.newConversationId,
+      senderId: adminUserId,
+      event: 'provider_reassigned_in',
+      text: requestThread.SYSTEM_MESSAGE_TEXT.provider_reassigned_in,
+    });
 
     const offersResult = await client.query(
       `UPDATE booking_offers
@@ -1505,7 +1583,9 @@ export async function reassignBookingProvider(
           oldProviderId: booking.provider_id,
           newProviderId,
           clearedPerformerStaffId: booking.performer_staff_id,
-          conversationParticipantUpdated: (conversationResult.rowCount ?? 0) > 0,
+          oldConversationId: threads.oldConversationId,
+          oldConversationClosed: threads.oldConversationId !== null,
+          newConversationId: threads.newConversationId,
           pendingOffersCancelled: offersResult.rowCount ?? 0,
           statusReset,
         }),
@@ -1553,6 +1633,7 @@ export async function reassignBookingProvider(
       customerId: booking.customer_id,
       oldProviderUserId: booking.old_provider_user_id,
       newProviderUserId: provider.user_id,
+      threads,
     };
   });
 
@@ -1577,7 +1658,7 @@ export async function reassignBookingProvider(
       userId: result.oldProviderUserId,
       type: 'provider_assigned',
       title: 'Booking reassigned by onService support',
-      body: 'You no longer have access to this booking or its customer conversation.',
+      body: 'This booking moved to another provider. Your conversation with the customer is now read-only.',
       data: { bookingId, source: 'admin_reassignment' },
     }));
   }
@@ -1590,6 +1671,26 @@ export async function reassignBookingProvider(
     oldProviderId: result.oldProviderId,
     newProviderId,
   });
+  // D38: tell both apps about the closed and the opened thread (best effort).
+  if (result.threads.oldConversationId && result.oldProviderUserId) {
+    requestThread.emitConversationState({
+      id: result.threads.oldConversationId,
+      customer_id: result.customerId,
+      provider_id: result.oldProviderUserId,
+      effective_state: 'read_only',
+      effective_state_reason: 'provider_reassigned',
+    });
+  }
+  const newThread = {
+    id: result.threads.newConversationId,
+    booking_id: bookingId,
+    customer_id: result.customerId,
+    provider_id: result.newProviderUserId,
+  };
+  requestThread.emitConversationOpened(newThread);
+  if (!result.threads.newConversationInserted) {
+    requestThread.emitConversationState({ ...newThread, effective_state: 'open', effective_state_reason: null });
+  }
   // OPS-560: the reset is a status change too; the admin Bookings list
   // refreshes only on status-change events.
   if (result.statusReset) {
@@ -1919,13 +2020,15 @@ export async function sendAdminMessageToBookingParticipants(
     let conversationId: string | null = null;
     let messageId: string | null = null;
     if (booking.provider_user_id) {
+      // D38 (migration 185): the booked provider's own thread, keyed on
+      // (booking_id, provider_id). It never moves a thread to another
+      // provider or reopens one; other providers' request threads on the
+      // same booking are left alone.
       const conversationResult = await client.query<{ id: string }>(
         `INSERT INTO conversations (booking_id, customer_id, provider_id)
          VALUES ($1, $2, $3)
-         ON CONFLICT (booking_id) DO UPDATE
-           SET customer_id = EXCLUDED.customer_id,
-               provider_id = EXCLUDED.provider_id,
-               updated_at = NOW()
+         ON CONFLICT (booking_id, provider_id) DO UPDATE
+           SET updated_at = NOW()
          RETURNING id`,
         [bookingId, booking.customer_id, booking.provider_user_id],
       );
@@ -1934,8 +2037,8 @@ export async function sendAdminMessageToBookingParticipants(
 
       const insertResult = await client.query<{ id: string }>(
         `INSERT INTO messages
-           (conversation_id, sender_id, content, message_type, image_url, is_flagged)
-         VALUES ($1, $2, $3, 'system', NULL, FALSE)
+           (conversation_id, sender_id, content, message_type, image_url, is_flagged, created_at)
+         VALUES ($1, $2, $3, 'system', NULL, FALSE, clock_timestamp())
          RETURNING id`,
         [conversationId, adminUserId, trimmed],
       );
@@ -2026,13 +2129,19 @@ export async function sendAdminMessageToBookingParticipants(
       createdAt: new Date().toISOString(),
     };
     socketService.emitToConversation(durable.conversationId, 'new:message', socketMessage);
+    // D38 (merged plan 2.4): notification:message carries the booking and the
+    // thread stage; a support message always lands in the booked thread.
     socketService.emitToUser(durable.customerId, 'notification:message', {
       conversationId: durable.conversationId,
+      bookingId,
+      stage: 'booking',
       message: socketMessage,
     });
     if (durable.providerUserId) {
       socketService.emitToUser(durable.providerUserId, 'notification:message', {
         conversationId: durable.conversationId,
+        bookingId,
+        stage: 'booking',
         message: socketMessage,
       });
     }

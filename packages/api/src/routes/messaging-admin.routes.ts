@@ -41,6 +41,7 @@ router.get(
       const data = await messagingAdminService.listConversationsForAdmin({
         filter: req.query.filter as 'all' | 'flagged' | 'reported',
         search: typeof req.query.search === 'string' ? req.query.search : undefined,
+        stage: req.query.stage as 'request' | 'booking' | undefined,
         page: req.query.page as unknown as number,
         pageSize: req.query.pageSize as unknown as number,
       });

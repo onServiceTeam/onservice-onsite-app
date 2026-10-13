@@ -15,6 +15,14 @@
 import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import * as requestThread from './request-thread.service';
+
+// D38 request threads (Milestone 2, package P4): a booking can carry one thread
+// per provider who quoted. The list and the thread add each thread's derived
+// state, read-only reason and stage (request or booking) from
+// request-thread.service THREAD_STATE_SQL, and messages add their caption,
+// system event and voice length. Signed playback of private thread media is
+// Milestone 2 wave 3; until then `media` is null.
 
 const PREVIEW_LEN = 120;
 const REDACTION_REASON_MIN = 3;
@@ -40,9 +48,26 @@ interface AdminMessageRow {
   sender_first: string;
   sender_last: string;
   sender_role: string;
+  // D38 (migration 185).
+  media_id?: string | null;
+  media_duration_ms?: number | null;
+  system_event?: string | null;
+}
+
+/** m:ss for a voice note length in milliseconds. */
+function formatDuration(ms: number | null | undefined): string {
+  const totalSeconds = Math.max(0, Math.round(Number(ms ?? 0) / 1000));
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
+}
+
+/** List preview: voice notes show their length, never a link. */
+function adminPreview(content: string | null, messageType: string | null | undefined, durationMs: number | null | undefined): string | null {
+  if (messageType === 'voice') return `[voice ${formatDuration(durationMs)}]`;
+  return content ? content.slice(0, PREVIEW_LEN) : null;
 }
 
 function formatAdminMessage(m: AdminMessageRow): Record<string, unknown> {
+  const isMedia = m.message_type === 'image' || m.message_type === 'voice' || m.message_type === 'video';
   return {
     id: m.id,
     conversationId: m.conversation_id,
@@ -63,6 +88,24 @@ function formatAdminMessage(m: AdminMessageRow): Record<string, unknown> {
     redactedBy: m.redacted_by,
     redactionReason: m.redaction_reason,
     createdAt: m.created_at.toISOString(),
+    caption: isMedia && m.content && m.content !== 'Photo' ? m.content : null,
+    systemEvent: m.system_event ?? null,
+    mediaId: m.media_id ?? null,
+    mediaDurationMs: m.media_duration_ms ?? null,
+    media: null,
+  };
+}
+
+/** Effective state fields of an admin thread row (absent on legacy mocks). */
+function threadStateFields(r: {
+  effective_state?: string;
+  effective_state_reason?: string | null;
+  stage?: string;
+}): Record<string, unknown> {
+  return {
+    state: r.effective_state ?? null,
+    stateReason: r.effective_state_reason ?? null,
+    stage: r.stage ?? null,
   };
 }
 
@@ -86,6 +129,8 @@ async function logModerationAction(
 export interface ListConversationsOpts {
   filter?: 'all' | 'flagged' | 'reported';
   search?: string;
+  /** D38: only pre-booking request threads, or only the booked provider's threads. */
+  stage?: 'request' | 'booking';
   page?: number;
   pageSize?: number;
 }
@@ -121,18 +166,30 @@ export async function listConversationsForAdmin(opts: ListConversationsOpts): Pr
     );
   }
 
+  if (opts.stage === 'request' || opts.stage === 'booking') {
+    params.push(opts.stage);
+    where.push(`(${requestThread.THREAD_STATE_SQL.stage}) = $${params.length}`);
+  }
+
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
+  // The count uses the thread-state joins too (the stage filter reads them;
+  // JOIN bookings matches every conversation through its booking foreign key).
   const countResult = await db.query<{ count: string }>(
     `SELECT COUNT(*)::text AS count
        FROM conversations c
        JOIN users cu ON cu.id = c.customer_id
        JOIN users pu ON pu.id = c.provider_id
+       ${requestThread.THREAD_STATE_JOINS}
        ${whereSql}`,
     params,
   );
   const total = Number(countResult.rows[0]?.count ?? 0);
 
+  // Most recent activity first. A reassignment writes the closed thread and
+  // the new thread in one transaction, so both carry the same time; the
+  // booked provider's thread wins that tie, because the admin "Conversation"
+  // links (/communications?bookingId=) open the first match for a booking.
   params.push(pageSize, offset);
   const rows = await db.query<{
     id: string;
@@ -152,6 +209,11 @@ export async function listConversationsForAdmin(opts: ListConversationsOpts): Pr
     reported_open: string;
     last_message_at: Date | null;
     last_message_preview: string | null;
+    last_message_type?: string | null;
+    last_message_duration_ms?: number | null;
+    effective_state?: string;
+    effective_state_reason?: string | null;
+    stage?: string;
   }>(
     `SELECT c.id, c.booking_id, c.customer_id, c.provider_id,
             p.id AS provider_profile_id, c.is_active,
@@ -159,21 +221,34 @@ export async function listConversationsForAdmin(opts: ListConversationsOpts): Pr
             cu.first_name AS customer_first, cu.last_name AS customer_last,
             pu.first_name AS provider_first, pu.last_name AS provider_last,
             stats.message_count, stats.flagged_open, stats.reported_open,
-            stats.last_message_at, stats.last_message_preview
+            stats.last_message_at,
+            last_msg.content AS last_message_preview,
+            last_msg.message_type AS last_message_type,
+            last_msg.media_duration_ms AS last_message_duration_ms,
+            ${requestThread.THREAD_STATE_COLUMNS}
        FROM conversations c
        JOIN users cu ON cu.id = c.customer_id
        JOIN users pu ON pu.id = c.provider_id
        LEFT JOIN providers p ON p.user_id = c.provider_id
+       ${requestThread.THREAD_STATE_JOINS}
        LEFT JOIN LATERAL (
          SELECT COUNT(*)::text AS message_count,
                 COUNT(*) FILTER (WHERE m.is_flagged = TRUE AND m.flag_reviewed_at IS NULL)::text AS flagged_open,
                 COUNT(*) FILTER (WHERE m.reported_at IS NOT NULL AND m.flag_reviewed_at IS NULL)::text AS reported_open,
-                MAX(m.created_at) AS last_message_at,
-                (SELECT content FROM messages m2 WHERE m2.conversation_id = c.id ORDER BY m2.created_at DESC LIMIT 1) AS last_message_preview
+                MAX(m.created_at) AS last_message_at
            FROM messages m WHERE m.conversation_id = c.id
        ) stats ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT m2.content, m2.message_type, m2.media_duration_ms
+           FROM messages m2
+          WHERE m2.conversation_id = c.id
+          ORDER BY m2.created_at DESC, m2.id DESC
+          LIMIT 1
+       ) last_msg ON TRUE
        ${whereSql}
-       ORDER BY c.updated_at DESC
+       ORDER BY c.updated_at DESC,
+                (${requestThread.THREAD_STATE_SQL.stage}) = 'booking' DESC,
+                c.id DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params,
   );
@@ -191,9 +266,8 @@ export async function listConversationsForAdmin(opts: ListConversationsOpts): Pr
     flaggedOpen: Number(r.flagged_open ?? 0),
     reportedOpen: Number(r.reported_open ?? 0),
     lastMessageAt: r.last_message_at ? r.last_message_at.toISOString() : null,
-    lastMessagePreview: r.last_message_preview
-      ? r.last_message_preview.slice(0, PREVIEW_LEN)
-      : null,
+    lastMessagePreview: adminPreview(r.last_message_preview, r.last_message_type, r.last_message_duration_ms),
+    ...threadStateFields(r),
     createdAt: r.created_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
   }));
@@ -221,16 +295,21 @@ export async function getConversationThreadForAdmin(
       customer_last: string;
       provider_first: string;
       provider_last: string;
+      effective_state?: string;
+      effective_state_reason?: string | null;
+      stage?: string;
     }>(
       `SELECT c.id, c.booking_id, c.customer_id, c.provider_id,
             p.id AS provider_profile_id, c.is_active,
             c.created_at, c.updated_at,
             cu.first_name AS customer_first, cu.last_name AS customer_last,
-            pu.first_name AS provider_first, pu.last_name AS provider_last
+            pu.first_name AS provider_first, pu.last_name AS provider_last,
+            ${requestThread.THREAD_STATE_COLUMNS}
        FROM conversations c
        JOIN users cu ON cu.id = c.customer_id
        JOIN users pu ON pu.id = c.provider_id
        LEFT JOIN providers p ON p.user_id = c.provider_id
+       ${requestThread.THREAD_STATE_JOINS}
       WHERE c.id = $1`,
       [conversationId],
     );
@@ -241,11 +320,12 @@ export async function getConversationThreadForAdmin(
       `SELECT m.id, m.conversation_id, m.sender_id, m.content, m.message_type, m.image_url,
             m.is_read, m.is_flagged, m.flag_reviewed_at, m.reported_at, m.report_reason,
             m.redacted_at, m.redacted_by, m.redaction_reason, m.created_at,
+            m.media_id, m.media_duration_ms, m.system_event,
             su.first_name AS sender_first, su.last_name AS sender_last, su.role AS sender_role
        FROM messages m
        JOIN users su ON su.id = m.sender_id
       WHERE m.conversation_id = $1
-      ORDER BY m.created_at ASC`,
+      ORDER BY m.created_at ASC, m.id ASC`,
       [conversationId],
     );
 
@@ -266,6 +346,7 @@ export async function getConversationThreadForAdmin(
         providerProfileId: conv.provider_profile_id,
         providerName: `${conv.provider_first} ${conv.provider_last}`.trim(),
         isActive: conv.is_active,
+        ...threadStateFields(conv),
         createdAt: conv.created_at.toISOString(),
         updatedAt: conv.updated_at.toISOString(),
         messages: messages.rows.map(formatAdminMessage),
@@ -314,6 +395,7 @@ export async function listModerationQueue(opts: {
     `SELECT m.id, m.conversation_id, m.sender_id, m.content, m.message_type, m.image_url,
             m.is_read, m.is_flagged, m.flag_reviewed_at, m.reported_at, m.report_reason,
             m.redacted_at, m.redacted_by, m.redaction_reason, m.created_at,
+            m.media_id, m.media_duration_ms, m.system_event,
             su.first_name AS sender_first, su.last_name AS sender_last, su.role AS sender_role,
             c.booking_id
        FROM messages m

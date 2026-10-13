@@ -1,12 +1,24 @@
 import { Router, Response, NextFunction } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { validationMiddleware } from '../middleware/validation.middleware';
-import { sendMessageSchema, createConversationSchema } from '../validators/messaging.validators';
+import {
+  sendMessageSchema,
+  createConversationSchema,
+  inboxQuerySchema,
+  messagesCursorSchema,
+  conversationIdParamsSchema,
+} from '../validators/messaging.validators';
 import { createAppError } from '../middleware/error.middleware';
 import * as messagingService from '../services/messaging.service';
-import * as notificationService from '../services/notification.service';
-import { emitToConversation, emitToUser } from '../services/socket.service';
-import { db } from '../models/db';
+import { emitToConversation } from '../services/socket.service';
+
+// Mounted at /api/v1/conversations and /api/v1/messaging (server.ts). D38
+// request threads (Milestone 2, package P4): a booking can have one thread per
+// provider, each with an open or read-only state. Plan:
+// qa-frameworks/human-audit-2026-10-13/merged.md section 2.3 (Threads),
+// design-threads.md section 3. Old apps (1.0.2, 1.0.3) keep working: the list
+// without ?view=, POST / with only bookingId, and page/pageSize message reads
+// are served as before.
 
 const router = Router();
 
@@ -16,12 +28,55 @@ function getParamId(req: AuthenticatedRequest, name = 'id'): string {
   return id;
 }
 
+/** Validate ?view=inbox queries; the legacy list (no view) passes through. */
+function inboxQueryValidation(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  if (req.query.view === undefined) {
+    next();
+    return;
+  }
+  validationMiddleware({ query: inboxQuerySchema })(req, res, next);
+}
+
+/** Validate cursor paging; old apps that send only page/pageSize pass through. */
+function cursorQueryValidation(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  const { before, after, limit } = req.query;
+  if (before === undefined && after === undefined && limit === undefined) {
+    next();
+    return;
+  }
+  validationMiddleware({ query: messagesCursorSchema })(req, res, next);
+}
+
 router.get(
   '/',
   authMiddleware,
+  inboxQueryValidation,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const conversations = await messagingService.getUserConversations(req.user!.userId);
+      const userId = req.user!.userId;
+      if (req.query.view === 'inbox') {
+        const query = req.query as unknown as {
+          state: 'open' | 'read_only' | 'all';
+          bookingId?: string;
+          page: number;
+          pageSize: number;
+        };
+        const inbox = await messagingService.listInbox(userId, query);
+        res.json({
+          success: true,
+          data: {
+            items: inbox.items.map((row) => messagingService.formatInboxItem(row, userId)),
+            meta: {
+              total: inbox.total,
+              page: inbox.page,
+              pageSize: inbox.pageSize,
+              totalPages: Math.ceil(inbox.total / inbox.pageSize),
+            },
+          },
+        });
+        return;
+      }
+      const conversations = await messagingService.getUserConversations(userId);
       res.json({
         success: true,
         data: conversations.map(messagingService.formatConversation),
@@ -38,40 +93,12 @@ router.post(
   validationMiddleware(createConversationSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { bookingId } = req.body;
-      const userId = req.user!.userId;
-
-      interface BookingLookup {
-        customer_id: string;
-        provider_id: string | null;
-      }
-      const bookingResult = await db.query<BookingLookup>(
-        `SELECT b.customer_id, p.user_id AS provider_id
-         FROM bookings b
-         LEFT JOIN providers p ON b.provider_id = p.id
-         WHERE b.id = $1`,
-        [bookingId],
-      );
-
-      if (bookingResult.rows.length === 0) {
-        throw createAppError('Booking not found.', 404);
-      }
-
-      const booking = bookingResult.rows[0]!;
-      if (booking.customer_id !== userId && booking.provider_id !== userId) {
-        throw createAppError('You are not part of this booking.', 403);
-      }
-
-      if (!booking.provider_id) {
-        throw createAppError('No provider assigned to this booking yet.', 400);
-      }
-
-      const conversation = await messagingService.getOrCreateConversation(
+      const { bookingId, providerUserId } = req.body as { bookingId: string; providerUserId?: string };
+      const conversation = await messagingService.resolveConversationForParticipant(
+        req.user!.userId,
         bookingId,
-        booking.customer_id,
-        booking.provider_id,
+        providerUserId,
       );
-
       res.status(201).json({
         success: true,
         data: messagingService.formatConversation(conversation),
@@ -83,24 +110,77 @@ router.post(
 );
 
 router.get(
-  '/:id/messages',
+  '/unread/count',
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
+      const count = await messagingService.getUnreadCount(req.user!.userId);
+      res.json({ success: true, data: { unreadCount: count } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/:id',
+  authMiddleware,
+  validationMiddleware({ params: conversationIdParamsSchema }),
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const conversation = await messagingService.getConversationView(getParamId(req), req.user!.userId);
+      res.json({ success: true, data: messagingService.formatConversation(conversation) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/:id/messages',
+  authMiddleware,
+  cursorQueryValidation,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
       const conversationId = getParamId(req);
+      const userId = req.user!.userId;
+      const { before, after, limit } = req.query as { before?: string; after?: string; limit?: number };
+
+      if (before !== undefined || after !== undefined || limit !== undefined) {
+        const page = await messagingService.getMessagesPage(conversationId, userId, { before, after, limit });
+        const participants = {
+          customerId: page.conversation.customer_id,
+          providerId: page.conversation.provider_id,
+        };
+        res.json({
+          success: true,
+          data: page.messages.map((message) => messagingService.formatMessage(message, participants)),
+          meta: {
+            hasMore: page.hasMore,
+            nextBefore: page.nextBefore,
+            conversation: {
+              id: page.conversation.id,
+              state: page.conversation.effective_state,
+              stateReason: page.conversation.effective_state_reason ?? null,
+            },
+          },
+        });
+        return;
+      }
+
       const page = Number(req.query.page) || 1;
       const pageSize = Math.min(Number(req.query.pageSize) || 50, 100);
 
       const result = await messagingService.getMessages(
         conversationId,
-        req.user!.userId,
+        userId,
         page,
         pageSize,
       );
 
       res.json({
         success: true,
-        data: result.messages.map(messagingService.formatMessage),
+        data: result.messages.map((message) => messagingService.formatMessage(message)),
         meta: {
           total: result.total,
           page,
@@ -121,37 +201,34 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const conversationId = getParamId(req);
-      const userId = req.user!.userId;
+      const body = req.body as {
+        content: string;
+        messageType: messagingService.ParticipantMessageType;
+        imageUrl?: string;
+        mediaId?: string;
+        clientMessageId?: string;
+      };
 
-      const message = await messagingService.sendMessage(
+      const result = await messagingService.sendParticipantMessage({
         conversationId,
-        userId,
-        req.body.content,
-        req.body.messageType,
-        req.body.imageUrl,
-      );
-
-      const conversation = await messagingService.getConversationById(conversationId, userId);
-      const recipientId = conversation.customer_id === userId
-        ? conversation.provider_id
-        : conversation.customer_id;
-
-      const formatted = messagingService.formatMessage(message);
-
-      emitToConversation(conversationId, 'new:message', formatted);
-      emitToUser(recipientId, 'notification:message', {
-        conversationId,
-        message: formatted,
+        senderId: req.user!.userId,
+        messageType: body.messageType,
+        content: body.content,
+        imageUrl: body.imageUrl,
+        mediaId: body.mediaId,
+        clientMessageId: body.clientMessageId,
       });
+      // Socket events and the "New message from ..." notice, after commit.
+      await messagingService.deliverParticipantMessage(result);
 
-      await notificationService.createPushNotification({
-        userId: recipientId,
-        type: 'new_message',
-        title: 'New Message',
-        body: req.body.content.slice(0, 100),
-        data: { conversationId, bookingId: conversation.booking_id },
+      const formatted = messagingService.formatMessage(result.message, {
+        customerId: result.conversation.customer_id,
+        providerId: result.conversation.provider_id,
       });
-
+      if (result.duplicate) {
+        res.status(200).json({ success: true, data: { ...formatted, duplicate: true } });
+        return;
+      }
       res.status(201).json({
         success: true,
         data: formatted,
@@ -162,6 +239,7 @@ router.post(
   },
 );
 
+// Reading and marking read work in read-only threads too.
 router.post(
   '/:id/read',
   authMiddleware,
@@ -186,21 +264,9 @@ router.post(
   },
 );
 
-router.get(
-  '/unread/count',
-  authMiddleware,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    try {
-      const count = await messagingService.getUnreadCount(req.user!.userId);
-      res.json({ success: true, data: { unreadCount: count } });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
 // D26 — a participant reports a message; it surfaces in the admin moderation
 // queue. Path is /messages/:messageId/report (distinct from /:id/messages).
+// Reporting works in read-only threads too.
 router.post(
   '/messages/:messageId/report',
   authMiddleware,

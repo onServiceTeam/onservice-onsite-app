@@ -578,8 +578,16 @@ describe('reassignBookingProvider', () => {
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
-  it('Bug UX-468 — reassignment moves booking, conversation, staff assignment, offers, notices, and audit together', async () => {
+  // D38 (Milestone 2, P4): the old provider's conversation is no longer moved
+  // to the new provider (that leaked the old chat history). It is closed
+  // read-only and the new provider gets their own thread, in the same
+  // transaction as the booking move. This test was updated from asserting
+  // the provider move to asserting the close and the open.
+  it('Bug UX-468 — reassignment moves booking, closes the old conversation and opens the new one, staff assignment, offers, notices, and audit together', async () => {
     const calls = setupTxRecorder(async (sql) => {
+      if (/UPDATE conversations[\s\S]*'read_only'/.test(sql)) return rows([{ id: 'old-conversation' }]);
+      if (/INSERT INTO conversations/.test(sql)) return rows([{ id: 'new-conversation', inserted: true }]);
+      if (/INSERT INTO messages/.test(sql)) return rows([{ id: 'system-message' }]);
       if (/FROM bookings WHERE id = \$1 FOR UPDATE/.test(sql)) {
         return rows([{
           id: BOOKING_ID,
@@ -618,10 +626,27 @@ describe('reassignBookingProvider', () => {
     expect(out.oldProviderId).toBe('old');
     const bookingUpdate = calls.find((c) => /UPDATE bookings[\s\S]*provider_id/.test(c.sql));
     expect(bookingUpdate?.sql).toContain('performer_staff_id = NULL');
-    expect(calls.find((c) => /UPDATE conversations/.test(c.sql))).toBeDefined();
+    // The old provider's thread is closed, never handed to the new provider.
+    const closeOld = calls.find((c) => /UPDATE conversations/.test(c.sql));
+    expect(closeOld?.sql).toContain("state = 'read_only'");
+    expect(closeOld?.sql).toContain("state_reason = 'provider_reassigned'");
+    expect(closeOld?.sql).not.toMatch(/SET provider_id/);
+    expect(closeOld?.params).toEqual([BOOKING_ID, 'old-provider-user']);
+    // The new provider's own thread is opened (or reopened).
+    const openNew = calls.find((c) => /INSERT INTO conversations/.test(c.sql));
+    expect(openNew?.sql).toContain('ON CONFLICT (booking_id, provider_id)');
+    expect(openNew?.params).toEqual([BOOKING_ID, CUSTOMER_ID, 'new-provider-user']);
+    const systemMessages = calls.filter((c) => /INSERT INTO messages/.test(c.sql));
+    expect(systemMessages.map((c) => c.params[0])).toEqual(['old-conversation', 'new-conversation']);
+    expect(systemMessages.map((c) => c.params[3])).toEqual(['provider_reassigned_out', 'provider_reassigned_in']);
     expect(calls.find((c) => /UPDATE booking_offers/.test(c.sql))).toBeDefined();
     const insert = calls.find((c) => /INSERT INTO admin_actions/.test(c.sql));
     expect(insert?.sql).toContain("'booking_reassigned'");
+    expect(JSON.parse(insert!.params[2] as string)).toMatchObject({
+      oldConversationId: 'old-conversation',
+      oldConversationClosed: true,
+      newConversationId: 'new-conversation',
+    });
     expect(appendProviderAssignmentTermsMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({

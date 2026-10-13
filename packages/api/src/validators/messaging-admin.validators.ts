@@ -6,6 +6,8 @@ const pageSize = z.coerce.number().int().min(1).max(100).default(25);
 export const conversationListQuerySchema = z.object({
   filter: z.enum(['all', 'flagged', 'reported']).default('all'),
   search: z.string().trim().max(200).optional(),
+  // D38 (Milestone 2, P4): pre-booking request threads or booked-job threads.
+  stage: z.enum(['request', 'booking']).optional(),
   page,
   pageSize,
 }).strict();

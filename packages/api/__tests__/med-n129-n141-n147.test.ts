@@ -93,12 +93,17 @@ describe('MED-N129 — addStaffMember writes admin_actions audit row inside trx'
 
 describe('MED-N141 — sendMessage writes message + conversation timestamp atomically', () => {
   it('MED-N141 — INSERT messages + UPDATE conversations both run on the trx client', async () => {
-    // getConversationById SELECT (runs OUTSIDE trx — pre-check).
+    // D38 (Milestone 2, P4): sendMessage now goes through the participant send
+    // path, so the participant and thread-state SELECT runs INSIDE the same
+    // transaction (it locks the thread row) instead of as a separate
+    // pre-check. The row carries the derived state; 'open' lets the send
+    // through. The atomicity assertions below are unchanged.
     dbQueryMock.mockResolvedValueOnce({
       rows: [{
         id: 'c1', customer_id: 'u1', provider_id: 'p1',
         booking_id: null, is_active: true,
         created_at: new Date(), updated_at: new Date(),
+        effective_state: 'open', effective_state_reason: null, stage: 'booking',
       }],
       rowCount: 1,
     });
