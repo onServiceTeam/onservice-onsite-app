@@ -1059,13 +1059,18 @@ async function auditAdminViews(viewer: MediaViewer, rows: JobMediaRow[]): Promis
     group.details.mediaIds.push(row.id);
     groups.set(key, group);
   }
-  for (const { bookingId, details } of groups.values()) {
-    await db.query(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
-       VALUES ($1, 'job_media_viewed', 'booking', $2, $3::jsonb)`,
-      [viewer.userId, bookingId, JSON.stringify(details)],
-    );
-  }
+  if (groups.size === 0) return;
+  // Gate C (money-in-transaction): admin_actions writes go through a
+  // transaction, which also makes the rows for one view all-or-nothing.
+  await db.transaction(async client => {
+    for (const { bookingId, details } of groups.values()) {
+      await client.query(
+        `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id, details)
+         VALUES ($1, 'job_media_viewed', 'booking', $2, $3::jsonb)`,
+        [viewer.userId, bookingId, JSON.stringify(details)],
+      );
+    }
+  });
 }
 
 /**
