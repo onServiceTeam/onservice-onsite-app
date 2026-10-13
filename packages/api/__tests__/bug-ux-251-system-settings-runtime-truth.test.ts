@@ -23,11 +23,14 @@ it('Bug UX-251 — disconnected and launch-held settings are reported and enforc
   const statuses = Object.keys(settingsService.SETTING_DEFAULTS).map(
     (key) => settingsService.getSettingRuntimeControl(key).status,
   );
-  // 37 since migration 182 added request_first_booking (D38), a live control.
-  expect(statuses.filter((status) => status === 'live')).toHaveLength(37);
+  // 37 after migration 182 added request_first_booking (D38). D38 Milestone 2
+  // adds 14 live controls (7 request keys from 183, 6 job-media keys from 184,
+  // request_threads_enabled from 185) and retires max_quotes_per_booking from
+  // live to not_connected: 37 - 1 + 14 = 50 live, 12 + 1 = 13 not_connected.
+  expect(statuses.filter((status) => status === 'live')).toHaveLength(50);
   expect(statuses.filter((status) => status === 'release_coupled')).toHaveLength(3);
   expect(statuses.filter((status) => status === 'held')).toHaveLength(31);
-  expect(statuses.filter((status) => status === 'not_connected')).toHaveLength(12);
+  expect(statuses.filter((status) => status === 'not_connected')).toHaveLength(13);
 
   const disconnected = settingsService.getSettingRuntimeControl('jwt_access_expires');
   expect(disconnected).toMatchObject({ status: 'not_connected', editable: false });

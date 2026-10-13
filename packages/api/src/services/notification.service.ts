@@ -5,6 +5,11 @@ import * as templateService from './notification-template.service';
 import * as i18n from './i18n.service';
 import { formatPHP } from '../utils/currency';
 import { emitToUser } from './socket.service';
+// D38: the notification:new emit goes through the namespace object with an
+// optional call (see emitNotificationStored), so the many test suites that
+// mock socket.service without emitToUser keep working unchanged.
+import * as socketService from './socket.service';
+import { REALTIME_EVENTS, type NotificationNewPayload } from './realtime-events';
 
 interface NotificationRow {
   id: string;
@@ -72,6 +77,17 @@ export type NotificationType =
   // D27 Phase 1 — provider is notified when a custom-quote job request lands in
   // their category + service area (pull-based lead, provider chooses to quote).
   | 'new_job_request'
+  // D38 request-first loop (merged plan 2.5, critique 2.5). Copy never carries
+  // message content or contact details.
+  //   job_request_reopened  providers in a reopened round
+  //   quote_declined        the provider whose quote the customer declined
+  //   quote_not_selected    other providers who quoted, after an acceptance
+  //   quote_withdrawn       the customer, when a provider withdraws a quote
+  //   job_request_cancelled providers holding a live quote, when the customer cancels
+  //   request_reopened / request_still_looking / request_ops_review  the customer
+  | 'job_request_reopened' | 'quote_declined' | 'quote_not_selected' | 'quote_withdrawn'
+  | 'job_request_cancelled'
+  | 'request_reopened' | 'request_still_looking' | 'request_ops_review'
   // D27 Phase 7b — provider CRM follow-up reminder fires on its due date.
   | 'provider_reminder'
   // MED-N70 — change-order auto-expiry worker
@@ -123,9 +139,47 @@ export async function createNotification(params: CreateNotificationParams): Prom
      RETURNING *`,
     [params.userId, params.type, params.title, params.body, JSON.stringify(enrichedData)],
   );
+  const notification = result.rows[0];
+
+  // D38: the row is committed (autocommit on the pool), so open apps can show
+  // it now instead of waiting for a push that may never arrive.
+  if (notification) {
+    emitNotificationStored(params.userId, notification.id, () => ({
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      body: notification.body,
+      data: notification.data,
+      createdAt: notification.created_at,
+    }));
+  }
 
   logger.debug('Notification created', { userId: params.userId, type: params.type });
-  return result.rows[0]!;
+  return notification!;
+}
+
+/**
+ * D38 (merged plan 2.4): emit `notification:new` to the user's room right
+ * after a notification row is stored. Best effort. The stored row is the
+ * authoritative record and the apps also re-read their inbox, so a socket
+ * failure (or no socket server, as in workers and unit tests) never fails the
+ * notification. The optional call skips a socket.service mock that has no
+ * emitToUser, and the payload is built only when there is an emitter.
+ */
+function emitNotificationStored(
+  userId: string,
+  notificationId: string,
+  buildPayload: () => NotificationNewPayload,
+): void {
+  try {
+    socketService.emitToUser?.(userId, REALTIME_EVENTS.NOTIFICATION_NEW, buildPayload());
+  } catch (error) {
+    logger.warn('notification:new socket emit failed; the stored notification is unaffected', {
+      userId,
+      notificationId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 export async function getUserNotifications(
@@ -472,7 +526,19 @@ export async function deliverStoredNotificationPush(params: {
   title: string;
   body: string;
   data?: Record<string, unknown>;
+  /** The stored row's created_at, when the caller has it. */
+  createdAt?: Date | string;
 }): Promise<void> {
+  // D38: callers hand over rows they stored and committed, so the open apps
+  // hear about them now, the same as rows stored by createNotification().
+  emitNotificationStored(params.userId, params.notificationId, () => ({
+    id: params.notificationId,
+    type: params.type,
+    title: params.title,
+    body: params.body,
+    data: { type: params.type, ...params.data, notificationType: params.type },
+    createdAt: params.createdAt ?? new Date(),
+  }));
   await deliverPushToDevice(
     params.userId,
     params.title,
@@ -510,7 +576,10 @@ function pushPreferenceForType(
   if (['referral', 'suki', 'tier_upgrade'].includes(type)) return 'sukiRewards';
   if (
     type.startsWith('booking_')
-    || ['no_provider_available', 'customer_cancelled', 'provider_cancelled', 'job_completed', 'auto_confirmed', 'dispute_update', 'new_job_available', 'new_job_request', 'job_accepted', 'new_quote', 'quote_accepted', 'quote_expired', 'recurring_update'].includes(type)
+    || ['no_provider_available', 'customer_cancelled', 'provider_cancelled', 'job_completed', 'auto_confirmed', 'dispute_update', 'new_job_available', 'new_job_request', 'job_accepted', 'new_quote', 'quote_accepted', 'quote_expired', 'recurring_update',
+      // D38 request-first loop (merged plan 2.5, critique 2.5).
+      'job_request_reopened', 'quote_declined', 'quote_not_selected', 'quote_withdrawn',
+      'job_request_cancelled', 'request_reopened', 'request_still_looking', 'request_ops_review'].includes(type)
   ) return 'bookingUpdates';
   return 'system';
 }

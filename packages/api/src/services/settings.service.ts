@@ -143,11 +143,30 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   nbi_expiry_warning_days: '30',
   max_service_radius_km: '50',
   quote_expiry_hours: '48',
+  // Retired by D38 (now not_connected, read-only): request_max_open_quotes is
+  // the live open-quote limit. Kept here because its row stays active and the
+  // boot drift check expects both sides to match.
   max_quotes_per_booking: '5',
   // D38 (Ken, 2026-10-13): every service starts with the customer describing
   // the job and a provider sends the price. 'false' restores the fixed-price
   // catalog flow. Seeded by migration 182.
   request_first_booking: 'true',
+  // D38 first-response request engine (migration 183), read through
+  // getRequestPolicy() and getClientConfig().
+  request_max_open_quotes: '1',
+  request_max_rounds: '3',
+  request_max_invites: '30',
+  request_show_declined_amount: 'false',
+  request_provider_poll_seconds: '30',
+  request_customer_still_looking_minutes: '30',
+  request_slot_lead_minutes: '60',
+  // D38 request threads. Its row is seeded by migration 185, which ships in
+  // the same release as 183 and 184. Kept here even while that row is absent:
+  // getSetting() then falls back to this value instead of throwing "not
+  // found", and the boot drift check only logs a warning (it never blocks
+  // boot). 'true' matches the 185 row, so behaviour does not change when the
+  // row arrives.
+  request_threads_enabled: 'true',
   change_order_approval_expiry_hours: '24',
 
   // Provider quality floor applied by the matching engine only after the
@@ -166,6 +185,14 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   captcha_threshold: '3',
   refresh_token_strict_fingerprint: 'false',
   allowed_image_mime_types: 'image/jpeg,image/png,image/webp',
+  // D38 private job media (migration 184), read through getJobMediaLimits()
+  // and getClientConfig(). Byte limits are bytes, not centavos.
+  job_media_max_photos: '6',
+  job_media_photo_max_bytes: '10485760',
+  job_media_video_max_seconds: '30',
+  job_media_video_max_bytes: '83886080',
+  job_media_voice_max_seconds: '60',
+  job_media_voice_max_bytes: '2097152',
 
   // Business account validation lists.
   business_account_types: 'office,condo_management,restaurant,hotel,retail,school,hospital,other',
@@ -258,6 +285,7 @@ const NOT_CONNECTED_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   jwt_refresh_expires: 'Refresh-token, database, and cookie lifetimes are controlled by deployment configuration, not this database row.',
   admin_session_timeout_hours: 'Admin session and cookie lifetimes are controlled by deployment configuration, not this database row.',
   cache_ttl_provider_profile: 'Provider-profile cache lifetime still uses deployed configuration.',
+  max_quotes_per_booking: 'Superseded by request_max_open_quotes (D38).',
 };
 
 const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
@@ -304,8 +332,25 @@ const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   aml_large_transaction_threshold_centavos: 'New single-payout requests at or above this threshold enter an internal compliance-review hold. Existing requests keep their snapshotted threshold.',
   addon_price_max_cents: 'Within 60 seconds, this becomes the maximum for future add-on creation, add-on price changes, and inactive add-on reactivation, up to the platform hard ceiling of ₱100,000. Existing active add-ons remain customer-visible and bookable at their current price until an operator reviews them in Catalog; historical booking price snapshots never change.',
   max_service_radius_km: 'Provider applications, provider change requests, approval review, super-admin edits, and customer/provider guidance enforce this maximum for new changes.',
-  quote_expiry_hours: 'New provider quotes snapshot this lifetime into their exact expiry timestamp. Existing quotes keep the deadline shown to both parties when the quote was submitted.',
+  quote_expiry_hours: 'New provider quotes snapshot this lifetime into their exact expiry timestamp, ending earlier when the provider\'s offered time window would otherwise pass first (window end minus request_slot_lead_minutes). Existing quotes keep the deadline shown to both parties when the quote was submitted.',
   request_first_booking: 'Customer apps follow this switch the next time they load the app config (within about 5 minutes). On: every service opens "Book a service", where the customer describes the job and a provider sends the price. Off: fixed-price services book at their catalog price again, and quote, per-unit and unpriced services keep the request form. The server accepts a request for any active service either way, so an app that has not picked up the change yet is never stuck, and the price of a request always comes from the provider\'s quote. Existing requests, quotes and bookings are unchanged.',
+  // D38 request engine (migration 183). Read through getRequestPolicy() and,
+  // for the app-facing keys, getClientConfig().
+  request_max_open_quotes: 'Within 60 seconds, a new quote is accepted only while fewer than this many providers hold a live quote on the request. 1 means the first provider to quote takes the request and it leaves every other provider\'s list; a higher number lets the customer compare quotes. Declined, withdrawn and expired quotes do not count. Quotes already sent are unchanged.',
+  request_max_rounds: 'Within 60 seconds, once the customer has declined every quote on a request in this many rounds, the request is flagged for back-office review instead of being sent to more providers. It stays visible in provider lists. Requests already flagged stay flagged.',
+  request_max_invites: 'Within 60 seconds, each new round of a request notifies at most this many providers, best match first. Other eligible providers still find the request in their Requests list. Invites already sent are unchanged.',
+  request_show_declined_amount: 'Within 60 seconds, when on, providers told about a reopened request, and the provider request list, also show the amount the customer declined. Off keeps earlier prices from anchoring new quotes. The customer\'s decline note is never shown to providers.',
+  request_provider_poll_seconds: 'Apps pick this up the next time they load the app config (within about 5 minutes). Provider Requests screens and the customer request screen re-check this often, only while the live connection is down. Shorter intervals use more of each user\'s request allowance.',
+  request_customer_still_looking_minutes: 'Within 60 seconds, a request with no quote this many minutes after it was sent shows the customer "Still looking for a pro" and sends one in-app notice. A request is never sent that notice twice. Apps read the display timing the next time they load the app config.',
+  request_slot_lead_minutes: 'Within 60 seconds, when a customer confirms a quote, the job time becomes the start of the provider\'s time window, but never earlier than this many minutes after confirmation; an ASAP quote starts this many minutes after confirmation. A window that ends before then can no longer be confirmed. The job time drives the refund tier, the payment cut-off and no-show timing (see E83). Bookings already confirmed keep their time.',
+  request_threads_enabled: 'Within 60 seconds, when on, the customer and each provider who sends a quote can message each other before booking. When off, new threads open only for the booked provider. Existing threads and their messages are unchanged.',
+  // D38 private job media (migration 184). Read through getJobMediaLimits().
+  job_media_max_photos: 'Within 60 seconds, new job requests can attach at most this many photos (0 to 6). The ceiling is 6 because a request accepts at most 8 items: the photos plus one video and one voice note. Requests already sent keep their photos.',
+  job_media_photo_max_bytes: 'Within 60 seconds, new photo uploads for job requests and request threads are refused above this size. Uploads already started keep the limit they started with; attached photos are unchanged.',
+  job_media_video_max_seconds: 'Within 60 seconds, new request videos longer than this are refused. The server measures the length from the file itself. Uploads already started keep the limit they started with; attached videos are unchanged.',
+  job_media_video_max_bytes: 'Within 60 seconds, new request video uploads are refused above this size. Uploads already started keep the limit they started with; attached videos are unchanged.',
+  job_media_voice_max_seconds: 'Within 60 seconds, new voice notes on job requests and in request threads longer than this are refused. Uploads already started keep the limit they started with; attached voice notes are unchanged.',
+  job_media_voice_max_bytes: 'Within 60 seconds, new voice-note uploads are refused above this size. Uploads already started keep the limit they started with; attached voice notes are unchanged.',
   refresh_token_strict_fingerprint: 'When enabled, future customer/provider refresh attempts from a different device fingerprint are rejected and require OTP sign-in. When disabled, mismatches are logged and the refresh continues.',
   auth_rate_limit_window_ms: 'Within 60 seconds, this becomes the shared rolling window for OTP send/verify, admin sign-in, and admin 2FA verification attempts from one IP address. Routine session refresh is not charged to this low credential-attempt budget.',
   auth_rate_limit_max_requests: 'Within 60 seconds, this becomes the combined request cap for OTP and admin credential attempts from one IP address. Lowering it can block an address that already reached the new cap until its current window expires.',
@@ -499,6 +544,131 @@ export async function getQuotePolicy(): Promise<QuotePolicy> {
   return {
     expiryHours: boundedInteger(expiryHours, 12, 168, 48),
     maxPerBooking: boundedInteger(maxPerBooking, 1, 20, 5),
+  };
+}
+
+/**
+ * D38 bounds for the request-engine and job-media integers. They match the
+ * min_value / max_value of the rows seeded by migrations 183 and 184 (the
+ * admin save path enforces the same range), and the fallback is the seeded
+ * default. A decimal is rounded first (as getSettingInteger() does); a value
+ * outside the range, or one that is not a number, then resolves to the
+ * fallback rather than to the nearest bound, the same way getQuotePolicy()
+ * treats quote_expiry_hours.
+ */
+const D38_INTEGER_BOUNDS = {
+  request_max_open_quotes: { min: 1, max: 20, fallback: 1 },
+  request_max_rounds: { min: 1, max: 10, fallback: 3 },
+  request_max_invites: { min: 1, max: 200, fallback: 30 },
+  request_provider_poll_seconds: { min: 15, max: 120, fallback: 30 },
+  request_customer_still_looking_minutes: { min: 10, max: 240, fallback: 30 },
+  request_slot_lead_minutes: { min: 15, max: 240, fallback: 60 },
+  // At most 6 (D38): a job request takes at most 8 mediaIds, so 6 photos plus
+  // one video and one voice note always fit (see migration 184).
+  job_media_max_photos: { min: 0, max: 6, fallback: 6 },
+  job_media_photo_max_bytes: { min: 1048576, max: 15728640, fallback: 10485760 },
+  job_media_video_max_seconds: { min: 5, max: 60, fallback: 30 },
+  job_media_video_max_bytes: { min: 10485760, max: 157286400, fallback: 83886080 },
+  job_media_voice_max_seconds: { min: 10, max: 120, fallback: 60 },
+  job_media_voice_max_bytes: { min: 262144, max: 10485760, fallback: 2097152 },
+} as const;
+
+type D38IntegerKey = keyof typeof D38_INTEGER_BOUNDS;
+
+function boundedD38Integer(key: D38IntegerKey, value: number): number {
+  const bounds = D38_INTEGER_BOUNDS[key];
+  return boundedInteger(value, bounds.min, bounds.max, bounds.fallback);
+}
+
+/**
+ * Same parse as getSettingInteger() (Math.round of Number) and
+ * getSettingBoolean() ('true' or '1'), for getClientConfig()'s bulk read, so
+ * the apps and the server always resolve one stored value to one number.
+ */
+function parseStoredInteger(value: string): number {
+  return Math.round(Number(value));
+}
+
+function parseStoredBoolean(value: string): boolean {
+  return value === 'true' || value === '1';
+}
+
+export interface RequestPolicy {
+  /** Live quotes allowed on one request at once (1 = first responder only). */
+  maxOpenQuotes: number;
+  /** Fully declined rounds before the request is flagged for the back office. */
+  maxRounds: number;
+  /** Most providers notified per round. */
+  maxInvites: number;
+  /** Whether reopened-request signals show the declined amount. */
+  showDeclinedAmount: boolean;
+  /** App re-check interval while the live connection is down. */
+  providerPollSeconds: number;
+  /** Minutes with no quote before the customer's "still looking" notice. */
+  stillLookingMinutes: number;
+  /** Minimum minutes between confirming a quote and the job time. */
+  slotLeadMinutes: number;
+  /** Whether request-stage message threads may open. */
+  threadsEnabled: boolean;
+}
+
+/**
+ * Resolve the D38 request-engine controls (migration 183, plus
+ * request_threads_enabled from migration 185). Each value goes through
+ * getSetting(), so a database outage falls back to SETTING_DEFAULTS.
+ */
+export async function getRequestPolicy(): Promise<RequestPolicy> {
+  const [
+    maxOpenQuotes, maxRounds, maxInvites, showDeclinedAmount,
+    providerPollSeconds, stillLookingMinutes, slotLeadMinutes, threadsEnabled,
+  ] = await Promise.all([
+    getSettingInteger('request_max_open_quotes'),
+    getSettingInteger('request_max_rounds'),
+    getSettingInteger('request_max_invites'),
+    getSettingBoolean('request_show_declined_amount'),
+    getSettingInteger('request_provider_poll_seconds'),
+    getSettingInteger('request_customer_still_looking_minutes'),
+    getSettingInteger('request_slot_lead_minutes'),
+    getSettingBoolean('request_threads_enabled'),
+  ]);
+  return {
+    maxOpenQuotes: boundedD38Integer('request_max_open_quotes', maxOpenQuotes),
+    maxRounds: boundedD38Integer('request_max_rounds', maxRounds),
+    maxInvites: boundedD38Integer('request_max_invites', maxInvites),
+    showDeclinedAmount,
+    providerPollSeconds: boundedD38Integer('request_provider_poll_seconds', providerPollSeconds),
+    stillLookingMinutes: boundedD38Integer('request_customer_still_looking_minutes', stillLookingMinutes),
+    slotLeadMinutes: boundedD38Integer('request_slot_lead_minutes', slotLeadMinutes),
+    threadsEnabled,
+  };
+}
+
+export interface JobMediaLimits {
+  maxPhotos: number;
+  photoMaxBytes: number;
+  videoMaxSeconds: number;
+  videoMaxBytes: number;
+  voiceMaxSeconds: number;
+  voiceMaxBytes: number;
+}
+
+/** Resolve the D38 job-media limits (migration 184) used by uploads and requests. */
+export async function getJobMediaLimits(): Promise<JobMediaLimits> {
+  const [maxPhotos, photoMaxBytes, videoMaxSeconds, videoMaxBytes, voiceMaxSeconds, voiceMaxBytes] = await Promise.all([
+    getSettingInteger('job_media_max_photos'),
+    getSettingInteger('job_media_photo_max_bytes'),
+    getSettingInteger('job_media_video_max_seconds'),
+    getSettingInteger('job_media_video_max_bytes'),
+    getSettingInteger('job_media_voice_max_seconds'),
+    getSettingInteger('job_media_voice_max_bytes'),
+  ]);
+  return {
+    maxPhotos: boundedD38Integer('job_media_max_photos', maxPhotos),
+    photoMaxBytes: boundedD38Integer('job_media_photo_max_bytes', photoMaxBytes),
+    videoMaxSeconds: boundedD38Integer('job_media_video_max_seconds', videoMaxSeconds),
+    videoMaxBytes: boundedD38Integer('job_media_video_max_bytes', videoMaxBytes),
+    voiceMaxSeconds: boundedD38Integer('job_media_voice_max_seconds', voiceMaxSeconds),
+    voiceMaxBytes: boundedD38Integer('job_media_voice_max_bytes', voiceMaxBytes),
   };
 }
 
@@ -1186,6 +1356,13 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     'quote_expiry_hours', 'max_quotes_per_booking', 'max_service_radius_km',
     'brand_color_primary', 'brand_color_secondary', 'brand_color_accent',
     'request_first_booking',
+    // D38 Milestone 2: request engine and job media, in this same query
+    // (MED-N107: one bulk SELECT, pinned by med-n106-n107-n109-n110-n111).
+    'request_max_open_quotes', 'request_max_rounds', 'request_show_declined_amount',
+    'request_provider_poll_seconds', 'request_customer_still_looking_minutes',
+    'request_threads_enabled',
+    'job_media_max_photos', 'job_media_photo_max_bytes', 'job_media_video_max_seconds',
+    'job_media_video_max_bytes', 'job_media_voice_max_seconds', 'job_media_voice_max_bytes',
   ];
 
   let bulkMap = new Map<string, string>();
@@ -1211,6 +1388,13 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
   const lookupNum = (key: string, fallback: number): number => Number(lookup(key, String(fallback)));
   const lookupInt = (key: string, fallback: number): number => Math.trunc(Number(lookup(key, String(fallback))));
   const lookupPercent = (key: string, fallback: number): number => Number(lookup(key, String(fallback))) / 100;
+  // D38 keys always have a SETTING_DEFAULTS entry, so lookup() never reaches
+  // its last-resort fallback for them; the bounds match getRequestPolicy()
+  // and getJobMediaLimits().
+  const lookupD38 = (key: D38IntegerKey): number => boundedD38Integer(
+    key, parseStoredInteger(lookup(key, String(D38_INTEGER_BOUNDS[key].fallback))),
+  );
+  const lookupBoolean = (key: string, fallback: boolean): boolean => parseStoredBoolean(lookup(key, String(fallback)));
 
   return {
     featureFlags,
@@ -1237,11 +1421,30 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     // maxTheftCoverage / maxInjuryCoverage / claimWindowHours without lifting
     // LAUNCH-LIMITATIONS §23. See .ai-coder/decisions/D04-siguradoshield.md.
     quoteExpiryHours: lookupInt('quote_expiry_hours', 24),
+    // Retired by D38 (request_max_open_quotes is the live limit). Still sent
+    // so apps older than 1.0.4 keep reading a value.
     maxQuotesPerBooking: lookupInt('max_quotes_per_booking', 5),
     maxServiceRadiusKm: lookupInt('max_service_radius_km', 50),
     // D38: the customer app sends every service to "describe your job" while
     // this is true (apps/mobile/src/hooks/useRequestFirstBooking.ts).
     requestFirstBooking: parseRequestFirstBooking(lookup('request_first_booking', 'true')),
+    // D38 Milestone 2 request engine (merged plan 2.1). The server enforces
+    // every one of these; the apps only use them for display and polling.
+    requestMaxOpenQuotes: lookupD38('request_max_open_quotes'),
+    requestMaxRounds: lookupD38('request_max_rounds'),
+    requestShowDeclinedAmount: lookupBoolean('request_show_declined_amount', false),
+    requestProviderPollSeconds: lookupD38('request_provider_poll_seconds'),
+    requestStillLookingMinutes: lookupD38('request_customer_still_looking_minutes'),
+    requestThreadsEnabled: lookupBoolean('request_threads_enabled', true),
+    // D38 private job media limits; the server re-checks each upload.
+    jobMedia: {
+      maxPhotos: lookupD38('job_media_max_photos'),
+      photoMaxBytes: lookupD38('job_media_photo_max_bytes'),
+      videoMaxSeconds: lookupD38('job_media_video_max_seconds'),
+      videoMaxBytes: lookupD38('job_media_video_max_bytes'),
+      voiceMaxSeconds: lookupD38('job_media_voice_max_seconds'),
+      voiceMaxBytes: lookupD38('job_media_voice_max_bytes'),
+    },
     // Bug 1324 fix: brand colors live in platform_settings (admin-editable)
     // and are consumed by getClientConfig so any caller (mobile, admin web)
     // resolves the same value. The static fallbacks in theme.ts / index.css

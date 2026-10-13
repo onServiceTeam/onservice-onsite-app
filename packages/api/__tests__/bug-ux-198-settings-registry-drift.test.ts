@@ -15,10 +15,12 @@ import {
   checkSettingsDriftAtBoot,
 } from '../src/services/settings.service';
 
-// Independent snapshot of the active registry after migration 182 (182 added
-// request_first_booking for D38; the list was last refreshed at 166). Do not
-// derive this from SETTING_DEFAULTS: the test must fail when either side gains
-// or loses a key without the corresponding database/code change.
+// Independent snapshot of the active registry after migration 185 (182 added
+// request_first_booking for D38; D38 Milestone 2 added seven request keys in
+// 183, six job-media keys in 184 and request_threads_enabled in 185; the list
+// was last refreshed at 166). Do not derive this from SETTING_DEFAULTS: the
+// test must fail when either side gains or loses a key without the
+// corresponding database/code change.
 const ACTIVE_DATABASE_SETTING_KEYS = [
   'commission_rate_founding',
   'commission_rate_new',
@@ -79,6 +81,14 @@ const ACTIVE_DATABASE_SETTING_KEYS = [
   'quote_expiry_hours',
   'max_quotes_per_booking',
   'request_first_booking',
+  'request_max_open_quotes',
+  'request_max_rounds',
+  'request_max_invites',
+  'request_show_declined_amount',
+  'request_provider_poll_seconds',
+  'request_customer_still_looking_minutes',
+  'request_slot_lead_minutes',
+  'request_threads_enabled',
   'change_order_approval_expiry_hours',
   'matching_min_rating',
   'matching_min_rating_reviews',
@@ -89,6 +99,12 @@ const ACTIVE_DATABASE_SETTING_KEYS = [
   'captcha_threshold',
   'refresh_token_strict_fingerprint',
   'allowed_image_mime_types',
+  'job_media_max_photos',
+  'job_media_photo_max_bytes',
+  'job_media_video_max_seconds',
+  'job_media_video_max_bytes',
+  'job_media_voice_max_seconds',
+  'job_media_voice_max_bytes',
   'business_account_types',
   'business_payment_terms',
   'suki_tiers',

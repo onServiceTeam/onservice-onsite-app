@@ -68,10 +68,23 @@ export const VALID_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   // customer pays as soon as they create the booking (escrow holds the funds),
   // and the provider is matched afterward. This was the original design; it was
   // removed by accident in commit 86a2417 and restored per E03 (Ken-approved,
-  // 2026-06-16). Quote-based bookings still go requested → quoted → matched →
-  // payment_pending. See .ai-coder/escalations/E03-customer-checkout-state-machine.
+  // 2026-06-16). See .ai-coder/escalations/E03-customer-checkout-state-machine.
+  //
+  // Quote requests (booking_type 'quote_based', D38) move only through their
+  // own flows, never through PATCH /status ('requested' and 'quoted' are
+  // flow-only targets in booking.service PARTICIPANT_FLOW_ONLY_TARGETS):
+  //   requested -> quoted     a provider's quote is admitted (submitQuote).
+  //   quoted -> requested     the customer declines, or the last live quote
+  //                           lapses or is withdrawn, and no live quote is
+  //                           left: the request reopens for other providers.
+  //   requested -> quoted -> payment_pending   acceptQuote, a dedicated flow
+  //                           that sets the price and records the price terms
+  //                           in one transaction.
+  // 'quoted -> payment_pending' is deliberately NOT listed: payment.routes.ts
+  // asks canTransition(status, 'payment_pending') to decide whether the wallet
+  // may pay a booking, and a quoted booking has no accepted price yet.
   requested: ['quoted', 'matched', 'payment_pending', 'cancelled_by_customer', 'cancelled_by_admin'],
-  quoted: ['matched', 'cancelled_by_customer', 'cancelled_by_admin'],
+  quoted: ['requested', 'matched', 'cancelled_by_customer', 'cancelled_by_admin'],
   matched: ['payment_pending', 'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin'],
   payment_pending: ['paid', 'cancelled_by_customer', 'cancelled_by_admin'],
   paid: ['provider_en_route', 'cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_admin'],
