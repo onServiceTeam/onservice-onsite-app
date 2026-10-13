@@ -38,6 +38,9 @@ interface RemoteConfigResponse {
     quoteExpiryHours?: number;
     maxQuotesPerBooking?: number;
     maxServiceRadiusKm?: number;
+    // D38: admin switch request_first_booking. Read by
+    // src/hooks/useRequestFirstBooking.ts (missing means ON).
+    requestFirstBooking?: boolean;
   };
 }
 

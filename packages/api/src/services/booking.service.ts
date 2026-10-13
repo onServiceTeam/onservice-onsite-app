@@ -1574,6 +1574,8 @@ export async function createJobRequest(
   },
 ): Promise<BookingRow> {
   await assertBookableLocation(data.latitude, data.longitude);
+  await assertJobRequestCustomer(customerId);
+  await assertJobRequestService(data.subcategoryId);
   const scheduledAt = new Date();
   if (data.urgency === 'same_day') {
     scheduledAt.setHours(scheduledAt.getHours() + 4);
@@ -1608,6 +1610,54 @@ export async function createJobRequest(
 
   logger.info('Job request created', { bookingId: result.rows[0]!.id, customerId });
   return result.rows[0]!;
+}
+
+// D38 human audit: requests are a customer action. The route has no role
+// guard of its own, so a provider or staff account could post a request
+// against its own leads. Fail closed on anything that is not a customer.
+async function assertJobRequestCustomer(customerId: string): Promise<void> {
+  const result = await db.query<{ role: string }>(
+    `SELECT role FROM users WHERE id = $1`,
+    [customerId],
+  );
+  if (result.rows[0]?.role !== 'customer') {
+    throw createAppError('Only customer accounts can send a service request.', 403);
+  }
+}
+
+/**
+ * D38 (Ken, 2026-10-13): which services accept a "describe your job" request.
+ *
+ * - No subcategory (a request for a whole category): accepted, as before.
+ * - The subcategory must exist and be active. Before D38 an inactive service
+ *   was accepted and an unknown one failed with a database error.
+ * - Every active service is accepted whatever its pricing type (fixed, quote,
+ *   per_unit, hourly), with request_first_booking on or off. The price always
+ *   comes from the provider's quote and acceptQuote, never from the catalog.
+ *
+ * Why the switch is not checked here: before D38 the server never refused a
+ * request for its pricing type. The only routing rule lived in the app, and
+ * the task was to keep that rule as it is when the switch is off. The switch
+ * therefore only changes where the customer app sends a service
+ * (requestFirstBooking in GET /api/v1/config). Enforcing it here as well would
+ * strand customers: the app treats the switch as on while its config is
+ * loading, failed or cached (up to about 5 minutes), so for a while after an
+ * admin turns it off the app still opens the request form for fixed-price
+ * services, and a refusal here would block the customer with no way forward.
+ * A request for a fixed-price service is safe to accept: it goes through the
+ * normal quote, accept and payment path (HA-REQ-5).
+ */
+async function assertJobRequestService(subcategoryId: string | undefined): Promise<void> {
+  if (!subcategoryId) return;
+  const result = await db.query<{ id: string }>(
+    `SELECT id
+       FROM service_subcategories
+      WHERE id = $1 AND is_active = TRUE`,
+    [subcategoryId],
+  );
+  if (!result.rows[0]) {
+    throw createAppError('This service is not available right now. Choose another service.', 404);
+  }
 }
 
 async function assertBookableLocation(latitude?: number, longitude?: number): Promise<void> {

@@ -220,8 +220,9 @@ export default function CatalogPage(): React.ReactElement {
         description: description.trim(),
         pricingType,
         basePrice: pricingType === 'fixed' ? toCentavos(basePrice) : null,
-        minPrice: pricingType === 'fixed' ? toCentavos(minPrice) : null,
-        maxPrice: pricingType === 'fixed' ? toCentavos(maxPrice) : null,
+        // D38: the customer price guide applies to every pricing type.
+        minPrice: toCentavos(minPrice),
+        maxPrice: toCentavos(maxPrice),
         estimatedDurationMinutes: estimatedDuration ? Number(estimatedDuration) : null,
         unitLabel: pricingType === 'per_unit' ? (unitLabel.trim() || null) : null,
         unitPrice: pricingType === 'per_unit' ? toCentavos(unitPrice) : null,
@@ -1162,13 +1163,18 @@ export default function CatalogPage(): React.ReactElement {
                     </div>}
                   </div>
 
-                  {pricingType === 'fixed' && <div className="rounded-lg border border-[var(--color-border)] bg-slate-50/60 p-3">
+                  {/* D38 (2026-10-13): these bounds are shown to customers on the
+                      "Book a service" request form as a price guide, for every
+                      pricing type, so they are editable for every type and saved
+                      for every type (saving a quote service no longer wipes them). */}
+                  <div className="rounded-lg border border-[var(--color-border)] bg-slate-50/60 p-3" aria-label="Customer price guide">
+                  <p className="mb-1 text-sm font-medium text-[var(--color-text)]">Customer price guide (optional)</p>
                   <p className="mb-3 text-xs text-[var(--color-text-secondary)]">
-                    Optional legacy provider-price bounds. Customers are charged the base catalog price; provider personal pricing remains inactive.
+                    Customers see this on the request form as &quot;onService price guide for this service: min to max&quot;. Fill in both to show it; leave both blank to show no guide. It does not set the price: the provider prices each job.
                   </p>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <Label htmlFor="cat-min-price" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Min price ({CURRENCY_SYMBOL})</Label>
+                      <Label htmlFor="cat-min-price" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Guide minimum ({CURRENCY_SYMBOL})</Label>
                       <Input
                         id="cat-min-price"
                         type="number"
@@ -1180,7 +1186,7 @@ export default function CatalogPage(): React.ReactElement {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="cat-max-price" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Max price ({CURRENCY_SYMBOL})</Label>
+                      <Label htmlFor="cat-max-price" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Guide maximum ({CURRENCY_SYMBOL})</Label>
                       <Input
                         id="cat-max-price"
                         type="number"
@@ -1192,7 +1198,7 @@ export default function CatalogPage(): React.ReactElement {
                       />
                     </div>
                   </div>
-                  </div>}
+                  </div>
 
                   <div>
                     <Label htmlFor="cat-duration" className="block text-sm font-medium text-[var(--color-text)] mb-1.5">Estimated duration (minutes)</Label>

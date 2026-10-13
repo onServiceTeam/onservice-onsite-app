@@ -201,6 +201,8 @@ describe('SETTING_DEFAULTS exact-value snapshot (kills string-literal mutants)',
     max_service_radius_km: '50',
     quote_expiry_hours: '48',
     max_quotes_per_booking: '5',
+    // D38 (migration 182): request-first booking defaults on.
+    request_first_booking: 'true',
     change_order_approval_expiry_hours: '24',
     matching_min_rating: '2.5',
     matching_min_rating_reviews: '5',

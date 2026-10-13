@@ -111,6 +111,31 @@ export interface OpenJobRequest {
   createdAt: string;
 }
 
+/**
+ * D38 human audit: one answered quick question, labelled with the question
+ * text the admin wrote (subcategory_intake_fields.label) instead of the
+ * internal field_key. `label` is null only when the answer's key no longer
+ * matches any question for that service; the app then falls back to a
+ * readable version of the key.
+ */
+export interface IntakeQuestionAnswer {
+  key: string;
+  label: string | null;
+  unit: string | null;
+  value: string | number | boolean;
+}
+
+/** Lead detail (the quote screen) also carries the labelled answers. */
+export interface OpenJobRequestDetail extends OpenJobRequest {
+  intakeQuestions: IntakeQuestionAnswer[];
+}
+
+interface IntakeFieldLabelRow {
+  key: string;
+  label: string;
+  unit: string | null;
+}
+
 interface OpenJobRequestRow {
   id: string;
   category_id: string;
@@ -154,6 +179,35 @@ function mapOpenJobRequest(row: OpenJobRequestRow): OpenJobRequest {
     distanceKm: row.distance_km != null ? Math.round(Number(row.distance_km) * 10) / 10 : null,
     createdAt: row.created_at.toISOString(),
   };
+}
+
+function isAnswerValue(value: unknown): value is string | number | boolean {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
+
+/**
+ * Pair each stored answer with its question. Questions come back in the
+ * admin's sort order; answers whose key matches no question follow, in the
+ * order they were stored.
+ */
+export function labelIntakeAnswers(
+  answers: Record<string, unknown> | null,
+  fields: IntakeFieldLabelRow[] | null,
+): IntakeQuestionAnswer[] {
+  if (!answers) return [];
+  const out: IntakeQuestionAnswer[] = [];
+  const seen = new Set<string>();
+  for (const field of fields ?? []) {
+    const value = answers[field.key];
+    if (!Object.prototype.hasOwnProperty.call(answers, field.key) || !isAnswerValue(value)) continue;
+    out.push({ key: field.key, label: field.label, unit: field.unit ?? null, value });
+    seen.add(field.key);
+  }
+  for (const [key, value] of Object.entries(answers)) {
+    if (seen.has(key) || !isAnswerValue(value)) continue;
+    out.push({ key, label: null, unit: null, value });
+  }
+  return out;
 }
 
 function openLeadWhere(distanceSql: string): string {
@@ -238,7 +292,7 @@ export async function getOpenJobRequestsForProvider(
 export async function getOpenJobRequestForProvider(
   providerUserId: string,
   bookingId: string,
-): Promise<OpenJobRequest> {
+): Promise<OpenJobRequestDetail> {
   const providerResult = await db.query<{
     id: string;
     latitude: string | null;
@@ -254,7 +308,12 @@ export async function getOpenJobRequestForProvider(
   if (!provider) throw createAppError('Provider profile not found.', 404);
 
   const distanceSql = haversineSQL('$2', '$3', 'b.latitude', 'b.longitude');
-  const result = await db.query<OpenJobRequestRow>(
+  // D38: the quote screen shows each answer under the admin-written question,
+  // so the detail also reads the service's question labels. Inactive
+  // questions are included on purpose: an answer given before a question was
+  // switched off still deserves its real label. Only the barangay, city and
+  // province are returned; the street address stays hidden until booking.
+  const result = await db.query<OpenJobRequestRow & { intake_fields: IntakeFieldLabelRow[] | null }>(
     `SELECT b.id, b.category_id, sc.name AS category_name,
             COALESCE(sub.name, sc.name) AS service_name, b.subcategory_id,
             b.description, b.urgency, b.budget_min, b.budget_max,
@@ -263,7 +322,11 @@ export async function getOpenJobRequestForProvider(
             CASE WHEN $2::numeric IS NOT NULL AND $3::numeric IS NOT NULL
                   AND b.latitude IS NOT NULL AND b.longitude IS NOT NULL
                  THEN ${distanceSql} ELSE NULL END AS distance_km,
-            b.created_at
+            b.created_at,
+            (SELECT json_agg(json_build_object('key', f.field_key, 'label', f.label, 'unit', f.unit)
+                             ORDER BY f.sort_order, f.field_key)
+               FROM subcategory_intake_fields f
+              WHERE f.subcategory_id = b.subcategory_id) AS intake_fields
        FROM bookings b
        JOIN service_categories sc ON sc.id = b.category_id
        LEFT JOIN service_subcategories sub ON sub.id = b.subcategory_id
@@ -279,5 +342,8 @@ export async function getOpenJobRequestForProvider(
     // already won by another provider.
     throw createAppError('Job request not found.', 404);
   }
-  return mapOpenJobRequest(request);
+  return {
+    ...mapOpenJobRequest(request),
+    intakeQuestions: labelIntakeAnswers(request.intake_answers, request.intake_fields ?? null),
+  };
 }

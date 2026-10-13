@@ -114,10 +114,50 @@ export const submitQuoteSchema = z.object({
   }).strict()).min(1).max(20).optional(),
 }).strict();
 
+// D38 (Ken, 2026-10-13): request-first booking. "Describe your job" is the
+// first step for every service, so a request no longer needs 50 characters
+// and 2 photos. No single item is required, but the request must tell the
+// provider something: a written description with at least 10 non-space
+// characters, at least one photo, at least one answered quick question, or a
+// video. The mobile form (app/customer/booking/job-request.tsx) mirrors the
+// rule for what it can attach today (text, photos, answers).
+export const JOB_REQUEST_MIN_DESCRIPTION_CHARS = 10;
+// The new app (1.0.3+) lets customers attach up to 6 photos (D38, brief). The
+// server keeps the old cap of 10 so phones still on APK 1.0.1/1.0.2, whose
+// form allows 10, are not refused after uploading.
+export const JOB_REQUEST_MAX_PHOTOS = 10;
+export const JOB_REQUEST_EMPTY_MESSAGE =
+  'Tell the pro about the job: write at least 10 characters, add a photo, or answer a quick question.';
+
+/** Characters that are not whitespace, so "          " does not count as a description. */
+export function countJobDescriptionCharacters(description: string | undefined | null): number {
+  return (description ?? '').replace(/\s/g, '').length;
+}
+
+/**
+ * A job-request budget amount in centavos: optional, a positive whole number.
+ * A 0 is read as "no budget" rather than refused. Installed APKs up to 1.0.2
+ * send 0 when the customer types 0 in a budget box, and 0 never meant a real
+ * price, so nothing is lost by dropping it; a 0 is never stored.
+ */
+const jobRequestBudget = z.preprocess(
+  (value) => (value === 0 ? undefined : value),
+  z.number().int('Budget must be a whole amount').positive('Budget must be more than zero').optional(),
+);
+
+function hasJobRequestAnswer(answers: Record<string, string | number | boolean> | undefined): boolean {
+  if (!answers) return false;
+  return Object.values(answers).some((value) => (
+    typeof value === 'string' ? value.trim().length > 0 : typeof value === 'number' ? Number.isFinite(value) : true
+  ));
+}
+
 export const createJobRequestSchema = z.object({
   categoryId: z.string().uuid('Invalid category ID'),
   subcategoryId: z.string().uuid('Invalid subcategory ID').optional(),
-  description: z.string().min(50, 'Description must be at least 50 characters').max(2000),
+  // Optional now (D38); stored as '' when absent because bookings.description
+  // is NOT NULL DEFAULT ''.
+  description: z.string().max(2000, 'Description must be 2,000 characters or fewer').default(''),
   address: z.string().min(5, 'Address is required').max(500),
   barangay: z.string().min(1).max(100),
   city: z.string().min(1).max(100),
@@ -125,23 +165,37 @@ export const createJobRequestSchema = z.object({
   latitude: z.number().min(4.5, 'Must be within Philippines').max(21.5, 'Must be within Philippines'),
   longitude: z.number().min(116, 'Must be within Philippines').max(127.5, 'Must be within Philippines'),
   urgency: z.enum(['same_day', 'within_3_days', 'within_a_week', 'flexible']),
-  budgetMin: z.number().int().min(0).optional(),
-  budgetMax: z.number().int().min(0).optional(),
-  jobPhotos: z.array(z.string().url()).min(2, 'At least 2 photos are required for custom quote requests').max(10),
+  // Centavos, like every other money field (the app sends pesos x 100 and
+  // providers read it back with formatPHP). Both optional: no budget means
+  // "Not sure, let the pro quote". 0 is treated as no budget (older APKs).
+  budgetMin: jobRequestBudget,
+  budgetMax: jobRequestBudget,
+  jobPhotos: z.array(z.string().url())
+    .max(JOB_REQUEST_MAX_PHOTOS, `Up to ${JOB_REQUEST_MAX_PHOTOS} photos can be attached to a request`)
+    .optional(),
   jobVideoUrl: z.string().url().optional(),
   // D27 Phase 2 — structured answers to the subcategory's intake fields,
   // keyed by field_key. Validated against the field set on the client; stored
   // as-is (a bounded JSON object) for the provider to read.
   intakeAnswers: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
-}).refine(
-  (data) => {
-    if (data.budgetMin != null && data.budgetMax != null) {
-      return data.budgetMax >= data.budgetMin;
-    }
-    return true;
-  },
-  { message: 'Maximum budget must be greater than or equal to minimum budget', path: ['budgetMax'] },
-);
+}).superRefine((data, context) => {
+  if (data.budgetMin != null && data.budgetMax != null && data.budgetMax < data.budgetMin) {
+    context.addIssue({
+      code: 'custom',
+      path: ['budgetMax'],
+      message: 'Maximum budget must be greater than or equal to minimum budget',
+    });
+  }
+  const hasDescription = countJobDescriptionCharacters(data.description) >= JOB_REQUEST_MIN_DESCRIPTION_CHARS;
+  const hasPhoto = (data.jobPhotos?.length ?? 0) > 0;
+  // D38 also counts a video. The app cannot attach one yet (Milestone 2), but
+  // the API already accepts jobVideoUrl, so a request that carries one is not
+  // empty.
+  const hasVideo = !!data.jobVideoUrl;
+  if (!hasDescription && !hasPhoto && !hasVideo && !hasJobRequestAnswer(data.intakeAnswers)) {
+    context.addIssue({ code: 'custom', path: ['description'], message: JOB_REQUEST_EMPTY_MESSAGE });
+  }
+});
 
 // Phase 14 Dispatch 05 — Bug 1219.
 // Added `.max(1_000_000)` (₱10,000 hard sanity cap) and `.strict()`

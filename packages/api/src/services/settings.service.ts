@@ -144,6 +144,10 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   max_service_radius_km: '50',
   quote_expiry_hours: '48',
   max_quotes_per_booking: '5',
+  // D38 (Ken, 2026-10-13): every service starts with the customer describing
+  // the job and a provider sends the price. 'false' restores the fixed-price
+  // catalog flow. Seeded by migration 182.
+  request_first_booking: 'true',
   change_order_approval_expiry_hours: '24',
 
   // Provider quality floor applied by the matching engine only after the
@@ -301,6 +305,7 @@ const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   addon_price_max_cents: 'Within 60 seconds, this becomes the maximum for future add-on creation, add-on price changes, and inactive add-on reactivation, up to the platform hard ceiling of ₱100,000. Existing active add-ons remain customer-visible and bookable at their current price until an operator reviews them in Catalog; historical booking price snapshots never change.',
   max_service_radius_km: 'Provider applications, provider change requests, approval review, super-admin edits, and customer/provider guidance enforce this maximum for new changes.',
   quote_expiry_hours: 'New provider quotes snapshot this lifetime into their exact expiry timestamp. Existing quotes keep the deadline shown to both parties when the quote was submitted.',
+  request_first_booking: 'Customer apps follow this switch the next time they load the app config (within about 5 minutes). On: every service opens "Book a service", where the customer describes the job and a provider sends the price. Off: fixed-price services book at their catalog price again, and quote, per-unit and unpriced services keep the request form. The server accepts a request for any active service either way, so an app that has not picked up the change yet is never stuck, and the price of a request always comes from the provider\'s quote. Existing requests, quotes and bookings are unchanged.',
   refresh_token_strict_fingerprint: 'When enabled, future customer/provider refresh attempts from a different device fingerprint are rejected and require OTP sign-in. When disabled, mismatches are logged and the refresh continues.',
   auth_rate_limit_window_ms: 'Within 60 seconds, this becomes the shared rolling window for OTP send/verify, admin sign-in, and admin 2FA verification attempts from one IP address. Routine session refresh is not charged to this low credential-attempt budget.',
   auth_rate_limit_max_requests: 'Within 60 seconds, this becomes the combined request cap for OTP and admin credential attempts from one IP address. Lowering it can block an address that already reached the new cap until its current window expires.',
@@ -495,6 +500,18 @@ export async function getQuotePolicy(): Promise<QuotePolicy> {
     expiryHours: boundedInteger(expiryHours, 12, 168, 48),
     maxPerBooking: boundedInteger(maxPerBooking, 1, 20, 5),
   };
+}
+
+/**
+ * D38 request-first switch. Defaults ON: only an explicit 'false' (or '0')
+ * turns it off, so a missing row, an outage fallback or a cache miss never
+ * silently brings back the fixed-price flow. It is published to the apps as
+ * requestFirstBooking by getClientConfig() and only changes where the
+ * customer app routes a service. createJobRequest accepts a request for any
+ * active service either way (see assertJobRequestService in booking.service).
+ */
+export function parseRequestFirstBooking(value: string | null | undefined): boolean {
+  return value !== 'false' && value !== '0';
 }
 
 /** Resolve the provider/customer no-show wait used by both route and worker. */
@@ -1168,6 +1185,7 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     'minimum_payment_amount', 'minimum_withdrawal_amount',
     'quote_expiry_hours', 'max_quotes_per_booking', 'max_service_radius_km',
     'brand_color_primary', 'brand_color_secondary', 'brand_color_accent',
+    'request_first_booking',
   ];
 
   let bulkMap = new Map<string, string>();
@@ -1221,6 +1239,9 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     quoteExpiryHours: lookupInt('quote_expiry_hours', 24),
     maxQuotesPerBooking: lookupInt('max_quotes_per_booking', 5),
     maxServiceRadiusKm: lookupInt('max_service_radius_km', 50),
+    // D38: the customer app sends every service to "describe your job" while
+    // this is true (apps/mobile/src/hooks/useRequestFirstBooking.ts).
+    requestFirstBooking: parseRequestFirstBooking(lookup('request_first_booking', 'true')),
     // Bug 1324 fix: brand colors live in platform_settings (admin-editable)
     // and are consumed by getClientConfig so any caller (mobile, admin web)
     // resolves the same value. The static fallbacks in theme.ts / index.css

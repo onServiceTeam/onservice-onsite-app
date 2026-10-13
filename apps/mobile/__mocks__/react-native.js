@@ -125,7 +125,10 @@ const TouchableHighlight = Pressable;
 
 // Render TextInput as a real <input> so RTL's fireEvent.input works.
 // onChangeText is RN-specific; convert browser-style onChange events.
-const TextInput = ({ value, onChangeText, placeholder, accessibilityLabel, testID, keyboardType, autoFocus, autoComplete, textContentType, maxLength, ...rest }) =>
+// Human audit 2026-10-13 (HA-REQ): RN's `editable={false}` becomes a read-only
+// input with aria-disabled, so a test can see that a field is locked. Before,
+// the boolean leaked onto the DOM as an unknown `editable` attribute.
+const TextInput = ({ value, onChangeText, placeholder, accessibilityLabel, testID, keyboardType, autoFocus, autoComplete, textContentType, maxLength, editable, ...rest }) =>
   React.createElement('input', {
     value: value ?? '',
     placeholder,
@@ -133,6 +136,8 @@ const TextInput = ({ value, onChangeText, placeholder, accessibilityLabel, testI
     'data-testid': testID,
     autoFocus,
     maxLength,
+    readOnly: editable === false ? true : undefined,
+    'aria-disabled': editable === false ? true : undefined,
     onChange: (e) => onChangeText && onChangeText(e.target.value),
     ...rest,
   });

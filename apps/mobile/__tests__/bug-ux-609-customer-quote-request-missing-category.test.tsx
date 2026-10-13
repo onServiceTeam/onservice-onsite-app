@@ -27,6 +27,9 @@ describe('Bug UX-609 — customer quote request requires catalog context', () =>
 
     expect(screen.getByText('Choose a service category first')).toBeTruthy();
     expect(screen.getByText('Browse services')).toBeTruthy();
-    expect(screen.queryByText('Describe the Job *')).toBeNull();
+    // D38 renamed the form's text box to "Describe the job" and its button to
+    // "Send request"; neither may render next to the empty state.
+    expect(screen.queryByLabelText('Describe the job')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Send request' })).toBeNull();
   });
 });

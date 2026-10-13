@@ -34,17 +34,19 @@ jest.mock('@/services/config.service', () => ({ getConfig: () => ({ maxQuotesPer
 
 import JobRequestScreen from '../app/customer/booking/job-request';
 
+// D38 human audit (2026-10-13): the form's labels changed ("Describe the job",
+// "Send request"); the fail-closed behaviour this test pins is unchanged.
 it('Bug UX-620 — configured quote questions fail closed when the catalog request fails', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   render(<QueryClientProvider client={client}><JobRequestScreen /></QueryClientProvider>);
 
-  fireEvent.change(screen.getByLabelText('Describe the custom job'), {
+  fireEvent.change(screen.getByLabelText('Describe the job'), {
     target: { value: 'Please build fitted kitchen cabinets with durable moisture-resistant materials.' },
   });
 
   expect(await screen.findByText('Job questions unavailable')).toBeTruthy();
   expect(screen.getByText(/questions providers need for an accurate quote/i)).toBeTruthy();
-  expect((screen.getByRole('button', { name: 'Submit custom job request' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: 'Send request' }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(screen.getByRole('button', { name: 'Retry loading' }));
   await waitFor(() => expect(mockGetSubcategoryIntakeFields).toHaveBeenCalledTimes(2));
   expect(mockCreateJobRequest).not.toHaveBeenCalled();

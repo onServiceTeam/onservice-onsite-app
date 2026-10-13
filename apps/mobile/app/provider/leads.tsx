@@ -18,10 +18,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
-import { EmptyState, ErrorState, SkeletonCard, Badge } from '@/components/ui';
+import { EmptyState, ErrorState, SkeletonCard, Badge, LazyImage } from '@/components/ui';
 import { ChevronLeft, Inbox } from '@/components/icons';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { formatPHP } from '@/utils/currency';
+import { formatJobRequestBudget } from '@/utils/jobRequestBudget';
 import { formatRelative } from '@/utils/date';
 import { getErrorMessage } from '@/utils/errors';
 import { getSocket } from '@/services/socket.service';
@@ -57,14 +57,10 @@ async function fetchLeads(): Promise<{ requests: JobRequestLead[]; total: number
   return { requests: res.data.requests ?? [], total: res.data.total ?? 0 };
 }
 
-function budgetLabel(lead: JobRequestLead): string | null {
-  if (lead.budgetMin != null && lead.budgetMax != null) {
-    return `${formatPHP(lead.budgetMin)} - ${formatPHP(lead.budgetMax)}`;
-  }
-  if (lead.budgetMin != null) return `From ${formatPHP(lead.budgetMin)}`;
-  if (lead.budgetMax != null) return `Up to ${formatPHP(lead.budgetMax)}`;
-  return null;
-}
+// D38 human audit: lead cards show the customer's photos (the first few as
+// thumbnails, the rest counted) and always state the budget, including
+// "Customer is not sure of the price" when none was given.
+const CARD_THUMBNAILS = 3;
 
 export default function ProviderLeadsScreen(): React.ReactElement {
   const router = useRouter();
@@ -89,9 +85,12 @@ export default function ProviderLeadsScreen(): React.ReactElement {
 
   const renderItem = useCallback(
     ({ item }: { item: JobRequestLead }) => {
-      const budget = budgetLabel(item);
+      const budget = formatJobRequestBudget(item.budgetMin, item.budgetMax);
+      const hasBudget = item.budgetMin != null || item.budgetMax != null;
       const location = [item.barangay, item.city].filter(Boolean).join(', ');
-      const media = item.jobPhotos.length + (item.jobVideoUrl ? 1 : 0);
+      const photos = item.jobPhotos ?? [];
+      const shownPhotos = photos.slice(0, CARD_THUMBNAILS);
+      const morePhotos = photos.length - shownPhotos.length;
       return (
         <TouchableOpacity
           style={[styles.card, numColumns > 1 && styles.cardGrid]}
@@ -104,24 +103,36 @@ export default function ProviderLeadsScreen(): React.ReactElement {
             <Text style={styles.category}>{item.categoryName}</Text>
             <Text style={styles.time}>{formatRelative(item.createdAt)}</Text>
           </View>
-          <Text style={styles.description} numberOfLines={2}>{item.description}</Text>
+          {item.description ? (
+            <Text style={styles.description} numberOfLines={2}>{item.description}</Text>
+          ) : null}
+          {shownPhotos.length > 0 ? (
+            <View style={styles.thumbRow} accessibilityLabel={`${photos.length} customer photo${photos.length === 1 ? '' : 's'}`}>
+              {shownPhotos.map((uri, index) => (
+                <LazyImage
+                  key={uri}
+                  source={uri}
+                  containerStyle={styles.thumb}
+                  accessibilityLabel={`Customer photo ${index + 1} of ${photos.length}`}
+                />
+              ))}
+              {morePhotos > 0 ? (
+                <View style={[styles.thumb, styles.thumbMore]}>
+                  <Text style={styles.thumbMoreText}>+{morePhotos}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
           <View style={styles.metaRow}>
             {item.urgency ? <Badge label={URGENCY_LABEL[item.urgency] ?? item.urgency} backgroundColor={colors.warning} /> : null}
-            {budget ? <Text style={styles.budget}>{budget}</Text> : null}
+            <Text style={hasBudget ? styles.budget : styles.budgetUnsure}>{budget}</Text>
           </View>
           <View style={styles.cardBottom}>
             <Text style={styles.location} numberOfLines={1}>
               {location || 'Location shared after you quote'}
               {item.distanceKm != null ? ` · ${item.distanceKm} km away` : ''}
             </Text>
-            {media > 0 ? (
-              <Text style={styles.media}>
-                {[
-                  item.jobPhotos.length ? `${item.jobPhotos.length} photo${item.jobPhotos.length > 1 ? 's' : ''}` : null,
-                  item.jobVideoUrl ? 'video' : null,
-                ].filter(Boolean).join(' + ')}
-              </Text>
-            ) : null}
+            {item.jobVideoUrl ? <Text style={styles.media}>Includes a video</Text> : null}
           </View>
           <Text style={styles.cta}>Send a quote ›</Text>
         </TouchableOpacity>
@@ -180,7 +191,7 @@ export default function ProviderLeadsScreen(): React.ReactElement {
             <EmptyState
               icon={<Inbox size={48} color={colors.textTertiary} />}
               title="No open job requests"
-              description="When a customer requests a custom quote in your service area, it will show up here. Make sure your services and service area are set so you get matched."
+              description="When a customer in your service area describes a job you offer, it will show up here with their photos and budget. Make sure your services and service area are set so you get matched."
             />
           }
         />
@@ -226,6 +237,11 @@ const styles = StyleSheet.create({
   description: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm, flexWrap: 'wrap' },
   budget: { ...typography.body, fontWeight: '700', color: colors.primary },
+  budgetUnsure: { ...typography.bodySmall, fontWeight: '600', color: colors.textSecondary },
+  thumbRow: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.sm },
+  thumb: { width: 64, height: 64, borderRadius: borderRadius.md, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  thumbMore: { backgroundColor: colors.backgroundSecondary, alignItems: 'center', justifyContent: 'center' },
+  thumbMoreText: { ...typography.bodySmall, fontWeight: '700', color: colors.textSecondary },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm },
   location: { ...typography.caption, color: colors.textSecondary, flex: 1 },
   media: { ...typography.caption, color: colors.textTertiary },

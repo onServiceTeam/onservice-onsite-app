@@ -15,7 +15,8 @@ import {
   checkSettingsDriftAtBoot,
 } from '../src/services/settings.service';
 
-// Independent snapshot of the active registry after migration 166. Do not
+// Independent snapshot of the active registry after migration 182 (182 added
+// request_first_booking for D38; the list was last refreshed at 166). Do not
 // derive this from SETTING_DEFAULTS: the test must fail when either side gains
 // or loses a key without the corresponding database/code change.
 const ACTIVE_DATABASE_SETTING_KEYS = [
@@ -77,6 +78,7 @@ const ACTIVE_DATABASE_SETTING_KEYS = [
   'max_service_radius_km',
   'quote_expiry_hours',
   'max_quotes_per_booking',
+  'request_first_booking',
   'change_order_approval_expiry_hours',
   'matching_min_rating',
   'matching_min_rating_reviews',

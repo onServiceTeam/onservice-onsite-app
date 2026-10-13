@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getProviderJobRequest, submitQuote } from '@/services/booking.service';
+import { getProviderJobRequest, submitQuote, type ProviderJobRequest } from '@/services/booking.service';
 import { listTemplates, type QuoteTemplate } from '@/services/provider-crm.service';
 import { showToast } from '@/lib/toast';
 import api from '@/services/api';
 import { formatPHP } from '@/utils/currency';
 import { getErrorMessage } from '@/utils/errors';
+import { formatJobRequestBudget, customerBudgetTarget } from '@/utils/jobRequestBudget';
 import { colors, spacing, borderRadius } from '@/config/theme';
 import { platformConfig } from '@/config/platform.config';
-import { X } from '@/components/icons';
+import { X, ChevronLeft, ChevronRight } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
-import { ErrorState } from '@/components/ui';
+import { ErrorState, LazyImage } from '@/components/ui';
 
 interface LineItemDraft {
   id: number;
@@ -42,6 +43,37 @@ function humanizeKey(key: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+// D38 human audit: the lead detail now labels each answer with the question
+// the admin wrote (GET /providers/me/job-requests/:id -> intakeQuestions).
+// An older server without the field falls back to the raw answers.
+interface IntakeQuestionAnswer {
+  key: string;
+  label: string | null;
+  unit: string | null;
+  value: string | number | boolean;
+}
+type JobRequestDetail = ProviderJobRequest & { intakeQuestions?: IntakeQuestionAnswer[] };
+
+function answerRows(request: JobRequestDetail): IntakeQuestionAnswer[] {
+  if (Array.isArray(request.intakeQuestions)) return request.intakeQuestions;
+  return Object.entries(request.intakeAnswers ?? {})
+    .filter((entry): entry is [string, string | number | boolean] => (
+      typeof entry[1] === 'string' || typeof entry[1] === 'number' || typeof entry[1] === 'boolean'
+    ))
+    .map(([key, value]) => ({ key, label: null, unit: null, value }));
+}
+
+function formatAnswer(row: IntakeQuestionAnswer): string {
+  if (typeof row.value === 'boolean') return row.value ? 'Yes' : 'No';
+  return row.unit ? `${String(row.value)} ${row.unit}` : String(row.value);
+}
+
+/** Centavos as the peso text a unit-price input expects ("2000", "1250.5"). */
+function pesosInput(centavos: number): string {
+  const pesos = centavos / 100;
+  return Number.isInteger(pesos) ? String(pesos) : pesos.toFixed(2);
+}
+
 export default function QuoteBuilderScreen(): React.ReactElement {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -51,11 +83,34 @@ export default function QuoteBuilderScreen(): React.ReactElement {
   const [notes, setNotes] = useState('');
   const [estimatedDays, setEstimatedDays] = useState('');
   const [items, setItems] = useState<LineItemDraft[]>([createEmptyItem()]);
-  const bookingQuery = useQuery({
+  // Index of the customer photo open in the full-screen viewer.
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const bookingQuery = useQuery<JobRequestDetail>({
     queryKey: ['providerJobRequest', bookingId],
     queryFn: () => getProviderJobRequest(bookingId ?? ''),
     enabled: !!bookingId,
   });
+  const customerPhotos = bookingQuery.data?.jobPhotos ?? [];
+  const budgetTarget = bookingQuery.data
+    ? customerBudgetTarget(bookingQuery.data.budgetMin, bookingQuery.data.budgetMax)
+    : null;
+
+  // D38: one tap prices the quote at the customer's budget (the top of the
+  // range). It only fills the form: the provider still reviews and submits,
+  // and the server still computes the quote total from the line items.
+  const applyCustomerBudget = (): void => {
+    if (budgetTarget == null) return;
+    const keptDescription = items[0]?.description.trim();
+    setItems([{
+      id: nextItemId++,
+      description: keptDescription || 'Job as described in the customer request',
+      quantity: '1',
+      unit: 'job',
+      unitPrice: pesosInput(budgetTarget),
+      itemType: 'labor',
+    }]);
+    showToast(`Price set to the customer's budget of ${formatPHP(budgetTarget)}. Review it before you send.`, 'success');
+  };
 
   const canAddMoreItems = items.length < 20;
   const addItem = (): void => {
@@ -202,7 +257,34 @@ export default function QuoteBuilderScreen(): React.ReactElement {
           ) : (
             <>
               <Text style={styles.contextTitle}>{bookingQuery.data.serviceName || bookingQuery.data.categoryName || 'Custom service'}</Text>
-              <Text style={styles.contextDescription}>{bookingQuery.data.description}</Text>
+              {/* D38: what the customer wrote and their budget come first. */}
+              <View style={styles.budgetBanner}>
+                <Text style={styles.budgetBannerText}>
+                  {formatJobRequestBudget(bookingQuery.data.budgetMin, bookingQuery.data.budgetMax)}
+                </Text>
+              </View>
+              {bookingQuery.data.description ? (
+                <Text style={styles.contextDescription}>{bookingQuery.data.description}</Text>
+              ) : (
+                <Text style={styles.contextMuted}>The customer did not write a description. Check the photos and answers.</Text>
+              )}
+              {customerPhotos.length > 0 ? (
+                <View style={styles.photoBlock}>
+                  <Text style={styles.contextLabel}>Customer photos ({customerPhotos.length})</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoStrip}>
+                    {customerPhotos.map((uri, index) => (
+                      <TouchableOpacity
+                        key={uri}
+                        onPress={() => setViewerIndex(index)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open customer photo ${index + 1} of ${customerPhotos.length}`}
+                      >
+                        <LazyImage source={uri} containerStyle={styles.photoThumb} accessibilityLabel={`Customer photo ${index + 1}`} />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
               <View style={styles.contextFacts}>
                 {bookingQuery.data.urgency ? (
                   <View style={styles.contextFact}>
@@ -210,32 +292,14 @@ export default function QuoteBuilderScreen(): React.ReactElement {
                     <Text style={styles.contextValue}>{URGENCY_LABELS[bookingQuery.data.urgency] ?? bookingQuery.data.urgency}</Text>
                   </View>
                 ) : null}
-                {(bookingQuery.data.budgetMin != null || bookingQuery.data.budgetMax != null) ? (
-                  <View style={styles.contextFact}>
-                    <Text style={styles.contextLabel}>Customer budget</Text>
-                    <Text style={styles.contextValue}>
-                      {bookingQuery.data.budgetMin != null && bookingQuery.data.budgetMax != null
-                        ? `${formatPHP(bookingQuery.data.budgetMin)} - ${formatPHP(bookingQuery.data.budgetMax)}`
-                        : bookingQuery.data.budgetMin != null
-                          ? `From ${formatPHP(bookingQuery.data.budgetMin)}`
-                          : `Up to ${formatPHP(bookingQuery.data.budgetMax ?? 0)}`}
-                    </Text>
-                  </View>
-                ) : null}
-                {bookingQuery.data.jobPhotos.length > 0 ? (
-                  <View style={styles.contextFact}>
-                    <Text style={styles.contextLabel}>Evidence</Text>
-                    <Text style={styles.contextValue}>{bookingQuery.data.jobPhotos.length} customer photo{bookingQuery.data.jobPhotos.length === 1 ? '' : 's'}</Text>
-                  </View>
-                ) : null}
               </View>
-              {bookingQuery.data.intakeAnswers && Object.keys(bookingQuery.data.intakeAnswers).length > 0 ? (
+              {answerRows(bookingQuery.data).length > 0 ? (
                 <View style={styles.intakeBlock}>
-                  <Text style={styles.contextLabel}>Job details</Text>
-                  {Object.entries(bookingQuery.data.intakeAnswers).map(([key, value]) => (
-                    <View key={key} style={styles.intakeRow}>
-                      <Text style={styles.intakeKey}>{humanizeKey(key)}</Text>
-                      <Text style={styles.intakeValue}>{typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}</Text>
+                  <Text style={styles.contextLabel}>Customer answers</Text>
+                  {answerRows(bookingQuery.data).map((row) => (
+                    <View key={row.key} style={styles.intakeRow}>
+                      <Text style={styles.intakeKey}>{row.label ?? humanizeKey(row.key)}</Text>
+                      <Text style={styles.intakeValue}>{formatAnswer(row)}</Text>
                     </View>
                   ))}
                 </View>
@@ -260,6 +324,22 @@ export default function QuoteBuilderScreen(): React.ReactElement {
             maxLength={2000}
           />
         </View>
+
+        {budgetTarget != null ? (
+          <View style={styles.budgetAction}>
+            <TouchableOpacity
+              style={styles.budgetActionBtn}
+              onPress={applyCustomerBudget}
+              accessibilityRole="button"
+              accessibilityLabel="Use the customer's budget"
+            >
+              <Text style={styles.budgetActionText}>{`Use the customer's budget (${formatPHP(budgetTarget)})`}</Text>
+            </TouchableOpacity>
+            <Text style={styles.fieldHelp}>
+              Replaces the line items with one line at {formatPHP(budgetTarget)}. You can still edit it before you send.
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -474,6 +554,60 @@ export default function QuoteBuilderScreen(): React.ReactElement {
         </View>
         </View>
       </ScrollView>
+
+      {/* Full-screen viewer for the customer's photos. */}
+      <Modal
+        visible={viewerIndex !== null && customerPhotos.length > 0}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewerIndex(null)}
+      >
+        {viewerIndex !== null && customerPhotos[viewerIndex] ? (
+          <View style={styles.viewer} accessibilityViewIsModal accessibilityLabel="Customer photo viewer">
+            <View style={styles.viewerTop}>
+              <Text style={styles.viewerCount}>Photo {viewerIndex + 1} of {customerPhotos.length}</Text>
+              <TouchableOpacity
+                style={styles.viewerClose}
+                onPress={() => setViewerIndex(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Close photo"
+              >
+                <X size={24} color={colors.white} />
+              </TouchableOpacity>
+            </View>
+            {/* One LazyImage per photo (the key), so a photo that fails to
+                load does not leave Previous and Next stuck on the
+                "image unavailable" placeholder for the photos that work. */}
+            <LazyImage
+              key={`${viewerIndex}:${customerPhotos[viewerIndex]}`}
+              source={customerPhotos[viewerIndex]}
+              containerStyle={styles.viewerImage}
+              contentFit="contain"
+              accessibilityLabel={`Customer photo ${viewerIndex + 1}, full screen`}
+            />
+            {customerPhotos.length > 1 ? (
+              <View style={styles.viewerNav}>
+                <TouchableOpacity
+                  style={styles.viewerNavBtn}
+                  onPress={() => setViewerIndex((viewerIndex + customerPhotos.length - 1) % customerPhotos.length)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous photo"
+                >
+                  <ChevronLeft size={28} color={colors.white} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.viewerNavBtn}
+                  onPress={() => setViewerIndex((viewerIndex + 1) % customerPhotos.length)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next photo"
+                >
+                  <ChevronRight size={28} color={colors.white} />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -506,6 +640,22 @@ const styles = StyleSheet.create({
   contextRetryText: { fontSize: 14, color: colors.primary, fontWeight: '700' },
   commissionLoading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.md },
   commissionLoadingText: { fontSize: 12, color: colors.textSecondary },
+  budgetBanner: { alignSelf: 'flex-start', backgroundColor: colors.surface, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.primary, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginBottom: spacing.sm },
+  budgetBannerText: { fontSize: 15, fontWeight: '800', color: colors.primary },
+  contextMuted: { fontSize: 13, lineHeight: 19, color: colors.textTertiary, fontStyle: 'italic' },
+  photoBlock: { marginTop: spacing.base, gap: spacing.xs },
+  photoStrip: { gap: spacing.sm, paddingVertical: spacing.xs },
+  photoThumb: { width: 88, height: 88, borderRadius: borderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  budgetAction: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.base, marginBottom: spacing.lg },
+  budgetActionBtn: { backgroundColor: colors.primaryLight, borderRadius: borderRadius.lg, minHeight: 44, paddingHorizontal: spacing.base, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primary },
+  budgetActionText: { fontSize: 14, fontWeight: '700', color: colors.primary, textAlign: 'center' },
+  viewer: { flex: 1, backgroundColor: 'rgba(5,26,62,0.96)', justifyContent: 'center' },
+  viewerTop: { position: 'absolute', top: spacing.xl, left: spacing.base, right: spacing.base, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 2 },
+  viewerCount: { fontSize: 14, fontWeight: '600', color: colors.white },
+  viewerClose: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  viewerImage: { width: '100%', height: '75%', backgroundColor: 'transparent' },
+  viewerNav: { position: 'absolute', bottom: spacing.xl, left: spacing.base, right: spacing.base, flexDirection: 'row', justifyContent: 'space-between' },
+  viewerNavBtn: { minWidth: 52, minHeight: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   intakeBlock: { marginTop: spacing.base, gap: spacing.xs },
   intakeRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm, paddingVertical: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   intakeKey: { fontSize: 12, color: colors.textSecondary, flex: 1 },
