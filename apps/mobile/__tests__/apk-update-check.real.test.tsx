@@ -6,6 +6,11 @@ import { Linking, Platform } from 'react-native';
 // signed builds from our server, offers Update or Later, and never offers a
 // downgrade or a build signed with another key. Real service, gate and
 // version row; the installed build, the HTTP client and storage are substituted.
+//
+// HA-UPD (human audit, 2026-10-13): Update no longer hands the download to the
+// browser (that is how 1.0.1 kept saying "Update available"). It downloads the
+// APK inside the app. The two tests that pinned Linking.openURL now assert the
+// in-app download; the full install flow is in apk-update-install.real.test.tsx.
 
 const mockInstalled = { versionName: '1.0.1' as string | null, versionCode: '2' as string | null };
 jest.mock('expo-application', () => ({
@@ -23,15 +28,40 @@ jest.mock('@/services/api', () => {
     __esModule: true,
     ApiError,
     default: { get: (...args: unknown[]) => mockGet(...args) },
-    storage: { getString: (key: string) => mockStore.get(key), set: (key: string, value: string) => { mockStore.set(key, value); } },
+    storage: {
+      getString: (key: string) => mockStore.get(key),
+      set: (key: string, value: string) => { mockStore.set(key, value); },
+      delete: (key: string) => { mockStore.delete(key); },
+    },
   };
 });
 jest.mock('@/config/platform.config', () => ({ platformConfig: { apiUrl: 'https://app.onservice.ph' } }));
+// The app's cache folder is empty and a started download stays in progress
+// until it is cancelled, so these tests see the Downloading step.
+const mockDownloads: Array<{ url: string; uri: string }> = [];
+jest.mock('expo-file-system/legacy', () => ({
+  cacheDirectory: 'file:///cache/',
+  getInfoAsync: jest.fn(async (uri: string) => ({ exists: false, isDirectory: false, uri })),
+  makeDirectoryAsync: jest.fn(async () => undefined),
+  readDirectoryAsync: jest.fn(async () => []),
+  deleteAsync: jest.fn(async () => undefined),
+  getFreeDiskStorageAsync: jest.fn(async () => 10_000_000_000),
+  getContentUriAsync: jest.fn(async (uri: string) => uri),
+  createDownloadResumable: jest.fn((url: string, uri: string) => {
+    mockDownloads.push({ url, uri });
+    let stop: (value: undefined) => void = () => undefined;
+    return {
+      downloadAsync: () => new Promise(resolve => { stop = resolve; }),
+      cancelAsync: async () => { stop(undefined); },
+    };
+  }),
+}));
 
 import { ApiError } from '@/services/api';
 import AppUpdateGate from '@/components/AppUpdateGate';
 import AppVersionCheck from '@/components/AppVersionCheck';
 import { decideUpdate, fetchAndroidRelease, installedVersion } from '@/services/app-update.service';
+import { __resetApkUpdaterForTests } from '@/hooks/useApkUpdater';
 
 const PIN = '1EAAB76ADB7A3EF1EA7CBD496A6E47D37F3F3058F2FB96B7FC08248F4D7D42D9';
 const release = (over: Record<string, unknown> = {}) => ({ data: { success: true, data: {
@@ -43,8 +73,11 @@ const originalOS = Platform.OS;
 beforeEach(() => {
   jest.clearAllMocks();
   mockStore.clear();
+  mockDownloads.length = 0;
   Object.assign(mockInstalled, { versionName: '1.0.1', versionCode: '2' });
   (Platform as { OS: string }).OS = 'android';
+  // The update run outlives any one screen (HA-UPD), so each test starts clean.
+  __resetApkUpdaterForTests();
 });
 afterAll(() => { (Platform as { OS: string }).OS = originalOS; });
 
@@ -68,6 +101,8 @@ it('APK update - the manifest must be ours: package, channel, HTTPS path on our 
     { packageName: 'com.evil.app' }, { channel: 'beta' }, { certificateSha256: 'B'.repeat(64) },
     { downloadPath: 'https://evil.example/onService-1.0.2-3.apk' }, { downloadPath: '/api/v1/app-releases/android/files/../x.apk' },
     { minimumVersionCode: 4 }, { versionCode: 0 }, { versionName: '1.0' },
+    // HA-UPD: the file must be the one this version names (help text names it).
+    { downloadPath: '/api/v1/app-releases/android/files/onService-1.0.9-3.apk' },
   ]) {
     mockGet.mockResolvedValueOnce(release(bad));
     await expect(fetchAndroidRelease()).rejects.toThrow();
@@ -76,14 +111,20 @@ it('APK update - the manifest must be ours: package, channel, HTTPS path on our 
   await expect(fetchAndroidRelease()).resolves.toBeNull();
 });
 
-it('APK update - on launch a newer build is offered; Update opens the download, Later hides it for a day', async () => {
+it('APK update - on launch a newer build is offered; Update downloads it inside the app (not in the browser), Cancel returns to the offer, Later hides it for a day', async () => {
   mockGet.mockResolvedValue(release());
   const view = render(<AppUpdateGate />);
   expect(await screen.findByText('Update available')).toBeTruthy();
   expect(screen.getByText(/Version 1\.0\.2 of onService PH is ready \(61 MB\)/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Update' }));
-  await waitFor(() => expect(Linking.openURL).toHaveBeenCalledWith(
-    'https://app.onservice.ph/api/v1/app-releases/android/files/onService-1.0.2-3.apk'));
+  expect(await screen.findByText('Downloading update')).toBeTruthy();
+  await waitFor(() => expect(mockDownloads).toEqual([{
+    url: 'https://app.onservice.ph/api/v1/app-releases/android/files/onService-1.0.2-3.apk',
+    uri: 'file:///cache/updates/onService-1.0.2-3.apk',
+  }]));
+  expect(Linking.openURL).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(await screen.findByText('Update available')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Later' }));
   expect(screen.queryByText('Update available')).toBeNull();
   expect(Number(mockStore.get('appUpdate.snoozedUntil.3'))).toBeGreaterThan(Date.now() + 23 * 3600_000);
@@ -143,5 +184,8 @@ it('APK update - Help shows the installed build and a manual check', async () =>
   fireEvent.click(screen.getByRole('button', { name: 'Check for updates' }));
   expect(await screen.findByText('Version 1.0.2 is available.')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Download update' }));
-  await waitFor(() => expect(Linking.openURL).toHaveBeenCalledTimes(1));
+  // HA-UPD: the same in-app download as the start-up pop-up, not the browser.
+  expect(await screen.findByText('Downloading update: 0% (0.0 MB of 61 MB)')).toBeTruthy();
+  expect(mockDownloads).toHaveLength(1);
+  expect(Linking.openURL).not.toHaveBeenCalled();
 });

@@ -13,6 +13,13 @@ const fail = message => { throw new Error(message); };
 const hex = /^[a-f0-9]{64}$/i;
 const abis = ['arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'];
 const versionCode = value => Number.isSafeInteger(value) && value > 0 && value <= 2100000000;
+// HA-UPD (2026-10-13): APKs in the update-download lane install the NEXT update
+// from inside the app. On Android 8+ the system installer silently cancels an
+// install started by an app that does not declare this permission, and the
+// "Install unknown apps" switch cannot fix it, so a candidate without it could
+// never update itself. Google Play forbids this permission for self-updates:
+// a Play Store build must not declare it and does not belong in this lane.
+const SELF_UPDATE_PERMISSION = 'android.permission.REQUEST_INSTALL_PACKAGES';
 
 function validateExpected(expected) {
   const keys = ['packageName', 'versionName', 'versionCode', 'previousVersionCode', 'certificateSha256', 'requiredAbis'];
@@ -91,6 +98,7 @@ export function assessAndroidApk(observed, expected) {
     .trim().split(/\s+/).map(value => value.replace(/^'|'$/g, '')).sort();
   if (declaredAbis.join() !== nativeAbis.join()) fail('APK native architecture observations disagree');
   const permissions = [...badging.matchAll(/^uses-permission(?:-sdk-\d+)?: name='([^']+)'/gm)].map(match => match[1]).sort();
+  if (!permissions.includes(SELF_UPDATE_PERMISSION)) fail('APK cannot install its own updates (no REQUEST_INSTALL_PACKAGES)');
   return {
     packageName: pkg[1], versionName: pkg[3], versionCode: Number(pkg[2]), previousVersionCode: expected.previousVersionCode,
     certificateSha256: cert, nativeAbis, minimumSdk, targetSdk, permissions,

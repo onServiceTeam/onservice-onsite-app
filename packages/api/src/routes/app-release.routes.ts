@@ -20,6 +20,12 @@ import { logger } from '../utils/logger';
  *
  *   GET /api/v1/app-releases/android/latest        -> manifest (never cached)
  *   GET /api/v1/app-releases/android/files/<name>  -> the APK (immutable)
+ *
+ * HA-UPD (2026-10-13): the app now downloads the APK itself and can check it
+ * on the phone, where only MD5 is cheap to compute (expo-file-system). So the
+ * manifest may carry an OPTIONAL lower-case md5 beside sha256. Manifests
+ * published before this change have none and stay valid; md5 is included in
+ * the /latest answer only when the manifest has it.
  */
 
 export const ANDROID_PACKAGE = 'ph.onservice.app';
@@ -33,6 +39,7 @@ const manifestSchema = z.object({
   minimumVersionCode: z.number().int().min(1),
   file: z.string().regex(FILE_NAME),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  md5: z.string().regex(/^[a-f0-9]{32}$/).optional(),
   size: z.number().int().min(1_000_000).max(300_000_000),
   certificateSha256: z.string().regex(/^[A-F0-9]{64}$/),
   publishedAt: z.string().datetime(),
@@ -80,6 +87,7 @@ router.get('/android/latest', async (_req: Request, res: Response, next: NextFun
       minimumVersionCode: manifest.minimumVersionCode,
       downloadPath: `/api/v1/app-releases/android/files/${manifest.file}`,
       sha256: manifest.sha256,
+      ...(manifest.md5 !== undefined && { md5: manifest.md5 }),
       size: manifest.size,
       certificateSha256: manifest.certificateSha256,
       publishedAt: manifest.publishedAt,

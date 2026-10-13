@@ -80,6 +80,34 @@ it('refuses to advertise a manifest that does not match its file or rules', asyn
   }
 });
 
+// HA-UPD (human audit, 2026-10-13): the app checks the downloaded APK on the
+// phone, where only MD5 is cheap, so the manifest may carry an optional md5.
+const md5 = crypto.createHash('md5').update(apkBytes).digest('hex');
+
+it('HA-UPD-API-1: a manifest without md5 (like the live 1.0.2 one) is still served, with no md5 field', async () => {
+  publish(manifest());
+  const response = await request(app).get('/api/v1/app-releases/android/latest');
+  expect(response.status).toBe(200);
+  expect(response.body.data.sha256).toBe(sha256);
+  expect(Object.prototype.hasOwnProperty.call(response.body.data, 'md5')).toBe(false);
+});
+
+it('HA-UPD-API-2: a manifest with a lower-case md5 is served with that md5', async () => {
+  publish(manifest({ md5 }));
+  const response = await request(app).get('/api/v1/app-releases/android/latest');
+  expect(response.status).toBe(200);
+  expect(response.body.data).toMatchObject({ versionCode: 2, sha256, md5, size: apkBytes.length });
+});
+
+it('HA-UPD-API-3: a malformed md5 makes the manifest invalid, so nothing is advertised', async () => {
+  for (const bad of [md5.toUpperCase(), md5.slice(0, 31), `${md5}0`, 'z'.repeat(32), '', null, 12345]) {
+    fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+    publish(manifest({ md5: bad }));
+    const response = await request(app).get('/api/v1/app-releases/android/latest');
+    expect({ bad, status: response.status }).toEqual({ bad, status: 503 });
+  }
+});
+
 it('serves the APK with the Android package type and an immutable cache', async () => {
   publish(manifest());
   const response = await request(app).get('/api/v1/app-releases/android/files/onService-1.0.1-2.apk')

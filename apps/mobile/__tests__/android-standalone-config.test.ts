@@ -37,7 +37,8 @@ it('builds an explicitly selected standalone Android config without inventing EA
   expect(config.extra?.router).toEqual({ root: 'app' });
   // 1.0.1 (build 2), 2026-10-12: the first APK with email sign-in and the update check.
   // 1.0.2 (build 3), 2026-10-13: tester feedback v2 (Send feedback entries, real version shown).
-  expect(config.android?.versionCode).toBe(3);
+  // 1.0.3 (build 4), 2026-10-14: in-app updater, request-first booking, new home and service screens.
+  expect(config.android?.versionCode).toBe(4);
 });
 
 it('retains an explicitly configured EAS identity while still requiring only Android Maps configuration', () => {
@@ -83,6 +84,21 @@ it('rejects malformed optional project identity without echoing it in diagnostic
   expect(failure).toBeInstanceOf(Error);
   expect((failure as Error).message).toMatch(/EAS_PROJECT_ID/);
   expect((failure as Error).message).not.toContain(privateValue);
+});
+
+// HA-UPD (2026-10-13): the tester APK opens Android's installer for its own
+// updates, which needs REQUEST_INSTALL_PACKAGES. Google Play forbids that
+// permission for self-updates, so only the standalone tester build gets it.
+it('HA-UPD-CONFIG: only the standalone tester APK declares the install-packages permission', () => {
+  expect(loadConfig().android?.permissions).toContain('android.permission.REQUEST_INSTALL_PACKAGES');
+
+  delete process.env.ONSERVICE_ANDROID_STANDALONE;
+  process.env.EAS_PROJECT_ID = 'e8efc001-a67f-4439-b5e6-85db4cdbca90';
+  process.env.GOOGLE_MAPS_IOS_API_KEY = 'synthetic-ios-maps-key';
+  const storeBuild = loadConfig();
+  expect(storeBuild.platforms).toEqual(['ios', 'android', 'web']);
+  expect(storeBuild.android?.permissions).not.toContain('android.permission.REQUEST_INSTALL_PACKAGES');
+  expect(storeBuild.android?.permissions).toContain('CAMERA');
 });
 
 it.each([undefined, '0'])('preserves the existing non-standalone production requirements (%s)', selection => {

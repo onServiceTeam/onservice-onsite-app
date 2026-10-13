@@ -71,7 +71,7 @@ const config: ExpoConfig = {
   slug: 'onservice',
   // Raise version and android.versionCode together for every APK handed to
   // testers: an installed app only accepts a strictly higher versionCode.
-  version: '1.0.2',
+  version: '1.0.3',
   runtimeVersion: { policy: 'appVersion' },
   orientation: 'portrait',
   scheme: 'onservice',
@@ -153,7 +153,7 @@ const config: ExpoConfig = {
       backgroundColor: '#003D9B',
     },
     package: 'ph.onservice.app',
-    versionCode: 3,
+    versionCode: 4,
     permissions: [
       'ACCESS_FINE_LOCATION',
       'ACCESS_COARSE_LOCATION',
@@ -162,6 +162,13 @@ const config: ExpoConfig = {
       'READ_MEDIA_IMAGES',
       'RECEIVE_BOOT_COMPLETED',
       'VIBRATE',
+      // HA-UPD (2026-10-13): the standalone tester APK downloads its own
+      // updates and opens Android's installer, which needs this permission
+      // (the person still confirms every install). Google Play forbids
+      // REQUEST_INSTALL_PACKAGES for an app updating itself, so it must NOT
+      // ship in a Play Store build: it is added only for the local standalone
+      // tester build (ONSERVICE_ANDROID_STANDALONE=1).
+      ...(standaloneAndroid ? ['android.permission.REQUEST_INSTALL_PACKAGES'] : []),
     ],
     ...(!isWebExport && {
       config: {

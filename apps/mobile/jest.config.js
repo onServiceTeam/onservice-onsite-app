@@ -74,6 +74,9 @@ module.exports = {
     // exercised at device level by F#3 Maestro.
     '^react-native-signature-canvas$': '<rootDir>/__mocks__/react-native-signature-canvas.js',
     '^expo-file-system(/legacy)?$': '<rootDir>/__mocks__/expo-file-system.js',
+    // HA-UPD (2026-10-13): the in-app APK installer opens Android's installer
+    // through expo-intent-launcher; jsdom has no Android activities.
+    '^expo-intent-launcher$': '<rootDir>/__mocks__/expo-intent-launcher.js',
   },
   testPathIgnorePatterns: ['/node_modules/', '/.expo/', '/dist/'],
   // Monorepo: node_modules live at the workspace root.

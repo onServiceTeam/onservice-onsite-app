@@ -12,7 +12,7 @@ const expected = () => ({ packageName: 'ph.onservice.app', versionName: '1.0.1',
   previousVersionCode: 1, certificateSha256: pin, requiredAbis: ['arm64-v8a'] });
 const row = (name, size = 500) => `     ${size}  Deflate     100  80%       643  01-01-81 01:01  559ad249  ${name}`;
 const observations = () => ({
-  badging: "package: name='ph.onservice.app' versionCode='2' versionName='1.0.1' platformBuildVersionName='16'\nsdkVersion:'24'\ntargetSdkVersion:'36'\nlaunchable-activity: name='ph.onservice.app.MainActivity' label=''\nnative-code: 'arm64-v8a'\nuses-permission: name='android.permission.INTERNET'\n",
+  badging: "package: name='ph.onservice.app' versionCode='2' versionName='1.0.1' platformBuildVersionName='16'\nsdkVersion:'24'\ntargetSdkVersion:'36'\nlaunchable-activity: name='ph.onservice.app.MainActivity' label=''\nnative-code: 'arm64-v8a'\nuses-permission: name='android.permission.INTERNET'\nuses-permission: name='android.permission.REQUEST_INSTALL_PACKAGES'\n",
   manifest: 'N: android=http://schemas.android.com/apk/res/android\n  E: manifest (line=2)\n    E: application (line=11)\n      A: android:debuggable(0x0101000f)=(type 0x12)0x0\n',
   listing: ['Archive:  synthetic.apk', ' Length   Method    Size  Ratio   Offset      Date  Time  CRC-32    Name',
     row('AndroidManifest.xml'), row('classes.dex'), row('assets/index.android.bundle', 8192), row('lib/arm64-v8a/libhermes.so'),
@@ -24,7 +24,7 @@ test('positive SDK observations report exact identity without claiming deploymen
   assert.deepEqual(assessAndroidApk(observations(), expected()), {
     packageName: 'ph.onservice.app', versionName: '1.0.1', versionCode: 2, previousVersionCode: 1,
     certificateSha256: pin, nativeAbis: ['arm64-v8a'], minimumSdk: 24, targetSdk: 36,
-    permissions: ['android.permission.INTERNET'], embeddedBundleBytes: 8192, deploymentEligible: false,
+    permissions: ['android.permission.INTERNET', 'android.permission.REQUEST_INSTALL_PACKAGES'], embeddedBundleBytes: 8192, deploymentEligible: false,
     remainingAcceptance: ['Exact bundled source/runtime/API/configuration', 'Permission, backup and network policy review',
       'Complete-app device storage and authenticated role journeys', 'Physical-phone installation and data-preserving upgrade',
       'Paired API/client migration, backup and rollback acceptance', 'Verified HTTPS publication and update delivery'],
@@ -99,6 +99,12 @@ test('required phone architecture must exist in both actual archive and SDK obse
     [observations().listing.replace('lib/arm64-v8a/', 'lib/x86_64/'), observations().badging],
     [observations().listing, observations().badging.replace("native-code: 'arm64-v8a'", "native-code: 'x86_64'")],
   ]) assert.throws(() => assessAndroidApk({ ...observations(), listing, badging }, expected()), /architecture/);
+});
+
+test('HA-UPD: a candidate that cannot install its own next update (no REQUEST_INSTALL_PACKAGES) is rejected', () => {
+  const actual = observations();
+  actual.badging = actual.badging.replace("uses-permission: name='android.permission.REQUEST_INSTALL_PACKAGES'\n", '');
+  assert.throws(() => assessAndroidApk(actual, expected()), /cannot install its own updates/);
 });
 
 test('incomplete and ambiguous SDK output is not treated as evidence', () => {
