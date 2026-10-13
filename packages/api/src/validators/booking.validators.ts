@@ -167,14 +167,20 @@ export const declineQuoteSchema = z.object({
 // first step for every service, so a request no longer needs 50 characters
 // and 2 photos. No single item is required, but the request must tell the
 // provider something: a written description with at least 10 non-space
-// characters, at least one photo, at least one answered quick question, or a
-// video. The mobile form (app/customer/booking/job-request.tsx) mirrors the
-// rule for what it can attach today (text, photos, answers).
+// characters, at least one photo, at least one answered quick question, a
+// video, or (Milestone 2) at least one uploaded item in mediaIds. The mobile
+// form (app/customer/booking/job-request.tsx) mirrors the rule for what it can
+// attach.
 export const JOB_REQUEST_MIN_DESCRIPTION_CHARS = 10;
 // The new app (1.0.3+) lets customers attach up to 6 photos (D38, brief). The
 // server keeps the old cap of 10 so phones still on APK 1.0.1/1.0.2, whose
 // form allows 10, are not refused after uploading.
 export const JOB_REQUEST_MAX_PHOTOS = 10;
+// D38 Milestone 2 (merged plan 2.3): private uploads from POST /job-media,
+// attached by id. At most 8 different items: up to job_media_max_photos (6)
+// photos, 1 video and 1 voice note. The per-kind counts are checked by the
+// service against the live settings (400 JOB_MEDIA_LIMIT).
+export const JOB_REQUEST_MAX_MEDIA_ITEMS = 8;
 export const JOB_REQUEST_EMPTY_MESSAGE =
   'Tell the pro about the job: write at least 10 characters, add a photo, or answer a quick question.';
 
@@ -231,6 +237,12 @@ export const createJobRequestSchema = z.object({
   budgetUnknown: z.boolean().optional(),
   // D38 (critique M9): the app's idempotency key for this request.
   clientRequestId: z.string().uuid('clientRequestId must be a UUID').optional(),
+  // D38 Milestone 2: stored job-media uploads to attach (see JOB_REQUEST_MAX_MEDIA_ITEMS).
+  mediaIds: z.array(z.string().uuid('Each photo or recording id must be a UUID'))
+    .max(JOB_REQUEST_MAX_MEDIA_ITEMS, `Up to ${JOB_REQUEST_MAX_MEDIA_ITEMS} photos and recordings can be attached to a request`)
+    .refine((ids) => new Set(ids.map((id) => id.toLowerCase())).size === ids.length,
+      'Each photo or recording can be attached only once')
+    .optional(),
 }).superRefine((data, context) => {
   if (data.budgetUnknown === true && (data.budgetMin != null || data.budgetMax != null)) {
     context.addIssue({
@@ -252,7 +264,9 @@ export const createJobRequestSchema = z.object({
   // the API already accepts jobVideoUrl, so a request that carries one is not
   // empty.
   const hasVideo = !!data.jobVideoUrl;
-  if (!hasDescription && !hasPhoto && !hasVideo && !hasJobRequestAnswer(data.intakeAnswers)) {
+  // D38 Milestone 2: an uploaded photo, video or voice note counts as well.
+  const hasMedia = (data.mediaIds?.length ?? 0) > 0;
+  if (!hasDescription && !hasPhoto && !hasVideo && !hasMedia && !hasJobRequestAnswer(data.intakeAnswers)) {
     context.addIssue({ code: 'custom', path: ['description'], message: JOB_REQUEST_EMPTY_MESSAGE });
   }
 });

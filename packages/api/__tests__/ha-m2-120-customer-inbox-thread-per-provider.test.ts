@@ -55,6 +55,8 @@ it('HA-M2-120: the customer inbox shows one thread per responding provider with 
           messageType: 'text',
           senderIsMe: false,
           createdAt: expect.any(String),
+          // Text: no photo or voice note (wave 3 added lastMessage.media).
+          media: null,
         },
         // quote_sent plus two messages, all from provider B.
         unreadCount: 3,
@@ -75,6 +77,8 @@ it('HA-M2-120: the customer inbox shows one thread per responding provider with 
           messageType: 'text',
           senderIsMe: false,
           createdAt: expect.any(String),
+          // Text: no photo or voice note (wave 3 added lastMessage.media).
+          media: null,
         },
         // quote_sent plus provider A's reply; the customer's own message is not counted.
         unreadCount: 2,

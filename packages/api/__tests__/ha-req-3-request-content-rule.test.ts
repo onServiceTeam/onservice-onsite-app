@@ -11,6 +11,7 @@ import {
   marketplaceHttp, jobRequestBody, waitForLeadFanOut, quoteService,
 } from './helpers/job-request-postgres';
 import { withRequestEngineDatabase } from './helpers/request-engine-postgres';
+import { insertStoredMedia } from './helpers/request-media-postgres';
 
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
@@ -61,6 +62,23 @@ it('HA-REQ-3: a request with only one answered quick question is accepted', asyn
     expect(response.status).toBe(201);
     expect((await database.query('SELECT intake_answers FROM bookings WHERE id=$1',
       [response.body.data.id])).rows).toEqual([{ intake_answers: { unit_count: 2 } }]);
+    await waitForLeadFanOut(mockPush, 1);
+  });
+}, 60000);
+
+// D38 Milestone 2 (W3 step I1): an uploaded photo (a stored job-media item
+// sent as mediaIds) counts as content on its own, like a jobPhotos link.
+it('HA-REQ-3: a request with only one uploaded photo (mediaIds) and no description is accepted', async () => {
+  await withRequestEngineDatabase(async database => {
+    const photo = await insertStoredMedia(database, customerA);
+
+    const response = await marketplaceHttp(customerA, 'customer').jobRequest(jobRequestBody({
+      subcategoryId: quoteService, description: '', mediaIds: [photo],
+    }));
+
+    expect(response.status).toBe(201);
+    expect((await database.query('SELECT b.description, m.status FROM bookings b JOIN job_media m ON m.booking_id = b.id WHERE b.id=$1',
+      [response.body.data.id])).rows).toEqual([{ description: '', status: 'attached' }]);
     await waitForLeadFanOut(mockPush, 1);
   });
 }, 60000);

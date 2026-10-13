@@ -970,11 +970,22 @@ async function canViewRow(viewer: MediaViewer, row: JobMediaRow): Promise<boolea
   if (ADMIN_ROLES.has(viewer.role)) return true;
   if (row.purpose === 'chat') {
     if (!row.conversation_id) return false;
-    const conversation = await db.query<{ customer_id: string; provider_id: string }>(
-      'SELECT customer_id, provider_id FROM conversations WHERE id = $1',
-      [row.conversation_id],
+    // A message a moderator redacted takes its photo or voice note away from
+    // the other participant too (design-threads.md section 3: "Redacted
+    // messages get no media URL"); the uploader (above) and admins keep it.
+    // media_id is read through to_jsonb(m) because it arrives with migration
+    // 185, like the stored thread state in loadConversationAccess. The scan
+    // is bounded by the conversation's own messages.
+    const conversation = await db.query<{ customer_id: string; provider_id: string; redacted: boolean }>(
+      `SELECT c.customer_id, c.provider_id,
+              EXISTS (SELECT 1 FROM messages m
+                       WHERE m.conversation_id = c.id AND m.redacted_at IS NOT NULL
+                         AND to_jsonb(m) ->> 'media_id' = $2::text) AS redacted
+         FROM conversations c WHERE c.id = $1`,
+      [row.conversation_id, row.id],
     );
-    return !!conversation.rows[0] && isConversationParticipant(conversation.rows[0], viewer);
+    const found = conversation.rows[0];
+    return !!found && !found.redacted && isConversationParticipant(found, viewer);
   }
   return canViewRequestMediaOfBooking(viewer, row.booking_id);
 }

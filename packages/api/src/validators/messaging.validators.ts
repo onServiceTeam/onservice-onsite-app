@@ -2,7 +2,9 @@ import { z } from 'zod';
 
 // D38 request threads (Milestone 2, package P4): messageType gains 'voice',
 // and a message may point at a private job_media row (mediaId) and carry the
-// sender's idempotency key (clientMessageId). Video stays out of the API in
+// sender's idempotency key (clientMessageId). A voice note's length is not a
+// body field: the server stores the length it measured from the file (wave
+// 3, messaging.service sendParticipantMessage). Video stays out of the API in
 // Milestone 2 even though the database allows it. Which photo source a thread
 // accepts (legacy imageUrl only in a booked thread) is decided in
 // messaging.service, so these shape rules stay as they were for old apps.
@@ -25,6 +27,11 @@ export const sendMessageSchema = z.object({
   }
   if (message.mediaId && message.messageType !== 'image' && message.messageType !== 'voice') {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['mediaId'], message: 'Only photo and voice messages carry media.' });
+  }
+  // Wave 3: a photo is either a private upload (mediaId, new apps) or an old
+  // app's public link (imageUrl), never both.
+  if (message.mediaId && message.imageUrl) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['imageUrl'], message: 'Send mediaId or imageUrl, not both.' });
   }
 });
 

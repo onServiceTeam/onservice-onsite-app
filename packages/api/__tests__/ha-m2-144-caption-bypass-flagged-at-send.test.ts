@@ -2,9 +2,9 @@
 // the off-platform phrase check now runs on photo captions too, not only on
 // text messages: a booked-thread photo whose caption says "message me on
 // viber" is stored flagged for moderation, and a photo with a plain caption is
-// not. (Until thread media lands in wave 3, a captioned photo is an old app's
-// chat upload in a booked thread.) Real HTTP route on the guarded PostgreSQL
-// fixture.
+// not. (This test sends an old app's chat upload in a booked thread; since
+// wave 3, HA-M2-342 covers the caption of a private photo sent with mediaId
+// in a request thread.) Real HTTP route on the guarded PostgreSQL fixture.
 import crypto from 'node:crypto';
 import {
   bookingIntegrationIt as it, customerA,

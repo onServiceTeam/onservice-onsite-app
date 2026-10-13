@@ -23,6 +23,7 @@ import * as emailCodeAuthService from '../services/email-code-auth.service';
 import * as feedbackStudyService from '../services/feedback-study.service';
 import * as jobLeadsService from '../services/job-leads.service';
 import * as jobRequestEvents from '../services/job-request-events.service';
+import * as jobMediaService from '../services/job-media.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -179,6 +180,9 @@ async function expireStaleQuotes(): Promise<number> {
             body: 'Your quote was not accepted within the time limit and has expired.',
             data: { bookingId: quote.booking_id, quoteId: quote.id },
           });
+          // D38 W3 step I2: "This quote expired." in that provider's request
+          // thread, and the thread's (now read-only) state. Best effort.
+          await jobRequestEvents.quoteExpired({ bookingId: quote.booking_id, quoteId: quote.id });
         }
       }
     } catch (err) {
@@ -493,11 +497,15 @@ const BYPASS_PATTERNS = [
 async function detectBypassAttempts(): Promise<number> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
+  // D38 W3 step I3: photo and voice-note messages carry a caption in
+  // `content` (request threads, migration 185), so they are scanned too.
+  // System messages are platform text and are never scanned. An uncaptioned
+  // legacy photo stores the literal 'Photo', which the length rule skips.
   const messages = await db.query<BypassMessageRow>(
     `SELECT m.id, m.conversation_id, m.sender_id, m.content
      FROM messages m
      WHERE m.is_flagged = FALSE
-       AND m.message_type = 'text'
+       AND m.message_type IN ('text', 'image', 'voice')
        AND m.created_at > $1
        AND LENGTH(m.content) > 5`,
     [sevenDaysAgo],
@@ -589,6 +597,12 @@ const schedulerWorker = new Worker(
         break;
       case 'bypass-detect':
         results.bypasses = await detectBypassAttempts();
+        break;
+      case 'job-media-cleanup':
+        // D38 W3 step I1: abandoned uploads, unattached stored items (24 h),
+        // uploads stuck in processing (15 min), deleted items' files and old
+        // temp files (job-media.service cleanupJobMedia, bounded per run).
+        results.jobMediaCleanup = await jobMediaService.cleanupJobMedia();
         break;
       case 'recurring-process':
         results.recurring = await recurringService.processRecurringBookings();
@@ -723,6 +737,14 @@ export async function initScheduledJobs(): Promise<void> {
     removeOnFail: 10,
   });
 
+  // D38 W3 step I1 (design-media.md section 5): private job media cleanup
+  // every 15 minutes.
+  await schedulerQueue.add('job-media-cleanup', {}, {
+    repeat: { pattern: '*/15 * * * *' },
+    removeOnComplete: 30,
+    removeOnFail: 100,
+  });
+
   await schedulerQueue.add('recurring-process', {}, {
     repeat: { pattern: '0 22 * * *' },
     removeOnComplete: 30,
@@ -831,6 +853,7 @@ export async function initScheduledJobs(): Promise<void> {
   logger.info('Scheduled jobs initialized: auto-confirm/expire-quotes/no-show/dispute-escalate/request still-looking and re-fan-out every 5 min (all), booking offer sweep every 5 seconds, NBI check daily midnight PHT, bypass detection weekly Sunday midnight PHT, recurring bookings daily 6AM PHT, invoice generation 1st of month midnight PHT, overdue check daily midnight PHT, slot waitlist expiry daily 1AM PHT, data export processing every 10 min, account deletion processing daily 2AM PHT, suspicious IP detection every 5 min, security cleanup monthly 3AM PHT, quality score compute weekly 4AM PHT Monday, dispute escalation every 6 hours');
   logger.info('Provider application draft expiry scheduled every 5 minutes, at most 100 expired rows per attempt; uploaded objects and submitted evidence are not removed');
   logger.info('Email-link cleanup scheduled every 5 minutes: at most 100 proof expiries and 100 old request removals per attempt; verified identities and audits are retained');
+  logger.info('Job media cleanup scheduled every 15 minutes: stale and unattached uploads are marked deleted and their files removed, at most 200 rows per step per run');
   logger.info('The same email cleanup job also expires at most 100 sign-in proofs and removes at most 100 old sign-in requests; no new queue or process');
 }
 

@@ -12,6 +12,14 @@
  * Copy rules: no message content, no contact details, and a declined amount
  * only when request_show_declined_amount is on (that rule lives in the
  * fan-out, job-leads.service).
+ *
+ * Request threads (Milestone 2 W3 step I2, request-thread.service): a quote
+ * admitted opens its provider's thread with `quote_sent`; a decline, expiry or
+ * withdrawal posts its system message in that thread and sends the thread's
+ * state; an acceptance runs afterQuoteAccepted (booked thread and
+ * `booking_confirmed`, sibling threads told they are read-only). Thread state
+ * itself is derived from the quote and booking, so a thread hook that fails
+ * never leaves a thread writable when it should not be.
  */
 import { db } from '../models/db';
 import { logger } from '../utils/logger';
@@ -19,6 +27,7 @@ import { formatPHP } from '../utils/currency';
 import * as notificationService from './notification.service';
 import * as socketService from './socket.service';
 import * as jobLeadsService from './job-leads.service';
+import * as requestThreadService from './request-thread.service';
 import { requestStageSql } from './booking/request-stage';
 import {
   REALTIME_EVENTS,
@@ -35,6 +44,21 @@ function emit(userId: string, event: string, payload: unknown): void {
     socketService.emitToUser?.(userId, event, payload);
   } catch (err) {
     logger.warn('Request event socket emit failed', { userId, event, err: String(err) });
+  }
+}
+
+/**
+ * Run a request-thread hook after the commit. ensureRequestThread throws on
+ * database errors; the other hooks never throw by contract. Either way a
+ * thread failure is logged and never fails or undoes the committed change:
+ * the thread state is derived, and the customer's Message button opens a
+ * missing thread lazily.
+ */
+async function threadHook(what: string, bookingId: string, run: () => Promise<unknown>): Promise<void> {
+  try {
+    await run();
+  } catch (err) {
+    logger.warn('Request thread hook failed', { what, bookingId, err: String(err) });
   }
 }
 
@@ -141,8 +165,18 @@ export interface QuoteAdmittedEvent {
   takenProviderUserIds: string[];
 }
 
-/** A quote was admitted: tell the customer, and close the request for the other invitees at the cap. */
+/**
+ * A quote was admitted: open the provider's request thread, tell the
+ * customer, and close the request for the other invitees at the cap. The
+ * thread opens first so the customer's quote card already carries its
+ * conversationId when the notice arrives.
+ */
 export async function quoteAdmitted(event: QuoteAdmittedEvent): Promise<void> {
+  await threadHook('quote_sent', event.bookingId, () => requestThreadService.ensureRequestThread({
+    bookingId: event.bookingId,
+    quoteId: event.quoteId,
+    requireLiveQuote: true,
+  }));
   await notify(
     event.customerId,
     'new_quote',
@@ -182,6 +216,13 @@ export interface QuoteDeclinedEvent {
  * customer what happened next.
  */
 export async function quoteDeclined(event: QuoteDeclinedEvent): Promise<void> {
+  // The thread message carries the reason label only, never the note.
+  await threadHook('quote_declined', event.bookingId, () => requestThreadService.postQuoteEvent({
+    bookingId: event.bookingId,
+    quoteId: event.quoteId,
+    event: 'quote_declined',
+    declineReason: event.reason,
+  }));
   const label = jobLeadsService.declineReasonLabel(event.reason) ?? 'Other reason';
   if (event.providerUserId) {
     await notify(
@@ -224,8 +265,14 @@ export interface QuoteAcceptedEvent {
   notSelected: Array<{ quoteId: string; providerId: string }>;
 }
 
-/** The customer accepted a quote: tell the winner and the others, and close every open invite. */
+/**
+ * The customer accepted a quote: make sure the booked thread exists and post
+ * `booking_confirmed` in it (the other providers' threads are told they are
+ * now read-only), tell the winner and the others, and close every open invite.
+ */
 export async function quoteAccepted(event: QuoteAcceptedEvent): Promise<void> {
+  await threadHook('booking_confirmed', event.bookingId,
+    () => requestThreadService.afterQuoteAccepted({ bookingId: event.bookingId }));
   let serviceName = 'your request';
   const userByProvider = new Map<string, string>();
   try {
@@ -291,8 +338,13 @@ export interface QuoteWithdrawnEvent {
   opsReviewFlagged: boolean;
 }
 
-/** A provider withdrew their quote: send a reopened round out, then tell the customer. */
+/** A provider withdrew their quote: post it in their thread, send a reopened round out, then tell the customer. */
 export async function quoteWithdrawn(event: QuoteWithdrawnEvent): Promise<void> {
+  await threadHook('quote_withdrawn', event.bookingId, () => requestThreadService.postQuoteEvent({
+    bookingId: event.bookingId,
+    quoteId: event.quoteId,
+    event: 'quote_withdrawn',
+  }));
   let reachedMorePros = false;
   if (event.reopened) {
     const fanOut = await fanOutRequest(event.bookingId, {
@@ -313,6 +365,19 @@ export async function quoteWithdrawn(event: QuoteWithdrawnEvent): Promise<void> 
   );
   if (event.opsReviewFlagged) await opsReview(event.customerId, event.bookingId);
   await emitRequestUpdated(event.bookingId);
+}
+
+/**
+ * A live quote on an open request lapsed (the expiry worker): post
+ * `quote_expired` in that provider's thread and send the thread's state.
+ * Idempotent per quote; never throws.
+ */
+export async function quoteExpired(event: { bookingId: string; quoteId: string }): Promise<void> {
+  await threadHook('quote_expired', event.bookingId, () => requestThreadService.postQuoteEvent({
+    bookingId: event.bookingId,
+    quoteId: event.quoteId,
+    event: 'quote_expired',
+  }));
 }
 
 export interface RequestLapsedEvent {

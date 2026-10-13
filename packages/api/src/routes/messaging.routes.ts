@@ -19,6 +19,11 @@ import { emitToConversation } from '../services/socket.service';
 // design-threads.md section 3. Old apps (1.0.2, 1.0.3) keep working: the list
 // without ?view=, POST / with only bookingId, and page/pageSize message reads
 // are served as before.
+//
+// Photo and voice messages (Milestone 2 wave 3): every response that carries
+// a media message (the send, both message reads and the inbox) mints the
+// signed link for the signed-in participant (messaging.service
+// mediaUrlsForViewer), so a link is always fresh and always the reader's own.
 
 const router = Router();
 
@@ -26,6 +31,10 @@ function getParamId(req: AuthenticatedRequest, name = 'id'): string {
   const id = req.params[name];
   if (typeof id !== 'string' || !id) throw createAppError(`${name} is required.`, 400);
   return id;
+}
+
+function viewerOf(req: AuthenticatedRequest): messagingService.MediaViewer {
+  return { userId: req.user!.userId, role: req.user!.role };
 }
 
 /** Validate ?view=inbox queries; the legacy list (no view) passes through. */
@@ -62,10 +71,14 @@ router.get(
           pageSize: number;
         };
         const inbox = await messagingService.listInbox(userId, query);
+        const mediaUrls = await messagingService.mediaUrlsForViewer(
+          viewerOf(req),
+          inbox.items.map((row) => ({ media_id: row.last_media_id, redacted_at: row.last_redacted_at })),
+        );
         res.json({
           success: true,
           data: {
-            items: inbox.items.map((row) => messagingService.formatInboxItem(row, userId)),
+            items: inbox.items.map((row) => messagingService.formatInboxItem(row, userId, mediaUrls)),
             meta: {
               total: inbox.total,
               page: inbox.page,
@@ -152,9 +165,10 @@ router.get(
           customerId: page.conversation.customer_id,
           providerId: page.conversation.provider_id,
         };
+        const mediaUrls = await messagingService.mediaUrlsForViewer(viewerOf(req), page.messages);
         res.json({
           success: true,
-          data: page.messages.map((message) => messagingService.formatMessage(message, participants)),
+          data: page.messages.map((message) => messagingService.formatMessage(message, participants, mediaUrls)),
           meta: {
             hasMore: page.hasMore,
             nextBefore: page.nextBefore,
@@ -178,9 +192,10 @@ router.get(
         pageSize,
       );
 
+      const mediaUrls = await messagingService.mediaUrlsForViewer(viewerOf(req), result.messages);
       res.json({
         success: true,
-        data: result.messages.map((message) => messagingService.formatMessage(message)),
+        data: result.messages.map((message) => messagingService.formatMessage(message, undefined, mediaUrls)),
         meta: {
           total: result.total,
           page,
@@ -221,10 +236,12 @@ router.post(
       // Socket events and the "New message from ..." notice, after commit.
       await messagingService.deliverParticipantMessage(result);
 
+      // The sender's own signed link (also on a duplicate retry).
+      const mediaUrls = await messagingService.mediaUrlsForViewer(viewerOf(req), [result.message]);
       const formatted = messagingService.formatMessage(result.message, {
         customerId: result.conversation.customer_id,
         providerId: result.conversation.provider_id,
-      });
+      }, mediaUrls);
       if (result.duplicate) {
         res.status(200).json({ success: true, data: { ...formatted, duplicate: true } });
         return;

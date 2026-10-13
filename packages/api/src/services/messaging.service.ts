@@ -6,6 +6,7 @@ import * as notificationService from './notification.service';
 // several suites mock socket.service with only some of its functions.
 import * as socketService from './socket.service';
 import * as requestThread from './request-thread.service';
+import * as jobMediaService from './job-media.service';
 import { REALTIME_EVENTS } from './realtime-events';
 
 // D38 request threads (Milestone 2, package P4). A booking can now have one
@@ -17,8 +18,22 @@ import { REALTIME_EVENTS } from './realtime-events';
 // sections 2.3 and 3 (P4), design-threads.md section 3, critique.md (P4).
 //
 // Import note: this module, request-thread.service and socket.service import
-// each other. Every cross-module reference is made inside a function, never
-// at module load, so the CommonJS cycle is safe.
+// each other (and job-media.service reaches socket.service through
+// job-leads.service). Every cross-module reference is made inside a function,
+// never at module load, so the CommonJS cycle is safe.
+//
+// Photo and voice messages (Milestone 2 wave 3, package W3-B): a message may
+// point at a private job_media row (purpose 'chat') that its sender uploaded
+// for this conversation. The send attaches it inside the send transaction
+// (job-media.service attachChatMediaInTransaction) and stores media_id and,
+// for voice, the server-measured media_duration_ms. Every read (the thread
+// page, the legacy page, the inbox preview, the socket new:message) mints a
+// fresh signed link per viewer with job-media.service createViewUrls, so a
+// link is never shared between the two participants and never outlives its
+// 10 minutes in a cached payload. Links are best effort on reads: if they
+// cannot be signed (DATA_EXPORT_DOWNLOAD_SECRET unusable) the message still
+// reads, with media.url null, and GET /api/v1/job-media/:id/url reports the
+// 503 itself.
 
 interface ConversationRow {
   id: string;
@@ -72,6 +87,101 @@ export interface MessageRow {
 interface CountRow { count: string }
 
 export type ParticipantMessageType = 'text' | 'image' | 'voice' | 'location';
+
+/** Who is reading: the participant (or admin) a signed media link is minted for. */
+export type MediaViewer = jobMediaService.MediaViewer;
+
+/** Signed links for one viewer, keyed by job_media id (createViewUrls). */
+export type MediaUrlMap = ReadonlyMap<string, jobMediaService.MediaViewUrl>;
+
+/** The `media` object on a message: what it is, and the viewer's own signed link. */
+export interface MessageMediaView {
+  id: string;
+  kind: string | null;
+  mime: string | null;
+  durationMs: number | null;
+  url: string | null;
+  expiresAt: string | null;
+}
+
+/** job_media kind for a message type ('image' carries a photo). */
+function mediaKindOfType(messageType: string | null | undefined): string | null {
+  if (messageType === 'image') return 'photo';
+  if (messageType === 'voice' || messageType === 'video') return messageType;
+  return null;
+}
+
+/**
+ * The media object for a message that points at a job_media row. The length
+ * is the one stored on the message (server-measured at send); the link, mime
+ * and kind come from this viewer's signed link when one was minted.
+ */
+export function mediaViewOf(
+  row: { media_id?: string | null; media_duration_ms?: number | null; message_type?: string | null },
+  urls?: MediaUrlMap,
+): MessageMediaView | null {
+  if (!row.media_id) return null;
+  const link = urls?.get(row.media_id);
+  return {
+    id: row.media_id,
+    kind: link?.kind ?? mediaKindOfType(row.message_type),
+    mime: link?.mime ?? null,
+    durationMs: row.media_duration_ms ?? link?.durationMs ?? null,
+    url: link?.url ?? null,
+    expiresAt: link?.expiresAt ?? null,
+  };
+}
+
+/**
+ * Fresh signed links for the media of these messages, minted for one viewer
+ * (createViewUrls applies the viewer rule, so a participant gets links only
+ * for their own conversation's media and an admin's links are audit-logged
+ * as job_media_viewed). Redacted messages get no link. Best effort: a signing
+ * or database failure is logged and the messages read without links.
+ */
+export async function mediaUrlsForViewer(
+  viewer: MediaViewer,
+  rows: ReadonlyArray<{ media_id?: string | null; redacted_at?: Date | null }>,
+  options: { includeRedacted?: boolean } = {},
+): Promise<Map<string, jobMediaService.MediaViewUrl>> {
+  const ids = rows
+    .filter((row) => row.media_id && (options.includeRedacted || !row.redacted_at))
+    .map((row) => row.media_id!);
+  if (ids.length === 0) return new Map();
+  try {
+    return await jobMediaService.createViewUrls(viewer, ids);
+  } catch (error) {
+    logger.warn('Chat media links could not be minted; messages read without them', {
+      viewerId: viewer.userId,
+      mediaCount: ids.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return new Map();
+  }
+}
+
+/**
+ * Signed links for both participants of a thread, each minted for that
+ * participant with their stored role (the file route re-checks the viewer by
+ * that role). Keyed by participant user id.
+ */
+async function participantMediaUrls(
+  conversation: { customer_id: string; provider_id: string },
+  rows: ReadonlyArray<{ media_id?: string | null; redacted_at?: Date | null }>,
+): Promise<Map<string, Map<string, jobMediaService.MediaViewUrl>>> {
+  const participantIds = [conversation.customer_id, conversation.provider_id];
+  const roles = await db.query<{ id: string; role: string }>(
+    `SELECT id, role FROM users WHERE id = ANY($1::uuid[])`,
+    [participantIds],
+  );
+  const out = new Map<string, Map<string, jobMediaService.MediaViewUrl>>();
+  for (const userId of participantIds) {
+    const role = roles.rows.find((row) => row.id === userId)?.role;
+    if (!role) continue;
+    out.set(userId, await mediaUrlsForViewer({ userId, role }, rows));
+  }
+  return out;
+}
 
 // MED-N140 fix: BYPASS_KEYWORDS now includes Tagalog patterns
 // commonly used by providers/customers steering each other off-
@@ -242,6 +352,7 @@ interface InboxRow extends ConversationViewRow {
   last_created_at: Date | null;
   last_redacted_at: Date | null;
   last_media_duration_ms: number | null;
+  last_media_id: string | null;
 }
 
 /** The inbox: one row per thread with last-message preview and unread count. */
@@ -269,9 +380,10 @@ export async function listInbox(
          last_msg.id AS last_message_id, last_msg.content AS last_content,
          last_msg.message_type AS last_message_type, last_msg.sender_id AS last_sender_id,
          last_msg.created_at AS last_created_at, last_msg.redacted_at AS last_redacted_at,
-         last_msg.media_duration_ms AS last_media_duration_ms`)}
+         last_msg.media_duration_ms AS last_media_duration_ms, last_msg.media_id AS last_media_id`)}
      LEFT JOIN LATERAL (
-       SELECT m.id, m.content, m.message_type, m.sender_id, m.created_at, m.redacted_at, m.media_duration_ms
+       SELECT m.id, m.content, m.message_type, m.sender_id, m.created_at, m.redacted_at, m.media_duration_ms,
+              m.media_id
          FROM messages m
         WHERE m.conversation_id = c.id
         ORDER BY m.created_at DESC, m.id DESC
@@ -476,17 +588,35 @@ function isOwnLegacyChatUpload(imageUrl: string | undefined, senderId: string): 
 
 /**
  * The one send path for participants (HTTP and socket). One transaction:
+ *   0. a send with a mediaId first takes FOR KEY SHARE on the thread's
+ *      booking row. Lock order is booking, then thread, as in the admin
+ *      reassignment and support message (booking FOR UPDATE, then the
+ *      thread): attaching the upload in step 4 writes job_media.booking_id,
+ *      whose foreign-key check takes this same key share, and taking it only
+ *      there (after the thread lock) could deadlock with those two paths
+ *      (W3-B review finding 1, HA-M2-346 and 347). Key share does not block
+ *      other key shares or ordinary booking UPDATEs; a booking FOR UPDATE
+ *      (quote admission, decline, accept, lapse, reassignment, support
+ *      message) waits for the send to commit. Text sends never touch the
+ *      booking row and skip it;
  *   1. the thread row is locked (FOR NO KEY UPDATE, so two senders queue and a
  *      reassignment's state UPDATE waits) and its derived state read;
  *   2. a repeated clientMessageId returns the stored message (duplicate);
- *   3. a read-only thread refuses with 409 THREAD_READ_ONLY;
- *   4. photo and voice media (mediaId) arrive in Milestone 2 wave 3; until
- *      then a mediaId is refused with 422 MEDIA_INVALID, and a legacy photo
- *      URL is accepted only in a booked thread;
+ *   3. a read-only thread refuses with 409 THREAD_READ_ONLY, before any media
+ *      is touched, so a refused send leaves its upload unattached;
+ *   4. a photo or voice message with a mediaId attaches that upload in this
+ *      transaction (job-media.service attachChatMediaInTransaction: the
+ *      sender's own stored chat upload for THIS conversation, of the message's
+ *      kind, not yet sent; else 422 MEDIA_INVALID; a voice note over its
+ *      length limit gets 422 VOICE_TOO_LONG). A voice message stores the
+ *      server-measured length (>= 1 ms). A voice message without a mediaId is
+ *      422 MEDIA_INVALID. An old app's photo URL (imageUrl, no mediaId) is
+ *      accepted only in a booked thread, as before;
  *   5. any message with text (captions too) is checked for off-platform
  *      phrases;
  *   6. the message is stored at clock_timestamp() (two sends in one
  *      transaction never share a time) and the thread's activity time moves.
+ *      uq_messages_media backstops "one message per upload".
  * Delivery (socket events and the push) runs after commit in
  * deliverParticipantMessage.
  */
@@ -495,6 +625,18 @@ export async function sendParticipantMessage(
 ): Promise<SendParticipantMessageResult> {
   const messageType: ParticipantMessageType = input.messageType ?? 'text';
   return db.transaction(async (client) => {
+    if (input.mediaId) {
+      // Step 0: booking before thread (see above). Same participant filter as
+      // the thread lock; no row simply means the thread lookup below 404s.
+      await client.query(
+        `SELECT 1
+           FROM bookings b
+           JOIN conversations c ON c.booking_id = b.id
+          WHERE c.id = $1 AND (c.customer_id = $2 OR c.provider_id = $2)
+          FOR KEY SHARE OF b`,
+        [input.conversationId, input.senderId],
+      );
+    }
     const threadResult = await client.query<requestThread.ThreadRow>(
       `SELECT c.*, ${requestThread.THREAD_STATE_COLUMNS}
          FROM conversations c
@@ -527,11 +669,31 @@ export async function sendParticipantMessage(
       throw codedError('This conversation is read-only.', 409, 'THREAD_READ_ONLY');
     }
 
-    if (input.mediaId || messageType === 'voice') {
-      throw codedError('Photo and voice notes in message threads are not available yet.', 422, 'MEDIA_INVALID');
-    }
     let imageUrl: string | null = null;
-    if (messageType === 'image') {
+    let mediaId: string | null = null;
+    let mediaDurationMs: number | null = null;
+    if (input.mediaId) {
+      if (messageType !== 'image' && messageType !== 'voice') {
+        throw codedError('Only photo and voice messages carry media.', 422, 'MEDIA_INVALID');
+      }
+      const attached = await jobMediaService.attachChatMediaInTransaction(client, {
+        mediaId: input.mediaId,
+        conversationId: input.conversationId,
+        senderId: input.senderId,
+        expectedKind: messageType === 'voice' ? 'voice' : 'photo',
+      });
+      mediaId = input.mediaId;
+      if (messageType === 'voice') {
+        // attachChatMediaInTransaction refuses a voice note with no length or
+        // 0 ms; this keeps the stored value inside migration 185's 1-600000.
+        if (attached.durationMs === null || attached.durationMs < 1) {
+          throw codedError('This photo or voice note cannot be sent here.', 422, 'MEDIA_INVALID');
+        }
+        mediaDurationMs = attached.durationMs;
+      }
+    } else if (messageType === 'voice') {
+      throw codedError('A voice message needs its recording.', 422, 'MEDIA_INVALID');
+    } else if (messageType === 'image') {
       if (conversation.stage !== 'booking' || !isOwnLegacyChatUpload(input.imageUrl, input.senderId)) {
         throw codedError('This photo cannot be sent here. Update the app to send photos.', 422, 'MEDIA_INVALID');
       }
@@ -544,13 +706,14 @@ export async function sendParticipantMessage(
     // run in the SAME transaction; either both land or neither.
     const inserted = await client.query<MessageRow>(
       `INSERT INTO messages
-         (conversation_id, sender_id, content, message_type, image_url, is_flagged, client_message_id, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, clock_timestamp())
+         (conversation_id, sender_id, content, message_type, image_url, is_flagged, client_message_id,
+          media_id, media_duration_ms, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, clock_timestamp())
        ON CONFLICT (sender_id, client_message_id)
          WHERE client_message_id IS NOT NULL AND message_type <> 'system' DO NOTHING
        RETURNING *`,
       [input.conversationId, input.senderId, input.content, messageType, imageUrl, isFlagged,
-        input.clientMessageId ?? null],
+        input.clientMessageId ?? null, mediaId, mediaDurationMs],
     );
     let message = inserted.rows[0];
     if (!message) {
@@ -562,6 +725,14 @@ export async function sendParticipantMessage(
       );
       message = raced.rows[0];
       if (!message) throw createAppError('Message could not be stored.', 500);
+      // Two sends hold the same thread lock, so a same-thread retry is caught
+      // by the duplicate check above; this branch is a key reused in another
+      // thread at the same moment. Throwing rolls back any upload this
+      // transaction attached, so an upload is never left attached with no
+      // message pointing at it.
+      if (message.conversation_id !== input.conversationId || (mediaId && message.media_id !== mediaId)) {
+        throw codedError('This message id was already used for another message.', 409, 'CLIENT_MESSAGE_ID_REUSED');
+      }
       return { message, duplicate: true, conversation };
     }
 
@@ -588,23 +759,47 @@ export async function sendParticipantMessage(
  * The notice data has conversationId, bookingId and stage, plus
  * providerUserId when the recipient is the customer (so the app opens the
  * right thread). Best effort: a failure here never undoes the stored message.
+ *
+ * A photo or voice message carries `media` with a signed link minted for the
+ * participant who receives the payload: `new:message` goes to each socket in
+ * the thread room with that socket's own link (emitToConversationPerUser),
+ * and `notification:message` carries the recipient's link. The notice text
+ * stays "New message from ..." (never a caption or a link).
  */
 export async function deliverParticipantMessage(result: SendParticipantMessageResult): Promise<void> {
   if (result.duplicate) return;
   const { message, conversation } = result;
   const senderIsCustomer = message.sender_id === conversation.customer_id;
   const recipientId = senderIsCustomer ? conversation.provider_id : conversation.customer_id;
-  const formatted = formatMessage(message, {
+  const participants = {
     customerId: conversation.customer_id,
     providerId: conversation.provider_id,
-  });
+  };
+  let formattedFor: (userId: string) => Record<string, unknown> = () => formatMessage(message, participants);
+  if (message.media_id && !message.redacted_at) {
+    try {
+      const urlsByUser = await participantMediaUrls(conversation, [message]);
+      formattedFor = (userId) => formatMessage(message, participants, urlsByUser.get(userId));
+    } catch (error) {
+      logger.warn('Chat media links for live delivery failed; sending without them', {
+        conversationId: conversation.id,
+        messageId: message.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
   try {
-    socketService.emitToConversation?.(conversation.id, REALTIME_EVENTS.NEW_MESSAGE, formatted);
+    if (message.media_id && socketService.emitToConversationPerUser) {
+      socketService.emitToConversationPerUser(conversation.id, REALTIME_EVENTS.NEW_MESSAGE, formattedFor);
+    } else {
+      socketService.emitToConversation?.(conversation.id, REALTIME_EVENTS.NEW_MESSAGE,
+        message.media_id ? formatMessage(message, participants) : formattedFor(recipientId));
+    }
     socketService.emitToUser?.(recipientId, REALTIME_EVENTS.NOTIFICATION_MESSAGE, {
       conversationId: conversation.id,
       bookingId: conversation.booking_id,
       stage: conversation.stage,
-      message: formatted,
+      message: formattedFor(recipientId),
     });
   } catch (error) {
     logger.warn('Chat socket delivery failed; the message is stored', {
@@ -809,9 +1004,15 @@ function legacyContent(m: MessageRow): string {
   return m.content;
 }
 
+/**
+ * The message shape participants get. `mediaUrls` holds the viewer's own
+ * signed links (mediaUrlsForViewer); without it, or for a medium the viewer
+ * may not open, `media` still names the item and its length, with url null.
+ */
 export function formatMessage(
   m: MessageRow,
   participants?: { customerId: string; providerId: string },
+  mediaUrls?: MediaUrlMap,
 ): Record<string, unknown> {
   // D26 — a message an admin redacted is hidden from the participants. We keep
   // the original row (the admin moderation view still shows it) but blank the
@@ -835,10 +1036,9 @@ export function formatMessage(
     isRead: m.is_read,
     redacted,
     createdAt: m.created_at,
-    // D38 fields. media carries a signed private URL once thread media lands
-    // (Milestone 2 wave 3); until then it is always null.
+    // D38 fields. A redacted message never carries its media.
     caption,
-    media: null,
+    media: redacted ? null : mediaViewOf(m, mediaUrls),
     systemEvent: redacted ? null : (m.system_event ?? null),
     senderRole,
     clientMessageId: m.client_message_id ?? null,
@@ -924,8 +1124,13 @@ export function formatConversation(c: ConversationRow | ConversationViewRow): Re
   return base;
 }
 
-/** One inbox item (design-threads.md section 3). */
-export function formatInboxItem(row: InboxRow, userId: string): Record<string, unknown> {
+/**
+ * One inbox item (design-threads.md section 3). The preview text never holds
+ * a link ("Photo", "Voice message (0:12)"); a media last message also carries
+ * `media` with the viewer's own fresh signed link (`mediaUrls`, minted for
+ * the inbox owner, who is always a participant of the listed thread).
+ */
+export function formatInboxItem(row: InboxRow, userId: string, mediaUrls?: MediaUrlMap): Record<string, unknown> {
   const conversation = formatConversation(row);
   return {
     id: row.id,
@@ -948,6 +1153,13 @@ export function formatInboxItem(row: InboxRow, userId: string): Record<string, u
           messageType: row.last_redacted_at ? 'system' : row.last_message_type,
           senderIsMe: row.last_sender_id === userId,
           createdAt: row.last_created_at,
+          media: row.last_redacted_at
+            ? null
+            : mediaViewOf({
+              media_id: row.last_media_id,
+              media_duration_ms: row.last_media_duration_ms,
+              message_type: row.last_message_type,
+            }, mediaUrls),
         }
       : null,
     unreadCount: Number(row.unread_count ?? 0),

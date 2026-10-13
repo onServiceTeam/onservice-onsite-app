@@ -12,7 +12,8 @@
  *       for the back office.
  *   closeRequest  closes open invites when a request is taken, accepted,
  *       cancelled or expired, and tells providers holding a live quote on a
- *       cancelled request.
+ *       request the customer cancelled (an admin cancel sends no notice
+ *       until D35 Q6 is answered).
  *   getOpenJobRequestsForProvider / getOpenJobRequestForProvider  the
  *       provider's Requests list and request detail. Visibility is
  *       eligibility-based (merged plan conflict 15): every eligible provider
@@ -32,6 +33,7 @@ import { formatPHP } from '../utils/currency';
 import * as notificationService from './notification.service';
 import * as socketService from './socket.service';
 import * as settingsService from './settings.service';
+import * as requestThreadService from './request-thread.service';
 import { rankCandidates, type MatchableProvider } from './matching.service';
 import { providerEligibleForRequestSql, requestDistanceKmSql } from './booking/request-eligibility';
 import { liveQuoteCountSql } from './booking/request-stage';
@@ -296,14 +298,32 @@ export async function notifyProvidersOfJobRequest(
   return { round, candidates: ranked.length, invited: inserted.length, notified, opsReviewFlagged: false };
 }
 
+export interface CloseRequestOptions {
+  /**
+   * Who cancelled; read only when reason is 'cancelled'. Default 'customer'
+   * (transitionBookingStatus: a quote request that is still requested or
+   * quoted has no assigned provider, so only its customer can cancel it
+   * there). For 'admin' (cancelBookingAsAdmin) the request closes the same
+   * way, but providers holding a live quote get no notice: the stored text
+   * says the customer cancelled, which is untrue, and the admin-cancel
+   * wording is held for Ken (D35 Q6, escalation E84).
+   */
+  cancelledBy?: 'customer' | 'admin';
+}
+
 /**
  * Close a request's open invites (sent or viewed) and tell those providers
- * the request left their list. For a cancellation, providers holding a live
- * quote also get a notice. Best effort; safe to call twice.
+ * the request left their list. For a customer cancellation, providers holding
+ * a live quote also get a notice (none for an admin cancellation, see
+ * CloseRequestOptions). When the request was cancelled or expired, every
+ * request thread on it is now read-only (request_cancelled, derived), so each
+ * thread's state is sent to its participants (D38 W3 step I2). Best effort;
+ * safe to call twice.
  */
 export async function closeRequest(
   bookingId: string,
   reason: JobRequestClosedReason,
+  opts: CloseRequestOptions = {},
 ): Promise<{ closedInviteUserIds: string[]; liveQuoteUserIds: string[] }> {
   const closed = await db.query<{ user_id: string }>(
     `UPDATE job_request_invites jri
@@ -328,7 +348,10 @@ export async function closeRequest(
       [bookingId],
     );
     liveQuoteUserIds = live.rows.map((r) => r.user_id);
-    for (const row of live.rows) {
+    // Those providers still get job_request:closed below, so their lists
+    // refresh, whoever cancelled.
+    const noticeRows = opts.cancelledBy === 'admin' ? [] : live.rows;
+    for (const row of noticeRows) {
       try {
         await notificationService.sendPushNotification(
           row.user_id,
@@ -345,6 +368,13 @@ export async function closeRequest(
 
   for (const userId of new Set([...closedInviteUserIds, ...liveQuoteUserIds])) {
     emitToUserSafely(userId, REALTIME_EVENTS.JOB_REQUEST_CLOSED, { bookingId, reason });
+  }
+  if (reason === 'cancelled' || reason === 'expired') {
+    try {
+      await requestThreadService.emitThreadStatesForBooking(bookingId);
+    } catch (err) {
+      logger.warn('Request thread state emit failed after closing a request', { bookingId, reason, err: String(err) });
+    }
   }
   return { closedInviteUserIds, liveQuoteUserIds };
 }

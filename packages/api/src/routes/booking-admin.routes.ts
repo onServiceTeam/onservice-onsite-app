@@ -79,6 +79,8 @@ router.get(
 // (with its labor/materials line items) plus every change order on a booking.
 // Read-only; support/finance previously could not see why a quote-based booking
 // was priced as it is or audit a disputed change order.
+// D38: admins also see the customer's decline reason on each declined quote
+// (providers never do). The free-text decline note is never returned here.
 router.get(
   '/:id/quotes',
   authMiddleware,
@@ -88,7 +90,7 @@ router.get(
       requireAdmin(req);
       const bookingId = req.params.id as string;
       const [quotes, changeOrders] = await Promise.all([
-        bookingService.getBookingQuotes(bookingId),
+        bookingService.getBookingQuotes(bookingId, { includeDeclineReason: true }),
         bookingService.getChangeOrders(bookingId),
       ]);
       res.json({ success: true, data: { quotes, changeOrders } });

@@ -27,6 +27,7 @@ import { canTransition, type BookingStatus } from '../types/booking.types';
 import * as bookingCancelService from './booking-cancel.service';
 import { kickSlotWaitlistAfterCancellation } from './booking.service';
 import * as requestThread from './request-thread.service';
+import * as jobLeadsService from './job-leads.service';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -1755,6 +1756,7 @@ export async function cancelBookingAsAdmin(
       scheduled_at: Date;
       category_id: string;
       city: string;
+      booking_type: string;
     }>(
       `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
       [bookingId],
@@ -1822,6 +1824,7 @@ export async function cancelBookingAsAdmin(
       result: { bookingId, refundAmount, adminActionId, customerRefundAmount: refundAmount },
       outcome,
       oldStatus: booking.status,
+      bookingType: booking.booking_type,
     };
   });
 
@@ -1852,7 +1855,8 @@ export async function cancelBookingAsAdmin(
 
   // S1-8 — before this, an admin cancel never emitted the admin event or
   // told waitlisted customers that the slot had opened. The customer and
-  // provider are still not notified: that wording waits for D35 Q6.
+  // provider are still sent no notice text: that wording waits for D35 Q6
+  // (and E84). A quote request is closed silently below.
   try {
     socketService.emitAdminEvent(socketService.ADMIN_EVENTS.BOOKING_STATUS_CHANGED, {
       id: bookingId,
@@ -1866,6 +1870,27 @@ export async function cancelBookingAsAdmin(
     });
   }
   kickSlotWaitlistAfterCancellation(outcome.booking, bookingId, 'cancelled_by_admin');
+
+  // D38 (critique M12, merged plan 2.2): an admin-cancelled quote request
+  // leaves every provider's Requests list (open invites expire and
+  // job_request:closed is sent) and its threads are sent their read-only
+  // state, as for a customer cancel (booking.service transitionBookingStatus).
+  // Unlike a customer cancel, providers holding a live quote get no push or
+  // notification: the only stored text says "The customer cancelled...",
+  // which is untrue here, and the admin-cancel wording is held for Ken (D35
+  // Q6, escalation E84). After the commit and best effort: the cancellation
+  // already stands.
+  if (trxResult.bookingType === 'quote_based'
+      && (trxResult.oldStatus === 'requested' || trxResult.oldStatus === 'quoted')) {
+    try {
+      await jobLeadsService.closeRequest(bookingId, 'cancelled', { cancelledBy: 'admin' });
+    } catch (err) {
+      logger.warn('Closing an admin-cancelled quote request failed after commit', {
+        bookingId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
   return trxResult.result;
 }

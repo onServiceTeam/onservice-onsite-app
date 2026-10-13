@@ -16,13 +16,22 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as requestThread from './request-thread.service';
+import * as messagingService from './messaging.service';
 
 // D38 request threads (Milestone 2, package P4): a booking can carry one thread
 // per provider who quoted. The list and the thread add each thread's derived
 // state, read-only reason and stage (request or booking) from
 // request-thread.service THREAD_STATE_SQL, and messages add their caption,
-// system event and voice length. Signed playback of private thread media is
-// Milestone 2 wave 3; until then `media` is null.
+// system event and voice length.
+//
+// Wave 3 (package W3-B): the single-thread view also returns each photo and
+// voice note's signed link (`media.url`), minted for the admin through
+// job-media.service createViewUrls. That writes its own job_media_viewed audit
+// row per conversation, after the conversation_viewed row this view writes in
+// its transaction. Links are minted only after that ledger row commits, and a
+// failure to mint (signing secret unusable, database error) leaves
+// media.url null rather than hiding the thread. Lists and the review queue
+// never mint links (no URL without a deliberate thread open).
 
 const PREVIEW_LEN = 120;
 const REDACTION_REASON_MIN = 3;
@@ -66,7 +75,7 @@ function adminPreview(content: string | null, messageType: string | null | undef
   return content ? content.slice(0, PREVIEW_LEN) : null;
 }
 
-function formatAdminMessage(m: AdminMessageRow): Record<string, unknown> {
+function formatAdminMessage(m: AdminMessageRow, mediaUrls?: messagingService.MediaUrlMap): Record<string, unknown> {
   const isMedia = m.message_type === 'image' || m.message_type === 'voice' || m.message_type === 'video';
   return {
     id: m.id,
@@ -92,8 +101,25 @@ function formatAdminMessage(m: AdminMessageRow): Record<string, unknown> {
     systemEvent: m.system_event ?? null,
     mediaId: m.media_id ?? null,
     mediaDurationMs: m.media_duration_ms ?? null,
-    media: null,
+    // Admins see a redacted message's media too, as they see its content.
+    media: messagingService.mediaViewOf(m, mediaUrls),
   };
+}
+
+/**
+ * Signed links for the media in one thread, minted for the admin reading it.
+ * The admin's role is read from users (the route admits admin and
+ * super_admin only); createViewUrls audit-logs job_media_viewed itself.
+ */
+async function adminMediaUrls(
+  adminId: string,
+  rows: AdminMessageRow[],
+): Promise<messagingService.MediaUrlMap> {
+  if (!rows.some((row) => row.media_id)) return new Map();
+  const account = await db.query<{ role: string }>(`SELECT role FROM users WHERE id = $1`, [adminId]);
+  const role = account.rows[0]?.role;
+  if (!role) return new Map();
+  return messagingService.mediaUrlsForViewer({ userId: adminId, role }, rows, { includeRedacted: true });
 }
 
 /** Effective state fields of an admin thread row (absent on legacy mocks). */
@@ -349,8 +375,8 @@ export async function getConversationThreadForAdmin(
         ...threadStateFields(conv),
         createdAt: conv.created_at.toISOString(),
         updatedAt: conv.updated_at.toISOString(),
-        messages: messages.rows.map(formatAdminMessage),
       },
+      messageRows: messages.rows,
     };
   });
   logger.info('Admin viewed conversation', {
@@ -358,7 +384,21 @@ export async function getConversationThreadForAdmin(
     conversationId,
     bookingId: thread.bookingId,
   });
-  return thread.result;
+  // Photo and voice links only after the conversation_viewed row committed.
+  let mediaUrls: messagingService.MediaUrlMap = new Map();
+  try {
+    mediaUrls = await adminMediaUrls(adminId, thread.messageRows);
+  } catch (error) {
+    logger.warn('Admin thread media links could not be minted', {
+      adminId,
+      conversationId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return {
+    ...thread.result,
+    messages: thread.messageRows.map((row) => formatAdminMessage(row, mediaUrls)),
+  };
 }
 
 // ─── Review queue (flagged + reported, not yet handled) ──────────────────────

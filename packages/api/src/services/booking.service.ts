@@ -19,6 +19,7 @@ import * as escrowService from './escrow.service';
 import * as bookingCancelService from './booking-cancel.service';
 import * as businessInvoiceControlService from './business-invoice-control.service';
 import * as jobLeadsService from './job-leads.service';
+import * as jobMediaService from './job-media.service';
 import * as quoteSlot from './booking/quote-slot';
 import { providerEligibleForRequestSql } from './booking/request-eligibility';
 import { liveQuoteCountSql, requestStageSql } from './booking/request-stage';
@@ -1605,6 +1606,8 @@ interface QuoteDetailRow extends QuoteRow {
   budget_max?: number | null;
   budget_unknown?: boolean;
   responded_in_minutes?: number | null;
+  /** The request thread between the customer and this quote's provider (D38 W3 step I2). */
+  conversation_id?: string | null;
 }
 
 interface LineItemRow {
@@ -1651,6 +1654,10 @@ function quoteBudgetComparison(
  * provider's quote (a provider never sees a competitor's quote or price);
  * `includeDeclineReason` adds the customer's decline reason (customer and
  * admin views only). The decline note is never returned here.
+ * Each quote also carries `providerUserId` and `conversationId`, the request
+ * thread between the customer and that provider (null until it opens), so a
+ * quote card can show its Message button (D38 W3 step I2). Output only: no
+ * amount changes.
  */
 export async function getBookingQuotes(
   bookingId: string,
@@ -1671,11 +1678,13 @@ export async function getBookingQuotes(
        ROUND(EXTRACT(EPOCH FROM (bq.created_at - COALESCE(
          invite.push_sent_at,
          CASE WHEN bq.round = 1 THEN b.created_at ELSE b.request_round_opened_at END,
-         b.created_at))) / 60)::int AS responded_in_minutes
+         b.created_at))) / 60)::int AS responded_in_minutes,
+       c.id AS conversation_id
      FROM booking_quotes bq
      JOIN bookings b ON b.id = bq.booking_id
      JOIN providers p ON p.id = bq.provider_id
      JOIN users u ON u.id = p.user_id
+     LEFT JOIN conversations c ON c.booking_id = bq.booking_id AND c.provider_id = p.user_id
      LEFT JOIN LATERAL (
        SELECT MIN(i.sent_at) FILTER (WHERE i.source = 'push') AS push_sent_at
          FROM job_request_invites i
@@ -1707,6 +1716,8 @@ export async function getBookingQuotes(
       id: q.id,
       bookingId: q.booking_id,
       providerId: q.provider_id,
+      providerUserId: q.provider_user_id ?? null,
+      conversationId: q.conversation_id ?? null,
       quotedPrice: q.quoted_price,
       description: q.description,
       estimatedDurationMinutes: q.estimated_duration_minutes,
@@ -2499,6 +2510,25 @@ async function findJobRequestByClientRequestId(
   return result.rows[0] ?? null;
 }
 
+/**
+ * D38 Milestone 2 (merged plan 2.3): a request carries at most
+ * job_media_max_photos photos, 1 video and 1 voice note. `items` are the
+ * locked uploads with their kinds; over any count is 400 JOB_MEDIA_LIMIT.
+ */
+function assertJobMediaWithinLimits(
+  items: ReadonlyArray<{ kind: string }>,
+  limits: settingsService.JobMediaLimits,
+): void {
+  const count = (kind: string): number => items.filter((item) => item.kind === kind).length;
+  if (count('photo') > limits.maxPhotos || count('video') > 1 || count('voice') > 1) {
+    throw requestError(
+      `A request can have up to ${limits.maxPhotos} photos, 1 video and 1 voice note. Remove the extra items and try again.`,
+      400,
+      'JOB_MEDIA_LIMIT',
+    );
+  }
+}
+
 export async function createJobRequest(
   customerId: string,
   data: {
@@ -2524,11 +2554,14 @@ export async function createJobRequest(
     // D38 (critique M9): the app's idempotency key. A double tap with the same
     // key returns the first request instead of creating a second one.
     clientRequestId?: string;
+    // D38 Milestone 2 (W3 step I1): the customer's stored job-media uploads
+    // (POST /job-media), attached in the same transaction as the request.
+    mediaIds?: string[];
   },
 ): Promise<JobRequestCreation> {
-  // A retry is answered before anything else is checked or locked, so it
-  // can never fail on a later step (or, once media attach lands, on media
-  // the first attempt already used).
+  // A retry is answered before anything else is checked or locked, so it can
+  // never fail on a later step, and never on media the first attempt already
+  // attached (JOB_MEDIA_ALREADY_USED; critique 2.3).
   if (data.clientRequestId) {
     const existing = await findJobRequestByClientRequestId(db, customerId, data.clientRequestId);
     if (existing) return { booking: existing, replayed: true };
@@ -2539,6 +2572,8 @@ export async function createJobRequest(
   if (data.budgetUnknown && (data.budgetMin != null || data.budgetMax != null)) {
     throw createAppError('Choose a budget or "Not sure", not both.', 400);
   }
+  const mediaIds = [...new Set(data.mediaIds ?? [])];
+  const mediaLimits = mediaIds.length > 0 ? await settingsService.getJobMediaLimits() : null;
   const scheduledAt = new Date();
   if (data.urgency === 'same_day') {
     scheduledAt.setHours(scheduledAt.getHours() + 4);
@@ -2552,13 +2587,23 @@ export async function createJobRequest(
 
   let booking: BookingRow;
   try {
-    // One transaction, so the request's media can be attached on the same
-    // client (Milestone 2 wave 3) and commit or roll back with the request.
+    // One transaction, so the request's media is attached on the same client
+    // and commits or rolls back with the request: a media error writes no
+    // booking, and a failed insert attaches nothing.
     // request_round_opened_at starts round 1 at the creation time (the same
     // NOW() as created_at). The worker's still-looking and re-fan-out sweeps
     // act only on rounds stamped this way, so they never touch a request
     // posted before the D38 engine went live (job-leads.service).
     booking = await db.transaction(async (client) => {
+      // Lock the uploads first (FOR UPDATE, in id order): each must be this
+      // customer's stored request media (400 JOB_MEDIA_UNAVAILABLE, 409
+      // JOB_MEDIA_NOT_READY / JOB_MEDIA_ALREADY_USED). Of two requests
+      // racing for the same upload, the second waits here and then sees it
+      // attached.
+      const media = mediaIds.length > 0
+        ? await jobMediaService.lockAttachableMediaInTransaction(client, customerId, mediaIds)
+        : [];
+      if (mediaLimits) assertJobMediaWithinLimits(media, mediaLimits);
       const result = await client.query<BookingRow>(
         `INSERT INTO bookings
            (customer_id, category_id, subcategory_id, booking_type, description,
@@ -2582,21 +2627,28 @@ export async function createJobRequest(
           data.clientRequestId ?? null,
         ],
       );
-      return result.rows[0]!;
+      const created = result.rows[0]!;
+      if (media.length > 0) {
+        await jobMediaService.attachMediaInTransaction(client, created.id, mediaIds);
+      }
+      return created;
     });
   } catch (err) {
-    // Two taps that both passed the replay check: the unique index lets one
-    // insert win; the other returns the winner's request.
+    // Two taps that both passed the replay check. Without media, the unique
+    // index lets one insert win. With media, the second tap waits on the
+    // upload lock and then finds the uploads attached by the first. Either
+    // way the loser returns the winner's request, never an error.
     const pgError = err as { code?: string; constraint?: string };
-    if (data.clientRequestId && pgError.code === '23505'
-        && pgError.constraint === 'uq_bookings_customer_client_request') {
+    const lostTheRace = (pgError.code === '23505' && pgError.constraint === 'uq_bookings_customer_client_request')
+      || pgError.code === 'JOB_MEDIA_ALREADY_USED';
+    if (data.clientRequestId && lostTheRace) {
       const existing = await findJobRequestByClientRequestId(db, customerId, data.clientRequestId);
       if (existing) return { booking: existing, replayed: true };
     }
     throw err;
   }
 
-  logger.info('Job request created', { bookingId: booking.id, customerId });
+  logger.info('Job request created', { bookingId: booking.id, customerId, mediaCount: mediaIds.length });
   return { booking, replayed: false };
 }
 

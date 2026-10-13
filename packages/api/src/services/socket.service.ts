@@ -207,7 +207,9 @@ export function initSocketServer(httpServer: HttpServer): Server {
     // (messaging.service sendParticipantMessage), so a read-only thread
     // refuses them and they get the same off-platform check, socket events
     // and "New message from ..." notice. Socket sends stay text, legacy photo
-    // URL or location; photo and voice media go through HTTP.
+    // URL or location; photo and voice media go through HTTP (POST
+    // /:id/messages with mediaId), and their new:message reaches this room
+    // through emitToConversationPerUser with each reader's own media link.
     socket.on('send:message', async (data: {
       conversationId: string;
       content: string;
@@ -341,6 +343,33 @@ export function emitToUser(userId: string, event: string, data: unknown): void {
 
 export function emitToConversation(conversationId: string, event: string, data: unknown): void {
   io?.to(`conversation:${conversationId}`).emit(event, data);
+}
+
+/**
+ * D38 thread media (Milestone 2 wave 3): send one event to every socket in a
+ * conversation room, each with a payload built for that socket's own user.
+ * A photo or voice message carries a signed media link minted per viewer, so
+ * the room cannot share one payload. Only participants can join the room
+ * (join:conversation checks), so `payloadFor` is called with the customer's
+ * or the provider's user id. Single API process, like the rest of this module
+ * (no Redis adapter; merged plan bad news 9).
+ */
+export function emitToConversationPerUser(
+  conversationId: string,
+  event: string,
+  payloadFor: (userId: string) => unknown,
+): void {
+  if (!io) return;
+  const socketIds = io.sockets.adapter.rooms.get(`conversation:${conversationId}`);
+  if (!socketIds) return;
+  const payloads = new Map<string, unknown>();
+  for (const socketId of socketIds) {
+    const socket = io.sockets.sockets.get(socketId) as AuthenticatedSocket | undefined;
+    const userId = socket?.userId;
+    if (!socket || !userId) continue;
+    if (!payloads.has(userId)) payloads.set(userId, payloadFor(userId));
+    socket.emit(event, payloads.get(userId));
+  }
 }
 
 /**
