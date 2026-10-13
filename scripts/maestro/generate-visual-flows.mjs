@@ -91,7 +91,7 @@ function flowYaml({ slug, kind, route, screenFile }) {
 }
 
 function loginYaml(kind, phoneEnv) {
-  const landing = kind === 'customer' ? 'Active Bookings|What do you need\\?' : 'Hello,';
+  const landing = kind === 'customer' ? 'Active Bookings|Book a service' : 'Hello,';
   return `appId: ${APP_ID}
 ---
 # F#3 — ${kind} session bootstrap. Runs first (000- prefix) in this

@@ -18,6 +18,7 @@ import { getMemberships } from '@/services/suki.service';
 import { useBookingStore } from '@/stores/booking.store';
 import { Routes } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useRequestFirstBooking } from '@/hooks/useRequestFirstBooking';
 // A7 — shared UI kit for loading/empty/error states.
 import { Badge, Skeleton, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 // Phase 14 R5-complete — Avatar with initials fallback in provider header.
@@ -100,6 +101,10 @@ export default function ProviderProfileScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
   const { setCategory, setSubcategory } = useBookingStore();
+  // D38 (Ken, 2026-10-13): while request-first booking is on (the default),
+  // services show no set price and every one opens the describe-your-job
+  // request. Off restores the old priced rows and routing below.
+  const requestFirst = useRequestFirstBooking();
 
   // D29 — this seeds only the selected service. It does not reserve or assign
   // the viewed provider. The UI must remain explicit about that until the
@@ -108,6 +113,15 @@ export default function ProviderProfileScreen(): React.ReactElement {
     (svc: ProviderService): void => {
       if (svc.categoryId) {
         setCategory(svc.categoryId, svc.categoryName ?? '', svc.categorySlug ?? '');
+      }
+      if (requestFirst) {
+        // Same draft values and route the quote path uses; no price carried.
+        setSubcategory(svc.subcategoryId, svc.subcategoryName, 0, {
+          description: svc.description,
+          pricingType: svc.pricingType,
+        });
+        router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);
+        return;
       }
       const isHourly = svc.pricingType === 'hourly';
       const isQuoteBased =
@@ -134,7 +148,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
         router.push(Routes.CUSTOMER.BOOKING_CONFIGURE);
       }
     },
-    [router, setCategory, setSubcategory],
+    [requestFirst, router, setCategory, setSubcategory],
   );
 
   const {
@@ -438,7 +452,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
                       </Text>
                     </View>
                     <View style={styles.serviceRowRight}>
-                      {svc.pricingType === 'quote' ? (
+                      {requestFirst ? null : svc.pricingType === 'quote' ? (
                         <Text style={styles.serviceQuote}>Get Quote</Text>
                       ) : svc.pricingType === 'hourly' && svc.hourlyRate != null ? (
                         <Text style={styles.servicePrice}>{formatPHP(svc.hourlyRate)}/hr</Text>

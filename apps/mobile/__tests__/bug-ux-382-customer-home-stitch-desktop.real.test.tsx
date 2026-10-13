@@ -24,14 +24,21 @@ jest.mock('@/services/api', () => ({
 
 import HomeScreen from '../app/(tabs)/home';
 
-it('Bug UX-382 — desktop customer home is a bounded Stitch-style workspace with greeting, search, category, trust, and onboarding guidance', async () => {
+// Human audit 2026-10-13 (HA-DISC) changed the copy this test pins: the page
+// now has a "Book a service" title (the greeting stays as a small line), the
+// search asks for the problem, and a factual "How it works" row replaces the
+// TrustStrip and the old "How onService works" tiles. The workspace, category
+// and guidance checks below assert the new screen.
+it('Bug UX-382 — desktop customer home is a bounded Stitch-style workspace with page title, search, category, and how-it-works guidance', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   render(<QueryClientProvider client={client}><HomeScreen /></QueryClientProvider>);
 
   expect(await screen.findByLabelText('Wide customer home workspace')).toBeTruthy();
+  expect(screen.getByText('Book a service')).toBeTruthy();
   expect(screen.getByText('Welcome back, Ana')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Search services or providers' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Describe the problem to find a service' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Browse Cleaning services' })).toBeTruthy();
-  expect(screen.getByLabelText('Vetted pros, verified payments use escrow, in-app case tracking')).toBeTruthy();
-  expect(screen.getByText('How onService works')).toBeTruthy();
+  expect(screen.getByText('How it works')).toBeTruthy();
+  expect(screen.getByText('Get a price from a local pro')).toBeTruthy();
+  expect(screen.queryByLabelText('Vetted pros, verified payments use escrow, in-app case tracking')).toBeNull();
 });

@@ -15,8 +15,10 @@ import { getSubcategories, type Subcategory } from '@/services/catalog.service';
 import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
+import { getCategoryIcon } from '@/config/category-icons';
 import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
-import { Clock, ChevronLeft, Wrench } from '@/components/icons';
+import { useRequestFirstBooking } from '@/hooks/useRequestFirstBooking';
+import { Clock, ChevronLeft, ChevronRight, ShieldCheck, Wrench } from '@/components/icons';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -29,6 +31,11 @@ export default function SubcategoryListScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const { draft, setCategory, setSubcategory } = useBookingStore();
   const [selectedSubcategory, setSelectedSubcategory] = useState<Subcategory | null>(null);
+  // D38 (Ken, 2026-10-13): no set prices. While the admin setting
+  // `request_first_booking` is on (the default), every service opens the
+  // describe-your-job request. Off restores the old catalog flow below
+  // (prices, scope notice, detail dialog, configure) unchanged.
+  const requestFirst = useRequestFirstBooking();
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['subcategories', slug],
@@ -37,6 +44,7 @@ export default function SubcategoryListScreen(): React.ReactElement {
     enabled: !!slug,
   });
   const subcategories = data?.subcategories;
+  const categoryName = data?.categoryName ?? draft.categoryName ?? 'Services';
 
   const onRefresh = useCallback(() => { refetch(); }, [refetch]);
 
@@ -53,11 +61,7 @@ export default function SubcategoryListScreen(): React.ReactElement {
   const isQuoteBased = (sub: Subcategory): boolean =>
     !isHourly(sub) && (sub.pricingType === 'quote' || sub.pricingType === 'per_unit' || sub.basePrice == null);
 
-  const handleSelect = (sub: Subcategory): void => {
-    // Close the native/web modal before changing routes. Expo keeps previous
-    // stack screens mounted, so closing after router.push can leave the old
-    // dialog in the browser accessibility tree over later booking steps.
-    setSelectedSubcategory(null);
+  const applyCategory = (sub: Subcategory): void => {
     if (sub.categoryId) {
       setCategory(
         sub.categoryId,
@@ -65,6 +69,23 @@ export default function SubcategoryListScreen(): React.ReactElement {
         sub.categorySlug ?? slug ?? draft.categorySlug ?? '',
       );
     }
+  };
+
+  // Request-first: the same booking-draft values and route the quote path has
+  // always used, for every pricing type. No price is carried (basePrice 0);
+  // the provider's quote sets it on the server when the customer accepts.
+  const startJobRequest = (sub: Subcategory): void => {
+    applyCategory(sub);
+    setSubcategory(sub.id, sub.name, 0, { description: sub.description, pricingType: sub.pricingType });
+    router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);
+  };
+
+  const handleSelect = (sub: Subcategory): void => {
+    // Close the native/web modal before changing routes. Expo keeps previous
+    // stack screens mounted, so closing after router.push can leave the old
+    // dialog in the browser accessibility tree over later booking steps.
+    setSelectedSubcategory(null);
+    applyCategory(sub);
     if (isQuoteBased(sub)) {
       setSubcategory(sub.id, sub.name, 0, { description: sub.description, pricingType: sub.pricingType });
       router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);
@@ -85,11 +106,34 @@ export default function SubcategoryListScreen(): React.ReactElement {
   };
 
   const tint = getCategoryTint(slug);
+  const CategoryIcon = getCategoryIcon(slug, data?.categoryName ?? draft.categoryName);
 
   const { breakpoint } = useResponsive();
   const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 2 });
 
-  const renderItem = ({ item }: { item: Subcategory }): React.ReactElement => {
+  const renderRequestFirstItem = (item: Subcategory): React.ReactElement => {
+    const description = item.description?.trim() ?? '';
+    return (
+      <TouchableOpacity
+        style={[styles.card, styles.cardCentered, numColumns > 1 && styles.cardGrid]}
+        onPress={() => startJobRequest(item)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`Choose ${item.name} and describe your job`}
+        testID={`service-row-${item.id}`}
+      >
+        <View style={styles.cardContent}>
+          <Text style={styles.serviceName}>{item.name}</Text>
+          {description ? (
+            <Text style={styles.serviceDescOneLine} numberOfLines={1}>{description}</Text>
+          ) : null}
+        </View>
+        <ChevronRight size={20} color={colors.textTertiary} />
+      </TouchableOpacity>
+    );
+  };
+
+  const renderCatalogItem = (item: Subcategory): React.ReactElement => {
     const quoteBased = isQuoteBased(item);
     const scope = getServiceScopeCopy(item.description, item.pricingType);
     return (
@@ -99,6 +143,7 @@ export default function SubcategoryListScreen(): React.ReactElement {
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={`View ${item.name} service details`}
+        testID={`service-row-${item.id}`}
       >
         <View style={styles.cardContent}>
           <Text style={styles.serviceName}>{item.name}</Text>
@@ -139,6 +184,36 @@ export default function SubcategoryListScreen(): React.ReactElement {
     );
   };
 
+  const renderItem = ({ item }: { item: Subcategory }): React.ReactElement =>
+    requestFirst ? renderRequestFirstItem(item) : renderCatalogItem(item);
+
+  const renderListHeader = (): React.ReactElement => (
+    <View style={styles.intro}>
+      <View style={styles.introRow}>
+        <View style={styles.categoryChip}>
+          <CategoryIcon size={24} color={colors.primary} />
+        </View>
+        <Text style={styles.introText} accessibilityRole="header">Choose the service you need</Text>
+      </View>
+      {requestFirst ? (
+        <View
+          style={styles.pricingBox}
+          testID="how-pricing-works"
+          accessibilityLabel="How pricing works"
+        >
+          <View style={styles.pricingBoxHeader}>
+            <ShieldCheck size={20} color={colors.primary} />
+            <Text style={styles.pricingBoxTitle}>How pricing works</Text>
+          </View>
+          <Text style={styles.pricingBoxBody}>
+            No set prices. Every job is different, so a pro prices your exact job after seeing your
+            details. You accept the price in the app before any work starts. Pay only through onService.
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+
   if (!slug) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -164,7 +239,7 @@ export default function SubcategoryListScreen(): React.ReactElement {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back from services">
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>{data?.categoryName ?? draft.categoryName ?? 'Services'}</Text>
+        <Text style={styles.title} accessibilityRole="header">{categoryName}</Text>
       </View>
 
       {isLoading ? (
@@ -187,22 +262,25 @@ export default function SubcategoryListScreen(): React.ReactElement {
           data={subcategories}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
-          key={`subcats-${numColumns}`}
+          key={`subcats-${numColumns}-${requestFirst ? 'request' : 'catalog'}`}
           numColumns={numColumns}
           columnWrapperStyle={numColumns > 1 ? styles.gridRow : undefined}
           contentContainerStyle={[styles.list, numColumns > 1 && styles.listWide]}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={subcategories && subcategories.length > 0 ? renderListHeader : null}
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} />
           }
-          // BUG-PHASE184-01 — empty state has a "Browse Other Categories" CTA
-          // so a customer on a freshly-onboarded market has a path forward.
+          // BUG-PHASE184-01 — the empty state has a clear way back so a
+          // customer on a freshly-onboarded market is never stuck. Human
+          // audit 2026-10-13 (HA-DISC): 4 of 10 live categories have no
+          // services yet; the copy now says so plainly.
           ListEmptyComponent={
             <EmptyState
               icon={<Wrench size={48} color={colors.textTertiary} />}
               title="No services yet"
-              description="Check back soon — providers in this category may be coming online."
-              actionLabel="Browse Other Categories"
+              description="No services are listed in this category right now. Go back and choose another service."
+              actionLabel="Back to services"
               onAction={() => router.push(Routes.TABS.HOME)}
             />
           }
@@ -210,17 +288,19 @@ export default function SubcategoryListScreen(): React.ReactElement {
         </View>
       )}
 
-      <ConfirmModal
-        visible={selectedSubcategory !== null}
-        title={selectedSubcategory?.name ?? 'Service details'}
-        message={selectedSubcategory
-          ? getServiceScopeCopy(selectedSubcategory.description, selectedSubcategory.pricingType).text
-          : undefined}
-        confirmLabel={selectedSubcategory && isQuoteBased(selectedSubcategory) ? 'Describe job' : 'Customize service'}
-        cancelLabel="Back"
-        onCancel={() => setSelectedSubcategory(null)}
-        onConfirm={() => { if (selectedSubcategory) handleSelect(selectedSubcategory); }}
-      />
+      {!requestFirst ? (
+        <ConfirmModal
+          visible={selectedSubcategory !== null}
+          title={selectedSubcategory?.name ?? 'Service details'}
+          message={selectedSubcategory
+            ? getServiceScopeCopy(selectedSubcategory.description, selectedSubcategory.pricingType).text
+            : undefined}
+          confirmLabel={selectedSubcategory && isQuoteBased(selectedSubcategory) ? 'Describe job' : 'Customize service'}
+          cancelLabel="Back"
+          onCancel={() => setSelectedSubcategory(null)}
+          onConfirm={() => { if (selectedSubcategory) handleSelect(selectedSubcategory); }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -237,26 +317,52 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
   },
   backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
-  backIcon: { fontSize: 24, color: colors.text },
   title: { ...typography.h3, color: colors.text, flex: 1 },
   list: { padding: spacing.base },
   listWorkspace: { flex: 1 },
   listWide: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: spacing.xl },
   gridRow: { gap: spacing.md },
   cardGrid: { flex: 1 },
+
+  intro: { marginBottom: spacing.base },
+  introRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.base },
+  categoryChip: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  introText: { ...typography.body, fontWeight: '600', color: colors.text, flex: 1 },
+  pricingBox: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.base,
+  },
+  pricingBoxHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
+  pricingBoxTitle: { ...typography.body, fontWeight: '700', color: colors.text },
+  pricingBoxBody: { ...typography.bodySmall, color: colors.textSecondary },
+
   card: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.xl,
     padding: spacing.base,
     marginBottom: spacing.md,
   },
+  cardCentered: { alignItems: 'center', minHeight: 64 },
   cardContent: { flex: 1, marginRight: spacing.base },
-  serviceName: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
-  pendingLabel: { ...typography.caption, color: colors.warningDark, fontWeight: '700', marginBottom: spacing.xs },
-  serviceDesc: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.sm },
+  serviceName: { fontSize: 16, lineHeight: 22, fontWeight: '600', color: colors.text },
+  serviceDescOneLine: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },
+  pendingLabel: { ...typography.caption, color: colors.warningDark, fontWeight: '700', marginTop: spacing.xs, marginBottom: spacing.xs },
+  serviceDesc: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs, marginBottom: spacing.sm },
   durationRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -271,28 +377,4 @@ const styles = StyleSheet.create({
   priceLabel: { ...typography.caption, color: colors.textTertiary, marginBottom: 2 },
   price: { ...typography.priceSmall, color: colors.primary },
   quoteLabel: { ...typography.bodySmall, fontWeight: '600', color: colors.secondary },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  errorContainer: { padding: spacing.xl, alignItems: 'center' },
-  errorText: { ...typography.body, color: colors.error, textAlign: 'center' },
-  empty: { padding: spacing.xl, alignItems: 'center' },
-  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
-  // BUG-PHASE184-01 fix styles for the "Browse Other Categories" CTA.
-  emptyHint: {
-    ...typography.bodySmall,
-    color: colors.textTertiary,
-    textAlign: 'center' as const,
-    marginTop: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    lineHeight: 20,
-  },
-  emptyCta: {
-    marginTop: spacing.lg,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    minHeight: 44,
-    justifyContent: 'center' as const,
-  },
-  emptyCtaText: { color: colors.white, fontWeight: '600', fontSize: 14 },
 });

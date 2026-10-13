@@ -194,4 +194,17 @@ export {
   WifiOff,
   Wifi,
   ListFilter,
+  // Human audit 2026-10-13 (HA-DISC): service-category icons that show the
+  // actual job. All exist in the installed lucide-react-native 0.456.0. The
+  // slug-to-icon map lives in src/config/category-icons.ts.
+  AirVent,
+  SprayCan,
+  PlugZap,
+  PaintRoller,
+  Refrigerator,
+  House,
+  Trees,
+  Drill,
+  Cctv,
+  WashingMachine,
 } from 'lucide-react-native';

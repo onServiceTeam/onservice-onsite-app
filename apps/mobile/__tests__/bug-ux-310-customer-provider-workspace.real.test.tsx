@@ -112,11 +112,16 @@ it('Bug UX-310 — provider detail uses a wide relationship workspace and starts
   expect(screen.queryByText('Book a Service')).toBeNull();
   fireEvent.click(service);
 
+  // Human audit 2026-10-13 (D38 request-first booking, the default): the
+  // chosen service now opens the describe-your-job request with no set price
+  // carried (was: the fixed-price configure screen with the ₱1,500 base).
+  // It still seeds only that one service.
+  expect(mockSetSubcategory).toHaveBeenCalledTimes(1);
   expect(mockSetSubcategory).toHaveBeenCalledWith(
     'subcategory-1',
     'Deep Cleaning',
-    150000,
+    0,
     expect.objectContaining({ pricingType: 'fixed' }),
   );
-  expect(mockPush).toHaveBeenCalledWith('/customer/booking/configure');
+  expect(mockPush).toHaveBeenCalledWith('/customer/booking/job-request');
 });

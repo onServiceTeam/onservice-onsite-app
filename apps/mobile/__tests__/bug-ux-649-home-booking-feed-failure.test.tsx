@@ -25,5 +25,9 @@ it('Bug UX-649 — failed booking feeds do not falsely tell an existing customer
 
   expect(await screen.findByText('Failed to load active bookings.')).toBeTruthy();
   expect(screen.getByText('Failed to load recent bookings.')).toBeTruthy();
-  expect(screen.queryByText('Book your first service!')).toBeNull();
+  // Human audit 2026-10-13 (HA-DISC) replaced "Book your first service!" with
+  // a plain no-bookings line inside "How it works". It must still stay hidden
+  // when the booking feeds failed, because the customer may have bookings.
+  expect(screen.getByText('How it works')).toBeTruthy();
+  expect(screen.queryByText('You have no bookings yet. Choose a service above to get started.')).toBeNull();
 });

@@ -8,6 +8,8 @@ import {
   RefreshControl,
   Pressable,
   Linking,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,30 +29,27 @@ import { getActiveBookings, getRecentBookings } from '@/services/booking.service
 import { getAddresses, type SavedAddress } from '@/services/address.service';
 import api from '@/services/api';
 // A7 — shared UI kit for the top-level loading + error states.
-import { StatusBadge, Skeleton, ErrorState, TrustStrip } from '@/components/ui';
+import { StatusBadge, Skeleton, ErrorState } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
-import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
+import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import { getCategoryIcon } from '@/config/category-icons';
 import { useResponsive, byBreakpoint } from '@/hooks/useResponsive';
+import { useRequestFirstBooking } from '@/hooks/useRequestFirstBooking';
+import { useCategoryServiceCounts, withBookableServices } from '@/hooks/useCategoryServiceCounts';
+import { DESKTOP_SHELL_MIN_WIDTH, getForcedView } from '@/utils/responsive';
 import type { ComponentType } from 'react';
 import { buildRoute, Routes } from '@/config/navigation';
 import {
-  Sparkles,
-  Wrench,
-  Zap,
-  Paintbrush2,
-  Snowflake,
-  Bug,
-  Package,
-  Hammer,
-  Plug,
   Bell,
   Search,
-  Users,
-  Lock,
-  Home as HomeIcon,
+  MapPin,
   ChevronDown,
   ArrowRight,
+  ClipboardEdit,
+  Receipt,
+  CheckCircle2,
+  CalendarDays,
 } from '@/components/icons';
 import { isTesterFeedbackEnabled } from '@/components/feedback/SendFeedbackLink';
 import { FEEDBACK_BUTTON_CLEARANCE } from '@/components/feedback/TesterFeedbackButton';
@@ -81,22 +80,6 @@ async function getUnreadNotificationCount(): Promise<number> {
   return res.data.meta?.unread ?? 0;
 }
 
-const CATEGORY_ICONS: Record<string, IconComponent> = {
-  cleaning: Sparkles,
-  plumbing: Wrench,
-  electrical: Zap,
-  painting: Paintbrush2,
-  aircon: Snowflake,
-  'aircon-services': Snowflake,
-  pest: Bug,
-  'pest-control': Bug,
-  moving: Package,
-  carpentry: Hammer,
-  appliance: Plug,
-  'appliance-repair': Plug,
-  'general-maintenance': Hammer,
-};
-
 // App design refresh — rough completion % per booking status, drives the slim
 // progress bar on the home active-booking card. Falls back to 40% for any
 // unmapped status.
@@ -114,20 +97,83 @@ function statusProgress(status: string): number {
 // colors (replaces the old raw ALL-CAPS Badge that showed e.g. "PROVIDER EN
 // ROUTE").
 
+interface HowItWorksStep {
+  title: string;
+  Icon: IconComponent;
+}
+
+// Human audit 2026-10-13 (HA-DISC): a short, factual "How it works" row
+// replaces the home TrustStrip and the old 3-tile "How onService works"
+// footer. It states only what the app does today: no escrow, guarantee,
+// insurance or count claims (legal hold E10/F#10, LAUNCH-LIMITATIONS §23).
+// D38 request-first booking (default on): every service starts with a job
+// description and a pro sends the price.
+const REQUEST_FIRST_STEPS: HowItWorksStep[] = [
+  { title: 'Describe the job', Icon: ClipboardEdit },
+  { title: 'Get a price from a local pro', Icon: Receipt },
+  { title: 'Accept, book and pay in the app', Icon: CheckCircle2 },
+];
+// Admin switched request-first booking off: the old catalog flow, where some
+// services show a set price and others are quoted, is back.
+const CATALOG_STEPS: HowItWorksStep[] = [
+  { title: 'Choose a service', Icon: ClipboardEdit },
+  { title: 'Pick a date, time and address', Icon: CalendarDays },
+  { title: 'Pay in the app and track the job', Icon: CheckCircle2 },
+];
+
+type GridItem = Category | { id: string; spacer: true };
+
+function isSpacer(item: GridItem): item is { id: string; spacer: true } {
+  return (item as { spacer?: boolean }).spacer === true;
+}
+
+// Category grid geometry (shared with the styles below).
+const GRID_SIDE_PADDING = spacing.base;
+const GRID_GAP = spacing.sm;
+const TILE_PADDING_X = spacing.xs;
+const TILE_BORDER_WIDTH = 1;
+// Every tile must fit an 11-letter word such as "Landscaping" or "Maintenance"
+// on one line. Measured in Roboto 600 13px they are 74.4px and 75.6px, and
+// neither Android nor react-native-web shrinks a single word that wraps; they
+// split it mid-word instead ("Landscapin" / "g"). 80px leaves headroom for the
+// slightly wider iOS system font.
+const MIN_CATEGORY_LABEL_WIDTH = 80;
+
+/** Width left for a tile's label when the phone grid has `columns` columns. */
+function categoryLabelWidth(screenWidth: number, columns: number): number {
+  const tileWidth = (screenWidth - GRID_SIDE_PADDING * 2 - GRID_GAP * (columns - 1)) / columns;
+  return tileWidth - TILE_PADDING_X * 2 - TILE_BORDER_WIDTH * 2;
+}
+
+/** 4 columns when the labels fit (416dp and wider), otherwise 3. */
+function phoneCategoryColumns(screenWidth: number): number {
+  return categoryLabelWidth(screenWidth, 4) >= MIN_CATEGORY_LABEL_WIDTH ? 4 : 3;
+}
+
 export default function HomeScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
-  // Category grid widens to more columns on tablet/desktop (cards are flex:1).
-  const { breakpoint, isPhone } = useResponsive();
-  const categoryColumns = byBreakpoint(breakpoint, { phone: 2, tablet: 3, desktop: 4 });
+  const requestFirst = useRequestFirstBooking();
+  // Category grid: 4 columns on phones wide enough for every label (416dp
+  // and up), 3 on narrower phones, more on tablet and desktop. Every tile is
+  // the same width (see spacer padding).
+  const { breakpoint, isPhone, width } = useResponsive();
+  const categoryColumns = byBreakpoint(breakpoint, { phone: phoneCategoryColumns(width), tablet: 5, desktop: 6 });
   const setCategory = useBookingStore((s) => s.setCategory);
+  // On wide web the desktop frame (WebAppFrame, 1180px and up) already shows
+  // the onService brand in its side menu, so the phone wordmark would repeat it.
+  const { width: windowWidth } = useWindowDimensions();
+  const frameShowsBrand =
+    Platform.OS === 'web' && windowWidth >= DESKTOP_SHELL_MIN_WIDTH && getForcedView() !== 'mobile';
 
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
     queryFn: getCategories,
     staleTime: 24 * 60 * 60 * 1000,
   });
+
+  const serviceCountsQuery = useCategoryServiceCounts();
 
   const activeBookingsQuery = useQuery({
     queryKey: ['activeBookings'],
@@ -178,6 +224,7 @@ export default function HomeScreen(): React.ReactElement {
 
   const isRefreshing =
     categoriesQuery.isRefetching ||
+    serviceCountsQuery.isRefetching ||
     activeBookingsQuery.isRefetching ||
     recentBookingsQuery.isRefetching ||
     promosQuery.isRefetching ||
@@ -187,13 +234,14 @@ export default function HomeScreen(): React.ReactElement {
 
   const onRefresh = useCallback(() => {
     void categoriesQuery.refetch();
+    void serviceCountsQuery.refetch();
     void activeBookingsQuery.refetch();
     void recentBookingsQuery.refetch();
     void promosQuery.refetch();
     void sukiQuery.refetch();
     void unreadQuery.refetch();
     void addressesQuery.refetch();
-  }, [categoriesQuery, activeBookingsQuery, recentBookingsQuery, promosQuery, sukiQuery, unreadQuery, addressesQuery]);
+  }, [categoriesQuery, serviceCountsQuery, activeBookingsQuery, recentBookingsQuery, promosQuery, sukiQuery, unreadQuery, addressesQuery]);
 
   const handleCategoryPress = (cat: Category): void => {
     setCategory(cat.id, cat.name, cat.slug);
@@ -203,54 +251,40 @@ export default function HomeScreen(): React.ReactElement {
   const activeBookings = activeBookingsQuery.data ?? [];
   const recentBookings = recentBookingsQuery.data ?? [];
   const categories = categoriesQuery.data ?? [];
+  // Hide only categories we positively know have no active services.
+  const visibleCategories = withBookableServices(categories, serviceCountsQuery.data);
+  // Nothing to choose from: every category is known to be empty (or the
+  // catalog has none). Home says so instead of showing a blank grid.
+  const noBookableServices = categoriesQuery.isSuccess && visibleCategories.length === 0;
+  // Pad the last grid row with empty cells so every tile keeps the same width.
+  const remainder = visibleCategories.length % categoryColumns;
+  const gridItems: GridItem[] = remainder === 0
+    ? visibleCategories
+    : [
+      ...visibleCategories,
+      ...Array.from({ length: categoryColumns - remainder }, (_, i) => ({ id: `grid-spacer-${i}`, spacer: true as const })),
+    ];
   const promotions = promosQuery.data ?? [];
   const sukiProviders = sukiQuery.data ?? [];
   const unreadCount = unreadQuery.data ?? 0;
+  const howItWorksSteps = requestFirst ? REQUEST_FIRST_STEPS : CATALOG_STEPS;
+  const hasNoBookingsYet =
+    activeBookingsQuery.isSuccess &&
+    recentBookingsQuery.isSuccess &&
+    activeBookings.length === 0 &&
+    recentBookings.length === 0;
 
   const renderHeader = (): React.ReactElement => (
     <View>
-      {/* Header bar */}
+      {/* Header bar: brand wordmark on the left, notifications on the right. */}
       <View style={[styles.headerBar, { paddingTop: insets.top + spacing.sm }]}>
-        <TouchableOpacity
-          style={styles.avatarContainer}
-          onPress={() => router.push(Routes.TABS.PROFILE)}
-          accessibilityRole="button"
-          accessibilityLabel="Open customer profile"
-        >
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {user?.firstName?.[0]?.toUpperCase() ?? '?'}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.locationSelector}
-          onPress={() => router.push(Routes.CUSTOMER.ADDRESSES)}
-          accessibilityLabel={
-            addressesQuery.isError
-              ? 'Saved addresses unavailable. Open address management to retry.'
-              : headerAddress
-                ? `Default address: ${headerAddress.label} in ${headerAddress.city}. Tap to manage addresses.`
-                : 'No default address saved. Tap to add an address.'
-          }
-          accessibilityRole="button"
-        >
-          <Text style={styles.locationLabel}>Default Address</Text>
-          <View style={styles.locationValueRow}>
-            {/* Phase K MED-K09 fix — show selected location instead
-                 of generic placeholder. Phase 200 — the dropdown affordance
-                 is now a ChevronDown icon, not a ▾ glyph appended to the text. */}
-            <Text style={styles.locationValue} numberOfLines={1}>
-              {addressesQuery.isError
-                ? 'Address unavailable'
-                : headerAddress
-                  ? `${headerAddress.label} · ${headerAddress.city}`
-                  : 'Add an address'}
-            </Text>
-            <ChevronDown size={14} color={colors.text} />
-          </View>
-        </TouchableOpacity>
+        {frameShowsBrand ? (
+          <View style={styles.headerSpacer} />
+        ) : (
+          <Text style={styles.wordmark} accessibilityLabel="onService" testID="home-wordmark">
+            onService
+          </Text>
+        )}
 
         <TouchableOpacity
           style={styles.notifButton}
@@ -267,15 +301,63 @@ export default function HomeScreen(): React.ReactElement {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.welcomeBlock} accessibilityLabel="Customer home introduction">
-        <Text style={styles.welcomeTitle}>Welcome back{user?.firstName ? `, ${user.firstName}` : ''}</Text>
-        <Text style={styles.welcomeText}>What can we help you get done?</Text>
+      {/* Page title. Ken (2026-10-13): the first screen needs a clear name. */}
+      <View style={styles.titleBlock}>
+        {user?.firstName ? (
+          <Text style={styles.greeting}>Welcome back, {user.firstName}</Text>
+        ) : null}
+        <Text style={styles.pageTitle} accessibilityRole="header">Book a service</Text>
+        <Text style={styles.pageSubtitle}>
+          {requestFirst
+            ? 'Tell us what you need. A local pro sends you a price for your exact job, and you accept it in the app before any work starts.'
+            : 'Choose a service, check the details and book it in the app.'}
+        </Text>
+
+        <TouchableOpacity
+          style={styles.addressChip}
+          onPress={() => router.push(Routes.CUSTOMER.ADDRESSES)}
+          accessibilityLabel={
+            addressesQuery.isError
+              ? 'Saved addresses unavailable. Open address management to retry.'
+              : headerAddress
+                ? `Default address: ${headerAddress.label} in ${headerAddress.city}. Tap to manage addresses.`
+                : 'No default address saved. Tap to add an address.'
+          }
+          accessibilityRole="button"
+        >
+          <MapPin size={14} color={colors.primary} />
+          {/* Phase K MED-K09 fix — show the saved default address instead of a
+              generic placeholder. This manages saved addresses; the exact job
+              location is still chosen in the booking flow. */}
+          <Text style={styles.addressChipText} numberOfLines={1}>
+            {addressesQuery.isError
+              ? 'Address unavailable'
+              : headerAddress
+                ? `${headerAddress.label} · ${headerAddress.city}`
+                : 'Add an address'}
+          </Text>
+          <ChevronDown size={14} color={colors.textSecondary} />
+        </TouchableOpacity>
       </View>
+
+      {/* Search: asks for the problem in the customer's own words. */}
+      <Pressable
+        style={styles.searchBar}
+        onPress={() => router.push(Routes.CUSTOMER.SEARCH)}
+        accessibilityRole="button"
+        accessibilityLabel="Describe the problem to find a service"
+        testID="home-search-prompt"
+      >
+        <View style={styles.searchIconWrap}><Search size={18} color={colors.textSecondary} /></View>
+        <Text style={styles.searchPlaceholder} numberOfLines={1}>
+          Describe the problem, e.g. aircon not cooling
+        </Text>
+      </Pressable>
 
       {/* Active Booking Card */}
       {activeBookingsError && (
-        <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginHorizontal: 16, marginBottom: 8 }}>
-          <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load active bookings.</Text>
+        <View style={styles.inlineError}>
+          <Text style={styles.inlineErrorText}>Failed to load active bookings.</Text>
         </View>
       )}
       {activeBookings.length > 0 && (
@@ -325,30 +407,17 @@ export default function HomeScreen(): React.ReactElement {
               </View>
               <View style={styles.activeCardCta}>
                 <Text style={styles.trackText}>Track Status</Text>
-                <ArrowRight size={14} color={colors.white} />
+                <ArrowRight size={14} color={colors.primary} />
               </View>
             </TouchableOpacity>
           ))}
         </View>
       )}
 
-      {/* Search Bar */}
-      <Pressable
-        style={styles.searchBar}
-        onPress={() => router.push(Routes.CUSTOMER.SEARCH)}
-        accessibilityRole="button"
-        accessibilityLabel="Search services or providers"
-      >
-        <View style={styles.searchIconWrap}><Search size={16} color={colors.textTertiary} /></View>
-        <Text style={styles.searchPlaceholder}>Search services or providers...</Text>
-      </Pressable>
-
-      <TrustStrip style={styles.trustStrip} />
-
       {/* Promo Carousel */}
       {promosError && (
-        <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginHorizontal: 16, marginBottom: 8 }}>
-          <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load promotions.</Text>
+        <View style={styles.inlineError}>
+          <Text style={styles.inlineErrorText}>Failed to load promotions.</Text>
         </View>
       )}
       {promotions.length > 0 && (
@@ -399,6 +468,7 @@ export default function HomeScreen(): React.ReactElement {
                 {item.ctaText && (
                   <View style={styles.promoCta}>
                     <Text style={styles.promoCtaText}>{item.ctaText}</Text>
+                    <ArrowRight size={14} color={colors.primary} />
                   </View>
                 )}
               </TouchableOpacity>
@@ -408,35 +478,84 @@ export default function HomeScreen(): React.ReactElement {
       )}
 
       {/* Category Grid Header */}
-      <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>
-        What do you need?
+      <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]} accessibilityRole="header">
+        Choose a service
       </Text>
     </View>
   );
 
-  const renderCategoryItem = ({ item }: { item: Category }): React.ReactElement => {
-    const Icon = CATEGORY_ICONS[item.slug] ?? CATEGORY_ICONS[(item.name ?? '').toLowerCase()] ?? Hammer;
-    const tint = getCategoryTint(item.slug);
+  const renderCategoryItem = ({ item }: { item: GridItem }): React.ReactElement => {
+    if (isSpacer(item)) {
+      return <View style={styles.categorySpacer} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />;
+    }
+    const Icon = getCategoryIcon(item.slug, item.name);
     return (
       <TouchableOpacity
-        style={[styles.categoryCard, { backgroundColor: tint.bg }]}
+        style={styles.categoryTile}
         onPress={() => handleCategoryPress(item)}
         activeOpacity={0.8}
         accessibilityRole="button"
         accessibilityLabel={`Browse ${item.name} services`}
+        testID={`category-tile-${item.slug}`}
       >
-        <View style={styles.categoryChip}>
-          <Icon size={22} color={tint.fg} />
-        </View>
-        <Text style={[styles.categoryCardLabel, { color: tint.fg }]} numberOfLines={2}>
+        <Icon size={28} color={colors.primary} />
+        <Text
+          style={styles.categoryTileLabel}
+          numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.85}
+        >
           {item.name}
         </Text>
       </TouchableOpacity>
     );
   };
 
+  const renderNoBookableServices = (): React.ReactElement => (
+    <View style={styles.noServicesCard} testID="home-no-services">
+      <Text style={styles.noServicesTitle}>No services are open for booking yet</Text>
+      <Text style={styles.noServicesText}>Please check back soon.</Text>
+      <TouchableOpacity
+        style={styles.noServicesButton}
+        onPress={onRefresh}
+        accessibilityRole="button"
+        accessibilityLabel="Refresh the list of services"
+      >
+        <Text style={styles.noServicesButtonText}>Refresh</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   const renderFooter = (): React.ReactElement => (
     <View>
+      {/* How it works: Human audit 2026-10-13 (HA-DISC). Replaces the home */}
+      {/* TrustStrip and the old "How onService works" tiles (Bug 889). */}
+      {/* Factual steps only: no tap target, no peso amounts, no insurance, */}
+      {/* escrow or guarantee claims. */}
+      <View
+        style={styles.howItWorksSection}
+        testID="how-it-works-section"
+        accessibilityLabel={`How it works: ${howItWorksSteps.map((step, i) => `${i + 1}. ${step.title}`).join('. ')}.`}
+      >
+        <Text style={styles.howItWorksTitle}>How it works</Text>
+        <View style={styles.howItWorksRow}>
+          {howItWorksSteps.map((step, i) => (
+            <View key={step.title} style={styles.howItWorksStep}>
+              <View style={styles.howItWorksIconWrap}>
+                <step.Icon size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.howItWorksStepNumber}>Step {i + 1}</Text>
+              <Text style={styles.howItWorksStepTitle}>{step.title}</Text>
+            </View>
+          ))}
+        </View>
+        {hasNoBookingsYet && !noBookableServices && (
+          <Text style={styles.noBookingsHint}>
+            You have no bookings yet. Choose a service above to get started.
+          </Text>
+        )}
+      </View>
+
       {/* Suki Providers */}
       {sukiProviders.length > 0 && (
         <View style={styles.section}>
@@ -481,8 +600,8 @@ export default function HomeScreen(): React.ReactElement {
 
       {/* Quick Re-book */}
       {recentBookingsError && (
-        <View style={{ backgroundColor: colors.errorLight, padding: 12, borderRadius: 10, marginHorizontal: 16, marginBottom: 8 }}>
-          <Text style={{ color: colors.error, fontSize: 13, textAlign: 'center' }}>Failed to load recent bookings.</Text>
+        <View style={styles.inlineError}>
+          <Text style={styles.inlineErrorText}>Failed to load recent bookings.</Text>
         </View>
       )}
       {recentBookings.length > 0 && (
@@ -507,8 +626,9 @@ export default function HomeScreen(): React.ReactElement {
                   // by id from the cached list, set the booking-store
                   // category, and navigate to the category screen so
                   // the user can pick the same subcategory + addons
-                  // with fresh canonical pricing.
-                  const cat = categories.find((c) => c.id === item.categoryId);
+                  // with fresh canonical pricing. A category known to
+                  // have no active services opens the old booking instead.
+                  const cat = visibleCategories.find((c) => c.id === item.categoryId);
                   if (cat) {
                     setCategory(cat.id, cat.name, cat.slug);
                     router.push(buildRoute(Routes.CUSTOMER.CATEGORY, { id: cat.slug }));
@@ -526,52 +646,15 @@ export default function HomeScreen(): React.ReactElement {
                 {item.providerName && (
                   <Text style={styles.rebookProvider}>{item.providerName}</Text>
                 )}
+                {/* What the customer paid last time: a past fact, labelled so it
+                    does not read as the price of booking again (a pro prices
+                    the new job). */}
+                <Text style={styles.rebookPaidLabel}>You paid last time</Text>
                 <Text style={styles.rebookPrice}>{formatPHP(item.totalAmount)}</Text>
                 <Text style={styles.rebookCta}>Book Again</Text>
               </TouchableOpacity>
             )}
           />
-        </View>
-      )}
-
-      {/* How onService works — Bug 889 (Phase 14 D04 SiguradoShield pull). */}
-      {/* Replaces the old SiguradoShield insurance banner with informational */}
-      {/* trust claims only. No tap target, no peso amounts, no insurance copy. */}
-      <View style={styles.howItWorksSection} testID="how-it-works-section">
-        <Text style={styles.howItWorksTitle}>How onService works</Text>
-        <View style={[styles.howItWorksGrid, !isPhone && styles.howItWorksGridWide]}>
-          <View style={styles.howItWorksTile}>
-            <View style={styles.howItWorksIconWrap}><Search size={28} color={colors.primary} /></View>
-            <View style={styles.howItWorksTextWrap}>
-              <Text style={styles.howItWorksTileTitle}>Pick a service</Text>
-              <Text style={styles.howItWorksTileBody}>Browse trusted pros nearby.</Text>
-            </View>
-          </View>
-          <View style={styles.howItWorksTile}>
-            <View style={styles.howItWorksIconWrap}><Users size={28} color={colors.primary} /></View>
-            <View style={styles.howItWorksTextWrap}>
-              <Text style={styles.howItWorksTileTitle}>Get matched</Text>
-              <Text style={styles.howItWorksTileBody}>Choose from quotes or book directly.</Text>
-            </View>
-          </View>
-          <View style={styles.howItWorksTile}>
-            <View style={styles.howItWorksIconWrap}><Lock size={28} color={colors.primary} /></View>
-            <View style={styles.howItWorksTextWrap}>
-              <Text style={styles.howItWorksTileTitle}>Track payment</Text>
-              <Text style={styles.howItWorksTileBody}>Supported payments show paid and escrow status in the booking.</Text>
-            </View>
-          </View>
-        </View>
-      </View>
-
-      {/* Empty state for new users */}
-      {!activeBookingsError && !recentBookingsError && activeBookings.length === 0 && recentBookings.length === 0 && (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIconWrap}><HomeIcon size={48} color={colors.textSecondary} /></View>
-          <Text style={styles.emptyTitle}>Book your first service!</Text>
-          <Text style={styles.emptySubtitle}>
-            Choose a category above to get started with trusted home service professionals.
-          </Text>
         </View>
       )}
 
@@ -582,11 +665,17 @@ export default function HomeScreen(): React.ReactElement {
   if (categoriesQuery.isLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + spacing.base, paddingHorizontal: spacing.base }]}>
-        <Skeleton width="55%" height={26} style={{ marginBottom: spacing.base }} />
-        <Skeleton width="100%" height={110} borderRadius={borderRadius.lg} style={{ marginBottom: spacing.lg }} />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={String(i)} width={70} height={84} borderRadius={borderRadius.md} />
+        <Skeleton width="40%" height={22} style={{ marginBottom: spacing.base }} />
+        <Skeleton width="60%" height={28} style={{ marginBottom: spacing.sm }} />
+        <Skeleton width="100%" height={48} borderRadius={borderRadius.xl} style={{ marginBottom: spacing.lg }} />
+        <View style={styles.skeletonGrid}>
+          {Array.from({ length: categoryColumns * 2 }).map((_, i) => (
+            <Skeleton
+              key={String(i)}
+              width={`${Math.floor(100 / categoryColumns) - 3}%`}
+              height={92}
+              borderRadius={borderRadius.xl}
+            />
           ))}
         </View>
       </View>
@@ -611,12 +700,13 @@ export default function HomeScreen(): React.ReactElement {
       accessibilityLabel={isPhone ? 'Customer home' : 'Wide customer home workspace'}
     >
     <FlatList
-      data={categories}
+      data={gridItems}
       renderItem={renderCategoryItem}
       keyExtractor={(item) => item.id}
       key={`cats-${categoryColumns}`}
       numColumns={categoryColumns}
       ListHeaderComponent={renderHeader}
+      ListEmptyComponent={noBookableServices ? renderNoBookableServices : null}
       ListFooterComponent={renderFooter}
       columnWrapperStyle={styles.categoryRow}
       style={styles.list}
@@ -642,30 +732,45 @@ const styles = StyleSheet.create({
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
-    paddingBottom: spacing.base,
+    paddingBottom: spacing.sm,
     backgroundColor: colors.surfaceMuted,
   },
-  welcomeBlock: { paddingHorizontal: spacing.base, paddingBottom: spacing.base },
-  welcomeTitle: { ...typography.h1, color: colors.text, marginBottom: spacing.xs },
-  welcomeText: { ...typography.body, color: colors.textSecondary },
-  trustStrip: { marginHorizontal: spacing.base, marginBottom: spacing.base },
-  avatarContainer: { marginRight: spacing.md },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  headerSpacer: { flex: 1 },
+  wordmark: {
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: '700',
+    color: colors.primary,
+    letterSpacing: -0.2,
   },
-  avatarText: { color: colors.white, fontWeight: '700', fontSize: 18 },
-  locationSelector: { flex: 1 },
-  locationLabel: { ...typography.caption, color: colors.textTertiary },
-  locationValueRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locationValue: { ...typography.bodySmall, fontWeight: '600', color: colors.text, flexShrink: 1 },
+  titleBlock: { paddingHorizontal: spacing.base, paddingBottom: spacing.md },
+  greeting: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: 2 },
+  pageTitle: {
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: -0.2,
+  },
+  pageSubtitle: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
+  addressChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    minHeight: 36,
+    maxWidth: '100%',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.full,
+  },
+  addressChipText: { ...typography.bodySmall, fontWeight: '600', color: colors.text, flexShrink: 1 },
   notifButton: { padding: spacing.sm, position: 'relative' as const, minWidth: 44, minHeight: 44, justifyContent: 'center' as const, alignItems: 'center' as const },
-  notifIcon: { fontSize: 22 },
   notifBadge: {
     position: 'absolute' as const,
     top: 2,
@@ -684,6 +789,9 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
 
+  inlineError: { backgroundColor: colors.errorLight, padding: 12, borderRadius: borderRadius.lg, marginHorizontal: spacing.base, marginBottom: spacing.sm },
+  inlineErrorText: { color: colors.error, fontSize: 13, textAlign: 'center' },
+
   section: { paddingHorizontal: spacing.base, marginBottom: spacing.lg },
   sectionTitle: {
     ...typography.h3,
@@ -692,13 +800,15 @@ const styles = StyleSheet.create({
   },
   sectionTitleSpaced: {
     paddingHorizontal: spacing.base,
-    marginTop: spacing.base,
+    marginTop: spacing.xs,
     marginBottom: spacing.md,
   },
 
   activeCard: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.xl,
     padding: spacing.base,
     marginBottom: spacing.sm,
   },
@@ -708,27 +818,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  activeCardTime: { ...typography.caption, color: colors.white },
+  activeCardTime: { ...typography.caption, color: colors.textSecondary },
   activeCardService: {
     ...typography.h3,
-    color: colors.white,
+    color: colors.text,
     marginBottom: spacing.xs,
   },
   activeCardProvider: {
     ...typography.bodySmall,
-    color: colors.white,
+    color: colors.textSecondary,
     marginBottom: spacing.md,
   },
   activeCardCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
   trackText: {
     ...typography.bodySmall,
     fontWeight: '600',
-    color: colors.white,
+    color: colors.primary,
   },
   activeProgressTrack: {
     height: 5,
     borderRadius: 3,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.divider,
     overflow: 'hidden',
     marginTop: spacing.xs,
     marginBottom: spacing.md,
@@ -736,53 +846,75 @@ const styles = StyleSheet.create({
   activeProgressFill: {
     height: '100%',
     borderRadius: 3,
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.primary,
   },
 
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.xl,
     paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
+    minHeight: 52,
     marginHorizontal: spacing.base,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
   },
-  searchIcon: { fontSize: 16, marginRight: spacing.sm },
   searchIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
-  searchPlaceholder: { ...typography.body, color: colors.textTertiary },
+  searchPlaceholder: { ...typography.body, color: colors.textSecondary, flex: 1 },
 
   categoryRow: {
-    paddingHorizontal: spacing.base,
-    gap: spacing.md,
-    marginBottom: spacing.md,
+    paddingHorizontal: GRID_SIDE_PADDING,
+    gap: GRID_GAP,
+    marginBottom: spacing.sm,
   },
-  categoryCard: {
+  // One calm tile style for every category (Ken, 2026-10-13): white on the
+  // soft canvas, a solid 1px border, radius 12, brand-blue icon, label below.
+  categoryTile: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.base,
-    minHeight: 64,
-  },
-  categoryChip: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing.sm,
+    minHeight: 92,
+    paddingVertical: spacing.md,
+    paddingHorizontal: TILE_PADDING_X,
+    backgroundColor: colors.surface,
+    borderWidth: TILE_BORDER_WIDTH,
+    borderColor: colors.border,
+    borderRadius: borderRadius.xl,
   },
-  categoryCardLabel: {
-    ...typography.bodySmall,
+  categoryTileLabel: {
+    fontSize: 13,
+    lineHeight: 17,
     fontWeight: '600',
-    flex: 1,
+    color: colors.text,
+    textAlign: 'center',
   },
+  categorySpacer: { flex: 1 },
+  noServicesCard: {
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+    padding: spacing.base,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.xl,
+    alignItems: 'flex-start',
+  },
+  noServicesTitle: { ...typography.body, fontWeight: '600', color: colors.text },
+  noServicesText: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
+  noServicesButton: {
+    marginTop: spacing.md,
+    minHeight: 44,
+    paddingHorizontal: spacing.base,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.lg,
+  },
+  noServicesButtonText: { ...typography.bodySmall, fontWeight: '600', color: colors.primary },
+  skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
 
   sectionHeaderRow: {
     flexDirection: 'row' as const,
@@ -798,8 +930,10 @@ const styles = StyleSheet.create({
   sukiList: { paddingRight: spacing.base, gap: spacing.md },
   sukiCard: {
     width: 120,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.xl,
     padding: spacing.md,
     alignItems: 'center' as const,
   },
@@ -807,12 +941,12 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryLight,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     marginBottom: spacing.sm,
   },
-  sukiAvatarText: { color: colors.white, fontWeight: '700' as const, fontSize: 20 },
+  sukiAvatarText: { color: colors.primary, fontWeight: '700' as const, fontSize: 20 },
   sukiName: {
     ...typography.caption,
     fontWeight: '600' as const,
@@ -829,7 +963,7 @@ const styles = StyleSheet.create({
   },
   sukiDiscount: {
     ...typography.caption,
-    color: colors.statusCompleted,
+    color: colors.success,
     fontWeight: '600' as const,
     marginBottom: spacing.sm,
   },
@@ -838,7 +972,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderWidth: 1,
     borderColor: colors.primary,
-    borderRadius: borderRadius.sm,
+    borderRadius: borderRadius.md,
     minHeight: 44,
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
@@ -852,8 +986,10 @@ const styles = StyleSheet.create({
   rebookList: { paddingRight: spacing.base, gap: spacing.md },
   rebookCard: {
     width: 160,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.xl,
     padding: spacing.md,
   },
   rebookService: {
@@ -867,9 +1003,14 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
+  rebookPaidLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
   rebookPrice: {
     ...typography.priceSmall,
-    color: colors.primary,
+    color: colors.text,
     marginBottom: spacing.sm,
   },
   rebookCta: {
@@ -879,34 +1020,37 @@ const styles = StyleSheet.create({
   },
 
   promoSection: {
-    marginBottom: spacing.sm,
+    marginBottom: spacing.base,
   },
   promoList: {
     paddingHorizontal: spacing.base,
     gap: spacing.md,
   },
+  // White bordered card with a brand-blue accent edge (no solid-blue block).
   promoCard: {
     width: 280,
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+    borderRadius: borderRadius.xl,
     padding: spacing.base,
-    minHeight: 120,
+    minHeight: 112,
     justifyContent: 'flex-end' as const,
-    position: 'relative' as const,
     overflow: 'hidden' as const,
   },
   promoBadge: {
-    position: 'absolute' as const,
-    top: spacing.sm,
-    left: spacing.sm,
-    backgroundColor: colors.secondary,
+    alignSelf: 'flex-start' as const,
+    backgroundColor: colors.primaryLight,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: borderRadius.sm,
+    marginBottom: spacing.sm,
   },
   promoBadgeText: {
     ...typography.caption,
-    color: colors.text,
+    color: colors.primary,
     fontWeight: '700' as const,
     fontSize: 10,
     textTransform: 'uppercase' as const,
@@ -914,43 +1058,24 @@ const styles = StyleSheet.create({
   promoTitle: {
     ...typography.body,
     fontWeight: '700' as const,
-    color: colors.white,
+    color: colors.text,
     marginBottom: 4,
   },
   promoSubtitle: {
     ...typography.bodySmall,
-    color: colors.white,
+    color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
   promoCta: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     alignSelf: 'flex-start' as const,
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
+    gap: 4,
   },
   promoCtaText: {
-    ...typography.caption,
+    ...typography.bodySmall,
     color: colors.primary,
     fontWeight: '700' as const,
-  },
-
-  emptyState: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xxl,
-  },
-  emptyIcon: { fontSize: 64, marginBottom: spacing.base },
-  emptyIconWrap: { marginBottom: spacing.base, alignItems: 'center' as const },
-  emptyTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  emptySubtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
   },
 
   // SiguradoShield banner styles removed — Bug 889 (Phase 14 D04 pull).
@@ -959,42 +1084,40 @@ const styles = StyleSheet.create({
 
   howItWorksSection: {
     marginHorizontal: spacing.base,
-    marginTop: spacing.lg,
-  },
-  howItWorksTitle: {
-    ...typography.h2,
-    color: colors.text,
-    fontSize: 19,
-    marginBottom: spacing.md,
-  },
-  howItWorksGrid: {
-    gap: spacing.sm,
-  },
-  howItWorksGridWide: { flexDirection: 'row' },
-  howItWorksTile: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.base,
+    marginTop: spacing.base,
+    marginBottom: spacing.lg,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    flex: 1,
+    borderRadius: borderRadius.xl,
+    padding: spacing.base,
   },
-  howItWorksIconWrap: { marginRight: spacing.md, width: 32, alignItems: 'center' as const },
-  howItWorksTextWrap: { flex: 1 },
-  howItWorksTileTitle: { ...typography.body, fontWeight: '600', color: colors.text, marginBottom: 2 },
-  howItWorksTileBody: { ...typography.bodySmall, color: colors.textSecondary },
+  howItWorksTitle: {
+    ...typography.h3,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  howItWorksRow: { flexDirection: 'row', gap: spacing.sm },
+  howItWorksStep: { flex: 1, alignItems: 'flex-start' },
+  howItWorksIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: spacing.sm,
+  },
+  howItWorksStepNumber: { ...typography.caption, color: colors.textSecondary, marginBottom: 2 },
+  howItWorksStepTitle: { fontSize: 13, lineHeight: 18, fontWeight: '600', color: colors.text },
+  noBookingsHint: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
 
   bottomSpacer: { height: 80 },
-  centeredState: { alignItems: 'center' as const, justifyContent: 'center' as const },
-  loadingText: { ...typography.body, color: colors.textSecondary, marginTop: spacing.base },
-  retryBtn: {
-    marginTop: spacing.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-  },
-  retryText: { ...typography.body, color: colors.white, fontWeight: '600' as const },
 });

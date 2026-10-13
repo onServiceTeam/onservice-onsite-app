@@ -33,5 +33,5 @@ appId: ph.onservice.app
 - inputText: "000000"
 # Auto-verifies at 6 digits and lands on the customer home surface.
 - extendedWaitUntil:
-    visible: "Active Bookings|What do you need\?"
+    visible: "Active Bookings|Book a service"
     timeout: 15000

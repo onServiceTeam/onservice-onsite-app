@@ -28,7 +28,11 @@ it('Bug UX-648 — the home address control truthfully manages the saved default
   render(<QueryClientProvider client={client}><HomeScreen /></QueryClientProvider>);
 
   const address = await screen.findByRole('button', { name: /default address: home in mandaue city/i });
-  expect(screen.getByText('Default Address')).toBeTruthy();
+  // Human audit 2026-10-13 (HA-DISC): the address is now a compact chip under
+  // the "Book a service" title (map pin, label and city) instead of a
+  // "Default Address" caption row; the accessible name still says it is the
+  // saved default address.
+  expect(address.textContent).toContain('Home · Mandaue City');
   fireEvent.click(address);
   expect(mockPush).toHaveBeenCalledWith('/customer/addresses');
 });

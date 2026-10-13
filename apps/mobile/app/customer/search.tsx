@@ -12,11 +12,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
-import { getCategories, type Subcategory } from '@/services/catalog.service';
+import { getCategories, type Category, type Subcategory } from '@/services/catalog.service';
 import { useBookingStore } from '@/stores/booking.store';
 import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { Star, Clock, MapPin, Filter, ChevronLeft, Search } from '@/components/icons';
+import { Star, Clock, MapPin, Filter, ChevronLeft, ChevronRight, Search } from '@/components/icons';
+import { useRequestFirstBooking } from '@/hooks/useRequestFirstBooking';
+import { useCategoryServiceCounts, withBookableServices } from '@/hooks/useCategoryServiceCounts';
 // A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState, SectionHeader } from '@/components/ui';
 // Phase 14 R5-complete — FilterModal for advanced search filters.
@@ -54,6 +56,60 @@ const TIER_LABELS: Record<string, string> = {
   elite: 'Elite',
 };
 
+// Human audit 2026-10-13 (HA-DISC): the home search now asks customers to
+// describe the problem ("aircon not cooling"). The catalog search matches the
+// whole phrase, so a sentence often finds nothing. When that happens, these
+// everyday problem words point to the category that handles them, so the
+// customer still has a next step. Values are fragments found in category
+// slugs or names (for example "plumb" matches "plumbing").
+const PROBLEM_WORDS: Readonly<Record<string, string>> = {
+  ac: 'aircon',
+  aircon: 'aircon',
+  aircond: 'aircon',
+  cooling: 'aircon',
+  leak: 'plumb',
+  leaking: 'plumb',
+  pipe: 'plumb',
+  pipes: 'plumb',
+  toilet: 'plumb',
+  faucet: 'plumb',
+  drain: 'plumb',
+  clogged: 'plumb',
+  outlet: 'electric',
+  wiring: 'electric',
+  breaker: 'electric',
+  termite: 'pest',
+  termites: 'pest',
+  cockroach: 'pest',
+  cockroaches: 'pest',
+  rats: 'pest',
+  fridge: 'appliance',
+  ref: 'appliance',
+  refrigerator: 'appliance',
+  roof: 'roof',
+  garden: 'landscap',
+  grass: 'landscap',
+};
+// Common words that would match the wrong category ("Aircon Services",
+// "Appliance Repair") if used as fragments on their own.
+const IGNORED_WORDS = new Set(['repair', 'service', 'services', 'fix', 'fixing', 'broken', 'need', 'help', 'please', 'with', 'from', 'that', 'this', 'have', 'there']);
+
+/** Categories whose slug or name relates to words in a free-text problem. */
+function findRelatedCategories(text: string, categories: Category[]): Category[] {
+  const fragments = new Set<string>();
+  for (const word of text.toLowerCase().split(/[^a-z0-9]+/)) {
+    if (!word || IGNORED_WORDS.has(word)) continue;
+    const mapped = PROBLEM_WORDS[word];
+    if (mapped) fragments.add(mapped);
+    if (word.length >= 4) fragments.add(word);
+  }
+  if (fragments.size === 0) return [];
+  return categories.filter((category) => {
+    const haystack = `${category.slug} ${category.name}`.toLowerCase();
+    return Array.from(fragments).some((fragment) => haystack.includes(fragment));
+  });
+}
+
 export default function SearchScreen(): React.ReactElement {
   const router = useRouter();
   const { q: requestedQuery } = useLocalSearchParams<{ q?: string | string[] }>();
@@ -61,6 +117,10 @@ export default function SearchScreen(): React.ReactElement {
   const { isPhone } = useResponsive();
   const setCategory = useBookingStore((s) => s.setCategory);
   const setSubcategory = useBookingStore((s) => s.setSubcategory);
+  // D38 (Ken, 2026-10-13): while request-first booking is on (the default),
+  // results show no set price and every service opens the describe-your-job
+  // request. Off restores the old priced results and routing below.
+  const requestFirst = useRequestFirstBooking();
   const initialQuery = (Array.isArray(requestedQuery) ? requestedQuery[0] : requestedQuery)?.trim().slice(0, 100) ?? '';
   const [query, setQuery] = useState(initialQuery);
   const [searchTerm, setSearchTerm] = useState(initialQuery.length >= 2 ? initialQuery : '');
@@ -81,6 +141,12 @@ export default function SearchScreen(): React.ReactElement {
     staleTime: 24 * 60 * 60 * 1000,
   });
   const categories = Array.isArray(categoriesQuery.data) ? categoriesQuery.data : [];
+  // Human audit 2026-10-13 (HA-DISC): the browse chips and the problem
+  // suggestions only offer categories that have services, the same rule as the
+  // home grid, so a chip never opens a "No services yet" dead end. The filter
+  // sheet keeps every category.
+  const serviceCountsQuery = useCategoryServiceCounts();
+  const bookableCategories = withBookableServices(categories, serviceCountsQuery.data);
 
   const { data, isLoading, isError, isFetched, refetch } = useQuery({
     queryKey: ['search', searchTerm, selectedCategories.join(','), minimumRating ?? ''],
@@ -115,6 +181,9 @@ export default function SearchScreen(): React.ReactElement {
   }
 
   const totalResults = (data?.services?.length ?? 0) + (data?.providers?.length ?? 0);
+  const relatedCategories = totalResults === 0 && searchTerm.length >= 2
+    ? findRelatedCategories(searchTerm, bookableCategories)
+    : [];
 
   const handleSearch = useCallback(() => {
     if (query.trim().length >= 2) setSearchTerm(query.trim());
@@ -122,6 +191,13 @@ export default function SearchScreen(): React.ReactElement {
 
   const handleSelectService = (item: Subcategory): void => {
     setCategory(item.categoryId, item.categoryName ?? '', item.categorySlug ?? '');
+    if (requestFirst) {
+      // Same draft values and route the quote path uses, for every pricing
+      // type. No price is carried; the accepted quote sets it on the server.
+      setSubcategory(item.id, item.name, 0, { description: item.description, pricingType: item.pricingType });
+      router.push(Routes.CUSTOMER.BOOKING_JOB_REQUEST);
+      return;
+    }
     // The catalog serializer value is 'quote' (DB CHECK migration 003), not
     // 'quote_based' (that is the bookings.booking_type value). Same fix as
     // customer/category/[id].tsx — a quote subcategory with a base_price set was
@@ -152,6 +228,30 @@ export default function SearchScreen(): React.ReactElement {
   };
 
   const renderItem = ({ item }: { item: SearchItem }): React.ReactElement => {
+    if (item.type === 'service' && requestFirst) {
+      const svc = item.data;
+      const description = svc.description?.trim() ?? '';
+      return (
+        <TouchableOpacity
+          style={[styles.resultCard, styles.resultCardCentered]}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${svc.name} service`}
+          onPress={() => handleSelectService(svc)}
+          activeOpacity={0.7}
+          testID={`search-service-${svc.id}`}
+        >
+          <View style={styles.resultContent}>
+            <Text style={styles.resultName}>{svc.name}</Text>
+            {svc.categoryName ? <Text style={styles.resultCategory}>{svc.categoryName}</Text> : null}
+            {description ? (
+              <Text style={styles.resultDescOneLine} numberOfLines={1}>{description}</Text>
+            ) : null}
+          </View>
+          <ChevronRight size={20} color={colors.textTertiary} />
+        </TouchableOpacity>
+      );
+    }
+
     if (item.type === 'service') {
       const svc = item.data;
       const scope = getServiceScopeCopy(svc.description, svc.pricingType);
@@ -262,7 +362,7 @@ export default function SearchScreen(): React.ReactElement {
           value={query}
           onChangeText={setQuery}
           onSubmitEditing={handleSearch}
-          placeholder="Search services or providers..."
+          placeholder="Describe the problem or name a service"
           placeholderTextColor={colors.textTertiary}
           returnKeyType="search"
           maxLength={100}
@@ -315,7 +415,7 @@ export default function SearchScreen(): React.ReactElement {
         <View style={[styles.suggestWrap, !isPhone && styles.suggestWrapWide]}>
           <Text style={styles.suggestTitle}>Browse services</Text>
           <View style={styles.suggestChips}>
-            {categories.slice(0, 12).map((c) => (
+            {bookableCategories.slice(0, 12).map((c) => (
               <TouchableOpacity
                 key={c.slug}
                 style={styles.suggestChip}
@@ -338,6 +438,24 @@ export default function SearchScreen(): React.ReactElement {
       {!isLoading && !isError && isFetched && searchTerm.length >= 2 && totalResults === 0 && (
         // BUG-PHASE176-01 — no-results state has a real "Browse Categories" CTA.
         <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
+          {relatedCategories.length > 0 ? (
+            <View style={styles.relatedWrap} accessibilityLabel="Services that may fit your problem">
+              <Text style={styles.relatedTitle}>Services that may fit</Text>
+              <View style={styles.suggestChips}>
+                {relatedCategories.slice(0, 6).map((c) => (
+                  <TouchableOpacity
+                    key={c.slug}
+                    style={styles.suggestChip}
+                    onPress={() => router.push(buildRoute(Routes.CUSTOMER.CATEGORY, { id: c.slug }))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Browse ${c.name}`}
+                  >
+                    <Text style={styles.suggestChipText}>{c.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ) : null}
           <EmptyState
             icon={<Search size={48} color={colors.textTertiary} />}
             title={`No results for "${searchTerm}"`}
@@ -440,12 +558,17 @@ const styles = StyleSheet.create({
   resultCard: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.xl,
     padding: spacing.base,
     marginBottom: spacing.md,
   },
+  resultCardCentered: { alignItems: 'center', minHeight: 64 },
+  resultCategory: { ...typography.caption, color: colors.textSecondary, marginTop: -2 },
+  resultDescOneLine: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },
+  relatedWrap: { marginBottom: spacing.base },
+  relatedTitle: { ...typography.h3, color: colors.text, marginBottom: spacing.md },
   resultContent: { flex: 1, marginRight: spacing.base },
   resultName: { ...typography.h3, color: colors.text, marginBottom: spacing.xs },
   scopePending: { ...typography.caption, color: colors.warningDark, fontWeight: '700', marginBottom: spacing.xs },

@@ -21,6 +21,8 @@ it('Bug UX-391 — the customer service catalog uses a bounded wide grid with na
   render(<QueryClientProvider client={client}><SubcategoryListScreen /></QueryClientProvider>);
 
   expect(await screen.findByLabelText('Tablet and desktop service catalog')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'View Deep Cleaning service details' })).toBeTruthy();
+  // Human audit 2026-10-13 (D38 request-first booking, the default): a row
+  // now opens the describe-your-job request, so its accessible name says so.
+  expect(screen.getByRole('button', { name: 'Choose Deep Cleaning and describe your job' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Go back from services' })).toBeTruthy();
 });

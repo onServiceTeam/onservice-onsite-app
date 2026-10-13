@@ -21,11 +21,15 @@ jest.mock('@/services/api', () => ({
 
 import HomeScreen from '../app/(tabs)/home';
 
-it('Bug UX-228 — customer home describes payment status tracking instead of confirmation-only escrow protection', async () => {
+// Human audit 2026-10-13 (HA-DISC) removed the old "Track payment" tile (and
+// its escrow-status line) together with the TrustStrip. The home screen now
+// only says that the customer accepts, books and pays in the app; it makes no
+// escrow claim at all (legal hold E10/F#10). This test asserts that truth.
+it('Bug UX-228 — customer home says payment happens in the app and makes no escrow-protection claim', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<QueryClientProvider client={client}><HomeScreen /></QueryClientProvider>);
+  const { container } = render(<QueryClientProvider client={client}><HomeScreen /></QueryClientProvider>);
 
-  expect(await screen.findByText('Track payment')).toBeTruthy();
-  expect(screen.getByText(/Supported payments show paid and escrow status in the booking/i)).toBeTruthy();
+  expect(await screen.findByText('Accept, book and pay in the app')).toBeTruthy();
   expect(screen.queryByText(/Payment held in escrow until you confirm/i)).toBeNull();
+  expect(container.textContent).not.toMatch(/escrow/i);
 });

@@ -65,29 +65,25 @@ export const colors = {
   statusCancelled: '#9CA3AF',
 } as const;
 
-// App design refresh (2026-06) — soft per-category tints for service tiles,
-// icon chips, and accents. Each pair is a light fill + its own dark-enough text
-// color from the same family (passes contrast). Keyed by category slug; falls
-// back to the brand teal for unknown categories. See getCategoryTint().
-export const categoryTints: Record<string, { bg: string; fg: string }> = {
-  cleaning: { bg: '#E1F5EE', fg: '#0F6E56' },
-  aircon: { bg: '#E6F1FB', fg: '#185FA5' },
-  'aircon-services': { bg: '#E6F1FB', fg: '#185FA5' },
-  plumbing: { bg: '#FAEEDA', fg: '#854F0B' },
-  electrical: { bg: '#FBEAF0', fg: '#993556' },
-  carpentry: { bg: '#FAECE7', fg: '#993C1D' },
-  painting: { bg: '#EEEDFE', fg: '#534AB7' },
-  pest: { bg: '#EAF3DE', fg: '#3B6D11' },
-  'pest-control': { bg: '#EAF3DE', fg: '#3B6D11' },
-  appliance: { bg: '#E6F1FB', fg: '#185FA5' },
-  'appliance-repair': { bg: '#E6F1FB', fg: '#185FA5' },
-  moving: { bg: '#FAEEDA', fg: '#854F0B' },
-  'general-maintenance': { bg: '#F1EFE8', fg: '#5F5E5A' },
+// Human audit 2026-10-13 (Ken's notes, HA-DISC): one calm, neutral tint for
+// every service category. The June 2026 refresh gave each category its own
+// pastel colour (none of them in docs/design-system/tokens.json), and that
+// rainbow is a large part of why testers said the app "looks like a game".
+// The fill is the brand primaryLight and the foreground is the brand primary
+// (#003D9B), the same pair for every key.
+export const categoryTint: { readonly bg: string; readonly fg: string } = {
+  bg: colors.primaryLight,
+  fg: colors.primary,
 };
 
-export function getCategoryTint(slug?: string | null): { bg: string; fg: string } {
-  const key = (slug ?? '').toLowerCase();
-  return categoryTints[key] ?? { bg: colors.primaryLight, fg: colors.primary };
+/**
+ * Tint for a category chip or accent. Kept as a function with the original
+ * signature because addresses, payment methods, booking and provider job
+ * screens also call it (with category names, address labels and payment
+ * types). It now returns the same neutral brand pair for every key.
+ */
+export function getCategoryTint(_key?: string | null): { bg: string; fg: string } {
+  return { bg: categoryTint.bg, fg: categoryTint.fg };
 }
 
 export const spacing = {

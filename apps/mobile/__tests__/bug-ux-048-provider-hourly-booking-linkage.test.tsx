@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import api from '@/services/api';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
@@ -42,6 +43,13 @@ import { useBookingStore } from '../src/stores/booking.store';
 it('Bug UX-048 — provider profile uses the canonical hourly catalog rate when starting a booking', async () => {
   mockPush.mockClear();
   useBookingStore.getState().reset();
+  // Human audit 2026-10-13 (D38): this test covers the old catalog flow, which
+  // now runs only when admin turns the request_first_booking setting off. The
+  // config response below is that admin switch. The request-first default is
+  // covered by HA-07 (ha-07-provider-profile-request-first.real.test.tsx).
+  (api.get as jest.Mock).mockImplementation(async (url: string) => (url === '/api/v1/config'
+    ? { data: { success: true, data: { requestFirstBooking: false } } }
+    : { data: {} }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   render(<QueryClientProvider client={client}><ProviderProfileScreen /></QueryClientProvider>);
 

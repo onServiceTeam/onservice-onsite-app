@@ -11,19 +11,12 @@ import { ProviderApplicationDraftActions } from '@/components/ProviderApplicatio
 import { applicationFieldsFromStore } from '@/services/provider-application-draft.service';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { useResponsive } from '@/hooks/useResponsive';
-import type { ComponentType } from 'react';
-import { Sparkles, Wrench, Zap, Paintbrush2, Snowflake, Bug, Package, Hammer, Plug, AlertTriangle, Check } from '@/components/icons';
+import { AlertTriangle, Check } from '@/components/icons';
+// Human audit 2026-10-13 (HA-DISC): one shared category icon map for the
+// customer home, the category screen and provider onboarding.
+import { getCategoryIcon } from '@/config/category-icons';
 
 import { Routes } from '@/config/navigation';
-type IconProps = { size?: number; color?: string };
-type IconComponent = ComponentType<IconProps>;
-
-const CATEGORY_ICONS: Record<string, IconComponent> = {
-  cleaning: Sparkles, plumbing: Wrench, electrical: Zap, painting: Paintbrush2,
-  aircon: Snowflake, 'aircon-services': Snowflake, pest: Bug, 'pest-control': Bug,
-  moving: Package, carpentry: Hammer, appliance: Plug, 'appliance-repair': Plug,
-  'general-maintenance': Hammer,
-};
 
 export default function CategoriesScreen(): React.ReactElement {
   const router = useRouter();
@@ -64,7 +57,7 @@ export default function CategoriesScreen(): React.ReactElement {
 
   const renderCategory = ({ item }: { item: Category }): React.ReactElement => {
     const isSelected = selected.has(item.id);
-    const Icon = CATEGORY_ICONS[item.slug] ?? Hammer;
+    const Icon = getCategoryIcon(item.slug, item.name);
     const tint = getCategoryTint(item.slug);
     return (
       <TouchableOpacity

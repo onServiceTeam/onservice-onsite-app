@@ -4,14 +4,15 @@
 // source-regex check.
 
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+const mockPush = jest.fn();
 jest.mock('@/services/catalog.service', () => ({
   getSubcategories: jest.fn().mockResolvedValue({ categoryName: 'Cleaning', subcategories: [] }),
 }));
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
+  useRouter: () => ({ back: jest.fn(), push: mockPush }),
   useLocalSearchParams: () => ({ id: 'cleaning' }),
 }));
 
@@ -25,15 +26,22 @@ function renderScreen(): { container: HTMLElement } {
   return { container };
 }
 
+// Human audit 2026-10-13 (HA-DISC): 4 of 10 live categories have no services.
+// The empty state now says so plainly and its button reads "Back to services"
+// (was "Browse Other Categories"); it still returns the customer to the
+// service grid on Home.
 describe('BUG-PHASE184-01 — category empty CTA (real render)', () => {
-  it('shows the empty state with a Browse Other Categories button when there are no services', async () => {
+  it('shows the empty state with a Back to services button that returns to the service grid', async () => {
     const { container } = renderScreen();
     await waitFor(() => {
       expect(container.textContent).toContain('No services yet');
     });
+    expect(container.textContent).toContain('No services are listed in this category right now.');
     const cta = Array.from(container.querySelectorAll('button')).find((b) =>
-      (b.textContent ?? '').includes('Browse Other Categories'),
+      (b.textContent ?? '').includes('Back to services'),
     );
     expect(cta).toBeTruthy();
+    fireEvent.click(cta!);
+    expect(mockPush).toHaveBeenCalledWith('/(tabs)/home');
   });
 });
